@@ -44,6 +44,10 @@ type OAuthRecord struct {
 	oauth.Record
 }
 
+type recordHeader struct {
+	Type agentzv1alpha1.SecretType `json:"type"`
+}
+
 func (StaticRecord) record() {}
 
 func (OAuthRecord) record() {}
@@ -60,9 +64,7 @@ func RecordType(raw map[string]any) (agentzv1alpha1.SecretType, error) {
 		return "", fmt.Errorf("marshal runtime record header: %w", err)
 	}
 
-	var header struct {
-		Type agentzv1alpha1.SecretType `json:"type"`
-	}
+	var header recordHeader
 	if err := json.Unmarshal(payload, &header); err != nil {
 		return "", fmt.Errorf("decode runtime record header: %w", err)
 	}

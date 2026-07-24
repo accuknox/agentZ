@@ -1,6 +1,11 @@
 nameOverride: ""
 fullnameOverride: ""
 
+inference:
+  externalSecrets:
+    storeName: agentz-inference
+    refreshInterval: 1m
+
 replicaCount: 1
 
 image:

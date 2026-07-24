@@ -576,7 +576,8 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any) *failure {
 		}
 		return badRequest("request body is invalid", err)
 	}
-	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
 		return badRequest("request body must contain one json object", err)
 	}
 	return nil

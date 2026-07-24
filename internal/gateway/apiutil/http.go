@@ -110,7 +110,8 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty 
 			},
 		)
 	}
-	if err := dec.Decode(&struct{}{}); err != io.EOF {
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
 		return NewError(
 			http.StatusBadRequest,
 			"invalid_request",

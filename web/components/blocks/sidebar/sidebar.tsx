@@ -20,6 +20,7 @@ import { NavSandboxes } from "./sandboxes"
 import { NavSkills } from "./skills"
 import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
+import { NavInference } from "./inference"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user?: {
@@ -48,6 +49,7 @@ export async function AppSidebar({ user, ...sidebarProps }: AppSidebarProps) {
           </Suspense>
           <NavSandboxes />
           <NavSecrets />
+          <NavInference />
           <NavMCPs />
           <NavSkills />
           <NavWorkflows />

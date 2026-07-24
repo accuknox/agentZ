@@ -318,7 +318,7 @@ function DeleteAPIKeyButton({
           <DropdownMenuContent align="end">
             <DropdownMenuGroup>
               <DropdownMenuItem
-                className="text-destructive"
+                variant="destructive"
                 onSelect={(event) => {
                   event.preventDefault()
                   setOpen(true)

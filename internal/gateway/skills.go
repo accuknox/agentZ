@@ -355,9 +355,7 @@ func (s *Service) listSkillReferences(ctx context.Context, namespace string) (ma
 
 	for _, agt := range agents.Items {
 		names := append([]string{}, agt.Spec.Skills...)
-		if agt.Spec.SandboxRef != nil {
-			names = append(names, sandboxSkills[agt.Spec.SandboxRef.Name]...)
-		}
+		names = append(names, sandboxSkills[agt.Spec.SandboxRef.Name]...)
 		for _, name := range names {
 			if agentRefs[name] == nil {
 				agentRefs[name] = map[string]struct{}{}
@@ -399,9 +397,6 @@ func (s *Service) effectiveAgentSkills(ctx context.Context, namespace string, ag
 	out := make(map[string]struct{}, len(agt.Spec.Skills))
 	for _, name := range agt.Spec.Skills {
 		out[name] = struct{}{}
-	}
-	if agt.Spec.SandboxRef == nil {
-		return out, nil
 	}
 	sandbox := &agentzv1alpha1.Sandbox{}
 	key = types.NamespacedName{Name: agt.Spec.SandboxRef.Name, Namespace: namespace}
@@ -1024,7 +1019,7 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 	}
 	values := make(map[string][]string)
 	var bundle skill.Bundle
-	hasFile := false
+	var hasFile bool
 	for {
 		part, err := reader.NextPart()
 		if errors.Is(err, io.EOF) {

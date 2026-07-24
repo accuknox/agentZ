@@ -202,6 +202,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 			AllowedHosts:      allowedHosts,
 			MCPConnectionRefs: mcpConnectionRefs,
 			Skills:            slices.Clone(skills),
+			Inference:         sandboxInferenceFromAPI(req.Inference),
 		},
 	}
 
@@ -236,9 +237,9 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	sandbox := &agentzv1alpha1.Sandbox{}
 	sandbox.Name = name
 	sandbox.Namespace = ns
-	agentName, err := sandboxutil.ReferencingAgentName(
+	agentNames, err := sandboxutil.ReferencingAgentNames(
 		r.Context(),
-		s.k8sClient,
+		s.usageReader,
 		ns,
 		name,
 	)
@@ -246,11 +247,11 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		writeInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
 		return
 	}
-	if agentName != "" {
+	if len(agentNames) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"sandbox_referenced",
-			"sandbox is referenced by agent "+agentName,
+			"sandbox is referenced by agent "+agentNames[0],
 			errBadRequest,
 		))
 		return
@@ -359,6 +360,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		sandbox.Spec.AllowedHosts = allowedHosts
 		sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
 		sandbox.Spec.Skills = slices.Clone(skills)
+		sandbox.Spec.Inference = sandboxInferenceFromAPI(req.Inference)
 
 		if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
 			return updateErr
@@ -371,9 +373,9 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		return
 	}
 
-	agentName, err := sandboxutil.ReferencingAgentName(
+	agentNames, err := sandboxutil.ReferencingAgentNames(
 		r.Context(),
-		s.k8sClient,
+		s.usageReader,
 		ns,
 		updated.Name,
 	)
@@ -381,7 +383,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		writeInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, agentName != ""))
+	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0))
 }
 
 func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandbox {
@@ -417,11 +419,60 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandb
 		McpConnectionRefs: mcpConnectionRefs,
 		Skills:            append([]gatewayapi.SkillName{}, sb.Spec.Skills...),
 		CreatedAt:         sb.CreationTimestamp.Time,
+		Inference:         sandboxInferenceToAPI(sb.Spec.Inference),
 	}
 	out.Metadata.PackageCount = int32(len(packages))
 	out.Metadata.AllowedHostCount = int32(len(allowedHosts))
 	out.Metadata.SkillCount = int32(len(sb.Spec.Skills))
 	out.Metadata.ReferencedByAgent = referenced
+	return out
+}
+
+func sandboxInferenceFromAPI(value gatewayapi.SandboxInference) agentzv1alpha1.SandboxInference {
+	models := make([]agentzv1alpha1.InferenceModelRef, 0, len(value.Models))
+	for _, model := range value.Models {
+		models = append(models, agentzv1alpha1.InferenceModelRef{
+			Provider: model.Provider,
+			Model:    model.Model,
+		})
+	}
+	out := agentzv1alpha1.SandboxInference{
+		Models: models,
+		DefaultModel: agentzv1alpha1.InferenceModelRef{
+			Provider: value.DefaultModel.Provider,
+			Model:    value.DefaultModel.Model,
+		},
+	}
+	if value.SmallModel != nil {
+		out.SmallModel = &agentzv1alpha1.InferenceModelRef{
+			Provider: value.SmallModel.Provider,
+			Model:    value.SmallModel.Model,
+		}
+	}
+	return out
+}
+
+func sandboxInferenceToAPI(value agentzv1alpha1.SandboxInference) gatewayapi.SandboxInference {
+	models := make([]gatewayapi.SandboxInferenceModelRef, 0, len(value.Models))
+	for _, model := range value.Models {
+		models = append(models, gatewayapi.SandboxInferenceModelRef{
+			Provider: model.Provider,
+			Model:    model.Model,
+		})
+	}
+	out := gatewayapi.SandboxInference{
+		Models: models,
+		DefaultModel: gatewayapi.SandboxInferenceModelRef{
+			Provider: value.DefaultModel.Provider,
+			Model:    value.DefaultModel.Model,
+		},
+	}
+	if value.SmallModel != nil {
+		out.SmallModel = &gatewayapi.SandboxInferenceModelRef{
+			Provider: value.SmallModel.Provider,
+			Model:    value.SmallModel.Model,
+		}
+	}
 	return out
 }
 

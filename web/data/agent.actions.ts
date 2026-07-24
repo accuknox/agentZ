@@ -54,20 +54,11 @@ export async function updateAgentFormAction(
     return invalidAgentFormState(parsed.error)
   }
 
-  const opencode =
-    parsed.data.model || parsed.data.smallModel
-      ? {
-          ...(parsed.data.model ? { model: parsed.data.model } : {}),
-          ...(parsed.data.smallModel ? { smallModel: parsed.data.smallModel } : {}),
-        }
-      : undefined
-
   const result = await updateAgent({
     body: {
       sandboxName: parsed.data.sandboxName,
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
-      ...(opencode ? { opencode } : {}),
     },
     client: getGatewayServerClient(),
     path: { agentName },

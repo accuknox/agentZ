@@ -93,6 +93,16 @@ export type RenameAgentEntryRequest = {
 export type SandboxName = string
 
 /**
+ * Stable tenant-scoped inference provider ID.
+ */
+export type InferenceProviderName = string
+
+/**
+ * Stable tenant-scoped inference Pool ID.
+ */
+export type InferencePoolName = string
+
+/**
  * Immutable Skill resource name.
  */
 export type SkillName = string
@@ -504,17 +514,7 @@ export type UpdateAgentRequest = {
 }
 
 export type AgentOpencodeConfig = {
-  model?: string
-  smallModel?: string
   instruction?: string
-  providers?: {
-    [key: string]: AgentOpencodeProviderConfig
-  }
-}
-
-export type AgentOpencodeProviderConfig = {
-  env?: Array<string>
-  baseURL?: string
 }
 
 export type ListTracesResponse = {
@@ -868,6 +868,7 @@ export type Sandbox = {
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
   skills: Array<SkillName>
+  inference: SandboxInference
   created_at: string
   metadata: {
     package_count: number
@@ -888,6 +889,7 @@ export type CreateSandboxRequest = {
   allowed_hosts?: Array<string>
   mcp_connection_refs?: Array<McpConnectionRef>
   skills?: Array<SkillName>
+  inference: SandboxInference
 }
 
 export type UpdateSandboxRequest = {
@@ -895,6 +897,498 @@ export type UpdateSandboxRequest = {
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
   skills: Array<SkillName>
+  inference: SandboxInference
+}
+
+export type SandboxInferenceModelRef = {
+  provider: InferenceProviderName
+  model: string
+}
+
+export type SandboxInference = {
+  models: Array<SandboxInferenceModelRef>
+  default_model: SandboxInferenceModelRef
+  small_model?: SandboxInferenceModelRef
+}
+
+export type InferenceProviderKind =
+  | "OpenAI"
+  | "OpenAICodex"
+  | "Anthropic"
+  | "Gemini"
+  | "GitHubCopilot"
+  | "OpenAICompatible"
+  | "AnthropicCompatible"
+  | "Bedrock"
+  | "VertexAI"
+  | "Azure"
+
+export type InferenceModelApi = "ChatCompletions" | "Responses" | "Messages"
+
+export type InferenceModelModality = "text" | "audio" | "image" | "video" | "pdf"
+
+export type InferenceModelCapabilities = {
+  attachment: boolean
+  reasoning: boolean
+  temperature: boolean
+  tool_call: boolean
+}
+
+export type InferenceModelModalities = {
+  input: Array<InferenceModelModality>
+  output: Array<InferenceModelModality>
+}
+
+export type InferenceModelLimits = {
+  context: number
+  input?: number
+  output: number
+}
+
+export type InferenceModel = {
+  id: string
+  display_name: string
+  capabilities: InferenceModelCapabilities
+  modalities: InferenceModelModalities
+  limits: InferenceModelLimits
+  api?: InferenceModelApi
+  catalog_provider?: string
+}
+
+export type InferenceProviderHeader = {
+  name: string
+  value: string
+}
+
+export type OpenAiProviderConfig = {
+  base_url?: string
+}
+
+export type AnthropicProviderConfig = {
+  base_url?: string
+}
+
+export type GeminiProviderConfig = {
+  base_url?: string
+}
+
+export type VertexAiProviderConfig = {
+  project: string
+  region: string
+}
+
+export type BedrockProviderConfig = {
+  region: string
+  auth_mode: "AccessKey" | "BearerToken"
+}
+
+export type AzureProviderConfig = {
+  resource_type: "OpenAI" | "Foundry"
+  resource_name: string
+  project?: string
+  api_version: string
+  auth_mode: "APIKey" | "ServicePrincipal"
+}
+
+export type CompatibleProviderConfig = {
+  base_url: string
+  path?: string
+  path_prefix?: string
+  auth_mode: "None" | "APIKey"
+  auth_header?: string
+  auth_prefix?: string
+  headers?: Array<InferenceProviderHeader>
+  allow_private_endpoint?: boolean
+  skip_tls_verify?: boolean
+}
+
+export type InferenceProviderApiKeyCredentials = {
+  api_key?: string
+}
+
+export type InferenceProviderVertexCredentials = {
+  service_account_json?: string
+}
+
+export type InferenceProviderBedrockCredentials = {
+  access_key?: string
+  secret_key?: string
+  session_token?: string
+  bearer_token?: string
+}
+
+export type InferenceProviderAzureCredentials = {
+  api_key?: string
+  client_id?: string
+  tenant_id?: string
+  client_secret?: string
+}
+
+export type InferenceProviderOAuthCredentials = {
+  access_token: string
+  refresh_token?: string
+  id_token?: string
+  expires_at?: string
+}
+
+export type CreateInferenceProviderOAuthTicketRequest = {
+  kind: "OpenAICodex" | "GitHubCopilot"
+}
+
+export type CreateInferenceProviderOAuthTicketResponse = {
+  ticket: string
+  expires_at: string
+  models: Array<InferenceModelSuggestion>
+  provenance: InferenceModelSuggestionsProvenance
+}
+
+export type InferenceProviderReadFields = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+}
+
+export type OpenAiInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "OpenAI"
+  openai: OpenAiProviderConfig
+}
+
+export type OpenAiCodexInferenceProviderWrite = {
+  catalog_provider: "openai"
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "OpenAICodex"
+}
+
+export type AnthropicInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Anthropic"
+  anthropic: AnthropicProviderConfig
+}
+
+export type GeminiInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Gemini"
+  gemini: GeminiProviderConfig
+}
+
+export type GitHubCopilotInferenceProviderWrite = {
+  catalog_provider: "github-copilot"
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "GitHubCopilot"
+}
+
+export type VertexAiInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "VertexAI"
+  vertex_ai: VertexAiProviderConfig
+}
+
+export type BedrockInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Bedrock"
+  bedrock: BedrockProviderConfig
+}
+
+export type AzureInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Azure"
+  azure: AzureProviderConfig
+}
+
+export type OpenAiCompatibleInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "OpenAICompatible"
+  openai_compatible: CompatibleProviderConfig
+}
+
+export type AnthropicCompatibleInferenceProviderWrite = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "AnthropicCompatible"
+  anthropic_compatible: CompatibleProviderConfig
+}
+
+export type InferenceProviderWriteDiscriminator =
+  | ({
+      kind: "OpenAI"
+    } & OpenAiInferenceProviderWrite)
+  | ({
+      kind: "OpenAICodex"
+    } & OpenAiCodexInferenceProviderWrite)
+  | ({
+      kind: "Anthropic"
+    } & AnthropicInferenceProviderWrite)
+  | ({
+      kind: "Gemini"
+    } & GeminiInferenceProviderWrite)
+  | ({
+      kind: "GitHubCopilot"
+    } & GitHubCopilotInferenceProviderWrite)
+  | ({
+      kind: "VertexAI"
+    } & VertexAiInferenceProviderWrite)
+  | ({
+      kind: "Bedrock"
+    } & BedrockInferenceProviderWrite)
+  | ({
+      kind: "Azure"
+    } & AzureInferenceProviderWrite)
+  | ({
+      kind: "OpenAICompatible"
+    } & OpenAiCompatibleInferenceProviderWrite)
+  | ({
+      kind: "AnthropicCompatible"
+    } & AnthropicCompatibleInferenceProviderWrite)
+
+export type OpenAiInferenceProviderRead = {
+  kind: "OpenAI"
+  openai: OpenAiProviderConfig
+}
+
+export type OpenAiCodexInferenceProviderRead = {
+  kind: "OpenAICodex"
+}
+
+export type AnthropicInferenceProviderRead = {
+  kind: "Anthropic"
+  anthropic: AnthropicProviderConfig
+}
+
+export type GeminiInferenceProviderRead = {
+  kind: "Gemini"
+  gemini: GeminiProviderConfig
+}
+
+export type GitHubCopilotInferenceProviderRead = {
+  kind: "GitHubCopilot"
+}
+
+export type VertexAiInferenceProviderRead = {
+  kind: "VertexAI"
+  vertex_ai: VertexAiProviderConfig
+}
+
+export type BedrockInferenceProviderRead = {
+  kind: "Bedrock"
+  bedrock: BedrockProviderConfig
+}
+
+export type AzureInferenceProviderRead = {
+  kind: "Azure"
+  azure: AzureProviderConfig
+}
+
+export type OpenAiCompatibleInferenceProviderRead = {
+  kind: "OpenAICompatible"
+  openai_compatible: CompatibleProviderConfig
+}
+
+export type AnthropicCompatibleInferenceProviderRead = {
+  kind: "AnthropicCompatible"
+  anthropic_compatible: CompatibleProviderConfig
+}
+
+export type InferenceProviderReadDiscriminator =
+  | ({
+      kind: "OpenAI"
+    } & OpenAiInferenceProviderRead)
+  | ({
+      kind: "OpenAICodex"
+    } & OpenAiCodexInferenceProviderRead)
+  | ({
+      kind: "Anthropic"
+    } & AnthropicInferenceProviderRead)
+  | ({
+      kind: "Gemini"
+    } & GeminiInferenceProviderRead)
+  | ({
+      kind: "GitHubCopilot"
+    } & GitHubCopilotInferenceProviderRead)
+  | ({
+      kind: "VertexAI"
+    } & VertexAiInferenceProviderRead)
+  | ({
+      kind: "Bedrock"
+    } & BedrockInferenceProviderRead)
+  | ({
+      kind: "Azure"
+    } & AzureInferenceProviderRead)
+  | ({
+      kind: "OpenAICompatible"
+    } & OpenAiCompatibleInferenceProviderRead)
+  | ({
+      kind: "AnthropicCompatible"
+    } & AnthropicCompatibleInferenceProviderRead)
+
+export type CreateInferenceProviderRequest = {
+  provider: InferenceProviderWriteDiscriminator
+  oauth_ticket?: string
+}
+
+export type UpdateInferenceProviderRequest = {
+  resource_version: string
+  provider: InferenceProviderWriteDiscriminator
+}
+
+export type InferenceProviderCondition = {
+  type: string
+  status: "True" | "False" | "Unknown"
+  reason: string
+  message: string
+}
+
+export type InferenceProvider = InferenceProviderReadFields &
+  InferenceProviderReadDiscriminator & {
+    id: InferenceProviderName
+    resource_version: string
+    state: "Accepted" | "Ready" | "Degraded"
+    conditions: Array<InferenceProviderCondition>
+    model_count: number
+    usage_count: number
+    created_at: string
+    updated_at: string
+  }
+
+export type ListInferenceProvidersResponse = {
+  providers: Array<InferenceProvider>
+  next_page_token: string
+}
+
+export type WatchInferenceProvidersRequest = {
+  provider_ids?: Array<InferenceProviderName>
+}
+
+export type WatchInferenceProvidersEvent = {
+  providers: Array<InferenceProvider>
+}
+
+export type InferenceProviderUsage = {
+  provider: InferenceProviderName
+  pools: Array<InferencePoolName>
+  sandboxes: Array<SandboxName>
+}
+
+export type InferencePoolMember = {
+  provider: InferenceProviderName
+  model: string
+}
+
+export type InferencePoolWrite = {
+  display_name: string
+  automatic_failover: boolean
+  members: Array<InferencePoolMember>
+}
+
+export type CreateInferencePoolRequest = InferencePoolWrite
+
+export type UpdateInferencePoolRequest = {
+  resource_version: string
+  pool: InferencePoolWrite
+}
+
+export type InferenceProtocol = "OpenAI" | "Anthropic"
+
+export type InferencePoolState = "Accepted" | "Ready" | "PartiallyDegraded" | "Degraded"
+
+export type InferencePoolContract = {
+  api: InferenceModelApi
+  capabilities: InferenceModelCapabilities
+  modalities: InferenceModelModalities
+  limits: InferenceModelLimits
+}
+
+export type InferencePoolWarning = {
+  code: "MixedProtocols"
+  message: string
+}
+
+export type InferencePoolMemberStatus = {
+  provider: InferenceProviderName
+  model: string
+  protocol: InferenceProtocol
+  ready: boolean
+  reason: string
+  message: string
+}
+
+export type InferencePool = {
+  id: InferencePoolName
+  display_name: string
+  resource_version: string
+  automatic_failover: boolean
+  members: Array<InferencePoolMember>
+  state: InferencePoolState
+  conditions: Array<InferenceProviderCondition>
+  contract?: InferencePoolContract
+  protocol?: InferenceProtocol
+  warnings: Array<InferencePoolWarning>
+  member_statuses: Array<InferencePoolMemberStatus>
+  usage_count: number
+  created_at: string
+  updated_at: string
+}
+
+export type ListInferencePoolsResponse = {
+  pools: Array<InferencePool>
+  next_page_token: string
+}
+
+export type WatchInferencePoolsRequest = {
+  pool_ids?: Array<InferencePoolName>
+}
+
+export type WatchInferencePoolsEvent = {
+  pools: Array<InferencePool>
+}
+
+export type InferencePoolUsage = {
+  pool: InferencePoolName
+  sandboxes: Array<SandboxName>
+}
+
+export type InferenceProviderCatalogEntry = {
+  provider_id: string
+  name: string
+  provider_kind: InferenceProviderKind
+  base_url?: string
+  base_url_template?: string
+  auth_header?: string
+  auth_prefix?: string
+  documentation_url?: string
+}
+
+export type InferenceProviderCatalog = {
+  commit: string
+  providers: Array<InferenceProviderCatalogEntry>
+}
+
+export type InferenceModelSuggestion = InferenceModel & {
+  catalog_provider: string
+}
+
+export type InferenceModelSuggestionsProvenance = "live" | "cache" | "snapshot"
+
+export type InferenceModelSuggestions = {
+  provenance: InferenceModelSuggestionsProvenance
+  models: Array<InferenceModelSuggestion>
 }
 
 export type McpConnectionRef = {
@@ -1033,6 +1527,141 @@ export type McpConnectionOAuthCredentials = {
   revocation?: JsonObject
 }
 
+export type WorkflowRunInputsWritable = JsonValueWritable
+
+export type JsonValueWritable =
+  | boolean
+  | number
+  | string
+  | Array<JsonValueWritable>
+  | {
+      [key: string]: JsonValueWritable
+    }
+  | null
+
+export type JsonObjectWritable = {
+  [key: string]: JsonValueWritable
+}
+
+export type CreateInferenceProviderOAuthTicketRequestWritable = {
+  kind: "OpenAICodex" | "GitHubCopilot"
+  credentials: InferenceProviderOAuthCredentials
+}
+
+export type OpenAiInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "OpenAI"
+  openai: OpenAiProviderConfig
+  credentials: InferenceProviderApiKeyCredentials
+}
+
+export type AnthropicInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Anthropic"
+  anthropic: AnthropicProviderConfig
+  credentials: InferenceProviderApiKeyCredentials
+}
+
+export type GeminiInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Gemini"
+  gemini: GeminiProviderConfig
+  credentials: InferenceProviderApiKeyCredentials
+}
+
+export type VertexAiInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "VertexAI"
+  vertex_ai: VertexAiProviderConfig
+  credentials: InferenceProviderVertexCredentials
+}
+
+export type BedrockInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Bedrock"
+  bedrock: BedrockProviderConfig
+  credentials: InferenceProviderBedrockCredentials
+}
+
+export type AzureInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "Azure"
+  azure: AzureProviderConfig
+  credentials: InferenceProviderAzureCredentials
+}
+
+export type OpenAiCompatibleInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "OpenAICompatible"
+  openai_compatible: CompatibleProviderConfig
+  credentials: InferenceProviderApiKeyCredentials
+}
+
+export type AnthropicCompatibleInferenceProviderWriteWritable = {
+  catalog_provider: string
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "AnthropicCompatible"
+  anthropic_compatible: CompatibleProviderConfig
+  credentials: InferenceProviderApiKeyCredentials
+}
+
+export type InferenceProviderWriteDiscriminatorWritable =
+  | ({
+      kind: "OpenAI"
+    } & OpenAiInferenceProviderWriteWritable)
+  | ({
+      kind: "OpenAICodex"
+    } & OpenAiCodexInferenceProviderWrite)
+  | ({
+      kind: "Anthropic"
+    } & AnthropicInferenceProviderWriteWritable)
+  | ({
+      kind: "Gemini"
+    } & GeminiInferenceProviderWriteWritable)
+  | ({
+      kind: "GitHubCopilot"
+    } & GitHubCopilotInferenceProviderWrite)
+  | ({
+      kind: "VertexAI"
+    } & VertexAiInferenceProviderWriteWritable)
+  | ({
+      kind: "Bedrock"
+    } & BedrockInferenceProviderWriteWritable)
+  | ({
+      kind: "Azure"
+    } & AzureInferenceProviderWriteWritable)
+  | ({
+      kind: "OpenAICompatible"
+    } & OpenAiCompatibleInferenceProviderWriteWritable)
+  | ({
+      kind: "AnthropicCompatible"
+    } & AnthropicCompatibleInferenceProviderWriteWritable)
+
+export type CreateInferenceProviderRequestWritable = {
+  provider: InferenceProviderWriteDiscriminatorWritable
+  oauth_ticket?: string
+}
+
+export type UpdateInferenceProviderRequestWritable = {
+  resource_version: string
+  provider: InferenceProviderWriteDiscriminatorWritable
+}
+
 /**
  * Agent name.
  */
@@ -1047,6 +1676,16 @@ export type AgentNameQueryOptional = AgentName
  * Agent name.
  */
 export type AgentNamePath = AgentName
+
+/**
+ * Stable inference provider ID.
+ */
+export type InferenceProviderNamePath = InferenceProviderName
+
+/**
+ * Stable inference Pool ID.
+ */
+export type InferencePoolNamePath = InferencePoolName
 
 /**
  * Path relative to the agent workspace root.
@@ -2976,6 +3615,680 @@ export type CreateSandboxResponses = {
 
 export type CreateSandboxResponse = CreateSandboxResponses[keyof CreateSandboxResponses]
 
+export type ListInferenceProvidersData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/inference/provider"
+}
+
+export type ListInferenceProvidersErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListInferenceProvidersError =
+  ListInferenceProvidersErrors[keyof ListInferenceProvidersErrors]
+
+export type ListInferenceProvidersResponses = {
+  /**
+   * Paginated inference providers.
+   */
+  200: ListInferenceProvidersResponse
+}
+
+export type ListInferenceProvidersResponse2 =
+  ListInferenceProvidersResponses[keyof ListInferenceProvidersResponses]
+
+export type CreateInferenceProviderData = {
+  body: CreateInferenceProviderRequestWritable
+  path?: never
+  query?: never
+  url: "/api/inference/provider"
+}
+
+export type CreateInferenceProviderErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateInferenceProviderError =
+  CreateInferenceProviderErrors[keyof CreateInferenceProviderErrors]
+
+export type CreateInferenceProviderResponses = {
+  /**
+   * Provider created.
+   */
+  201: InferenceProvider
+}
+
+export type CreateInferenceProviderResponse =
+  CreateInferenceProviderResponses[keyof CreateInferenceProviderResponses]
+
+export type CreateInferenceProviderOAuthTicketData = {
+  body: CreateInferenceProviderOAuthTicketRequestWritable
+  path?: never
+  query?: never
+  url: "/api/inference/provider/oauth-ticket"
+}
+
+export type CreateInferenceProviderOAuthTicketErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateInferenceProviderOAuthTicketError =
+  CreateInferenceProviderOAuthTicketErrors[keyof CreateInferenceProviderOAuthTicketErrors]
+
+export type CreateInferenceProviderOAuthTicketResponses = {
+  /**
+   * Single-use provider ticket and non-secret model metadata.
+   */
+  201: CreateInferenceProviderOAuthTicketResponse
+}
+
+export type CreateInferenceProviderOAuthTicketResponse2 =
+  CreateInferenceProviderOAuthTicketResponses[keyof CreateInferenceProviderOAuthTicketResponses]
+
+export type DeleteInferenceProviderData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference provider ID.
+     */
+    providerName: InferenceProviderName
+  }
+  query?: never
+  url: "/api/inference/provider/{providerName}"
+}
+
+export type DeleteInferenceProviderErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteInferenceProviderError =
+  DeleteInferenceProviderErrors[keyof DeleteInferenceProviderErrors]
+
+export type DeleteInferenceProviderResponses = {
+  /**
+   * Provider deletion accepted.
+   */
+  204: void
+}
+
+export type DeleteInferenceProviderResponse =
+  DeleteInferenceProviderResponses[keyof DeleteInferenceProviderResponses]
+
+export type GetInferenceProviderData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference provider ID.
+     */
+    providerName: InferenceProviderName
+  }
+  query?: never
+  url: "/api/inference/provider/{providerName}"
+}
+
+export type GetInferenceProviderErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetInferenceProviderError = GetInferenceProviderErrors[keyof GetInferenceProviderErrors]
+
+export type GetInferenceProviderResponses = {
+  /**
+   * Inference provider.
+   */
+  200: InferenceProvider
+}
+
+export type GetInferenceProviderResponse =
+  GetInferenceProviderResponses[keyof GetInferenceProviderResponses]
+
+export type UpdateInferenceProviderData = {
+  body: UpdateInferenceProviderRequestWritable
+  path: {
+    /**
+     * Stable inference provider ID.
+     */
+    providerName: InferenceProviderName
+  }
+  query?: never
+  url: "/api/inference/provider/{providerName}"
+}
+
+export type UpdateInferenceProviderErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateInferenceProviderError =
+  UpdateInferenceProviderErrors[keyof UpdateInferenceProviderErrors]
+
+export type UpdateInferenceProviderResponses = {
+  /**
+   * Provider updated.
+   */
+  200: InferenceProvider
+}
+
+export type UpdateInferenceProviderResponse =
+  UpdateInferenceProviderResponses[keyof UpdateInferenceProviderResponses]
+
+export type WatchInferenceProvidersData = {
+  body?: WatchInferenceProvidersRequest
+  path?: never
+  query?: never
+  url: "/api/inference/provider/watch"
+}
+
+export type WatchInferenceProvidersErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchInferenceProvidersError =
+  WatchInferenceProvidersErrors[keyof WatchInferenceProvidersErrors]
+
+export type WatchInferenceProvidersResponses = {
+  /**
+   * Stream of inference provider updates.
+   */
+  200: WatchInferenceProvidersEvent
+}
+
+export type WatchInferenceProvidersResponse =
+  WatchInferenceProvidersResponses[keyof WatchInferenceProvidersResponses]
+
+export type GetInferenceProviderUsageData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference provider ID.
+     */
+    providerName: InferenceProviderName
+  }
+  query?: never
+  url: "/api/inference/provider/{providerName}/usage"
+}
+
+export type GetInferenceProviderUsageErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetInferenceProviderUsageError =
+  GetInferenceProviderUsageErrors[keyof GetInferenceProviderUsageErrors]
+
+export type GetInferenceProviderUsageResponses = {
+  /**
+   * Provider usage.
+   */
+  200: InferenceProviderUsage
+}
+
+export type GetInferenceProviderUsageResponse =
+  GetInferenceProviderUsageResponses[keyof GetInferenceProviderUsageResponses]
+
+export type RefreshInferenceProviderModelsData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference provider ID.
+     */
+    providerName: InferenceProviderName
+  }
+  query?: never
+  url: "/api/inference/provider/{providerName}/models"
+}
+
+export type RefreshInferenceProviderModelsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type RefreshInferenceProviderModelsError =
+  RefreshInferenceProviderModelsErrors[keyof RefreshInferenceProviderModelsErrors]
+
+export type RefreshInferenceProviderModelsResponses = {
+  /**
+   * Current subscription model suggestions.
+   */
+  200: InferenceModelSuggestions
+}
+
+export type RefreshInferenceProviderModelsResponse =
+  RefreshInferenceProviderModelsResponses[keyof RefreshInferenceProviderModelsResponses]
+
+export type ListInferenceProviderCatalogData = {
+  body?: never
+  path?: never
+  query?: {
+    q?: string
+  }
+  url: "/api/inference/provider/catalog"
+}
+
+export type ListInferenceProviderCatalogErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListInferenceProviderCatalogError =
+  ListInferenceProviderCatalogErrors[keyof ListInferenceProviderCatalogErrors]
+
+export type ListInferenceProviderCatalogResponses = {
+  /**
+   * Supported provider/runtime variants.
+   */
+  200: InferenceProviderCatalog
+}
+
+export type ListInferenceProviderCatalogResponse =
+  ListInferenceProviderCatalogResponses[keyof ListInferenceProviderCatalogResponses]
+
+export type ListInferenceModelSuggestionsData = {
+  body?: never
+  path: {
+    catalogProvider: string
+  }
+  query: {
+    provider_kind: InferenceProviderKind
+  }
+  url: "/api/inference/provider/catalog/{catalogProvider}/models"
+}
+
+export type ListInferenceModelSuggestionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListInferenceModelSuggestionsError =
+  ListInferenceModelSuggestionsErrors[keyof ListInferenceModelSuggestionsErrors]
+
+export type ListInferenceModelSuggestionsResponses = {
+  /**
+   * Model suggestions with cache provenance.
+   */
+  200: InferenceModelSuggestions
+}
+
+export type ListInferenceModelSuggestionsResponse =
+  ListInferenceModelSuggestionsResponses[keyof ListInferenceModelSuggestionsResponses]
+
+export type ListInferencePoolsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/inference/pool"
+}
+
+export type ListInferencePoolsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListInferencePoolsError = ListInferencePoolsErrors[keyof ListInferencePoolsErrors]
+
+export type ListInferencePoolsResponses = {
+  /**
+   * Paginated inference Pools.
+   */
+  200: ListInferencePoolsResponse
+}
+
+export type ListInferencePoolsResponse2 =
+  ListInferencePoolsResponses[keyof ListInferencePoolsResponses]
+
+export type CreateInferencePoolData = {
+  body: InferencePoolWrite
+  path?: never
+  query?: never
+  url: "/api/inference/pool"
+}
+
+export type CreateInferencePoolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateInferencePoolError = CreateInferencePoolErrors[keyof CreateInferencePoolErrors]
+
+export type CreateInferencePoolResponses = {
+  /**
+   * Pool created.
+   */
+  201: InferencePool
+}
+
+export type CreateInferencePoolResponse =
+  CreateInferencePoolResponses[keyof CreateInferencePoolResponses]
+
+export type DeleteInferencePoolData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference/pool/{poolName}"
+}
+
+export type DeleteInferencePoolErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteInferencePoolError = DeleteInferencePoolErrors[keyof DeleteInferencePoolErrors]
+
+export type DeleteInferencePoolResponses = {
+  /**
+   * Pool deletion accepted.
+   */
+  204: void
+}
+
+export type DeleteInferencePoolResponse =
+  DeleteInferencePoolResponses[keyof DeleteInferencePoolResponses]
+
+export type GetInferencePoolData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference/pool/{poolName}"
+}
+
+export type GetInferencePoolErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetInferencePoolError = GetInferencePoolErrors[keyof GetInferencePoolErrors]
+
+export type GetInferencePoolResponses = {
+  /**
+   * Inference Pool.
+   */
+  200: InferencePool
+}
+
+export type GetInferencePoolResponse = GetInferencePoolResponses[keyof GetInferencePoolResponses]
+
+export type UpdateInferencePoolData = {
+  body: UpdateInferencePoolRequest
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference/pool/{poolName}"
+}
+
+export type UpdateInferencePoolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateInferencePoolError = UpdateInferencePoolErrors[keyof UpdateInferencePoolErrors]
+
+export type UpdateInferencePoolResponses = {
+  /**
+   * Pool updated.
+   */
+  200: InferencePool
+}
+
+export type UpdateInferencePoolResponse =
+  UpdateInferencePoolResponses[keyof UpdateInferencePoolResponses]
+
+export type GetInferencePoolUsageData = {
+  body?: never
+  path: {
+    /**
+     * Stable inference Pool ID.
+     */
+    poolName: InferencePoolName
+  }
+  query?: never
+  url: "/api/inference/pool/{poolName}/usage"
+}
+
+export type GetInferencePoolUsageErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetInferencePoolUsageError =
+  GetInferencePoolUsageErrors[keyof GetInferencePoolUsageErrors]
+
+export type GetInferencePoolUsageResponses = {
+  /**
+   * Pool usage.
+   */
+  200: InferencePoolUsage
+}
+
+export type GetInferencePoolUsageResponse =
+  GetInferencePoolUsageResponses[keyof GetInferencePoolUsageResponses]
+
+export type WatchInferencePoolsData = {
+  body?: WatchInferencePoolsRequest
+  path?: never
+  query?: never
+  url: "/api/inference/pool/watch"
+}
+
+export type WatchInferencePoolsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchInferencePoolsError = WatchInferencePoolsErrors[keyof WatchInferencePoolsErrors]
+
+export type WatchInferencePoolsResponses = {
+  /**
+   * Stream of inference Pool updates.
+   */
+  200: WatchInferencePoolsEvent
+}
+
+export type WatchInferencePoolsResponse =
+  WatchInferencePoolsResponses[keyof WatchInferencePoolsResponses]
+
 export type DeleteSandboxData = {
   body?: never
   path: {
@@ -3704,7 +5017,7 @@ export type CreateWorkflowRunResponses = {
 export type CreateWorkflowRunResponse = CreateWorkflowRunResponses[keyof CreateWorkflowRunResponses]
 
 export type InvokeWorkflowWebhookData = {
-  body: WorkflowRunInputs
+  body: WorkflowRunInputsWritable
   path: {
     /**
      * Agent name.

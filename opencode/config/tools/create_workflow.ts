@@ -43,7 +43,7 @@ const createWorkflowArgs = {
   arbitrary_json: tool.schema
     .object({
       description: tool.schema.string().min(1).max(1024).optional(),
-      default_payload: tool.schema.json().optional(),
+      default_payload: tool.schema.any().optional(),
     })
     .optional()
     .describe(

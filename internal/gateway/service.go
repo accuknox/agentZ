@@ -15,22 +15,29 @@ import (
 	"time"
 
 	keyfunc "github.com/MicahParks/keyfunc/v3"
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	nethttpmiddleware "github.com/oapi-codegen/nethttp-middleware"
 	baoapi "github.com/openbao/openbao/api/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/inference"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
+	"github.com/accuknox/agentz/internal/sandboxutil"
 	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	agentzclient "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
 )
 
 const labelManagedBy = "app.kubernetes.io/managed-by"
@@ -73,10 +80,15 @@ type Service struct {
 	bao                *baoapi.Client
 	baoKV              *baoapi.KVv2
 	k8sClient          ctrlclient.Client
+	usageReader        ctrlclient.Reader
 	k8s                kubernetes.Interface
+	agentz             agentzclient.Interface
 	externalJWTKeyfunc jwt.Keyfunc
 	skillStore         *skill.Client
 	skillImports       chan struct{}
+	catalog            *inference.Catalog
+	openAPI            *openapi3.T
+	outboundHTTP       *http.Client
 }
 
 type statusRecorder struct {
@@ -184,9 +196,43 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create k8s client: %w", err)
 	}
+	usageCache, err := ctrlcache.New(kubeCfg, ctrlcache.Options{
+		Scheme:                      scheme,
+		ReaderFailOnMissingInformer: true,
+		ByObject: map[ctrlclient.Object]ctrlcache.ByObject{
+			&agentzv1alpha1.Agent{}:         {},
+			&agentzv1alpha1.Sandbox{}:       {},
+			&agentzv1alpha1.InferencePool{}: {},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create inference usage cache: %w", err)
+	}
+	if err := inference.IndexSandboxes(ctx, usageCache); err != nil {
+		return fmt.Errorf("index sandboxes by inference provider: %w", err)
+	}
+	if err := inference.IndexPools(ctx, usageCache); err != nil {
+		return fmt.Errorf("index inference pool references: %w", err)
+	}
+	if err := sandboxutil.IndexAgentsBySandbox(ctx, usageCache); err != nil {
+		return fmt.Errorf("index agents by sandbox: %w", err)
+	}
+	cacheCtx, stopCache := context.WithCancel(ctx)
+	defer stopCache()
+	cacheErrCh := make(chan error, 1)
+	go func() {
+		cacheErrCh <- usageCache.Start(cacheCtx)
+	}()
+	if !usageCache.WaitForCacheSync(cacheCtx) {
+		return fmt.Errorf("sync inference usage cache")
+	}
 	k8s, err := kubernetes.NewForConfig(kubeCfg)
 	if err != nil {
 		return fmt.Errorf("create kubernetes clientset: %w", err)
+	}
+	agentz, err := agentzclient.NewForConfig(kubeCfg)
+	if err != nil {
+		return fmt.Errorf("create agentz clientset: %w", err)
 	}
 
 	db, err := pgxpool.New(ctx, cfg.PostgresDSN)
@@ -218,6 +264,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create immutable skill store: %w", err)
 	}
+	openAPISpec, err := gatewayapi.GetSwagger()
+	if err != nil {
+		return fmt.Errorf("load gateway OpenAPI schema: %w", err)
+	}
 
 	svc := &Service{
 		ctx:                ctx,
@@ -228,10 +278,15 @@ func Serve(ctx context.Context, cfg Config) error {
 		bao:                baoClient,
 		baoKV:              baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 		k8sClient:          k8sClient,
+		usageReader:        usageCache,
 		k8s:                k8s,
+		agentz:             agentz,
 		externalJWTKeyfunc: externalJWTKeyfunc,
 		skillStore:         skillStore,
 		skillImports:       make(chan struct{}, 4),
+		catalog:            inference.NewCatalog(nil),
+		openAPI:            openAPISpec,
+		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
 	}
 
 	srv := &http.Server{
@@ -242,22 +297,42 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		slog.InfoContext(ctx, "starting agent gateway HTTP server",
+		slog.InfoContext(
+			ctx, "starting agent gateway HTTP server",
 			slog.String("addr", cfg.Addr),
 			slog.String("target_override", cfg.TargetOverride),
 		)
 		errCh <- srv.ListenAndServe()
 	}()
 
+	var serverStopped bool
+
 	select {
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			_ = srv.Close()
-		}
-		err = <-errCh
 	case err = <-errCh:
+		serverStopped = true
+	case cacheErr := <-cacheErrCh:
+		if ctx.Err() != nil && (cacheErr == nil || errors.Is(cacheErr, context.Canceled)) {
+			break
+		}
+		if cacheErr == nil {
+			cacheErr = errors.New("inference usage cache stopped")
+		}
+		err = fmt.Errorf("run inference usage cache: %w", cacheErr)
+	}
+
+	if !serverStopped {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		shutdownErr := srv.Shutdown(shutdownCtx)
+		cancel()
+		if shutdownErr != nil {
+			shutdownErr = errors.Join(shutdownErr, srv.Close())
+			err = errors.Join(err, fmt.Errorf("shutdown http server: %w", shutdownErr))
+		}
+		serveErr := <-errCh
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			err = errors.Join(err, serveErr)
+		}
 	}
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -280,6 +355,23 @@ func (s *Service) routes() http.Handler {
 	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 
 	apiRouter := chi.NewRouter()
+	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
+		s.openAPI,
+		&nethttpmiddleware.Options{
+			Options: openapi3filter.Options{
+				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+			},
+			ErrorHandlerWithOpts: func(_ context.Context, _ error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
+				writeError(w, r, newAPIError(
+					opts.StatusCode,
+					"invalid_request",
+					"request is invalid",
+					errBadRequest,
+				))
+			},
+			DoNotValidateServers: true,
+		},
+	))
 	gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
 		BaseRouter:       apiRouter,
 		ErrorHandlerFunc: s.handleRouteError,

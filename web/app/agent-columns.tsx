@@ -127,7 +127,7 @@ function AgentActions({
           >
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
+          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
             <Trash2 />
             Delete
           </DropdownMenuItem>
@@ -136,7 +136,6 @@ function AgentActions({
       <AgentDialog
         mode="update"
         agentName={agent.name}
-        initialAgentStatus={agent.status}
         initialSandboxName={agent.sandboxName}
         initialMemoryEnabled={agent.memory.enabled}
         initialSkills={agent.skills}

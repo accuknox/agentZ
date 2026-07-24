@@ -52,6 +52,12 @@ const (
 	attrLLMTokenCacheWrite = "llm.token_count.prompt_details.cache_write"
 	attrLLMCostTotal       = "llm.cost.total"
 	attrLLMFinishReason    = "llm.finish_reason"
+	attrGenAIRequestModel  = "gen_ai.request.model"
+	attrGenAIResponseModel = "gen_ai.response.model"
+	attrGenAIInputTokens   = "gen_ai.usage.input_tokens"
+	attrGenAIOutputTokens  = "gen_ai.usage.output_tokens"
+	attrGenAICacheRead     = "gen_ai.usage.cache_read.input_tokens"
+	attrGenAICacheWrite    = "gen_ai.usage.cache_creation.input_tokens"
 
 	attrToolName       = "tool.name"
 	attrToolParameters = "tool.parameters"
@@ -193,7 +199,7 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 
 	spanClass, operationName := classifySpan(sp.GetName(), spanAttrs)
 	status := statusCode(sp.GetStatus())
-	statusMessage := ""
+	var statusMessage string
 	if sp.GetStatus() != nil {
 		statusMessage = sp.GetStatus().GetMessage()
 	}
@@ -203,7 +209,11 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 		firstStringAttr(spanAttrs, resourceAttrs, attrError),
 	)
 
-	model := attrString(spanAttrs, attrLLMModelName)
+	model := cmp.Or(
+		attrString(spanAttrs, attrLLMModelName),
+		attrString(spanAttrs, attrGenAIResponseModel),
+		attrString(spanAttrs, attrGenAIRequestModel),
+	)
 	toolName := cmp.Or(
 		attrString(spanAttrs, attrToolName),
 		attrString(spanAttrs, attrGenAIToolName),
@@ -245,28 +255,40 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 	}
 
 	return traceSpanEvent{
-		tenantNamespace:    tenantNamespace,
-		agentName:          agentName,
-		sessionID:          sessionID,
-		traceID:            cloneBytes(sp.GetTraceId()),
-		spanID:             cloneBytes(sp.GetSpanId()),
-		parentSpanID:       cloneBytes(sp.GetParentSpanId()),
-		startTime:          start,
-		endTime:            end,
-		durationNS:         durationNS,
-		name:               sp.GetName(),
-		spanClass:          spanClass,
-		operationName:      operationName,
-		kind:               spanKind(sp.GetKind()),
-		statusCode:         status,
-		errorType:          firstStringAttr(spanAttrs, resourceAttrs, attrErrorType),
-		errorMessage:       errorMessage,
-		model:              model,
-		toolName:           toolName,
-		inputTokens:        attrInt64(spanAttrs, attrLLMTokenPrompt),
-		outputTokens:       attrInt64(spanAttrs, attrLLMTokenCompletion),
-		cachedInputTokens:  attrInt64(spanAttrs, attrLLMTokenCacheRead),
-		cachedWriteTokens:  attrInt64(spanAttrs, attrLLMTokenCacheWrite),
+		tenantNamespace: tenantNamespace,
+		agentName:       agentName,
+		sessionID:       sessionID,
+		traceID:         cloneBytes(sp.GetTraceId()),
+		spanID:          cloneBytes(sp.GetSpanId()),
+		parentSpanID:    cloneBytes(sp.GetParentSpanId()),
+		startTime:       start,
+		endTime:         end,
+		durationNS:      durationNS,
+		name:            sp.GetName(),
+		spanClass:       spanClass,
+		operationName:   operationName,
+		kind:            spanKind(sp.GetKind()),
+		statusCode:      status,
+		errorType:       firstStringAttr(spanAttrs, resourceAttrs, attrErrorType),
+		errorMessage:    errorMessage,
+		model:           model,
+		toolName:        toolName,
+		inputTokens: cmp.Or(
+			attrInt64(spanAttrs, attrLLMTokenPrompt),
+			attrInt64(spanAttrs, attrGenAIInputTokens),
+		),
+		outputTokens: cmp.Or(
+			attrInt64(spanAttrs, attrLLMTokenCompletion),
+			attrInt64(spanAttrs, attrGenAIOutputTokens),
+		),
+		cachedInputTokens: cmp.Or(
+			attrInt64(spanAttrs, attrLLMTokenCacheRead),
+			attrInt64(spanAttrs, attrGenAICacheRead),
+		),
+		cachedWriteTokens: cmp.Or(
+			attrInt64(spanAttrs, attrLLMTokenCacheWrite),
+			attrInt64(spanAttrs, attrGenAICacheWrite),
+		),
 		costUSD:            attrFloat64(spanAttrs, attrLLMCostTotal),
 		llmFinishReason:    attrString(spanAttrs, attrLLMFinishReason),
 		resourceAttributes: resourceJSON,

@@ -486,7 +486,7 @@ func (c *Client) downloadSkill(ctx context.Context, prefix, targetDir string) er
 
 	var fileCount int
 	var totalBytes int64
-	hasSkillFile := false
+	var hasSkillFile bool
 	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
 		Bucket: aws.String(c.bucket),
 		Prefix: aws.String(prefix),

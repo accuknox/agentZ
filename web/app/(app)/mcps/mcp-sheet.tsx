@@ -1489,7 +1489,7 @@ export function McpSheet({
                       </Field>
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="destructive"
                         size="icon"
                         className="mt-1"
                         onClick={() => {

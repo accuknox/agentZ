@@ -217,9 +217,6 @@ spec:
                     description: Enabled makes curated memory available across Agent sessions.
                     type: boolean
                 type: object
-              model:
-                description: Model sets the default OpenCode model in provider/model form.
-                type: string
               nixStoreSize:
                 anyOf:
                 - type: integer
@@ -228,21 +225,6 @@ spec:
                 description: NixStoreSize sets the size of the agent-specific nix store PVC.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
-              providers:
-                additionalProperties:
-                  description: OpencodeProviderConfig defines non-secret provider settings for OpenCode.
-                  properties:
-                    baseURL:
-                      description: BaseURL overrides the provider base URL.
-                      type: string
-                    env:
-                      description: Env lists environment variable names OpenCode should read for provider auth.
-                      items:
-                        type: string
-                      type: array
-                  type: object
-                description: Providers configures non-secret OpenCode provider settings by provider ID.
-                type: object
               resources:
                 description: Resources defines compute resources allocated to the Agent pod.
                 properties:
@@ -303,7 +285,7 @@ spec:
                     type: object
                 type: object
               sandboxRef:
-                description: SandboxRef references reusable package and policy configuration.
+                description: SandboxRef references reusable package, policy, and inference configuration.
                 properties:
                   name:
                     default: ""
@@ -325,9 +307,6 @@ spec:
                 maxItems: 200
                 type: array
                 x-kubernetes-list-type: set
-              smallModel:
-                description: SmallModel sets the small OpenCode model in provider/model form.
-                type: string
               telemetry:
                 description: Telemetry configures agent observability export.
                 properties:
@@ -338,6 +317,8 @@ spec:
                     description: TraceEndpoint is the OTLP/gRPC trace endpoint in host:port form.
                     type: string
                 type: object
+            required:
+            - sandboxRef
             type: object
           status:
             description: status defines the observed state of Agent.

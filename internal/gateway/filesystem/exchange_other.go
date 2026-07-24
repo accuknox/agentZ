@@ -20,6 +20,7 @@ package filesystem
 
 import "os"
 
+// Other platforms do not expose Linux rename exchange semantics.
 func exchangeFiles(_ *os.Root, _, _ string) (bool, error) {
 	return false, nil
 }

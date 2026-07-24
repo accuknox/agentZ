@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
-	github.com/agentgateway/agentgateway v1.2.1
+	github.com/agentgateway/agentgateway v1.3.1
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.29
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.28
@@ -12,7 +12,8 @@ require (
 	github.com/aws/smithy-go v1.27.3
 	github.com/cert-manager/cert-manager v1.20.2
 	github.com/cilium/cilium v1.19.5
-	github.com/envoyproxy/go-control-plane/envoy v1.37.1-0.20260425030550-64b2e46d9ebf
+	github.com/envoyproxy/go-control-plane/envoy v1.37.1-0.20260515010941-d9e0f651b1a5
+	github.com/external-secrets/external-secrets/apis v0.0.0-20260626113040-e215053f3e68
 	github.com/getkin/kin-openapi v0.140.0
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2
@@ -22,6 +23,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/kubearmor/KubeArmor/protobuf v0.0.0-20260624091055-1e50e1e24665
 	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/oapi-codegen/nethttp-middleware v1.1.2
 	github.com/oapi-codegen/runtime v1.4.2
 	github.com/openbao/openbao/api/auth/kubernetes/v2 v2.6.0
 	github.com/openbao/openbao/api/v2 v2.6.0
@@ -41,7 +43,7 @@ require (
 	k8s.io/client-go v0.36.2
 	k8s.io/utils v0.0.0-20260617174310-a95e086a2553
 	sigs.k8s.io/controller-runtime v0.24.1
-	sigs.k8s.io/gateway-api v1.5.1
+	sigs.k8s.io/gateway-api v1.6.0-rc.1
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -110,6 +112,7 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

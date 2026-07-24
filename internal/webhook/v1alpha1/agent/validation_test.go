@@ -18,19 +18,12 @@ func TestValidatorValidateCreateRejectsInvalidAgentConfig(t *testing.T) {
 	agt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
 		Spec: agentzv1alpha1.AgentSpec{
-			SandboxRef:  &corev1.LocalObjectReference{},
-			Model:       "gpt-5",
+			SandboxRef:  corev1.LocalObjectReference{},
 			Instruction: strings.Repeat("a", 4097),
-			Providers: map[string]agentzv1alpha1.OpencodeProviderConfig{
-				"openai": {
-					Env:     []string{"bad-name"},
-					BaseURL: "/v1",
-				},
-			},
 		},
 	}
 
-	_, err := NewValidator().ValidateCreate(context.Background(), agt)
+	_, err := NewValidator(nil).ValidateCreate(context.Background(), agt)
 	if err == nil {
 		t.Fatal("ValidateCreate() unexpectedly succeeded")
 	}
@@ -43,7 +36,7 @@ func TestValidatorValidateCreateRejectsReservedAgentName(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: agentzv1alpha1.AgentNameMCPConnection},
 	}
 
-	_, err := NewValidator().ValidateCreate(context.Background(), agt)
+	_, err := NewValidator(nil).ValidateCreate(context.Background(), agt)
 	if err == nil {
 		t.Fatal("ValidateCreate() unexpectedly accepted reserved agent name")
 	}
@@ -52,10 +45,11 @@ func TestValidatorValidateCreateRejectsReservedAgentName(t *testing.T) {
 func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T) {
 	t.Parallel()
 
-	validator := NewValidator()
+	validator := NewValidator(nil)
 	oldAgt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
 		Spec: agentzv1alpha1.AgentSpec{
+			SandboxRef:   corev1.LocalObjectReference{Name: "python"},
 			NixStoreSize: resource.MustParse("5Gi"),
 		},
 	}
@@ -68,39 +62,9 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 	}
 
 	valid := oldAgt.DeepCopy()
-	valid.Spec.SandboxRef = &corev1.LocalObjectReference{Name: "python"}
-	valid.Spec.Model = "openai/gpt-5"
-	valid.Spec.SmallModel = "openai/gpt-5-mini"
 	valid.Spec.Instruction = "Follow repository instructions strictly."
-	valid.Spec.Providers = map[string]agentzv1alpha1.OpencodeProviderConfig{
-		"openai": {
-			Env:     []string{"OPENAI_API_KEY"},
-			BaseURL: "https://api.openai.com/v1",
-		},
-	}
 
 	_, err = validator.ValidateUpdate(context.Background(), oldAgt, valid)
-	if err != nil {
-		t.Fatalf("ValidateUpdate() error = %v", err)
-	}
-}
-
-func TestValidatorValidateUpdateAcceptsOpenRouterModelID(t *testing.T) {
-	t.Parallel()
-
-	validator := NewValidator()
-	oldAgt := &agentzv1alpha1.Agent{
-		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
-		Spec: agentzv1alpha1.AgentSpec{
-			NixStoreSize: resource.MustParse("5Gi"),
-		},
-	}
-	newAgt := oldAgt.DeepCopy()
-	newAgt.Spec.SandboxRef = &corev1.LocalObjectReference{Name: "python"}
-	newAgt.Spec.Model = "openrouter/anthropic/claude-sonnet-4"
-	newAgt.Spec.SmallModel = "openrouter/openai/gpt-4.1-mini"
-
-	_, err := validator.ValidateUpdate(context.Background(), oldAgt, newAgt)
 	if err != nil {
 		t.Fatalf("ValidateUpdate() error = %v", err)
 	}

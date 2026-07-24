@@ -238,8 +238,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			return ErrWorkflowRunScopeMismatch
 		}
 
-		if current.Status.Phase.Terminal() && current.Status.Phase == phase &&
-			current.Status.Message == msg {
+		if current.Status.Phase.Terminal() && current.Status.Phase == phase && current.Status.Message == msg {
 			resultErr = nil
 			return nil
 		}

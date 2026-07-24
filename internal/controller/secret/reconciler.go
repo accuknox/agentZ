@@ -100,9 +100,9 @@ func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *agentzv1
 		if err := r.Get(ctx, client.ObjectKeyFromObject(secret), current); err != nil {
 			return err
 		}
-		if current.Status.ObservedGeneration == current.Generation &&
-			current.Status.State != "" && current.Status.RuntimeRef != nil &&
-			current.Status.RuntimeRef.Path == path {
+		observed := current.Status.ObservedGeneration == current.Generation
+		hasRuntime := current.Status.State != "" && current.Status.RuntimeRef != nil
+		if observed && hasRuntime && current.Status.RuntimeRef.Path == path {
 			return nil
 		}
 

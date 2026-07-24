@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"slices"
 	"strings"
@@ -42,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
@@ -61,6 +63,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
@@ -267,6 +270,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Agent{}).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSandbox)).
+		Watches(&agentzv1alpha1.InferenceProvider{}, handler.EnqueueRequestsFromMapFunc(r.agentsForInferenceProvider)).
+		Watches(&agentzv1alpha1.InferencePool{}, handler.EnqueueRequestsFromMapFunc(r.agentsForInferencePool)).
 		Watches(&agentzv1alpha1.Skill{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSkill)).
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
@@ -281,12 +286,20 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 type sandboxConfig struct {
-	Packages                []string
-	AllowedHosts            []string
-	MCPURL                  string
-	MCPConsentPermissionIDs []string
-	MCPRefs                 []mcpRefConfig
-	Skills                  []skillpkg.ManifestSkill
+	Packages                 []string
+	AllowedHosts             []string
+	Model                    string
+	SmallModel               string
+	Providers                map[string]*opencodeProviderFile
+	OpenAICodexProviderIDs   []string
+	OpenAICodexPoolIDs       []string
+	GitHubCopilotProviderIDs []string
+	GitHubCopilotPoolIDs     []string
+	InferenceURL             string
+	MCPURL                   string
+	MCPConsentPermissionIDs  []string
+	MCPRefs                  []mcpRefConfig
+	Skills                   []skillpkg.ManifestSkill
 }
 
 type mcpRefConfig struct {
@@ -301,12 +314,18 @@ type mcpToolConfig struct {
 
 func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Agent) (sandboxConfig, error) {
 	cfg := sandboxConfig{
-		Packages:                []string{},
-		AllowedHosts:            []string{},
-		MCPURL:                  "",
-		MCPConsentPermissionIDs: []string{},
-		MCPRefs:                 []mcpRefConfig{},
-		Skills:                  []skillpkg.ManifestSkill{},
+		Packages:                 []string{},
+		AllowedHosts:             []string{},
+		Providers:                map[string]*opencodeProviderFile{},
+		OpenAICodexProviderIDs:   []string{},
+		OpenAICodexPoolIDs:       []string{},
+		GitHubCopilotProviderIDs: []string{},
+		GitHubCopilotPoolIDs:     []string{},
+		InferenceURL:             "",
+		MCPURL:                   "",
+		MCPConsentPermissionIDs:  []string{},
+		MCPRefs:                  []mcpRefConfig{},
+		Skills:                   []skillpkg.ManifestSkill{},
 	}
 	skillNames := make([]string, 0, len(agt.Spec.Skills))
 	seenSkills := make(map[string]struct{}, len(agt.Spec.Skills))
@@ -322,20 +341,190 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 
 	ref := agt.Spec.SandboxRef
-	if ref == nil {
-		skills, err := r.resolveImmutableSkills(ctx, agt.Namespace, skillNames)
-		if err != nil {
-			return sandboxConfig{}, err
-		}
-		cfg.Skills = skills
-		return cfg, nil
-	}
-
 	sandbox := &agentzv1alpha1.Sandbox{}
 	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
 	if err := r.Get(ctx, key, sandbox); err != nil {
 		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
+	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
+	for _, modelRef := range sandbox.Spec.Inference.Models {
+		if modelRef.Provider == agentzv1alpha1.InferencePoolProvider {
+			pool := &agentzv1alpha1.InferencePool{}
+			key := types.NamespacedName{Name: modelRef.Model, Namespace: agt.Namespace}
+			if err := r.Get(ctx, key, pool); err != nil {
+				return sandboxConfig{}, fmt.Errorf("get inference pool %q: %w", modelRef.Model, err)
+			}
+			if pool.Status.Contract == nil {
+				return sandboxConfig{}, fmt.Errorf("inference pool %q contract is not ready", modelRef.Model)
+			}
+
+			provider := cfg.Providers[agentzv1alpha1.InferencePoolProvider]
+			if provider == nil {
+				provider = &opencodeProviderFile{
+					Name:   "Pools",
+					Models: map[string]opencodeModelFile{},
+					Options: &opencodeProviderOptionsFile{
+						APIKey: "inference-gateway",
+					},
+				}
+				cfg.Providers[agentzv1alpha1.InferencePoolProvider] = provider
+			}
+
+			npm := "@ai-sdk/openai-compatible"
+			if pool.Status.Contract.API == agentzv1alpha1.InferenceModelAPIResponses {
+				npm = "@ai-sdk/openai"
+			}
+			if pool.Status.Contract.API == agentzv1alpha1.InferenceModelAPIMessages {
+				npm = "@ai-sdk/anthropic"
+			}
+
+			path := inference.SandboxPoolPath(sandbox.Name, pool.Name)
+			contract := pool.Status.Contract
+
+			provider.Models[pool.Name] = opencodeModelFile{
+				ID: pool.Name, Name: pool.Spec.DisplayName,
+				Attachment:  contract.Capabilities.Attachment,
+				Reasoning:   contract.Capabilities.Reasoning,
+				Temperature: contract.Capabilities.Temperature,
+				ToolCall:    contract.Capabilities.ToolCall,
+				Limit: opencodeModelLimitFile{
+					Context: contract.Limits.Context,
+					Input:   contract.Limits.Input,
+					Output:  contract.Limits.Output,
+				},
+				Modalities: opencodeModelModalitiesFile{
+					Input:  slices.Clone(contract.Modalities.Input),
+					Output: slices.Clone(contract.Modalities.Output),
+				},
+				Provider: &opencodeModelProviderFile{
+					NPM: npm,
+					API: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+				},
+			}
+			for _, member := range pool.Spec.Members {
+				memberProvider := &agentzv1alpha1.InferenceProvider{}
+				key := types.NamespacedName{Name: member.Provider, Namespace: agt.Namespace}
+				if err := r.Get(ctx, key, memberProvider); err != nil {
+					return sandboxConfig{}, fmt.Errorf(
+						"get inference pool %q provider %q: %w",
+						pool.Name,
+						member.Provider,
+						err,
+					)
+				}
+				switch memberProvider.Spec.Kind {
+				case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+					cfg.OpenAICodexPoolIDs = append(cfg.OpenAICodexPoolIDs, pool.Name)
+				case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
+					cfg.GitHubCopilotPoolIDs = append(cfg.GitHubCopilotPoolIDs, pool.Name)
+				}
+			}
+			continue
+		}
+		provider := providers[modelRef.Provider]
+		if provider == nil {
+			provider = &agentzv1alpha1.InferenceProvider{}
+			key := types.NamespacedName{Name: modelRef.Provider, Namespace: agt.Namespace}
+			if err := r.Get(ctx, key, provider); err != nil {
+				return sandboxConfig{}, fmt.Errorf("get inference provider %q: %w", modelRef.Provider, err)
+			}
+			providers[modelRef.Provider] = provider
+			switch provider.Spec.Kind {
+			case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+				cfg.OpenAICodexProviderIDs = append(
+					cfg.OpenAICodexProviderIDs,
+					modelRef.Provider,
+				)
+			case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
+				cfg.GitHubCopilotProviderIDs = append(
+					cfg.GitHubCopilotProviderIDs,
+					modelRef.Provider,
+				)
+			}
+			path := inference.SandboxProviderPath(sandbox.Name, modelRef.Provider)
+			npm := "@ai-sdk/openai-compatible"
+			var apiKey string
+			switch provider.Spec.Kind {
+			case agentzv1alpha1.InferenceProviderKindOpenAI,
+				agentzv1alpha1.InferenceProviderKindOpenAICodex:
+				npm = "@ai-sdk/openai"
+				apiKey = "inference-gateway"
+			case agentzv1alpha1.InferenceProviderKindAnthropic,
+				agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
+				npm = "@ai-sdk/anthropic"
+				apiKey = "inference-gateway"
+			case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
+				apiKey = "inference-gateway"
+			}
+			cfg.Providers[modelRef.Provider] = &opencodeProviderFile{
+				Name:   provider.Spec.DisplayName,
+				NPM:    npm,
+				Models: map[string]opencodeModelFile{},
+				Options: &opencodeProviderOptionsFile{
+					APIKey:  apiKey,
+					BaseURL: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+				},
+			}
+		}
+		var selected *agentzv1alpha1.InferenceModel
+		for i := range provider.Spec.Models {
+			if provider.Spec.Models[i].ID == modelRef.Model {
+				selected = &provider.Spec.Models[i]
+				break
+			}
+		}
+		if selected == nil {
+			return sandboxConfig{}, fmt.Errorf(
+				"inference provider %q does not enable model %q",
+				modelRef.Provider,
+				modelRef.Model,
+			)
+		}
+		model := opencodeModelFile{
+			ID: modelRef.Model, Name: selected.DisplayName,
+			Attachment:  selected.Capabilities.Attachment,
+			Reasoning:   selected.Capabilities.Reasoning,
+			Temperature: selected.Capabilities.Temperature,
+			ToolCall:    selected.Capabilities.ToolCall,
+			Limit: opencodeModelLimitFile{
+				Context: selected.Limits.Context, Input: selected.Limits.Input,
+				Output: selected.Limits.Output,
+			},
+			Modalities: opencodeModelModalitiesFile{
+				Input:  slices.Clone(selected.Modalities.Input),
+				Output: slices.Clone(selected.Modalities.Output),
+			},
+		}
+		isCodex := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+		isCopilot := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+		if isCodex || isCopilot {
+			npm := "@ai-sdk/openai-compatible"
+			if selected.API != nil {
+				switch *selected.API {
+				case agentzv1alpha1.InferenceModelAPIResponses:
+					npm = "@ai-sdk/openai"
+				case agentzv1alpha1.InferenceModelAPIMessages:
+					npm = "@ai-sdk/anthropic"
+				}
+			}
+			model.Provider = &opencodeModelProviderFile{
+				NPM: npm,
+				API: cfg.Providers[modelRef.Provider].Options.BaseURL,
+			}
+		}
+		cfg.Providers[modelRef.Provider].Models[modelRef.Model] = model
+	}
+	slices.Sort(cfg.OpenAICodexProviderIDs)
+	slices.Sort(cfg.OpenAICodexPoolIDs)
+	cfg.OpenAICodexPoolIDs = slices.Compact(cfg.OpenAICodexPoolIDs)
+	slices.Sort(cfg.GitHubCopilotProviderIDs)
+	slices.Sort(cfg.GitHubCopilotPoolIDs)
+	cfg.GitHubCopilotPoolIDs = slices.Compact(cfg.GitHubCopilotPoolIDs)
+	cfg.Model = sandbox.Spec.Inference.DefaultModel.Provider + "/" + sandbox.Spec.Inference.DefaultModel.Model
+	if sandbox.Spec.Inference.SmallModel != nil {
+		cfg.SmallModel = sandbox.Spec.Inference.SmallModel.Provider + "/" + sandbox.Spec.Inference.SmallModel.Model
+	}
+	cfg.InferenceURL = "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local"
 	for _, name := range sandbox.Spec.Skills {
 		if name == "" {
 			continue
@@ -456,6 +645,58 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	return requests
 }
 
+func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.Object) []reconcile.Request {
+	provider := obj.(*agentzv1alpha1.InferenceProvider)
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err := r.List(
+		ctx,
+		sandboxes,
+		client.InNamespace(provider.Namespace),
+		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
+	)
+	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"list sandboxes for inference provider",
+			slog.String("namespace", provider.Namespace),
+			slog.String("provider", provider.Name),
+			slog.Any("err", err),
+		)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
+	for i := range sandboxes.Items {
+		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
+	}
+	return requests
+}
+
+func (r *Reconciler) agentsForInferencePool(ctx context.Context, obj client.Object) []reconcile.Request {
+	pool := obj.(*agentzv1alpha1.InferencePool)
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	err := r.List(
+		ctx,
+		sandboxes,
+		client.InNamespace(pool.Namespace),
+		client.MatchingFields{inference.SandboxByPoolIndex: pool.Name},
+	)
+	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"list sandboxes for inference pool",
+			slog.String("namespace", pool.Namespace),
+			slog.String("pool", pool.Name),
+			slog.Any("err", err),
+		)
+		return nil
+	}
+	requests := []reconcile.Request{}
+	for i := range sandboxes.Items {
+		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
+	}
+	return requests
+}
+
 func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []reconcile.Request {
 	skill, ok := obj.(*agentzv1alpha1.Skill)
 	if !ok {
@@ -484,7 +725,7 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 	seen := map[string]struct{}{}
 	for _, agt := range agents.Items {
 		referenced := slices.Contains(agt.Spec.Skills, skill.Name)
-		if !referenced && agt.Spec.SandboxRef != nil {
+		if !referenced {
 			_, referenced = sandboxRefs[agt.Spec.SandboxRef.Name]
 		}
 		if !referenced {

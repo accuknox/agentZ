@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -225,12 +226,8 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 			"*": "allow",
 		},
 	}
-	if agt.Spec.Model != "" {
-		cfg.Model = agt.Spec.Model
-	}
-	if agt.Spec.SmallModel != "" {
-		cfg.SmallModel = agt.Spec.SmallModel
-	}
+	cfg.Model = envCfg.Model
+	cfg.SmallModel = envCfg.SmallModel
 	instructionFiles := renderOpencodeInstructions(agt.Spec)
 	if len(instructionFiles) > 0 {
 		cfg.Instructions = make([]string, 0, len(instructionFiles))
@@ -245,21 +242,12 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 			opencodeWritableSkillsPath,
 		},
 	}
-	if len(agt.Spec.Providers) > 0 {
-		cfg.Provider = make(map[string]opencodeProviderFile, len(agt.Spec.Providers))
-		for name, provider := range agt.Spec.Providers {
-			item := opencodeProviderFile{}
-			if len(provider.Env) > 0 {
-				item.Env = append([]string{}, provider.Env...)
-			}
-			if strings.TrimSpace(provider.BaseURL) != "" {
-				item.Options = &opencodeProviderOptionsFile{
-					BaseURL: provider.BaseURL,
-				}
-			}
-			cfg.Provider[name] = item
-		}
+	cfg.Provider = envCfg.Providers
+	cfg.EnabledProviders = make([]string, 0, len(envCfg.Providers))
+	for provider := range envCfg.Providers {
+		cfg.EnabledProviders = append(cfg.EnabledProviders, provider)
 	}
+	slices.Sort(cfg.EnabledProviders)
 	cfg.Tools = map[string]bool{
 		createWorkflowToolName:         true,
 		createWorkflowScheduleToolName: true,
@@ -311,15 +299,16 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 }
 
 type opencodeConfigFile struct {
-	Schema       string                            `json:"$schema"`
-	Model        string                            `json:"model,omitempty"`
-	SmallModel   string                            `json:"small_model,omitempty"`
-	Instructions []string                          `json:"instructions,omitempty"`
-	Skills       *opencodeSkillsFile               `json:"skills,omitempty"`
-	Provider     map[string]opencodeProviderFile   `json:"provider,omitempty"`
-	MCP          map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
-	Permission   map[string]opencodePermissionRule `json:"permission,omitempty"`
-	Tools        map[string]bool                   `json:"tools,omitempty"`
+	Schema           string                            `json:"$schema"`
+	Model            string                            `json:"model,omitempty"`
+	SmallModel       string                            `json:"small_model,omitempty"`
+	Instructions     []string                          `json:"instructions,omitempty"`
+	Skills           *opencodeSkillsFile               `json:"skills,omitempty"`
+	Provider         map[string]*opencodeProviderFile  `json:"provider,omitempty"`
+	EnabledProviders []string                          `json:"enabled_providers,omitempty"`
+	MCP              map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
+	Permission       map[string]opencodePermissionRule `json:"permission,omitempty"`
+	Tools            map[string]bool                   `json:"tools,omitempty"`
 }
 
 type opencodeSkillsFile struct {
@@ -335,23 +324,58 @@ type opencodeMCPRemoteFile struct {
 }
 
 type opencodeProviderFile struct {
-	Env     []string                     `json:"env,omitempty"`
+	Name    string                       `json:"name,omitempty"`
+	NPM     string                       `json:"npm,omitempty"`
+	Models  map[string]opencodeModelFile `json:"models,omitempty"`
 	Options *opencodeProviderOptionsFile `json:"options,omitempty"`
+}
+
+type opencodeModelFile struct {
+	ID          string                      `json:"id,omitempty"`
+	Name        string                      `json:"name,omitempty"`
+	Attachment  bool                        `json:"attachment"`
+	Reasoning   bool                        `json:"reasoning"`
+	Temperature bool                        `json:"temperature"`
+	ToolCall    bool                        `json:"tool_call"`
+	Limit       opencodeModelLimitFile      `json:"limit"`
+	Modalities  opencodeModelModalitiesFile `json:"modalities"`
+	Provider    *opencodeModelProviderFile  `json:"provider,omitempty"`
+}
+
+type opencodeModelProviderFile struct {
+	NPM string `json:"npm"`
+	API string `json:"api"`
+}
+
+type opencodeModelLimitFile struct {
+	Context int32  `json:"context"`
+	Input   *int32 `json:"input,omitempty"`
+	Output  int32  `json:"output"`
+}
+
+type opencodeModelModalitiesFile struct {
+	Input  []agentzv1alpha1.InferenceModelModality `json:"input"`
+	Output []agentzv1alpha1.InferenceModelModality `json:"output"`
 }
 
 type opencodeProviderOptionsFile struct {
 	BaseURL string `json:"baseURL,omitempty"`
+	APIKey  string `json:"apiKey,omitempty"`
 }
 
 type configHashInput struct {
-	Config                  json.RawMessage       `json:"config"`
-	Instructions            []string              `json:"instructions"`
-	Env                     []corev1.EnvVar       `json:"env"`
-	Packages                []string              `json:"packages"`
-	MCPURL                  string                `json:"mcpUrl"`
-	MCPConsentPermissionIDs []string              `json:"mcpConsentPermissionIds"`
-	MCPRefs                 []mcpRefConfig        `json:"mcpRefs"`
-	Skills                  []skill.ManifestSkill `json:"skills"`
+	Config                   json.RawMessage       `json:"config"`
+	Instructions             []string              `json:"instructions"`
+	Env                      []corev1.EnvVar       `json:"env"`
+	Packages                 []string              `json:"packages"`
+	MCPURL                   string                `json:"mcpUrl"`
+	MCPConsentPermissionIDs  []string              `json:"mcpConsentPermissionIds"`
+	MCPRefs                  []mcpRefConfig        `json:"mcpRefs"`
+	Skills                   []skill.ManifestSkill `json:"skills"`
+	OpenAICodexProviderIDs   []string              `json:"openAICodexProviderIds"`
+	OpenAICodexPoolIDs       []string              `json:"openAICodexPoolIds"`
+	GitHubCopilotProviderIDs []string              `json:"githubCopilotProviderIds"`
+	GitHubCopilotPoolIDs     []string              `json:"githubCopilotPoolIds"`
 }
 
 type packageJobHashInput struct {
@@ -370,14 +394,18 @@ func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, 
 	}
 
 	hashInput, err := json.Marshal(configHashInput{
-		Config:                  opencodeCfg,
-		Instructions:            instructions,
-		Env:                     env,
-		Packages:                envCfg.Packages,
-		MCPURL:                  envCfg.MCPURL,
-		MCPConsentPermissionIDs: envCfg.MCPConsentPermissionIDs,
-		MCPRefs:                 envCfg.MCPRefs,
-		Skills:                  envCfg.Skills,
+		Config:                   opencodeCfg,
+		Instructions:             instructions,
+		Env:                      env,
+		Packages:                 envCfg.Packages,
+		MCPURL:                   envCfg.MCPURL,
+		MCPConsentPermissionIDs:  envCfg.MCPConsentPermissionIDs,
+		MCPRefs:                  envCfg.MCPRefs,
+		Skills:                   envCfg.Skills,
+		OpenAICodexProviderIDs:   envCfg.OpenAICodexProviderIDs,
+		OpenAICodexPoolIDs:       envCfg.OpenAICodexPoolIDs,
+		GitHubCopilotProviderIDs: envCfg.GitHubCopilotProviderIDs,
+		GitHubCopilotPoolIDs:     envCfg.GitHubCopilotPoolIDs,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal agent config hash input: %w", err)

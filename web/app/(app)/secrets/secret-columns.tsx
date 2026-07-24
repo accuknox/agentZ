@@ -182,7 +182,7 @@ function SecretActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem className="text-destructive" onSelect={() => setOpen(true)}>
+          <DropdownMenuItem variant="destructive" onSelect={() => setOpen(true)}>
             <Trash2 />
             Delete
           </DropdownMenuItem>

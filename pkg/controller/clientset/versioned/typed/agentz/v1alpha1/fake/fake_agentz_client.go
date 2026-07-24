@@ -31,6 +31,14 @@ func (c *FakeAgentzV1alpha1) Agents(namespace string) v1alpha1.AgentInterface {
 	return newFakeAgents(c, namespace)
 }
 
+func (c *FakeAgentzV1alpha1) InferencePools(namespace string) v1alpha1.InferencePoolInterface {
+	return newFakeInferencePools(c, namespace)
+}
+
+func (c *FakeAgentzV1alpha1) InferenceProviders(namespace string) v1alpha1.InferenceProviderInterface {
+	return newFakeInferenceProviders(c, namespace)
+}
+
 func (c *FakeAgentzV1alpha1) MCPConnections(namespace string) v1alpha1.MCPConnectionInterface {
 	return newFakeMCPConnections(c, namespace)
 }

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"text/template"
 	"time"
 
@@ -359,33 +360,31 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	if err != nil {
 		return fmt.Errorf("get agent %q: %w", run.Spec.AgentName, err)
 	}
-	if agt.Spec.SandboxRef != nil {
-		sandbox := &agentzv1alpha1.Sandbox{}
-		sandboxKey := client.ObjectKey{
-			Name:      agt.Spec.SandboxRef.Name,
-			Namespace: run.Namespace,
-		}
-		err = r.Get(ctx, sandboxKey, sandbox)
-		if err != nil {
-			return fmt.Errorf(
-				"get sandbox %q for agent %q: %w",
-				agt.Spec.SandboxRef.Name,
-				run.Spec.AgentName,
-				err,
-			)
-		}
+	sandbox := &agentzv1alpha1.Sandbox{}
+	sandboxKey := client.ObjectKey{
+		Name:      agt.Spec.SandboxRef.Name,
+		Namespace: run.Namespace,
+	}
+	err = r.Get(ctx, sandboxKey, sandbox)
+	if err != nil {
+		return fmt.Errorf(
+			"get sandbox %q for agent %q: %w",
+			agt.Spec.SandboxRef.Name,
+			run.Spec.AgentName,
+			err,
+		)
+	}
 
-		for _, ref := range sandbox.Spec.MCPConnectionRefs {
-			for _, tool := range ref.Tools {
-				if !tool.RequireConsent {
-					continue
-				}
-				permission = append(permission, gatewayapi.OpencodePermissionRule{
-					Action:     gatewayapi.Allow,
-					Permission: ref.Name + "_" + tool.Name,
-					Pattern:    "*",
-				})
+	for _, ref := range sandbox.Spec.MCPConnectionRefs {
+		for _, tool := range ref.Tools {
+			if !tool.RequireConsent {
+				continue
 			}
+			permission = append(permission, gatewayapi.OpencodePermissionRule{
+				Action:     gatewayapi.Allow,
+				Permission: ref.Name + "_" + tool.Name,
+				Pattern:    "*",
+			})
 		}
 	}
 
@@ -726,8 +725,7 @@ func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *agentzv1al
 		return "", nil
 	}
 
-	for i := len(*resp.JSON200) - 1; i >= 0; i-- {
-		msg := (*resp.JSON200)[i]
+	for _, msg := range slices.Backward(*resp.JSON200) {
 		assistant, err := msg.Info.AsOpencodeAssistantMessage()
 		if err != nil {
 			continue

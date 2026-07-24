@@ -112,6 +112,24 @@ export const zSandboxName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 /**
+ * Stable tenant-scoped inference provider ID.
+ */
+export const zInferenceProviderName = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+/**
+ * Stable tenant-scoped inference Pool ID.
+ */
+export const zInferencePoolName = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+/**
  * Immutable Skill resource name.
  */
 export const zSkillName = z
@@ -450,16 +468,8 @@ export const zDeleteWorkflowsRequest = z.object({
   workflow_names: z.array(zWorkflowName).min(1),
 })
 
-export const zAgentOpencodeProviderConfig = z.object({
-  env: z.array(z.string()).optional(),
-  baseURL: z.string().optional(),
-})
-
 export const zAgentOpencodeConfig = z.object({
-  model: z.string().optional(),
-  smallModel: z.string().optional(),
   instruction: z.string().max(4096).optional(),
-  providers: z.record(z.string(), zAgentOpencodeProviderConfig).optional(),
 })
 
 export const zCreateAgentRequest = z.object({
@@ -1017,6 +1027,486 @@ export const zWatchSecretsEvent = z.object({
   items: z.array(zSecretListItem),
 })
 
+export const zSandboxInferenceModelRef = z.object({
+  provider: zInferenceProviderName,
+  model: z.string().min(1).max(512),
+})
+
+export const zSandboxInference = z.object({
+  models: z.array(zSandboxInferenceModelRef).min(1).max(500),
+  default_model: zSandboxInferenceModelRef,
+  small_model: zSandboxInferenceModelRef.optional(),
+})
+
+export const zInferenceProviderKind = z.enum([
+  "OpenAI",
+  "OpenAICodex",
+  "Anthropic",
+  "Gemini",
+  "GitHubCopilot",
+  "OpenAICompatible",
+  "AnthropicCompatible",
+  "Bedrock",
+  "VertexAI",
+  "Azure",
+])
+
+export const zInferenceModelApi = z.enum(["ChatCompletions", "Responses", "Messages"])
+
+export const zInferenceModelModality = z.enum(["text", "audio", "image", "video", "pdf"])
+
+export const zInferenceModelCapabilities = z.object({
+  attachment: z.boolean(),
+  reasoning: z.boolean(),
+  temperature: z.boolean(),
+  tool_call: z.boolean(),
+})
+
+export const zInferenceModelModalities = z.object({
+  input: z.array(zInferenceModelModality).min(1),
+  output: z.array(zInferenceModelModality).min(1),
+})
+
+export const zInferenceModelLimits = z.object({
+  context: z.int().gte(1).lte(2147483647),
+  input: z.int().gte(1).lte(2147483647).optional(),
+  output: z.int().gte(1).lte(2147483647),
+})
+
+export const zInferenceModel = z.object({
+  id: z.string().min(1).max(512),
+  display_name: z.string().min(1).max(128),
+  capabilities: zInferenceModelCapabilities,
+  modalities: zInferenceModelModalities,
+  limits: zInferenceModelLimits,
+  api: zInferenceModelApi.optional(),
+  catalog_provider: z.string().min(1).max(128).optional(),
+})
+
+export const zInferenceProviderHeader = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[a-z0-9!#$%&'*+.^_|~-]+$/),
+  value: z.string().min(1).max(1024),
+})
+
+export const zOpenAiProviderConfig = z.object({
+  base_url: z.url().max(2048).optional(),
+})
+
+export const zAnthropicProviderConfig = z.object({
+  base_url: z.url().max(2048).optional(),
+})
+
+export const zGeminiProviderConfig = z.object({
+  base_url: z.url().max(2048).optional(),
+})
+
+export const zVertexAiProviderConfig = z.object({
+  project: z.string().min(1).max(128),
+  region: z.string().min(1).max(64),
+})
+
+export const zBedrockProviderConfig = z.object({
+  region: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$/),
+  auth_mode: z.enum(["AccessKey", "BearerToken"]),
+})
+
+export const zAzureProviderConfig = z.object({
+  resource_type: z.enum(["OpenAI", "Foundry"]),
+  resource_name: z.string().min(1).max(64),
+  project: z.string().min(1).max(64).optional(),
+  api_version: z.string().min(1).max(64),
+  auth_mode: z.enum(["APIKey", "ServicePrincipal"]),
+})
+
+export const zCompatibleProviderConfig = z.object({
+  base_url: z.url().max(2048),
+  path: z
+    .string()
+    .max(1024)
+    .regex(/^\/[^?#]*$/)
+    .optional(),
+  path_prefix: z
+    .string()
+    .max(1024)
+    .regex(/^\/[^?#]*$/)
+    .optional(),
+  auth_mode: z.enum(["None", "APIKey"]),
+  auth_header: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[a-z0-9!#$%&'*+.^_|~-]+$/)
+    .optional(),
+  auth_prefix: z.string().max(128).optional(),
+  headers: z.array(zInferenceProviderHeader).max(32).optional(),
+  allow_private_endpoint: z.boolean().optional().default(false),
+  skip_tls_verify: z.boolean().optional().default(false),
+})
+
+export const zInferenceProviderApiKeyCredentials = z.object({
+  api_key: z.string().max(49152).optional(),
+})
+
+export const zInferenceProviderVertexCredentials = z.object({
+  service_account_json: z.string().max(49152).optional(),
+})
+
+export const zInferenceProviderBedrockCredentials = z.object({
+  access_key: z.string().max(49152).optional(),
+  secret_key: z.string().max(49152).optional(),
+  session_token: z.string().max(49152).optional(),
+  bearer_token: z.string().max(49152).optional(),
+})
+
+export const zInferenceProviderAzureCredentials = z.object({
+  api_key: z.string().max(49152).optional(),
+  client_id: z.string().max(49152).optional(),
+  tenant_id: z.string().max(49152).optional(),
+  client_secret: z.string().max(49152).optional(),
+})
+
+export const zInferenceProviderOAuthCredentials = z.object({
+  access_token: z.string().min(1).max(49152),
+  refresh_token: z.string().min(1).max(49152).optional(),
+  id_token: z.string().min(1).max(49152).optional(),
+  expires_at: z.iso.datetime().optional(),
+})
+
+export const zCreateInferenceProviderOAuthTicketRequest = z.object({
+  kind: z.enum(["OpenAICodex", "GitHubCopilot"]),
+})
+
+export const zInferenceProviderReadFields = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+})
+
+export const zOpenAiInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["OpenAI"]),
+  openai: zOpenAiProviderConfig,
+})
+
+export const zOpenAiCodexInferenceProviderWrite = z.object({
+  catalog_provider: z.enum(["openai"]),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["OpenAICodex"]),
+})
+
+export const zAnthropicInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Anthropic"]),
+  anthropic: zAnthropicProviderConfig,
+})
+
+export const zGeminiInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Gemini"]),
+  gemini: zGeminiProviderConfig,
+})
+
+export const zGitHubCopilotInferenceProviderWrite = z.object({
+  catalog_provider: z.enum(["github-copilot"]),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["GitHubCopilot"]),
+})
+
+export const zVertexAiInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["VertexAI"]),
+  vertex_ai: zVertexAiProviderConfig,
+})
+
+export const zBedrockInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Bedrock"]),
+  bedrock: zBedrockProviderConfig,
+})
+
+export const zAzureInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Azure"]),
+  azure: zAzureProviderConfig,
+})
+
+export const zOpenAiCompatibleInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["OpenAICompatible"]),
+  openai_compatible: zCompatibleProviderConfig,
+})
+
+export const zAnthropicCompatibleInferenceProviderWrite = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["AnthropicCompatible"]),
+  anthropic_compatible: zCompatibleProviderConfig,
+})
+
+export const zInferenceProviderWriteDiscriminator = z.discriminatedUnion("kind", [
+  zOpenAiInferenceProviderWrite.extend({ kind: z.literal("OpenAI") }),
+  zOpenAiCodexInferenceProviderWrite.extend({ kind: z.literal("OpenAICodex") }),
+  zAnthropicInferenceProviderWrite.extend({ kind: z.literal("Anthropic") }),
+  zGeminiInferenceProviderWrite.extend({ kind: z.literal("Gemini") }),
+  zGitHubCopilotInferenceProviderWrite.extend({ kind: z.literal("GitHubCopilot") }),
+  zVertexAiInferenceProviderWrite.extend({ kind: z.literal("VertexAI") }),
+  zBedrockInferenceProviderWrite.extend({ kind: z.literal("Bedrock") }),
+  zAzureInferenceProviderWrite.extend({ kind: z.literal("Azure") }),
+  zOpenAiCompatibleInferenceProviderWrite.extend({ kind: z.literal("OpenAICompatible") }),
+  zAnthropicCompatibleInferenceProviderWrite.extend({ kind: z.literal("AnthropicCompatible") }),
+])
+
+export const zOpenAiInferenceProviderRead = z.object({
+  kind: z.enum(["OpenAI"]),
+  openai: zOpenAiProviderConfig,
+})
+
+export const zOpenAiCodexInferenceProviderRead = z.object({
+  kind: z.enum(["OpenAICodex"]),
+})
+
+export const zAnthropicInferenceProviderRead = z.object({
+  kind: z.enum(["Anthropic"]),
+  anthropic: zAnthropicProviderConfig,
+})
+
+export const zGeminiInferenceProviderRead = z.object({
+  kind: z.enum(["Gemini"]),
+  gemini: zGeminiProviderConfig,
+})
+
+export const zGitHubCopilotInferenceProviderRead = z.object({
+  kind: z.enum(["GitHubCopilot"]),
+})
+
+export const zVertexAiInferenceProviderRead = z.object({
+  kind: z.enum(["VertexAI"]),
+  vertex_ai: zVertexAiProviderConfig,
+})
+
+export const zBedrockInferenceProviderRead = z.object({
+  kind: z.enum(["Bedrock"]),
+  bedrock: zBedrockProviderConfig,
+})
+
+export const zAzureInferenceProviderRead = z.object({
+  kind: z.enum(["Azure"]),
+  azure: zAzureProviderConfig,
+})
+
+export const zOpenAiCompatibleInferenceProviderRead = z.object({
+  kind: z.enum(["OpenAICompatible"]),
+  openai_compatible: zCompatibleProviderConfig,
+})
+
+export const zAnthropicCompatibleInferenceProviderRead = z.object({
+  kind: z.enum(["AnthropicCompatible"]),
+  anthropic_compatible: zCompatibleProviderConfig,
+})
+
+export const zInferenceProviderReadDiscriminator = z.discriminatedUnion("kind", [
+  zOpenAiInferenceProviderRead.extend({ kind: z.literal("OpenAI") }),
+  zOpenAiCodexInferenceProviderRead.extend({ kind: z.literal("OpenAICodex") }),
+  zAnthropicInferenceProviderRead.extend({ kind: z.literal("Anthropic") }),
+  zGeminiInferenceProviderRead.extend({ kind: z.literal("Gemini") }),
+  zGitHubCopilotInferenceProviderRead.extend({ kind: z.literal("GitHubCopilot") }),
+  zVertexAiInferenceProviderRead.extend({ kind: z.literal("VertexAI") }),
+  zBedrockInferenceProviderRead.extend({ kind: z.literal("Bedrock") }),
+  zAzureInferenceProviderRead.extend({ kind: z.literal("Azure") }),
+  zOpenAiCompatibleInferenceProviderRead.extend({ kind: z.literal("OpenAICompatible") }),
+  zAnthropicCompatibleInferenceProviderRead.extend({ kind: z.literal("AnthropicCompatible") }),
+])
+
+export const zCreateInferenceProviderRequest = z.object({
+  provider: zInferenceProviderWriteDiscriminator,
+  oauth_ticket: z.string().min(1).max(256).optional(),
+})
+
+export const zUpdateInferenceProviderRequest = z.object({
+  resource_version: z.string().min(1),
+  provider: zInferenceProviderWriteDiscriminator,
+})
+
+export const zInferenceProviderCondition = z.object({
+  type: z.string(),
+  status: z.enum(["True", "False", "Unknown"]),
+  reason: z.string(),
+  message: z.string(),
+})
+
+export const zInferenceProvider = zInferenceProviderReadFields
+  .and(zInferenceProviderReadDiscriminator)
+  .and(
+    z.object({
+      id: zInferenceProviderName,
+      resource_version: z.string(),
+      state: z.enum(["Accepted", "Ready", "Degraded"]),
+      conditions: z.array(zInferenceProviderCondition),
+      model_count: z.int().gte(0),
+      usage_count: z.int().gte(0),
+      created_at: z.iso.datetime(),
+      updated_at: z.iso.datetime(),
+    })
+  )
+
+export const zListInferenceProvidersResponse = z.object({
+  providers: z.array(zInferenceProvider),
+  next_page_token: z.string(),
+})
+
+export const zWatchInferenceProvidersRequest = z.object({
+  provider_ids: z.array(zInferenceProviderName).max(200).optional(),
+})
+
+export const zWatchInferenceProvidersEvent = z.object({
+  providers: z.array(zInferenceProvider),
+})
+
+export const zInferenceProviderUsage = z.object({
+  provider: zInferenceProviderName,
+  pools: z.array(zInferencePoolName),
+  sandboxes: z.array(zSandboxName),
+})
+
+export const zInferencePoolMember = z.object({
+  provider: zInferenceProviderName,
+  model: z.string().min(1).max(512),
+})
+
+export const zInferencePoolWrite = z.object({
+  display_name: z.string().min(1).max(128),
+  automatic_failover: z.boolean(),
+  members: z.array(zInferencePoolMember).min(1).max(8),
+})
+
+export const zCreateInferencePoolRequest = zInferencePoolWrite
+
+export const zUpdateInferencePoolRequest = z.object({
+  resource_version: z.string().min(1),
+  pool: zInferencePoolWrite,
+})
+
+export const zInferenceProtocol = z.enum(["OpenAI", "Anthropic"])
+
+export const zInferencePoolState = z.enum(["Accepted", "Ready", "PartiallyDegraded", "Degraded"])
+
+export const zInferencePoolContract = z.object({
+  api: zInferenceModelApi,
+  capabilities: zInferenceModelCapabilities,
+  modalities: zInferenceModelModalities,
+  limits: zInferenceModelLimits,
+})
+
+export const zInferencePoolWarning = z.object({
+  code: z.enum(["MixedProtocols"]),
+  message: z.string(),
+})
+
+export const zInferencePoolMemberStatus = z.object({
+  provider: zInferenceProviderName,
+  model: z.string().min(1).max(512),
+  protocol: zInferenceProtocol,
+  ready: z.boolean(),
+  reason: z.string(),
+  message: z.string(),
+})
+
+export const zInferencePool = z.object({
+  id: zInferencePoolName,
+  display_name: z.string().min(1).max(128),
+  resource_version: z.string(),
+  automatic_failover: z.boolean(),
+  members: z.array(zInferencePoolMember).min(1).max(8),
+  state: zInferencePoolState,
+  conditions: z.array(zInferenceProviderCondition),
+  contract: zInferencePoolContract.optional(),
+  protocol: zInferenceProtocol.optional(),
+  warnings: z.array(zInferencePoolWarning),
+  member_statuses: z.array(zInferencePoolMemberStatus),
+  usage_count: z.int().gte(0),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zListInferencePoolsResponse = z.object({
+  pools: z.array(zInferencePool),
+  next_page_token: z.string(),
+})
+
+export const zWatchInferencePoolsRequest = z.object({
+  pool_ids: z.array(zInferencePoolName).max(200).optional(),
+})
+
+export const zWatchInferencePoolsEvent = z.object({
+  pools: z.array(zInferencePool),
+})
+
+export const zInferencePoolUsage = z.object({
+  pool: zInferencePoolName,
+  sandboxes: z.array(zSandboxName),
+})
+
+export const zInferenceProviderCatalogEntry = z.object({
+  provider_id: z.string().min(1).max(128),
+  name: z.string().min(1).max(128),
+  provider_kind: zInferenceProviderKind,
+  base_url: z.url().max(2048).optional(),
+  base_url_template: z.string().max(2048).optional(),
+  auth_header: z.string().max(128).optional(),
+  auth_prefix: z.string().max(128).optional(),
+  documentation_url: z.url().max(2048).optional(),
+})
+
+export const zInferenceProviderCatalog = z.object({
+  commit: z.string().length(40),
+  providers: z.array(zInferenceProviderCatalogEntry),
+})
+
+export const zInferenceModelSuggestion = zInferenceModel.and(
+  z.object({
+    catalog_provider: z.string(),
+  })
+)
+
+export const zInferenceModelSuggestionsProvenance = z.enum(["live", "cache", "snapshot"])
+
+export const zCreateInferenceProviderOAuthTicketResponse = z.object({
+  ticket: z.string().min(1).max(256),
+  expires_at: z.iso.datetime(),
+  models: z.array(zInferenceModelSuggestion).max(500),
+  provenance: zInferenceModelSuggestionsProvenance,
+})
+
+export const zInferenceModelSuggestions = z.object({
+  provenance: zInferenceModelSuggestionsProvenance,
+  models: z.array(zInferenceModelSuggestion),
+})
+
 export const zMcpConnectionToolRef = z.object({
   name: z.string().min(1),
   require_consent: z.boolean(),
@@ -1033,6 +1523,7 @@ export const zSandbox = z.object({
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
   skills: z.array(zSkillName),
+  inference: zSandboxInference,
   created_at: z.iso.datetime(),
   metadata: z.object({
     package_count: z
@@ -1062,6 +1553,7 @@ export const zCreateSandboxRequest = z.object({
   allowed_hosts: z.array(z.string().min(1)).optional(),
   mcp_connection_refs: z.array(zMcpConnectionRef).optional(),
   skills: z.array(zSkillName).optional(),
+  inference: zSandboxInference,
 })
 
 export const zUpdateSandboxRequest = z.object({
@@ -1069,6 +1561,7 @@ export const zUpdateSandboxRequest = z.object({
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
   skills: z.array(zSkillName),
+  inference: zSandboxInference,
 })
 
 export const zMcpConnectionTool = z.object({
@@ -1198,6 +1691,125 @@ export const zCreateMcpConnectionRequest = z.object({
   credentials: zMcpConnectionCredentials,
 })
 
+export const zJsonValueWritable = z
+  .union([
+    z.boolean(),
+    z.number(),
+    z.string(),
+    z.array(z.lazy((): any => zJsonValueWritable)),
+    z.record(
+      z.string(),
+      z.lazy((): any => zJsonValueWritable)
+    ),
+  ])
+  .nullable()
+
+export const zWorkflowRunInputsWritable = zJsonValueWritable
+
+export const zJsonObjectWritable = z.record(z.string(), zJsonValueWritable)
+
+export const zCreateInferenceProviderOAuthTicketRequestWritable = z.object({
+  kind: z.enum(["OpenAICodex", "GitHubCopilot"]),
+  credentials: zInferenceProviderOAuthCredentials,
+})
+
+export const zOpenAiInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["OpenAI"]),
+  openai: zOpenAiProviderConfig,
+  credentials: zInferenceProviderApiKeyCredentials,
+})
+
+export const zAnthropicInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Anthropic"]),
+  anthropic: zAnthropicProviderConfig,
+  credentials: zInferenceProviderApiKeyCredentials,
+})
+
+export const zGeminiInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Gemini"]),
+  gemini: zGeminiProviderConfig,
+  credentials: zInferenceProviderApiKeyCredentials,
+})
+
+export const zVertexAiInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["VertexAI"]),
+  vertex_ai: zVertexAiProviderConfig,
+  credentials: zInferenceProviderVertexCredentials,
+})
+
+export const zBedrockInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Bedrock"]),
+  bedrock: zBedrockProviderConfig,
+  credentials: zInferenceProviderBedrockCredentials,
+})
+
+export const zAzureInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["Azure"]),
+  azure: zAzureProviderConfig,
+  credentials: zInferenceProviderAzureCredentials,
+})
+
+export const zOpenAiCompatibleInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["OpenAICompatible"]),
+  openai_compatible: zCompatibleProviderConfig,
+  credentials: zInferenceProviderApiKeyCredentials,
+})
+
+export const zAnthropicCompatibleInferenceProviderWriteWritable = z.object({
+  catalog_provider: z.string().min(1).max(128),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["AnthropicCompatible"]),
+  anthropic_compatible: zCompatibleProviderConfig,
+  credentials: zInferenceProviderApiKeyCredentials,
+})
+
+export const zInferenceProviderWriteDiscriminatorWritable = z.discriminatedUnion("kind", [
+  zOpenAiInferenceProviderWriteWritable.extend({ kind: z.literal("OpenAI") }),
+  zOpenAiCodexInferenceProviderWrite.extend({ kind: z.literal("OpenAICodex") }),
+  zAnthropicInferenceProviderWriteWritable.extend({ kind: z.literal("Anthropic") }),
+  zGeminiInferenceProviderWriteWritable.extend({ kind: z.literal("Gemini") }),
+  zGitHubCopilotInferenceProviderWrite.extend({ kind: z.literal("GitHubCopilot") }),
+  zVertexAiInferenceProviderWriteWritable.extend({ kind: z.literal("VertexAI") }),
+  zBedrockInferenceProviderWriteWritable.extend({ kind: z.literal("Bedrock") }),
+  zAzureInferenceProviderWriteWritable.extend({ kind: z.literal("Azure") }),
+  zOpenAiCompatibleInferenceProviderWriteWritable.extend({ kind: z.literal("OpenAICompatible") }),
+  zAnthropicCompatibleInferenceProviderWriteWritable.extend({
+    kind: z.literal("AnthropicCompatible"),
+  }),
+])
+
+export const zCreateInferenceProviderRequestWritable = z.object({
+  provider: zInferenceProviderWriteDiscriminatorWritable,
+  oauth_ticket: z.string().min(1).max(256).optional(),
+})
+
+export const zUpdateInferenceProviderRequestWritable = z.object({
+  resource_version: z.string().min(1),
+  provider: zInferenceProviderWriteDiscriminatorWritable,
+})
+
 /**
  * Agent name.
  */
@@ -1212,6 +1824,16 @@ export const zAgentNameQueryOptional = zAgentName
  * Agent name.
  */
 export const zAgentNamePath = zAgentName
+
+/**
+ * Stable inference provider ID.
+ */
+export const zInferenceProviderNamePath = zInferenceProviderName
+
+/**
+ * Stable inference Pool ID.
+ */
+export const zInferencePoolNamePath = zInferencePoolName
 
 /**
  * Path relative to the agent workspace root.
@@ -1784,6 +2406,170 @@ export const zCreateSandboxBody = zCreateSandboxRequest
  */
 export const zCreateSandboxResponse = zSandbox
 
+export const zListInferenceProvidersQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated inference providers.
+ */
+export const zListInferenceProvidersResponse2 = zListInferenceProvidersResponse
+
+export const zCreateInferenceProviderBody = zCreateInferenceProviderRequestWritable
+
+/**
+ * Provider created.
+ */
+export const zCreateInferenceProviderResponse = zInferenceProvider
+
+export const zCreateInferenceProviderOAuthTicketBody =
+  zCreateInferenceProviderOAuthTicketRequestWritable
+
+/**
+ * Single-use provider ticket and non-secret model metadata.
+ */
+export const zCreateInferenceProviderOAuthTicketResponse2 =
+  zCreateInferenceProviderOAuthTicketResponse
+
+export const zDeleteInferenceProviderPath = z.object({
+  providerName: zInferenceProviderName,
+})
+
+/**
+ * Provider deletion accepted.
+ */
+export const zDeleteInferenceProviderResponse = z.void()
+
+export const zGetInferenceProviderPath = z.object({
+  providerName: zInferenceProviderName,
+})
+
+/**
+ * Inference provider.
+ */
+export const zGetInferenceProviderResponse = zInferenceProvider
+
+export const zUpdateInferenceProviderBody = zUpdateInferenceProviderRequestWritable
+
+export const zUpdateInferenceProviderPath = z.object({
+  providerName: zInferenceProviderName,
+})
+
+/**
+ * Provider updated.
+ */
+export const zUpdateInferenceProviderResponse = zInferenceProvider
+
+export const zWatchInferenceProvidersBody = zWatchInferenceProvidersRequest
+
+/**
+ * Stream of inference provider updates.
+ */
+export const zWatchInferenceProvidersResponse = zWatchInferenceProvidersEvent
+
+export const zGetInferenceProviderUsagePath = z.object({
+  providerName: zInferenceProviderName,
+})
+
+/**
+ * Provider usage.
+ */
+export const zGetInferenceProviderUsageResponse = zInferenceProviderUsage
+
+export const zRefreshInferenceProviderModelsPath = z.object({
+  providerName: zInferenceProviderName,
+})
+
+/**
+ * Current subscription model suggestions.
+ */
+export const zRefreshInferenceProviderModelsResponse = zInferenceModelSuggestions
+
+export const zListInferenceProviderCatalogQuery = z.object({
+  q: z.string().max(128).optional(),
+})
+
+/**
+ * Supported provider/runtime variants.
+ */
+export const zListInferenceProviderCatalogResponse = zInferenceProviderCatalog
+
+export const zListInferenceModelSuggestionsPath = z.object({
+  catalogProvider: z.string().min(1).max(128),
+})
+
+export const zListInferenceModelSuggestionsQuery = z.object({
+  provider_kind: zInferenceProviderKind,
+})
+
+/**
+ * Model suggestions with cache provenance.
+ */
+export const zListInferenceModelSuggestionsResponse = zInferenceModelSuggestions
+
+export const zListInferencePoolsQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * Paginated inference Pools.
+ */
+export const zListInferencePoolsResponse2 = zListInferencePoolsResponse
+
+export const zCreateInferencePoolBody = zInferencePoolWrite
+
+/**
+ * Pool created.
+ */
+export const zCreateInferencePoolResponse = zInferencePool
+
+export const zDeleteInferencePoolPath = z.object({
+  poolName: zInferencePoolName,
+})
+
+/**
+ * Pool deletion accepted.
+ */
+export const zDeleteInferencePoolResponse = z.void()
+
+export const zGetInferencePoolPath = z.object({
+  poolName: zInferencePoolName,
+})
+
+/**
+ * Inference Pool.
+ */
+export const zGetInferencePoolResponse = zInferencePool
+
+export const zUpdateInferencePoolBody = zUpdateInferencePoolRequest
+
+export const zUpdateInferencePoolPath = z.object({
+  poolName: zInferencePoolName,
+})
+
+/**
+ * Pool updated.
+ */
+export const zUpdateInferencePoolResponse = zInferencePool
+
+export const zGetInferencePoolUsagePath = z.object({
+  poolName: zInferencePoolName,
+})
+
+/**
+ * Pool usage.
+ */
+export const zGetInferencePoolUsageResponse = zInferencePoolUsage
+
+export const zWatchInferencePoolsBody = zWatchInferencePoolsRequest
+
+/**
+ * Stream of inference Pool updates.
+ */
+export const zWatchInferencePoolsResponse = zWatchInferencePoolsEvent
+
 export const zDeleteSandboxPath = z.object({
   sandboxName: zSandboxName,
 })
@@ -1963,7 +2749,7 @@ export const zCreateWorkflowRunPath = z.object({
  */
 export const zCreateWorkflowRunResponse = zWorkflowRunSummary
 
-export const zInvokeWorkflowWebhookBody = zWorkflowRunInputs
+export const zInvokeWorkflowWebhookBody = zWorkflowRunInputsWritable
 
 export const zInvokeWorkflowWebhookPath = z.object({
   agentName: zAgentName,

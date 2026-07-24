@@ -587,6 +587,22 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		},
 		corev1.EnvVar{Name: "AGENTZ_GATEWAY_URL", Value: r.Config.GatewayURL},
 		corev1.EnvVar{Name: "AGENTZ_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
+		corev1.EnvVar{
+			Name:  "AGENTZ_OPENAI_CODEX_PROVIDER_IDS",
+			Value: strings.Join(envCfg.OpenAICodexProviderIDs, ","),
+		},
+		corev1.EnvVar{
+			Name:  "AGENTZ_OPENAI_CODEX_POOL_IDS",
+			Value: strings.Join(envCfg.OpenAICodexPoolIDs, ","),
+		},
+		corev1.EnvVar{
+			Name:  "AGENTZ_GITHUB_COPILOT_PROVIDER_IDS",
+			Value: strings.Join(envCfg.GitHubCopilotProviderIDs, ","),
+		},
+		corev1.EnvVar{
+			Name:  "AGENTZ_GITHUB_COPILOT_POOL_IDS",
+			Value: strings.Join(envCfg.GitHubCopilotPoolIDs, ","),
+		},
 	)
 
 	forcedNames := make(map[string]struct{}, len(forced))

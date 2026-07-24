@@ -9,6 +9,7 @@
 !internal/workflow/input-schema.json
 !internal/controller/agent/prompts/
 **/*_test.go
+**/node_modules/**
 
 # Re-include Go module files
 !go.mod

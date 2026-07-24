@@ -34,6 +34,7 @@ import (
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
 	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	"github.com/go-logr/logr"
 	"github.com/urfave/cli/v3"
 	corev1 "k8s.io/api/core/v1"
@@ -52,6 +53,8 @@ import (
 
 	"github.com/accuknox/agentz/cmd/agentz/subcommands"
 	"github.com/accuknox/agentz/internal/controller/agent"
+	inferencepoolcontroller "github.com/accuknox/agentz/internal/controller/inferencepool"
+	inferenceprovidercontroller "github.com/accuknox/agentz/internal/controller/inferenceprovider"
 	"github.com/accuknox/agentz/internal/controller/mcpconn"
 	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
 	"github.com/accuknox/agentz/internal/controller/secret"
@@ -60,10 +63,13 @@ import (
 	workflowruncontroller "github.com/accuknox/agentz/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/agentz/internal/controller/workflowschedule"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
+	inferencepoolwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferencepool"
+	inferenceproviderwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferenceprovider"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -118,6 +124,8 @@ var (
 	watchNamespace                                   string
 	enableWebhooks                                   bool
 	workflowRunOrphanRetention                       time.Duration
+	inferenceSecretStoreName                         string
+	inferenceSecretRefreshInterval                   time.Duration
 )
 
 type silentExitCoder interface {
@@ -203,6 +211,7 @@ var cmd = &cli.Command{
 		}
 		withSource := c.Bool("log-with-source")
 		slog.SetDefault(newLogger(level, format, withSource))
+		ctrl.SetLogger(logr.FromSlogHandler(slog.Default().Handler()))
 		return ctx, nil
 	},
 }
@@ -482,6 +491,21 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:        "inference-secret-store-name",
+			Usage:       "ClusterSecretStore used for inference provider credentials",
+			Value:       "agentz-inference",
+			Destination: &inferenceSecretStoreName,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.DurationFlag{
+			Name:        "inference-secret-refresh-interval",
+			Usage:       "ExternalSecret refresh interval for inference credentials",
+			Value:       time.Minute,
+			Destination: &inferenceSecretRefreshInterval,
+		},
+		&cli.StringFlag{
 			Name:        "manager-gateway-token-audience",
 			Usage:       "Audience for projected Kubernetes service account tokens used for gateway auth",
 			Value:       "agentz-gateway",
@@ -581,8 +605,6 @@ var managerCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		ctrl.SetLogger(logr.FromSlogHandler(slog.Default().Handler()))
-
 		// if the enable-http2 flag is false (the default), http/2 should be
 		// disabled due to its vulnerabilities. More specifically, disabling
 		// http/2 will prevent from being vulnerable to the HTTP/2 Stream
@@ -725,6 +747,16 @@ var managerCmd = &cli.Command{
 			)
 			os.Exit(1)
 		}
+		err = inference.IndexSandboxes(context.Background(), mgr.GetFieldIndexer())
+		if err != nil {
+			setupLog.Error(err, "failed to register inference provider field indexes")
+			os.Exit(1)
+		}
+		err = inference.IndexPools(context.Background(), mgr.GetFieldIndexer())
+		if err != nil {
+			setupLog.Error(err, "failed to register inference pool field indexes")
+			os.Exit(1)
+		}
 		err = workflowschedulecontroller.IndexWorkflowRunsBySchedule(
 			context.Background(),
 			mgr.GetFieldIndexer(),
@@ -853,6 +885,35 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
+		inferenceProviderReconciler := &inferenceprovidercontroller.Reconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorder("inference-provider"),
+			Config: inferenceprovidercontroller.ReconcilerConfig{
+				StoreName:               inferenceSecretStoreName,
+				RefreshInterval:         inferenceSecretRefreshInterval,
+				OpenBaoAddr:             openBaoAddr,
+				ManagerOpenBaoAddr:      managerOpenBaoAddr,
+				OpenBaoSecretMountPath:  openBaoSecretMountPath,
+				OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
+				OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
+				OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
+			},
+		}
+		if err := inferenceProviderReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "InferenceProvider")
+			os.Exit(1)
+		}
+
+		inferencePoolReconciler := &inferencepoolcontroller.Reconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}
+		if err := inferencePoolReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "InferencePool")
+			os.Exit(1)
+		}
+
 		sandboxReconciler := &sandboxcontroller.Reconciler{
 			Client:       mgr.GetClient(),
 			Scheme:       mgr.GetScheme(),
@@ -874,6 +935,14 @@ var managerCmd = &cli.Command{
 			}
 			if err := webhookv1alpha1.SetupSandboxWebhookWithManager(mgr); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "Sandbox")
+				os.Exit(1)
+			}
+			if err := inferenceproviderwebhook.RegisterWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "InferenceProvider")
+				os.Exit(1)
+			}
+			if err := inferencepoolwebhook.RegisterWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "InferencePool")
 				os.Exit(1)
 			}
 			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {
@@ -923,7 +992,6 @@ var managerCmd = &cli.Command{
 			Client:                  mgr.GetClient(),
 			Scheme:                  mgr.GetScheme(),
 			AgentGateway:            agClient,
-			ControllerImage:         controllerImage,
 			OpenBaoAddr:             openBaoAddr,
 			ManagerOpenBaoAddr:      managerOpenBaoAddr,
 			OpenBaoSecretMountPath:  openBaoSecretMountPath,
@@ -933,6 +1001,21 @@ var managerCmd = &cli.Command{
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "MCPConnection")
+			os.Exit(1)
+		}
+		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
+			Client:                  mgr.GetClient(),
+			Scheme:                  mgr.GetScheme(),
+			ControllerImage:         controllerImage,
+			OpenBaoAddr:             openBaoAddr,
+			ManagerOpenBaoAddr:      managerOpenBaoAddr,
+			OpenBaoSecretMountPath:  openBaoSecretMountPath,
+			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
+			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
+			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
+		}
+		if err := extAuthRuntimeReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "ExtAuthRuntime")
 			os.Exit(1)
 		}
 
@@ -1013,6 +1096,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(agentzv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ciliumv2.AddToScheme(scheme))
+	utilruntime.Must(externalsecretsv1.AddToScheme(scheme))
 	utilruntime.Must(gwv1.Install(scheme))
 	utilruntime.Must(agentgatewayv1alpha1.Install(scheme))
 	// +kubebuilder:scaffold:scheme

@@ -64,6 +64,8 @@ spec:
             - --sinjector-openbao-k8s-auth-token-path={{ .Values.config.sinjectorOpenBaoK8sAuthTokenPath }}
             - --manager-openbao-k8s-auth-role={{ .Values.config.managerOpenBaoK8sAuthRole }}
             - --manager-openbao-k8s-auth-token-path={{ .Values.config.managerOpenBaoK8sAuthTokenPath }}
+            - --inference-secret-store-name={{ required "manager.inference.externalSecrets.storeName is required" .Values.inference.externalSecrets.storeName }}
+            - --inference-secret-refresh-interval={{ required "manager.inference.externalSecrets.refreshInterval is required" .Values.inference.externalSecrets.refreshInterval }}
             - --manager-gateway-token-path={{ .Values.config.managerGatewayTokenPath }}
             - --manager-gateway-token-audience={{ .Values.config.managerGatewayTokenAudience }}
             - --manager-service-account-name={{ include "manager.serviceAccountName" . }}

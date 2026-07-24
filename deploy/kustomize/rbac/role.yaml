@@ -9,6 +9,7 @@ rules:
   - configmaps
   - persistentvolumeclaims
   - pods
+  - secrets
   - serviceaccounts
   - services
   verbs:
@@ -23,7 +24,6 @@ rules:
   - ""
   resources:
   - namespaces
-  - secrets
   verbs:
   - create
   - get
@@ -68,6 +68,8 @@ rules:
   - agentz.accuknox.com
   resources:
   - agents/finalizers
+  - inferencepools/finalizers
+  - inferenceproviders/finalizers
   - mcpconnections/finalizers
   - sandboxes/finalizers
   - secrets/finalizers
@@ -79,6 +81,8 @@ rules:
   - agentz.accuknox.com
   resources:
   - agents/status
+  - inferencepools/status
+  - inferenceproviders/status
   - mcpconnections/status
   - sandboxes/status
   - secrets/status
@@ -92,6 +96,8 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
+  - inferencepools
+  - inferenceproviders
   - mcpconnections
   - secrets
   verbs:
@@ -197,6 +203,18 @@ rules:
   - discovery.k8s.io
   resources:
   - endpointslices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - external-secrets.io
+  resources:
+  - externalsecrets
   verbs:
   - create
   - delete

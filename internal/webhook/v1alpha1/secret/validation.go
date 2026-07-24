@@ -79,8 +79,8 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldSecret, newSecret *agen
 	if oldSecret.Spec.Type != newSecret.Spec.Type {
 		fields = append(fields, field.Forbidden(specPath.Child("type"), "type is immutable"))
 	}
-	if oldSecret.Spec.Type == agentzv1alpha1.SecretTypeOAuth &&
-		!apiequality.Semantic.DeepEqual(oldSecret.Spec, newSecret.Spec) {
+	isOAuth := oldSecret.Spec.Type == agentzv1alpha1.SecretTypeOAuth
+	if isOAuth && !apiequality.Semantic.DeepEqual(oldSecret.Spec, newSecret.Spec) {
 		fields = append(fields, field.Forbidden(specPath, "oauth secret spec is immutable after creation"))
 	}
 	if len(fields) == 0 {

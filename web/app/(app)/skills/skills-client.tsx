@@ -420,7 +420,7 @@ function SkillsActions({
             Export
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="text-destructive"
+            variant="destructive"
             disabled={selectedCount === 0}
             onSelect={onDelete}
           >

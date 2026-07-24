@@ -84,6 +84,20 @@ components:
       schema:
         format: date
         type: string
+    InferencePoolNamePath:
+      description: Stable inference Pool ID.
+      in: path
+      name: poolName
+      required: true
+      schema:
+        $ref: '#/components/schemas/InferencePoolName'
+    InferenceProviderNamePath:
+      description: Stable inference provider ID.
+      in: path
+      name: providerName
+      required: true
+      schema:
+        $ref: '#/components/schemas/InferenceProviderName'
     LimitQuery:
       description: Maximum number of items to return.
       in: query
@@ -343,24 +357,6 @@ components:
         instruction:
           maxLength: 4096
           type: string
-        model:
-          type: string
-        providers:
-          additionalProperties:
-            $ref: '#/components/schemas/AgentOpencodeProviderConfig'
-          type: object
-        smallModel:
-          type: string
-      type: object
-    AgentOpencodeProviderConfig:
-      additionalProperties: false
-      properties:
-        baseURL:
-          type: string
-        env:
-          items:
-            type: string
-          type: array
       type: object
     AgentStatus:
       enum:
@@ -370,6 +366,285 @@ components:
       - DELETED
       - IDLE
       type: string
+    AnthropicCompatibleInferenceProviderRead:
+      properties:
+        anthropic_compatible:
+          $ref: '#/components/schemas/CompatibleProviderConfig'
+        kind:
+          enum:
+          - AnthropicCompatible
+          type: string
+      required:
+      - kind
+      - anthropic_compatible
+      type: object
+    AnthropicCompatibleInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        anthropic_compatible:
+          $ref: '#/components/schemas/CompatibleProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - AnthropicCompatible
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - anthropic_compatible
+      - credentials
+      type: object
+    AnthropicInferenceProviderRead:
+      properties:
+        anthropic:
+          $ref: '#/components/schemas/AnthropicProviderConfig'
+        kind:
+          enum:
+          - Anthropic
+          type: string
+      required:
+      - kind
+      - anthropic
+      type: object
+    AnthropicInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        anthropic:
+          $ref: '#/components/schemas/AnthropicProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - Anthropic
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - anthropic
+      - credentials
+      type: object
+    AnthropicProviderConfig:
+      additionalProperties: false
+      properties:
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
+      type: object
+    AzureInferenceProviderRead:
+      properties:
+        azure:
+          $ref: '#/components/schemas/AzureProviderConfig'
+        kind:
+          enum:
+          - Azure
+          type: string
+      required:
+      - kind
+      - azure
+      type: object
+    AzureInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        azure:
+          $ref: '#/components/schemas/AzureProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderAzureCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - Azure
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - azure
+      - credentials
+      type: object
+    AzureProviderConfig:
+      additionalProperties: false
+      properties:
+        api_version:
+          maxLength: 64
+          minLength: 1
+          type: string
+        auth_mode:
+          enum:
+          - APIKey
+          - ServicePrincipal
+          type: string
+        project:
+          maxLength: 64
+          minLength: 1
+          type: string
+        resource_name:
+          maxLength: 64
+          minLength: 1
+          type: string
+        resource_type:
+          enum:
+          - OpenAI
+          - Foundry
+          type: string
+      required:
+      - resource_type
+      - resource_name
+      - api_version
+      - auth_mode
+      type: object
+    BedrockInferenceProviderRead:
+      properties:
+        bedrock:
+          $ref: '#/components/schemas/BedrockProviderConfig'
+        kind:
+          enum:
+          - Bedrock
+          type: string
+      required:
+      - kind
+      - bedrock
+      type: object
+    BedrockInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        bedrock:
+          $ref: '#/components/schemas/BedrockProviderConfig'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderBedrockCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - Bedrock
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - bedrock
+      - credentials
+      type: object
+    BedrockProviderConfig:
+      additionalProperties: false
+      properties:
+        auth_mode:
+          enum:
+          - AccessKey
+          - BearerToken
+          type: string
+        region:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$
+          type: string
+      required:
+      - region
+      - auth_mode
+      type: object
+    CompatibleProviderConfig:
+      additionalProperties: false
+      properties:
+        allow_private_endpoint:
+          default: false
+          type: boolean
+        auth_header:
+          maxLength: 128
+          minLength: 1
+          pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
+          type: string
+        auth_mode:
+          enum:
+          - None
+          - APIKey
+          type: string
+        auth_prefix:
+          maxLength: 128
+          type: string
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
+        headers:
+          items:
+            $ref: '#/components/schemas/InferenceProviderHeader'
+          maxItems: 32
+          type: array
+        path:
+          maxLength: 1024
+          pattern: ^/[^?#]*$
+          type: string
+        path_prefix:
+          maxLength: 1024
+          pattern: ^/[^?#]*$
+          type: string
+        skip_tls_verify:
+          default: false
+          type: boolean
+      required:
+      - base_url
+      - auth_mode
+      type: object
     CreateAgentDirectoryRequest:
       additionalProperties: false
       properties:
@@ -413,6 +688,57 @@ components:
       - name
       - sandboxName
       type: object
+    CreateInferencePoolRequest:
+      $ref: '#/components/schemas/InferencePoolWrite'
+    CreateInferenceProviderOAuthTicketRequest:
+      additionalProperties: false
+      properties:
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderOAuthCredentials'
+        kind:
+          enum:
+          - OpenAICodex
+          - GitHubCopilot
+          type: string
+      required:
+      - kind
+      - credentials
+      type: object
+    CreateInferenceProviderOAuthTicketResponse:
+      additionalProperties: false
+      properties:
+        expires_at:
+          format: date-time
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModelSuggestion'
+          maxItems: 500
+          type: array
+        provenance:
+          $ref: '#/components/schemas/InferenceModelSuggestionsProvenance'
+        ticket:
+          maxLength: 256
+          minLength: 1
+          type: string
+      required:
+      - ticket
+      - expires_at
+      - models
+      - provenance
+      type: object
+    CreateInferenceProviderRequest:
+      additionalProperties: false
+      properties:
+        oauth_ticket:
+          maxLength: 256
+          minLength: 1
+          type: string
+        provider:
+          $ref: '#/components/schemas/InferenceProviderWriteDiscriminator'
+      required:
+      - provider
+      type: object
     CreateMCPConnectionRequest:
       additionalProperties: false
       properties:
@@ -438,6 +764,8 @@ components:
             minLength: 1
             type: string
           type: array
+        inference:
+          $ref: '#/components/schemas/SandboxInference'
         mcp_connection_refs:
           items:
             $ref: '#/components/schemas/MCPConnectionRef'
@@ -455,6 +783,7 @@ components:
           type: array
       required:
       - name
+      - inference
       type: object
     CreateSecretRequest:
       additionalProperties: false
@@ -742,6 +1071,95 @@ components:
       - source
       - occurrences
       type: object
+    GeminiInferenceProviderRead:
+      properties:
+        gemini:
+          $ref: '#/components/schemas/GeminiProviderConfig'
+        kind:
+          enum:
+          - Gemini
+          type: string
+      required:
+      - kind
+      - gemini
+      type: object
+    GeminiInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        gemini:
+          $ref: '#/components/schemas/GeminiProviderConfig'
+        kind:
+          enum:
+          - Gemini
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - gemini
+      - credentials
+      type: object
+    GeminiProviderConfig:
+      additionalProperties: false
+      properties:
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
+      type: object
+    GitHubCopilotInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - GitHubCopilot
+          type: string
+      required:
+      - kind
+      type: object
+    GitHubCopilotInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          enum:
+          - github-copilot
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - GitHubCopilot
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      type: object
     ImmutableSkillSummary:
       allOf:
       - $ref: '#/components/schemas/SkillFileSummary'
@@ -782,6 +1200,645 @@ components:
       - skills
       - agents
       type: object
+    InferenceModel:
+      additionalProperties: false
+      properties:
+        api:
+          $ref: '#/components/schemas/InferenceModelAPI'
+        capabilities:
+          $ref: '#/components/schemas/InferenceModelCapabilities'
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        id:
+          maxLength: 512
+          minLength: 1
+          type: string
+        limits:
+          $ref: '#/components/schemas/InferenceModelLimits'
+        modalities:
+          $ref: '#/components/schemas/InferenceModelModalities'
+      required:
+      - id
+      - display_name
+      - capabilities
+      - modalities
+      - limits
+      type: object
+    InferenceModelAPI:
+      enum:
+      - ChatCompletions
+      - Responses
+      - Messages
+      type: string
+    InferenceModelCapabilities:
+      additionalProperties: false
+      properties:
+        attachment:
+          type: boolean
+        reasoning:
+          type: boolean
+        temperature:
+          type: boolean
+        tool_call:
+          type: boolean
+      required:
+      - attachment
+      - reasoning
+      - temperature
+      - tool_call
+      type: object
+    InferenceModelLimits:
+      additionalProperties: false
+      properties:
+        context:
+          format: int32
+          maximum: 2147483647
+          minimum: 1
+          type: integer
+        input:
+          format: int32
+          maximum: 2147483647
+          minimum: 1
+          type: integer
+        output:
+          format: int32
+          maximum: 2147483647
+          minimum: 1
+          type: integer
+      required:
+      - context
+      - output
+      type: object
+    InferenceModelModalities:
+      additionalProperties: false
+      properties:
+        input:
+          items:
+            $ref: '#/components/schemas/InferenceModelModality'
+          minItems: 1
+          type: array
+          uniqueItems: true
+        output:
+          items:
+            $ref: '#/components/schemas/InferenceModelModality'
+          minItems: 1
+          type: array
+          uniqueItems: true
+      required:
+      - input
+      - output
+      type: object
+    InferenceModelModality:
+      enum:
+      - text
+      - audio
+      - image
+      - video
+      - pdf
+      type: string
+    InferenceModelSuggestion:
+      allOf:
+      - $ref: '#/components/schemas/InferenceModel'
+      - properties:
+          catalog_provider:
+            type: string
+        required:
+        - catalog_provider
+        type: object
+    InferenceModelSuggestions:
+      additionalProperties: false
+      properties:
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModelSuggestion'
+          type: array
+        provenance:
+          $ref: '#/components/schemas/InferenceModelSuggestionsProvenance'
+      required:
+      - provenance
+      - models
+      type: object
+    InferenceModelSuggestionsProvenance:
+      enum:
+      - live
+      - cache
+      - snapshot
+      type: string
+    InferencePool:
+      additionalProperties: false
+      properties:
+        automatic_failover:
+          type: boolean
+        conditions:
+          items:
+            $ref: '#/components/schemas/InferenceProviderCondition'
+          type: array
+        contract:
+          $ref: '#/components/schemas/InferencePoolContract'
+        created_at:
+          format: date-time
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        id:
+          $ref: '#/components/schemas/InferencePoolName'
+        member_statuses:
+          items:
+            $ref: '#/components/schemas/InferencePoolMemberStatus'
+          type: array
+        members:
+          items:
+            $ref: '#/components/schemas/InferencePoolMember'
+          maxItems: 8
+          minItems: 1
+          type: array
+        protocol:
+          $ref: '#/components/schemas/InferenceProtocol'
+        resource_version:
+          type: string
+        state:
+          $ref: '#/components/schemas/InferencePoolState'
+        updated_at:
+          format: date-time
+          type: string
+        usage_count:
+          minimum: 0
+          type: integer
+        warnings:
+          items:
+            $ref: '#/components/schemas/InferencePoolWarning'
+          type: array
+      required:
+      - id
+      - display_name
+      - resource_version
+      - automatic_failover
+      - members
+      - state
+      - conditions
+      - warnings
+      - member_statuses
+      - usage_count
+      - created_at
+      - updated_at
+      type: object
+    InferencePoolContract:
+      additionalProperties: false
+      properties:
+        api:
+          $ref: '#/components/schemas/InferenceModelAPI'
+        capabilities:
+          $ref: '#/components/schemas/InferenceModelCapabilities'
+        limits:
+          $ref: '#/components/schemas/InferenceModelLimits'
+        modalities:
+          $ref: '#/components/schemas/InferenceModelModalities'
+      required:
+      - api
+      - capabilities
+      - modalities
+      - limits
+      type: object
+    InferencePoolMember:
+      additionalProperties: false
+      properties:
+        model:
+          maxLength: 512
+          minLength: 1
+          type: string
+        provider:
+          $ref: '#/components/schemas/InferenceProviderName'
+      required:
+      - provider
+      - model
+      type: object
+    InferencePoolMemberStatus:
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+        model:
+          maxLength: 512
+          minLength: 1
+          type: string
+        protocol:
+          $ref: '#/components/schemas/InferenceProtocol'
+        provider:
+          $ref: '#/components/schemas/InferenceProviderName'
+        ready:
+          type: boolean
+        reason:
+          type: string
+      required:
+      - provider
+      - model
+      - protocol
+      - ready
+      - reason
+      - message
+      type: object
+    InferencePoolName:
+      description: Stable tenant-scoped inference Pool ID.
+      maxLength: 63
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    InferencePoolState:
+      enum:
+      - Accepted
+      - Ready
+      - PartiallyDegraded
+      - Degraded
+      type: string
+    InferencePoolUsage:
+      additionalProperties: false
+      properties:
+        pool:
+          $ref: '#/components/schemas/InferencePoolName'
+        sandboxes:
+          items:
+            $ref: '#/components/schemas/SandboxName'
+          type: array
+      required:
+      - pool
+      - sandboxes
+      type: object
+    InferencePoolWarning:
+      additionalProperties: false
+      properties:
+        code:
+          enum:
+          - MixedProtocols
+          type: string
+        message:
+          type: string
+      required:
+      - code
+      - message
+      type: object
+    InferencePoolWrite:
+      additionalProperties: false
+      properties:
+        automatic_failover:
+          type: boolean
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        members:
+          items:
+            $ref: '#/components/schemas/InferencePoolMember'
+          maxItems: 8
+          minItems: 1
+          type: array
+      required:
+      - display_name
+      - automatic_failover
+      - members
+      type: object
+    InferenceProtocol:
+      enum:
+      - OpenAI
+      - Anthropic
+      type: string
+    InferenceProvider:
+      allOf:
+      - $ref: '#/components/schemas/InferenceProviderReadFields'
+      - $ref: '#/components/schemas/InferenceProviderReadDiscriminator'
+      - properties:
+          conditions:
+            items:
+              $ref: '#/components/schemas/InferenceProviderCondition'
+            type: array
+          created_at:
+            format: date-time
+            type: string
+          id:
+            $ref: '#/components/schemas/InferenceProviderName'
+          model_count:
+            minimum: 0
+            type: integer
+          resource_version:
+            type: string
+          state:
+            enum:
+            - Accepted
+            - Ready
+            - Degraded
+            type: string
+          updated_at:
+            format: date-time
+            type: string
+          usage_count:
+            minimum: 0
+            type: integer
+        required:
+        - id
+        - resource_version
+        - state
+        - conditions
+        - model_count
+        - usage_count
+        - created_at
+        - updated_at
+        type: object
+    InferenceProviderAPIKeyCredentials:
+      additionalProperties: false
+      properties:
+        api_key:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+      type: object
+    InferenceProviderAzureCredentials:
+      additionalProperties: false
+      properties:
+        api_key:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+        client_id:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+        client_secret:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+        tenant_id:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+      type: object
+    InferenceProviderBedrockCredentials:
+      additionalProperties: false
+      properties:
+        access_key:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+        bearer_token:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+        secret_key:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+        session_token:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+      type: object
+    InferenceProviderCatalog:
+      additionalProperties: false
+      properties:
+        commit:
+          maxLength: 40
+          minLength: 40
+          type: string
+        providers:
+          items:
+            $ref: '#/components/schemas/InferenceProviderCatalogEntry'
+          type: array
+      required:
+      - commit
+      - providers
+      type: object
+    InferenceProviderCatalogEntry:
+      additionalProperties: false
+      properties:
+        auth_header:
+          maxLength: 128
+          type: string
+        auth_prefix:
+          maxLength: 128
+          type: string
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
+        base_url_template:
+          maxLength: 2048
+          type: string
+        documentation_url:
+          format: uri
+          maxLength: 2048
+          type: string
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        provider_id:
+          maxLength: 128
+          minLength: 1
+          type: string
+        provider_kind:
+          $ref: '#/components/schemas/InferenceProviderKind'
+      required:
+      - provider_id
+      - name
+      - provider_kind
+      type: object
+    InferenceProviderCondition:
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+        reason:
+          type: string
+        status:
+          enum:
+          - "True"
+          - "False"
+          - Unknown
+          type: string
+        type:
+          type: string
+      required:
+      - type
+      - status
+      - reason
+      - message
+      type: object
+    InferenceProviderHeader:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 128
+          minLength: 1
+          pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
+          type: string
+        value:
+          maxLength: 1024
+          minLength: 1
+          type: string
+      required:
+      - name
+      - value
+      type: object
+    InferenceProviderKind:
+      enum:
+      - OpenAI
+      - OpenAICodex
+      - Anthropic
+      - Gemini
+      - GitHubCopilot
+      - OpenAICompatible
+      - AnthropicCompatible
+      - Bedrock
+      - VertexAI
+      - Azure
+      type: string
+    InferenceProviderName:
+      description: Stable tenant-scoped inference provider ID.
+      maxLength: 63
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    InferenceProviderOAuthCredentials:
+      additionalProperties: false
+      properties:
+        access_token:
+          format: password
+          maxLength: 49152
+          minLength: 1
+          type: string
+          writeOnly: true
+        expires_at:
+          format: date-time
+          type: string
+          writeOnly: true
+        id_token:
+          format: password
+          maxLength: 49152
+          minLength: 1
+          type: string
+          writeOnly: true
+        refresh_token:
+          format: password
+          maxLength: 49152
+          minLength: 1
+          type: string
+          writeOnly: true
+      required:
+      - access_token
+      type: object
+    InferenceProviderReadDiscriminator:
+      discriminator:
+        mapping:
+          Anthropic: '#/components/schemas/AnthropicInferenceProviderRead'
+          AnthropicCompatible: '#/components/schemas/AnthropicCompatibleInferenceProviderRead'
+          Azure: '#/components/schemas/AzureInferenceProviderRead'
+          Bedrock: '#/components/schemas/BedrockInferenceProviderRead'
+          Gemini: '#/components/schemas/GeminiInferenceProviderRead'
+          GitHubCopilot: '#/components/schemas/GitHubCopilotInferenceProviderRead'
+          OpenAI: '#/components/schemas/OpenAIInferenceProviderRead'
+          OpenAICodex: '#/components/schemas/OpenAICodexInferenceProviderRead'
+          OpenAICompatible: '#/components/schemas/OpenAICompatibleInferenceProviderRead'
+          VertexAI: '#/components/schemas/VertexAIInferenceProviderRead'
+        propertyName: kind
+      oneOf:
+      - $ref: '#/components/schemas/OpenAIInferenceProviderRead'
+      - $ref: '#/components/schemas/OpenAICodexInferenceProviderRead'
+      - $ref: '#/components/schemas/AnthropicInferenceProviderRead'
+      - $ref: '#/components/schemas/GeminiInferenceProviderRead'
+      - $ref: '#/components/schemas/GitHubCopilotInferenceProviderRead'
+      - $ref: '#/components/schemas/VertexAIInferenceProviderRead'
+      - $ref: '#/components/schemas/BedrockInferenceProviderRead'
+      - $ref: '#/components/schemas/AzureInferenceProviderRead'
+      - $ref: '#/components/schemas/OpenAICompatibleInferenceProviderRead'
+      - $ref: '#/components/schemas/AnthropicCompatibleInferenceProviderRead'
+    InferenceProviderReadFields:
+      properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      type: object
+    InferenceProviderUsage:
+      additionalProperties: false
+      properties:
+        pools:
+          items:
+            $ref: '#/components/schemas/InferencePoolName'
+          type: array
+        provider:
+          $ref: '#/components/schemas/InferenceProviderName'
+        sandboxes:
+          items:
+            $ref: '#/components/schemas/SandboxName'
+          type: array
+      required:
+      - provider
+      - pools
+      - sandboxes
+      type: object
+    InferenceProviderVertexCredentials:
+      additionalProperties: false
+      properties:
+        service_account_json:
+          format: password
+          maxLength: 49152
+          type: string
+          writeOnly: true
+      type: object
+    InferenceProviderWriteDiscriminator:
+      discriminator:
+        mapping:
+          Anthropic: '#/components/schemas/AnthropicInferenceProviderWrite'
+          AnthropicCompatible: '#/components/schemas/AnthropicCompatibleInferenceProviderWrite'
+          Azure: '#/components/schemas/AzureInferenceProviderWrite'
+          Bedrock: '#/components/schemas/BedrockInferenceProviderWrite'
+          Gemini: '#/components/schemas/GeminiInferenceProviderWrite'
+          GitHubCopilot: '#/components/schemas/GitHubCopilotInferenceProviderWrite'
+          OpenAI: '#/components/schemas/OpenAIInferenceProviderWrite'
+          OpenAICodex: '#/components/schemas/OpenAICodexInferenceProviderWrite'
+          OpenAICompatible: '#/components/schemas/OpenAICompatibleInferenceProviderWrite'
+          VertexAI: '#/components/schemas/VertexAIInferenceProviderWrite'
+        propertyName: kind
+      oneOf:
+      - $ref: '#/components/schemas/OpenAIInferenceProviderWrite'
+      - $ref: '#/components/schemas/OpenAICodexInferenceProviderWrite'
+      - $ref: '#/components/schemas/AnthropicInferenceProviderWrite'
+      - $ref: '#/components/schemas/GeminiInferenceProviderWrite'
+      - $ref: '#/components/schemas/GitHubCopilotInferenceProviderWrite'
+      - $ref: '#/components/schemas/VertexAIInferenceProviderWrite'
+      - $ref: '#/components/schemas/BedrockInferenceProviderWrite'
+      - $ref: '#/components/schemas/AzureInferenceProviderWrite'
+      - $ref: '#/components/schemas/OpenAICompatibleInferenceProviderWrite'
+      - $ref: '#/components/schemas/AnthropicCompatibleInferenceProviderWrite'
     JSONObject:
       additionalProperties:
         $ref: '#/components/schemas/JSONValue'
@@ -837,6 +1894,32 @@ components:
           type: array
       required:
       - skills
+      - next_page_token
+      type: object
+    ListInferencePoolsResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        pools:
+          items:
+            $ref: '#/components/schemas/InferencePool'
+          type: array
+      required:
+      - pools
+      - next_page_token
+      type: object
+    ListInferenceProvidersResponse:
+      additionalProperties: false
+      properties:
+        next_page_token:
+          type: string
+        providers:
+          items:
+            $ref: '#/components/schemas/InferenceProvider'
+          type: array
+      required:
+      - providers
       - next_page_token
       type: object
     ListMCPConnectionsResponse:
@@ -1459,6 +2542,140 @@ components:
       - Allowed
       - Blocked
       type: string
+    OpenAICodexInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - OpenAICodex
+          type: string
+      required:
+      - kind
+      type: object
+    OpenAICodexInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          enum:
+          - openai
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - OpenAICodex
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      type: object
+    OpenAICompatibleInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - OpenAICompatible
+          type: string
+        openai_compatible:
+          $ref: '#/components/schemas/CompatibleProviderConfig'
+      required:
+      - kind
+      - openai_compatible
+      type: object
+    OpenAICompatibleInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - OpenAICompatible
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+        openai_compatible:
+          $ref: '#/components/schemas/CompatibleProviderConfig'
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - openai_compatible
+      - credentials
+      type: object
+    OpenAIInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - OpenAI
+          type: string
+        openai:
+          $ref: '#/components/schemas/OpenAIProviderConfig'
+      required:
+      - kind
+      - openai
+      type: object
+    OpenAIInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderAPIKeyCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - OpenAI
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+        openai:
+          $ref: '#/components/schemas/OpenAIProviderConfig'
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - openai
+      - credentials
+      type: object
+    OpenAIProviderConfig:
+      additionalProperties: false
+      properties:
+        base_url:
+          format: uri
+          maxLength: 2048
+          type: string
+      type: object
     OpencodeAPIError:
       additionalProperties: false
       properties:
@@ -9630,6 +10847,8 @@ components:
         created_at:
           format: date-time
           type: string
+        inference:
+          $ref: '#/components/schemas/SandboxInference'
         mcp_connection_refs:
           items:
             $ref: '#/components/schemas/MCPConnectionRef'
@@ -9674,8 +10893,39 @@ components:
       - allowed_hosts
       - mcp_connection_refs
       - skills
+      - inference
       - created_at
       - metadata
+      type: object
+    SandboxInference:
+      additionalProperties: false
+      properties:
+        default_model:
+          $ref: '#/components/schemas/SandboxInferenceModelRef'
+        models:
+          items:
+            $ref: '#/components/schemas/SandboxInferenceModelRef'
+          maxItems: 500
+          minItems: 1
+          type: array
+        small_model:
+          $ref: '#/components/schemas/SandboxInferenceModelRef'
+      required:
+      - models
+      - default_model
+      type: object
+    SandboxInferenceModelRef:
+      additionalProperties: false
+      properties:
+        model:
+          maxLength: 512
+          minLength: 1
+          type: string
+        provider:
+          $ref: '#/components/schemas/InferenceProviderName'
+      required:
+      - provider
+      - model
       type: object
     SandboxName:
       description: Sandbox resource name.
@@ -10335,6 +11585,30 @@ components:
             $ref: '#/components/schemas/SkillName'
           type: array
       type: object
+    UpdateInferencePoolRequest:
+      additionalProperties: false
+      properties:
+        pool:
+          $ref: '#/components/schemas/InferencePoolWrite'
+        resource_version:
+          minLength: 1
+          type: string
+      required:
+      - resource_version
+      - pool
+      type: object
+    UpdateInferenceProviderRequest:
+      additionalProperties: false
+      properties:
+        provider:
+          $ref: '#/components/schemas/InferenceProviderWriteDiscriminator'
+        resource_version:
+          minLength: 1
+          type: string
+      required:
+      - resource_version
+      - provider
+      type: object
     UpdateSandboxRequest:
       additionalProperties: false
       properties:
@@ -10343,6 +11617,8 @@ components:
             minLength: 1
             type: string
           type: array
+        inference:
+          $ref: '#/components/schemas/SandboxInference'
         mcp_connection_refs:
           items:
             $ref: '#/components/schemas/MCPConnectionRef'
@@ -10361,6 +11637,7 @@ components:
       - allowed_hosts
       - mcp_connection_refs
       - skills
+      - inference
       type: object
     UpdateSkillRequest:
       additionalProperties: false
@@ -10407,6 +11684,66 @@ components:
       - schedule
       - timeout_seconds
       type: object
+    VertexAIInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - VertexAI
+          type: string
+        vertex_ai:
+          $ref: '#/components/schemas/VertexAIProviderConfig'
+      required:
+      - kind
+      - vertex_ai
+      type: object
+    VertexAIInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          maxLength: 128
+          minLength: 1
+          type: string
+        credentials:
+          $ref: '#/components/schemas/InferenceProviderVertexCredentials'
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - VertexAI
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+        vertex_ai:
+          $ref: '#/components/schemas/VertexAIProviderConfig'
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      - vertex_ai
+      - credentials
+      type: object
+    VertexAIProviderConfig:
+      additionalProperties: false
+      properties:
+        project:
+          maxLength: 128
+          minLength: 1
+          type: string
+        region:
+          maxLength: 64
+          minLength: 1
+          type: string
+      required:
+      - project
+      - region
+      type: object
     WatchAgentsEvent:
       additionalProperties: false
       properties:
@@ -10423,6 +11760,46 @@ components:
         agent_names:
           items:
             $ref: '#/components/schemas/AgentName'
+          type: array
+          uniqueItems: true
+      type: object
+    WatchInferencePoolsEvent:
+      additionalProperties: false
+      properties:
+        pools:
+          items:
+            $ref: '#/components/schemas/InferencePool'
+          type: array
+      required:
+      - pools
+      type: object
+    WatchInferencePoolsRequest:
+      additionalProperties: false
+      properties:
+        pool_ids:
+          items:
+            $ref: '#/components/schemas/InferencePoolName'
+          maxItems: 200
+          type: array
+          uniqueItems: true
+      type: object
+    WatchInferenceProvidersEvent:
+      additionalProperties: false
+      properties:
+        providers:
+          items:
+            $ref: '#/components/schemas/InferenceProvider'
+          type: array
+      required:
+      - providers
+      type: object
+    WatchInferenceProvidersRequest:
+      additionalProperties: false
+      properties:
+        provider_ids:
+          items:
+            $ref: '#/components/schemas/InferenceProviderName'
+          maxItems: 200
           type: array
           uniqueItems: true
       type: object
@@ -11358,6 +12735,402 @@ paths:
       summary: Watch agent status changes.
       tags:
       - agents
+  /api/inference/pool:
+    get:
+      operationId: listInferencePools
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListInferencePoolsResponse'
+          description: Paginated inference Pools.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated inference Pools.
+      tags:
+      - inference
+    post:
+      operationId: createInferencePool
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInferencePoolRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePool'
+          description: Pool created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create an inference Pool with ordered provider-model members.
+      tags:
+      - inference
+  /api/inference/pool/{poolName}:
+    delete:
+      operationId: deleteInferencePool
+      responses:
+        "204":
+          description: Pool deletion accepted.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete an inference Pool not referenced by a Sandbox.
+      tags:
+      - inference
+    get:
+      operationId: getInferencePool
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePool'
+          description: Inference Pool.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get an inference Pool and its derived contract.
+      tags:
+      - inference
+    parameters:
+    - $ref: '#/components/parameters/InferencePoolNamePath'
+    put:
+      operationId: updateInferencePool
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInferencePoolRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePool'
+          description: Pool updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Replace Pool membership or routing behavior.
+      tags:
+      - inference
+  /api/inference/pool/{poolName}/usage:
+    get:
+      operationId: getInferencePoolUsage
+      parameters:
+      - $ref: '#/components/parameters/InferencePoolNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferencePoolUsage'
+          description: Pool usage.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Sandboxes directly referencing an inference Pool.
+      tags:
+      - inference
+  /api/inference/pool/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each payload contains current Pool read shapes for the requested IDs, or all Pools when IDs are omitted.
+      operationId: watchInferencePools
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchInferencePoolsRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchInferencePoolsEvent'
+          description: Stream of inference Pool updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch inference Pool status and usage changes.
+      tags:
+      - inference
+  /api/inference/provider:
+    get:
+      operationId: listInferenceProviders
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListInferenceProvidersResponse'
+          description: Paginated inference providers.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List paginated inference providers.
+      tags:
+      - inference
+    post:
+      operationId: createInferenceProvider
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInferenceProviderRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceProvider'
+          description: Provider created.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create an inference provider and its write-only credentials.
+      tags:
+      - inference
+  /api/inference/provider/{providerName}:
+    delete:
+      operationId: deleteInferenceProvider
+      responses:
+        "204":
+          description: Provider deletion accepted.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete an unreferenced inference provider.
+      tags:
+      - inference
+    get:
+      operationId: getInferenceProvider
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceProvider'
+          description: Inference provider.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get an inference provider without credential material.
+      tags:
+      - inference
+    parameters:
+    - $ref: '#/components/parameters/InferenceProviderNamePath'
+    put:
+      operationId: updateInferenceProvider
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInferenceProviderRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceProvider'
+          description: Provider updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Replace provider configuration and optionally rotate credentials.
+      tags:
+      - inference
+  /api/inference/provider/{providerName}/models:
+    get:
+      operationId: refreshInferenceProviderModels
+      parameters:
+      - $ref: '#/components/parameters/InferenceProviderNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceModelSuggestions'
+          description: Current subscription model suggestions.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Refresh non-secret model metadata for a subscription provider.
+      tags:
+      - inference
+  /api/inference/provider/{providerName}/usage:
+    get:
+      operationId: getInferenceProviderUsage
+      parameters:
+      - $ref: '#/components/parameters/InferenceProviderNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceProviderUsage'
+          description: Provider usage.
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Sandboxes referencing an inference provider.
+      tags:
+      - inference
+  /api/inference/provider/catalog:
+    get:
+      operationId: listInferenceProviderCatalog
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          maxLength: 128
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceProviderCatalog'
+          description: Supported provider/runtime variants.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Search the pinned OpenCode provider catalog.
+      tags:
+      - inference
+  /api/inference/provider/catalog/{catalogProvider}/models:
+    get:
+      operationId: listInferenceModelSuggestions
+      parameters:
+      - in: path
+        name: catalogProvider
+        required: true
+        schema:
+          maxLength: 128
+          minLength: 1
+          type: string
+      - in: query
+        name: provider_kind
+        required: true
+        schema:
+          $ref: '#/components/schemas/InferenceProviderKind'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceModelSuggestions'
+          description: Model suggestions with cache provenance.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Models.dev suggestions for one provider/runtime variant.
+      tags:
+      - inference
+  /api/inference/provider/oauth-ticket:
+    post:
+      description: |
+        Credential material is written directly to OpenBao and is never included in this or any later API response.
+      operationId: createInferenceProviderOAuthTicket
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketResponse'
+          description: Single-use provider ticket and non-secret model metadata.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Store subscription credentials and return a single-use provider ticket.
+      tags:
+      - inference
+  /api/inference/provider/watch:
+    post:
+      description: |
+        Returns an SSE stream. Each payload contains the current read shapes for the requested provider IDs, or all providers when IDs are omitted.
+      operationId: watchInferenceProviders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchInferenceProvidersRequest'
+        required: false
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchInferenceProvidersEvent'
+          description: Stream of inference provider updates.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Watch inference provider status changes.
+      tags:
+      - inference
   /api/lens/{agentName}/{sessionID}/trace:
     get:
       operationId: listTraceSessions
@@ -19307,7 +21080,7 @@ paths:
       - sandboxes
     put:
       description: |
-        Updates the packages list for an existing Sandbox. The name in the path identifies the Sandbox.
+        Replaces the mutable configuration for an existing Sandbox. The name in the path identifies the Sandbox.
       operationId: updateSandbox
       parameters:
       - description: Sandbox resource name.
@@ -20403,6 +22176,8 @@ tags:
   name: secrets
 - description: Sandbox resource management APIs.
   name: sandboxes
+- description: Tenant inference provider, model, and pool APIs.
+  name: inference
 - description: Immutable skill catalog and attachment APIs.
   name: skills
 - description: MCPConnection resource and credential management APIs.

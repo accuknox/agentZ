@@ -25,6 +25,10 @@ import (
 type Interface interface {
 	// Agents returns a AgentInformer.
 	Agents() AgentInformer
+	// InferencePools returns a InferencePoolInformer.
+	InferencePools() InferencePoolInformer
+	// InferenceProviders returns a InferenceProviderInformer.
+	InferenceProviders() InferenceProviderInformer
 	// MCPConnections returns a MCPConnectionInformer.
 	MCPConnections() MCPConnectionInformer
 	// Sandboxes returns a SandboxInformer.
@@ -51,6 +55,16 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // Agents returns a AgentInformer.
 func (v *version) Agents() AgentInformer {
 	return &agentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// InferencePools returns a InferencePoolInformer.
+func (v *version) InferencePools() InferencePoolInformer {
+	return &inferencePoolInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// InferenceProviders returns a InferenceProviderInformer.
+func (v *version) InferenceProviders() InferenceProviderInformer {
+	return &inferenceProviderInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // MCPConnections returns a MCPConnectionInformer.

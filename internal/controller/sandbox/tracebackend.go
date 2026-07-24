@@ -8,11 +8,13 @@ import (
 )
 
 const (
-	tracePolicyName  = "mcp-tracing"
-	traceBackendName = "mcp-tracing-backend"
+	tracePolicyName           = "mcp-tracing"
+	traceBackendName          = "mcp-tracing-backend"
+	inferenceTracePolicyName  = "inference-tracing"
+	inferenceTraceBackendName = "inference-tracing-backend"
 )
 
-// TraceBackendMode selects how agentgateway exports MCP traces.
+// TraceBackendMode selects how AgentGateway exports traces.
 type TraceBackendMode string
 
 const (
@@ -22,7 +24,7 @@ const (
 	TraceBackendModeStatic TraceBackendMode = "static"
 )
 
-// TraceBackend configures the agentgateway OTLP destination for MCP traces.
+// TraceBackend configures the AgentGateway OTLP destination.
 type TraceBackend struct {
 	Mode             TraceBackendMode
 	ServiceName      string

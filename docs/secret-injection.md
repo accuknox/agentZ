@@ -67,3 +67,52 @@ implements an HTTP proxy with man-in-the-middle (MITM) capabilities:
 6. **Request Forwarding**: After rewriting, the proxy establishes a new TLS
    connection to the upstream service using its own certificate, and forwards
    the modified request.
+
+## Subscription inference credentials
+
+OpenAI Codex and GitHub Copilot credentials use the same boundary without
+entering an Agent pod or Kubernetes Secret. The gateway stores a short-lived,
+identity-bound OAuth ticket in OpenBao, consumes it once with check-and-set,
+and moves the typed credential record to the subscription path. API responses
+contain only the opaque ticket and provider metadata; credential fields are
+write-only and are never read back through the API.
+
+The gateway OpenBao role must be able to create, read, update, and delete data
+under its inference OAuth-ticket and subscription-credential subtrees. It also
+configures and deletes OAuth-ticket metadata so OpenBao expires abandoned
+tickets automatically. Read access is required for single-use ticket CAS and
+must not be exposed by an API handler. The manager creates a namespace-scoped
+extAuth role that can read subscription credentials and update only refreshed
+tokens. API-key and cloud-provider credentials stay in a separate subtree that
+extAuth cannot read.
+
+For the default `kv` mount, keep the gateway's general write policy segmented
+so the longer inference paths win OpenBao's wildcard priority rules:
+
+```hcl
+path "kv/data/+/*" {
+  capabilities = ["create", "update", "delete"]
+}
+
+path "kv/metadata/+/*" {
+  capabilities = ["delete"]
+}
+
+path "kv/metadata/+/inference-provider-oauth-tickets/*" {
+  capabilities = ["create", "update", "delete"]
+}
+
+path "kv/data/+/inference-provider-oauth-tickets/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "kv/data/+/inference-subscriptions/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+```
+
+AgentGateway calls extAuth before an authenticated subscription request reaches
+the upstream. A controller-owned route overwrites the Sandbox identity header,
+Cilium restricts that route path to the bound Agent, and extAuth verifies the
+Sandbox-to-provider or Sandbox-to-Pool relationship. extAuth removes the
+internal identity header after injecting the upstream authorization headers.

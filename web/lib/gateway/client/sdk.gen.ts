@@ -17,6 +17,15 @@ import type {
   CreateAgentFileErrors,
   CreateAgentFileResponses,
   CreateAgentResponses,
+  CreateInferencePoolData,
+  CreateInferencePoolErrors,
+  CreateInferencePoolResponses,
+  CreateInferenceProviderData,
+  CreateInferenceProviderErrors,
+  CreateInferenceProviderOAuthTicketData,
+  CreateInferenceProviderOAuthTicketErrors,
+  CreateInferenceProviderOAuthTicketResponses,
+  CreateInferenceProviderResponses,
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
@@ -47,6 +56,12 @@ import type {
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
+  DeleteInferencePoolData,
+  DeleteInferencePoolErrors,
+  DeleteInferencePoolResponses,
+  DeleteInferenceProviderData,
+  DeleteInferenceProviderErrors,
+  DeleteInferenceProviderResponses,
   DeleteMcpConnectionData,
   DeleteMcpConnectionErrors,
   DeleteMcpConnectionResponses,
@@ -77,6 +92,18 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetInferencePoolData,
+  GetInferencePoolErrors,
+  GetInferencePoolResponses,
+  GetInferencePoolUsageData,
+  GetInferencePoolUsageErrors,
+  GetInferencePoolUsageResponses,
+  GetInferenceProviderData,
+  GetInferenceProviderErrors,
+  GetInferenceProviderResponses,
+  GetInferenceProviderUsageData,
+  GetInferenceProviderUsageErrors,
+  GetInferenceProviderUsageResponses,
   GetMcpConnectionData,
   GetMcpConnectionErrors,
   GetMcpConnectionResponses,
@@ -122,6 +149,18 @@ import type {
   ListImmutableSkillVersionsData,
   ListImmutableSkillVersionsErrors,
   ListImmutableSkillVersionsResponses,
+  ListInferenceModelSuggestionsData,
+  ListInferenceModelSuggestionsErrors,
+  ListInferenceModelSuggestionsResponses,
+  ListInferencePoolsData,
+  ListInferencePoolsErrors,
+  ListInferencePoolsResponses,
+  ListInferenceProviderCatalogData,
+  ListInferenceProviderCatalogErrors,
+  ListInferenceProviderCatalogResponses,
+  ListInferenceProvidersData,
+  ListInferenceProvidersErrors,
+  ListInferenceProvidersResponses,
   ListMcpConnectionsData,
   ListMcpConnectionsErrors,
   ListMcpConnectionsResponses,
@@ -176,6 +215,9 @@ import type {
   ReadAgentFileRawErrors,
   ReadAgentFileRawResponses,
   ReadAgentFileResponses,
+  RefreshInferenceProviderModelsData,
+  RefreshInferenceProviderModelsErrors,
+  RefreshInferenceProviderModelsResponses,
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
@@ -185,6 +227,12 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateInferencePoolData,
+  UpdateInferencePoolErrors,
+  UpdateInferencePoolResponses,
+  UpdateInferenceProviderData,
+  UpdateInferenceProviderErrors,
+  UpdateInferenceProviderResponses,
   UpdateSandboxData,
   UpdateSandboxErrors,
   UpdateSandboxResponses,
@@ -198,6 +246,14 @@ import type {
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WatchInferencePoolsData,
+  WatchInferencePoolsErrors,
+  WatchInferencePoolsResponse,
+  WatchInferencePoolsResponses,
+  WatchInferenceProvidersData,
+  WatchInferenceProvidersErrors,
+  WatchInferenceProvidersResponse,
+  WatchInferenceProvidersResponses,
   WatchMcpConnectionsData,
   WatchMcpConnectionsErrors,
   WatchMcpConnectionsResponse,
@@ -898,6 +954,327 @@ export const createSandbox = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated inference providers.
+ */
+export const listInferenceProviders = <ThrowOnError extends boolean = false>(
+  options?: Options<ListInferenceProvidersData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListInferenceProvidersResponses,
+    ListInferenceProvidersErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider",
+    ...options,
+  })
+
+/**
+ * Create an inference provider and its write-only credentials.
+ */
+export const createInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<CreateInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateInferenceProviderResponses,
+    CreateInferenceProviderErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Store subscription credentials and return a single-use provider ticket.
+ *
+ * Credential material is written directly to OpenBao and is never included in this or any later API response.
+ *
+ */
+export const createInferenceProviderOAuthTicket = <ThrowOnError extends boolean = false>(
+  options: Options<CreateInferenceProviderOAuthTicketData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateInferenceProviderOAuthTicketResponses,
+    CreateInferenceProviderOAuthTicketErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/oauth-ticket",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an unreferenced inference provider.
+ */
+export const deleteInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteInferenceProviderResponses,
+    DeleteInferenceProviderErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/{providerName}",
+    ...options,
+  })
+
+/**
+ * Get an inference provider without credential material.
+ */
+export const getInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetInferenceProviderResponses,
+    GetInferenceProviderErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/{providerName}",
+    ...options,
+  })
+
+/**
+ * Replace provider configuration and optionally rotate credentials.
+ */
+export const updateInferenceProvider = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateInferenceProviderData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateInferenceProviderResponses,
+    UpdateInferenceProviderErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/{providerName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Watch inference provider status changes.
+ *
+ * Returns an SSE stream. Each payload contains the current read shapes for the requested provider IDs, or all providers when IDs are omitted.
+ *
+ */
+export const watchInferenceProviders = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchInferenceProvidersData, ThrowOnError, WatchInferenceProvidersResponse>
+) =>
+  (options?.client ?? client).sse.post<
+    WatchInferenceProvidersResponses,
+    WatchInferenceProvidersErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/watch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  })
+
+/**
+ * List Sandboxes referencing an inference provider.
+ */
+export const getInferenceProviderUsage = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferenceProviderUsageData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetInferenceProviderUsageResponses,
+    GetInferenceProviderUsageErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/{providerName}/usage",
+    ...options,
+  })
+
+/**
+ * Refresh non-secret model metadata for a subscription provider.
+ */
+export const refreshInferenceProviderModels = <ThrowOnError extends boolean = false>(
+  options: Options<RefreshInferenceProviderModelsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    RefreshInferenceProviderModelsResponses,
+    RefreshInferenceProviderModelsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/{providerName}/models",
+    ...options,
+  })
+
+/**
+ * Search the pinned OpenCode provider catalog.
+ */
+export const listInferenceProviderCatalog = <ThrowOnError extends boolean = false>(
+  options?: Options<ListInferenceProviderCatalogData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListInferenceProviderCatalogResponses,
+    ListInferenceProviderCatalogErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/catalog",
+    ...options,
+  })
+
+/**
+ * List Models.dev suggestions for one provider/runtime variant.
+ */
+export const listInferenceModelSuggestions = <ThrowOnError extends boolean = false>(
+  options: Options<ListInferenceModelSuggestionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListInferenceModelSuggestionsResponses,
+    ListInferenceModelSuggestionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/catalog/{catalogProvider}/models",
+    ...options,
+  })
+
+/**
+ * List paginated inference Pools.
+ */
+export const listInferencePools = <ThrowOnError extends boolean = false>(
+  options?: Options<ListInferencePoolsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListInferencePoolsResponses,
+    ListInferencePoolsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/pool",
+    ...options,
+  })
+
+/**
+ * Create an inference Pool with ordered provider-model members.
+ */
+export const createInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<CreateInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateInferencePoolResponses,
+    CreateInferencePoolErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/pool",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an inference Pool not referenced by a Sandbox.
+ */
+export const deleteInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteInferencePoolResponses,
+    DeleteInferencePoolErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/pool/{poolName}",
+    ...options,
+  })
+
+/**
+ * Get an inference Pool and its derived contract.
+ */
+export const getInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetInferencePoolResponses, GetInferencePoolErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/pool/{poolName}",
+    ...options,
+  })
+
+/**
+ * Replace Pool membership or routing behavior.
+ */
+export const updateInferencePool = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateInferencePoolData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateInferencePoolResponses,
+    UpdateInferencePoolErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/pool/{poolName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List Sandboxes directly referencing an inference Pool.
+ */
+export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
+  options: Options<GetInferencePoolUsageData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetInferencePoolUsageResponses,
+    GetInferencePoolUsageErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/pool/{poolName}/usage",
+    ...options,
+  })
+
+/**
+ * Watch inference Pool status and usage changes.
+ *
+ * Returns an SSE stream. Each payload contains current Pool read shapes for the requested IDs, or all Pools when IDs are omitted.
+ *
+ */
+export const watchInferencePools = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
+) =>
+  (options?.client ?? client).sse.post<
+    WatchInferencePoolsResponses,
+    WatchInferencePoolsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/pool/watch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  })
+
+/**
  * Delete a Sandbox resource.
  */
 export const deleteSandbox = <ThrowOnError extends boolean = false>(
@@ -912,7 +1289,7 @@ export const deleteSandbox = <ThrowOnError extends boolean = false>(
 /**
  * Update a Sandbox resource.
  *
- * Updates the packages list for an existing Sandbox. The name in the path identifies the Sandbox.
+ * Replaces the mutable configuration for an existing Sandbox. The name in the path identifies the Sandbox.
  *
  */
 export const updateSandbox = <ThrowOnError extends boolean = false>(

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 
@@ -656,7 +655,7 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 				Enabled:       true,
 				TraceEndpoint: s.cfg.AgentTraceEndpoint,
 			},
-			SandboxRef: &corev1.LocalObjectReference{
+			SandboxRef: corev1.LocalObjectReference{
 				Name: req.SandboxName,
 			},
 		},
@@ -699,7 +698,7 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 		agt.Spec.Env = envVarsFromMap(*req.Env)
 	}
 	if req.SandboxName != nil {
-		agt.Spec.SandboxRef = &corev1.LocalObjectReference{
+		agt.Spec.SandboxRef = corev1.LocalObjectReference{
 			Name: *req.SandboxName,
 		}
 	}
@@ -732,18 +731,6 @@ func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.F
 	}
 
 	fields := []gatewayapi.FieldError{}
-	if cfg.Model != nil && !isValidModelRef(*cfg.Model) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "opencode.model",
-			Message: "must be in provider/model form",
-		})
-	}
-	if cfg.SmallModel != nil && !isValidModelRef(*cfg.SmallModel) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "opencode.smallModel",
-			Message: "must be in provider/model form",
-		})
-	}
 	if cfg.Instruction != nil && strings.TrimSpace(*cfg.Instruction) == "" {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "opencode.instruction",
@@ -756,53 +743,6 @@ func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.F
 			Message: "instruction must be at most 4096 characters",
 		})
 	}
-	if cfg.Providers == nil {
-		return fields
-	}
-
-	for name, provider := range *cfg.Providers {
-		if strings.TrimSpace(name) == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "opencode.providers",
-				Message: "provider name must not be empty",
-			})
-		}
-		if provider.Env != nil {
-			for i, sandboxName := range *provider.Env {
-				if strings.TrimSpace(sandboxName) == "" {
-					fields = append(fields, gatewayapi.FieldError{
-						Field:   fmt.Sprintf("opencode.providers.%s.sandbox.%d", name, i),
-						Message: "sandbox var name must not be empty",
-					})
-					continue
-				}
-				if errs := validation.IsEnvVarName(sandboxName); len(errs) > 0 {
-					fields = append(fields, gatewayapi.FieldError{
-						Field:   fmt.Sprintf("opencode.providers.%s.sandbox.%d", name, i),
-						Message: strings.Join(errs, ", "),
-					})
-				}
-			}
-		}
-		if provider.BaseURL == nil || strings.TrimSpace(*provider.BaseURL) == "" {
-			continue
-		}
-		parsed, err := url.Parse(*provider.BaseURL)
-		if err != nil {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("opencode.providers.%s.baseURL", name),
-				Message: fmt.Sprintf("parse url: %v", err),
-			})
-			continue
-		}
-		if !parsed.IsAbs() {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("opencode.providers.%s.baseURL", name),
-				Message: "must be an absolute url",
-			})
-		}
-	}
-
 	return fields
 }
 
@@ -811,44 +751,9 @@ func applyOpencodeRequest(spec *agentzv1alpha1.AgentSpec, cfg *gatewayapi.AgentO
 		return
 	}
 
-	if cfg.Model != nil {
-		spec.Model = *cfg.Model
-	}
-	if cfg.SmallModel != nil {
-		spec.SmallModel = *cfg.SmallModel
-	}
 	if cfg.Instruction != nil {
 		spec.Instruction = *cfg.Instruction
 	}
-	if cfg.Providers == nil {
-		return
-	}
-
-	spec.Providers = make(
-		map[string]agentzv1alpha1.OpencodeProviderConfig,
-		len(*cfg.Providers),
-	)
-	for name, provider := range *cfg.Providers {
-		item := agentzv1alpha1.OpencodeProviderConfig{}
-		if provider.Env != nil && len(*provider.Env) > 0 {
-			item.Env = append([]string{}, (*provider.Env)...)
-		}
-		if provider.BaseURL != nil {
-			item.BaseURL = *provider.BaseURL
-		}
-		spec.Providers[name] = item
-	}
-}
-
-func isValidModelRef(v string) bool {
-	provider, model, ok := strings.Cut(v, "/")
-	if !ok {
-		return false
-	}
-	if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
-		return false
-	}
-	return true
 }
 
 func statusFromView(view *agentStatusView) gatewayapi.AgentStatus {

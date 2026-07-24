@@ -19,7 +19,6 @@ package sandbox
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"slices"
 	"strings"
 
@@ -184,24 +183,6 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 				path.Child("models"), fmt.Sprintf("provider %q is terminating", providerID),
 			))
 			continue
-		}
-		if provider.Spec.OpenAICompatible != nil {
-			endpoint, err := url.Parse(provider.Spec.OpenAICompatible.BaseURL)
-			if err != nil {
-				fields = append(fields, field.InternalError(
-					path.Child("models"), fmt.Errorf("parse provider %q endpoint: %w", providerID, err),
-				))
-				continue
-			}
-			for i, raw := range sandbox.Spec.AllowedHosts {
-				host, err := sandboxutil.ParseHost(raw)
-				if err == nil && host.Allows(endpoint.Hostname()) {
-					fields = append(fields, field.Forbidden(
-						field.NewPath("spec").Child("allowedHosts").Index(i),
-						fmt.Sprintf("direct access to provider %q must use the inference gateway", providerID),
-					))
-				}
-			}
 		}
 		enabled := make(map[string]struct{}, len(provider.Spec.Models))
 		for _, model := range provider.Spec.Models {

@@ -34,31 +34,6 @@ type Host struct {
 	Value string
 }
 
-// Allows reports whether an allowed-host entry includes the exact destination
-// host. It is used at admission to prevent provider endpoints from bypassing
-// the inference gateway through a broader sandbox egress rule.
-func (h Host) Allows(target string) bool {
-	target = strings.TrimSuffix(strings.ToLower(target), ".")
-	if h.Kind == HostKindCIDR {
-		prefix, err := netip.ParsePrefix(h.Value)
-		if err != nil {
-			return false
-		}
-		addr, err := netip.ParseAddr(target)
-		return err == nil && prefix.Contains(addr)
-	}
-	if h.Kind == HostKindDomain {
-		return target == h.Value
-	}
-	base := strings.TrimPrefix(h.Value, "*.")
-	if h.Kind == HostKindDeepWildcard {
-		base = strings.TrimPrefix(h.Value, "**.")
-		return target == base || strings.HasSuffix(target, "."+base)
-	}
-	prefix, matches := strings.CutSuffix(target, "."+base)
-	return matches && prefix != "" && !strings.Contains(prefix, ".")
-}
-
 // ParseHost validates one sandbox host entry and returns its canonical form.
 func ParseHost(raw string) (Host, error) {
 	value := strings.TrimSpace(raw)

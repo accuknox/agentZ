@@ -103,6 +103,9 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 	if err := r.reconcileInferenceGateway(ctx, sandbox.Namespace); err != nil {
 		return false, err
 	}
+	if len(sandbox.Spec.Inference.Models) == 0 {
+		return false, nil
+	}
 	gateway := &gwv1.Gateway{}
 	key := client.ObjectKey{Namespace: sandbox.Namespace, Name: inference.GatewayName}
 	if err := r.Get(ctx, key, gateway); err != nil {

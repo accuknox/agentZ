@@ -56,7 +56,7 @@ func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 	}
 }
 
-func TestValidatorValidateCreateRejectsDirectProviderEgress(t *testing.T) {
+func TestValidatorValidateCreateAllowsProviderHost(t *testing.T) {
 	t.Parallel()
 
 	scheme := runtime.NewScheme()
@@ -85,7 +85,7 @@ func TestValidatorValidateCreateRejectsDirectProviderEgress(t *testing.T) {
 	}
 
 	_, err := NewValidator(client).ValidateCreate(context.Background(), sandbox)
-	if err == nil {
-		t.Fatal("ValidateCreate() unexpectedly allowed direct provider egress")
+	if err != nil {
+		t.Fatalf("ValidateCreate() error = %v", err)
 	}
 }

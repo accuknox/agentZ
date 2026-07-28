@@ -13,8 +13,8 @@
     "gen:auth-schema": "bunx auth@latest generate --config ./lib/auth.ts --output ./db/auth-schema.ts --yes"
   },
   "dependencies": {
-    "@better-auth/api-key": "1.6.20",
-    "@better-auth/core": "1.6.20",
+    "@better-auth/api-key": "1.6.22",
+    "@better-auth/core": "1.6.22",
     "@bprogress/next": "^3.2.12",
     "@codemirror/commands": "^6.10.4",
     "@codemirror/language": "^6.12.4",

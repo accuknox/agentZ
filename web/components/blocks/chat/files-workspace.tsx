@@ -21,8 +21,11 @@ import {
   FileCode2,
   FileImage,
   FilePlus2,
+  FileSpreadsheet,
+  FileText,
   FolderPlus,
   Pencil,
+  Presentation,
   RefreshCw,
   Save,
   Scan,
@@ -77,6 +80,25 @@ const CodeEditor = dynamic(
   () => import("@/components/blocks/chat/code-editor").then((module) => module.CodeEditor),
   { ssr: false }
 )
+const DocumentPreview = dynamic(
+  () =>
+    import("@/components/blocks/chat/document-preview").then((module) => module.DocumentPreview),
+  { ssr: false }
+)
+const DelimitedPreview = dynamic(
+  () =>
+    import("@/components/blocks/chat/spreadsheet-preview").then(
+      (module) => module.DelimitedPreview
+    ),
+  { ssr: false }
+)
+const SpreadsheetPreview = dynamic(
+  () =>
+    import("@/components/blocks/chat/spreadsheet-preview").then(
+      (module) => module.SpreadsheetPreview
+    ),
+  { ssr: false }
+)
 
 type FilesWorkspaceProps = {
   agentName: string
@@ -97,6 +119,8 @@ type Draft = {
   truncated: boolean
   version: string
 }
+
+type BinaryPreview = "document" | "image" | "pdf" | "spreadsheet"
 
 type EntryAction =
   | { kind: "file"; parent: string }
@@ -126,6 +150,7 @@ type MoveOperation = {
 }
 
 const fileDragType = "application/x-agentz-file-path"
+const maxPreviewBytes = 8 << 20
 
 async function downloadAgentFile(agentName: string, path: string, filename: string): Promise<void> {
   const toastId = toast.loading(`Downloading ${filename}...`)
@@ -1233,6 +1258,15 @@ function FileTypeIcon({ className = "text-primary", name }: { className?: string
   if (["zip", "gz", "tgz", "rar", "7z"].includes(extension)) {
     return <FileArchive className={cn("size-4", className)} />
   }
+  if (["csv", "tsv", "xls", "xlsx"].includes(extension)) {
+    return <FileSpreadsheet className={cn("size-4", className)} />
+  }
+  if (extension === "docx") {
+    return <FileText className={cn("size-4", className)} />
+  }
+  if (extension === "pptx") {
+    return <Presentation className={cn("size-4", className)} />
+  }
   if (
     ["c", "cpp", "css", "go", "html", "java", "js", "jsx", "py", "rs", "tsx", "ts"].includes(
       extension
@@ -1267,9 +1301,20 @@ function EditorPane({
     refetchInterval: 2_000,
   })
   const mediaType = statQuery.data?.media_type
-  const image = mediaType?.startsWith("image/") === true && mediaType !== "image/svg+xml"
-  const pdf = mediaType === "application/pdf"
-  const readText = mediaType !== undefined && !image && !pdf
+  const image = mediaType?.startsWith("image/") === true
+  const presentation =
+    mediaType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  const binaryPreview: BinaryPreview | undefined = image
+    ? "image"
+    : mediaType === "application/pdf"
+      ? "pdf"
+      : mediaType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ? "document"
+        : mediaType === "application/vnd.ms-excel" ||
+            mediaType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ? "spreadsheet"
+          : undefined
+  const readText = mediaType !== undefined && binaryPreview === undefined && !presentation
   const fileQuery = useQuery({
     ...readAgentFileOptions({ path: { agentName }, query: { path } }),
     enabled: readText,
@@ -1373,7 +1418,9 @@ function EditorPane({
   const markdown = mediaType === "text/markdown" || /\.mdx?$/.test(filename)
   const json = mediaType === "application/json" || /\.jsonc?$/.test(filename)
   const html = mediaType === "text/html" || /\.html?$/.test(filename)
-  const canPreview = markdown || json || html
+  const csv = mediaType?.startsWith("text/csv") === true
+  const tsv = mediaType?.startsWith("text/tab-separated-values") === true
+  const canPreview = markdown || json || html || csv || tsv
   const saveDraft = (overwrite = false, version = draft?.version) => {
     if (!draft || !version || draft.truncated || save.isPending) {
       return
@@ -1430,9 +1477,10 @@ function EditorPane({
       <BinaryPane
         agentName={agentName}
         filename={filename}
-        image={image}
-        previewable={image || pdf}
         path={path}
+        presentation={presentation}
+        preview={binaryPreview}
+        size={statQuery.data.size}
       />
     )
   }
@@ -1586,6 +1634,8 @@ function EditorPane({
                 </MessageResponse>
               ) : json ? (
                 <JSONPreview content={draft.content} />
+              ) : csv || tsv ? (
+                <DelimitedPreview content={draft.content} delimiter={tsv ? "\t" : ","} />
               ) : html ? (
                 <iframe
                   className="h-full w-full bg-white"
@@ -1627,16 +1677,20 @@ function EditorPane({
 function BinaryPane({
   agentName,
   filename,
-  image,
   path,
-  previewable,
+  presentation,
+  preview,
+  size,
 }: {
   agentName: string
   filename: string
-  image: boolean
   path: string
-  previewable: boolean
+  presentation: boolean
+  preview?: BinaryPreview
+  size: number
 }) {
+  const tooLarge = size > maxPreviewBytes && (preview === "document" || preview === "spreadsheet")
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1 border-b px-2">
@@ -1658,12 +1712,16 @@ function BinaryPane({
         </Tooltip>
       </div>
       <div className="min-h-0 flex-1">
-        {previewable ? (
-          <RawPreview agentName={agentName} filename={filename} image={image} path={path} />
+        {preview && !tooLarge ? (
+          <RawPreview agentName={agentName} filename={filename} path={path} preview={preview} />
         ) : (
           <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
-            <FileImage className="size-8" />
-            Download {filename} to view it
+            {presentation ? <Presentation className="size-8" /> : <File className="size-8" />}
+            {tooLarge
+              ? "Preview is limited to files smaller than 8 MB"
+              : presentation
+                ? "PowerPoint preview is not supported yet"
+                : `Download ${filename} to view it`}
           </div>
         )}
       </div>
@@ -1691,21 +1749,24 @@ function JSONPreview({ content }: { content: string }) {
 function RawPreview({
   agentName,
   filename,
-  image,
   path,
+  preview,
 }: {
   agentName: string
   filename: string
-  image: boolean
   path: string
+  preview: BinaryPreview
 }) {
   const rawQuery = useQuery({
     ...readAgentFileRawOptions({ parseAs: "blob", path: { agentName }, query: { path } }),
     gcTime: 0,
   })
   const url = React.useMemo(
-    () => (rawQuery.data ? URL.createObjectURL(rawQuery.data) : undefined),
-    [rawQuery.data]
+    () =>
+      rawQuery.data && (preview === "image" || preview === "pdf")
+        ? URL.createObjectURL(rawQuery.data)
+        : undefined,
+    [preview, rawQuery.data]
   )
 
   React.useEffect(() => {
@@ -1718,7 +1779,7 @@ function RawPreview({
     return <p className="text-destructive p-6 text-sm">Could not load preview.</p>
   }
 
-  if (rawQuery.isPending || !url) {
+  if (rawQuery.isPending || !rawQuery.data) {
     return (
       <div
         aria-live="polite"
@@ -1730,7 +1791,15 @@ function RawPreview({
     )
   }
 
-  return image ? (
+  if (preview === "document") {
+    return <DocumentPreview file={rawQuery.data} key={rawQuery.dataUpdatedAt} />
+  }
+
+  if (preview === "spreadsheet") {
+    return <SpreadsheetPreview file={rawQuery.data} key={rawQuery.dataUpdatedAt} />
+  }
+
+  return preview === "image" ? (
     // eslint-disable-next-line @next/next/no-img-element -- object URLs are not supported by next/image.
     <img
       alt={`Preview of ${filename}`}

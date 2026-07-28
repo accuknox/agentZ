@@ -1903,6 +1903,14 @@ export type CreateAgentErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -1986,6 +1994,14 @@ export type UpdateAgentErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -2014,6 +2030,14 @@ export type WatchAgentsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -2106,6 +2130,14 @@ export type CreateAgentFileErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -2152,6 +2184,14 @@ export type WriteAgentFileErrors = {
    * Request validation failed.
    */
   413: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -2288,6 +2328,14 @@ export type CreateAgentDirectoryErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -2332,6 +2380,14 @@ export type RenameAgentEntryErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -2415,6 +2471,14 @@ export type DeleteAgentMutableSkillsErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * The Agent filesystem is unavailable.
    */
@@ -2507,6 +2571,14 @@ export type ExportAgentMutableSkillsErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * The Agent filesystem is unavailable.
    */
   502: Error
@@ -2544,6 +2616,14 @@ export type PreviewSkillImportErrors = {
    * Request body or expanded content exceeds a documented limit.
    */
   413: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
 }
 
 export type PreviewSkillImportError = PreviewSkillImportErrors[keyof PreviewSkillImportErrors]
@@ -2579,6 +2659,14 @@ export type ImportSkillsErrors = {
    * Request body or expanded content exceeds a documented limit.
    */
   413: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
 }
 
 export type ImportSkillsError = ImportSkillsErrors[keyof ImportSkillsErrors]
@@ -2609,6 +2697,14 @@ export type DeleteImmutableSkillsErrors = {
    *
    */
   404: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -2693,6 +2789,14 @@ export type CreateSkillErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -2775,6 +2879,14 @@ export type ExportImmutableSkillsErrors = {
    *
    */
   404: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -2860,6 +2972,14 @@ export type UpdateSkillErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -3449,6 +3569,14 @@ export type PutSecretErrors = {
    */
   404: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -3488,6 +3616,14 @@ export type WatchSecretsErrors = {
    */
   404: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -3526,6 +3662,14 @@ export type DeleteSecretErrors = {
    *
    */
   404: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -3598,6 +3742,14 @@ export type CreateSandboxErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -3673,6 +3825,14 @@ export type CreateInferenceProviderErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -3707,6 +3867,14 @@ export type CreateInferenceProviderOAuthTicketErrors = {
    * Request authentication failed.
    */
   401: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -3832,6 +4000,14 @@ export type UpdateInferenceProviderErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -3862,6 +4038,14 @@ export type WatchInferenceProvidersErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -4084,6 +4268,14 @@ export type CreateInferencePoolErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -4205,6 +4397,14 @@ export type UpdateInferencePoolErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -4271,6 +4471,14 @@ export type WatchInferencePoolsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -4351,6 +4559,14 @@ export type UpdateSandboxErrors = {
    */
   404: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -4423,6 +4639,14 @@ export type CreateMcpConnectionErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -4538,6 +4762,14 @@ export type WatchMcpConnectionsErrors = {
    */
   400: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -4577,6 +4809,14 @@ export type DeleteWorkflowsErrors = {
    *
    */
   404: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -4657,6 +4897,14 @@ export type CreateWorkflowErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -4843,6 +5091,14 @@ export type CreateWorkflowScheduleErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -4946,6 +5202,14 @@ export type UpdateWorkflowScheduleErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -5017,7 +5281,7 @@ export type CreateWorkflowRunResponses = {
 export type CreateWorkflowRunResponse = CreateWorkflowRunResponses[keyof CreateWorkflowRunResponses]
 
 export type InvokeWorkflowWebhookData = {
-  body: WorkflowRunInputsWritable
+  body?: WorkflowRunInputsWritable
   path: {
     /**
      * Agent name.
@@ -5056,6 +5320,14 @@ export type InvokeWorkflowWebhookErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */
@@ -5217,6 +5489,14 @@ export type WatchWorkflowRunsErrors = {
    */
   404: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -5363,6 +5643,14 @@ export type PatchWorkflowRunStatusErrors = {
    */
   409: Error
   /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -5420,6 +5708,14 @@ export type PatchWorkflowRunNodeStatusErrors = {
    *
    */
   409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
   /**
    * Unexpected server error.
    */

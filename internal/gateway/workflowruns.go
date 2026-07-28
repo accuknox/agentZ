@@ -198,7 +198,7 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 	}
 
 	var req gatewayapi.InvokeWorkflowWebhookJSONRequestBody
-	if !decodeJSONBody(w, r, &req, false) {
+	if !decodeJSONBody(w, r, &req, true) {
 		return
 	}
 

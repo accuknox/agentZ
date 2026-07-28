@@ -239,6 +239,18 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
       description: Request authentication failed.
+    UnprocessableContent:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: The request body does not match the operation schema.
+    UnsupportedMediaType:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: The request Content-Type is not supported by this operation.
   schemas:
     APIKeyID:
       description: Better Auth API key identifier.
@@ -12372,6 +12384,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create an Agent resource.
@@ -12419,6 +12435,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Update an Agent resource.
@@ -12446,6 +12466,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create a directory in the agent workspace.
@@ -12516,6 +12540,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create an empty file in the agent workspace.
@@ -12550,6 +12578,10 @@ paths:
           description: File changed since it was read.
         "413":
           $ref: '#/components/responses/BadRequest'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Atomically write a text file in the agent workspace.
@@ -12604,6 +12636,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Rename an entry in the agent workspace.
@@ -12651,6 +12687,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "502":
           $ref: '#/components/responses/BadGateway'
       summary: Delete mutable skills from an Agent workspace.
@@ -12705,6 +12745,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "502":
           $ref: '#/components/responses/BadGateway'
       summary: Stream mutable Agent skills as a ZIP archive.
@@ -12730,6 +12774,10 @@ paths:
           description: Stream of agent status changes.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Watch agent status changes.
@@ -12774,6 +12822,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create an inference Pool with ordered provider-model members.
@@ -12833,6 +12885,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Replace Pool membership or routing behavior.
@@ -12877,6 +12933,10 @@ paths:
           description: Stream of inference Pool updates.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Watch inference Pool status and usage changes.
@@ -12921,6 +12981,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create an inference provider and its write-only credentials.
@@ -12980,6 +13044,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Replace provider configuration and optionally rotate credentials.
@@ -13101,6 +13169,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Store subscription credentials and return a single-use provider ticket.
@@ -13126,6 +13198,10 @@ paths:
           description: Stream of inference provider updates.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Watch inference provider status changes.
@@ -13382,6 +13458,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create an MCPConnection resource.
@@ -13446,6 +13526,10 @@ paths:
           description: Stream of MCP connection updates.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Watch MCP connection status changes.
@@ -21051,6 +21135,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create a Sandbox resource.
@@ -21106,6 +21194,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Update a Sandbox resource.
@@ -21160,6 +21252,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create a secret for an agent.
@@ -21185,6 +21281,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Delete secrets for an agent.
@@ -21214,6 +21314,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Watch secret status changes for an agent.
@@ -21235,6 +21339,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Delete immutable Skill resources in one request.
@@ -21281,6 +21389,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create an immutable Skill resource.
@@ -21326,6 +21438,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Update an immutable Skill active version and references.
@@ -21398,6 +21514,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Stream selected active immutable Skill versions as ZIP.
@@ -21445,6 +21565,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "413":
           $ref: '#/components/responses/PayloadTooLarge'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
       summary: Import mutable or immutable skills.
       tags:
       - skills
@@ -21480,6 +21604,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "413":
           $ref: '#/components/responses/PayloadTooLarge'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
       summary: Parse a skill import and report live conflicts.
       tags:
       - skills
@@ -21561,6 +21689,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Delete workflow definitions.
@@ -21613,6 +21745,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create a workflow definition.
@@ -21809,6 +21945,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Set a WorkflowRun node status.
@@ -21848,6 +21988,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Set a WorkflowRun terminal status.
@@ -21883,6 +22027,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Watch workflow runs for a workflow.
@@ -21948,6 +22096,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Create a workflow schedule.
@@ -22021,6 +22173,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Update a workflow schedule.
@@ -22066,7 +22222,7 @@ paths:
   /api/workflow/{agentName}/{workflowName}/webhook:
     post:
       description: |
-        Validates the request body against the saved workflow input contract, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Authentication uses the X-API-Key header.
+        Validates the request body against the saved workflow input contract, then creates a direct WorkflowRun for the addressed tenant, agent, and workflow. Every request body is interpreted as JSON regardless of its Content-Type header. Authentication uses the X-API-Key header.
       operationId: invokeWorkflowWebhook
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -22088,10 +22244,11 @@ paths:
           type: integer
       requestBody:
         content:
+          '*/*': {}
           application/json:
             schema:
               $ref: '#/components/schemas/WorkflowRunInputs'
-        required: true
+        required: false
       responses:
         "202":
           content:
@@ -22107,6 +22264,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
       security:

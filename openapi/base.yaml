@@ -107,6 +107,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateAgentRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Agent resource created.
           content:
@@ -137,6 +141,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateAgentRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Agent resource updated.
           content:
@@ -183,6 +191,10 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchAgentsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Stream of agent status changes.
           content:
@@ -232,6 +244,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateAgentFileRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: File created.
           content:
@@ -257,6 +273,10 @@ paths:
             schema:
               $ref: '#/components/schemas/WriteAgentFileRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: File written.
           content:
@@ -341,6 +361,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateAgentDirectoryRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Directory created.
           content:
@@ -368,6 +392,10 @@ paths:
             schema:
               $ref: '#/components/schemas/RenameAgentEntryRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Entry renamed.
           content:
@@ -436,6 +464,10 @@ paths:
             schema:
               $ref: '#/components/schemas/DeleteSkillsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '204':
           description: Skills deleted.
         '400':
@@ -459,6 +491,10 @@ paths:
             schema:
               $ref: '#/components/schemas/ExportSkillsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: ZIP archive containing the selected skills.
           headers:
@@ -500,6 +536,10 @@ paths:
                   items:
                     $ref: '#/components/schemas/AgentName'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Parsed skills and current conflicts.
           content:
@@ -542,6 +582,10 @@ paths:
                   items:
                     $ref: '#/components/schemas/SkillImportDecision'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: A result for every targeted Agent.
           content:
@@ -586,6 +630,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateSkillRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Skill created.
           content:
@@ -609,6 +657,10 @@ paths:
             schema:
               $ref: '#/components/schemas/DeleteSkillsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '204':
           description: Skills deleted.
         '400':
@@ -653,6 +705,10 @@ paths:
             schema:
               $ref: '#/components/schemas/ExportSkillsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: ZIP archive containing selected active versions.
           content:
@@ -681,6 +737,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateSkillRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Skill updated.
           content:
@@ -1012,6 +1072,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateSecretRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Secret created.
           content:
@@ -1043,6 +1107,10 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchSecretsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Stream of secret updates.
           content:
@@ -1073,6 +1141,10 @@ paths:
             schema:
               $ref: '#/components/schemas/DeleteSecretsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '204':
           description: Secrets deleted.
         '400':
@@ -1112,6 +1184,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateSandboxRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Sandbox created.
           content:
@@ -1155,6 +1231,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateInferenceProviderRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Provider created.
           content:
@@ -1183,6 +1263,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Single-use provider ticket and non-secret model metadata.
           content:
@@ -1225,6 +1309,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateInferenceProviderRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Provider updated.
           content:
@@ -1268,6 +1356,10 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchInferenceProvidersRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Stream of inference provider updates.
           content:
@@ -1402,6 +1494,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateInferencePoolRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Pool created.
           content:
@@ -1444,6 +1540,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateInferencePoolRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Pool updated.
           content:
@@ -1506,6 +1606,10 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchInferencePoolsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Stream of inference Pool updates.
           content:
@@ -1539,6 +1643,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateSandboxRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Sandbox updated.
           content:
@@ -1602,6 +1710,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateMCPConnectionRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: MCPConnection created.
           content:
@@ -1669,6 +1781,10 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchMCPConnectionsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Stream of MCP connection updates.
           content:
@@ -1720,6 +1836,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorkflowRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Workflow created.
           content:
@@ -1751,6 +1871,10 @@ paths:
             schema:
               $ref: '#/components/schemas/DeleteWorkflowsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '204':
           description: Workflows deleted.
         '400':
@@ -1864,6 +1988,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorkflowScheduleRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '201':
           description: Workflow schedule created.
           content:
@@ -1907,6 +2035,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateWorkflowScheduleRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Workflow schedule updated.
           content:
@@ -1997,7 +2129,8 @@ paths:
       description: >
         Validates the request body against the saved workflow input contract, then
         creates a direct WorkflowRun for the addressed tenant, agent, and
-        workflow. Authentication uses the X-API-Key header.
+        workflow. Every request body is interpreted as JSON regardless of its
+        Content-Type header. Authentication uses the X-API-Key header.
       security:
       - GatewayAPIKey: []
       tags: [workflow-webhooks]
@@ -2020,12 +2153,17 @@ paths:
           minimum: 1
           maximum: 604800
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/WorkflowRunInputs'
+          '*/*': {}
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '202':
           description: Workflow run accepted.
           content:
@@ -2151,6 +2289,10 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchWorkflowRunsRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '200':
           description: Stream of workflow run updates.
           content:
@@ -2260,6 +2402,10 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '204':
           description: WorkflowRun status updated.
         '400':
@@ -2307,6 +2453,10 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchWorkflowRunNodeStatusRequest'
       responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '204':
           description: WorkflowRun node status updated.
         '400':
@@ -2576,6 +2726,18 @@ components:
             $ref: '#/components/schemas/Error'
     PayloadTooLarge:
       description: Request body or expanded content exceeds a documented limit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnsupportedMediaType:
+      description: The request Content-Type is not supported by this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnprocessableContent:
+      description: The request body does not match the operation schema.
       content:
         application/json:
           schema:

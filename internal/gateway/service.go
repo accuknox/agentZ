@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -361,12 +362,17 @@ func (s *Service) routes() http.Handler {
 			Options: openapi3filter.Options{
 				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
 			},
-			ErrorHandlerWithOpts: func(_ context.Context, _ error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
+			ErrorHandlerWithOpts: func(_ context.Context, err error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
+				converted := openapi3filter.ConvertErrors(err)
+				status := opts.StatusCode
+				if statusErr, ok := converted.(openapi3filter.StatusCoder); ok {
+					status = statusErr.StatusCode()
+				}
 				writeError(w, r, newAPIError(
-					opts.StatusCode,
+					status,
 					"invalid_request",
 					"request is invalid",
-					errBadRequest,
+					err,
 				))
 			},
 			DoNotValidateServers: true,
@@ -384,6 +390,18 @@ func (s *Service) routes() http.Handler {
 func requestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		debug := slog.Default().Enabled(r.Context(), slog.LevelDebug)
+		logBody := debug && (r.Method == http.MethodPost || r.Method == http.MethodPut)
+		var body []byte
+		if logBody {
+			var err error
+			body, err = io.ReadAll(r.Body)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "read gateway request body", slog.Any("err", err))
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+		}
+
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 
@@ -393,6 +411,9 @@ func requestLog(next http.Handler) http.Handler {
 			slog.Int("status", rec.status),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("request_id", requestID(r)),
+		}
+		if logBody {
+			attrs = append(attrs, slog.String("request.body", string(body)))
 		}
 		if rec.apiCode != "" {
 			attrs = append(attrs, slog.String("code", rec.apiCode))
@@ -404,7 +425,7 @@ func requestLog(next http.Handler) http.Handler {
 			slog.LogAttrs(r.Context(), slog.LevelError, "gateway request completed", attrs...)
 			return
 		}
-		if rec.status >= http.StatusBadRequest && slog.Default().Enabled(r.Context(), slog.LevelDebug) {
+		if rec.status >= http.StatusBadRequest && debug {
 			slog.LogAttrs(r.Context(), slog.LevelDebug, "gateway request completed", attrs...)
 			return
 		}

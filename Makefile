@@ -80,7 +80,8 @@ run-gateway:
 	AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz gateway serve \
-		--addr 0.0.0.0:8090 \
+		--log-level=debug \
+		--addr=0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--filesystem-target-override=localhost:4097 \
 		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \

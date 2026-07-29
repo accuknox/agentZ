@@ -430,7 +430,7 @@ const MarkdownLink = ({
     : undefined
   if (!agentFile || !onAgentFileOpen) {
     return (
-      <a className={className} href={href} {...props}>
+      <a className={cn("wrap-anywhere", className)} href={href} {...props}>
         {children}
       </a>
     )
@@ -446,7 +446,7 @@ const MarkdownLink = ({
   const name = path.slice(path.lastIndexOf("/") + 1)
   if (!name) {
     return (
-      <a className={className} href={href} {...props}>
+      <a className={cn("wrap-anywhere", className)} href={href} {...props}>
         {children}
       </a>
     )

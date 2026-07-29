@@ -317,7 +317,7 @@ export const Attachment = ({
           "group relative",
           variant === "grid" && "size-24 overflow-hidden rounded-lg",
           variant === "composer" && [
-            "border-border/80 bg-background flex h-[120px] w-[132px] min-w-0 flex-col items-start",
+            "border-border/80 bg-background flex h-[120px] w-[132px] max-w-full min-w-0 flex-col items-start",
             "rounded-xl border p-2.5 shadow-[0_2px_8px_rgb(0_0_0/0.05)] select-none",
             onOpen &&
               "hover:bg-accent/40 cursor-pointer transition-colors motion-reduce:transition-none",
@@ -357,7 +357,7 @@ export const Attachment = ({
         ) : null}
         {variant === "composer" && data.type === "file" ? (
           <span
-            className="mt-1.5 line-clamp-2 min-w-0 text-[13px] leading-[17px] font-medium"
+            className="mt-1.5 w-full min-w-0 truncate text-[13px] leading-[17px] font-medium"
             translate="no"
           >
             {data.filename}

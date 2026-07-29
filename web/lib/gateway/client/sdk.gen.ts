@@ -268,6 +268,9 @@ import type {
   WatchWorkflowRunsResponses,
   WriteAgentFileData,
   WriteAgentFileErrors,
+  WriteAgentFileRawData,
+  WriteAgentFileRawErrors,
+  WriteAgentFileRawResponses,
   WriteAgentFileResponses,
 } from "./types.gen"
 
@@ -464,6 +467,25 @@ export const readAgentFileRaw = <ThrowOnError extends boolean = false>(
     url: "/api/agent/{agentName}/fs/raw",
     ...options,
   })
+
+/**
+ * Atomically write an agent workspace file without text encoding.
+ */
+export const writeAgentFileRaw = <ThrowOnError extends boolean = false>(
+  options: Options<WriteAgentFileRawData, ThrowOnError>
+) =>
+  (options.client ?? client).put<WriteAgentFileRawResponses, WriteAgentFileRawErrors, ThrowOnError>(
+    {
+      bodySerializer: null,
+      security: [{ scheme: "bearer", type: "http" }],
+      url: "/api/agent/{agentName}/fs/raw",
+      ...options,
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...options.headers,
+      },
+    }
+  )
 
 /**
  * Create a directory in the agent workspace.

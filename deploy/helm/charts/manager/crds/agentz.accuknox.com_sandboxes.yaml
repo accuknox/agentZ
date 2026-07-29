@@ -71,6 +71,26 @@ spec:
                 description: Inference defines the model policy inherited by referencing
                   Agents.
                 properties:
+                  attachmentModel:
+                    description: AttachmentModel is the optional model used to inspect
+                      visual files.
+                    properties:
+                      model:
+                        description: Model is the exact upstream model identifier.
+                        maxLength: 512
+                        minLength: 1
+                        type: string
+                      provider:
+                        description: Provider is the immutable InferenceProvider metadata
+                          name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                    - model
+                    - provider
+                    type: object
                   defaultModel:
                     description: DefaultModel is the required primary OpenCode model.
                     properties:
@@ -150,6 +170,9 @@ spec:
                 - message: small model must belong to the allowlist
                   rule: '!has(self.smallModel) || self.models.exists(m, m.provider
                     == self.smallModel.provider && m.model == self.smallModel.model)'
+                - message: attachment model must belong to the allowlist
+                  rule: '!has(self.attachmentModel) || self.models.exists(m, m.provider
+                    == self.attachmentModel.provider && m.model == self.attachmentModel.model)'
               mcpConnectionRefs:
                 description: |-
                   MCPConnectionRefs lists external MCP connections exposed in this

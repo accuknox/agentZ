@@ -120,6 +120,7 @@ func (s *service) routes() http.Handler {
 	mux.HandleFunc("PUT /file", s.writeFile)
 	mux.HandleFunc("GET /stat", s.stat)
 	mux.HandleFunc("GET /raw", s.readRaw)
+	mux.HandleFunc("PUT /raw", s.writeRaw)
 	mux.HandleFunc("POST /directory", s.createDirectory)
 	mux.HandleFunc("POST /rename", s.rename)
 	mux.HandleFunc("DELETE /entry", s.deleteEntry)
@@ -370,6 +371,71 @@ func (s *service) readRaw(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", mediaType(name))
 	http.ServeContent(w, r, path.Base(name), info.ModTime(), f)
+}
+
+func (s *service) writeRaw(w http.ResponseWriter, r *http.Request) {
+	name, ferr := requestPath(r)
+	if ferr != nil {
+		writeFailure(w, r, ferr)
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	parent := path.Dir(name)
+	if parent != "." {
+		if err := s.root.MkdirAll(parent, 0o700); err != nil {
+			writeFailure(w, r, pathFailure(err))
+			return
+		}
+	}
+
+	tmp := path.Join(parent, "."+path.Base(name)+".agentz-"+rand.Text())
+	f, err := s.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		writeFailure(w, r, pathFailure(err))
+		return
+	}
+	removeTmp := true
+	defer func() {
+		if !removeTmp {
+			return
+		}
+		err := s.root.Remove(tmp)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			slog.ErrorContext(
+				r.Context(), "remove temporary raw file",
+				slog.String("path", name),
+				slog.Any("err", err),
+			)
+		}
+	}()
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	_, writeErr := io.Copy(f, r.Body)
+	syncErr := f.Sync()
+	closeErr := f.Close()
+	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			writeFailure(w, r, requestTooLarge())
+			return
+		}
+		writeFailure(w, r, internalFailure("write temporary raw file", err))
+		return
+	}
+	if err := s.root.Rename(tmp, name); err != nil {
+		writeFailure(w, r, pathFailure(err))
+		return
+	}
+	removeTmp = false
+
+	meta, err := s.metadata(name)
+	if err != nil {
+		writeFailure(w, r, pathFailure(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, meta)
 }
 
 func (s *service) createDirectory(w http.ResponseWriter, r *http.Request) {

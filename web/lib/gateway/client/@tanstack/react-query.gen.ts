@@ -84,6 +84,7 @@ import {
   updateSkill,
   updateWorkflowSchedule,
   writeAgentFile,
+  writeAgentFileRaw,
 } from "../sdk.gen"
 import type {
   CreateAgentData,
@@ -322,6 +323,9 @@ import type {
   UpdateWorkflowScheduleResponse,
   WriteAgentFileData,
   WriteAgentFileError,
+  WriteAgentFileRawData,
+  WriteAgentFileRawError,
+  WriteAgentFileRawResponse,
   WriteAgentFileResponse,
 } from "../types.gen"
 
@@ -639,6 +643,33 @@ export const readAgentFileRawOptions = (options: Options<ReadAgentFileRawData>) 
     },
     queryKey: readAgentFileRawQueryKey(options),
   })
+
+/**
+ * Atomically write an agent workspace file without text encoding.
+ */
+export const writeAgentFileRawMutation = (
+  options?: Partial<Options<WriteAgentFileRawData>>
+): UseMutationOptions<
+  WriteAgentFileRawResponse,
+  WriteAgentFileRawError,
+  Options<WriteAgentFileRawData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    WriteAgentFileRawResponse,
+    WriteAgentFileRawError,
+    Options<WriteAgentFileRawData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await writeAgentFileRaw({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 /**
  * Create a directory in the agent workspace.

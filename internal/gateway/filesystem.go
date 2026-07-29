@@ -62,6 +62,11 @@ func (s *Service) ReadAgentFileRaw(w http.ResponseWriter, r *http.Request, agent
 	s.proxyFilesystem(w, r, agentName, "/raw")
 }
 
+// WriteAgentFileRaw handles PUT /api/agent/{agentName}/fs/raw.
+func (s *Service) WriteAgentFileRaw(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, _ gatewayapi.WriteAgentFileRawParams) {
+	s.proxyFilesystem(w, r, agentName, "/raw")
+}
+
 // RenameAgentEntry handles POST /api/agent/{agentName}/fs/rename.
 func (s *Service) RenameAgentEntry(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	s.proxyFilesystem(w, r, agentName, "/rename")

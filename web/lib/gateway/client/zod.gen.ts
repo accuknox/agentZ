@@ -1036,6 +1036,7 @@ export const zSandboxInference = z.object({
   models: z.array(zSandboxInferenceModelRef).min(1).max(500),
   default_model: zSandboxInferenceModelRef,
   small_model: zSandboxInferenceModelRef.optional(),
+  attachment_model: zSandboxInferenceModelRef.optional(),
 })
 
 export const zInferenceProviderKind = z.enum([
@@ -1990,6 +1991,11 @@ export const zStatAgentFileResponse = zAgentFileMetadata
  * Raw file content.
  */
 export const zReadAgentFileRawResponse = z.string()
+
+/**
+ * File written.
+ */
+export const zWriteAgentFileRawResponse = zAgentFileMetadata
 
 /**
  * Directory created.

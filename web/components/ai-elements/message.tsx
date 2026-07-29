@@ -2,6 +2,12 @@
 
 import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
+import {
+  Attachment,
+  AttachmentPreview,
+  Attachments,
+  inferAttachmentMediaType,
+} from "@/components/ai-elements/attachments"
 import { CodeBlock } from "@/components/ai-elements/code-block"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -284,6 +290,7 @@ export const MessageBranchPage = ({ className, ...props }: MessageBranchPageProp
 }
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
+  onAgentFileOpen?: (path: string, name: string) => void
   plainCodeBlocks?: boolean
 }
 
@@ -409,14 +416,78 @@ const MarkdownParagraph: FC<ComponentProps<"p"> & ExtraProps> = ({
   </p>
 )
 
+const agentFilePrefix = "/home/agentz/"
+
+const MarkdownLink = ({
+  children,
+  className,
+  href,
+  onAgentFileOpen,
+  ...props
+}: ComponentProps<"a"> & ExtraProps & Pick<MessageResponseProps, "onAgentFileOpen">) => {
+  const agentFile = href?.startsWith(agentFilePrefix)
+    ? href.slice(agentFilePrefix.length)
+    : undefined
+  if (!agentFile || !onAgentFileOpen) {
+    return (
+      <a className={className} href={href} {...props}>
+        {children}
+      </a>
+    )
+  }
+
+  let path = agentFile
+  try {
+    path = decodeURIComponent(agentFile)
+  } catch {
+    // Keep malformed URLs clickable; the workspace will surface a read error.
+  }
+
+  const name = path.slice(path.lastIndexOf("/") + 1)
+  if (!name) {
+    return (
+      <a className={className} href={href} {...props}>
+        {children}
+      </a>
+    )
+  }
+
+  return (
+    <button
+      aria-label={`Preview ${name}`}
+      className={cn(
+        "focus-visible:ring-ring my-2 block w-full max-w-full cursor-pointer touch-manipulation rounded-xl text-left no-underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+        className
+      )}
+      onClick={() => onAgentFileOpen(path, name)}
+      type="button"
+    >
+      <Attachments className="w-full gap-0" variant="wide">
+        <Attachment
+          data={{
+            filename: name,
+            id: path,
+            mediaType: inferAttachmentMediaType(name),
+            path,
+            type: "file",
+          }}
+        >
+          <AttachmentPreview />
+        </Attachment>
+      </Attachments>
+    </button>
+  )
+}
+
 export const MessageResponse = memo(
-  ({ className, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
+  ({ className, onAgentFileOpen, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
         "w-full min-w-0 wrap-break-word [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
       components={{
+        a: (linkProps) => <MarkdownLink {...linkProps} onAgentFileOpen={onAgentFileOpen} />,
         code: (codeProps) => <MarkdownCode {...codeProps} plainCodeBlocks={plainCodeBlocks} />,
         li: MarkdownLi,
         ol: MarkdownOl,
@@ -433,6 +504,7 @@ export const MessageResponse = memo(
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
     nextProps.isAnimating === prevProps.isAnimating &&
+    nextProps.onAgentFileOpen === prevProps.onAgentFileOpen &&
     nextProps.plainCodeBlocks === prevProps.plainCodeBlocks
 )
 

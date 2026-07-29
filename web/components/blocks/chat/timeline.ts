@@ -1,4 +1,3 @@
-import type { AttachmentData } from "@/components/ai-elements/attachments"
 import type {
   AssistantMessage,
   Message,
@@ -7,7 +6,7 @@ import type {
   ToolPart,
   UserMessage,
 } from "@opencode-ai/sdk/v2"
-import { attachmentDataFromPart } from "@/components/blocks/chat/attachments"
+import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
 import { type OptimisticUserMessage } from "@/components/blocks/chat/use-opencode-chat"
 import { describeMessageError } from "@/components/blocks/chat/errors"
 
@@ -19,7 +18,7 @@ export type RenderEntry =
 export type TimelineRow =
   | { key: string; message: OptimisticUserMessage; type: "local" }
   | {
-      attachments: AttachmentData[]
+      attachments: ChatAttachment[]
       createdAt: number
       key: string
       messageID: string
@@ -27,13 +26,12 @@ export type TimelineRow =
       type: "user"
     }
   | { createdAt: number; entries: RenderEntry[]; key: string; type: "assistant" }
-  // "Thinking..." placeholder rendered while the active turn has no content yet.
+  // "Thinking…" placeholder rendered while the active turn has no content yet.
   | { key: string; type: "thinking" }
   | { body?: string; diffs: SnapshotFileDiff[]; key: string; title?: string; type: "diff-summary" }
   | { key: string; type: "checkpoint"; variant: "compaction" | "interrupted" }
   | { body: string; key: string; label: string; type: "assistant-error" }
 
-const MAX_RENDER_BLOCKS = 25
 const contextToolNames = new Set(["read", "list", "glob", "grep"])
 
 export type ToolEntry = { part: ToolPart; type: "tool" } | { parts: ToolPart[]; type: "context" }
@@ -240,11 +238,6 @@ export function projectTimeline(input: ProjectInput): {
 } {
   const out: TimelineRow[] = []
 
-  // Optimistic local messages render first, bridging submit to server ack.
-  for (const message of input.localMessages) {
-    out.push({ key: message.id, message, type: "local" })
-  }
-
   const userText = (messageID: string) =>
     (input.partsByMessage[messageID] ?? [])
       .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
@@ -280,22 +273,63 @@ export function projectTimeline(input: ProjectInput): {
     return true
   })
 
-  const lastIndex = visible.length - 1
-  visible.forEach((turn, index) => {
+  const localByID = new Map(input.localMessages.map((message) => [message.id, message]))
+  const timeline: {
+    createdAt: number
+    key: string
+    local?: OptimisticUserMessage
+    turn?: (typeof turns)[number]
+  }[] = visible.map((turn) => {
+    const local = localByID.get(turn.user.id)
+    localByID.delete(turn.user.id)
+    return {
+      createdAt: turn.user.time.created,
+      key: turn.user.id,
+      local,
+      turn,
+    }
+  })
+  for (const local of localByID.values()) {
+    timeline.push({
+      createdAt: local.createdAt,
+      key: local.id,
+      local,
+      turn: undefined,
+    })
+  }
+  timeline.sort((x, y) => x.createdAt - y.createdAt || x.key.localeCompare(y.key))
+
+  const lastIndex = timeline.length - 1
+  timeline.forEach((item, index) => {
+    if (!item.turn) {
+      if (item.local) {
+        out.push({ key: item.local.id, message: item.local, type: "local" })
+      }
+      return
+    }
+
+    const turn = item.turn
     const userParts = input.partsByMessage[turn.user.id] ?? []
     const attachments = userParts
-      .filter((part): part is Extract<Part, { type: "file" }> => part.type === "file")
-      .map(attachmentDataFromPart)
+      .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
+      .flatMap((part) => {
+        const attachment = attachmentFromPart(part)
+        return attachment ? [attachment] : []
+      })
     const compacted = userParts.some((part) => part.type === "compaction")
 
-    out.push({
-      attachments,
-      createdAt: turn.user.time.created,
-      key: `user:${turn.user.id}`,
-      messageID: turn.user.id,
-      text: userText(turn.user.id),
-      type: "user",
-    })
+    if (item.local) {
+      out.push({ key: item.local.id, message: item.local, type: "local" })
+    } else {
+      out.push({
+        attachments,
+        createdAt: turn.user.time.created,
+        key: `user:${turn.user.id}`,
+        messageID: turn.user.id,
+        text: userText(turn.user.id),
+        type: "user",
+      })
+    }
 
     if (compacted) {
       out.push({
@@ -330,7 +364,5 @@ export function projectTimeline(input: ProjectInput): {
     }
   })
 
-  // Cap to recent blocks so huge sessions don't render the whole transcript.
-  const rows = out.length > MAX_RENDER_BLOCKS ? out.slice(out.length - MAX_RENDER_BLOCKS) : out
-  return { reverted, rows }
+  return { reverted, rows: out }
 }

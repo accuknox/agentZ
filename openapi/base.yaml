@@ -346,6 +346,33 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
+    put:
+      operationId: writeAgentFileRaw
+      summary: Atomically write an agent workspace file without text encoding.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/FilePathQuery'
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: File written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/agent/{agentName}/fs/directory:
     post:
@@ -5148,6 +5175,8 @@ components:
         default_model:
           $ref: '#/components/schemas/SandboxInferenceModelRef'
         small_model:
+          $ref: '#/components/schemas/SandboxInferenceModelRef'
+        attachment_model:
           $ref: '#/components/schemas/SandboxInferenceModelRef'
       required: [models, default_model]
 

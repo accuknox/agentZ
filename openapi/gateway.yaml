@@ -10912,6 +10912,8 @@ components:
     SandboxInference:
       additionalProperties: false
       properties:
+        attachment_model:
+          $ref: '#/components/schemas/SandboxInferenceModelRef'
         default_model:
           $ref: '#/components/schemas/SandboxInferenceModelRef'
         models:
@@ -12610,6 +12612,34 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Stream an agent workspace file without text decoding.
+      tags:
+      - agents
+    put:
+      operationId: writeAgentFileRaw
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/FilePathQuery'
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFileMetadata'
+          description: File written.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "413":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Atomically write an agent workspace file without text encoding.
       tags:
       - agents
   /api/agent/{agentName}/fs/rename:

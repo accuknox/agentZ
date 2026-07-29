@@ -1145,6 +1145,14 @@ function ModelsStep({
       ? JSON.stringify([initialInference.small_model.provider, initialInference.small_model.model])
       : undefined
   )
+  const [attachmentKey, setAttachmentKey] = React.useState(() =>
+    initialInference?.attachment_model
+      ? JSON.stringify([
+          initialInference.attachment_model.provider,
+          initialInference.attachment_model.model,
+        ])
+      : undefined
+  )
   const [invalidSubmit, setInvalidSubmit] = React.useState(false)
 
   const refs = React.useMemo(
@@ -1169,6 +1177,7 @@ function ModelsStep({
     ? JSON.stringify([defaultRef.provider, defaultRef.model])
     : undefined
   const smallRef = smallKey ? refs.get(smallKey) : undefined
+  const attachmentRef = attachmentKey ? refs.get(attachmentKey) : undefined
   // Accordion reads defaultValue only at mount: open providers that hold a
   // selection (edit mode), or the first provider when starting empty.
   const initiallyOpenProviders = providers.some((provider) =>
@@ -1199,6 +1208,9 @@ function ModelsStep({
     if (smallKey === key) {
       setSmallKey(undefined)
     }
+    if (attachmentKey === key) {
+      setAttachmentKey(undefined)
+    }
   }
 
   // One options feed both selects; display names fall back to raw IDs when a
@@ -1218,6 +1230,26 @@ function ModelsStep({
       </SelectItem>
     )
   })
+  const attachmentModelOptions = selected.flatMap((ref) => {
+    const provider = providersById.get(ref.provider)
+    const model = provider?.models.find((item) => item.id === ref.model)
+    const pool = ref.provider === "agentz-pools" ? poolsById.get(ref.model) : undefined
+    const contract = pool?.contract ?? model
+    if (!contract?.capabilities.attachment || !contract.modalities.input.includes("image")) {
+      return []
+    }
+
+    const key = JSON.stringify([ref.provider, ref.model])
+    return [
+      <SelectItem key={key} value={key}>
+        {pool ? <Layers3 className="size-4 shrink-0" /> : null}
+        <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
+        <span className="text-muted-foreground truncate">
+          {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
+        </span>
+      </SelectItem>,
+    ]
+  })
 
   return (
     <form
@@ -1233,6 +1265,7 @@ function ModelsStep({
           models: selected,
           default_model: defaultRef,
           ...(smallRef ? { small_model: smallRef } : {}),
+          ...(attachmentRef ? { attachment_model: attachmentRef } : {}),
         })
       }}
     >
@@ -1507,6 +1540,9 @@ function ModelsStep({
                           </div>
                           {key === defaultRefKey ? <Badge variant="outline">Default</Badge> : null}
                           {key === smallKey ? <Badge variant="outline">Small</Badge> : null}
+                          {key === attachmentKey ? (
+                            <Badge variant="outline">Attachments</Badge>
+                          ) : null}
                           <Button
                             type="button"
                             variant="ghost"
@@ -1535,6 +1571,27 @@ function ModelsStep({
                   </Select>
                   <FieldDescription>
                     Model used by default for new sessions and workflow runs.
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel>Attachment model</FieldLabel>
+                  <Select
+                    value={attachmentKey ?? "none"}
+                    onValueChange={(value) =>
+                      setAttachmentKey(value === "none" ? undefined : value)
+                    }
+                    disabled={attachmentModelOptions.length === 0}
+                  >
+                    <SelectTrigger className="w-full" aria-label="Attachment model">
+                      <SelectValue placeholder="Use capable default model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Use capable default model</SelectItem>
+                      {attachmentModelOptions}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    Optional image-capable model for images and scanned PDF pages.
                   </FieldDescription>
                 </Field>
                 <Field>
@@ -1714,6 +1771,20 @@ function AllowedHostsStep({
             value={inference.small_model.provider}
           />
           <input type="hidden" name="inferenceSmallModel" value={inference.small_model.model} />
+        </>
+      )}
+      {inference.attachment_model && (
+        <>
+          <input
+            type="hidden"
+            name="inferenceAttachmentProvider"
+            value={inference.attachment_model.provider}
+          />
+          <input
+            type="hidden"
+            name="inferenceAttachmentModel"
+            value={inference.attachment_model.model}
+          />
         </>
       )}
       {mcpConnectionRefs.map((ref) => (

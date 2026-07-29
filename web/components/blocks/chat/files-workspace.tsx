@@ -37,7 +37,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { toast } from "sonner"
 import { MessageResponse } from "@/components/ai-elements/message"
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ai-elements/file-tree"
-import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
+import { type FileTab, useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -75,6 +75,7 @@ import {
 import { readAgentFileRaw } from "@/lib/gateway/client/sdk.gen"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
+import { useObjectURL } from "@/hooks/use-object-url"
 
 const CodeEditor = dynamic(
   () => import("@/components/blocks/chat/code-editor").then((module) => module.CodeEditor),
@@ -104,11 +105,6 @@ type FilesWorkspaceProps = {
   agentName: string
   onPreviewerOpenChange: (open: boolean) => void
   sessionId?: string
-}
-
-type FileTab = {
-  name: string
-  path: string
 }
 
 type Draft = {
@@ -153,7 +149,7 @@ const fileDragType = "application/x-agentz-file-path"
 const maxPreviewBytes = 8 << 20
 
 async function downloadAgentFile(agentName: string, path: string, filename: string): Promise<void> {
-  const toastId = toast.loading(`Downloading ${filename}...`)
+  const toastId = toast.loading(`Downloading ${filename}…`)
   try {
     const { data } = await readAgentFileRaw({
       parseAs: "blob",
@@ -365,7 +361,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
             role="status"
             style={{ width: explorerWidth }}
           >
-            <Spinner /> Loading workspace...
+            <Spinner /> Loading workspace…
           </div>
         ) : rootQuery.isError ? (
           <div
@@ -438,6 +434,8 @@ function WorkspaceBody({
     deleteEntry,
     moveEntry,
     openTab,
+    pendingPreview,
+    resolvePreview,
     roots,
     setAgentDirty,
     setSelected,
@@ -482,6 +480,11 @@ function WorkspaceBody({
     },
     [onEditorOpenChange, openTab, workspaceKey]
   )
+  React.useEffect(() => {
+    if (pendingPreview?.agent !== agentName) return
+    openFile(pendingPreview.tab)
+    resolvePreview(agentName)
+  }, [agentName, openFile, pendingPreview, resolvePreview])
   const {
     isPending: movePending,
     mutate: move,
@@ -982,7 +985,7 @@ function WorkspaceBody({
               {moveOperation.directory === "."
                 ? "workspace root"
                 : moveOperation.directory.slice(moveOperation.directory.lastIndexOf("/") + 1)}
-              ...
+              …
             </span>
           </div>
         ) : null}
@@ -1094,7 +1097,7 @@ function DirectoryTree({
         className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
         role="status"
       >
-        <Spinner className="size-3" /> Loading...
+        <Spinner className="size-3" /> Loading…
       </div>
     )
   }
@@ -1444,7 +1447,7 @@ function EditorPane({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading {filename}...
+        <Spinner /> Loading {filename}…
       </div>
     )
   }
@@ -1492,7 +1495,7 @@ function EditorPane({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading {filename}...
+        <Spinner /> Loading {filename}…
       </div>
     )
   }
@@ -1531,7 +1534,7 @@ function EditorPane({
               {save.isPending ? <Spinner aria-hidden="true" /> : <Save />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{save.isPending ? "Saving..." : "Save file"}</TooltipContent>
+          <TooltipContent>{save.isPending ? "Saving…" : "Save file"}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1761,32 +1764,26 @@ function RawPreview({
     ...readAgentFileRawOptions({ parseAs: "blob", path: { agentName }, query: { path } }),
     gcTime: 0,
   })
-  const url = React.useMemo(
-    () =>
-      rawQuery.data && (preview === "image" || preview === "pdf")
-        ? URL.createObjectURL(rawQuery.data)
-        : undefined,
-    [preview, rawQuery.data]
+  const url = useObjectURL(
+    rawQuery.data && (preview === "image" || preview === "pdf") ? rawQuery.data : undefined
   )
-
-  React.useEffect(() => {
-    return () => {
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [url])
 
   if (rawQuery.isError) {
     return <p className="text-destructive p-6 text-sm">Could not load preview.</p>
   }
 
-  if (rawQuery.isPending || !rawQuery.data) {
+  if (
+    rawQuery.isPending ||
+    !rawQuery.data ||
+    ((preview === "image" || preview === "pdf") && !url)
+  ) {
     return (
       <div
         aria-live="polite"
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading preview...
+        <Spinner /> Loading preview…
       </div>
     )
   }
@@ -1840,12 +1837,12 @@ function EntryDialog({
     createFile.isPending || createDirectory.isPending || rename.isPending || remove.isPending
   const pendingLabel =
     action.kind === "file"
-      ? "Creating file..."
+      ? "Creating file…"
       : action.kind === "directory"
-        ? "Creating folder..."
+        ? "Creating folder…"
         : action.kind === "rename"
-          ? "Renaming..."
-          : "Deleting..."
+          ? "Renaming…"
+          : "Deleting…"
 
   const label =
     action.kind === "file"
@@ -1880,7 +1877,7 @@ function EntryDialog({
             disabled={pending}
             name="entry-name"
             onChange={(event) => setName(event.target.value)}
-            placeholder={action.kind === "directory" ? "folder-name..." : "filename.md..."}
+            placeholder={action.kind === "directory" ? "folder-name…" : "filename.md…"}
             spellCheck={false}
             value={name}
           />

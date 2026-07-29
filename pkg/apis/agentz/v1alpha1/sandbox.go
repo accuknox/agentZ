@@ -56,6 +56,7 @@ type InferenceModelRef struct {
 // SandboxInference defines the model policy inherited by referencing Agents.
 // +kubebuilder:validation:XValidation:rule="self.models.exists(m, m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)",message="default model must belong to the allowlist"
 // +kubebuilder:validation:XValidation:rule="!has(self.smallModel) || self.models.exists(m, m.provider == self.smallModel.provider && m.model == self.smallModel.model)",message="small model must belong to the allowlist"
+// +kubebuilder:validation:XValidation:rule="!has(self.attachmentModel) || self.models.exists(m, m.provider == self.attachmentModel.provider && m.model == self.attachmentModel.model)",message="attachment model must belong to the allowlist"
 type SandboxInference struct {
 	// Models is the hard provider/model allowlist.
 	// +listType=map
@@ -71,6 +72,10 @@ type SandboxInference struct {
 	// SmallModel is the optional OpenCode background-task model.
 	// +optional
 	SmallModel *InferenceModelRef `json:"smallModel,omitempty"`
+
+	// AttachmentModel is the optional model used to inspect visual files.
+	// +optional
+	AttachmentModel *InferenceModelRef `json:"attachmentModel,omitempty"`
 }
 
 // SandboxSpec defines the desired state of Sandbox.

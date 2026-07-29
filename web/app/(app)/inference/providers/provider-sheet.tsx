@@ -2291,7 +2291,7 @@ function ServiceAccountJsonField({
 
 /**
  * ModelMetadataDialog edits one model's display name, limits, capabilities,
- * and modalities. Values configure OpenCode capabilities and request limits.
+ * and modalities.
  */
 function ModelMetadataDialog({
   form,
@@ -2312,9 +2312,6 @@ function ModelMetadataDialog({
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Model metadata</DialogTitle>
-          <DialogDescription>
-            These values configure OpenCode capabilities and request limits.
-          </DialogDescription>
         </DialogHeader>
         {editingModel !== undefined && (
           <div className="space-y-4">

@@ -529,13 +529,16 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	if attachmentModel == nil {
 		attachmentModel = &sandbox.Spec.Inference.DefaultModel
 	}
+	var capable bool
 	provider := cfg.Providers[attachmentModel.Provider]
-	model, ok := provider.Models[attachmentModel.Model]
-	imageInput := slices.Contains(
-		model.Modalities.Input,
-		agentzv1alpha1.InferenceModelModalityImage,
-	)
-	capable := ok && model.Attachment && imageInput
+	if provider != nil {
+		model, ok := provider.Models[attachmentModel.Model]
+		imageInput := slices.Contains(
+			model.Modalities.Input,
+			agentzv1alpha1.InferenceModelModalityImage,
+		)
+		capable = ok && model.Attachment && imageInput
+	}
 	if capable {
 		cfg.AttachmentModel = attachmentModel.Provider + "/" + attachmentModel.Model
 	}

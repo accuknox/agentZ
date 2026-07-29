@@ -270,6 +270,9 @@ import type {
   WatchWorkflowRunsResponses,
   WriteAgentFileData,
   WriteAgentFileErrors,
+  WriteAgentFileRawData,
+  WriteAgentFileRawErrors,
+  WriteAgentFileRawResponses,
   WriteAgentFileResponses,
 } from "./types.gen"
 import {
@@ -397,6 +400,9 @@ import {
   zWatchWorkflowRunsPath,
   zWriteAgentFileBody,
   zWriteAgentFilePath,
+  zWriteAgentFileRawBody,
+  zWriteAgentFileRawPath,
+  zWriteAgentFileRawQuery,
 } from "./zod.gen"
 
 export type Options<
@@ -688,6 +694,33 @@ export const readAgentFileRaw = <ThrowOnError extends boolean = false>(
     url: "/api/agent/{agentName}/fs/raw",
     ...options,
   })
+
+/**
+ * Atomically write an agent workspace file without text encoding.
+ */
+export const writeAgentFileRaw = <ThrowOnError extends boolean = false>(
+  options: Options<WriteAgentFileRawData, ThrowOnError>
+) =>
+  (options.client ?? client).put<WriteAgentFileRawResponses, WriteAgentFileRawErrors, ThrowOnError>(
+    {
+      bodySerializer: null,
+      requestValidator: async (data) =>
+        await z
+          .object({
+            body: zWriteAgentFileRawBody,
+            path: zWriteAgentFileRawPath,
+            query: zWriteAgentFileRawQuery,
+          })
+          .parseAsync(data),
+      security: [{ scheme: "bearer", type: "http" }],
+      url: "/api/agent/{agentName}/fs/raw",
+      ...options,
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...options.headers,
+      },
+    }
+  )
 
 /**
  * Create a directory in the agent workspace.

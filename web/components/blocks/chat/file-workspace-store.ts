@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-type FileTab = {
+export type FileTab = {
   name: string
   path: string
 }
@@ -15,6 +15,7 @@ type RootState = {
 type WorkspaceState = {
   dirtyAgent?: string
   openAgent?: string
+  pendingPreview?: { agent: string; tab: FileTab }
   roots: Record<string, RootState>
 }
 
@@ -24,6 +25,8 @@ type FileWorkspace = WorkspaceState & {
   deleteEntry: (root: string, path: string) => void
   moveEntry: (root: string, path: string, target: string) => void
   openTab: (root: string, tab: FileTab) => void
+  previewFile: (agent: string, tab: FileTab) => void
+  resolvePreview: (agent: string) => void
   setAgentDirty: (agent: string, dirty: boolean) => void
   setSelected: (root: string, path: string) => void
   toggleAgent: (agent: string) => void
@@ -149,6 +152,16 @@ export function FileWorkspaceProvider({
             },
           }
         }),
+      previewFile: (agent, tab) =>
+        setState((state) => ({
+          ...state,
+          openAgent: agent,
+          pendingPreview: { agent, tab },
+        })),
+      resolvePreview: (agent) =>
+        setState((state) =>
+          state.pendingPreview?.agent === agent ? { ...state, pendingPreview: undefined } : state
+        ),
       setAgentDirty: (agent, dirty) =>
         setState((state) => {
           if (dirty) return state.dirtyAgent === agent ? state : { ...state, dirtyAgent: agent }
@@ -168,10 +181,14 @@ export function FileWorkspaceProvider({
           }
         }),
       toggleAgent: (agent) =>
-        setState((state) => ({
-          ...state,
-          openAgent: state.openAgent === agent ? undefined : agent,
-        })),
+        setState((state) => {
+          const closing = state.openAgent === agent
+          return {
+            ...state,
+            openAgent: closing ? undefined : agent,
+            pendingPreview: undefined,
+          }
+        }),
     }),
     []
   )

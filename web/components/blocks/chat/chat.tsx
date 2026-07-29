@@ -10,6 +10,8 @@ import {
   AttachmentPreview,
   AttachmentRemove,
   Attachments,
+  getAttachmentMediaCategory,
+  inferAttachmentMediaType,
 } from "@/components/ai-elements/attachments"
 import {
   Message as AIMessage,
@@ -22,6 +24,7 @@ import { Checkpoint, CheckpointIcon } from "@/components/ai-elements/checkpoint"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
 import type {
   PromptInputController,
+  PromptInputFile,
   PromptInputMessage,
 } from "@/components/ai-elements/prompt-input"
 import {
@@ -58,6 +61,7 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-storage"
+import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
 import { useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
 import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
@@ -77,15 +81,25 @@ import {
 import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { ToolEntries } from "@/components/blocks/chat/tool-parts"
 import {
+  type ChatAttachment,
   chatAttachmentConfig,
   chatAttachmentErrorMessage,
-  messageHasRenderableContent,
+  promptFileFromPart,
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
-import { formatMessageTime } from "@/lib/format"
+import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
+import { formatByteSize, formatMessageTime } from "@/lib/format"
+import { useObjectURL } from "@/hooks/use-object-url"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import {
@@ -93,6 +107,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CpuIcon,
+  DownloadIcon,
   GaugeIcon,
   PaperclipIcon,
   Settings2Icon,
@@ -210,8 +225,103 @@ function getAssistantUsage(
   return undefined
 }
 
-function PromptInputAttachmentsDisplay() {
+type SelectedPromptAttachment = Extract<PromptInputFile, { source: "local" }> & { id: string }
+
+function PromptAttachmentDialog({
+  attachment,
+  onOpenChange,
+}: {
+  attachment: SelectedPromptAttachment | null
+  onOpenChange: (open: boolean) => void
+}) {
+  if (!attachment) return null
+
+  const url = attachment.url
+  const category = getAttachmentMediaCategory(attachment)
+  const isImage = category === "image"
+  const isVideo = category === "video"
+  const isAudio = category === "audio"
+  const isPDF =
+    inferAttachmentMediaType(attachment.filename, attachment.mediaType) === "application/pdf"
+  const canPreview = isImage || isVideo || isAudio || isPDF
+
+  const handleDownload = () => {
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = attachment.filename
+    anchor.click()
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="h-[min(78dvh,48rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden overscroll-contain p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b px-5 py-4 pr-12">
+          <DialogTitle className="truncate" translate="no">
+            {attachment.filename}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Preview or download {attachment.filename}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="bg-muted/20 flex min-h-0 flex-1 items-center justify-center overflow-auto p-5">
+          {isImage ? (
+            // eslint-disable-next-line @next/next/no-img-element -- local blob URL cannot use Next Image
+            <img
+              alt={attachment.filename}
+              className="max-h-full max-w-full rounded-lg object-contain"
+              height={1024}
+              src={url}
+              width={1024}
+            />
+          ) : null}
+          {isVideo ? (
+            <video
+              aria-label={`Preview of ${attachment.filename}`}
+              className="max-h-full max-w-full rounded-lg"
+              controls
+              src={url}
+            />
+          ) : null}
+          {isAudio ? (
+            <audio
+              aria-label={`Preview of ${attachment.filename}`}
+              className="w-full max-w-lg"
+              controls
+              src={url}
+            />
+          ) : null}
+          {isPDF ? (
+            <iframe
+              className="size-full rounded-lg border bg-white"
+              src={`${url}#toolbar=0`}
+              title={`Preview of ${attachment.filename}`}
+            />
+          ) : null}
+          {!canPreview ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-4 text-center">
+              <p>
+                Preview isn&apos;t available for{" "}
+                <span className="break-all" translate="no">
+                  {attachment.filename}
+                </span>{" "}
+                ({formatByteSize(attachment.size)}).
+              </p>
+              <Button onClick={handleDownload} variant="outline">
+                <DownloadIcon aria-hidden="true" />
+                Download
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PromptInputAttachmentsDisplay({ agentName }: { agentName: string }) {
   const attachments = usePromptInputAttachments()
+  const { previewFile } = useFileWorkspace()
+  const [selected, setSelected] = useState<SelectedPromptAttachment | null>(null)
 
   if (attachments.files.length === 0) {
     return null
@@ -220,20 +330,36 @@ function PromptInputAttachmentsDisplay() {
   return (
     <InputGroupAddon
       align="block-start"
-      className="order-first flex-wrap gap-2 px-3 pt-1 pb-1 empty:hidden"
+      className="order-first flex-wrap px-3 pt-2 pb-1.5 empty:hidden"
     >
-      <Attachments variant="inline">
-        {attachments.files.map((attachment) => {
-          const handleRemove = () => attachments.remove(attachment.id)
-
-          return (
-            <Attachment data={attachment} key={attachment.id} onRemove={handleRemove}>
-              <AttachmentPreview />
-              <AttachmentRemove />
-            </Attachment>
-          )
-        })}
+      <Attachments className="w-full flex-wrap gap-[6px]" variant="composer">
+        {attachments.files.map((attachment) => (
+          <Attachment
+            data={attachment}
+            key={attachment.id}
+            onOpen={() => {
+              if (attachment.source === "workspace") {
+                previewFile(agentName, {
+                  name: attachment.filename,
+                  path: attachment.path,
+                })
+                return
+              }
+              setSelected(attachment)
+            }}
+            onRemove={() => attachments.remove(attachment.id)}
+          >
+            <AttachmentPreview />
+            <AttachmentRemove label={`Remove ${attachment.filename}`} />
+          </Attachment>
+        ))}
       </Attachments>
+      <PromptAttachmentDialog
+        attachment={selected}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null)
+        }}
+      />
     </InputGroupAddon>
   )
 }
@@ -249,8 +375,64 @@ function PromptInputAttachmentButton({ disabled }: { disabled?: boolean }) {
       onClick={attachments.openFileDialog}
       tooltip="Add photos & files"
     >
-      <PaperclipIcon />
+      <PaperclipIcon aria-hidden="true" />
     </PromptInputButton>
+  )
+}
+
+function StoredAttachment({
+  agentName,
+  attachment,
+  onOpen,
+}: {
+  agentName: string
+  attachment: ChatAttachment
+  onOpen: (path: string, name: string) => void
+}) {
+  const data = { ...attachment, type: "file" as const }
+  const isImage = getAttachmentMediaCategory(data) === "image"
+  const previewQuery = useQuery({
+    ...readAgentFileRawOptions({
+      parseAs: "blob",
+      path: { agentName },
+      query: { path: attachment.path },
+    }),
+    enabled: isImage,
+    gcTime: 0,
+  })
+  const previewURL = useObjectURL(isImage ? previewQuery.data : undefined)
+
+  return (
+    <Attachment
+      data={previewURL ? { ...data, url: previewURL } : data}
+      onOpen={() => onOpen(attachment.path, attachment.filename)}
+      title={`Preview ${attachment.filename}`}
+    >
+      <AttachmentPreview />
+    </Attachment>
+  )
+}
+
+function StoredAttachments({
+  agentName,
+  attachments,
+  onOpen,
+}: {
+  agentName: string
+  attachments: ChatAttachment[]
+  onOpen: (path: string, name: string) => void
+}) {
+  return (
+    <Attachments className="gap-[6px]" variant="composer">
+      {attachments.map((attachment) => (
+        <StoredAttachment
+          agentName={agentName}
+          attachment={attachment}
+          key={attachment.id}
+          onOpen={onOpen}
+        />
+      ))}
+    </Attachments>
   )
 }
 
@@ -586,7 +768,8 @@ function ChatInner({
   const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
     agentName,
     activeSessionId,
-    isBusy || blocked || agentReadiness.isGettingReady,
+    directory,
+    isBusy || isPending || blocked || agentReadiness.isGettingReady,
     setPromotedSessionId
   )
 
@@ -689,13 +872,11 @@ function ChatInner({
         .map((part) => textByPart[part.id] ?? part.text)
         .join("")
       const files = parts
-        .filter((part): part is Extract<Part, { type: "file" }> => part.type === "file")
-        .map((part) => ({
-          filename: part.filename,
-          mediaType: part.mime,
-          type: "file" as const,
-          url: part.url,
-        }))
+        .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
+        .flatMap((part) => {
+          const file = promptFileFromPart(part)
+          return file ? [file] : []
+        })
       return { files, text }
     },
     [partsByMessage, textByPart]
@@ -742,7 +923,7 @@ function ChatInner({
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
       if (agentReadiness.isGettingReady) return
-      if (!messageHasRenderableContent(message.text, message.files)) {
+      if (message.text.trim().length === 0 && message.files.length === 0) {
         toast.error("Message cannot be empty")
         return
       }
@@ -913,19 +1094,18 @@ function ChatInner({
             <NewSessionGreeting firstName={firstName} greetingIndex={greetingIndex} />
           ) : null}
           <PromptInput
-            accept={chatAttachmentConfig.accept}
             controllerRef={composerRef}
             globalDrop
             maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
             maxFiles={chatAttachmentConfig.maxFileCount}
             mobile={promptMobile}
             multiple
-            onError={(error) => {
-              toast.error(error.message || chatAttachmentErrorMessage(error.code))
+            onError={(code) => {
+              toast.error(chatAttachmentErrorMessage(code))
             }}
             onSubmit={handleSubmit}
           >
-            <PromptInputAttachmentsDisplay />
+            <PromptInputAttachmentsDisplay agentName={agentName} />
             <PromptInputBody>
               <motion.div
                 className="col-start-1 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
@@ -1114,7 +1294,7 @@ function ChatInner({
                       </DropdownMenu>
                     </div>
                     <ModelSelectorContent>
-                      <ModelSelectorInput placeholder="Search models..." />
+                      <ModelSelectorInput placeholder="Search models…" />
                       <ModelSelectorList>
                         <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
                         {chefs.map((chef) => (
@@ -1219,6 +1399,14 @@ function TimelineRowView({
   row: TimelineRow
   user?: AuthUser
 }) {
+  const { previewFile } = useFileWorkspace()
+  const openAgentFile = useCallback(
+    (path: string, name: string) => {
+      previewFile(agentName, { name, path })
+    },
+    [agentName, previewFile]
+  )
+
   switch (row.type) {
     case "local": {
       return (
@@ -1234,13 +1422,11 @@ function TimelineRowView({
               )}
             >
               {row.message.attachments.length > 0 ? (
-                <Attachments variant="inline">
-                  {row.message.attachments.map((attachment) => (
-                    <Attachment data={attachment} key={attachment.id}>
-                      <AttachmentPreview />
-                    </Attachment>
-                  ))}
-                </Attachments>
+                <StoredAttachments
+                  agentName={agentName}
+                  attachments={row.message.attachments}
+                  onOpen={openAgentFile}
+                />
               ) : null}
               {row.message.text.length > 0 ? (
                 <MessageResponse>{row.message.text}</MessageResponse>
@@ -1259,13 +1445,11 @@ function TimelineRowView({
           <MessageContent className={isEmpty ? "hidden" : undefined}>
             <AIMessageContent className={row.attachments.length > 0 ? "space-y-3" : undefined}>
               {row.attachments.length > 0 ? (
-                <Attachments variant="inline">
-                  {row.attachments.map((attachment) => (
-                    <Attachment data={attachment} key={attachment.id}>
-                      <AttachmentPreview />
-                    </Attachment>
-                  ))}
-                </Attachments>
+                <StoredAttachments
+                  agentName={agentName}
+                  attachments={row.attachments}
+                  onOpen={openAgentFile}
+                />
               ) : null}
               {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
             </AIMessageContent>
@@ -1298,52 +1482,58 @@ function TimelineRowView({
         .map((entry) => entry.content)
         .join("\n\n")
       return (
-        <AIMessage from="assistant" key={row.key}>
-          <AIMessageContent>
-            {groups.map((group, groupIndex) => {
-              switch (group.type) {
-                case "text":
-                  return <MessageResponse key={group.key}>{group.content}</MessageResponse>
-                case "reasoning": {
-                  const isStreaming = isBusy && isLastBlock && groupIndex === lastGroupIndex
-                  return (
-                    <Reasoning isStreaming={isStreaming} key={group.key}>
-                      <ReasoningTrigger />
-                      <ReasoningContent>{group.content}</ReasoningContent>
-                    </Reasoning>
-                  )
+        <>
+          <AIMessage from="assistant" key={row.key}>
+            <AIMessageContent>
+              {groups.map((group, groupIndex) => {
+                switch (group.type) {
+                  case "text":
+                    return (
+                      <MessageResponse key={group.key} onAgentFileOpen={openAgentFile}>
+                        {group.content}
+                      </MessageResponse>
+                    )
+                  case "reasoning": {
+                    const isStreaming = isBusy && isLastBlock && groupIndex === lastGroupIndex
+                    return (
+                      <Reasoning isStreaming={isStreaming} key={group.key}>
+                        <ReasoningTrigger />
+                        <ReasoningContent>{group.content}</ReasoningContent>
+                      </Reasoning>
+                    )
+                  }
+                  case "tool-group":
+                    return (
+                      <div
+                        className="bg-muted dark:bg-card max-w-full min-w-0 overflow-hidden rounded-md p-2"
+                        key={group.key}
+                      >
+                        {group.entries.map((entry) => {
+                          const toolEntry = entry.toolEntries[0]
+                          if (!toolEntry) return null
+                          return (
+                            <ToolEntries agentName={agentName} entry={toolEntry} key={entry.key} />
+                          )
+                        })}
+                      </div>
+                    )
+                  default:
+                    return null
                 }
-                case "tool-group":
-                  return (
-                    <div
-                      className="bg-muted dark:bg-card max-w-full min-w-0 overflow-hidden rounded-md p-2"
-                      key={group.key}
-                    >
-                      {group.entries.map((entry) => {
-                        const toolEntry = entry.toolEntries[0]
-                        if (!toolEntry) return null
-                        return (
-                          <ToolEntries agentName={agentName} entry={toolEntry} key={entry.key} />
-                        )
-                      })}
-                    </div>
-                  )
-                default:
-                  return null
-              }
-            })}
-          </AIMessageContent>
-          <div className="flex items-center gap-1">
-            <span className="text-muted-foreground text-xs">
-              {formatMessageTime(row.createdAt)}
-            </span>
-            {copyText.length > 0 && !(isBusy && isLastBlock) ? (
-              <MessageActionBar>
-                <CopyButton content={copyText} />
-              </MessageActionBar>
-            ) : null}
-          </div>
-        </AIMessage>
+              })}
+            </AIMessageContent>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground text-xs">
+                {formatMessageTime(row.createdAt)}
+              </span>
+              {copyText.length > 0 && !(isBusy && isLastBlock) ? (
+                <MessageActionBar>
+                  <CopyButton content={copyText} />
+                </MessageActionBar>
+              ) : null}
+            </div>
+          </AIMessage>
+        </>
       )
     }
 
@@ -1352,7 +1542,7 @@ function TimelineRowView({
         <div className="text-muted-foreground text-sm" key={row.key}>
           <span className="inline-flex items-center gap-2">
             <Spinner className="size-3.5" />
-            <span className="animate-pulse">Thinking...</span>
+            <span className="animate-pulse">Thinking…</span>
           </span>
         </div>
       )

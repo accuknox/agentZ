@@ -1,6 +1,5 @@
 "use client"
 
-import type { AttachmentData } from "@/components/ai-elements/attachments"
 import type {
   Event as OpencodeEventV2,
   Message,
@@ -10,7 +9,6 @@ import type {
   Session as SessionV2,
   SessionStatus,
   SessionStatusResponse,
-  TextPart,
   Todo,
 } from "@opencode-ai/sdk/v2"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -19,6 +17,7 @@ import { useCallback, useEffectEvent, useEffect, useMemo, useState } from "react
 import { toast } from "sonner"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
+import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
 
 type SessionMessageRecord = {
   info: Message
@@ -46,7 +45,7 @@ const emptyHitlStore: HitlStore = { permissions: {}, questions: {}, sessions: []
 type StreamEvent = OpencodeEventV2
 
 export type OptimisticUserMessage = {
-  attachments: AttachmentData[]
+  attachments: ChatAttachment[]
   createdAt: number
   id: string
   status: "failed" | "pending"
@@ -139,37 +138,16 @@ function deriveSessionIsBusy(
   sessionStatus: SessionStatus | undefined,
   session: SessionV2 | undefined
 ): boolean {
-  if (localMessages.some((message) => message.status === "pending")) {
-    return true
-  }
-
-  // Compaction rewrites the store, so the message heuristics below are unreliable.
-  if (session?.time.compacting) {
-    return true
-  }
+  // OpenCode owns the lifecycle. Message state only bridges bootstrap before
+  // the first status snapshot arrives.
+  if (sessionStatus) return sessionStatus.type !== "idle"
+  if (localMessages.some((message) => message.status === "pending")) return true
+  if (session?.time.compacting) return true
 
   const last = messages.at(-1)
-
-  // The server sets time.completed in a finalizer on every turn exit (success,
-  // error, abort), so trust it over a possibly-stale "busy" status to avoid
-  // hanging at "Working". A "retry" status still means the turn will re-run.
-  if (
-    last?.role === "assistant" &&
-    last.time.completed !== undefined &&
-    sessionStatus?.type !== "retry"
-  ) {
-    return false
-  }
-
-  if (sessionStatus && sessionStatus.type !== "idle") {
-    return true
-  }
-
   if (!last) return false
   if (last.role === "user") return true
-  if (last.role === "assistant" && last.time.completed === undefined) return true
-
-  return false
+  return last.role === "assistant" && last.time.completed === undefined
 }
 
 function upsertMessage(messages: Message[], next: Message) {
@@ -500,7 +478,7 @@ function sessionMessagesBaseQueryKey(agentName: string, sessionID: string) {
   return ["opencode", "sessionMessages", agentName, sessionID] as const
 }
 
-export function upsertOptimisticUserMessage(
+export function addOptimisticUserMessage(
   queryClient: QueryClient,
   agentName: string,
   sessionID: string | undefined,
@@ -508,17 +486,7 @@ export function upsertOptimisticUserMessage(
 ) {
   queryClient.setQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
-    (current) => {
-      const draft = current ? [...current] : []
-      const index = draft.findIndex((item) => item.id === message.id)
-      if (index >= 0) {
-        draft[index] = message
-        return draft
-      }
-
-      draft.push(message)
-      return draft.slice(-MAX_CHAT_TURNS)
-    }
+    (current) => [...(current ?? []), message].slice(-MAX_CHAT_TURNS)
   )
 }
 
@@ -530,53 +498,15 @@ export function markOptimisticUserMessageFailed(
 ) {
   queryClient.setQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(agentName, sessionID),
-    (current) => {
-      const draft = current ? [...current] : []
-      return draft.map((item) => {
+    (current) =>
+      (current ?? []).map((item) => {
         if (item.id !== messageID) return item
         return {
           ...item,
           status: "failed",
         }
       })
-    }
   )
-}
-
-function removeOptimisticUserMessage(
-  queryClient: QueryClient,
-  agentName: string,
-  sessionID: string | undefined,
-  messageID: string
-) {
-  queryClient.setQueryData<OptimisticUserMessage[]>(
-    chatOverlayQueryKey(agentName, sessionID),
-    (current) => {
-      const draft = current ? [...current] : []
-      return draft.filter((item) => item.id !== messageID)
-    }
-  )
-}
-
-export function migrateChatOverlay(
-  queryClient: QueryClient,
-  agentName: string,
-  fromSessionID: string | undefined,
-  toSessionID: string
-) {
-  const current = queryClient.getQueryData<OptimisticUserMessage[]>(
-    chatOverlayQueryKey(agentName, fromSessionID)
-  )
-  if (!current || current.length === 0) return
-
-  queryClient.setQueryData<OptimisticUserMessage[]>(
-    chatOverlayQueryKey(agentName, toSessionID),
-    current
-  )
-  queryClient.removeQueries({
-    queryKey: chatOverlayQueryKey(agentName, fromSessionID),
-    exact: true,
-  })
 }
 
 function sessionInfoQueryOptions(agentName: string, sessionID: string) {
@@ -665,6 +595,23 @@ function sessionTreeQueryOptions(agentName: string, directory: string) {
   })
 }
 
+export function sessionStatusQueryOptions(agentName: string, directory: string) {
+  return queryOptions({
+    queryFn: async () => {
+      const client = await createAgentOpencodeClient(agentName)
+      const result = await client.session.status({ directory })
+
+      if (result.error || !result.data) {
+        throw new Error(opencodeErrorMessage(result.error, "Failed to load session status"))
+      }
+
+      return result.data
+    },
+    queryKey: ["opencode", "sessionStatus", agentName, directory] as const,
+    retry: false,
+  })
+}
+
 export function useOpencodeChat(agentName: string, sessionID?: string): UseOpencodeChatResult {
   const queryClient = useQueryClient()
   const [liveStore, setLiveStore] = useState<{
@@ -680,45 +627,18 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   })
   const history = useQuery({
     ...sessionMessagesQueryOptions(agentName, sessionID ?? "", session.data?.directory ?? ""),
-    enabled: Boolean(sessionID && session.data?.directory),
+    enabled: false,
   })
   const hitl = useQuery({
     ...sessionTreeQueryOptions(agentName, session.data?.directory ?? ""),
-    enabled: Boolean(session.data?.directory),
+    enabled: false,
   })
   const refetchSession = session.refetch
   const refetchHistory = history.refetch
   const refetchHitl = hitl.refetch
-  const sessionStatusKey = [
-    "opencode",
-    "sessionStatus",
-    agentName,
-    session.data?.directory ?? "",
-  ] as const
-  const status = useQuery(
-    queryOptions({
-      enabled: Boolean(sessionID && session.data?.directory),
-      queryFn: async () => {
-        const client = await createAgentOpencodeClient(agentName)
-        const result = await client.session.status({
-          directory: session.data?.directory,
-        })
-
-        if (result.error || !result.data) {
-          throw new Error(opencodeErrorMessage(result.error, "Failed to load session status"))
-        }
-
-        return result.data
-      },
-      queryKey: sessionStatusKey,
-      refetchInterval: (query) => {
-        if (!sessionID) return false
-        const current = query.state.data?.[sessionID]
-        return current && current.type !== "idle" ? 1_000 : false
-      },
-      retry: false,
-    })
-  )
+  const sessionStatusOptions = sessionStatusQueryOptions(agentName, session.data?.directory ?? "")
+  const sessionStatusKey = sessionStatusOptions.queryKey
+  const status = useQuery({ ...sessionStatusOptions, enabled: false })
   const refetchStatus = status.refetch
   const localMessages = useQuery({
     ...queryOptions({
@@ -744,12 +664,8 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   }, [history.data, session.data, sessionID])
   const baseStoreKey = useMemo(() => {
     const sessionKey = sessionID ?? "new"
-    const historyCount = history.data?.length ?? 0
-    const lastMessageID = history.data?.at(-1)?.info.id ?? "none"
-    const sessionUpdatedAt = session.data?.time.updated ?? 0
-
-    return `${sessionKey}:${sessionUpdatedAt}:${historyCount}:${lastMessageID}`
-  }, [history.data, session.data?.time.updated, sessionID])
+    return `${sessionKey}:${history.dataUpdatedAt}`
+  }, [history.dataUpdatedAt, sessionID])
   const store = liveStore?.key === baseStoreKey ? liveStore.store : baseStore
 
   // HITL state reconciles like the chat store: live events fold onto the
@@ -840,10 +756,6 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         ),
       }))
     }
-
-    if (events.length > 0) {
-      setStreamError(undefined)
-    }
   })
 
   useEffect(() => {
@@ -852,14 +764,15 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     const directory = session.data.directory
     const abortController = new AbortController()
     const queue: StreamEvent[] = []
-    let timer: ReturnType<typeof setTimeout> | undefined
+    let flushTimer: ReturnType<typeof setTimeout> | undefined
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined
     let lastFlush = 0
 
     function flushQueue() {
       if (queue.length === 0) return
-      if (timer) {
-        clearTimeout(timer)
-        timer = undefined
+      if (flushTimer) {
+        clearTimeout(flushTimer)
+        flushTimer = undefined
       }
 
       const events = queue.splice(0)
@@ -868,11 +781,11 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     }
 
     function scheduleFlush() {
-      if (timer) return
+      if (flushTimer) return
 
       const elapsed = Date.now() - lastFlush
       const delay = elapsed >= 16 ? 0 : 16 - elapsed
-      timer = setTimeout(() => {
+      flushTimer = setTimeout(() => {
         flushQueue()
       }, delay)
     }
@@ -885,6 +798,10 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
             directory,
           },
           {
+            onSseError: () => {
+              if (abortController.signal.aborted) return
+              setStreamError("Connection lost. Reconnecting…")
+            },
             signal: abortController.signal,
           }
         )
@@ -892,17 +809,31 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         for await (const event of result.stream) {
           if (abortController.signal.aborted) return
 
+          if (event.type === "server.connected") {
+            flushQueue()
+            await Promise.all([refetchSession(), refetchHistory(), refetchHitl(), refetchStatus()])
+            setStreamError(undefined)
+            continue
+          }
+
           queue.push(event)
           scheduleFlush()
         }
 
         flushQueue()
-      } catch (error) {
         if (abortController.signal.aborted) return
 
-        setStreamError(
-          error instanceof Error ? error.message : "Failed to subscribe to session events"
-        )
+        setStreamError("Connection closed. Reconnecting…")
+        reconnectTimer = setTimeout(() => {
+          setStreamEpoch((current) => current + 1)
+        }, 1_000)
+      } catch {
+        if (abortController.signal.aborted) return
+
+        setStreamError("Failed to subscribe to session events. Reconnecting…")
+        reconnectTimer = setTimeout(() => {
+          setStreamEpoch((current) => current + 1)
+        }, 1_000)
       }
     }
 
@@ -910,11 +841,19 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
     return () => {
       abortController.abort()
-      if (timer) {
-        clearTimeout(timer)
-      }
+      if (flushTimer) clearTimeout(flushTimer)
+      if (reconnectTimer) clearTimeout(reconnectTimer)
     }
-  }, [agentName, session.data?.directory, sessionID, streamEpoch])
+  }, [
+    agentName,
+    refetchHistory,
+    refetchHitl,
+    refetchSession,
+    refetchStatus,
+    session.data?.directory,
+    sessionID,
+    streamEpoch,
+  ])
 
   const messages = useMemo(() => {
     return sessionID ? (store.message[sessionID] ?? []) : []
@@ -942,40 +881,53 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
       (id) => hitlStore.questions[id] ?? []
     )
   }, [hitlStore.questions, hitlStore.sessions, sessionID])
-  const sessionStatus = sessionID ? (status.data?.[sessionID] ?? idleSessionStatus) : undefined
+  const sessionStatus =
+    sessionID && status.data ? (status.data[sessionID] ?? idleSessionStatus) : undefined
+  const acknowledgedLocalMessageIDs = useMemo(() => {
+    const ids = new Set<string>()
+    const localByID = new Map(localMessages.data.map((message) => [message.id, message]))
+
+    for (const message of messages) {
+      if (message.role !== "user") continue
+      const local = localByID.get(message.id)
+      if (!local) continue
+
+      const parts = partsByMessage[message.id] ?? []
+      const hasText =
+        local.text.length === 0 ||
+        parts.some((part) => {
+          if (part.type !== "text" || part.synthetic === true) return false
+          return (textByPart[part.id] ?? part.text).length > 0
+        })
+      if (!hasText) continue
+
+      const attachmentIDs = new Set(
+        parts.flatMap((part) => {
+          if (part.type !== "text") return []
+          const attachment = attachmentFromPart(part)
+          return attachment ? [attachment.id] : []
+        })
+      )
+      if (!local.attachments.every((attachment) => attachmentIDs.has(attachment.id))) continue
+
+      ids.add(message.id)
+    }
+    return ids
+  }, [localMessages.data, messages, partsByMessage, textByPart])
+  const visibleLocalMessages = useMemo(
+    () => localMessages.data.filter((message) => !acknowledgedLocalMessageIDs.has(message.id)),
+    [acknowledgedLocalMessageIDs, localMessages.data]
+  )
 
   useEffect(() => {
     if (!sessionID) return
+    if (!localMessages.data.some((message) => acknowledgedLocalMessageIDs.has(message.id))) return
 
-    for (const localMessage of localMessages.data) {
-      const match = messages.find((message) => {
-        if (message.role !== "user") return false
-        const parts = partsByMessage[message.id] ?? []
-        const messageText = parts
-          .filter((part): part is TextPart => part.type === "text")
-          .map((part) => part.text)
-          .join("")
-          .trim()
-          .replaceAll(/\s+/g, " ")
-        const fileCount = parts.filter((part) => part.type === "file").length
-        const optimisticText = localMessage.text.trim().replaceAll(/\s+/g, " ")
-
-        // Match on any renderable part: attachment-only prompts have empty text,
-        // so a text-only match would never clear them and would hang at "Working".
-        const hasArrived = messageText.length > 0 || fileCount > 0
-
-        return (
-          hasArrived &&
-          messageText === optimisticText &&
-          fileCount === localMessage.attachments.length &&
-          Math.abs(message.time.created - localMessage.createdAt) < 60_000
-        )
-      })
-
-      if (!match) continue
-      removeOptimisticUserMessage(queryClient, agentName, sessionID, localMessage.id)
-    }
-  }, [agentName, localMessages.data, messages, partsByMessage, queryClient, sessionID])
+    queryClient.setQueryData<OptimisticUserMessage[]>(
+      chatOverlayQueryKey(agentName, sessionID),
+      (current) => (current ?? []).filter((item) => !acknowledgedLocalMessageIDs.has(item.id))
+    )
+  }, [acknowledgedLocalMessageIDs, agentName, localMessages.data, queryClient, sessionID])
 
   const todos = useMemo(() => {
     if (!sessionID) return []
@@ -1017,22 +969,19 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   const reconnectStream = useCallback(() => {
     setStreamError(undefined)
     setStreamEpoch((current) => current + 1)
-    // Recover events missed during the disconnect so a turn that finished
-    // mid-gap doesn't leave the UI stuck at "Working".
-    void refetchHistory()
-    void refetchStatus()
-    if (sessionID) {
-      void refetchSession()
-    }
-  }, [refetchHistory, refetchSession, refetchStatus, sessionID])
+  }, [])
 
   return {
     applyOptimisticSession,
     blocked: permissionRequest !== undefined || questionRequest !== undefined,
-    loadError: session.error?.message ?? history.error?.message ?? hitl.error?.message,
-    isBusy: deriveSessionIsBusy(messages, localMessages.data, sessionStatus, store.session),
+    loadError:
+      session.error?.message ??
+      history.error?.message ??
+      hitl.error?.message ??
+      status.error?.message,
+    isBusy: deriveSessionIsBusy(messages, visibleLocalMessages, sessionStatus, store.session),
     isPending: Boolean(sessionID) && (session.isPending || history.isPending),
-    localMessages: localMessages.data,
+    localMessages: visibleLocalMessages,
     messages,
     partsByMessage,
     permissionRequest,

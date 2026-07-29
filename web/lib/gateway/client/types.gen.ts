@@ -909,6 +909,7 @@ export type SandboxInference = {
   models: Array<SandboxInferenceModelRef>
   default_model: SandboxInferenceModelRef
   small_model?: SandboxInferenceModelRef
+  attachment_model?: SandboxInferenceModelRef
 }
 
 export type InferenceProviderKind =
@@ -2304,6 +2305,49 @@ export type ReadAgentFileRawResponses = {
 }
 
 export type ReadAgentFileRawResponse = ReadAgentFileRawResponses[keyof ReadAgentFileRawResponses]
+
+export type WriteAgentFileRawData = {
+  body: Blob | File
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Path relative to the agent workspace root.
+     */
+    path: string
+  }
+  url: "/api/agent/{agentName}/fs/raw"
+}
+
+export type WriteAgentFileRawErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request validation failed.
+   */
+  413: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WriteAgentFileRawError = WriteAgentFileRawErrors[keyof WriteAgentFileRawErrors]
+
+export type WriteAgentFileRawResponses = {
+  /**
+   * File written.
+   */
+  200: AgentFileMetadata
+}
+
+export type WriteAgentFileRawResponse = WriteAgentFileRawResponses[keyof WriteAgentFileRawResponses]
 
 export type CreateAgentDirectoryData = {
   body: CreateAgentDirectoryRequest

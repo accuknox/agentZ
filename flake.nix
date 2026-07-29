@@ -16,7 +16,7 @@
             src = ./.;
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-HfJNE0f9lu+fx7SEHh8RpNLo0ILSzPxWEWT2Euacvu4=";
+            vendorHash = "sha256-mtv/e1zmmUbXeyhxPgPtOrzMuhiKxa4kD1gzp7UTOP4=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";
@@ -46,7 +46,7 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-t7HL/r2Z/HmaCCsiZAI1G+jck0QZSfSnLE1ZLSeEtO8=";
+            outputHash = "sha256-xHfE7QkLBUDfrcymEA+2zz89H1Sjolp/d2k81B0z48U=";
           };
           cfg = pkgs.runCommand "opencode-config" { } ''
             mkdir -p \
@@ -70,7 +70,10 @@
             cat > "$out/opencode.json" <<'EOF'
             {
               "$schema": "https://opencode.ai/config.json",
-              "plugin": ["./plugins/opencode-plugin-otel"],
+              "plugin": [
+                "./plugins/opencode-plugin-otel",
+                "./plugins/file-analysis.ts"
+              ],
               "tools": {
                 "create_workflow": true,
                 "create_workflow_schedule": true,

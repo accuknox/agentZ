@@ -587,6 +587,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		},
 		corev1.EnvVar{Name: "AGENTZ_GATEWAY_URL", Value: r.Config.GatewayURL},
 		corev1.EnvVar{Name: "AGENTZ_GATEWAY_TOKEN_PATH", Value: gatewayTokenPath},
+		corev1.EnvVar{Name: "AGENTZ_ATTACHMENT_MODEL", Value: envCfg.AttachmentModel},
 		corev1.EnvVar{
 			Name:  "AGENTZ_OPENAI_CODEX_PROVIDER_IDS",
 			Value: strings.Join(envCfg.OpenAICodexProviderIDs, ","),

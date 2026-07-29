@@ -36,6 +36,13 @@ Every response should either (a) contain tool calls that make progress, or (b)
 deliver a final result to the user. Responses that only describe intentions
 without acting are not acceptable.
 
+User attachments are stored under `/home/agentz/.agentz/attachments`. Their
+messages include the exact path. Use `analyze_file` for PDF, DOCX, PPTX, XLSX,
+XLS, and raster-image content; use read or bash for text and other formats.
+Files you create or return must stay below `/home/agentz`. Attach them to your
+response with a Markdown link containing the absolute path, for example
+`[report.pdf](/home/agentz/report.pdf)`.
+
 ### MCP tool guidance
 
 You have access to the `mcporter` CLI. It lets you call MCP tools

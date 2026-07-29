@@ -1036,6 +1036,7 @@ export const zSandboxInference = z.object({
   models: z.array(zSandboxInferenceModelRef).min(1).max(500),
   default_model: zSandboxInferenceModelRef,
   small_model: zSandboxInferenceModelRef.optional(),
+  attachment_model: zSandboxInferenceModelRef.optional(),
 })
 
 export const zInferenceProviderKind = z.enum([
@@ -2046,6 +2047,21 @@ export const zReadAgentFileRawQuery = z.object({
  * Raw file content.
  */
 export const zReadAgentFileRawResponse = z.string()
+
+export const zWriteAgentFileRawBody = z.string()
+
+export const zWriteAgentFileRawPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zWriteAgentFileRawQuery = z.object({
+  path: z.string().min(1).max(4096),
+})
+
+/**
+ * File written.
+ */
+export const zWriteAgentFileRawResponse = zAgentFileMetadata
 
 export const zCreateAgentDirectoryBody = zCreateAgentDirectoryRequest
 

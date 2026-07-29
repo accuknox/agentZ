@@ -63,6 +63,8 @@ const sandboxFormDataSchema = z
     inferenceDefaultModel: inferenceRefPartSchema,
     inferenceSmallProvider: inferenceRefPartSchema.optional(),
     inferenceSmallModel: inferenceRefPartSchema.optional(),
+    inferenceAttachmentProvider: inferenceRefPartSchema.optional(),
+    inferenceAttachmentModel: inferenceRefPartSchema.optional(),
   })
   .transform((data, ctx): SandboxFormValues => {
     const inferenceModels: SandboxFormValues["inference"]["models"] = []
@@ -80,6 +82,13 @@ const sandboxFormDataSchema = z
     }
     if ((data.inferenceSmallProvider === undefined) !== (data.inferenceSmallModel === undefined)) {
       ctx.addIssue({ code: "custom", message: "Small model reference is incomplete" })
+      return z.NEVER
+    }
+    if (
+      (data.inferenceAttachmentProvider === undefined) !==
+      (data.inferenceAttachmentModel === undefined)
+    ) {
+      ctx.addIssue({ code: "custom", message: "Attachment model reference is incomplete" })
       return z.NEVER
     }
     const refsByName = new Map<string, SandboxFormValues["mcpConnectionRefs"][number]>(
@@ -121,6 +130,14 @@ const sandboxFormDataSchema = z
               small_model: {
                 provider: data.inferenceSmallProvider,
                 model: data.inferenceSmallModel,
+              },
+            }
+          : {}),
+        ...(data.inferenceAttachmentProvider && data.inferenceAttachmentModel
+          ? {
+              attachment_model: {
+                provider: data.inferenceAttachmentProvider,
+                model: data.inferenceAttachmentModel,
               },
             }
           : {}),
@@ -170,6 +187,8 @@ function sandboxFormValues(formData: FormData) {
     inferenceDefaultModel: formData.get("inferenceDefaultModel"),
     inferenceSmallProvider: formData.get("inferenceSmallProvider") ?? undefined,
     inferenceSmallModel: formData.get("inferenceSmallModel") ?? undefined,
+    inferenceAttachmentProvider: formData.get("inferenceAttachmentProvider") ?? undefined,
+    inferenceAttachmentModel: formData.get("inferenceAttachmentModel") ?? undefined,
   })
 }
 

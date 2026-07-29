@@ -449,6 +449,12 @@ func sandboxInferenceFromAPI(value gatewayapi.SandboxInference) agentzv1alpha1.S
 			Model:    value.SmallModel.Model,
 		}
 	}
+	if value.AttachmentModel != nil {
+		out.AttachmentModel = &agentzv1alpha1.InferenceModelRef{
+			Provider: value.AttachmentModel.Provider,
+			Model:    value.AttachmentModel.Model,
+		}
+	}
 	return out
 }
 
@@ -471,6 +477,12 @@ func sandboxInferenceToAPI(value agentzv1alpha1.SandboxInference) gatewayapi.San
 		out.SmallModel = &gatewayapi.SandboxInferenceModelRef{
 			Provider: value.SmallModel.Provider,
 			Model:    value.SmallModel.Model,
+		}
+	}
+	if value.AttachmentModel != nil {
+		out.AttachmentModel = &gatewayapi.SandboxInferenceModelRef{
+			Provider: value.AttachmentModel.Provider,
+			Model:    value.AttachmentModel.Model,
 		}
 	}
 	return out

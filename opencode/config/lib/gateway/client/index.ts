@@ -87,6 +87,7 @@ export {
   watchSecrets,
   watchWorkflowRuns,
   writeAgentFile,
+  writeAgentFileRaw,
 } from "./sdk.gen"
 export type {
   ActionQuery,
@@ -780,6 +781,11 @@ export type {
   WriteAgentFileData,
   WriteAgentFileError,
   WriteAgentFileErrors,
+  WriteAgentFileRawData,
+  WriteAgentFileRawError,
+  WriteAgentFileRawErrors,
+  WriteAgentFileRawResponse,
+  WriteAgentFileRawResponses,
   WriteAgentFileRequest,
   WriteAgentFileResponse,
   WriteAgentFileResponses,

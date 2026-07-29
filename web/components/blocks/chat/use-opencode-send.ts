@@ -2,23 +2,22 @@
 
 import { useRouter } from "@bprogress/next/app"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { nanoid } from "nanoid"
 import { startTransition, useCallback, useState } from "react"
 import { toast } from "sonner"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
+import type { SessionStatus, SessionStatusResponse } from "@opencode-ai/sdk/v2"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import {
-  attachmentDataFromPart,
-  messageHasRenderableContent,
   opencodePartsFromMessage,
+  uploadChatAttachments,
 } from "@/components/blocks/chat/attachments"
 import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import {
+  addOptimisticUserMessage,
   markOptimisticUserMessageFailed,
-  migrateChatOverlay,
   sessionInfoQueryKey,
-  upsertOptimisticUserMessage,
+  sessionStatusQueryOptions,
 } from "@/components/blocks/chat/use-opencode-chat"
 
 type SendMessageInput = {
@@ -34,27 +33,38 @@ type SendMessageResult = {
   sessionID: string
 }
 
+let lastMessageTimestamp = 0
+let messageCounter = 0
+
+function createMessageID() {
+  const timestamp = Date.now()
+  messageCounter = timestamp === lastMessageTimestamp ? messageCounter + 1 : 1
+  lastMessageTimestamp = timestamp
+
+  // OpenCode sorts msg_* IDs lexicographically, so match its full ascending
+  // ID format: a 48-bit timestamp/counter followed by 14 random base-62 bytes.
+  const time = (BigInt(timestamp) * 0x1000n + BigInt(messageCounter)) & 0xffffffffffffn
+  const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  const bytes = crypto.getRandomValues(new Uint8Array(14))
+  const random = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("")
+  return `msg_${time.toString(16).padStart(12, "0")}${random}`
+}
+
 export function useOpencodeSend(
   agentName: string,
   sessionID?: string,
+  directory?: string,
   isBusy?: boolean,
   onSessionCreated?: (sessionID: string) => void
 ) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
-  const activeSessionKey = sessionID ?? "new"
   const sendMutation = useMutation<SendMessageResult, Error, SendMessageInput>({
     mutationFn: async (input) => {
       const text = input.text.trim()
-      const parts = opencodePartsFromMessage({ files: input.files, text })
-      const optimisticAttachments = parts
-        .filter(
-          (part): part is Extract<(typeof parts)[number], { type: "file" }> => part.type === "file"
-        )
-        .map(attachmentDataFromPart)
 
-      if (!messageHasRenderableContent(text, optimisticAttachments)) {
+      if (text.length === 0 && input.files.length === 0) {
         throw new Error("Message cannot be empty")
       }
       if (!input.model) {
@@ -64,18 +74,11 @@ export function useOpencodeSend(
         throw new Error("Wait for the current run to finish before sending another message")
       }
 
-      const optimisticID = `optimistic-${nanoid()}`
-      const createdAt = Date.now()
-      upsertOptimisticUserMessage(queryClient, agentName, activeSessionKey, {
-        createdAt,
-        id: optimisticID,
-        status: "pending",
-        attachments: optimisticAttachments,
-        text,
-      })
-
       let resolvedSessionID = input.sessionID
-      let newSessionDirectory: string | undefined
+      let sessionDirectory = directory
+      let optimisticID: string | undefined
+      let optimisticSessionID: string | undefined
+      let optimisticStatus: SessionStatus | undefined
 
       try {
         const client = await createAgentOpencodeClient(agentName)
@@ -92,14 +95,13 @@ export function useOpencodeSend(
             throw new Error(opencodeErrorMessage(createResult.error, "Failed to create session"))
           }
 
-          newSessionDirectory = createResult.data.directory
+          sessionDirectory = createResult.data.directory
           resolvedSessionID = createResult.data.id
           setPendingSessionID(createResult.data.id)
           queryClient.setQueryData(
             sessionInfoQueryKey(agentName, createResult.data.id),
             createResult.data
           )
-          migrateChatOverlay(queryClient, agentName, "new", createResult.data.id)
           onSessionCreated?.(createResult.data.id)
           const sessionPath =
             `/agents/${encodeURIComponent(agentName)}/` +
@@ -109,13 +111,38 @@ export function useOpencodeSend(
           })
         }
 
+        const activeSessionID = resolvedSessionID
+        const uploaded = await uploadChatAttachments(agentName, activeSessionID, input.files)
+        const parts = opencodePartsFromMessage(text, uploaded)
+        const pendingID = createMessageID()
+        const pendingStatus: SessionStatus = { type: "busy" }
+        optimisticID = pendingID
+        optimisticSessionID = activeSessionID
+        optimisticStatus = pendingStatus
+        const sessionStatusOptions = sessionStatusQueryOptions(agentName, sessionDirectory ?? "")
+        queryClient.setQueryData<SessionStatusResponse>(
+          sessionStatusOptions.queryKey,
+          (current) => ({
+            ...current,
+            [activeSessionID]: pendingStatus,
+          })
+        )
+        addOptimisticUserMessage(queryClient, agentName, activeSessionID, {
+          attachments: uploaded,
+          createdAt: Date.now(),
+          id: pendingID,
+          status: "pending",
+          text,
+        })
+
         const promptResult = await client.session.promptAsync({
+          messageID: pendingID,
           model: {
             modelID: input.model.modelID,
             providerID: input.model.providerID,
           },
           parts,
-          sessionID: resolvedSessionID,
+          sessionID: activeSessionID,
           variant: input.variant,
         })
 
@@ -124,12 +151,22 @@ export function useOpencodeSend(
         }
 
         return {
-          directory: newSessionDirectory,
-          sessionID: resolvedSessionID,
+          directory: sessionDirectory,
+          sessionID: activeSessionID,
         }
       } catch (error) {
-        const nextSessionKey = resolvedSessionID ?? activeSessionKey
-        markOptimisticUserMessageFailed(queryClient, agentName, nextSessionKey, optimisticID)
+        if (optimisticID && optimisticSessionID && optimisticStatus) {
+          const failedSessionID = optimisticSessionID
+          const failedStatus = optimisticStatus
+          markOptimisticUserMessageFailed(queryClient, agentName, failedSessionID, optimisticID)
+          queryClient.setQueryData<SessionStatusResponse>(
+            sessionStatusQueryOptions(agentName, sessionDirectory ?? "").queryKey,
+            (current) => {
+              if (current?.[failedSessionID] !== failedStatus) return current
+              return { ...current, [failedSessionID]: { type: "idle" } }
+            }
+          )
+        }
         throw error
       }
     },

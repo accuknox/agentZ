@@ -290,6 +290,7 @@ type sandboxConfig struct {
 	AllowedHosts             []string
 	Model                    string
 	SmallModel               string
+	AttachmentModel          string
 	Providers                map[string]*opencodeProviderFile
 	OpenAICodexProviderIDs   []string
 	OpenAICodexPoolIDs       []string
@@ -523,6 +524,26 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	cfg.Model = sandbox.Spec.Inference.DefaultModel.Provider + "/" + sandbox.Spec.Inference.DefaultModel.Model
 	if sandbox.Spec.Inference.SmallModel != nil {
 		cfg.SmallModel = sandbox.Spec.Inference.SmallModel.Provider + "/" + sandbox.Spec.Inference.SmallModel.Model
+	}
+	attachmentModel := sandbox.Spec.Inference.AttachmentModel
+	if attachmentModel == nil {
+		attachmentModel = &sandbox.Spec.Inference.DefaultModel
+	}
+	provider := cfg.Providers[attachmentModel.Provider]
+	model, ok := provider.Models[attachmentModel.Model]
+	imageInput := slices.Contains(
+		model.Modalities.Input,
+		agentzv1alpha1.InferenceModelModalityImage,
+	)
+	capable := ok && model.Attachment && imageInput
+	if capable {
+		cfg.AttachmentModel = attachmentModel.Provider + "/" + attachmentModel.Model
+	}
+	if sandbox.Spec.Inference.AttachmentModel != nil && !capable {
+		return sandboxConfig{}, fmt.Errorf(
+			"attachment model %q does not support image input",
+			attachmentModel.Provider+"/"+attachmentModel.Model,
+		)
 	}
 	cfg.InferenceURL = "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local"
 	for _, name := range sandbox.Spec.Skills {

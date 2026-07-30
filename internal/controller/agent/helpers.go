@@ -220,20 +220,33 @@ type opencodeInstructionFile struct {
 }
 
 func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]byte, []opencodeInstructionFile, error) {
+	agent := opencodeAgentFile{
+		Prompt: "{file:" + opencodePhilosophyPath + "}",
+		Permission: opencodeAgentPermissionFile{
+			Skill: map[string]opencodePermissionRule{
+				"customize-opencode": "deny",
+			},
+		},
+	}
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
+		Agent: map[string]opencodeAgentFile{
+			"build":   agent,
+			"general": agent,
+			"plan":    agent,
+		},
 		Permission: map[string]opencodePermissionRule{
 			"*": "allow",
 		},
 	}
 	cfg.Model = envCfg.Model
 	cfg.SmallModel = envCfg.SmallModel
-	instructionFiles := renderOpencodeInstructions(agt.Spec)
-	if len(instructionFiles) > 0 {
-		cfg.Instructions = make([]string, 0, len(instructionFiles))
-		for _, item := range instructionFiles {
-			cfg.Instructions = append(cfg.Instructions, item.Path)
-		}
+	instructionFiles, err := renderOpencodeInstructions(agt)
+	if err != nil {
+		return nil, nil, err
+	}
+	if strings.TrimSpace(agt.Spec.Instruction) != "" {
+		cfg.Instructions = []string{opencodeInstructionPath}
 	}
 	cfg.Skills = &opencodeSkillsFile{
 		Paths: []string{
@@ -302,6 +315,7 @@ type opencodeConfigFile struct {
 	Schema           string                            `json:"$schema"`
 	Model            string                            `json:"model,omitempty"`
 	SmallModel       string                            `json:"small_model,omitempty"`
+	Agent            map[string]opencodeAgentFile      `json:"agent,omitempty"`
 	Instructions     []string                          `json:"instructions,omitempty"`
 	Skills           *opencodeSkillsFile               `json:"skills,omitempty"`
 	Provider         map[string]*opencodeProviderFile  `json:"provider,omitempty"`
@@ -309,6 +323,15 @@ type opencodeConfigFile struct {
 	MCP              map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
 	Permission       map[string]opencodePermissionRule `json:"permission,omitempty"`
 	Tools            map[string]bool                   `json:"tools,omitempty"`
+}
+
+type opencodeAgentFile struct {
+	Prompt     string                      `json:"prompt"`
+	Permission opencodeAgentPermissionFile `json:"permission"`
+}
+
+type opencodeAgentPermissionFile struct {
+	Skill map[string]opencodePermissionRule `json:"skill"`
 }
 
 type opencodeSkillsFile struct {
@@ -430,27 +453,26 @@ func packageJobHash(image string, store skill.Config, envCfg sandboxConfig) (str
 	return fmt.Sprintf("%x", sum), nil
 }
 
-func renderOpencodeInstructions(spec agentzv1alpha1.AgentSpec) []opencodeInstructionFile {
+func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructionFile, error) {
+	var philosophy strings.Builder
+	err := philosophyTemplate.Execute(&philosophy, philosophyData{
+		AgentName: agt.Name,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("render agent philosophy: %w", err)
+	}
+
 	files := []opencodeInstructionFile{{
 		Path:    opencodePhilosophyPath,
-		Content: renderInstructionFile(agentPhilosophy),
+		Content: strings.TrimSpace(philosophy.String()),
 	}}
 
-	if instruction := strings.TrimSpace(spec.Instruction); instruction != "" {
+	if instruction := strings.TrimSpace(agt.Spec.Instruction); instruction != "" {
 		files = append(files, opencodeInstructionFile{
 			Path:    opencodeInstructionPath,
-			Content: renderInstructionFile(instruction),
+			Content: opencodeInstructionPreamble + "\n\n" + instruction,
 		})
 	}
 
-	return files
-}
-
-func renderInstructionFile(body string) string {
-	text := strings.TrimSpace(body)
-	if text == "" {
-		return ""
-	}
-
-	return opencodeInstructionPreamble + "\n\n" + text
+	return files, nil
 }

@@ -520,6 +520,66 @@ function ConversationOverflowFades() {
   )
 }
 
+function SelectableTimeline({ children }: { children: ReactNode }) {
+  const [snapshot, setSnapshot] = useState<{ children: ReactNode }>()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const pointerDownRef = useRef(false)
+
+  useEffect(() => {
+    const release = () => {
+      if (pointerDownRef.current) return
+
+      const selection = document.getSelection()
+      const root = rootRef.current
+      if (
+        selection &&
+        !selection.isCollapsed &&
+        selection.rangeCount > 0 &&
+        root &&
+        selection.getRangeAt(0).intersectsNode(root)
+      ) {
+        return
+      }
+
+      setSnapshot(undefined)
+    }
+
+    const finishPointer = () => {
+      pointerDownRef.current = false
+      release()
+    }
+
+    document.addEventListener("pointerup", finishPointer)
+    document.addEventListener("pointercancel", finishPointer)
+    document.addEventListener("selectionchange", release)
+    window.addEventListener("blur", finishPointer)
+
+    return () => {
+      document.removeEventListener("pointerup", finishPointer)
+      document.removeEventListener("pointercancel", finishPointer)
+      document.removeEventListener("selectionchange", release)
+      window.removeEventListener("blur", finishPointer)
+    }
+  }, [])
+
+  return (
+    <div
+      className="mx-auto flex w-full flex-col gap-4 @xl/chat:w-4/5"
+      onPointerDownCapture={(event) => {
+        if (!event.isPrimary || event.button !== 0) return
+
+        // Streaming markdown mutates selected text nodes. Keep this exact tree
+        // mounted until the native selection leaves the timeline.
+        pointerDownRef.current = true
+        setSnapshot((current) => current ?? { children })
+      }}
+      ref={rootRef}
+    >
+      {snapshot ? snapshot.children : children}
+    </div>
+  )
+}
+
 function ChatInner({
   agentName,
   firstName,
@@ -1027,7 +1087,7 @@ function ChatInner({
             </div>
           ) : !showStarter ? (
             <>
-              <div className="mx-auto flex w-full flex-col gap-4 @xl/chat:w-4/5">
+              <SelectableTimeline>
                 {rows.map((row) => (
                   <TimelineRowView
                     agentName={agentName}
@@ -1041,7 +1101,7 @@ function ChatInner({
                   />
                 ))}
                 <AgentWorkingIndicator isWorking={isBusy} />
-              </div>
+              </SelectableTimeline>
               <RevertDock
                 items={reverted}
                 onRestore={restoreMutation.mutate}

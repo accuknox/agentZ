@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "@bprogress/next/app"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query"
 import { startTransition, useCallback, useState } from "react"
 import { toast } from "sonner"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
@@ -60,6 +60,50 @@ export function useOpencodeSend(
   const router = useRouter()
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
+  const abortKey = ["opencode", "sessionAbort", agentName] as const
+  const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({
+    mutationKey: abortKey,
+    mutationFn: async (input) => {
+      const client = await createAgentOpencodeClient(agentName)
+      const result = await client.session.abort({
+        ...(input.directory ? { directory: input.directory } : {}),
+        sessionID: input.sessionID,
+      })
+
+      if (result.error || result.data !== true) {
+        throw new Error(opencodeErrorMessage(result.error, "Failed to stop the active run"))
+      }
+
+      const deadline = Date.now() + 10_000
+      while (Date.now() < deadline) {
+        const status = await client.session.status({ directory: input.directory })
+        if (status.error || !status.data) {
+          throw new Error(opencodeErrorMessage(status.error, "Failed to confirm the run stopped"))
+        }
+
+        const sessionStatus = status.data[input.sessionID]
+        if (!sessionStatus || sessionStatus.type === "idle") {
+          await new Promise((resolve) => setTimeout(resolve, 2_000))
+          queryClient.setQueryData<SessionStatusResponse>(
+            sessionStatusQueryOptions(agentName, input.directory ?? "").queryKey,
+            (current) => ({
+              ...current,
+              [input.sessionID]: { type: "idle" },
+            })
+          )
+          return result.data
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      }
+
+      throw new Error("The agent did not become idle after stopping. Reload before sending again.")
+    },
+    onError: (error) => {
+      toast.error("Failed to stop the active run", { description: error.message })
+    },
+  })
+  const isStopping = useIsMutating({ mutationKey: abortKey }) > 0
   const sendMutation = useMutation<SendMessageResult, Error, SendMessageInput>({
     mutationFn: async (input) => {
       const text = input.text.trim()
@@ -70,7 +114,7 @@ export function useOpencodeSend(
       if (!input.model) {
         throw new Error("Select a model before sending")
       }
-      if (isBusy) {
+      if (isBusy || isStopping) {
         throw new Error("Wait for the current run to finish before sending another message")
       }
 
@@ -179,25 +223,7 @@ export function useOpencodeSend(
     // of truth after load.
   })
   const { isPending: isSendPending, mutateAsync: mutateSendAsync } = sendMutation
-  const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({
-    mutationFn: async (input) => {
-      const client = await createAgentOpencodeClient(agentName)
-      const result = await client.session.abort({
-        ...(input.directory ? { directory: input.directory } : {}),
-        sessionID: input.sessionID,
-      })
-
-      if (result.error || result.data !== true) {
-        throw new Error(opencodeErrorMessage(result.error, "Failed to stop the active run"))
-      }
-
-      return result.data
-    },
-    onError: (error) => {
-      toast.error("Failed to stop the active run", { description: error.message })
-    },
-  })
-  const { isPending: isAbortPending, mutateAsync: mutateAbortAsync } = abortMutation
+  const { mutateAsync: mutateAbortAsync } = abortMutation
 
   const sendMessage = useCallback(
     (input: SendMessageInput) => mutateSendAsync(input),
@@ -216,7 +242,8 @@ export function useOpencodeSend(
 
   return {
     abortMessage,
-    canSubmit: !isSendPending && !isAbortPending && !isBusy,
+    canSubmit: !isSendPending && !isStopping && !isBusy,
+    isStopping,
     sendMessage,
     sendState,
   }

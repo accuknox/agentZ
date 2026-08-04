@@ -2,13 +2,15 @@
   description = "Control-plane for your AI agents";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs-oapi-codegen.url = "github:NixOS/nixpkgs/e7a3ca8092b61ff85b6a45bf863ea2b2d6a661b3";
     flake-utils.url = "github:numtide/flake-utils";
   };
-  outputs = { nixpkgs, flake-utils, ... }:
+  outputs = { nixpkgs, nixpkgs-oapi-codegen, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem
       (system:
         let
           pkgs = import nixpkgs { inherit system; };
+          oapiCodegen = nixpkgs-oapi-codegen.legacyPackages.${system}.oapi-codegen;
           otel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
           cli = pkgs.buildGoModule {
             pname = "agentz";
@@ -189,7 +191,7 @@
               sqlc
               postgresql_18
               openapi-generator-cli
-              oapi-codegen
+              oapiCodegen
               bun
               nodejs
               package-version-server

@@ -4,7 +4,7 @@ package inference
 
 import agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 
-const catalogCommit = "a19b52e85bf2630b86157030e2cf7c9fc20ce552"
+const catalogCommit = "012c2f57f976489d88bd4598a056b4bdcdd428ee"
 
 var catalogEntries = []CatalogEntry{
 	{

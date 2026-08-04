@@ -825,7 +825,7 @@ function ChatInner({
     ? messages.filter((message) => message.id < revertMessageID)
     : messages
   const contextUsage = getAssistantUsage(contextMessages, models)
-  const { abortMessage, canSubmit, sendMessage, sendState } = useOpencodeSend(
+  const { abortMessage, canSubmit, isStopping, sendMessage, sendState } = useOpencodeSend(
     agentName,
     activeSessionId,
     directory,
@@ -908,7 +908,7 @@ function ChatInner({
   // matching session.updated stream event reconciles it (see applyOptimisticSession).
   const applyRevert = useCallback(
     async (messageID?: string) => {
-      if (!activeSessionId) return
+      if (!activeSessionId || isStopping) return
       const client = await createAgentOpencodeClient(agentName)
       const result = messageID
         ? await client.session.revert({ directory, messageID, sessionID: activeSessionId })
@@ -918,7 +918,7 @@ function ChatInner({
       }
       applyOptimisticSession(result.data)
     },
-    [activeSessionId, agentName, applyOptimisticSession, directory]
+    [activeSessionId, agentName, applyOptimisticSession, directory, isStopping]
   )
 
   // A resendable composer draft (non-synthetic text + file attachments) for a
@@ -1056,7 +1056,7 @@ function ChatInner({
       textByPart,
     ]
   )
-  const inputDisabled = blocked || isBusy || agentReadiness.isGettingReady
+  const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
 
@@ -1095,7 +1095,7 @@ function ChatInner({
                     isLastBlock={rows.at(-1)?.key === row.key}
                     key={row.key}
                     onRevert={handleRevert}
-                    revertDisabled={isBusy || revertPending}
+                    revertDisabled={isBusy || isStopping || revertPending}
                     row={row}
                     user={authSession?.user}
                   />
@@ -1394,11 +1394,12 @@ function ChatInner({
                     className="size-9"
                     disabled={
                       blocked ||
+                      isStopping ||
                       agentReadiness.isGettingReady ||
                       revertPending ||
                       (!isBusy && (!selectedModel || !canSubmit))
                     }
-                    onStop={isBusy ? () => void abortMessage(directory) : undefined}
+                    onStop={isBusy && !isStopping ? () => void abortMessage(directory) : undefined}
                     status={isBusy ? "streaming" : sendState}
                   />
                 </motion.div>

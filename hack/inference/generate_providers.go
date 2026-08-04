@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	opencodeCommit = "a19b52e85bf2630b86157030e2cf7c9fc20ce552"
+	opencodeCommit = "012c2f57f976489d88bd4598a056b4bdcdd428ee"
 	catalogURL     = "https://raw.githubusercontent.com/anomalyco/opencode/" + opencodeCommit + "/packages/opencode/test/tool/fixtures/models-api.json"
 	catalogOutput  = "internal/inference/providers.go"
 )

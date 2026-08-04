@@ -19,7 +19,7 @@ const (
 	baseSpecPath      = "openapi/base.yaml"
 	outputSpecPath    = "openapi/gateway.yaml"
 	routeManifestPath = "internal/gateway/opencode.routes.gen.go"
-	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/refs/tags/v1.14.46/packages/sdk/openapi.json"
+	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/refs/tags/v1.18.11/packages/sdk/openapi.json"
 	opencodePrefix    = "/api/opencode/{agentName}"
 	opencodeNS        = "Opencode"
 )

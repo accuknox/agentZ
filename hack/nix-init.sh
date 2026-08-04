@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly nixpkgs_ref='github:NixOS/nixpkgs/e7a3ca8092b61ff85b6a45bf863ea2b2d6a661b3'
+readonly nixpkgs_ref='github:NixOS/nixpkgs/643809054d65fdd466a63e3155b8c498cb483c04'
 readonly nixpkgs_path_file='/etc/agentz/nixpkgs.path'
 readonly agent_root="${AGENTZ_NIX_ROOT:-/mnt/nix}"
 readonly agent_store_root="${agent_root}/nix"

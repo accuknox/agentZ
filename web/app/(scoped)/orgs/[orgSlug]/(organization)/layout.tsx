@@ -99,6 +99,7 @@ export default async function OrganizationLayout({
   const tabs = result.organization.superadmin
     ? ([
         { href: `${root}/workspaces` as Route, label: "Workspaces" },
+        { href: `${root}/teams` as Route, label: "Teams" },
         { href: `${root}/roles` as Route, label: "Roles" },
         { href: `${root}/audit` as Route, label: "Audit" },
         { href: `${root}/general` as Route, label: "General" },

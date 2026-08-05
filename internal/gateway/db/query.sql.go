@@ -2001,23 +2001,46 @@ func (q *Queries) GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAP
 }
 
 const gatewayListAccessibleWorkspaces = `-- name: GatewayListAccessibleWorkspaces :many
-WITH actor_roles AS (
+WITH role_assignments AS (
+  SELECT member_roles.role_id, member_roles.organization_id
+  FROM members
+  JOIN member_roles
+    ON member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+  WHERE members.user_id = $2
+    AND members.organization_id = $1
+    AND members.disabled_at IS NULL
+
+  UNION
+
+  SELECT team_roles.role_id, team_roles.organization_id
+  FROM members
+  JOIN team_members
+    ON team_members.user_id = members.user_id
+  JOIN teams
+    ON teams.id = team_members.team_id
+    AND teams.organization_id = members.organization_id
+  JOIN team_roles
+    ON team_roles.team_id = teams.id
+    AND team_roles.organization_id = teams.organization_id
+  JOIN role_scopes AS team_role_scope
+    ON team_role_scope.role_id = team_roles.role_id
+    AND team_role_scope.organization_id = team_roles.organization_id
+    AND team_role_scope.system_role IS NULL
+  WHERE members.user_id = $2
+    AND members.organization_id = $1
+    AND members.disabled_at IS NULL
+), actor_roles AS (
   SELECT
     role_scopes.role_id,
     role_scopes.organization_id,
     role_scopes.workspace_id,
     role_scopes.system_role,
     role_scopes.immutable
-  FROM members
-  JOIN member_roles
-    ON member_roles.member_id = members.id
-    AND member_roles.organization_id = members.organization_id
+  FROM role_assignments
   JOIN role_scopes
-    ON role_scopes.role_id = member_roles.role_id
-    AND role_scopes.organization_id = member_roles.organization_id
-  WHERE members.user_id = $2
-    AND members.organization_id = $1
-    AND members.disabled_at IS NULL
+    ON role_scopes.role_id = role_assignments.role_id
+    AND role_scopes.organization_id = role_assignments.organization_id
 )
 SELECT
   workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt,
@@ -2413,6 +2436,7 @@ SELECT
       WHEN 'organization' THEN organizations.name
       WHEN 'workspace' THEN target_workspaces.name
       WHEN 'organization_membership' THEN target_users.name
+      WHEN 'team' THEN target_teams.name
     END,
     audit_events.target_id
   ) AS target_name,
@@ -2460,6 +2484,10 @@ LEFT JOIN members AS target_members
   AND target_members.organization_id = audit_events.organization_id
 LEFT JOIN users AS target_users
   ON target_users.id = target_members.user_id
+LEFT JOIN teams AS target_teams
+  ON audit_events.target_type = 'team'
+  AND target_teams.id = audit_events.target_id
+  AND target_teams.organization_id = audit_events.organization_id
 LEFT JOIN cleanup_jobs
   ON cleanup_jobs.id = audit_events.cleanup_job_id
   AND cleanup_jobs.organization_id = audit_events.organization_id
@@ -4365,22 +4393,66 @@ func (q *Queries) GatewayReserveWorkspaceSlug(ctx context.Context, arg GatewayRe
 	return err
 }
 
-const gatewayResolveDirectPermissions = `-- name: GatewayResolveDirectPermissions :many
+const gatewayResolveOrganizationSlug = `-- name: GatewayResolveOrganizationSlug :one
+SELECT
+  organizations.id,
+  organizations.name,
+  organizations.slug
+FROM organization_slug_history
+JOIN organizations
+  ON organizations.id = organization_slug_history.organization_id
+WHERE organization_slug_history.slug = $1
+`
+
+type GatewayResolveOrganizationSlugRow struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+func (q *Queries) GatewayResolveOrganizationSlug(ctx context.Context, slug string) (GatewayResolveOrganizationSlugRow, error) {
+	row := q.db.QueryRow(ctx, gatewayResolveOrganizationSlug, slug)
+	var i GatewayResolveOrganizationSlugRow
+	err := row.Scan(&i.ID, &i.Name, &i.Slug)
+	return i, err
+}
+
+const gatewayResolvePermissions = `-- name: GatewayResolvePermissions :many
 WITH actor AS (
-  SELECT members.id, members.organization_id
+  SELECT members.id, members.user_id, members.organization_id
   FROM members
   WHERE members.user_id = $1
     AND members.organization_id = $2
     AND members.disabled_at IS NULL
-), assigned_roles AS (
-  SELECT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
+), assigned_role_ids AS (
+  SELECT member_roles.role_id, member_roles.organization_id
   FROM actor
   JOIN member_roles
     ON member_roles.member_id = actor.id
     AND member_roles.organization_id = actor.organization_id
+
+  UNION
+
+  SELECT team_roles.role_id, team_roles.organization_id
+  FROM actor
+  JOIN team_members
+    ON team_members.user_id = actor.user_id
+  JOIN teams
+    ON teams.id = team_members.team_id
+    AND teams.organization_id = actor.organization_id
+  JOIN team_roles
+    ON team_roles.team_id = teams.id
+    AND team_roles.organization_id = teams.organization_id
+  JOIN role_scopes AS team_role_scope
+    ON team_role_scope.role_id = team_roles.role_id
+    AND team_role_scope.organization_id = team_roles.organization_id
+    AND team_role_scope.system_role IS NULL
+), assigned_roles AS (
+  SELECT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
+  FROM assigned_role_ids
   JOIN role_scopes
-    ON role_scopes.role_id = member_roles.role_id
-    AND role_scopes.organization_id = member_roles.organization_id
+    ON role_scopes.role_id = assigned_role_ids.role_id
+    AND role_scopes.organization_id = assigned_role_ids.organization_id
 ), authority AS (
   SELECT
     EXISTS(SELECT 1 FROM actor) AS active,
@@ -4401,6 +4473,10 @@ WITH actor AS (
   JOIN permission_grants
     ON permission_grants.role_id = assigned_roles.role_id
     AND permission_grants.organization_id = assigned_roles.organization_id
+    AND (
+      assigned_roles.workspace_id IS NULL
+      OR permission_grants.workspace_id IS NOT DISTINCT FROM assigned_roles.workspace_id
+    )
   UNION ALL
   SELECT DISTINCT
     assigned_roles.workspace_id,
@@ -4427,12 +4503,12 @@ ORDER BY
   access.action
 `
 
-type GatewayResolveDirectPermissionsParams struct {
+type GatewayResolvePermissionsParams struct {
 	UserID         string `json:"user_id"`
 	OrganizationID string `json:"organization_id"`
 }
 
-type GatewayResolveDirectPermissionsRow struct {
+type GatewayResolvePermissionsRow struct {
 	Active         bool                   `json:"active"`
 	Superadmin     bool                   `json:"superadmin"`
 	WorkspaceID    pgtype.Text            `json:"workspace_id"`
@@ -4441,15 +4517,15 @@ type GatewayResolveDirectPermissionsRow struct {
 	WorkspaceAdmin bool                   `json:"workspace_admin"`
 }
 
-func (q *Queries) GatewayResolveDirectPermissions(ctx context.Context, arg GatewayResolveDirectPermissionsParams) ([]GatewayResolveDirectPermissionsRow, error) {
-	rows, err := q.db.Query(ctx, gatewayResolveDirectPermissions, arg.UserID, arg.OrganizationID)
+func (q *Queries) GatewayResolvePermissions(ctx context.Context, arg GatewayResolvePermissionsParams) ([]GatewayResolvePermissionsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayResolvePermissions, arg.UserID, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GatewayResolveDirectPermissionsRow{}
+	items := []GatewayResolvePermissionsRow{}
 	for rows.Next() {
-		var i GatewayResolveDirectPermissionsRow
+		var i GatewayResolvePermissionsRow
 		if err := rows.Scan(
 			&i.Active,
 			&i.Superadmin,
@@ -4468,31 +4544,43 @@ func (q *Queries) GatewayResolveDirectPermissions(ctx context.Context, arg Gatew
 	return items, nil
 }
 
-const gatewayResolveOrganizationSlug = `-- name: GatewayResolveOrganizationSlug :one
-SELECT
-  organizations.id,
-  organizations.name,
-  organizations.slug
-FROM organization_slug_history
-JOIN organizations
-  ON organizations.id = organization_slug_history.organization_id
-WHERE organization_slug_history.slug = $1
-`
-
-type GatewayResolveOrganizationSlugRow struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-func (q *Queries) GatewayResolveOrganizationSlug(ctx context.Context, slug string) (GatewayResolveOrganizationSlugRow, error) {
-	row := q.db.QueryRow(ctx, gatewayResolveOrganizationSlug, slug)
-	var i GatewayResolveOrganizationSlugRow
-	err := row.Scan(&i.ID, &i.Name, &i.Slug)
-	return i, err
-}
-
 const gatewayResolveWorkspaceSlug = `-- name: GatewayResolveWorkspaceSlug :one
+WITH role_assignments AS (
+  SELECT member_roles.role_id, member_roles.organization_id
+  FROM members
+  JOIN member_roles
+    ON member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+  WHERE members.user_id = $3
+    AND members.organization_id = $1
+    AND members.disabled_at IS NULL
+
+  UNION
+
+  SELECT team_roles.role_id, team_roles.organization_id
+  FROM members
+  JOIN team_members
+    ON team_members.user_id = members.user_id
+  JOIN teams
+    ON teams.id = team_members.team_id
+    AND teams.organization_id = members.organization_id
+  JOIN team_roles
+    ON team_roles.team_id = teams.id
+    AND team_roles.organization_id = teams.organization_id
+  JOIN role_scopes AS team_role_scope
+    ON team_role_scope.role_id = team_roles.role_id
+    AND team_role_scope.organization_id = team_roles.organization_id
+    AND team_role_scope.system_role IS NULL
+  WHERE members.user_id = $3
+    AND members.organization_id = $1
+    AND members.disabled_at IS NULL
+), actor_roles AS (
+  SELECT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
+  FROM role_assignments
+  JOIN role_scopes
+    ON role_scopes.role_id = role_assignments.role_id
+    AND role_scopes.organization_id = role_assignments.organization_id
+)
 SELECT
   workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
 FROM workspace_slug_history
@@ -4504,30 +4592,21 @@ WHERE workspace_slug_history.organization_id = $1
   AND workspaces.deleted_at IS NULL
   AND EXISTS (
     SELECT 1
-    FROM members
-    JOIN member_roles
-      ON member_roles.member_id = members.id
-      AND member_roles.organization_id = members.organization_id
-    JOIN role_scopes
-      ON role_scopes.role_id = member_roles.role_id
-      AND role_scopes.organization_id = member_roles.organization_id
-    WHERE members.user_id = $3
-      AND members.organization_id = workspaces.organization_id
-      AND members.disabled_at IS NULL
-      AND (
+    FROM actor_roles
+    WHERE (
         (
-          role_scopes.immutable
-          AND role_scopes.system_role = 'superadmin'
-          AND role_scopes.workspace_id IS NULL
+          actor_roles.immutable
+          AND actor_roles.system_role = 'superadmin'
+          AND actor_roles.workspace_id IS NULL
         ) OR (
-          role_scopes.immutable
-          AND role_scopes.system_role = 'workspace_admin'
-          AND role_scopes.workspace_id = workspaces.id
+          actor_roles.immutable
+          AND actor_roles.system_role = 'workspace_admin'
+          AND actor_roles.workspace_id = workspaces.id
         ) OR EXISTS (
           SELECT 1
           FROM permission_grants
-          WHERE permission_grants.role_id = member_roles.role_id
-            AND permission_grants.organization_id = member_roles.organization_id
+          WHERE permission_grants.role_id = actor_roles.role_id
+            AND permission_grants.organization_id = actor_roles.organization_id
             AND permission_grants.workspace_id = workspaces.id
         )
       )

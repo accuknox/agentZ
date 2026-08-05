@@ -14,6 +14,7 @@ export const zAuditTargetType = z.enum([
   "workspace",
   "role",
   "sandbox",
+  "team",
 ])
 
 export const zAuditField = z.object({

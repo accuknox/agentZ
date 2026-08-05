@@ -50,12 +50,12 @@ type Scope struct {
 	WorkspaceID    string
 }
 
-// Queries is the generated persistence used to resolve direct Role grants.
+// Queries is the generated persistence used to resolve assigned Role grants.
 type Queries interface {
-	GatewayResolveDirectPermissions(ctx context.Context, arg gatewaydb.GatewayResolveDirectPermissionsParams) ([]gatewaydb.GatewayResolveDirectPermissionsRow, error)
+	GatewayResolvePermissions(ctx context.Context, arg gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error)
 }
 
-// Resolver resolves all direct Role grants for one active Organisation Membership.
+// Resolver resolves direct and Team Role grants for one active Organisation Membership.
 type Resolver struct {
 	queries Queries
 }
@@ -79,7 +79,7 @@ type grantKey struct {
 	action      gatewaydb.PermissionAction
 }
 
-// Resolve returns the union of every direct Role assigned to an active member.
+// Resolve returns a fresh union of direct and Team Roles assigned to an active member.
 // Missing and disabled Memberships resolve to no permissions.
 func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, error) {
 	effective := Effective{
@@ -88,15 +88,15 @@ func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, err
 		grants:          map[grantKey]struct{}{},
 	}
 
-	rows, err := r.queries.GatewayResolveDirectPermissions(
+	rows, err := r.queries.GatewayResolvePermissions(
 		ctx,
-		gatewaydb.GatewayResolveDirectPermissionsParams{
+		gatewaydb.GatewayResolvePermissionsParams{
 			UserID:         subject.UserID,
 			OrganizationID: subject.OrganizationID,
 		},
 	)
 	if err != nil {
-		return Effective{}, fmt.Errorf("resolve direct Role permissions: %w", err)
+		return Effective{}, fmt.Errorf("resolve Role permissions: %w", err)
 	}
 	if len(rows) == 0 || !rows[0].Active {
 		return effective, nil

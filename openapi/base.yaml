@@ -3187,13 +3187,14 @@ components:
 
     AuditTargetType:
       type: string
-      enum: [organization, organization_membership, workspace, role, sandbox]
+      enum: [organization, organization_membership, workspace, role, sandbox, team]
       x-enum-varnames:
       - AuditTargetOrganization
       - AuditTargetOrganizationMembership
       - AuditTargetWorkspace
       - AuditTargetRole
       - AuditTargetSandbox
+      - AuditTargetTeam
 
     AuditField:
       type: object

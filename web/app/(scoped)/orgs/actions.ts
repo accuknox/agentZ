@@ -15,6 +15,7 @@ import {
   saveOrganizationRole,
   saveWorkspaceRole,
 } from "@/data/roles"
+import { deleteTeam, previewTeamAccess, saveTeam } from "@/data/teams"
 import { provisionWorkspace, retryWorkspaceProvisioning } from "@/data/workspaces"
 import { schema } from "@/db"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
@@ -45,6 +46,16 @@ const roleFormSchema = z.object({
     .max(80, "Use 80 characters or fewer.")
     .refine((name) => name.trim() === name, "Remove leading or trailing spaces."),
   grants: z.array(roleGrantSchema).max(1_000, "This Role has too many Permission Grants."),
+  updatedAt: z.string().optional(),
+})
+const teamFormSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Enter a Team name.")
+    .max(100, "Use 100 characters or fewer.")
+    .refine((name) => name.trim() === name, "Remove leading or trailing spaces."),
+  memberIds: z.array(z.string().min(1)).min(1, "Select at least one active Member.").max(1_000),
+  roleIds: z.array(z.string().min(1)).min(1, "Select at least one Role.").max(1_000),
   updatedAt: z.string().optional(),
 })
 
@@ -82,6 +93,18 @@ export type RoleFormState = {
 export type RoleAssignmentFormState = { error?: string; saved?: boolean }
 
 export type DeleteRoleFormState = { error?: string; references?: string[] }
+
+export type TeamFormState = {
+  error?: string
+  errors?: { name?: string[]; memberIds?: string[]; roleIds?: string[] }
+  preview?: {
+    fingerprint: string
+    input: string
+    rows: { id: string; label: string; detail: string }[]
+  }
+}
+
+export type DeleteTeamFormState = { error?: string }
 
 export async function switchOrganizationAction(organizationId: string): Promise<never> {
   const destination = await switchOrganization(organizationId)
@@ -437,4 +460,88 @@ export async function deleteWorkspaceRoleAction(
   updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
   redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles` as Route)
+}
+
+export async function teamFormAction(
+  orgSlug: string,
+  teamId: string | undefined,
+  _state: TeamFormState,
+  formData: FormData
+): Promise<TeamFormState> {
+  const parsed = teamFormSchema.safeParse({
+    name: formData.get("name"),
+    memberIds: formData.getAll("member_ids"),
+    roleIds: formData.getAll("role_ids"),
+    updatedAt: formData.get("updated_at") || undefined,
+  })
+  if (!parsed.success) {
+    const fields = z.flattenError(parsed.error).fieldErrors
+    return {
+      errors: {
+        name: fields.name,
+        memberIds: fields.memberIds,
+        roleIds: fields.roleIds,
+      },
+    }
+  }
+
+  if (formData.get("intent") === "preview") {
+    const preview = await previewTeamAccess(orgSlug, parsed.data)
+    if (!preview) {
+      return { error: "The access review is unavailable. Refresh and try again." }
+    }
+    return {
+      preview: {
+        ...preview,
+        input: JSON.stringify(parsed.data),
+      },
+    }
+  }
+
+  const result = await saveTeam(orgSlug, teamId, {
+    ...parsed.data,
+    previewFingerprint: String(formData.get("preview_fingerprint") ?? ""),
+  })
+  if ("error" in result) {
+    if (result.error === "name-taken") {
+      return { errors: { name: ["A Team with this name already exists."] } }
+    }
+    if (result.error === "preview-required") {
+      return { error: "Review the derived access before saving this Team." }
+    }
+    if (result.error === "stale") {
+      return { error: "This Team changed while you were editing. Refresh and try again." }
+    }
+    if (result.error === "invalid") {
+      return { error: "Choose active Members and current custom Roles, then review again." }
+    }
+    return { error: "You no longer have permission to save this Team." }
+  }
+
+  updateTag(`organization:${result.organizationId}:teams`)
+  updateTag(`organization:${result.organizationId}:team:${result.teamId}`)
+  for (const memberId of result.affectedMemberIds) {
+    updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
+  }
+  revalidatePath(`/orgs/${orgSlug}/teams`)
+  redirect(`/orgs/${orgSlug}/teams/${result.teamId}` as Route)
+}
+
+export async function deleteTeamAction(
+  orgSlug: string,
+  teamId: string,
+  _state: DeleteTeamFormState,
+  _formData: FormData
+): Promise<DeleteTeamFormState> {
+  const result = await deleteTeam(orgSlug, teamId)
+  if ("error" in result) {
+    return { error: "The Team could not be deleted." }
+  }
+
+  updateTag(`organization:${result.organizationId}:teams`)
+  for (const memberId of result.affectedMemberIds) {
+    updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
+  }
+  revalidatePath(`/orgs/${orgSlug}/teams`)
+  redirect(`/orgs/${orgSlug}/teams` as Route)
 }

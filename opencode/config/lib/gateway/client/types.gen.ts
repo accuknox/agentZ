@@ -11,7 +11,7 @@ export type AuditResult = "succeeded" | "denied" | "failed"
 export type AuditInterface = "web" | "gateway" | "better_auth" | "controller" | "system"
 
 export type AuditTargetType =
-  "organization" | "organization_membership" | "workspace" | "role" | "sandbox"
+  "organization" | "organization_membership" | "workspace" | "role" | "sandbox" | "team"
 
 export type AuditField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"

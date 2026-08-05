@@ -16,6 +16,7 @@ export type AuditTargetType =
   | "workspace"
   | "role"
   | "sandbox"
+  | "team"
 
 export type AuditField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"

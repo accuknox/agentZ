@@ -46,11 +46,11 @@ const (
 
 type sandboxQueries struct {
 	gatewaydb.Querier
-	permissions []gatewaydb.GatewayResolveDirectPermissionsRow
+	permissions []gatewaydb.GatewayResolvePermissionsRow
 	workspace   gatewaydb.Workspace
 }
 
-func (q *sandboxQueries) GatewayResolveDirectPermissions(context.Context, gatewaydb.GatewayResolveDirectPermissionsParams) ([]gatewaydb.GatewayResolveDirectPermissionsRow, error) {
+func (q *sandboxQueries) GatewayResolvePermissions(context.Context, gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
 	return q.permissions, nil
 }
 
@@ -86,7 +86,7 @@ func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
 			t.Parallel()
 
 			queries := &sandboxQueries{
-				permissions: []gatewaydb.GatewayResolveDirectPermissionsRow{{
+				permissions: []gatewaydb.GatewayResolvePermissionsRow{{
 					Active: true,
 					WorkspaceID: pgtype.Text{
 						String: tt.permissionNS,
@@ -213,7 +213,7 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			queries := &sandboxQueries{permissions: []gatewaydb.GatewayResolveDirectPermissionsRow{{
+			queries := &sandboxQueries{permissions: []gatewaydb.GatewayResolvePermissionsRow{{
 				Active: true,
 				Resource: gatewaydb.NullPermissionResource{
 					PermissionResource: gatewaydb.PermissionResourceSandbox,

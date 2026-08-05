@@ -28,12 +28,12 @@ import (
 )
 
 type permissionQueries struct {
-	rows   []gatewaydb.GatewayResolveDirectPermissionsRow
+	rows   []gatewaydb.GatewayResolvePermissionsRow
 	err    error
-	params gatewaydb.GatewayResolveDirectPermissionsParams
+	params gatewaydb.GatewayResolvePermissionsParams
 }
 
-func (q *permissionQueries) GatewayResolveDirectPermissions(_ context.Context, params gatewaydb.GatewayResolveDirectPermissionsParams) ([]gatewaydb.GatewayResolveDirectPermissionsRow, error) {
+func (q *permissionQueries) GatewayResolvePermissions(_ context.Context, params gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
 	q.params = params
 	return q.rows, q.err
 }
@@ -41,7 +41,7 @@ func (q *permissionQueries) GatewayResolveDirectPermissions(_ context.Context, p
 func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 	t.Parallel()
 
-	queries := &permissionQueries{rows: []gatewaydb.GatewayResolveDirectPermissionsRow{
+	queries := &permissionQueries{rows: []gatewaydb.GatewayResolvePermissionsRow{
 		permissionRow("", gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionRead),
 		permissionRow("workspace-a", gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionCreate),
 		permissionRow("workspace-a", gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionModify),
@@ -150,7 +150,7 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		rows         []gatewaydb.GatewayResolveDirectPermissionsRow
+		rows         []gatewaydb.GatewayResolvePermissionsRow
 		queryErr     error
 		organization string
 		operation    authorization.Operation
@@ -159,19 +159,19 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 	}{
 		{
 			name:         "Missing Membership",
-			rows:         []gatewaydb.GatewayResolveDirectPermissionsRow{{}},
+			rows:         []gatewaydb.GatewayResolvePermissionsRow{{}},
 			organization: "organization-a",
 			operation:    authorization.OperationListSandboxes,
 		},
 		{
 			name:         "No resolver rows",
-			rows:         []gatewaydb.GatewayResolveDirectPermissionsRow{},
+			rows:         []gatewaydb.GatewayResolvePermissionsRow{},
 			organization: "organization-a",
 			operation:    authorization.OperationListSandboxes,
 		},
 		{
 			name: "Active Membership without Roles",
-			rows: []gatewaydb.GatewayResolveDirectPermissionsRow{{
+			rows: []gatewaydb.GatewayResolvePermissionsRow{{
 				Active: true,
 			}},
 			organization: "organization-a",
@@ -179,7 +179,7 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 		},
 		{
 			name: "Immutable Superadmin bypass",
-			rows: []gatewaydb.GatewayResolveDirectPermissionsRow{{
+			rows: []gatewaydb.GatewayResolvePermissionsRow{{
 				Active:     true,
 				Superadmin: true,
 			}},
@@ -189,7 +189,7 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 		},
 		{
 			name: "Superadmin still denies unmapped operation",
-			rows: []gatewaydb.GatewayResolveDirectPermissionsRow{{
+			rows: []gatewaydb.GatewayResolvePermissionsRow{{
 				Active:     true,
 				Superadmin: true,
 			}},
@@ -233,8 +233,8 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 	}
 }
 
-func permissionRow(workspaceID string, resource gatewaydb.PermissionResource, action gatewaydb.PermissionAction) gatewaydb.GatewayResolveDirectPermissionsRow {
-	return gatewaydb.GatewayResolveDirectPermissionsRow{
+func permissionRow(workspaceID string, resource gatewaydb.PermissionResource, action gatewaydb.PermissionAction) gatewaydb.GatewayResolvePermissionsRow {
+	return gatewaydb.GatewayResolvePermissionsRow{
 		Active:      true,
 		WorkspaceID: pgtype.Text{String: workspaceID, Valid: workspaceID != ""},
 		Resource: gatewaydb.NullPermissionResource{

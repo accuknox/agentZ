@@ -75,6 +75,7 @@ export const auditResult = pgEnum("audit_result", ["succeeded", "denied", "faile
 export const auditTarget = pgEnum("audit_target", [
   "organization",
   "organization_membership",
+  "team",
   "role",
   "sandbox",
   "workspace",

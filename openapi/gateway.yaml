@@ -775,6 +775,7 @@ components:
       - workspace
       - role
       - sandbox
+      - team
       type: string
       x-enum-varnames:
       - AuditTargetOrganization
@@ -782,6 +783,7 @@ components:
       - AuditTargetWorkspace
       - AuditTargetRole
       - AuditTargetSandbox
+      - AuditTargetTeam
     AuditWorkspace:
       additionalProperties: false
       properties:

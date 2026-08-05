@@ -10,7 +10,12 @@ export type AuditResult = "succeeded" | "denied" | "failed"
 
 export type AuditInterface = "web" | "gateway" | "better_auth" | "controller" | "system"
 
-export type AuditTargetType = "organization" | "organization_membership" | "workspace"
+export type AuditTargetType =
+  | "organization"
+  | "organization_membership"
+  | "workspace"
+  | "role"
+  | "sandbox"
 
 export type AuditField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
@@ -1799,6 +1804,12 @@ export type UpdateInferenceProviderRequestWritable = {
   resource_version: string
   provider: InferenceProviderWriteDiscriminatorWritable
 }
+
+/**
+ * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+ *
+ */
+export type WorkspaceIdHeader = string
 
 /**
  * Stable Workspace ID.
@@ -4333,6 +4344,13 @@ export type DeleteSecretResponse = DeleteSecretResponses[keyof DeleteSecretRespo
 
 export type ListSandboxesData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -4353,6 +4371,14 @@ export type ListSandboxesErrors = {
    */
   400: Error
   /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -4371,6 +4397,13 @@ export type ListSandboxesResponse2 = ListSandboxesResponses[keyof ListSandboxesR
 
 export type CreateSandboxData = {
   body: CreateSandboxRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/sandbox"
@@ -4381,6 +4414,14 @@ export type CreateSandboxErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -5143,6 +5184,13 @@ export type WatchInferencePoolsResponse =
 
 export type DeleteSandboxData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Sandbox resource name.
@@ -5158,6 +5206,14 @@ export type DeleteSandboxErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -5182,6 +5238,13 @@ export type DeleteSandboxResponse = DeleteSandboxResponses[keyof DeleteSandboxRe
 
 export type UpdateSandboxData = {
   body: UpdateSandboxRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Sandbox resource name.
@@ -5197,6 +5260,14 @@ export type UpdateSandboxErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *

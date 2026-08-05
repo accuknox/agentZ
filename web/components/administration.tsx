@@ -266,25 +266,27 @@ export function PermissionMatrixFrame({
   caption,
   columns,
   rows,
+  title = "Permissions",
 }: {
   caption: string
   columns: readonly PermissionMatrixColumn[]
   rows: readonly PermissionMatrixRow[]
+  title?: string
 }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Permissions</h2>
+          <h2>{title}</h2>
         </CardTitle>
         <CardDescription>{caption}</CardDescription>
       </CardHeader>
-      <CardContent className="px-0">
-        <Table>
+      <CardContent className="overflow-x-auto px-0">
+        <Table className="min-w-2xl">
           <TableCaption className="sr-only">{caption}</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="bg-muted/95 sticky left-0 min-w-48">Resource</TableHead>
+              <TableHead className="bg-muted/95 sticky left-0 z-10 min-w-48">Resource</TableHead>
               {columns.map((column) => (
                 <TableHead className="text-center" key={column.id} scope="col">
                   {column.label}
@@ -295,7 +297,7 @@ export function PermissionMatrixFrame({
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.id}>
-                <TableHead className="bg-background sticky left-0" scope="row">
+                <TableHead className="bg-background sticky left-0 z-10" scope="row">
                   {row.label}
                 </TableHead>
                 {columns.map((column) => (

@@ -1487,6 +1487,55 @@ SELECT EXISTS(
     AND role_scopes.immutable
 );
 
+-- name: GatewayResolveDirectPermissions :many
+WITH actor AS (
+  SELECT members.id, members.organization_id
+  FROM members
+  WHERE members.user_id = sqlc.arg(user_id)
+    AND members.organization_id = sqlc.arg(organization_id)
+    AND members.disabled_at IS NULL
+), assigned_roles AS (
+  SELECT role_scopes.*
+  FROM actor
+  JOIN member_roles
+    ON member_roles.member_id = actor.id
+    AND member_roles.organization_id = actor.organization_id
+  JOIN role_scopes
+    ON role_scopes.role_id = member_roles.role_id
+    AND role_scopes.organization_id = member_roles.organization_id
+), authority AS (
+  SELECT
+    EXISTS(SELECT 1 FROM actor) AS active,
+    EXISTS(
+      SELECT 1
+      FROM assigned_roles
+      WHERE system_role = 'superadmin'
+        AND workspace_id IS NULL
+        AND immutable
+    ) AS superadmin
+), grants AS (
+  SELECT DISTINCT
+    permission_grants.workspace_id,
+    permission_grants.resource,
+    permission_grants.action
+  FROM assigned_roles
+  JOIN permission_grants
+    ON permission_grants.role_id = assigned_roles.role_id
+    AND permission_grants.organization_id = assigned_roles.organization_id
+)
+SELECT
+  authority.active,
+  authority.superadmin,
+  grants.workspace_id,
+  grants.resource,
+  grants.action
+FROM authority
+LEFT JOIN grants ON TRUE
+ORDER BY
+  grants.workspace_id NULLS FIRST,
+  grants.resource,
+  grants.action;
+
 -- name: GatewayIsActiveOrganizationMember :one
 SELECT EXISTS(
   SELECT 1

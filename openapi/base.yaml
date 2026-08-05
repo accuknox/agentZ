@@ -1428,7 +1428,10 @@ paths:
       operationId: listSandboxes
       summary: List paginated Sandbox resources.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1440,12 +1443,20 @@ paths:
                 $ref: '#/components/schemas/ListSandboxesResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
     post:
       operationId: createSandbox
       summary: Create a Sandbox resource.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -1465,6 +1476,10 @@ paths:
                 $ref: '#/components/schemas/Sandbox'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
@@ -1898,7 +1913,10 @@ paths:
         Replaces the mutable configuration for an existing Sandbox. The name
         in the path identifies the Sandbox.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.modify]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: sandboxName
         in: path
         required: true
@@ -1924,6 +1942,10 @@ paths:
                 $ref: '#/components/schemas/Sandbox'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -1932,7 +1954,10 @@ paths:
       operationId: deleteSandbox
       summary: Delete a Sandbox resource.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.delete]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: sandboxName
         in: path
         required: true
@@ -1944,6 +1969,10 @@ paths:
           description: Sandbox deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -2748,6 +2777,18 @@ components:
       in: header
       name: X-API-Key
   parameters:
+    WorkspaceIDHeader:
+      name: X-AgentZ-Workspace-ID
+      in: header
+      required: false
+      description: >
+        Stable Workspace ID selecting Workspace scope. Omit for Organisation
+        scope.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+
     WorkspaceIDPath:
       name: workspaceId
       in: path
@@ -3143,11 +3184,13 @@ components:
 
     AuditTargetType:
       type: string
-      enum: [organization, organization_membership, workspace]
+      enum: [organization, organization_membership, workspace, role, sandbox]
       x-enum-varnames:
       - AuditTargetOrganization
       - AuditTargetOrganizationMembership
       - AuditTargetWorkspace
+      - AuditTargetRole
+      - AuditTargetSandbox
 
     AuditField:
       type: object

@@ -96,6 +96,7 @@ type Querier interface {
 	GatewayRenameWorkspace(ctx context.Context, arg GatewayRenameWorkspaceParams) (Workspace, error)
 	GatewayReserveOrganizationSlug(ctx context.Context, arg GatewayReserveOrganizationSlugParams) error
 	GatewayReserveWorkspaceSlug(ctx context.Context, arg GatewayReserveWorkspaceSlugParams) error
+	GatewayResolveDirectPermissions(ctx context.Context, arg GatewayResolveDirectPermissionsParams) ([]GatewayResolveDirectPermissionsRow, error)
 	GatewayResolveOrganizationSlug(ctx context.Context, slug string) (GatewayResolveOrganizationSlugRow, error)
 	GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (GatewayResolveWorkspaceSlugRow, error)
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)

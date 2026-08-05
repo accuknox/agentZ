@@ -28,14 +28,7 @@ import {
 export * from "./auth-schema"
 
 type AuditField = {
-  field:
-    | "member_id"
-    | "name"
-    | "provisioning_attempt"
-    | "role"
-    | "slug"
-    | "state"
-    | "user_id"
+  field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
   value: string
 }
 
@@ -82,6 +75,8 @@ export const auditResult = pgEnum("audit_result", ["succeeded", "denied", "faile
 export const auditTarget = pgEnum("audit_target", [
   "organization",
   "organization_membership",
+  "role",
+  "sandbox",
   "workspace",
 ])
 export const auditInterface = pgEnum("audit_interface", [
@@ -131,9 +126,7 @@ export const workspaces = pgTable(
     slug: text("slug").notNull(),
     namespace: text("namespace").notNull().unique(),
     state: workspaceState("state").default("provisioning").notNull(),
-    provisioningAttempt: bigint("provisioning_attempt", { mode: "number" })
-      .default(1)
-      .notNull(),
+    provisioningAttempt: bigint("provisioning_attempt", { mode: "number" }).default(1).notNull(),
     failureReason: text("failure_reason"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -146,10 +139,7 @@ export const workspaces = pgTable(
     uniqueIndex("workspaces_organization_slug_uidx").on(table.organizationId, table.slug),
     unique("workspaces_id_organization_uidx").on(table.id, table.organizationId),
     index("workspaces_organization_state_idx").on(table.organizationId, table.state),
-    check(
-      "workspaces_provisioning_attempt_ck",
-      sql`${table.provisioningAttempt} >= 1`
-    ),
+    check("workspaces_provisioning_attempt_ck", sql`${table.provisioningAttempt} >= 1`),
     check(
       "workspaces_state_failure_reason_ck",
       sql`(${table.state} = 'failed' AND NULLIF(BTRIM(${table.failureReason}), '') IS NOT NULL) OR
@@ -210,9 +200,12 @@ export const roleScopes = pgTable(
   },
   (table) => [
     unique("role_scopes_role_organization_uidx").on(table.roleId, table.organizationId),
-    unique("role_scopes_name_uidx")
-      .on(table.organizationId, table.workspaceId, table.displayName)
-      .nullsNotDistinct(),
+    uniqueIndex("role_scopes_organization_name_uidx")
+      .on(table.organizationId, sql`lower(btrim(${table.displayName}))`)
+      .where(sql`${table.workspaceId} IS NULL`),
+    uniqueIndex("role_scopes_workspace_name_uidx")
+      .on(table.organizationId, table.workspaceId, sql`lower(btrim(${table.displayName}))`)
+      .where(sql`${table.workspaceId} IS NOT NULL`),
     uniqueIndex("role_scopes_organization_system_uidx")
       .on(table.organizationId, table.systemRole)
       .where(sql`${table.systemRole} IS NOT NULL AND ${table.workspaceId} IS NULL`),

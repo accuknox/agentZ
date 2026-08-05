@@ -1,0 +1,126 @@
+"use client"
+
+import { useActionState, useState } from "react"
+import { CircleAlert, CircleCheck } from "lucide-react"
+import {
+  assignOrganizationRoleUsersAction,
+  type RoleAssignmentFormState,
+} from "@/app/(scoped)/orgs/actions"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+type RoleUser = { assigned: boolean; email: string; memberId: string; name: string }
+
+export function RoleAssignments({
+  immutable,
+  name,
+  orgSlug,
+  roleId,
+  users,
+}: {
+  immutable: boolean
+  name: string
+  orgSlug: string
+  roleId: string
+  users: RoleUser[]
+}) {
+  const baseline = users.filter((user) => user.assigned).map((user) => user.memberId)
+  const [selected, setSelected] = useState(baseline)
+  const action = assignOrganizationRoleUsersAction.bind(null, orgSlug, roleId)
+  const [state, formAction, pending] = useActionState<RoleAssignmentFormState, FormData>(action, {})
+  const changed =
+    selected.some((memberId) => !baseline.includes(memberId)) ||
+    baseline.some((memberId) => !selected.includes(memberId))
+
+  return (
+    <form action={formAction} className="flex flex-col gap-4">
+      {selected.map((memberId) => (
+        <input key={memberId} name="member_ids" type="hidden" value={memberId} />
+      ))}
+      {state.error ? (
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden="true" />
+          <AlertTitle>Assignments not saved</AlertTitle>
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {state.saved && !changed ? (
+        <Alert>
+          <CircleCheck aria-hidden="true" />
+          <AlertTitle>Assignments saved</AlertTitle>
+          <AlertDescription>
+            Effective access is recalculated as the allow-only union of every direct Role.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h3>User assignments</h3>
+          </CardTitle>
+          <CardDescription>
+            Assign {name} directly to active Organisation Members. Permissions never attach directly
+            to a User.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto px-0">
+          <Table aria-label={`Users assigned to ${name}`}>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-20 text-center">Assigned</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Email</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.memberId}>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      aria-label={`Assign ${name} to ${user.name || user.email}`}
+                      checked={selected.includes(user.memberId)}
+                      disabled={immutable}
+                      onCheckedChange={(checked) =>
+                        setSelected((current) =>
+                          checked
+                            ? [...current, user.memberId]
+                            : current.filter((memberId) => memberId !== user.memberId)
+                        )
+                      }
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">{user.name || "Unnamed User"}</TableCell>
+                  <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+        <CardFooter className="justify-end border-t">
+          <Button disabled={immutable || pending || !changed} type="submit">
+            {pending ? <Spinner /> : null}
+            {pending ? "Saving…" : "Save assignments"}
+          </Button>
+        </CardFooter>
+      </Card>
+    </form>
+  )
+}

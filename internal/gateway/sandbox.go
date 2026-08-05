@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,16 +13,22 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // ListSandboxes handles GET /api/sandbox.
 func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params gatewayapi.ListSandboxesParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, "")
+	if apiErr != nil {
+		writeError(w, r, apiErr)
 		return
 	}
 
@@ -45,14 +52,14 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	}
 
 	var sandboxList agentzv1alpha1.SandboxList
-	if err := s.k8sClient.List(r.Context(), &sandboxList, ctrlclient.InNamespace(ns)); err != nil {
+	if err := s.k8sClient.List(r.Context(), &sandboxList, ctrlclient.InNamespace(access.namespace)); err != nil {
 		writeInternalError(w, r, fmt.Errorf("list sandboxes: %w", err))
 		return
 	}
 	refs, err := sandboxutil.ReferencedNames(
 		r.Context(),
 		s.k8sClient,
-		ns,
+		access.namespace,
 	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
@@ -80,35 +87,79 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 }
 
 // CreateSandbox handles POST /api/sandbox.
-func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-	tenant, err := tenantObject(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
+func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params gatewayapi.CreateSandboxParams) {
 	var req gatewayapi.CreateSandboxRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
 
-	name, fields := validateCreateSandboxRequest(req)
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	name, fields := validateCreateSandboxRequest(req, workspaceID != "")
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, "")
+	if apiErr != nil {
+		if access.claims.TenantID != "" {
+			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+				access: access,
+				name:   name,
+				result: access.failureResult(),
+			})
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
+		return
+	}
+	if len(fields) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
 	var rawSkills []gatewayapi.ResourceReference
 	if req.Skills != nil {
 		rawSkills = *req.Skills
 	}
-	skills, skillFields, err := s.validateSkillRefs(r.Context(), ns, rawSkills)
+	skills, skillFields, err := s.validateSkillRefs(r.Context(), access.namespace, rawSkills)
 	fields = append(fields, skillFields...)
 	if err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -133,6 +184,15 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 	for i, entry := range rawAllowedHosts {
 		host, err := sandboxutil.ParseHost(entry)
 		if err != nil {
+			auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+				access: access,
+				name:   name,
+				result: gatewaydb.AuditResultFailed,
+			})
+			if auditErr != nil {
+				writeInternalError(w, r, errors.Join(err, auditErr))
+				return
+			}
 			writeAllowedHostsError(w, r, fmt.Errorf("allowedHosts[%d]: %w", i, err))
 			return
 		}
@@ -172,8 +232,16 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 			Tools: tools,
 		})
 	}
-	fields = s.validateSandboxMCPConnections(r.Context(), mcpConnectionRefs)
+	fields = s.validateSandboxMCPConnections(r.Context(), access.namespace, mcpConnectionRefs)
 	if len(fields) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -183,6 +251,20 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
+	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, "")
+	if apiErr != nil {
+		err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: access.failureResult(),
+		})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeError(w, r, apiErr)
+		return
+	}
 
 	sandbox := &agentzv1alpha1.Sandbox{
 		TypeMeta: metav1.TypeMeta{
@@ -190,16 +272,12 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 			Kind:       "Sandbox",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					tenant,
-					agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
-				),
-			},
+			Name:            name,
+			Namespace:       access.namespace,
+			OwnerReferences: []metav1.OwnerReference{access.owner},
 		},
 		Spec: agentzv1alpha1.SandboxSpec{
+			CreatorUserID:     access.claims.UserID,
 			Packages:          packages,
 			AllowedHosts:      allowedHosts,
 			MCPConnectionRefs: mcpConnectionRefs,
@@ -209,7 +287,24 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.k8sClient.Create(r.Context(), sandbox); err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeError(w, r, mapKubeHTTPError("create sandbox", err))
+		return
+	}
+	if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+		access: access,
+		name:   name,
+		result: gatewaydb.AuditResultSucceeded,
+	}); err != nil {
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -217,13 +312,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteSandbox handles DELETE /api/sandbox/{sandboxName}.
-func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName gatewayapi.SandboxName) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
+func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName gatewayapi.SandboxName, params gatewayapi.DeleteSandboxParams) {
 	name := strings.TrimSpace(sandboxName)
 	if name == "" {
 		writeError(w, r, newAPIError(
@@ -235,21 +324,58 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		))
 		return
 	}
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	if apiErr != nil {
+		if access.claims.TenantID != "" {
+			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+				access: access,
+				name:   name,
+				result: access.failureResult(),
+			})
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
+		return
+	}
 
 	sandbox := &agentzv1alpha1.Sandbox{}
 	sandbox.Name = name
-	sandbox.Namespace = ns
+	sandbox.Namespace = access.namespace
 	agentNames, err := sandboxutil.ReferencingAgentNames(
 		r.Context(),
 		s.usageReader,
-		ns,
+		access.namespace,
 		name,
 	)
 	if err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
 		return
 	}
 	if len(agentNames) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"sandbox_referenced",
@@ -258,9 +384,41 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		))
 		return
 	}
+	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	if apiErr != nil {
+		err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: access.failureResult(),
+		})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeError(w, r, apiErr)
+		return
+	}
+	sandbox.Namespace = access.namespace
 
 	if err := s.k8sClient.Delete(r.Context(), sandbox); err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeError(w, r, mapKubeHTTPError("delete sandbox", err))
+		return
+	}
+	if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+		access: access,
+		name:   name,
+		result: gatewaydb.AuditResultSucceeded,
+	}); err != nil {
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -268,20 +426,43 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 }
 
 // UpdateSandbox handles PUT /api/sandbox/{sandboxName}.
-func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxName gatewayapi.SandboxName) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
+func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxName gatewayapi.SandboxName, params gatewayapi.UpdateSandboxParams) {
 	var req gatewayapi.UpdateSandboxRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
 
-	fields := validateUpdateSandboxRequest(req)
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	name := strings.TrimSpace(sandboxName)
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	if apiErr != nil {
+		if access.claims.TenantID != "" {
+			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+				access: access,
+				name:   name,
+				result: access.failureResult(),
+			})
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
+		return
+	}
+	fields := validateUpdateSandboxRequest(req, workspaceID != "")
 	if len(fields) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -291,13 +472,20 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		))
 		return
 	}
-
-	name := strings.TrimSpace(sandboxName)
 	allowedHosts := make([]string, 0, len(req.AllowedHosts))
 	seenHosts := make(map[string]struct{}, len(req.AllowedHosts))
 	for i, entry := range req.AllowedHosts {
 		host, err := sandboxutil.ParseHost(entry)
 		if err != nil {
+			auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+				access: access,
+				name:   name,
+				result: gatewaydb.AuditResultFailed,
+			})
+			if auditErr != nil {
+				writeInternalError(w, r, errors.Join(err, auditErr))
+				return
+			}
 			writeAllowedHostsError(w, r, fmt.Errorf("allowedHosts[%d]: %w", i, err))
 			return
 		}
@@ -333,14 +521,31 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		})
 	}
 	packages := req.Packages
-	skills, skillFields, err := s.validateSkillRefs(r.Context(), ns, req.Skills)
+	skills, skillFields, err := s.validateSkillRefs(r.Context(), access.namespace, req.Skills)
 	if err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeInternalError(w, r, err)
 		return
 	}
 	fields = append(fields, skillFields...)
-	fields = append(fields, s.validateSandboxMCPConnections(r.Context(), mcpConnectionRefs)...)
+	fields = append(fields, s.validateSandboxMCPConnections(r.Context(), access.namespace, mcpConnectionRefs)...)
 	if len(fields) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -350,13 +555,27 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		))
 		return
 	}
+	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	if apiErr != nil {
+		err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: access.failureResult(),
+		})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeError(w, r, apiErr)
+		return
+	}
 
 	var updated *agentzv1alpha1.Sandbox
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		sandbox := &agentzv1alpha1.Sandbox{}
 		if getErr := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{
 			Name:      name,
-			Namespace: ns,
+			Namespace: access.namespace,
 		}, sandbox); getErr != nil {
 			return getErr
 		}
@@ -374,6 +593,15 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		return nil
 	})
 	if err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeError(w, r, mapKubeHTTPError("update sandbox", err))
 		return
 	}
@@ -381,11 +609,28 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	agentNames, err := sandboxutil.ReferencingAgentNames(
 		r.Context(),
 		s.usageReader,
-		ns,
+		access.namespace,
 		updated.Name,
 	)
 	if err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
+		return
+	}
+	if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+		access: access,
+		name:   name,
+		result: gatewaydb.AuditResultSucceeded,
+	}); err != nil {
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0))
@@ -502,39 +747,61 @@ func sandboxInferenceToAPI(value agentzv1alpha1.SandboxInference) gatewayapi.San
 	return out
 }
 
-func validateCreateSandboxRequest(req gatewayapi.CreateSandboxRequest) (string, []gatewayapi.FieldError) {
+func validateCreateSandboxRequest(req gatewayapi.CreateSandboxRequest, workspace bool) (string, []gatewayapi.FieldError) {
 	name := strings.TrimSpace(req.Name)
 	fields := validateSandboxName(name)
-	for i, model := range req.Inference.Models {
-		if model.Scope == gatewayapi.ResourceScopeOrganisation {
-			continue
-		}
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   fmt.Sprintf("inference.models[%d].scope", i),
-			Message: "workspace scope is not available on the current tenant path",
-		})
-	}
+	fields = append(fields, validateSandboxInferenceScopes(req.Inference, workspace)...)
 	if req.Packages != nil {
 		fields = append(fields, validatePackageList(*req.Packages)...)
 	}
 	if req.McpConnectionRefs != nil {
-		fields = append(fields, validateMCPConnectionRefList(*req.McpConnectionRefs)...)
+		fields = append(fields, validateMCPConnectionRefList(*req.McpConnectionRefs, workspace)...)
 	}
 	return name, fields
 }
 
-func validateUpdateSandboxRequest(req gatewayapi.UpdateSandboxRequest) []gatewayapi.FieldError {
+func validateUpdateSandboxRequest(req gatewayapi.UpdateSandboxRequest, workspace bool) []gatewayapi.FieldError {
 	fields := validatePackageList(req.Packages)
-	for i, model := range req.Inference.Models {
+	fields = append(fields, validateSandboxInferenceScopes(req.Inference, workspace)...)
+	fields = append(fields, validateMCPConnectionRefList(req.McpConnectionRefs, workspace)...)
+	return fields
+}
+
+func validateSandboxInferenceScopes(inference gatewayapi.SandboxInference, workspace bool) []gatewayapi.FieldError {
+	if workspace {
+		return []gatewayapi.FieldError{}
+	}
+
+	fields := []gatewayapi.FieldError{}
+	for i, model := range inference.Models {
 		if model.Scope == gatewayapi.ResourceScopeOrganisation {
 			continue
 		}
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   fmt.Sprintf("inference.models[%d].scope", i),
-			Message: "workspace scope is not available on the current tenant path",
+			Message: "workspace scope is not available in Organisation scope",
 		})
 	}
-	fields = append(fields, validateMCPConnectionRefList(req.McpConnectionRefs)...)
+	if inference.DefaultModel.Scope != gatewayapi.ResourceScopeOrganisation {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "inference.default_model.scope",
+			Message: "workspace scope is not available in Organisation scope",
+		})
+	}
+	if inference.SmallModel != nil &&
+		inference.SmallModel.Scope != gatewayapi.ResourceScopeOrganisation {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "inference.small_model.scope",
+			Message: "workspace scope is not available in Organisation scope",
+		})
+	}
+	if inference.AttachmentModel != nil &&
+		inference.AttachmentModel.Scope != gatewayapi.ResourceScopeOrganisation {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "inference.attachment_model.scope",
+			Message: "workspace scope is not available in Organisation scope",
+		})
+	}
 	return fields
 }
 
@@ -569,15 +836,15 @@ func validatePackageList(packages []string) []gatewayapi.FieldError {
 	return fields
 }
 
-func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewayapi.FieldError {
+func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef, workspace bool) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
 	seen := map[gatewayapi.ResourceReference]int{}
 	for i, ref := range refs {
 		name := ref.Name
-		if ref.Scope != gatewayapi.ResourceScopeOrganisation {
+		if !workspace && ref.Scope != gatewayapi.ResourceScopeOrganisation {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("mcp_connection_refs[%d].scope", i),
-				Message: "workspace scope is not available on the current tenant path",
+				Message: "workspace scope is not available in Organisation scope",
 			})
 			continue
 		}
@@ -637,23 +904,23 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 	return fields
 }
 
-func (s *Service) validateSandboxMCPConnections(ctx context.Context, refs []agentzv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
-	ns, err := tenantNamespace(ctx)
-	if err != nil {
-		return []gatewayapi.FieldError{{
-			Field:   "mcp_connection_refs",
-			Message: "tenant context is missing",
-		}}
-	}
-
+func (s *Service) validateSandboxMCPConnections(ctx context.Context, current string, refs []agentzv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
 	for i, ref := range refs {
+		ns, err := scoperesolver.Namespace(ctx, s.k8sClient, current, ref.Scope)
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].scope", i),
+				Message: "scope is not available from the selected Sandbox scope",
+			})
+			continue
+		}
 		conn := &agentzv1alpha1.MCPConnection{}
 		key := ctrlclient.ObjectKey{
 			Namespace: ns,
 			Name:      ref.Name,
 		}
-		err := s.k8sClient.Get(ctx, key, conn)
+		err = s.k8sClient.Get(ctx, key, conn)
 		if apierrors.IsNotFound(err) {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),

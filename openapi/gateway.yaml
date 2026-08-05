@@ -264,6 +264,16 @@ components:
       schema:
         default: false
         type: boolean
+    WorkspaceIDHeader:
+      description: |
+        Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+      in: header
+      name: X-AgentZ-Workspace-ID
+      required: false
+      schema:
+        maxLength: 128
+        minLength: 1
+        type: string
     WorkspaceIDPath:
       description: Stable Workspace ID.
       in: path
@@ -763,11 +773,15 @@ components:
       - organization
       - organization_membership
       - workspace
+      - role
+      - sandbox
       type: string
       x-enum-varnames:
       - AuditTargetOrganization
       - AuditTargetOrganizationMembership
       - AuditTargetWorkspace
+      - AuditTargetRole
+      - AuditTargetSandbox
     AuditWorkspace:
       additionalProperties: false
       properties:
@@ -36960,6 +36974,7 @@ paths:
     get:
       operationId: listSandboxes
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -36971,13 +36986,22 @@ paths:
           description: Paginated sandboxes.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - sandbox.read
       summary: List paginated Sandbox resources.
       tags:
       - sandboxes
     post:
       operationId: createSandbox
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         content:
           application/json:
@@ -36993,6 +37017,10 @@ paths:
           description: Sandbox created.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "409":
           $ref: '#/components/responses/Conflict'
         "415":
@@ -37001,6 +37029,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - sandbox.create
       summary: Create a Sandbox resource.
       tags:
       - sandboxes
@@ -37008,6 +37039,7 @@ paths:
     delete:
       operationId: deleteSandbox
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - description: Sandbox resource name.
         in: path
         name: sandboxName
@@ -37019,10 +37051,17 @@ paths:
           description: Sandbox deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - sandbox.delete
       summary: Delete a Sandbox resource.
       tags:
       - sandboxes
@@ -37031,6 +37070,7 @@ paths:
         Replaces the mutable configuration for an existing Sandbox. The name in the path identifies the Sandbox.
       operationId: updateSandbox
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - description: Sandbox resource name.
         in: path
         name: sandboxName
@@ -37052,6 +37092,10 @@ paths:
           description: Sandbox updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "415":
@@ -37060,6 +37104,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - sandbox.modify
       summary: Update a Sandbox resource.
       tags:
       - sandboxes

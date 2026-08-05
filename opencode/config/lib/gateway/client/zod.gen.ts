@@ -8,7 +8,13 @@ export const zAuditResult = z.enum(["succeeded", "denied", "failed"])
 
 export const zAuditInterface = z.enum(["web", "gateway", "better_auth", "controller", "system"])
 
-export const zAuditTargetType = z.enum(["organization", "organization_membership", "workspace"])
+export const zAuditTargetType = z.enum([
+  "organization",
+  "organization_membership",
+  "workspace",
+  "role",
+  "sandbox",
+])
 
 export const zAuditField = z.object({
   field: z.enum(["member_id", "name", "provisioning_attempt", "role", "slug", "state", "user_id"]),
@@ -2089,6 +2095,12 @@ export const zUpdateInferenceProviderRequestWritable = z.object({
 })
 
 /**
+ * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+ *
+ */
+export const zWorkspaceIdHeader = z.string().min(1).max(128)
+
+/**
  * Stable Workspace ID.
  */
 export const zWorkspaceIdPath = z.string().min(1).max(128)
@@ -2822,6 +2834,10 @@ export const zDeleteSecretPath = z.object({
  */
 export const zDeleteSecretResponse = z.void()
 
+export const zListSandboxesHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zListSandboxesQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
@@ -2833,6 +2849,10 @@ export const zListSandboxesQuery = z.object({
 export const zListSandboxesResponse2 = zListSandboxesResponse
 
 export const zCreateSandboxBody = zCreateSandboxRequest
+
+export const zCreateSandboxHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 /**
  * Sandbox created.
@@ -3003,6 +3023,10 @@ export const zWatchInferencePoolsBody = zWatchInferencePoolsRequest
  */
 export const zWatchInferencePoolsResponse = zWatchInferencePoolsEvent
 
+export const zDeleteSandboxHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zDeleteSandboxPath = z.object({
   sandboxName: zSandboxName,
 })
@@ -3013,6 +3037,10 @@ export const zDeleteSandboxPath = z.object({
 export const zDeleteSandboxResponse = z.void()
 
 export const zUpdateSandboxBody = zUpdateSandboxRequest
+
+export const zUpdateSandboxHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zUpdateSandboxPath = z.object({
   sandboxName: zSandboxName,

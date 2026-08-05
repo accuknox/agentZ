@@ -4290,6 +4290,95 @@ func (q *Queries) GatewayReserveWorkspaceSlug(ctx context.Context, arg GatewayRe
 	return err
 }
 
+const gatewayResolveDirectPermissions = `-- name: GatewayResolveDirectPermissions :many
+WITH actor AS (
+  SELECT members.id, members.organization_id
+  FROM members
+  WHERE members.user_id = $1
+    AND members.organization_id = $2
+    AND members.disabled_at IS NULL
+), assigned_roles AS (
+  SELECT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
+  FROM actor
+  JOIN member_roles
+    ON member_roles.member_id = actor.id
+    AND member_roles.organization_id = actor.organization_id
+  JOIN role_scopes
+    ON role_scopes.role_id = member_roles.role_id
+    AND role_scopes.organization_id = member_roles.organization_id
+), authority AS (
+  SELECT
+    EXISTS(SELECT 1 FROM actor) AS active,
+    EXISTS(
+      SELECT 1
+      FROM assigned_roles
+      WHERE system_role = 'superadmin'
+        AND workspace_id IS NULL
+        AND immutable
+    ) AS superadmin
+), grants AS (
+  SELECT DISTINCT
+    permission_grants.workspace_id,
+    permission_grants.resource,
+    permission_grants.action
+  FROM assigned_roles
+  JOIN permission_grants
+    ON permission_grants.role_id = assigned_roles.role_id
+    AND permission_grants.organization_id = assigned_roles.organization_id
+)
+SELECT
+  authority.active,
+  authority.superadmin,
+  grants.workspace_id,
+  grants.resource,
+  grants.action
+FROM authority
+LEFT JOIN grants ON TRUE
+ORDER BY
+  grants.workspace_id NULLS FIRST,
+  grants.resource,
+  grants.action
+`
+
+type GatewayResolveDirectPermissionsParams struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type GatewayResolveDirectPermissionsRow struct {
+	Active      bool                   `json:"active"`
+	Superadmin  bool                   `json:"superadmin"`
+	WorkspaceID pgtype.Text            `json:"workspace_id"`
+	Resource    NullPermissionResource `json:"resource"`
+	Action      NullPermissionAction   `json:"action"`
+}
+
+func (q *Queries) GatewayResolveDirectPermissions(ctx context.Context, arg GatewayResolveDirectPermissionsParams) ([]GatewayResolveDirectPermissionsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayResolveDirectPermissions, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayResolveDirectPermissionsRow{}
+	for rows.Next() {
+		var i GatewayResolveDirectPermissionsRow
+		if err := rows.Scan(
+			&i.Active,
+			&i.Superadmin,
+			&i.WorkspaceID,
+			&i.Resource,
+			&i.Action,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayResolveOrganizationSlug = `-- name: GatewayResolveOrganizationSlug :one
 SELECT
   organizations.id,

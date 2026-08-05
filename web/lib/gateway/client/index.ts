@@ -862,6 +862,7 @@ export type {
   WorkflowSummary,
   WorkflowWebhookTrigger,
   Workspace,
+  WorkspaceIdHeader,
   WorkspaceIdPath,
   WorkspaceMemberCandidate,
   WorkspaceSlugPath,

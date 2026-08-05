@@ -8,7 +8,13 @@ export const zAuditResult = z.enum(["succeeded", "denied", "failed"])
 
 export const zAuditInterface = z.enum(["web", "gateway", "better_auth", "controller", "system"])
 
-export const zAuditTargetType = z.enum(["organization", "organization_membership", "workspace"])
+export const zAuditTargetType = z.enum([
+  "organization",
+  "organization_membership",
+  "workspace",
+  "role",
+  "sandbox",
+])
 
 export const zAuditField = z.object({
   field: z.enum(["member_id", "name", "provisioning_attempt", "role", "slug", "state", "user_id"]),
@@ -2087,6 +2093,12 @@ export const zUpdateInferenceProviderRequestWritable = z.object({
   resource_version: z.string().min(1),
   provider: zInferenceProviderWriteDiscriminatorWritable,
 })
+
+/**
+ * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+ *
+ */
+export const zWorkspaceIdHeader = z.string().min(1).max(128)
 
 /**
  * Stable Workspace ID.

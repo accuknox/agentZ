@@ -313,6 +313,7 @@ import {
   zCreateInferenceProviderOAuthTicketBody,
   zCreateMcpConnectionBody,
   zCreateSandboxBody,
+  zCreateSandboxHeaders,
   zCreateSkillBody,
   zCreateWorkflowBody,
   zCreateWorkflowPath,
@@ -329,6 +330,7 @@ import {
   zDeleteInferencePoolPath,
   zDeleteInferenceProviderPath,
   zDeleteMcpConnectionPath,
+  zDeleteSandboxHeaders,
   zDeleteSandboxPath,
   zDeleteSecretBody,
   zDeleteSecretPath,
@@ -377,6 +379,7 @@ import {
   zListNetworkObservabilityQuery,
   zListProcessObservabilityPath,
   zListProcessObservabilityQuery,
+  zListSandboxesHeaders,
   zListSandboxesQuery,
   zListSecretsPath,
   zListSecretsQuery,
@@ -418,6 +421,7 @@ import {
   zUpdateInferenceProviderBody,
   zUpdateInferenceProviderPath,
   zUpdateSandboxBody,
+  zUpdateSandboxHeaders,
   zUpdateSandboxPath,
   zUpdateSkillBody,
   zUpdateSkillPath,
@@ -1675,6 +1679,7 @@ export const listSandboxes = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListSandboxesHeaders.optional(),
           path: z.never().optional(),
           query: zListSandboxesQuery.optional(),
         })
@@ -1695,6 +1700,7 @@ export const createSandbox = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateSandboxBody,
+          headers: zCreateSandboxHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -2184,6 +2190,7 @@ export const deleteSandbox = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteSandboxHeaders.optional(),
           path: zDeleteSandboxPath,
           query: z.never().optional(),
         })
@@ -2207,6 +2214,7 @@ export const updateSandbox = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateSandboxBody,
+          headers: zUpdateSandboxHeaders.optional(),
           path: zUpdateSandboxPath,
           query: z.never().optional(),
         })

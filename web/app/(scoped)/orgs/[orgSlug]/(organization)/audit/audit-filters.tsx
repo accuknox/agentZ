@@ -21,9 +21,11 @@ const allActorTypes = ["user", "api_key", "system"] as const satisfies readonly 
 
 export function AuditFiltersBar({
   filters,
+  hideWorkspace,
   selected,
 }: {
   filters: AuditFilters
+  hideWorkspace?: boolean
   selected: {
     actorType?: AuditActorType
     actorId?: string
@@ -93,16 +95,18 @@ export function AuditFiltersBar({
         options={filters.categories.map((category) => ({ label: category, value: category }))}
         value={selected.category}
       />
-      <FilterSelect
-        id="audit-workspace"
-        label="Workspace"
-        onValueChange={(value) => update("workspace_id", value)}
-        options={filters.workspaces.map((workspace) => ({
-          label: workspace.name ?? workspace.slug ?? workspace.id,
-          value: workspace.id,
-        }))}
-        value={selected.workspaceId}
-      />
+      {!hideWorkspace ? (
+        <FilterSelect
+          id="audit-workspace"
+          label="Workspace"
+          onValueChange={(value) => update("workspace_id", value)}
+          options={filters.workspaces.map((workspace) => ({
+            label: workspace.name ?? workspace.slug ?? workspace.id,
+            value: workspace.id,
+          }))}
+          value={selected.workspaceId}
+        />
+      ) : null}
       <FilterSelect
         id="audit-target-type"
         label="Resource type"

@@ -44,10 +44,12 @@ paths:
       operationId: listAuditEvents
       summary: List Organisation audit events.
       description: >
-        Lists the active Organisation's rolling audit history. Only an active
-        Superadmin may read Organisation-wide audit events.
+        Lists rolling audit history in the selected scope. An active
+        Superadmin may read Organisation-wide or Workspace events; an active
+        Workspace Admin may read only the Workspace bound into the bearer.
       tags: [audit]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/AuditActorTypeQuery'
       - $ref: '#/components/parameters/AuditActorIDQuery'
       - $ref: '#/components/parameters/AuditCategoryQuery'
@@ -60,7 +62,7 @@ paths:
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
-          description: Paginated Organisation audit events and filter options.
+          description: Paginated scoped audit events and filter options.
           content:
             application/json:
               schema:
@@ -79,15 +81,16 @@ paths:
       operationId: getAuditEvent
       summary: Get an Organisation audit event.
       description: >
-        Returns one event from the active Organisation's rolling audit
-        history. Only an active Superadmin may read Organisation-wide audit
-        events.
+        Returns one event from the selected scope's rolling audit history.
+        Workspace Admins are restricted to the Workspace bound into the
+        bearer; Superadmins may read Organisation-wide events.
       tags: [audit]
       parameters:
       - $ref: '#/components/parameters/AuditEventIDPath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       responses:
         '200':
-          description: Organisation audit event detail.
+          description: Scoped audit event detail.
           content:
             application/json:
               schema:

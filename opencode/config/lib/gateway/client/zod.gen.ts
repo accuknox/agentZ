@@ -2276,6 +2276,10 @@ export const zFromDateQuery = z.iso.date()
  */
 export const zToDateQuery = z.iso.date()
 
+export const zListAuditEventsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zListAuditEventsQuery = z.object({
   actor_type: zAuditActorType.optional(),
   actor_id: z.string().min(1).optional(),
@@ -2290,16 +2294,20 @@ export const zListAuditEventsQuery = z.object({
 })
 
 /**
- * Paginated Organisation audit events and filter options.
+ * Paginated scoped audit events and filter options.
  */
 export const zListAuditEventsResponse2 = zListAuditEventsResponse
+
+export const zGetAuditEventHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zGetAuditEventPath = z.object({
   eventId: z.string().min(1),
 })
 
 /**
- * Organisation audit event detail.
+ * Scoped audit event detail.
  */
 export const zGetAuditEventResponse = zAuditEvent
 

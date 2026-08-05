@@ -443,10 +443,13 @@ func requestLog(next http.Handler) http.Handler {
 	})
 }
 
+// gatewayClaims binds identity to a selected scope. Capabilities and built-in
+// bypass are intentionally resolved from PostgreSQL for every request.
 type gatewayClaims struct {
 	jwt.RegisteredClaims
-	TenantID string `json:"tenant_id"`
-	UserID   string `json:"user_id"`
+	TenantID    string `json:"tenant_id"`
+	WorkspaceID string `json:"workspace_id"`
+	UserID      string `json:"user_id"`
 }
 
 func newExternalJWTKeyfunc(ctx context.Context, jwksURL string) (jwt.Keyfunc, error) {

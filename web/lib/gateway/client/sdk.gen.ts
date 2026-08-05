@@ -322,7 +322,7 @@ export type Options<
 /**
  * List Organisation audit events.
  *
- * Lists the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+ * Lists rolling audit history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
  *
  */
 export const listAuditEvents = <ThrowOnError extends boolean = false>(
@@ -337,7 +337,7 @@ export const listAuditEvents = <ThrowOnError extends boolean = false>(
 /**
  * Get an Organisation audit event.
  *
- * Returns one event from the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+ * Returns one event from the selected scope's rolling audit history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
  *
  */
 export const getAuditEvent = <ThrowOnError extends boolean = false>(

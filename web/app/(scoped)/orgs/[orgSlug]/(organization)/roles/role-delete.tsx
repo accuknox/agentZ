@@ -2,7 +2,11 @@
 
 import { useActionState } from "react"
 import { Trash2 } from "lucide-react"
-import { deleteOrganizationRoleAction, type DeleteRoleFormState } from "@/app/(scoped)/orgs/actions"
+import {
+  deleteOrganizationRoleAction,
+  type DeleteRoleFormState,
+  deleteWorkspaceRoleAction,
+} from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,12 +26,16 @@ export function RoleDelete({
   name,
   orgSlug,
   roleId,
+  workspaceSlug,
 }: {
   name: string
   orgSlug: string
   roleId: string
+  workspaceSlug?: string
 }) {
-  const action = deleteOrganizationRoleAction.bind(null, orgSlug, roleId)
+  const action = workspaceSlug
+    ? deleteWorkspaceRoleAction.bind(null, orgSlug, workspaceSlug, roleId)
+    : deleteOrganizationRoleAction.bind(null, orgSlug, roleId)
   const [state, formAction, pending] = useActionState<DeleteRoleFormState, FormData>(action, {})
 
   return (

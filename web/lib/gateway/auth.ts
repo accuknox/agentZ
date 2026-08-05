@@ -10,11 +10,7 @@ export type GatewayAuthContext = {
   userId: string
 }
 
-type GatewayAuthState = GatewayAuthContext & {
-  requestHeaders: Headers
-}
-
-async function resolveGatewayAuthState(): Promise<GatewayAuthState> {
+async function resolveGatewayAuthState(): Promise<GatewayAuthContext> {
   const organizationSession = await getOrganizationSession()
   if (!organizationSession) {
     throw new GatewayUnauthorizedError()
@@ -29,7 +25,6 @@ async function resolveGatewayAuthState(): Promise<GatewayAuthState> {
 
   return {
     organizationId: organization.id,
-    requestHeaders: organizationSession.requestHeaders,
     sessionId: organizationSession.session.session.id,
     userId: organizationSession.session.user.id,
   }
@@ -44,11 +39,23 @@ export async function currentGatewayAuthContext(): Promise<GatewayAuthContext> {
   }
 }
 
-export async function currentGatewayAuthToken(): Promise<string> {
+/**
+ * currentGatewayAuthToken signs identity and selected scope with Better Auth.
+ * The gateway resolves current capabilities so revocation is immediate.
+ */
+export async function currentGatewayAuthToken(workspaceId?: string): Promise<string> {
   const state = await resolveGatewayAuthState()
   const auth = getAuth()
-  const data = await auth.api.getToken({
-    headers: state.requestHeaders,
+  const data = await auth.api.signJWT({
+    body: {
+      payload: {
+        iat: Math.floor(Date.now() / 1000),
+        sub: state.userId,
+        tenant_id: state.organizationId,
+        user_id: state.userId,
+        ...(workspaceId ? { workspace_id: workspaceId } : {}),
+      },
+    },
   })
 
   return data.token

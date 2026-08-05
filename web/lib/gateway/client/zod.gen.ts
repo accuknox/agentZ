@@ -2277,12 +2277,12 @@ export const zFromDateQuery = z.iso.date()
 export const zToDateQuery = z.iso.date()
 
 /**
- * Paginated Organisation audit events and filter options.
+ * Paginated scoped audit events and filter options.
  */
 export const zListAuditEventsResponse2 = zListAuditEventsResponse
 
 /**
- * Organisation audit event detail.
+ * Scoped audit event detail.
  */
 export const zGetAuditEventResponse = zAuditEvent
 

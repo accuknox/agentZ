@@ -5,14 +5,24 @@ import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { getOrganizationAuditEvent } from "@/data/audit"
+import { getOrganizationAuditEvent, getWorkspaceAuditEvent } from "@/data/audit"
 import { formatTimestampWithAge } from "@/lib/format"
 import type { AuditField, AuditResult } from "@/lib/gateway/client"
 
-export async function AuditEventDetail({ eventId, orgSlug }: { eventId: string; orgSlug: string }) {
-  const result = await getOrganizationAuditEvent(orgSlug, eventId)
+export async function AuditEventDetail({
+  eventId,
+  orgSlug,
+  workspaceSlug,
+}: {
+  eventId: string
+  orgSlug: string
+  workspaceSlug?: string
+}) {
+  const result = workspaceSlug
+    ? await getWorkspaceAuditEvent(orgSlug, workspaceSlug, eventId)
+    : await getOrganizationAuditEvent(orgSlug, eventId)
   if (!result) {
-    return null
+    return workspaceSlug ? <AdministrationState kind="forbidden" /> : null
   }
   if (result.error) {
     if (result.response?.status === 404) {

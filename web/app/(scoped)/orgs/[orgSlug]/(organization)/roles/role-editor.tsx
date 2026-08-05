@@ -4,7 +4,11 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useActionState, useMemo, useState } from "react"
 import { CircleAlert, LockKeyhole, ShieldCheck } from "lucide-react"
-import { organizationRoleFormAction, type RoleFormState } from "@/app/(scoped)/orgs/actions"
+import {
+  organizationRoleFormAction,
+  type RoleFormState,
+  workspaceRoleFormAction,
+} from "@/app/(scoped)/orgs/actions"
 import {
   ImpactReviewFrame,
   PermissionMatrixFrame,
@@ -32,6 +36,7 @@ import type {
   RoleEditorData,
   RoleGrantInput,
   RoleResource,
+  WorkspaceRoleEditorData,
 } from "@/data/roles"
 import { cn } from "@/lib/utils"
 
@@ -81,8 +86,9 @@ function expand(
   return { locked, selected: new Set(selected.keys()) }
 }
 
-export function RoleEditor({ data }: { data: RoleEditorData }) {
+export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEditorData }) {
   const role = data.role
+  const workspace = "workspace" in data ? data.workspace : undefined
   const immutable = Boolean(role?.immutable)
   const baseline = useMemo(
     () =>
@@ -93,7 +99,7 @@ export function RoleEditor({ data }: { data: RoleEditorData }) {
   )
   const [name, setName] = useState(role?.name ?? "")
   const [direct, setDirect] = useState(baseline)
-  const [activeScope, setActiveScope] = useState("organisation")
+  const [activeScope, setActiveScope] = useState(workspace?.id ?? "organisation")
   const { locked, selected } = useMemo(
     () =>
       immutable
@@ -107,17 +113,21 @@ export function RoleEditor({ data }: { data: RoleEditorData }) {
   const directGrants = [...direct].sort((left, right) => key(left).localeCompare(key(right)))
   const updatedAt = role?.updatedAt
   const previewInput = JSON.stringify({ name, grants: directGrants, updatedAt })
-  const action = organizationRoleFormAction.bind(null, data.organization.slug, role?.id)
+  const action = workspace
+    ? workspaceRoleFormAction.bind(null, data.organization.slug, workspace.slug, role?.id)
+    : organizationRoleFormAction.bind(null, data.organization.slug, role?.id)
   const [state, formAction, pending] = useActionState<RoleFormState, FormData>(action, {})
   const previewValid = state.preview?.input === previewInput
-  const scopes = [
-    { id: "organisation", label: data.organization.name, detail: "Organisation" },
-    ...data.workspaces.map((workspace) => ({
-      id: workspace.id,
-      label: workspace.name,
-      detail: "Workspace",
-    })),
-  ]
+  const scopes = workspace
+    ? [{ id: workspace.id, label: workspace.name, detail: "Workspace" }]
+    : [
+        { id: "organisation", label: data.organization.name, detail: "Organisation" },
+        ...data.workspaces.map((item) => ({
+          id: item.id,
+          label: item.name,
+          detail: "Workspace",
+        })),
+      ]
   const dirtyScopes = new Set(
     scopes
       .filter((scope) => {
@@ -129,7 +139,7 @@ export function RoleEditor({ data }: { data: RoleEditorData }) {
       .map((scope) => scope.id)
   )
   if (name !== (role?.name ?? "")) {
-    dirtyScopes.add("organisation")
+    dirtyScopes.add(workspace?.id ?? "organisation")
   }
   const changed =
     direct.filter((grant) => !baseline.some((value) => sameGrant(value, grant))).length +
@@ -202,14 +212,14 @@ export function RoleEditor({ data }: { data: RoleEditorData }) {
       <Card>
         <CardHeader>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <ScopeBadge scope="Organisation" />
+            <ScopeBadge scope={workspace ? "Workspace" : "Organisation"} />
             <Badge variant={immutable ? "secondary" : "outline"}>
               {immutable ? "System" : "Custom"}
             </Badge>
             {immutable ? <Badge variant="outline">Immutable</Badge> : null}
           </div>
           <CardTitle>
-            <h2>{role ? role.name : "Create Organisation Role"}</h2>
+            <h2>{role ? role.name : `Create ${workspace ? "Workspace" : "Organisation"} Role`}</h2>
           </CardTitle>
           <CardDescription>
             {role
@@ -237,12 +247,22 @@ export function RoleEditor({ data }: { data: RoleEditorData }) {
         </CardContent>
       </Card>
 
-      {role?.systemRole === "superadmin" ? (
+      {!workspace && role?.systemRole === "superadmin" ? (
         <Alert>
           <ShieldCheck aria-hidden="true" />
           <AlertTitle>Full Organisation authorization bypass</AlertTitle>
           <AlertDescription>
             Superadmin includes every current and future Organisation and Workspace capability.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {workspace && role?.systemRole === "workspace_admin" ? (
+        <Alert>
+          <ShieldCheck aria-hidden="true" />
+          <AlertTitle>Full Workspace authorization</AlertTitle>
+          <AlertDescription>
+            Workspace Admin includes every current and future capability in {workspace.name}. Its
+            permissions are immutable; only a Superadmin can change assignments.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -254,49 +274,53 @@ export function RoleEditor({ data }: { data: RoleEditorData }) {
         </Alert>
       ) : null}
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <aside aria-label="Permission scopes" className="hidden lg:block">
-          <div className="sticky top-4 overflow-hidden rounded-lg border">
-            {scopes.map((scope) => (
-              <button
-                className={cn(
-                  "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-2 border-b px-3 py-3 text-left text-sm outline-none last:border-b-0 focus-visible:ring-2",
-                  activeScope === scope.id && "bg-muted"
-                )}
-                key={scope.id}
-                onClick={() => setActiveScope(scope.id)}
-                type="button"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{scope.label}</span>
-                  <span className="text-muted-foreground text-xs">{scope.detail}</span>
-                </span>
-                {dirtyScopes.has(scope.id) ? (
-                  <Badge aria-label="Unsaved changes" variant="pending">
-                    Dirty
-                  </Badge>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </aside>
+      <div className={cn("grid min-w-0 gap-5", !workspace && "lg:grid-cols-[15rem_minmax(0,1fr)]")}>
+        {!workspace ? (
+          <aside aria-label="Permission scopes" className="hidden lg:block">
+            <div className="sticky top-4 overflow-hidden rounded-lg border">
+              {scopes.map((scope) => (
+                <button
+                  className={cn(
+                    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-2 border-b px-3 py-3 text-left text-sm outline-none last:border-b-0 focus-visible:ring-2",
+                    activeScope === scope.id && "bg-muted"
+                  )}
+                  key={scope.id}
+                  onClick={() => setActiveScope(scope.id)}
+                  type="button"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{scope.label}</span>
+                    <span className="text-muted-foreground text-xs">{scope.detail}</span>
+                  </span>
+                  {dirtyScopes.has(scope.id) ? (
+                    <Badge aria-label="Unsaved changes" variant="pending">
+                      Dirty
+                    </Badge>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </aside>
+        ) : null}
 
         <div className="flex min-w-0 flex-col gap-5">
-          <div className="lg:hidden">
-            <Select onValueChange={setActiveScope} value={activeScope}>
-              <SelectTrigger className="w-full" aria-label="Permission scope">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {scopes.map((scope) => (
-                  <SelectItem key={scope.id} value={scope.id}>
-                    {scope.label} · {scope.detail}
-                    {dirtyScopes.has(scope.id) ? " · Dirty" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!workspace ? (
+            <div className="lg:hidden">
+              <Select onValueChange={setActiveScope} value={activeScope}>
+                <SelectTrigger className="w-full" aria-label="Permission scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {scopes.map((scope) => (
+                    <SelectItem key={scope.id} value={scope.id}>
+                      {scope.label} · {scope.detail}
+                      {dirtyScopes.has(scope.id) ? " · Dirty" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <PermissionMatrixFrame
             caption={`Resource actions granted in ${scopes.find((scope) => scope.id === activeScope)?.label}.`}
             columns={actionColumns}
@@ -335,7 +359,13 @@ export function RoleEditor({ data }: { data: RoleEditorData }) {
           {immutable ? "Read-only built-in Role" : `${changed} unsaved changes`}
         </span>
         <Button asChild variant="outline">
-          <Link href={`/orgs/${data.organization.slug}/roles` as Route}>
+          <Link
+            href={
+              (workspace
+                ? `/orgs/${data.organization.slug}/workspaces/${workspace.slug}/roles`
+                : `/orgs/${data.organization.slug}/roles`) as Route
+            }
+          >
             {immutable ? "Back" : "Cancel"}
           </Link>
         </Button>

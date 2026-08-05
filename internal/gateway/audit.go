@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
@@ -26,9 +28,18 @@ type auditCursor struct {
 	ID        string    `json:"id"`
 }
 
+type auditAccess struct {
+	claims      gatewayClaims
+	workspaceID pgtype.Text
+}
+
 // ListAuditEvents handles GET /api/audit-event.
 func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListAuditEventsParams) {
-	claims, authErr := s.authorizeAuditRead(r.Context())
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, authErr := s.authorizeAuditRead(r.Context(), workspaceID)
 	if authErr != nil {
 		writeError(w, r, authErr)
 		return
@@ -40,7 +51,7 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 	}
 	retainedAfter := time.Now().Add(-auditRetention)
 	query := gatewaydb.GatewayListAuditEventsParams{
-		OrganizationID: claims.TenantID,
+		OrganizationID: access.claims.TenantID,
 		RetainedAfter: pgtype.Timestamptz{
 			Time:  retainedAfter,
 			Valid: true,
@@ -59,7 +70,18 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 	if params.Category != nil {
 		query.Category = pgtype.Text{String: *params.Category, Valid: true}
 	}
-	if params.WorkspaceId != nil {
+	if access.workspaceID.Valid {
+		if params.WorkspaceId != nil && *params.WorkspaceId != access.workspaceID.String {
+			writeError(w, r, newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"request is not authorized for the selected scope",
+				errors.New("audit Workspace filter does not match bearer claims"),
+			))
+			return
+		}
+		query.WorkspaceID = access.workspaceID
+	} else if params.WorkspaceId != nil {
 		query.WorkspaceID = pgtype.Text{String: *params.WorkspaceId, Valid: true}
 	}
 	if params.TargetType != nil {
@@ -136,7 +158,12 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 		events = append(events, event)
 	}
 
-	filters, err := s.auditFilters(r.Context(), claims.TenantID, retainedAfter)
+	filters, err := s.auditFilters(
+		r.Context(),
+		access.claims.TenantID,
+		query.WorkspaceID,
+		retainedAfter,
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -150,8 +177,12 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 }
 
 // GetAuditEvent handles GET /api/audit-event/{eventId}.
-func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID gatewayapi.AuditEventIDPath) {
-	claims, authErr := s.authorizeAuditRead(r.Context())
+func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID gatewayapi.AuditEventIDPath, params gatewayapi.GetAuditEventParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, authErr := s.authorizeAuditRead(r.Context(), workspaceID)
 	if authErr != nil {
 		writeError(w, r, authErr)
 		return
@@ -160,7 +191,8 @@ func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID 
 	rows, err := s.queries.GatewayListAuditEvents(
 		r.Context(),
 		gatewaydb.GatewayListAuditEventsParams{
-			OrganizationID: claims.TenantID,
+			OrganizationID: access.claims.TenantID,
+			WorkspaceID:    access.workspaceID,
 			RetainedAfter: pgtype.Timestamptz{
 				Time:  time.Now().Add(-auditRetention),
 				Valid: true,
@@ -191,51 +223,93 @@ func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID 
 	writeJSON(w, http.StatusOK, event)
 }
 
-func (s *Service) authorizeAuditRead(ctx context.Context) (gatewayClaims, *apiError) {
+func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (auditAccess, *apiError) {
 	auth, ok := requestAuthState(ctx)
 	if !ok || auth.claims == nil {
-		return gatewayClaims{}, newAPIError(
+		return auditAccess{}, newAPIError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing bearer claims",
 			errors.New("missing bearer claims"),
 		)
 	}
+	if auth.claims.WorkspaceID != workspaceID {
+		return auditAccess{}, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"request is not authorized for the selected scope",
+			errors.New("selected Workspace does not match bearer claims"),
+		)
+	}
 
-	allowed, err := s.queries.GatewayIsActiveSuperadmin(
+	effective, err := authorization.New(s.queries).Resolve(
 		ctx,
-		gatewaydb.GatewayIsActiveSuperadminParams{
+		authorization.Subject{
 			UserID:         auth.claims.UserID,
 			OrganizationID: auth.claims.TenantID,
 		},
 	)
 	if err != nil {
-		return gatewayClaims{}, newAPIError(
+		return auditAccess{}, newAPIError(
 			http.StatusInternalServerError,
 			"internal_error",
 			"unexpected server error",
 			fmt.Errorf("authorize audit read: %w", err),
 		)
 	}
+	allowed := effective.CanAdminister(authorization.Scope{
+		OrganizationID: auth.claims.TenantID,
+		WorkspaceID:    workspaceID,
+	})
 	if !allowed {
-		return gatewayClaims{}, newAPIError(
+		return auditAccess{}, newAPIError(
 			http.StatusForbidden,
 			"forbidden",
-			"Superadmin authority is required",
-			fmt.Errorf("user %q is not a Superadmin", auth.claims.UserID),
+			"administrative authority is required for the selected scope",
+			fmt.Errorf("user %q cannot administer the selected audit scope", auth.claims.UserID),
 		)
 	}
+	if workspaceID != "" {
+		workspace, err := s.queries.GatewayGetWorkspace(
+			ctx,
+			gatewaydb.GatewayGetWorkspaceParams{
+				ID:             workspaceID,
+				OrganizationID: auth.claims.TenantID,
+			},
+		)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && workspace.DeletedAt.Valid) {
+			return auditAccess{}, newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"request is not authorized for the selected scope",
+				errors.New("selected Workspace is not active"),
+			)
+		}
+		if err != nil {
+			return auditAccess{}, newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"unexpected server error",
+				fmt.Errorf("resolve audit Workspace: %w", err),
+			)
+		}
+	}
 
-	return *auth.claims, nil
+	access := auditAccess{claims: *auth.claims}
+	if workspaceID != "" {
+		access.workspaceID = pgtype.Text{String: workspaceID, Valid: true}
+	}
+	return access, nil
 }
 
-func (s *Service) auditFilters(ctx context.Context, organizationID string, retainedAfter time.Time) (gatewayapi.AuditFilters, error) {
+func (s *Service) auditFilters(ctx context.Context, organizationID string, workspaceID pgtype.Text, retainedAfter time.Time) (gatewayapi.AuditFilters, error) {
 	retention := pgtype.Timestamptz{Time: retainedAfter, Valid: true}
 	actors, err := s.queries.GatewayListAuditActors(
 		ctx,
 		gatewaydb.GatewayListAuditActorsParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
+			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {
@@ -246,6 +320,7 @@ func (s *Service) auditFilters(ctx context.Context, organizationID string, retai
 		gatewaydb.GatewayListAuditCategoriesParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
+			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {
@@ -256,6 +331,7 @@ func (s *Service) auditFilters(ctx context.Context, organizationID string, retai
 		gatewaydb.GatewayListAuditWorkspacesParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
+			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {
@@ -266,6 +342,7 @@ func (s *Service) auditFilters(ctx context.Context, organizationID string, retai
 		gatewaydb.GatewayListAuditTargetTypesParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
+			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {

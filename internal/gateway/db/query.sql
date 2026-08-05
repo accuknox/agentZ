@@ -435,7 +435,12 @@ ORDER BY created_at, id;
 
 -- name: GatewayListAccessibleWorkspaces :many
 WITH actor_roles AS (
-  SELECT role_scopes.workspace_id, role_scopes.system_role
+  SELECT
+    role_scopes.role_id,
+    role_scopes.organization_id,
+    role_scopes.workspace_id,
+    role_scopes.system_role,
+    role_scopes.immutable
   FROM members
   JOIN member_roles
     ON member_roles.member_id = members.id
@@ -446,8 +451,6 @@ WITH actor_roles AS (
   WHERE members.user_id = sqlc.arg(user_id)
     AND members.organization_id = sqlc.arg(organization_id)
     AND members.disabled_at IS NULL
-    AND role_scopes.system_role IN ('superadmin', 'workspace_admin')
-    AND role_scopes.immutable
 )
 SELECT
   sqlc.embed(workspaces),
@@ -465,7 +468,21 @@ SELECT
       AND workspace_admin_role.workspace_id = workspaces.id
       AND workspace_admin_role.system_role = 'workspace_admin'
       AND workspace_admin_role.immutable
-  ) AS workspace_admin_count
+  ) AS workspace_admin_count,
+  EXISTS (
+    SELECT 1
+    FROM actor_roles
+    WHERE actor_roles.immutable
+      AND (
+        (
+          actor_roles.system_role = 'superadmin'
+          AND actor_roles.workspace_id IS NULL
+        ) OR (
+          actor_roles.system_role = 'workspace_admin'
+          AND actor_roles.workspace_id = workspaces.id
+        )
+      )
+  ) AS can_administer
 FROM workspaces
 WHERE workspaces.organization_id = sqlc.arg(organization_id)
   AND workspaces.deleted_at IS NULL
@@ -473,12 +490,20 @@ WHERE workspaces.organization_id = sqlc.arg(organization_id)
     SELECT 1
     FROM actor_roles
     WHERE (
-      actor_roles.system_role = 'superadmin'
-      AND actor_roles.workspace_id IS NULL
-    ) OR (
-      actor_roles.system_role = 'workspace_admin'
-      AND actor_roles.workspace_id = workspaces.id
-    )
+        actor_roles.immutable
+        AND actor_roles.system_role = 'superadmin'
+        AND actor_roles.workspace_id IS NULL
+      ) OR (
+        actor_roles.immutable
+        AND actor_roles.system_role = 'workspace_admin'
+        AND actor_roles.workspace_id = workspaces.id
+      ) OR EXISTS (
+        SELECT 1
+        FROM permission_grants
+        WHERE permission_grants.role_id = actor_roles.role_id
+          AND permission_grants.organization_id = actor_roles.organization_id
+          AND permission_grants.workspace_id = workspaces.id
+      )
   )
 ORDER BY workspaces.name, workspaces.id;
 
@@ -611,14 +636,21 @@ WHERE workspace_slug_history.organization_id = sqlc.arg(organization_id)
     WHERE members.user_id = sqlc.arg(user_id)
       AND members.organization_id = workspaces.organization_id
       AND members.disabled_at IS NULL
-      AND role_scopes.immutable
       AND (
         (
-          role_scopes.system_role = 'superadmin'
+          role_scopes.immutable
+          AND role_scopes.system_role = 'superadmin'
           AND role_scopes.workspace_id IS NULL
         ) OR (
-          role_scopes.system_role = 'workspace_admin'
+          role_scopes.immutable
+          AND role_scopes.system_role = 'workspace_admin'
           AND role_scopes.workspace_id = workspaces.id
+        ) OR EXISTS (
+          SELECT 1
+          FROM permission_grants
+          WHERE permission_grants.role_id = member_roles.role_id
+            AND permission_grants.organization_id = member_roles.organization_id
+            AND permission_grants.workspace_id = workspaces.id
         )
       )
   );
@@ -911,6 +943,20 @@ WHERE members.id = ANY(sqlc.arg(member_ids)::text[])
       AND superadmin_role_scopes.immutable
   )
 ON CONFLICT DO NOTHING;
+
+-- name: GatewayProjectMemberRoleTransports :execrows
+UPDATE members
+SET role = COALESCE((
+  SELECT string_agg(organization_roles.role, ',' ORDER BY organization_roles.role)
+  FROM member_roles
+  JOIN organization_roles
+    ON organization_roles.id = member_roles.role_id
+    AND organization_roles.organization_id = member_roles.organization_id
+  WHERE member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+), 'member')
+WHERE members.id = ANY(sqlc.arg(member_ids)::text[])
+  AND members.organization_id = sqlc.arg(organization_id);
 
 -- name: GatewayListMemberRoles :many
 SELECT member_id, role_id, organization_id, created_at
@@ -1513,28 +1559,40 @@ WITH actor AS (
         AND workspace_id IS NULL
         AND immutable
     ) AS superadmin
-), grants AS (
+), access AS (
   SELECT DISTINCT
     permission_grants.workspace_id,
     permission_grants.resource,
-    permission_grants.action
+    permission_grants.action,
+    FALSE AS workspace_admin
   FROM assigned_roles
   JOIN permission_grants
     ON permission_grants.role_id = assigned_roles.role_id
     AND permission_grants.organization_id = assigned_roles.organization_id
+  UNION ALL
+  SELECT DISTINCT
+    assigned_roles.workspace_id,
+    NULL::permission_resource,
+    NULL::permission_action,
+    TRUE
+  FROM assigned_roles
+  WHERE assigned_roles.system_role = 'workspace_admin'
+    AND assigned_roles.workspace_id IS NOT NULL
+    AND assigned_roles.immutable
 )
 SELECT
   authority.active,
   authority.superadmin,
-  grants.workspace_id,
-  grants.resource,
-  grants.action
+  access.workspace_id,
+  access.resource,
+  access.action,
+  COALESCE(access.workspace_admin, FALSE) AS workspace_admin
 FROM authority
-LEFT JOIN grants ON TRUE
+LEFT JOIN access ON TRUE
 ORDER BY
-  grants.workspace_id NULLS FIRST,
-  grants.resource,
-  grants.action;
+  access.workspace_id NULLS FIRST,
+  access.resource,
+  access.action;
 
 -- name: GatewayIsActiveOrganizationMember :one
 SELECT EXISTS(
@@ -1734,6 +1792,10 @@ LEFT JOIN apikeys
   AND apikeys.id = audit_events.actor_id
 WHERE audit_events.organization_id = sqlc.arg(organization_id)
   AND audit_events.created_at >= sqlc.arg(retained_after)
+  AND (
+    sqlc.narg(workspace_id)::text IS NULL
+    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+  )
 GROUP BY
   audit_events.actor_type,
   audit_events.actor_id,
@@ -1745,15 +1807,23 @@ ORDER BY COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System'), au
 -- name: GatewayListAuditCategories :many
 SELECT DISTINCT category
 FROM audit_events
-WHERE organization_id = sqlc.arg(organization_id)
-  AND created_at >= sqlc.arg(retained_after)
+WHERE audit_events.organization_id = sqlc.arg(organization_id)
+  AND audit_events.created_at >= sqlc.arg(retained_after)
+  AND (
+    sqlc.narg(workspace_id)::text IS NULL
+    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+  )
 ORDER BY category;
 
 -- name: GatewayListAuditTargetTypes :many
 SELECT DISTINCT target_type
 FROM audit_events
-WHERE organization_id = sqlc.arg(organization_id)
-  AND created_at >= sqlc.arg(retained_after)
+WHERE audit_events.organization_id = sqlc.arg(organization_id)
+  AND audit_events.created_at >= sqlc.arg(retained_after)
+  AND (
+    sqlc.narg(workspace_id)::text IS NULL
+    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+  )
 ORDER BY target_type;
 
 -- name: GatewayListAuditWorkspaces :many
@@ -1768,6 +1838,10 @@ LEFT JOIN workspaces
 WHERE audit_events.organization_id = sqlc.arg(organization_id)
   AND audit_events.workspace_id IS NOT NULL
   AND audit_events.created_at >= sqlc.arg(retained_after)
+  AND (
+    sqlc.narg(workspace_id)::text IS NULL
+    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+  )
 GROUP BY audit_events.workspace_id, workspaces.name, workspaces.slug
 ORDER BY workspaces.name, audit_events.workspace_id;
 

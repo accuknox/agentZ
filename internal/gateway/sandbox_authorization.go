@@ -66,6 +66,9 @@ func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandbox
 		return access, apiErr
 	}
 	access.claims = claims
+	if claims.WorkspaceID != workspaceID {
+		return access, sandboxForbidden(errors.New("selected Workspace does not match bearer claims"))
+	}
 
 	scopes, ok := ctx.Value(gatewayapi.GatewayBearerScopes).([]string)
 	if !ok || len(scopes) != 1 {

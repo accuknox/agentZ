@@ -56,6 +56,7 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 		workspaces = append(workspaces, workspaceView(
 			row.Workspace,
 			row.WorkspaceAdminCount,
+			row.CanAdminister,
 		))
 	}
 
@@ -275,6 +276,21 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
+	projected, err := q.GatewayProjectMemberRoleTransports(
+		r.Context(),
+		gatewaydb.GatewayProjectMemberRoleTransportsParams{
+			MemberIds:      req.AdminMemberIds,
+			OrganizationID: claims.TenantID,
+		},
+	)
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("project Workspace Admin roles: %w", err))
+		return
+	}
+	if projected != assigned {
+		writeInternalError(w, r, errors.New("projected Workspace Admin count changed"))
+		return
+	}
 	err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
 		request:        r,
 		organizationID: claims.TenantID,
@@ -321,7 +337,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(w, http.StatusCreated, workspaceView(row, int64(len(req.AdminMemberIds))))
+	writeJSON(w, http.StatusCreated, workspaceView(row, int64(len(req.AdminMemberIds)), true))
 }
 
 // GetWorkspace handles GET /api/workspace/{workspaceId}.
@@ -341,6 +357,7 @@ func (s *Service) GetWorkspace(w http.ResponseWriter, r *http.Request, workspace
 			writeJSON(w, http.StatusOK, workspaceView(
 				row.Workspace,
 				row.WorkspaceAdminCount,
+				row.CanAdminister,
 			))
 			return
 		}
@@ -381,6 +398,7 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 			writeJSON(w, http.StatusOK, workspaceView(
 				row.Workspace,
 				row.WorkspaceAdminCount,
+				row.CanAdminister,
 			))
 			return
 		}
@@ -555,6 +573,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 			writeJSON(w, http.StatusOK, workspaceView(
 				current,
 				row.WorkspaceAdminCount,
+				row.CanAdminister,
 			))
 			return
 		}
@@ -777,9 +796,9 @@ func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]
 	return rows, superadmin, member, nil
 }
 
-func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64) gatewayapi.Workspace {
+func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdminister bool) gatewayapi.Workspace {
 	view := gatewayapi.Workspace{
-		CanAdminister:       true,
+		CanAdminister:       canAdminister,
 		CreatedAt:           row.CreatedAt.Time,
 		Id:                  row.ID,
 		Name:                row.Name,

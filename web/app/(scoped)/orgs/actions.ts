@@ -7,9 +7,13 @@ import { z } from "zod"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
 import {
   assignOrganizationRoleUsers,
+  assignWorkspaceRoleUsers,
   deleteOrganizationRole,
+  deleteWorkspaceRole,
   previewOrganizationRole,
+  previewWorkspaceRole,
   saveOrganizationRole,
+  saveWorkspaceRole,
 } from "@/data/roles"
 import { provisionWorkspace, retryWorkspaceProvisioning } from "@/data/workspaces"
 import { schema } from "@/db"
@@ -295,4 +299,142 @@ export async function deleteOrganizationRoleAction(
   updateTag(`organization:${result.organizationId}:roles`)
   revalidatePath(`/orgs/${orgSlug}/roles`)
   redirect(`/orgs/${orgSlug}/roles` as Route)
+}
+
+export async function workspaceRoleFormAction(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId: string | undefined,
+  _state: RoleFormState,
+  formData: FormData
+): Promise<RoleFormState> {
+  let rawGrants: unknown
+  try {
+    rawGrants = JSON.parse(String(formData.get("grants") ?? "[]"))
+  } catch {
+    return { error: "The Permission Grant payload is invalid. Refresh and try again." }
+  }
+
+  const parsed = roleFormSchema.safeParse({
+    name: formData.get("name"),
+    grants: rawGrants,
+    updatedAt: formData.get("updated_at") || undefined,
+  })
+  if (!parsed.success) {
+    return { errors: { name: z.flattenError(parsed.error).fieldErrors.name } }
+  }
+
+  if (formData.get("intent") === "preview") {
+    const previewInput = JSON.stringify(parsed.data)
+    if (!roleId || !parsed.data.updatedAt) {
+      return { preview: { fingerprint: "", input: previewInput, items: [], reduction: false } }
+    }
+    const preview = await previewWorkspaceRole(
+      orgSlug,
+      workspaceSlug,
+      roleId,
+      parsed.data.name,
+      parsed.data.grants,
+      parsed.data.updatedAt
+    )
+    if ("error" in preview) {
+      return {
+        error:
+          preview.error === "stale"
+            ? "This Role changed while you were editing. Refresh before reviewing impact."
+            : "The impact preview is unavailable. Refresh and try again.",
+      }
+    }
+    return {
+      preview: {
+        fingerprint: preview.fingerprint,
+        input: previewInput,
+        items: preview.items,
+        reduction: preview.reduction,
+      },
+    }
+  }
+
+  const result = await saveWorkspaceRole(orgSlug, workspaceSlug, roleId, {
+    name: parsed.data.name,
+    grants: parsed.data.grants,
+    updatedAt: parsed.data.updatedAt,
+    previewFingerprint: String(formData.get("preview_fingerprint") ?? ""),
+  })
+  if ("error" in result) {
+    if (result.error === "name-taken") {
+      return { errors: { name: ["A Role with this name already exists in this Workspace."] } }
+    }
+    if (result.error === "preview-required") {
+      return { error: "Review the access impact before saving this reduction." }
+    }
+    if (result.error === "stale") {
+      return { error: "This Role changed while you were editing. Refresh and try again." }
+    }
+    if (result.error === "immutable") {
+      return { error: "Built-in Roles are read-only." }
+    }
+    return { error: "You no longer have permission to save this Workspace Role." }
+  }
+
+  updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
+  updateTag(
+    `organization:${result.organizationId}:workspace:${result.workspaceId}:role:${result.roleId}`
+  )
+  revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
+  redirect(
+    `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles/${result.roleId}/permissions` as Route
+  )
+}
+
+export async function assignWorkspaceRoleUsersAction(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId: string,
+  _state: RoleAssignmentFormState,
+  formData: FormData
+): Promise<RoleAssignmentFormState> {
+  const parsed = z.array(z.string().min(1)).max(1_000).safeParse(formData.getAll("member_ids"))
+  if (!parsed.success) {
+    return { error: "The selected Users are invalid." }
+  }
+  const result = await assignWorkspaceRoleUsers(orgSlug, workspaceSlug, roleId, parsed.data)
+  if ("error" in result) {
+    return {
+      error:
+        result.error === "final-workspace-admin"
+          ? "At least one active Workspace Admin is required."
+          : "The Workspace Role assignments could not be saved.",
+    }
+  }
+
+  updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
+  updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:role:${roleId}`)
+  revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
+  return { saved: true }
+}
+
+export async function deleteWorkspaceRoleAction(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId: string,
+  _state: DeleteRoleFormState,
+  _formData: FormData
+): Promise<DeleteRoleFormState> {
+  const result = await deleteWorkspaceRole(orgSlug, workspaceSlug, roleId)
+  if ("error" in result) {
+    return {
+      error:
+        result.error === "referenced"
+          ? "Remove every Role reference before deleting it."
+          : result.error === "immutable"
+            ? "Built-in Roles cannot be deleted."
+            : "The Workspace Role could not be deleted.",
+      references: result.references,
+    }
+  }
+
+  updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
+  revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
+  redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles` as Route)
 }

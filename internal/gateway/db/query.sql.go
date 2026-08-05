@@ -2002,7 +2002,12 @@ func (q *Queries) GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAP
 
 const gatewayListAccessibleWorkspaces = `-- name: GatewayListAccessibleWorkspaces :many
 WITH actor_roles AS (
-  SELECT role_scopes.workspace_id, role_scopes.system_role
+  SELECT
+    role_scopes.role_id,
+    role_scopes.organization_id,
+    role_scopes.workspace_id,
+    role_scopes.system_role,
+    role_scopes.immutable
   FROM members
   JOIN member_roles
     ON member_roles.member_id = members.id
@@ -2013,8 +2018,6 @@ WITH actor_roles AS (
   WHERE members.user_id = $2
     AND members.organization_id = $1
     AND members.disabled_at IS NULL
-    AND role_scopes.system_role IN ('superadmin', 'workspace_admin')
-    AND role_scopes.immutable
 )
 SELECT
   workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt,
@@ -2032,7 +2035,21 @@ SELECT
       AND workspace_admin_role.workspace_id = workspaces.id
       AND workspace_admin_role.system_role = 'workspace_admin'
       AND workspace_admin_role.immutable
-  ) AS workspace_admin_count
+  ) AS workspace_admin_count,
+  EXISTS (
+    SELECT 1
+    FROM actor_roles
+    WHERE actor_roles.immutable
+      AND (
+        (
+          actor_roles.system_role = 'superadmin'
+          AND actor_roles.workspace_id IS NULL
+        ) OR (
+          actor_roles.system_role = 'workspace_admin'
+          AND actor_roles.workspace_id = workspaces.id
+        )
+      )
+  ) AS can_administer
 FROM workspaces
 WHERE workspaces.organization_id = $1
   AND workspaces.deleted_at IS NULL
@@ -2040,12 +2057,20 @@ WHERE workspaces.organization_id = $1
     SELECT 1
     FROM actor_roles
     WHERE (
-      actor_roles.system_role = 'superadmin'
-      AND actor_roles.workspace_id IS NULL
-    ) OR (
-      actor_roles.system_role = 'workspace_admin'
-      AND actor_roles.workspace_id = workspaces.id
-    )
+        actor_roles.immutable
+        AND actor_roles.system_role = 'superadmin'
+        AND actor_roles.workspace_id IS NULL
+      ) OR (
+        actor_roles.immutable
+        AND actor_roles.system_role = 'workspace_admin'
+        AND actor_roles.workspace_id = workspaces.id
+      ) OR EXISTS (
+        SELECT 1
+        FROM permission_grants
+        WHERE permission_grants.role_id = actor_roles.role_id
+          AND permission_grants.organization_id = actor_roles.organization_id
+          AND permission_grants.workspace_id = workspaces.id
+      )
   )
 ORDER BY workspaces.name, workspaces.id
 `
@@ -2058,6 +2083,7 @@ type GatewayListAccessibleWorkspacesParams struct {
 type GatewayListAccessibleWorkspacesRow struct {
 	Workspace           Workspace `json:"workspace"`
 	WorkspaceAdminCount int64     `json:"workspace_admin_count"`
+	CanAdminister       bool      `json:"can_administer"`
 }
 
 func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg GatewayListAccessibleWorkspacesParams) ([]GatewayListAccessibleWorkspacesRow, error) {
@@ -2082,6 +2108,7 @@ func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg Gatew
 			&i.Workspace.UpdatedAt,
 			&i.Workspace.ProvisioningAttempt,
 			&i.WorkspaceAdminCount,
+			&i.CanAdminister,
 		); err != nil {
 			return nil, err
 		}
@@ -2281,6 +2308,10 @@ LEFT JOIN apikeys
   AND apikeys.id = audit_events.actor_id
 WHERE audit_events.organization_id = $1
   AND audit_events.created_at >= $2
+  AND (
+    $3::text IS NULL
+    OR audit_events.workspace_id = $3::text
+  )
 GROUP BY
   audit_events.actor_type,
   audit_events.actor_id,
@@ -2293,6 +2324,7 @@ ORDER BY COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System'), au
 type GatewayListAuditActorsParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
 type GatewayListAuditActorsRow struct {
@@ -2303,7 +2335,7 @@ type GatewayListAuditActorsRow struct {
 }
 
 func (q *Queries) GatewayListAuditActors(ctx context.Context, arg GatewayListAuditActorsParams) ([]GatewayListAuditActorsRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditActors, arg.OrganizationID, arg.RetainedAfter)
+	rows, err := q.db.Query(ctx, gatewayListAuditActors, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -2330,18 +2362,23 @@ func (q *Queries) GatewayListAuditActors(ctx context.Context, arg GatewayListAud
 const gatewayListAuditCategories = `-- name: GatewayListAuditCategories :many
 SELECT DISTINCT category
 FROM audit_events
-WHERE organization_id = $1
-  AND created_at >= $2
+WHERE audit_events.organization_id = $1
+  AND audit_events.created_at >= $2
+  AND (
+    $3::text IS NULL
+    OR audit_events.workspace_id = $3::text
+  )
 ORDER BY category
 `
 
 type GatewayListAuditCategoriesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
 func (q *Queries) GatewayListAuditCategories(ctx context.Context, arg GatewayListAuditCategoriesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditCategories, arg.OrganizationID, arg.RetainedAfter)
+	rows, err := q.db.Query(ctx, gatewayListAuditCategories, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -2589,18 +2626,23 @@ func (q *Queries) GatewayListAuditEvents(ctx context.Context, arg GatewayListAud
 const gatewayListAuditTargetTypes = `-- name: GatewayListAuditTargetTypes :many
 SELECT DISTINCT target_type
 FROM audit_events
-WHERE organization_id = $1
-  AND created_at >= $2
+WHERE audit_events.organization_id = $1
+  AND audit_events.created_at >= $2
+  AND (
+    $3::text IS NULL
+    OR audit_events.workspace_id = $3::text
+  )
 ORDER BY target_type
 `
 
 type GatewayListAuditTargetTypesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
 func (q *Queries) GatewayListAuditTargetTypes(ctx context.Context, arg GatewayListAuditTargetTypesParams) ([]AuditTarget, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditTargetTypes, arg.OrganizationID, arg.RetainedAfter)
+	rows, err := q.db.Query(ctx, gatewayListAuditTargetTypes, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -2631,6 +2673,10 @@ LEFT JOIN workspaces
 WHERE audit_events.organization_id = $1
   AND audit_events.workspace_id IS NOT NULL
   AND audit_events.created_at >= $2
+  AND (
+    $3::text IS NULL
+    OR audit_events.workspace_id = $3::text
+  )
 GROUP BY audit_events.workspace_id, workspaces.name, workspaces.slug
 ORDER BY workspaces.name, audit_events.workspace_id
 `
@@ -2638,6 +2684,7 @@ ORDER BY workspaces.name, audit_events.workspace_id
 type GatewayListAuditWorkspacesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
 type GatewayListAuditWorkspacesRow struct {
@@ -2647,7 +2694,7 @@ type GatewayListAuditWorkspacesRow struct {
 }
 
 func (q *Queries) GatewayListAuditWorkspaces(ctx context.Context, arg GatewayListAuditWorkspacesParams) ([]GatewayListAuditWorkspacesRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditWorkspaces, arg.OrganizationID, arg.RetainedAfter)
+	rows, err := q.db.Query(ctx, gatewayListAuditWorkspaces, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -4120,6 +4167,34 @@ func (q *Queries) GatewayLockOrganization(ctx context.Context, organizationID st
 	return i, err
 }
 
+const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
+UPDATE members
+SET role = COALESCE((
+  SELECT string_agg(organization_roles.role, ',' ORDER BY organization_roles.role)
+  FROM member_roles
+  JOIN organization_roles
+    ON organization_roles.id = member_roles.role_id
+    AND organization_roles.organization_id = member_roles.organization_id
+  WHERE member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+), 'member')
+WHERE members.id = ANY($1::text[])
+  AND members.organization_id = $2
+`
+
+type GatewayProjectMemberRoleTransportsParams struct {
+	MemberIds      []string `json:"member_ids"`
+	OrganizationID string   `json:"organization_id"`
+}
+
+func (q *Queries) GatewayProjectMemberRoleTransports(ctx context.Context, arg GatewayProjectMemberRoleTransportsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayProjectMemberRoleTransports, arg.MemberIds, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayRemoveAgentShareGrant = `-- name: GatewayRemoveAgentShareGrant :execrows
 DELETE FROM agent_share_grants
 USING agent_shares
@@ -4316,28 +4391,40 @@ WITH actor AS (
         AND workspace_id IS NULL
         AND immutable
     ) AS superadmin
-), grants AS (
+), access AS (
   SELECT DISTINCT
     permission_grants.workspace_id,
     permission_grants.resource,
-    permission_grants.action
+    permission_grants.action,
+    FALSE AS workspace_admin
   FROM assigned_roles
   JOIN permission_grants
     ON permission_grants.role_id = assigned_roles.role_id
     AND permission_grants.organization_id = assigned_roles.organization_id
+  UNION ALL
+  SELECT DISTINCT
+    assigned_roles.workspace_id,
+    NULL::permission_resource,
+    NULL::permission_action,
+    TRUE
+  FROM assigned_roles
+  WHERE assigned_roles.system_role = 'workspace_admin'
+    AND assigned_roles.workspace_id IS NOT NULL
+    AND assigned_roles.immutable
 )
 SELECT
   authority.active,
   authority.superadmin,
-  grants.workspace_id,
-  grants.resource,
-  grants.action
+  access.workspace_id,
+  access.resource,
+  access.action,
+  COALESCE(access.workspace_admin, FALSE) AS workspace_admin
 FROM authority
-LEFT JOIN grants ON TRUE
+LEFT JOIN access ON TRUE
 ORDER BY
-  grants.workspace_id NULLS FIRST,
-  grants.resource,
-  grants.action
+  access.workspace_id NULLS FIRST,
+  access.resource,
+  access.action
 `
 
 type GatewayResolveDirectPermissionsParams struct {
@@ -4346,11 +4433,12 @@ type GatewayResolveDirectPermissionsParams struct {
 }
 
 type GatewayResolveDirectPermissionsRow struct {
-	Active      bool                   `json:"active"`
-	Superadmin  bool                   `json:"superadmin"`
-	WorkspaceID pgtype.Text            `json:"workspace_id"`
-	Resource    NullPermissionResource `json:"resource"`
-	Action      NullPermissionAction   `json:"action"`
+	Active         bool                   `json:"active"`
+	Superadmin     bool                   `json:"superadmin"`
+	WorkspaceID    pgtype.Text            `json:"workspace_id"`
+	Resource       NullPermissionResource `json:"resource"`
+	Action         NullPermissionAction   `json:"action"`
+	WorkspaceAdmin bool                   `json:"workspace_admin"`
 }
 
 func (q *Queries) GatewayResolveDirectPermissions(ctx context.Context, arg GatewayResolveDirectPermissionsParams) ([]GatewayResolveDirectPermissionsRow, error) {
@@ -4368,6 +4456,7 @@ func (q *Queries) GatewayResolveDirectPermissions(ctx context.Context, arg Gatew
 			&i.WorkspaceID,
 			&i.Resource,
 			&i.Action,
+			&i.WorkspaceAdmin,
 		); err != nil {
 			return nil, err
 		}
@@ -4425,14 +4514,21 @@ WHERE workspace_slug_history.organization_id = $1
     WHERE members.user_id = $3
       AND members.organization_id = workspaces.organization_id
       AND members.disabled_at IS NULL
-      AND role_scopes.immutable
       AND (
         (
-          role_scopes.system_role = 'superadmin'
+          role_scopes.immutable
+          AND role_scopes.system_role = 'superadmin'
           AND role_scopes.workspace_id IS NULL
         ) OR (
-          role_scopes.system_role = 'workspace_admin'
+          role_scopes.immutable
+          AND role_scopes.system_role = 'workspace_admin'
           AND role_scopes.workspace_id = workspaces.id
+        ) OR EXISTS (
+          SELECT 1
+          FROM permission_grants
+          WHERE permission_grants.role_id = member_roles.role_id
+            AND permission_grants.organization_id = member_roles.organization_id
+            AND permission_grants.workspace_id = workspaces.id
         )
       )
   )

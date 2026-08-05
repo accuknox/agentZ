@@ -67,9 +67,10 @@ func New(queries Queries) *Resolver {
 
 // Effective is an immutable snapshot of one Subject's effective permissions.
 type Effective struct {
-	organizationID string
-	superadmin     bool
-	grants         map[grantKey]struct{}
+	organizationID  string
+	superadmin      bool
+	workspaceAdmins map[string]struct{}
+	grants          map[grantKey]struct{}
 }
 
 type grantKey struct {
@@ -82,8 +83,9 @@ type grantKey struct {
 // Missing and disabled Memberships resolve to no permissions.
 func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, error) {
 	effective := Effective{
-		organizationID: subject.OrganizationID,
-		grants:         map[grantKey]struct{}{},
+		organizationID:  subject.OrganizationID,
+		workspaceAdmins: map[string]struct{}{},
+		grants:          map[grantKey]struct{}{},
 	}
 
 	rows, err := r.queries.GatewayResolveDirectPermissions(
@@ -106,6 +108,9 @@ func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, err
 	}
 
 	for _, row := range rows {
+		if row.WorkspaceAdmin && row.WorkspaceID.Valid {
+			effective.workspaceAdmins[row.WorkspaceID.String] = struct{}{}
+		}
 		if !row.Resource.Valid || !row.Action.Valid {
 			continue
 		}
@@ -125,7 +130,7 @@ func (e Effective) Allows(scope Scope, operation Operation) bool {
 	if !mapped || scope.OrganizationID != e.organizationID {
 		return false
 	}
-	if e.superadmin {
+	if e.CanAdminister(scope) {
 		return true
 	}
 
@@ -135,6 +140,21 @@ func (e Effective) Allows(scope Scope, operation Operation) bool {
 		action:      action,
 	}]
 	return allowed
+}
+
+// CanAdminister reports whether a built-in role bypass applies to the exact scope.
+func (e Effective) CanAdminister(scope Scope) bool {
+	if scope.OrganizationID != e.organizationID {
+		return false
+	}
+	if e.superadmin {
+		return true
+	}
+	if scope.WorkspaceID == "" {
+		return false
+	}
+	_, ok := e.workspaceAdmins[scope.WorkspaceID]
+	return ok
 }
 
 func operationPermission(operation Operation) (gatewaydb.PermissionResource, gatewaydb.PermissionAction, bool) {

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react"
 import { CircleAlert, CircleCheck } from "lucide-react"
 import {
   assignOrganizationRoleUsersAction,
+  assignWorkspaceRoleUsersAction,
   type RoleAssignmentFormState,
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -35,16 +36,20 @@ export function RoleAssignments({
   orgSlug,
   roleId,
   users,
+  workspaceSlug,
 }: {
   immutable: boolean
   name: string
   orgSlug: string
   roleId: string
   users: RoleUser[]
+  workspaceSlug?: string
 }) {
   const baseline = users.filter((user) => user.assigned).map((user) => user.memberId)
   const [selected, setSelected] = useState(baseline)
-  const action = assignOrganizationRoleUsersAction.bind(null, orgSlug, roleId)
+  const action = workspaceSlug
+    ? assignWorkspaceRoleUsersAction.bind(null, orgSlug, workspaceSlug, roleId)
+    : assignOrganizationRoleUsersAction.bind(null, orgSlug, roleId)
   const [state, formAction, pending] = useActionState<RoleAssignmentFormState, FormData>(action, {})
   const changed =
     selected.some((memberId) => !baseline.includes(memberId)) ||
@@ -77,8 +82,8 @@ export function RoleAssignments({
             <h3>User assignments</h3>
           </CardTitle>
           <CardDescription>
-            Assign {name} directly to active Organisation Members. Permissions never attach directly
-            to a User.
+            Assign {name} directly to active {workspaceSlug ? "Workspace" : "Organisation"} Members.
+            Permissions never attach directly to a User.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto px-0">

@@ -89,6 +89,7 @@ type Querier interface {
 	GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]GatewayListTracesRow, error)
 	GatewayListWorkspaceAdminCandidates(ctx context.Context, arg GatewayListWorkspaceAdminCandidatesParams) ([]GatewayListWorkspaceAdminCandidatesRow, error)
 	GatewayLockOrganization(ctx context.Context, organizationID string) (GatewayLockOrganizationRow, error)
+	GatewayProjectMemberRoleTransports(ctx context.Context, arg GatewayProjectMemberRoleTransportsParams) (int64, error)
 	GatewayRemoveAgentShareGrant(ctx context.Context, arg GatewayRemoveAgentShareGrantParams) (int64, error)
 	GatewayRemoveSocialAdmissionDefaultRole(ctx context.Context, arg GatewayRemoveSocialAdmissionDefaultRoleParams) (int64, error)
 	GatewayRemoveSocialAdmissionDefaultTeam(ctx context.Context, arg GatewayRemoveSocialAdmissionDefaultTeamParams) (int64, error)

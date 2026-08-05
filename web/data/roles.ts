@@ -10,6 +10,7 @@ import { getAuth } from "@/lib/auth"
 
 export type RoleResource = typeof schema.permissionGrants.$inferSelect.resource
 export type RoleAction = typeof schema.permissionGrants.$inferSelect.action
+type AuditResult = typeof schema.auditEvents.$inferInsert.result
 
 export type RoleGrantInput = {
   workspaceId: string | null
@@ -126,6 +127,11 @@ export type RoleEditorData = {
   role?: OrganizationRoleDetail
 }
 
+export type WorkspaceRoleEditorData = RoleEditorData & {
+  workspace: RoleWorkspace & { slug: string }
+  superadmin: boolean
+}
+
 export type RoleDependency = {
   resource: RoleResource
   action: RoleAction
@@ -143,6 +149,11 @@ type RoleActor = {
   organization: { id: string; name: string; slug: string }
   requestHeaders: Headers
   userId: string
+}
+
+type WorkspaceRoleActor = RoleActor & {
+  superadmin: boolean
+  workspace: RoleWorkspace & { slug: string }
 }
 
 function grantKey(grant: RoleGrantInput) {
@@ -211,11 +222,13 @@ function requiredGrants(grant: RoleGrantInput): RoleGrantInput[] {
 export function expandPermissionGrants(inputs: RoleGrantInput[]): RoleGrant[] {
   const direct = new Map(inputs.map((grant) => [grantKey(grant), grant]))
   const expanded = new Map(direct)
+  const implied = new Set<string>()
   const pending = [...direct.values()]
 
   for (const grant of pending) {
     for (const requirement of requiredGrants(grant)) {
       const key = grantKey(requirement)
+      implied.add(key)
       if (!expanded.has(key)) {
         expanded.set(key, requirement)
         pending.push(requirement)
@@ -224,7 +237,7 @@ export function expandPermissionGrants(inputs: RoleGrantInput[]): RoleGrant[] {
   }
 
   return [...expanded.entries()]
-    .map(([key, grant]) => ({ ...grant, locked: !direct.has(key) }))
+    .map(([key, grant]) => ({ ...grant, locked: implied.has(key) }))
     .sort((left, right) => grantKey(left).localeCompare(grantKey(right)))
 }
 
@@ -273,6 +286,46 @@ async function getRoleActor(orgSlug: string): Promise<RoleActor | undefined> {
   }
 }
 
+async function auditRoleMutation(
+  actor: RoleActor,
+  action: string,
+  targetId: string,
+  result: AuditResult,
+  workspaceId?: string
+) {
+  await getDB()
+    .insert(schema.auditEvents)
+    .values({
+      actorId: actor.userId,
+      actorType: "user",
+      action,
+      automaticCascade: false,
+      category: "role",
+      id: `audit-${randomUUID()}`,
+      interface: "web",
+      ipAddress: getIp(actor.requestHeaders, getAuth().options),
+      organizationId: actor.organization.id,
+      result,
+      targetId,
+      targetType: "role",
+      userAgent: actor.requestHeaders.get("user-agent"),
+      workspaceId,
+    })
+}
+
+async function getDeniedRoleActor(orgSlug: string): Promise<RoleActor | undefined> {
+  const scope = await resolveOrganizationSlug(orgSlug)
+  if (scope.kind !== "ready") {
+    return
+  }
+
+  return {
+    organization: scope.organization,
+    requestHeaders: scope.organizationSession.requestHeaders,
+    userId: scope.organizationSession.session.user.id,
+  }
+}
+
 async function isCurrentSuperadmin(organizationId: string, userId: string) {
   const [row] = await getDB()
     .select({ memberId: schema.members.id })
@@ -306,7 +359,9 @@ async function isCurrentSuperadmin(organizationId: string, userId: string) {
 }
 
 async function validateGrantScopes(organizationId: string, grants: RoleGrantInput[]) {
-  const workspaceIds = [...new Set(grants.flatMap((grant) => grant.workspaceId ?? []))]
+  const workspaceIds = [
+    ...new Set(grants.flatMap(({ workspaceId }) => (workspaceId === null ? [] : [workspaceId]))),
+  ]
   const workspaces = workspaceIds.length
     ? await getDB()
         .select({ id: schema.workspaces.id })
@@ -340,16 +395,272 @@ async function validateGrantScopes(organizationId: string, grants: RoleGrantInpu
 export async function listOrganizationRoles(orgSlug: string) {
   "use cache: private"
   cacheLife({ stale: 30 })
+  const scope = await resolveRoleManagement(orgSlug)
+  if (!scope) return
+  cacheTag(
+    `organization:${scope.actor.organization.id}:roles`,
+    `organization:${scope.actor.organization.id}:user:${scope.actor.userId}:roles`
+  )
+  return { organization: scope.actor.organization, roles: await listRoles(scope) }
+}
+
+export async function getRoleEditorData(
+  orgSlug: string,
+  roleId?: string
+): Promise<RoleEditorData | undefined> {
+  "use cache: private"
+  cacheLife({ stale: 30 })
+  const scope = await resolveRoleManagement(orgSlug)
+  if (!scope) return
+  cacheTag(
+    `organization:${scope.actor.organization.id}:roles`,
+    `organization:${scope.actor.organization.id}:user:${scope.actor.userId}:roles`,
+    ...(roleId ? [`organization:${scope.actor.organization.id}:role:${roleId}`] : [])
+  )
+  return loadRoleEditor(scope, roleId)
+}
+
+export async function previewOrganizationRole(
+  orgSlug: string,
+  roleId: string,
+  name: string,
+  inputs: RoleGrantInput[],
+  updatedAt: string
+): Promise<RoleImpact | { error: "forbidden" | "invalid" | "not-found" | "stale" }> {
+  const scope = await resolveRoleManagement(orgSlug)
+  return scope ? previewRole(scope, roleId, name, inputs, updatedAt) : { error: "forbidden" }
+}
+
+export async function saveOrganizationRole(
+  orgSlug: string,
+  roleId: string | undefined,
+  input: { name: string; grants: RoleGrantInput[]; updatedAt?: string; previewFingerprint?: string }
+) {
+  const scope = await resolveRoleManagement(orgSlug)
+  if (scope) return saveRole(scope, roleId, input)
+  const denied = await getDeniedRoleActor(orgSlug)
+  if (denied) {
+    await auditRoleMutation(
+      denied,
+      roleId ? "role.update" : "role.create",
+      roleId ?? "new",
+      "denied"
+    )
+  }
+  return { error: "forbidden" as const }
+}
+
+export async function getOrganizationRoleUsers(orgSlug: string, roleId: string) {
+  "use cache: private"
+  cacheLife({ stale: 30 })
+  const scope = await resolveRoleManagement(orgSlug)
+  return scope ? loadRoleUsers(scope, roleId) : undefined
+}
+
+export async function assignOrganizationRoleUsers(
+  orgSlug: string,
+  roleId: string,
+  memberIds: string[]
+) {
+  const scope = await resolveRoleManagement(orgSlug)
+  if (scope) return assignRoleUsers(scope, roleId, memberIds)
+  const denied = await getDeniedRoleActor(orgSlug)
+  if (denied) await auditRoleMutation(denied, "role.assign", roleId, "denied")
+  return { error: "forbidden" }
+}
+
+export async function deleteOrganizationRole(orgSlug: string, roleId: string) {
+  const scope = await resolveRoleManagement(orgSlug)
+  if (scope) return removeRole(scope, roleId)
+  const denied = await getDeniedRoleActor(orgSlug)
+  if (denied) await auditRoleMutation(denied, "role.delete", roleId, "denied")
+  return { error: "forbidden" }
+}
+
+async function getWorkspaceRoleActor(
+  orgSlug: string,
+  workspaceSlug: string
+): Promise<WorkspaceRoleActor | undefined> {
+  const scope = await resolveOrganizationSlug(orgSlug)
+  if (scope.kind !== "ready") {
+    return
+  }
+
+  let [workspace] = await getDB()
+    .select({
+      id: schema.workspaces.id,
+      name: schema.workspaces.name,
+      slug: schema.workspaces.slug,
+    })
+    .from(schema.workspaces)
+    .where(
+      and(
+        eq(schema.workspaces.organizationId, scope.organization.id),
+        eq(schema.workspaces.slug, workspaceSlug),
+        isNull(schema.workspaces.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!workspace) {
+    ;[workspace] = await getDB()
+      .select({
+        id: schema.workspaces.id,
+        name: schema.workspaces.name,
+        slug: schema.workspaces.slug,
+      })
+      .from(schema.workspaceSlugHistory)
+      .innerJoin(
+        schema.workspaces,
+        and(
+          eq(schema.workspaces.id, schema.workspaceSlugHistory.workspaceId),
+          eq(schema.workspaces.organizationId, schema.workspaceSlugHistory.organizationId)
+        )
+      )
+      .where(
+        and(
+          eq(schema.workspaceSlugHistory.organizationId, scope.organization.id),
+          eq(schema.workspaceSlugHistory.slug, workspaceSlug),
+          isNull(schema.workspaces.deletedAt)
+        )
+      )
+      .limit(1)
+  }
+  if (!workspace) {
+    return
+  }
+
+  const [authority] = await getDB()
+    .select({ systemRole: schema.roleScopes.systemRole })
+    .from(schema.members)
+    .innerJoin(
+      schema.memberRoles,
+      and(
+        eq(schema.memberRoles.memberId, schema.members.id),
+        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.roleScopes,
+      and(
+        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.members.organizationId, scope.organization.id),
+        eq(schema.members.userId, scope.organizationSession.session.user.id),
+        isNull(schema.members.disabledAt),
+        eq(schema.roleScopes.immutable, true),
+        sql`(
+          (${schema.roleScopes.systemRole} = 'superadmin' AND
+            ${schema.roleScopes.workspaceId} IS NULL) OR
+          (${schema.roleScopes.systemRole} = 'workspace_admin' AND
+            ${schema.roleScopes.workspaceId} = ${workspace.id})
+        )`
+      )
+    )
+    .orderBy(sql`${schema.roleScopes.systemRole} = 'superadmin' DESC`)
+    .limit(1)
+  if (!authority) {
+    return
+  }
+
+  return {
+    organization: scope.organization,
+    requestHeaders: scope.organizationSession.requestHeaders,
+    superadmin: authority.systemRole === "superadmin",
+    userId: scope.organizationSession.session.user.id,
+    workspace,
+  }
+}
+
+async function getDeniedWorkspaceRoleActor(
+  orgSlug: string,
+  workspaceSlug: string
+): Promise<WorkspaceRoleActor | undefined> {
+  const actor = await getDeniedRoleActor(orgSlug)
+  if (!actor) {
+    return
+  }
+  const [workspace] = await getDB()
+    .select({
+      id: schema.workspaces.id,
+      name: schema.workspaces.name,
+      slug: schema.workspaces.slug,
+    })
+    .from(schema.workspaces)
+    .where(
+      and(
+        eq(schema.workspaces.organizationId, actor.organization.id),
+        isNull(schema.workspaces.deletedAt),
+        sql`(
+          ${schema.workspaces.slug} = ${workspaceSlug} OR EXISTS (
+            SELECT 1 FROM workspace_slug_history
+            WHERE workspace_slug_history.organization_id = ${actor.organization.id}
+              AND workspace_slug_history.workspace_id = ${schema.workspaces.id}
+              AND workspace_slug_history.slug = ${workspaceSlug}
+          )
+        )`
+      )
+    )
+    .limit(1)
+  if (!workspace) {
+    return
+  }
+
+  return { ...actor, superadmin: false, workspace }
+}
+
+function validWorkspaceGrants(workspaceId: string, grants: RoleGrantInput[]) {
+  return grants.every((grant) => {
+    if (grant.workspaceId !== workspaceId) {
+      return false
+    }
+    if (grant.resource === "agent") {
+      return agentCapabilityCatalog.some(({ action }) => action === grant.action)
+    }
+    const resource = roleResourceCatalog.find((candidate) => candidate.resource === grant.resource)
+    return Boolean(resource?.workspace && resource.actions.includes(grant.action))
+  })
+}
+
+type RoleManagement = {
+  actor: RoleActor
+  superadmin: boolean
+  workspace: (RoleWorkspace & { slug: string }) | null
+}
+
+async function resolveRoleManagement(orgSlug: string, workspaceSlug?: string) {
+  if (workspaceSlug) {
+    const actor = await getWorkspaceRoleActor(orgSlug, workspaceSlug)
+    return actor ? { actor, superadmin: actor.superadmin, workspace: actor.workspace } : undefined
+  }
 
   const actor = await getRoleActor(orgSlug)
   if (!actor || !(await isCurrentSuperadmin(actor.organization.id, actor.userId))) {
     return
   }
-  cacheTag(
-    `organization:${actor.organization.id}:roles`,
-    `organization:${actor.organization.id}:user:${actor.userId}:roles`
-  )
+  return { actor, superadmin: true, workspace: null }
+}
 
+function roleScope(scope: RoleManagement) {
+  return and(
+    eq(schema.roleScopes.organizationId, scope.actor.organization.id),
+    scope.workspace
+      ? eq(schema.roleScopes.workspaceId, scope.workspace.id)
+      : isNull(schema.roleScopes.workspaceId)
+  )
+}
+
+function grantScope(scope: RoleManagement) {
+  return and(
+    eq(schema.permissionGrants.organizationId, scope.actor.organization.id),
+    scope.workspace ? eq(schema.permissionGrants.workspaceId, scope.workspace.id) : undefined
+  )
+}
+
+async function listRoles(scope: RoleManagement) {
   const rows = await getDB()
     .select({
       id: schema.roleScopes.roleId,
@@ -369,92 +680,68 @@ export async function listOrganizationRoles(orgSlug: string) {
       )`,
     })
     .from(schema.roleScopes)
-    .where(
-      and(
-        eq(schema.roleScopes.organizationId, actor.organization.id),
-        isNull(schema.roleScopes.workspaceId)
-      )
-    )
+    .where(roleScope(scope))
     .orderBy(asc(schema.roleScopes.systemRole), asc(schema.roleScopes.displayName))
-  const grants = rows.length
+  const stored = rows.length
     ? await getDB()
         .select()
         .from(schema.permissionGrants)
         .where(
           and(
-            eq(schema.permissionGrants.organizationId, actor.organization.id),
+            grantScope(scope),
             inArray(
               schema.permissionGrants.roleId,
-              rows.map((row) => row.id)
+              rows.map(({ id }) => id)
             )
           )
         )
     : []
 
-  const roles: OrganizationRoleSummary[] = rows.map((row) => {
-    const roleGrants = grants.filter((grant) => grant.roleId === row.id)
+  return rows.map((row): OrganizationRoleSummary => {
+    const roleGrants = stored.filter(({ roleId }) => roleId === row.id)
     const expected = expandPermissionGrants(
       roleGrants
-        .filter((grant) => !grant.locked)
-        .map(({ workspaceId, resource, action }) => ({
-          workspaceId,
-          resource,
-          action,
-        }))
+        .filter(({ locked }) => !locked)
+        .map(({ workspaceId, resource, action }) => ({ workspaceId, resource, action }))
     )
     const expanded =
       expected.length === roleGrants.length &&
       expected.every((grant) =>
         roleGrants.some(
-          (stored) => grantKey(stored) === grantKey(grant) && stored.locked === grant.locked
+          (candidate) =>
+            grantKey(candidate) === grantKey(grant) && candidate.locked === grant.locked
         )
       )
 
     return {
-      id: row.id,
-      name: row.name,
-      immutable: row.immutable,
-      systemRole: row.systemRole,
-      users: row.users,
-      teams: row.teams,
+      ...row,
       permissionCount: roleGrants.length,
       dependencyState: row.systemRole ? "Built-in bypass" : expanded ? "Expanded" : "Needs repair",
       updatedAt: row.updatedAt.toISOString(),
     }
   })
-
-  return { organization: actor.organization, roles }
 }
 
-export async function getRoleEditorData(
-  orgSlug: string,
-  roleId?: string
-): Promise<RoleEditorData | undefined> {
-  "use cache: private"
-  cacheLife({ stale: 30 })
-
-  const actor = await getRoleActor(orgSlug)
-  if (!actor || !(await isCurrentSuperadmin(actor.organization.id, actor.userId))) {
-    return
+async function loadRoleEditor(scope: RoleManagement, roleId?: string) {
+  const workspaces = scope.workspace
+    ? [scope.workspace]
+    : await getDB()
+        .select({ id: schema.workspaces.id, name: schema.workspaces.name })
+        .from(schema.workspaces)
+        .where(
+          and(
+            eq(schema.workspaces.organizationId, scope.actor.organization.id),
+            isNull(schema.workspaces.deletedAt)
+          )
+        )
+        .orderBy(asc(schema.workspaces.name), asc(schema.workspaces.id))
+  const base = {
+    catalog: editorCatalog(),
+    organization: scope.actor.organization,
+    workspaces,
   }
-  cacheTag(
-    `organization:${actor.organization.id}:roles`,
-    `organization:${actor.organization.id}:user:${actor.userId}:roles`,
-    ...(roleId ? [`organization:${actor.organization.id}:role:${roleId}`] : [])
-  )
-
-  const workspaces = await getDB()
-    .select({ id: schema.workspaces.id, name: schema.workspaces.name })
-    .from(schema.workspaces)
-    .where(
-      and(
-        eq(schema.workspaces.organizationId, actor.organization.id),
-        isNull(schema.workspaces.deletedAt)
-      )
-    )
-    .orderBy(asc(schema.workspaces.name), asc(schema.workspaces.id))
   if (!roleId) {
-    return { organization: actor.organization, workspaces, catalog: editorCatalog() }
+    return base
   }
 
   const [role] = await getDB()
@@ -476,16 +763,10 @@ export async function getRoleEditorData(
       )`,
     })
     .from(schema.roleScopes)
-    .where(
-      and(
-        eq(schema.roleScopes.organizationId, actor.organization.id),
-        eq(schema.roleScopes.roleId, roleId),
-        isNull(schema.roleScopes.workspaceId)
-      )
-    )
+    .where(and(roleScope(scope), eq(schema.roleScopes.roleId, roleId)))
     .limit(1)
   if (!role) {
-    return { organization: actor.organization, workspaces, catalog: editorCatalog() }
+    return base
   }
 
   const grants = await getDB()
@@ -496,48 +777,33 @@ export async function getRoleEditorData(
       locked: schema.permissionGrants.locked,
     })
     .from(schema.permissionGrants)
-    .where(
-      and(
-        eq(schema.permissionGrants.organizationId, actor.organization.id),
-        eq(schema.permissionGrants.roleId, role.id)
-      )
-    )
+    .where(and(grantScope(scope), eq(schema.permissionGrants.roleId, role.id)))
 
-  return {
-    organization: actor.organization,
-    workspaces,
-    catalog: editorCatalog(),
-    role: {
-      ...role,
-      grants,
-      updatedAt: role.updatedAt.toISOString(),
-    },
-  }
+  return { ...base, role: { ...role, grants, updatedAt: role.updatedAt.toISOString() } }
 }
 
-export async function previewOrganizationRole(
-  orgSlug: string,
+async function previewRole(
+  scope: RoleManagement,
   roleId: string,
   name: string,
   inputs: RoleGrantInput[],
   updatedAt: string
-): Promise<RoleImpact | { error: "forbidden" | "invalid" | "not-found" | "stale" }> {
-  const actor = await getRoleActor(orgSlug)
-  if (!actor || !(await isCurrentSuperadmin(actor.organization.id, actor.userId))) {
-    return { error: "forbidden" }
-  }
-  if (!(await validateGrantScopes(actor.organization.id, inputs))) {
+): Promise<RoleImpact | { error: "invalid" | "not-found" | "stale" }> {
+  const valid = scope.workspace
+    ? validWorkspaceGrants(scope.workspace.id, inputs)
+    : await validateGrantScopes(scope.actor.organization.id, inputs)
+  if (!valid) {
     return { error: "invalid" }
   }
 
   const [role] = await getDB()
-    .select({ id: schema.roleScopes.roleId, updatedAt: schema.roleScopes.updatedAt })
+    .select({ updatedAt: schema.roleScopes.updatedAt })
     .from(schema.roleScopes)
     .where(
       and(
-        eq(schema.roleScopes.organizationId, actor.organization.id),
+        roleScope(scope),
         eq(schema.roleScopes.roleId, roleId),
-        isNull(schema.roleScopes.workspaceId)
+        scope.workspace ? eq(schema.roleScopes.immutable, false) : undefined
       )
     )
     .limit(1)
@@ -555,45 +821,42 @@ export async function previewOrganizationRole(
       action: schema.permissionGrants.action,
     })
     .from(schema.permissionGrants)
-    .where(
-      and(
-        eq(schema.permissionGrants.organizationId, actor.organization.id),
-        eq(schema.permissionGrants.roleId, role.id)
-      )
-    )
+    .where(and(grantScope(scope), eq(schema.permissionGrants.roleId, roleId)))
   const grants = expandPermissionGrants(inputs)
   const next = new Set(grants.map(grantKey))
   const removed = existing.filter((grant) => !next.has(grantKey(grant)))
-  const [assignments] = await getDB()
-    .select({
-      users: sql<number>`(
-        SELECT count(*)::int FROM member_roles
-        WHERE role_id = ${role.id} AND organization_id = ${actor.organization.id}
-      )`,
-      teams: sql<number>`(
-        SELECT count(*)::int FROM team_roles
-        WHERE role_id = ${role.id} AND organization_id = ${actor.organization.id}
-      )`,
-    })
-    .from(schema.roleScopes)
-    .where(
-      and(
-        eq(schema.roleScopes.organizationId, actor.organization.id),
-        eq(schema.roleScopes.roleId, role.id)
-      )
-    )
-    .limit(1)
   const items = removed.map((grant) => ({
     id: grantKey(grant),
     label: `${grant.resource.replaceAll("_", " ")} · ${grant.action.replaceAll("_", " ")}`,
-    detail: grant.workspaceId ? "Workspace grant removed" : "Organisation grant removed",
+    detail: scope.workspace
+      ? scope.workspace.name
+      : grant.workspaceId
+        ? "Workspace grant removed"
+        : "Organisation grant removed",
   }))
-  if (removed.length && ((assignments?.users ?? 0) || (assignments?.teams ?? 0))) {
-    items.unshift({
-      id: "assignments",
-      label: `${assignments?.users ?? 0} user and ${assignments?.teams ?? 0} team assignments may lose access`,
-      detail: "Effective access remains the allow-only union of every other direct Role.",
-    })
+
+  if (!scope.workspace && removed.length) {
+    const [assignments] = await getDB()
+      .select({
+        users: sql<number>`(
+          SELECT count(*)::int FROM member_roles
+          WHERE role_id = ${roleId} AND organization_id = ${scope.actor.organization.id}
+        )`,
+        teams: sql<number>`(
+          SELECT count(*)::int FROM team_roles
+          WHERE role_id = ${roleId} AND organization_id = ${scope.actor.organization.id}
+        )`,
+      })
+      .from(schema.roleScopes)
+      .where(and(roleScope(scope), eq(schema.roleScopes.roleId, roleId)))
+      .limit(1)
+    if ((assignments?.users ?? 0) || (assignments?.teams ?? 0)) {
+      items.unshift({
+        id: "assignments",
+        label: `${assignments?.users ?? 0} user and ${assignments?.teams ?? 0} team assignments may lose access`,
+        detail: "Effective access remains the allow-only union of every other direct Role.",
+      })
+    }
   }
 
   return {
@@ -606,46 +869,25 @@ export async function previewOrganizationRole(
   }
 }
 
-export async function saveOrganizationRole(
-  orgSlug: string,
+async function saveRole(
+  scope: RoleManagement,
   roleId: string | undefined,
   input: { name: string; grants: RoleGrantInput[]; updatedAt?: string; previewFingerprint?: string }
-): Promise<
-  | { roleId: string; organizationId: string }
-  | {
-      error:
-        | "forbidden"
-        | "immutable"
-        | "invalid"
-        | "name-taken"
-        | "not-found"
-        | "preview-required"
-        | "stale"
-    }
-> {
-  const actor = await getRoleActor(orgSlug)
-  if (!actor || !(await isCurrentSuperadmin(actor.organization.id, actor.userId))) {
-    return { error: "forbidden" }
+) {
+  const { actor, workspace } = scope
+  const action = `${workspace ? "workspace_role" : "role"}.${roleId ? "update" : "create"}`
+  const valid = workspace
+    ? validWorkspaceGrants(workspace.id, input.grants)
+    : await validateGrantScopes(actor.organization.id, input.grants)
+  if (!valid) {
+    await auditRoleMutation(actor, action, roleId ?? "new", "failed", workspace?.id)
+    return { error: "invalid" as const }
   }
-  if (!(await validateGrantScopes(actor.organization.id, input.grants))) {
-    return { error: "invalid" }
-  }
-
   const grants = expandPermissionGrants(input.grants)
-  const auditRequest = {
-    actorId: actor.userId,
-    actorType: "user" as const,
-    automaticCascade: false,
-    category: "role",
-    interface: "web" as const,
-    ipAddress: getIp(actor.requestHeaders, getAuth().options),
-    organizationId: actor.organization.id,
-    userAgent: actor.requestHeaders.get("user-agent"),
-  }
 
   return getDB().transaction(async (tx) => {
     const [authorized] = await tx
-      .select({ memberId: schema.members.id })
+      .select({ systemRole: schema.roleScopes.systemRole })
       .from(schema.members)
       .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
       .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
@@ -656,31 +898,64 @@ export async function saveOrganizationRole(
           isNull(schema.members.disabledAt),
           eq(schema.memberRoles.organizationId, actor.organization.id),
           eq(schema.roleScopes.organizationId, actor.organization.id),
-          eq(schema.roleScopes.systemRole, "superadmin"),
-          eq(schema.roleScopes.immutable, true)
+          eq(schema.roleScopes.immutable, true),
+          workspace
+            ? sql`(
+                (${schema.roleScopes.systemRole} = 'superadmin' AND
+                  ${schema.roleScopes.workspaceId} IS NULL) OR
+                (${schema.roleScopes.systemRole} = 'workspace_admin' AND
+                  ${schema.roleScopes.workspaceId} = ${workspace.id})
+              )`
+            : and(
+                eq(schema.roleScopes.systemRole, "superadmin"),
+                isNull(schema.roleScopes.workspaceId)
+              )
         )
       )
       .limit(1)
     if (!authorized) {
+      await auditRoleMutation(actor, action, roleId ?? "new", "denied", workspace?.id)
       return { error: "forbidden" as const }
     }
 
-    const workspaceIds = [...new Set(input.grants.flatMap((grant) => grant.workspaceId ?? []))]
-    const workspaces = workspaceIds.length
-      ? await tx
-          .select({ id: schema.workspaces.id })
-          .from(schema.workspaces)
-          .where(
-            and(
-              eq(schema.workspaces.organizationId, actor.organization.id),
-              inArray(schema.workspaces.id, workspaceIds),
-              isNull(schema.workspaces.deletedAt)
-            )
+    if (workspace) {
+      const [locked] = await tx
+        .select({ id: schema.workspaces.id })
+        .from(schema.workspaces)
+        .where(
+          and(
+            eq(schema.workspaces.id, workspace.id),
+            eq(schema.workspaces.organizationId, actor.organization.id),
+            isNull(schema.workspaces.deletedAt)
           )
-          .for("share")
-      : []
-    if (workspaces.length !== workspaceIds.length) {
-      return { error: "invalid" as const }
+        )
+        .for("update")
+      if (!locked) return { error: "invalid" as const }
+    } else {
+      const workspaceIds = [
+        ...new Set(
+          input.grants.flatMap(({ workspaceId }) => (workspaceId === null ? [] : [workspaceId]))
+        ),
+      ]
+      const locked = workspaceIds.length
+        ? await tx
+            .select({ id: schema.workspaces.id })
+            .from(schema.workspaces)
+            .where(
+              and(
+                eq(schema.workspaces.organizationId, actor.organization.id),
+                inArray(schema.workspaces.id, workspaceIds),
+                isNull(schema.workspaces.deletedAt)
+              )
+            )
+            .for("share")
+        : []
+      if (locked.length !== workspaceIds.length) return { error: "invalid" as const }
+      await tx
+        .select({ id: schema.organizations.id })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, actor.organization.id))
+        .for("update")
     }
 
     const [taken] = await tx
@@ -688,30 +963,25 @@ export async function saveOrganizationRole(
       .from(schema.roleScopes)
       .where(
         and(
-          eq(schema.roleScopes.organizationId, actor.organization.id),
-          isNull(schema.roleScopes.workspaceId),
+          roleScope(scope),
           sql`lower(btrim(${schema.roleScopes.displayName})) = lower(btrim(${input.name}))`,
           roleId ? sql`${schema.roleScopes.roleId} <> ${roleId}` : undefined
         )
       )
       .limit(1)
-    if (taken) {
-      return { error: "name-taken" as const }
-    }
+    if (taken) return { error: "name-taken" as const }
 
-    let id: string
+    let id = roleId
     let before: { name: string; updatedAt: Date } | undefined
     let oldGrants: RoleGrantInput[] = []
-    if (roleId) {
-      id = roleId
+    if (id) {
       ;[before] = await tx
         .select({ name: schema.roleScopes.displayName, updatedAt: schema.roleScopes.updatedAt })
         .from(schema.roleScopes)
         .where(
           and(
-            eq(schema.roleScopes.organizationId, actor.organization.id),
+            roleScope(scope),
             eq(schema.roleScopes.roleId, id),
-            isNull(schema.roleScopes.workspaceId),
             eq(schema.roleScopes.immutable, false)
           )
         )
@@ -721,15 +991,26 @@ export async function saveOrganizationRole(
         const [immutable] = await tx
           .select({ id: schema.roleScopes.roleId })
           .from(schema.roleScopes)
-          .where(
-            and(
-              eq(schema.roleScopes.organizationId, actor.organization.id),
-              eq(schema.roleScopes.roleId, id),
-              isNull(schema.roleScopes.workspaceId)
-            )
-          )
+          .where(and(roleScope(scope), eq(schema.roleScopes.roleId, id)))
           .limit(1)
-        return { error: immutable ? ("immutable" as const) : ("not-found" as const) }
+        if (!immutable) return { error: "not-found" as const }
+        await tx.insert(schema.auditEvents).values({
+          actorId: actor.userId,
+          actorType: "user",
+          action,
+          automaticCascade: false,
+          category: "role",
+          id: `audit-${randomUUID()}`,
+          interface: "web",
+          ipAddress: getIp(actor.requestHeaders, getAuth().options),
+          organizationId: actor.organization.id,
+          result: "denied",
+          targetId: id,
+          targetType: "role",
+          userAgent: actor.requestHeaders.get("user-agent"),
+          workspaceId: workspace?.id,
+        })
+        return { error: "immutable" as const }
       }
       if (before.updatedAt.toISOString() !== input.updatedAt) {
         return { error: "stale" as const }
@@ -741,12 +1022,7 @@ export async function saveOrganizationRole(
           action: schema.permissionGrants.action,
         })
         .from(schema.permissionGrants)
-        .where(
-          and(
-            eq(schema.permissionGrants.organizationId, actor.organization.id),
-            eq(schema.permissionGrants.roleId, id)
-          )
-        )
+        .where(and(grantScope(scope), eq(schema.permissionGrants.roleId, id)))
       const next = new Set(grants.map(grantKey))
       const reduction = oldGrants.some((grant) => !next.has(grantKey(grant)))
       const fingerprint = createHash("sha256")
@@ -757,6 +1033,18 @@ export async function saveOrganizationRole(
       if (reduction && fingerprint !== input.previewFingerprint) {
         return { error: "preview-required" as const }
       }
+      await tx
+        .update(schema.roleScopes)
+        .set({ displayName: input.name, updatedAt: new Date() })
+        .where(and(roleScope(scope), eq(schema.roleScopes.roleId, id)))
+      await tx
+        .delete(schema.permissionGrants)
+        .where(
+          and(
+            eq(schema.permissionGrants.organizationId, actor.organization.id),
+            eq(schema.permissionGrants.roleId, id)
+          )
+        )
     } else {
       id = `role-${randomUUID()}`
       await tx.insert(schema.organizationRoles).values({
@@ -769,69 +1057,54 @@ export async function saveOrganizationRole(
         displayName: input.name,
         organizationId: actor.organization.id,
         roleId: id,
+        workspaceId: workspace?.id ?? null,
       })
     }
 
-    if (before) {
-      await tx
-        .update(schema.roleScopes)
-        .set({ displayName: input.name, updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.roleScopes.organizationId, actor.organization.id),
-            eq(schema.roleScopes.roleId, id)
-          )
-        )
-      await tx
-        .delete(schema.permissionGrants)
-        .where(
-          and(
-            eq(schema.permissionGrants.organizationId, actor.organization.id),
-            eq(schema.permissionGrants.roleId, id)
-          )
-        )
-    }
     if (grants.length) {
-      await tx.insert(schema.permissionGrants).values(
-        grants.map((grant) => ({
-          ...grant,
-          organizationId: actor.organization.id,
-          roleId: id,
-        }))
-      )
+      await tx
+        .insert(schema.permissionGrants)
+        .values(
+          grants.map((grant) => ({ ...grant, organizationId: actor.organization.id, roleId: id }))
+        )
     }
     await tx.insert(schema.auditEvents).values({
-      ...auditRequest,
-      id: `audit-${randomUUID()}`,
-      action: before ? "role.update" : "role.create",
+      actorId: actor.userId,
+      actorType: "user",
+      action,
       after: [
         { field: "name", value: input.name },
         { field: "state", value: `${grants.length} Permission Grants` },
       ],
+      automaticCascade: false,
       before: before
         ? [
             { field: "name", value: before.name },
             { field: "state", value: `${oldGrants.length} Permission Grants` },
           ]
         : null,
+      category: "role",
+      id: `audit-${randomUUID()}`,
+      interface: "web",
+      ipAddress: getIp(actor.requestHeaders, getAuth().options),
+      organizationId: actor.organization.id,
       result: "succeeded",
       targetId: id,
       targetType: "role",
+      userAgent: actor.requestHeaders.get("user-agent"),
+      workspaceId: workspace?.id,
     })
-
-    return { roleId: id, organizationId: actor.organization.id }
+    return workspace
+      ? { roleId: id, organizationId: actor.organization.id, workspaceId: workspace.id }
+      : { roleId: id, organizationId: actor.organization.id }
   })
 }
 
-export async function getOrganizationRoleUsers(orgSlug: string, roleId: string) {
-  "use cache: private"
-  cacheLife({ stale: 30 })
-
-  const editor = await getRoleEditorData(orgSlug, roleId)
-  if (!editor?.role) {
+async function loadRoleUsers(scope: RoleManagement, roleId: string) {
+  const editor = await loadRoleEditor(scope, roleId)
+  if (!editor.role) {
     return
   }
-
   const users = await getDB()
     .select({
       email: schema.users.email,
@@ -841,14 +1114,14 @@ export async function getOrganizationRoleUsers(orgSlug: string, roleId: string) 
         SELECT 1 FROM member_roles
         WHERE member_roles.member_id = ${schema.members.id}
           AND member_roles.role_id = ${roleId}
-          AND member_roles.organization_id = ${editor.organization.id}
+          AND member_roles.organization_id = ${scope.actor.organization.id}
       )`,
     })
     .from(schema.members)
     .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
     .where(
       and(
-        eq(schema.members.organizationId, editor.organization.id),
+        eq(schema.members.organizationId, scope.actor.organization.id),
         isNull(schema.members.disabledAt)
       )
     )
@@ -857,76 +1130,20 @@ export async function getOrganizationRoleUsers(orgSlug: string, roleId: string) 
   return { ...editor, users }
 }
 
-export async function assignOrganizationRoleUsers(
-  orgSlug: string,
-  roleId: string,
-  memberIds: string[]
-): Promise<
-  { organizationId: string } | { error: "final-superadmin" | "forbidden" | "invalid" | "not-found" }
-> {
-  const actor = await getRoleActor(orgSlug)
-  if (!actor || !(await isCurrentSuperadmin(actor.organization.id, actor.userId))) {
-    return { error: "forbidden" }
-  }
+async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds: string[]) {
+  const { actor, workspace } = scope
   const selected = [...new Set(memberIds)]
-  const auditRequest = {
-    actorId: actor.userId,
-    actorType: "user" as const,
-    automaticCascade: false,
-    category: "role",
-    interface: "web" as const,
-    ipAddress: getIp(actor.requestHeaders, getAuth().options),
-    organizationId: actor.organization.id,
-    userAgent: actor.requestHeaders.get("user-agent"),
-  }
-
   return getDB().transaction(async (tx) => {
     const [role] = await tx
       .select({ systemRole: schema.roleScopes.systemRole })
       .from(schema.roleScopes)
-      .where(
-        and(
-          eq(schema.roleScopes.organizationId, actor.organization.id),
-          eq(schema.roleScopes.roleId, roleId),
-          isNull(schema.roleScopes.workspaceId)
-        )
-      )
+      .where(and(roleScope(scope), eq(schema.roleScopes.roleId, roleId)))
       .for("update")
       .limit(1)
-    if (!role) {
-      return { error: "not-found" as const }
-    }
-    const members = selected.length
-      ? await tx
-          .select({ id: schema.members.id })
-          .from(schema.members)
-          .where(
-            and(
-              eq(schema.members.organizationId, actor.organization.id),
-              isNull(schema.members.disabledAt),
-              inArray(schema.members.id, selected)
-            )
-          )
-      : []
-    if (members.length !== selected.length) {
-      return { error: "invalid" as const }
-    }
+    if (!role) return { error: "not-found" as const }
 
-    const current = await tx
-      .select({ memberId: schema.memberRoles.memberId })
-      .from(schema.memberRoles)
-      .where(
-        and(
-          eq(schema.memberRoles.organizationId, actor.organization.id),
-          eq(schema.memberRoles.roleId, roleId)
-        )
-      )
-    if (role.systemRole === "superadmin" && current.length > 0 && selected.length === 0) {
-      return { error: "final-superadmin" as const }
-    }
-
-    const [authorized] = await tx
-      .select({ memberId: schema.members.id })
+    const [authority] = await tx
+      .select({ systemRole: schema.roleScopes.systemRole })
       .from(schema.members)
       .innerJoin(
         schema.memberRoles,
@@ -947,15 +1164,65 @@ export async function assignOrganizationRoleUsers(
           eq(schema.members.organizationId, actor.organization.id),
           eq(schema.members.userId, actor.userId),
           isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.systemRole, "superadmin"),
-          eq(schema.roleScopes.immutable, true)
+          eq(schema.roleScopes.immutable, true),
+          workspace
+            ? sql`(
+                (${schema.roleScopes.systemRole} = 'superadmin' AND
+                  ${schema.roleScopes.workspaceId} IS NULL) OR
+                (${schema.roleScopes.systemRole} = 'workspace_admin' AND
+                  ${schema.roleScopes.workspaceId} = ${workspace.id})
+              )`
+            : and(
+                eq(schema.roleScopes.systemRole, "superadmin"),
+                isNull(schema.roleScopes.workspaceId)
+              )
         )
       )
+      .orderBy(sql`${schema.roleScopes.systemRole} = 'superadmin' DESC`)
       .limit(1)
-    if (!authorized) {
+    if (
+      !authority ||
+      (role.systemRole === "workspace_admin" && authority.systemRole !== "superadmin")
+    ) {
+      await auditRoleMutation(
+        actor,
+        workspace ? "workspace_role.assign" : "role.assign",
+        roleId,
+        "denied",
+        workspace?.id
+      )
       return { error: "forbidden" as const }
     }
 
+    const members = selected.length
+      ? await tx
+          .select({ id: schema.members.id })
+          .from(schema.members)
+          .where(
+            and(
+              eq(schema.members.organizationId, actor.organization.id),
+              isNull(schema.members.disabledAt),
+              inArray(schema.members.id, selected)
+            )
+          )
+      : []
+    if (members.length !== selected.length) return { error: "invalid" as const }
+    if (role.systemRole === "superadmin" && selected.length === 0) {
+      return { error: "final-superadmin" as const }
+    }
+    if (role.systemRole === "workspace_admin" && selected.length === 0) {
+      return { error: "final-workspace-admin" as const }
+    }
+
+    const current = await tx
+      .select({ memberId: schema.memberRoles.memberId })
+      .from(schema.memberRoles)
+      .where(
+        and(
+          eq(schema.memberRoles.organizationId, actor.organization.id),
+          eq(schema.memberRoles.roleId, roleId)
+        )
+      )
     await tx
       .delete(schema.memberRoles)
       .where(
@@ -1007,49 +1274,47 @@ export async function assignOrganizationRoleUsers(
     }
 
     await tx.insert(schema.auditEvents).values({
-      ...auditRequest,
-      id: `audit-${randomUUID()}`,
-      action: "role.assign",
+      actorId: actor.userId,
+      actorType: "user",
+      action: workspace ? "workspace_role.assign" : "role.assign",
       after: selected.map((memberId) => ({ field: "member_id" as const, value: memberId })),
+      automaticCascade: false,
       before: current.map(({ memberId }) => ({ field: "member_id" as const, value: memberId })),
+      category: "role",
+      id: `audit-${randomUUID()}`,
+      interface: "web",
+      ipAddress: getIp(actor.requestHeaders, getAuth().options),
+      organizationId: actor.organization.id,
       result: "succeeded",
       targetId: roleId,
       targetType: "role",
+      userAgent: actor.requestHeaders.get("user-agent"),
+      workspaceId: workspace?.id,
     })
-
-    return { organizationId: actor.organization.id }
+    return workspace
+      ? { organizationId: actor.organization.id, workspaceId: workspace.id }
+      : { organizationId: actor.organization.id }
   })
 }
 
-export async function deleteOrganizationRole(
-  orgSlug: string,
-  roleId: string
-): Promise<
-  | { organizationId: string }
-  | { error: "forbidden" | "immutable" | "not-found" | "referenced"; references?: string[] }
-> {
-  const actor = await getRoleActor(orgSlug)
-  if (!actor || !(await isCurrentSuperadmin(actor.organization.id, actor.userId))) {
-    return { error: "forbidden" }
-  }
-
+async function removeRole(scope: RoleManagement, roleId: string) {
+  const { actor, workspace } = scope
   return getDB().transaction(async (tx) => {
     const [role] = await tx
       .select({ immutable: schema.roleScopes.immutable, name: schema.roleScopes.displayName })
       .from(schema.roleScopes)
-      .where(
-        and(
-          eq(schema.roleScopes.organizationId, actor.organization.id),
-          eq(schema.roleScopes.roleId, roleId),
-          isNull(schema.roleScopes.workspaceId)
-        )
-      )
+      .where(and(roleScope(scope), eq(schema.roleScopes.roleId, roleId)))
       .for("update")
       .limit(1)
-    if (!role) {
-      return { error: "not-found" as const }
-    }
+    if (!role) return { error: "not-found" as const }
     if (role.immutable) {
+      await auditRoleMutation(
+        actor,
+        workspace ? "workspace_role.delete" : "role.delete",
+        roleId,
+        "denied",
+        workspace?.id
+      )
       return { error: "immutable" as const }
     }
 
@@ -1077,12 +1342,7 @@ export async function deleteOrganizationRole(
         )`,
       })
       .from(schema.roleScopes)
-      .where(
-        and(
-          eq(schema.roleScopes.organizationId, actor.organization.id),
-          eq(schema.roleScopes.roleId, roleId)
-        )
-      )
+      .where(and(roleScope(scope), eq(schema.roleScopes.roleId, roleId)))
       .limit(1)
     const blockers = [
       ...(references?.users ? [`${references.users} Users`] : []),
@@ -1092,49 +1352,49 @@ export async function deleteOrganizationRole(
         ? [`${references.socialDefaults} Social Admission defaults`]
         : []),
     ]
-    if (blockers.length) {
-      return { error: "referenced" as const, references: blockers }
-    }
+    if (blockers.length) return { error: "referenced" as const, references: blockers }
 
     const [authorized] = await tx
-      .select({ memberId: schema.members.id })
+      .select({ systemRole: schema.roleScopes.systemRole })
       .from(schema.members)
-      .innerJoin(
-        schema.memberRoles,
-        and(
-          eq(schema.memberRoles.memberId, schema.members.id),
-          eq(schema.memberRoles.organizationId, schema.members.organizationId)
-        )
-      )
-      .innerJoin(
-        schema.roleScopes,
-        and(
-          eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-          eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
-        )
-      )
+      .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
+      .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
       .where(
         and(
           eq(schema.members.organizationId, actor.organization.id),
           eq(schema.members.userId, actor.userId),
           isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.systemRole, "superadmin"),
-          eq(schema.roleScopes.immutable, true)
+          eq(schema.memberRoles.organizationId, actor.organization.id),
+          eq(schema.roleScopes.organizationId, actor.organization.id),
+          eq(schema.roleScopes.immutable, true),
+          workspace
+            ? sql`(
+                (${schema.roleScopes.systemRole} = 'superadmin' AND
+                  ${schema.roleScopes.workspaceId} IS NULL) OR
+                (${schema.roleScopes.systemRole} = 'workspace_admin' AND
+                  ${schema.roleScopes.workspaceId} = ${workspace.id})
+              )`
+            : and(
+                eq(schema.roleScopes.systemRole, "superadmin"),
+                isNull(schema.roleScopes.workspaceId)
+              )
         )
       )
       .limit(1)
     if (!authorized) {
+      await auditRoleMutation(
+        actor,
+        workspace ? "workspace_role.delete" : "role.delete",
+        roleId,
+        "denied",
+        workspace?.id
+      )
       return { error: "forbidden" as const }
     }
 
     await tx
       .delete(schema.roleScopes)
-      .where(
-        and(
-          eq(schema.roleScopes.organizationId, actor.organization.id),
-          eq(schema.roleScopes.roleId, roleId)
-        )
-      )
+      .where(and(roleScope(scope), eq(schema.roleScopes.roleId, roleId)))
     await tx
       .delete(schema.organizationRoles)
       .where(
@@ -1144,22 +1404,141 @@ export async function deleteOrganizationRole(
         )
       )
     await tx.insert(schema.auditEvents).values({
-      id: `audit-${randomUUID()}`,
-      organizationId: actor.organization.id,
-      actorType: "user",
       actorId: actor.userId,
-      targetType: "role",
-      targetId: roleId,
-      category: "role",
-      action: "role.delete",
-      result: "succeeded",
-      before: [{ field: "name", value: role.name }],
+      actorType: "user",
+      action: workspace ? "workspace_role.delete" : "role.delete",
       automaticCascade: false,
+      before: [{ field: "name", value: role.name }],
+      category: "role",
+      id: `audit-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.requestHeaders, getAuth().options),
+      organizationId: actor.organization.id,
+      result: "succeeded",
+      targetId: roleId,
+      targetType: "role",
       userAgent: actor.requestHeaders.get("user-agent"),
+      workspaceId: workspace?.id,
     })
-
-    return { organizationId: actor.organization.id }
+    return workspace
+      ? { organizationId: actor.organization.id, workspaceId: workspace.id }
+      : { organizationId: actor.organization.id }
   })
+}
+
+export async function listWorkspaceRoles(orgSlug: string, workspaceSlug: string) {
+  "use cache: private"
+  cacheLife({ stale: 30 })
+  const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
+  if (!scope?.workspace) return
+  cacheTag(
+    `organization:${scope.actor.organization.id}:workspace:${scope.workspace.id}:roles`,
+    `organization:${scope.actor.organization.id}:workspace:${scope.workspace.id}:user:${scope.actor.userId}:roles`
+  )
+  return {
+    organization: scope.actor.organization,
+    roles: await listRoles(scope),
+    superadmin: scope.superadmin,
+    workspace: scope.workspace,
+  }
+}
+
+export async function getWorkspaceRoleEditorData(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId?: string
+): Promise<WorkspaceRoleEditorData | undefined> {
+  "use cache: private"
+  cacheLife({ stale: 30 })
+  const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
+  if (!scope?.workspace) return
+  cacheTag(
+    `organization:${scope.actor.organization.id}:workspace:${scope.workspace.id}:roles`,
+    `organization:${scope.actor.organization.id}:workspace:${scope.workspace.id}:user:${scope.actor.userId}:roles`,
+    ...(roleId
+      ? [
+          `organization:${scope.actor.organization.id}:workspace:${scope.workspace.id}:role:${roleId}`,
+        ]
+      : [])
+  )
+  return {
+    ...(await loadRoleEditor(scope, roleId)),
+    superadmin: scope.superadmin,
+    workspace: scope.workspace,
+  }
+}
+
+export async function previewWorkspaceRole(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId: string,
+  name: string,
+  inputs: RoleGrantInput[],
+  updatedAt: string
+): Promise<RoleImpact | { error: "forbidden" | "invalid" | "not-found" | "stale" }> {
+  const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
+  return scope?.workspace
+    ? previewRole(scope, roleId, name, inputs, updatedAt)
+    : { error: "forbidden" }
+}
+
+export async function saveWorkspaceRole(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId: string | undefined,
+  input: { name: string; grants: RoleGrantInput[]; updatedAt?: string; previewFingerprint?: string }
+) {
+  const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
+  if (scope?.workspace) return saveRole(scope, roleId, input)
+  const denied = await getDeniedWorkspaceRoleActor(orgSlug, workspaceSlug)
+  if (denied) {
+    await auditRoleMutation(
+      denied,
+      roleId ? "workspace_role.update" : "workspace_role.create",
+      roleId ?? "new",
+      "denied",
+      denied.workspace.id
+    )
+  }
+  return { error: "forbidden" as const }
+}
+
+export async function getWorkspaceRoleUsers(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId: string
+) {
+  "use cache: private"
+  cacheLife({ stale: 30 })
+  const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
+  if (!scope?.workspace) return
+  const editor = await loadRoleUsers(scope, roleId)
+  return editor
+    ? { ...editor, superadmin: scope.superadmin, workspace: scope.workspace }
+    : undefined
+}
+
+export async function assignWorkspaceRoleUsers(
+  orgSlug: string,
+  workspaceSlug: string,
+  roleId: string,
+  memberIds: string[]
+) {
+  const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
+  if (scope?.workspace) return assignRoleUsers(scope, roleId, memberIds)
+  const denied = await getDeniedWorkspaceRoleActor(orgSlug, workspaceSlug)
+  if (denied) {
+    await auditRoleMutation(denied, "workspace_role.assign", roleId, "denied", denied.workspace.id)
+  }
+  return { error: "forbidden" }
+}
+
+export async function deleteWorkspaceRole(orgSlug: string, workspaceSlug: string, roleId: string) {
+  const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
+  if (scope?.workspace) return removeRole(scope, roleId)
+  const denied = await getDeniedWorkspaceRoleActor(orgSlug, workspaceSlug)
+  if (denied) {
+    await auditRoleMutation(denied, "workspace_role.delete", roleId, "denied", denied.workspace.id)
+  }
+  return { error: "forbidden" }
 }

@@ -1989,6 +1989,13 @@ export type ToDateQuery = string
 
 export type ListAuditEventsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -2058,7 +2065,7 @@ export type ListAuditEventsError = ListAuditEventsErrors[keyof ListAuditEventsEr
 
 export type ListAuditEventsResponses = {
   /**
-   * Paginated Organisation audit events and filter options.
+   * Paginated scoped audit events and filter options.
    */
   200: ListAuditEventsResponse
 }
@@ -2067,6 +2074,13 @@ export type ListAuditEventsResponse2 = ListAuditEventsResponses[keyof ListAuditE
 
 export type GetAuditEventData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable audit event ID.
@@ -2101,7 +2115,7 @@ export type GetAuditEventError = GetAuditEventErrors[keyof GetAuditEventErrors]
 
 export type GetAuditEventResponses = {
   /**
-   * Organisation audit event detail.
+   * Scoped audit event detail.
    */
   200: AuditEvent
 }

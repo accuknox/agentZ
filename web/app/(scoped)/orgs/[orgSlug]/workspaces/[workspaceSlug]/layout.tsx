@@ -80,7 +80,13 @@ export default async function WorkspaceLayout({
   )
 
   const root = `/orgs/${result.scope.organization.slug}/workspaces/${result.workspace.slug}`
-  const tabs = [{ href: root as Route, label: "Overview" }] as const satisfies readonly RouteTab[]
+  const tabs: RouteTab[] = [{ href: root as Route, label: "Overview" }]
+  if (result.scope.organization.superadmin || result.workspace.can_administer) {
+    tabs.push(
+      { href: `${root}/roles` as Route, label: "Roles" },
+      { href: `${root}/audit` as Route, label: "Audit" }
+    )
+  }
 
   return (
     <>

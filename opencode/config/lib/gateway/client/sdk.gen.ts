@@ -312,9 +312,11 @@ import {
   zCreateInferenceProviderBody,
   zCreateInferenceProviderOAuthTicketBody,
   zCreateMcpConnectionBody,
+  zCreateMcpConnectionHeaders,
   zCreateSandboxBody,
   zCreateSandboxHeaders,
   zCreateSkillBody,
+  zCreateSkillHeaders,
   zCreateWorkflowBody,
   zCreateWorkflowPath,
   zCreateWorkflowRunPath,
@@ -327,13 +329,16 @@ import {
   zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
   zDeleteImmutableSkillsBody,
+  zDeleteImmutableSkillsHeaders,
   zDeleteInferencePoolPath,
   zDeleteInferenceProviderPath,
+  zDeleteMcpConnectionHeaders,
   zDeleteMcpConnectionPath,
   zDeleteSandboxHeaders,
   zDeleteSandboxPath,
   zDeleteSecretBody,
   zDeleteSecretPath,
+  zDeleteSkillHeaders,
   zDeleteSkillPath,
   zDeleteWorkflowRunPath,
   zDeleteWorkflowsBody,
@@ -342,21 +347,25 @@ import {
   zExportAgentMutableSkillsBody,
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
+  zExportImmutableSkillsHeaders,
   zGetAuditEventHeaders,
   zGetAuditEventPath,
   zGetInferencePoolPath,
   zGetInferencePoolUsagePath,
   zGetInferenceProviderPath,
   zGetInferenceProviderUsagePath,
+  zGetMcpConnectionHeaders,
   zGetMcpConnectionPath,
   zGetMcpGraphPath,
   zGetMcpGraphQuery,
+  zGetSkillReferencesHeaders,
   zGetSkillReferencesPath,
   zGetSpanDetailPath,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
   zGetWorkspacePath,
   zImportSkillsBody,
+  zImportSkillsHeaders,
   zInvokeWorkflowWebhookBody,
   zInvokeWorkflowWebhookPath,
   zInvokeWorkflowWebhookQuery,
@@ -369,13 +378,16 @@ import {
   zListAuditEventsQuery,
   zListFileObservabilityPath,
   zListFileObservabilityQuery,
+  zListImmutableSkillSummariesHeaders,
   zListImmutableSkillSummariesQuery,
+  zListImmutableSkillVersionsHeaders,
   zListImmutableSkillVersionsPath,
   zListInferenceModelSuggestionsPath,
   zListInferenceModelSuggestionsQuery,
   zListInferencePoolsQuery,
   zListInferenceProviderCatalogQuery,
   zListInferenceProvidersQuery,
+  zListMcpConnectionsHeaders,
   zListMcpConnectionsQuery,
   zListNetworkObservabilityPath,
   zListNetworkObservabilityQuery,
@@ -385,6 +397,7 @@ import {
   zListSandboxesQuery,
   zListSecretsPath,
   zListSecretsQuery,
+  zListSkillsHeaders,
   zListSkillsQuery,
   zListSpansPath,
   zListSpansQuery,
@@ -402,6 +415,7 @@ import {
   zPatchWorkflowRunStatusBody,
   zPatchWorkflowRunStatusPath,
   zPreviewSkillImportBody,
+  zPreviewSkillImportHeaders,
   zPutSecretBody,
   zPutSecretPath,
   zPutSecretQuery,
@@ -426,6 +440,7 @@ import {
   zUpdateSandboxHeaders,
   zUpdateSandboxPath,
   zUpdateSkillBody,
+  zUpdateSkillHeaders,
   zUpdateSkillPath,
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
@@ -435,6 +450,7 @@ import {
   zWatchInferencePoolsBody,
   zWatchInferenceProvidersBody,
   zWatchMcpConnectionsBody,
+  zWatchMcpConnectionsHeaders,
   zWatchSecretsBody,
   zWatchSecretsPath,
   zWatchWorkflowRunsBody,
@@ -1160,6 +1176,7 @@ export const previewSkillImport = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zPreviewSkillImportBody,
+          headers: zPreviewSkillImportHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1174,7 +1191,7 @@ export const previewSkillImport = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Import mutable or immutable skills.
+ * Import immutable skills.
  */
 export const importSkills = <ThrowOnError extends boolean = false>(
   options: Options<ImportSkillsData, ThrowOnError>
@@ -1185,6 +1202,7 @@ export const importSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zImportSkillsBody,
+          headers: zImportSkillsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1213,6 +1231,7 @@ export const deleteImmutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zDeleteImmutableSkillsBody,
+          headers: zDeleteImmutableSkillsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1237,6 +1256,7 @@ export const listSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListSkillsHeaders.optional(),
           path: z.never().optional(),
           query: zListSkillsQuery.optional(),
         })
@@ -1257,6 +1277,7 @@ export const createSkill = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateSkillBody,
+          headers: zCreateSkillHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1285,6 +1306,7 @@ export const listImmutableSkillSummaries = <ThrowOnError extends boolean = false
       await z
         .object({
           body: z.never().optional(),
+          headers: zListImmutableSkillSummariesHeaders.optional(),
           path: z.never().optional(),
           query: zListImmutableSkillSummariesQuery.optional(),
         })
@@ -1309,6 +1331,7 @@ export const exportImmutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zExportImmutableSkillsBody,
+          headers: zExportImmutableSkillsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1333,6 +1356,7 @@ export const deleteSkill = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteSkillHeaders.optional(),
           path: zDeleteSkillPath,
           query: z.never().optional(),
         })
@@ -1353,6 +1377,7 @@ export const updateSkill = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateSkillBody,
+          headers: zUpdateSkillHeaders.optional(),
           path: zUpdateSkillPath,
           query: z.never().optional(),
         })
@@ -1381,6 +1406,7 @@ export const getSkillReferences = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetSkillReferencesHeaders.optional(),
           path: zGetSkillReferencesPath,
           query: z.never().optional(),
         })
@@ -1405,6 +1431,7 @@ export const listImmutableSkillVersions = <ThrowOnError extends boolean = false>
       await z
         .object({
           body: z.never().optional(),
+          headers: zListImmutableSkillVersionsHeaders.optional(),
           path: zListImmutableSkillVersionsPath,
           query: z.never().optional(),
         })
@@ -2247,6 +2274,7 @@ export const listMcpConnections = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListMcpConnectionsHeaders.optional(),
           path: z.never().optional(),
           query: zListMcpConnectionsQuery.optional(),
         })
@@ -2271,6 +2299,7 @@ export const createMcpConnection = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateMcpConnectionBody,
+          headers: zCreateMcpConnectionHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -2299,6 +2328,7 @@ export const deleteMcpConnection = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteMcpConnectionHeaders.optional(),
           path: zDeleteMcpConnectionPath,
           query: z.never().optional(),
         })
@@ -2319,6 +2349,7 @@ export const getMcpConnection = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetMcpConnectionHeaders.optional(),
           path: zGetMcpConnectionPath,
           query: z.never().optional(),
         })
@@ -2346,6 +2377,7 @@ export const watchMcpConnections = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zWatchMcpConnectionsBody.optional(),
+          headers: zWatchMcpConnectionsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })

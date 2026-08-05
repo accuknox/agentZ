@@ -14,7 +14,9 @@ export const zAuditTargetType = z.enum([
   "workspace",
   "role",
   "sandbox",
+  "skill",
   "team",
+  "mcp_connection",
 ])
 
 export const zAuditField = z.object({
@@ -125,12 +127,21 @@ export const zTenantCondition = z.object({
   message: z.string(),
 })
 
+export const zResourceCapabilities = z.object({
+  read: z.boolean(),
+  create: z.boolean(),
+  modify: z.boolean(),
+  delete: z.boolean(),
+})
+
 export const zTenant = z.object({
   tenant_id: z.string(),
   namespace: z.string(),
   ready: z.boolean(),
   phase: zTenantPhase,
   conditions: z.array(zTenantCondition),
+  skill_capabilities: zResourceCapabilities,
+  mcp_connection_capabilities: zResourceCapabilities,
 })
 
 export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
@@ -148,6 +159,8 @@ export const zWorkspace = z.object({
       error: "Invalid value: Expected int64 to be <= 9223372036854775807",
     }),
   failure_reason: z.string().optional(),
+  skill_capabilities: zResourceCapabilities,
+  mcp_connection_capabilities: zResourceCapabilities,
   workspace_admin_count: z.coerce
     .bigint()
     .gte(BigInt(0))
@@ -391,14 +404,14 @@ export const zSkill = z.object({
   agents: z.array(zAgentName),
   sandboxes: z.array(zSandboxName),
   created_at: z.iso.datetime(),
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
 })
 
 export const zListSkillsResponse = z.object({
   skills: z.array(zSkill),
   next_page_token: z.string(),
 })
-
-export const zSkillKind = z.enum(["mutable", "immutable"])
 
 export const zSkillFileSummary = z.object({
   name: zSkillName,
@@ -422,6 +435,8 @@ export const zListMutableSkillsResponse = z.object({
 export const zImmutableSkillSummary = zSkillFileSummary.and(
   z.object({
     description: z.string(),
+    can_modify: z.boolean(),
+    can_delete: z.boolean(),
     version: z.coerce
       .bigint()
       .gte(BigInt(1))
@@ -470,7 +485,6 @@ export const zSkillImportDecision = z.discriminatedUnion("action", [
 
 export const zSkillImportPreviewItem = z.object({
   name: zSkillName,
-  mutable_conflict_agents: z.array(zAgentName),
   immutable_conflict: z.boolean(),
 })
 
@@ -486,7 +500,6 @@ export const zSkillImportAgentResult = z.object({
 
 export const zImportSkillsResponse = z.object({
   skills: z.array(zSkillName),
-  agents: z.array(zSkillImportAgentResult),
 })
 
 export const zSkillReferences = z.object({
@@ -1907,6 +1920,7 @@ export const zMcpConnectionReason = z.enum([
 ])
 
 export const zMcpConnectionDetail = z.object({
+  can_delete: z.boolean(),
   name: zMcpConnectionName,
   endpoint: zMcpConnectionEndpoint,
   auth: zMcpConnectionAuth,
@@ -1919,6 +1933,7 @@ export const zMcpConnectionDetail = z.object({
 })
 
 export const zMcpConnectionSummary = z.object({
+  can_delete: z.boolean(),
   name: zMcpConnectionName,
   auth_mode: z.string(),
   endpoint_url: z.string(),
@@ -2571,7 +2586,10 @@ export const zExportAgentMutableSkillsResponse = z.string()
 
 export const zPreviewSkillImportBody = z.object({
   file: z.string(),
-  agents: z.array(zAgentName).max(200).optional(),
+})
+
+export const zPreviewSkillImportHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
 })
 
 /**
@@ -2581,9 +2599,11 @@ export const zPreviewSkillImportResponse = zSkillImportPreviewResponse
 
 export const zImportSkillsBody = z.object({
   file: z.string(),
-  kind: zSkillKind,
-  agents: z.array(zAgentName).max(200).optional(),
   decisions: z.array(zSkillImportDecision).min(1).max(200),
+})
+
+export const zImportSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
 })
 
 /**
@@ -2593,10 +2613,18 @@ export const zImportSkillsResponse2 = zImportSkillsResponse
 
 export const zDeleteImmutableSkillsBody = zDeleteSkillsRequest
 
+export const zDeleteImmutableSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 /**
  * Skills deleted.
  */
 export const zDeleteImmutableSkillsResponse = z.void()
+
+export const zListSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zListSkillsQuery = z.object({
   agent_name: zAgentName.optional(),
@@ -2611,10 +2639,18 @@ export const zListSkillsResponse2 = zListSkillsResponse
 
 export const zCreateSkillBody = zCreateSkillRequest
 
+export const zCreateSkillHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 /**
  * Skill created.
  */
 export const zCreateSkillResponse = zSkill
+
+export const zListImmutableSkillSummariesHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zListImmutableSkillSummariesQuery = z.object({
   agent_name: zAgentName.optional(),
@@ -2629,10 +2665,18 @@ export const zListImmutableSkillSummariesResponse2 = zListImmutableSkillSummarie
 
 export const zExportImmutableSkillsBody = zExportSkillsRequest
 
+export const zExportImmutableSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 /**
  * ZIP archive containing selected active versions.
  */
 export const zExportImmutableSkillsResponse = z.string()
+
+export const zDeleteSkillHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zDeleteSkillPath = z.object({
   skillName: zSkillName,
@@ -2645,6 +2689,10 @@ export const zDeleteSkillResponse = z.void()
 
 export const zUpdateSkillBody = zUpdateSkillRequest
 
+export const zUpdateSkillHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zUpdateSkillPath = z.object({
   skillName: zSkillName,
 })
@@ -2654,6 +2702,10 @@ export const zUpdateSkillPath = z.object({
  */
 export const zUpdateSkillResponse = zSkill
 
+export const zGetSkillReferencesHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zGetSkillReferencesPath = z.object({
   skillName: zSkillName,
 })
@@ -2662,6 +2714,10 @@ export const zGetSkillReferencesPath = z.object({
  * Skill references.
  */
 export const zGetSkillReferencesResponse = zSkillReferences
+
+export const zListImmutableSkillVersionsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zListImmutableSkillVersionsPath = z.object({
   skillName: zSkillName,
@@ -3060,6 +3116,10 @@ export const zUpdateSandboxPath = z.object({
  */
 export const zUpdateSandboxResponse = zSandbox
 
+export const zListMcpConnectionsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zListMcpConnectionsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
@@ -3072,10 +3132,18 @@ export const zListMcpConnectionsResponse2 = zListMcpConnectionsResponse
 
 export const zCreateMcpConnectionBody = zCreateMcpConnectionRequest
 
+export const zCreateMcpConnectionHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 /**
  * MCPConnection created.
  */
 export const zCreateMcpConnectionResponse = zMcpConnectionDetail
+
+export const zDeleteMcpConnectionHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zDeleteMcpConnectionPath = z.object({
   name: zMcpConnectionName,
@@ -3085,6 +3153,10 @@ export const zDeleteMcpConnectionPath = z.object({
  * MCPConnection deleted.
  */
 export const zDeleteMcpConnectionResponse = z.void()
+
+export const zGetMcpConnectionHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zGetMcpConnectionPath = z.object({
   name: zMcpConnectionName,
@@ -3096,6 +3168,10 @@ export const zGetMcpConnectionPath = z.object({
 export const zGetMcpConnectionResponse = zMcpConnectionDetail
 
 export const zWatchMcpConnectionsBody = zWatchMcpConnectionsRequest
+
+export const zWatchMcpConnectionsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 /**
  * Stream of MCP connection updates.

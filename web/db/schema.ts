@@ -76,8 +76,10 @@ export const auditTarget = pgEnum("audit_target", [
   "organization",
   "organization_membership",
   "team",
+  "mcp_connection",
   "role",
   "sandbox",
+  "skill",
   "workspace",
 ])
 export const auditInterface = pgEnum("audit_interface", [

@@ -62,6 +62,7 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
+  scopeLabel?: "Local" | `Inherited from ${string}`
   onViewAction: (name: string) => void
   deleteMcpAction: (
     name: string,
@@ -82,7 +83,7 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <McpNameCell connection={row.original} />,
+      cell: ({ row }) => <McpNameCell connection={row.original} scopeLabel={actions.scopeLabel} />,
     },
     {
       id: "auth_mode",
@@ -137,7 +138,13 @@ export function createMcpColumns(actions: {
   ]
 }
 
-function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
+function McpNameCell({
+  connection,
+  scopeLabel,
+}: {
+  connection: McpConnectionSummary
+  scopeLabel?: "Local" | `Inherited from ${string}`
+}) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       {renderMcpServerIcon(connection.endpoint_url, {
@@ -145,6 +152,9 @@ function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
         className: "size-4 shrink-0",
       })}
       <span className="min-w-0 truncate font-medium">{connection.name}</span>
+      {scopeLabel ? (
+        <span className="text-muted-foreground shrink-0 text-xs">{scopeLabel}</span>
+      ) : null}
     </div>
   )
 }
@@ -214,10 +224,12 @@ function McpActions({
               <Eye />
               View
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-              <Trash2 />
-              Delete
-            </DropdownMenuItem>
+            {connection.can_delete ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>

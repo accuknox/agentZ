@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/authorization"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	internalmcp "github.com/accuknox/agentz/internal/mcp"
 	internaloauth "github.com/accuknox/agentz/internal/oauth"
@@ -38,6 +40,15 @@ func writeMCPAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
 
 // ListMCPConnections handles GET /api/mcp-connection.
 func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, params gatewayapi.ListMCPConnectionsParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationListMCPConnections)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
 	limit, ok := validLimit(w, r, params.Limit)
 	if !ok {
 		return
@@ -48,7 +59,7 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 
-	items, err := s.listMCPConnectionSummaries(r.Context(), nil)
+	items, err := s.listMCPConnectionSummaries(access, nil)
 	if err != nil {
 		writeMCPInternalError(w, r, err)
 		return
@@ -71,12 +82,17 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 // WatchMCPConnections handles POST /api/mcp-connection/watch.
 //
 //nolint:gocyclo
-func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, params gatewayapi.WatchMCPConnectionsParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationWatchMCPConnections)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
 		return
 	}
+	ns := access.namespace
 
 	var req gatewayapi.WatchMCPConnectionsRequest
 	if r.Body != nil && !decodeJSONBody(w, r, &req, true) {
@@ -179,7 +195,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeChanges := func() bool {
-		items, err := s.listMCPConnectionSummaries(r.Context(), names)
+		items, err := s.listMCPConnectionSummaries(access, names)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
@@ -233,6 +249,9 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
+			if evt.Connection != nil && evt.Connection.Namespace != access.namespace {
+				continue
+			}
 			if evt.Type == mcpConnectionWatchEventDeleted {
 				if evt.Connection == nil {
 					continue
@@ -264,26 +283,39 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateMCPConnection handles POST /api/mcp-connection.
-func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, params gatewayapi.CreateMCPConnectionParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationCreateMCPConnection)
+	if apiErr != nil {
+		if access.claims.TenantID != "" && access.claims.UserID != "" {
+			if err := s.createMCPAudit(r.Context(), r, access, "unknown", access.failureResult()); err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
 		return
 	}
-	tenant, err := tenantObject(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
+	ns := access.namespace
 
 	var req gatewayapi.CreateMCPConnectionRequest
 	if !decodeJSONBody(w, r, &req, false) {
+		if err := s.createMCPAudit(r.Context(), r, access, "unknown", gatewaydb.AuditResultFailed); err != nil {
+			recordRequestError(w, "internal_error", err)
+		}
 		return
 	}
 
 	name := strings.TrimSpace(req.Name)
 	fields := validateMCPConnectionName(name, "name")
 	if len(fields) > 0 {
+		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -300,21 +332,18 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 			Kind:       "MCPConnection",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
-					Kind:       "Tenant",
-					Name:       tenant.Name,
-					UID:        tenant.UID,
-				},
-			},
+			Name:            name,
+			Namespace:       ns,
+			OwnerReferences: []metav1.OwnerReference{access.owner},
 		},
 	}
 
 	spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, &req.Auth)
 	if len(fields) > 0 {
+		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -325,14 +354,23 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn.Spec = spec
+	conn.Spec.CreatorUserID = access.claims.UserID
 	setMCPConnectionSecretRef(ns, name, &conn.Spec)
 
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 	if err := mcpconnwebhook.Validate(conn); err != nil {
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
 	if err := s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials); err != nil {
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if auditErr != nil {
+			err.Cause = errors.Join(err.Cause, auditErr)
+		}
 		writeMCPAPIError(w, r, err)
 		return
 	}
@@ -341,35 +379,78 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 		if delErr != nil {
 			err = errors.Join(err, delErr)
 		}
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
+	if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultSucceeded); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 
-	writeJSON(w, http.StatusCreated, s.mcpConnectionDetail(*conn))
+	writeJSON(w, http.StatusCreated, s.mcpConnectionDetail(access, *conn))
 }
 
 // GetMCPConnection handles GET /api/mcp-connection/{name}.
-func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
-	conn, ok := s.getMCPConnection(w, r, name)
+func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath, params gatewayapi.GetMCPConnectionParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationGetMCPConnection)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
+	conn, ok := s.getMCPConnection(w, r, access.namespace, name)
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(*conn))
+	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(access, *conn))
 }
 
 // DeleteMCPConnection handles DELETE /api/mcp-connection/{name}.
-func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath) {
-	conn, ok := s.getMCPConnection(w, r, name)
+func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath, params gatewayapi.DeleteMCPConnectionParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationDeleteMCPConnection)
+	if apiErr != nil {
+		if access.claims.TenantID != "" && access.claims.UserID != "" {
+			if err := s.createMCPAudit(r.Context(), r, access, name, access.failureResult()); err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
+		return
+	}
+	conn, ok := s.getMCPConnection(w, r, access.namespace, name)
 	if !ok {
+		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+			recordRequestError(w, "internal_error", err)
+		}
 		return
 	}
 
-	referrers, err := s.referencingSandboxes(r.Context(), conn.Name)
+	referrers, err := s.referencingSandboxes(r.Context(), access.namespace, conn.Name)
 	if err != nil {
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
 		writeMCPInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
 		return
 	}
 	if len(referrers) > 0 {
+		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"conflict",
@@ -384,28 +465,38 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	}
 
 	if err := s.k8sClient.Delete(r.Context(), conn); err != nil {
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("delete mcp connection", err))
 		return
 	}
 	if err := s.deleteMCPConnectionCredentials(r.Context(), *conn); err != nil {
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
 		writeMCPAPIError(w, r, mapOpenBaoError(err))
 		return
 	}
 	if err := s.waitForMCPConnectionDeletion(r.Context(), conn.Name); err != nil {
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
 		writeMCPInternalError(w, r, err)
+		return
+	}
+	if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultSucceeded); err != nil {
+		writeInternalError(w, r, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawName string) (*agentzv1alpha1.MCPConnection, bool) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return nil, false
-	}
-
+func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, namespace, rawName string) (*agentzv1alpha1.MCPConnection, bool) {
 	name := strings.TrimSpace(rawName)
 	fields := validateMCPConnectionName(name, "name")
 	if len(fields) > 0 {
@@ -420,7 +511,7 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 	}
 
 	conn := &agentzv1alpha1.MCPConnection{}
-	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
+	key := ctrlclient.ObjectKey{Name: name, Namespace: namespace}
 	if err := s.k8sClient.Get(r.Context(), key, conn); err != nil {
 		writeMCPAPIError(w, r, mapKubeHTTPError("get mcp connection", err))
 		return nil, false
@@ -430,13 +521,8 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, rawNa
 
 // listMCPConnections returns all MCPConnection resources in the service
 // namespace.
-func (s *Service) listMCPConnections(ctx context.Context) ([]agentzv1alpha1.MCPConnection, error) {
-	ns, err := tenantNamespace(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	list, err := s.resolver.mcpConnections.MCPConnections(ns).List(labels.Everything())
+func (s *Service) listMCPConnections(namespace string) ([]agentzv1alpha1.MCPConnection, error) {
+	list, err := s.resolver.mcpConnections.MCPConnections(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, fmt.Errorf("list mcp connections: %w", err)
 	}
@@ -448,8 +534,8 @@ func (s *Service) listMCPConnections(ctx context.Context) ([]agentzv1alpha1.MCPC
 	return items, nil
 }
 
-func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
-	items, err := s.listMCPConnections(ctx)
+func (s *Service) listMCPConnectionSummaries(access mcpAccess, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
+	items, err := s.listMCPConnections(access.namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +545,7 @@ func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string
 		if len(names) > 0 && !slices.Contains(names, conn.Name) {
 			continue
 		}
-		summaries = append(summaries, s.mcpConnectionSummary(conn))
+		summaries = append(summaries, s.mcpConnectionSummary(access, conn))
 	}
 	slices.SortFunc(summaries, func(a, b gatewayapi.MCPConnectionSummary) int {
 		return strings.Compare(a.Name, b.Name)
@@ -467,9 +553,10 @@ func (s *Service) listMCPConnectionSummaries(ctx context.Context, names []string
 	return summaries, nil
 }
 
-func (s *Service) mcpConnectionSummary(conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
+func (s *Service) mcpConnectionSummary(access mcpAccess, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
 	status, reason, message := s.mcpConnectionStatus(conn)
 	return gatewayapi.MCPConnectionSummary{
+		CanDelete:        mcpCanDelete(access, conn),
 		Name:             conn.Name,
 		AuthMode:         conn.Status.AuthMode,
 		EndpointUrl:      conn.Spec.Endpoint.URL,
@@ -482,7 +569,7 @@ func (s *Service) mcpConnectionSummary(conn agentzv1alpha1.MCPConnection) gatewa
 	}
 }
 
-func (s *Service) mcpConnectionDetail(conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
+func (s *Service) mcpConnectionDetail(access mcpAccess, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
 	headers := map[string]string{}
 	maps.Copy(headers, conn.Spec.Endpoint.Headers)
 
@@ -538,6 +625,7 @@ func (s *Service) mcpConnectionDetail(conn agentzv1alpha1.MCPConnection) gateway
 		tools = append(tools, gatewayapi.MCPConnectionTool{Name: tool.Name})
 	}
 	return gatewayapi.MCPConnectionDetail{
+		CanDelete:        mcpCanDelete(access, conn),
 		Name:             conn.Name,
 		CreatedAt:        conn.CreationTimestamp.Time,
 		Endpoint:         endpoint,
@@ -548,6 +636,18 @@ func (s *Service) mcpConnectionDetail(conn agentzv1alpha1.MCPConnection) gateway
 		ToolCatalogReady: conn.Status.ToolCatalogReady,
 		Tools:            tools,
 	}
+}
+
+func mcpCanDelete(access mcpAccess, conn agentzv1alpha1.MCPConnection) bool {
+	scope := authorization.Scope{
+		OrganizationID: access.claims.TenantID,
+		WorkspaceID:    access.workspaceID,
+	}
+	if access.effective.Allows(scope, authorization.OperationDeleteMCPConnection) {
+		return true
+	}
+	return conn.Spec.CreatorUserID == access.claims.UserID &&
+		access.effective.Allows(scope, authorization.OperationCreateMCPConnection)
 }
 
 func (s *Service) mcpConnectionStatus(conn agentzv1alpha1.MCPConnection) (gatewayapi.MCPConnectionLifecycle, gatewayapi.MCPConnectionReason, string) {
@@ -768,14 +868,9 @@ func validateMCPConnectionName(name string, fieldName string) []gatewayapi.Field
 	return fields
 }
 
-func (s *Service) referencingSandboxes(ctx context.Context, connectionName string) ([]string, error) {
-	ns, err := tenantNamespace(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *Service) referencingSandboxes(ctx context.Context, namespace, connectionName string) ([]string, error) {
 	var sandboxList agentzv1alpha1.SandboxList
-	if err := s.k8sClient.List(ctx, &sandboxList, ctrlclient.InNamespace(ns)); err != nil {
+	if err := s.k8sClient.List(ctx, &sandboxList, ctrlclient.InNamespace(namespace)); err != nil {
 		return nil, err
 	}
 

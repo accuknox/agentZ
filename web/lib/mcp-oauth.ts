@@ -38,6 +38,7 @@ import { openOAuthState, sealOAuthState } from "@/lib/oauth-state"
 type PendingCreateOperation = {
   kind: "create"
   form: ParsedMcpForm
+  workspaceId?: string
 }
 
 type PendingSecretOperation = {
@@ -152,6 +153,7 @@ const pendingOAuthOperationSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("create"),
     form: parsedMcpFormSchema,
+    workspaceId: z.string().min(1).optional(),
   }),
   z.object({
     kind: z.literal("secret"),

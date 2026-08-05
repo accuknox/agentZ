@@ -44,19 +44,22 @@ export function McpViewSheet({
   name,
   open,
   onOpenChangeAction,
+  workspaceId,
 }: {
   name: string
   open: boolean
   onOpenChangeAction: (open: boolean) => void
+  workspaceId?: string
 }) {
   const query = useQuery(
     queryOptions({
       enabled: open,
-      queryKey: ["mcp-connection", name],
+      queryKey: ["mcp-connection", workspaceId, name],
       queryFn: async () => {
         const result = await getMcpConnection({
           baseUrl: await getGatewayBaseURL(),
           path: { name },
+          headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
         })
         if (result.error) {
           throw new Error(result.error.message)

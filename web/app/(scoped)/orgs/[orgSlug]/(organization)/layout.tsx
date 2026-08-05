@@ -96,15 +96,22 @@ export default async function OrganizationLayout({
     ? `${root}/audit`
     : requestedURL.pathname
   await rememberOrganizationRoute(result.organization.id, rememberedPath, null)
-  const tabs = result.organization.superadmin
-    ? ([
-        { href: `${root}/workspaces` as Route, label: "Workspaces" },
-        { href: `${root}/teams` as Route, label: "Teams" },
-        { href: `${root}/roles` as Route, label: "Roles" },
-        { href: `${root}/audit` as Route, label: "Audit" },
-        { href: `${root}/general` as Route, label: "General" },
-      ] as const satisfies readonly RouteTab[])
-    : []
+  const tabs: RouteTab[] = []
+  if (result.organization.superadmin) {
+    tabs.push(
+      { href: `${root}/workspaces` as Route, label: "Workspaces" },
+      { href: `${root}/teams` as Route, label: "Teams" },
+      { href: `${root}/roles` as Route, label: "Roles" },
+      { href: `${root}/audit` as Route, label: "Audit" },
+      { href: `${root}/general` as Route, label: "General" }
+    )
+  }
+  if (tenant.data.skill_capabilities.read) {
+    tabs.push({ href: `${root}/skills` as Route, label: "Skills" })
+  }
+  if (tenant.data.mcp_connection_capabilities.read) {
+    tabs.push({ href: `${root}/mcps` as Route, label: "MCP" })
+  }
 
   return (
     <>
@@ -119,7 +126,9 @@ export default async function OrganizationLayout({
               canCreateWorkspace: workspaceResult.directory.can_create,
               canEnterOrganization: workspaceResult.directory.can_enter_organization,
               kind: "organization",
+              mcpConnectionCapabilities: tenant.data.mcp_connection_capabilities,
               organization: result.organization,
+              skillCapabilities: tenant.data.skill_capabilities,
               workspaces: workspaceResult.directory.workspaces,
             }}
             user={{

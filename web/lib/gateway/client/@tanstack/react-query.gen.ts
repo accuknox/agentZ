@@ -1148,7 +1148,7 @@ export const previewSkillImportMutation = (
 }
 
 /**
- * Import mutable or immutable skills.
+ * Import immutable skills.
  */
 export const importSkillsMutation = (
   options?: Partial<Options<ImportSkillsData>>

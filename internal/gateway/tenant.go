@@ -59,7 +59,12 @@ func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tenantView(tenant))
+	view, err := s.tenantView(r.Context(), *auth.claims, tenant)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 // EnsureTenant handles PUT /api/tenant.
@@ -77,7 +82,12 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 
 	tenant, err := s.findTenant(r.Context(), auth)
 	if err == nil {
-		writeJSON(w, http.StatusOK, tenantView(tenant))
+		view, err := s.tenantView(r.Context(), *auth.claims, tenant)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
 		return
 	}
 	if !apierrors.IsNotFound(err) {
@@ -127,10 +137,15 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tenantView(&created))
+	view, err := s.tenantView(r.Context(), *auth.claims, &created)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
-func tenantView(tenant *agentzv1alpha1.Tenant) gatewayapi.Tenant {
+func (s *Service) tenantView(ctx context.Context, claims gatewayClaims, tenant *agentzv1alpha1.Tenant) (gatewayapi.Tenant, error) {
 	conditions := make([]gatewayapi.TenantCondition, 0, len(tenant.Status.Conditions))
 	var ready, degraded bool
 	for _, cond := range tenant.Status.Conditions {
@@ -156,13 +171,19 @@ func tenantView(tenant *agentzv1alpha1.Tenant) gatewayapi.Tenant {
 		phase = gatewayapi.FAILED
 	}
 
-	return gatewayapi.Tenant{
-		Conditions: conditions,
-		Namespace:  tenant.Status.Namespace,
-		Phase:      phase,
-		Ready:      ready,
-		TenantId:   tenant.Spec.OrganizationID,
+	skill, mcp, err := s.resolveResourceCapabilities(ctx, claims, "")
+	if err != nil {
+		return gatewayapi.Tenant{}, err
 	}
+	return gatewayapi.Tenant{
+		Conditions:                conditions,
+		SkillCapabilities:         skill,
+		McpConnectionCapabilities: mcp,
+		Namespace:                 tenant.Status.Namespace,
+		Phase:                     phase,
+		Ready:                     ready,
+		TenantId:                  tenant.Spec.OrganizationID,
+	}, nil
 }
 
 func requireGatewayAuth(s *Service) func(http.Handler) http.Handler {

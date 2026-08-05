@@ -87,6 +87,12 @@ export default async function WorkspaceLayout({
       { href: `${root}/audit` as Route, label: "Audit" }
     )
   }
+  if (result.workspace.skill_capabilities.read) {
+    tabs.push({ href: `${root}/skills` as Route, label: "Skills" })
+  }
+  if (result.workspace.mcp_connection_capabilities.read) {
+    tabs.push({ href: `${root}/mcps` as Route, label: "MCP" })
+  }
 
   return (
     <>
@@ -104,7 +110,9 @@ export default async function WorkspaceLayout({
               canCreateWorkspace: result.directory.can_create,
               canEnterOrganization: result.directory.can_enter_organization,
               kind: "workspace",
+              mcpConnectionCapabilities: result.workspace.mcp_connection_capabilities,
               organization: result.scope.organization,
+              skillCapabilities: result.workspace.skill_capabilities,
               workspace: result.workspace,
               workspaces: result.directory.workspaces,
             }}

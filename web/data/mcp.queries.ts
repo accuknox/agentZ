@@ -19,14 +19,19 @@ export type ListMcpConnectionsQueryResponse =
     }
 
 export async function listMcpConnectionsCachedQuery(
-  query?: ListMcpConnectionsData["query"]
+  query?: ListMcpConnectionsData["query"],
+  workspaceId?: string
 ): Promise<ListMcpConnectionsQueryResponse> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(mcpsTag)
+  cacheTag(mcpsTag, `${mcpsTag}:${workspaceId ?? "organization"}`)
 
-  const { data, error } = await listMcpConnections({ query, client: getGatewayServerClient() })
+  const { data, error } = await listMcpConnections({
+    query,
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+  })
   if (error) {
     return {
       mcpConnections: undefined,

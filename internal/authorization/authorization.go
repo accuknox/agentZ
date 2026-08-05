@@ -28,6 +28,14 @@ import (
 type Operation string
 
 const (
+	// OperationListSkills lists immutable Skill resources.
+	OperationListSkills Operation = "listSkills"
+	// OperationCreateSkill creates an immutable Skill resource.
+	OperationCreateSkill Operation = "createSkill"
+	// OperationUpdateSkill modifies an immutable Skill resource.
+	OperationUpdateSkill Operation = "updateSkill"
+	// OperationDeleteSkill deletes an immutable Skill resource.
+	OperationDeleteSkill Operation = "deleteSkill"
 	// OperationListSandboxes lists Sandbox resources.
 	OperationListSandboxes Operation = "listSandboxes"
 	// OperationCreateSandbox creates a Sandbox resource.
@@ -36,7 +44,23 @@ const (
 	OperationUpdateSandbox Operation = "updateSandbox"
 	// OperationDeleteSandbox deletes a Sandbox resource.
 	OperationDeleteSandbox Operation = "deleteSandbox"
+	// OperationListMCPConnections lists MCP Connection resources.
+	OperationListMCPConnections Operation = "listMCPConnections"
+	// OperationWatchMCPConnections watches MCP Connection resources.
+	OperationWatchMCPConnections Operation = "watchMCPConnections"
+	// OperationGetMCPConnection reads one MCP Connection resource.
+	OperationGetMCPConnection Operation = "getMCPConnection"
+	// OperationCreateMCPConnection creates an MCP Connection resource.
+	OperationCreateMCPConnection Operation = "createMCPConnection"
+	// OperationDeleteMCPConnection deletes an MCP Connection resource.
+	OperationDeleteMCPConnection Operation = "deleteMCPConnection"
 )
+
+// BearerScope returns the generated bearer scope for the operation.
+func (o Operation) BearerScope() (string, bool) {
+	mapping, ok := mapOperation(o)
+	return mapping.bearerScope, ok
+}
 
 // Subject identifies a User within one Organisation.
 type Subject struct {
@@ -158,16 +182,41 @@ func (e Effective) CanAdminister(scope Scope) bool {
 }
 
 func operationPermission(operation Operation) (gatewaydb.PermissionResource, gatewaydb.PermissionAction, bool) {
+	mapping, ok := mapOperation(operation)
+	return mapping.resource, mapping.action, ok
+}
+
+type operationMapping struct {
+	resource    gatewaydb.PermissionResource
+	action      gatewaydb.PermissionAction
+	bearerScope string
+}
+
+func mapOperation(operation Operation) (operationMapping, bool) {
 	switch operation {
+	case OperationListSkills:
+		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionRead, "skill.read"}, true
+	case OperationCreateSkill:
+		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionCreate, "skill.create"}, true
+	case OperationUpdateSkill:
+		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionModify, "skill.modify"}, true
+	case OperationDeleteSkill:
+		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionDelete, "skill.delete"}, true
 	case OperationListSandboxes:
-		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionRead, true
+		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionRead, "sandbox.read"}, true
 	case OperationCreateSandbox:
-		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionCreate, true
+		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionCreate, "sandbox.create"}, true
 	case OperationUpdateSandbox:
-		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionModify, true
+		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionModify, "sandbox.modify"}, true
 	case OperationDeleteSandbox:
-		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionDelete, true
+		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionDelete, "sandbox.delete"}, true
+	case OperationListMCPConnections, OperationWatchMCPConnections, OperationGetMCPConnection:
+		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionRead, "mcp_connection.read"}, true
+	case OperationCreateMCPConnection:
+		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionCreate, "mcp_connection.create"}, true
+	case OperationDeleteMCPConnection:
+		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionDelete, "mcp_connection.delete"}, true
 	default:
-		return "", "", false
+		return operationMapping{}, false
 	}
 }

@@ -405,7 +405,11 @@ func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.
 		names[row.McpConnectionName] = struct{}{}
 	}
 
-	conns, err := s.listMCPConnections(ctx)
+	namespace, err := tenantNamespace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conns, err := s.listMCPConnections(namespace)
 	if err != nil {
 		return nil, err
 	}

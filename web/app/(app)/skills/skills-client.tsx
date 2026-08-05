@@ -1,23 +1,10 @@
 "use client"
 
-import type { Route } from "next"
 import * as React from "react"
-import { useRouter } from "@bprogress/next/app"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import {
-  BotIcon,
-  Download,
-  Lock,
-  MoreHorizontal,
-  Pencil,
-  ScrollText,
-  Trash2,
-  TriangleAlert,
-  Upload,
-} from "lucide-react"
+import { Download, MoreHorizontal, Pencil, Trash2, TriangleAlert, Upload } from "lucide-react"
 import { useSearchParams } from "next/navigation"
-import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -46,19 +33,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import { watchAgentsQueryOptions } from "@/components/agent-readiness"
 import {
-  deleteAgentMutableSkills,
   deleteImmutableSkills,
-  exportAgentMutableSkills,
   exportImmutableSkills,
   updateSkill,
-  type Agent,
   type ImmutableSkillSummary,
-  type MutableSkillSummary,
 } from "@/lib/gateway/client"
 import {
-  listAgentMutableSkillsOptions,
   listImmutableSkillSummariesOptions,
   listImmutableSkillVersionsOptions,
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
@@ -66,14 +47,8 @@ import { SkillImportDialog } from "./skill-import-dialog"
 import { SkillTable } from "./skill-table"
 
 const pageSize = 50
-const allAgentsValue = "__all_agents__"
-
-const skillKindSchema = z.enum(["mutable", "immutable"])
-export type Skill =
-  | (MutableSkillSummary & { type: "mutable" })
-  | (ImmutableSkillSummary & { type: "immutable" })
-export type ImmutableSkill = ImmutableSkillSummary & { type: "immutable" }
-type SkillKind = z.infer<typeof skillKindSchema>
+export type ImmutableSkill = ImmutableSkillSummary
+export type Skill = ImmutableSkill
 
 type SkillListData = {
   skills: Skill[]
@@ -84,80 +59,38 @@ type SkillListData = {
 const emptySkills: Skill[] = []
 
 export function SkillsClient({
-  agents,
-  initialAgentName,
-  initialType,
+  canCreate,
+  workspaceId,
 }: {
-  agents: Agent[]
-  initialAgentName?: string
-  initialType: SkillKind
+  canCreate: boolean
+  workspaceId?: string
 }) {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const agentsQuery = useQuery(watchAgentsQueryOptions(agents))
-  const liveAgents = agentsQuery.data ?? agents
-  const firstAgentName = liveAgents[0]?.name ?? ""
-  const initialAgentExists = liveAgents.some((agent) => agent.name === initialAgentName)
-  const startType = initialType
-  const startAgentName =
-    startType === "immutable"
-      ? initialAgentExists && initialAgentName
-        ? initialAgentName
-        : allAgentsValue
-      : initialAgentExists && initialAgentName
-        ? initialAgentName
-        : firstAgentName
-  const [type, setType] = React.useState<SkillKind>(startType)
-  const [agentName, setAgentName] = React.useState(startAgentName)
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set())
   const [error, setError] = React.useState<string>()
   const [deleteNames, setDeleteNames] = React.useState<string[]>([])
   const [editingSkill, setEditingSkill] = React.useState<ImmutableSkill>()
   const [importOpen, setImportOpen] = React.useState(false)
   const [exporting, setExporting] = React.useState(false)
-  const routeType = searchParams.has("type")
-    ? skillKindSchema.parse(searchParams.get("type"))
-    : startType
-  const routeAgentName = searchParams.get("agent_name") ?? ""
-  const pageToken =
-    routeType === type && (routeAgentName === "" || routeAgentName === agentName)
-      ? (searchParams.get("page_token") ?? "")
-      : ""
-
-  const selectedAgent = liveAgents.find((agent) => agent.name === agentName)
-  const mutableReady = type === "immutable" || selectedAgent?.status === "IDLE"
-  const mutableOptions = listAgentMutableSkillsOptions({
-    path: { agentName },
-    query: { limit: pageSize, page_token: pageToken || undefined },
-  })
+  const scopeHeaders = workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined
+  const pageToken = searchParams.get("page_token") ?? ""
   const immutableOptions = listImmutableSkillSummariesOptions({
+    headers: scopeHeaders,
     query: {
-      agent_name: agentName === allAgentsValue ? undefined : agentName,
       limit: pageSize,
       page_token: pageToken || undefined,
     },
   })
-  const mutableQuery = useQuery({
-    ...mutableOptions,
-    enabled: type === "mutable" && agentName.length > 0 && mutableReady,
-    select: (result): SkillListData => ({
-      skills: result.skills.map((skill) => ({ ...skill, type: "mutable" })),
-      nextPageToken: result.next_page_token,
-      hasNextPage: result.next_page_token.length > 0,
-    }),
-  })
-  const immutableQuery = useQuery({
+  const query = useQuery({
     ...immutableOptions,
-    enabled: type === "immutable",
     select: (result): SkillListData => ({
-      skills: result.skills.map((skill) => ({ ...skill, type: "immutable" })),
+      skills: result.skills,
       nextPageToken: result.next_page_token,
       hasNextPage: result.next_page_token.length > 0,
     }),
   })
-  const query = type === "mutable" ? mutableQuery : immutableQuery
-  const queryKey = type === "mutable" ? mutableOptions.queryKey : immutableOptions.queryKey
+  const queryKey = immutableOptions.queryKey
   const skills = query.data?.skills ?? emptySkills
   const skillsByName = React.useMemo(
     () => new Map(skills.map((skill) => [skill.name, skill])),
@@ -167,36 +100,12 @@ export function SkillsClient({
     const skill = skillsByName.get(name)
     return skill ? [skill] : []
   })
-
-  function routeFor(nextType: SkillKind, nextAgentName: string, nextPageToken = ""): Route {
-    const params = new URLSearchParams({ type: nextType })
-    if (nextAgentName && (nextType === "mutable" || nextAgentName !== allAgentsValue)) {
-      params.set("agent_name", nextAgentName)
-    }
-    if (nextPageToken) {
-      params.set("page_token", nextPageToken)
-    }
-    return `/skills?${params}` as Route
-  }
-
-  function chooseType(nextType: SkillKind) {
-    const nextAgentName =
-      nextType === "immutable"
-        ? agentName || allAgentsValue
-        : agentName && agentName !== allAgentsValue
-          ? agentName
-          : firstAgentName
-    setSelected(new Set())
-    setType(nextType)
-    setAgentName(nextAgentName)
-    router.replace(routeFor(nextType, nextAgentName))
-  }
-
-  function chooseAgent(nextAgentName: string) {
-    setSelected(new Set())
-    setAgentName(nextAgentName)
-    router.replace(routeFor(type, nextAgentName))
-  }
+  const canDeleteSelected =
+    selected.size > 0 &&
+    [...selected].every((name) => {
+      const skill = skillsByName.get(name)
+      return Boolean(skill?.can_delete)
+    })
 
   async function refreshSkills() {
     await queryClient.invalidateQueries({ queryKey })
@@ -209,24 +118,17 @@ export function SkillsClient({
     setError(undefined)
     setExporting(true)
     try {
-      const result =
-        type === "mutable"
-          ? await exportAgentMutableSkills({
-              path: { agentName },
-              body: { skill_names: skillNames },
-            })
-          : await exportImmutableSkills({ body: { skill_names: skillNames } })
+      const result = await exportImmutableSkills({
+        body: { skill_names: skillNames },
+        headers: scopeHeaders,
+      })
       if (result.error) {
         setError(result.error.message)
         toast.error(skillNames.length === 1 ? "Failed to export skill" : "Failed to export skills")
         return
       }
 
-      let filename = "skills.zip"
-      if (type === "mutable") {
-        filename =
-          skillNames.length === 1 ? `${agentName}-${skillNames[0]}.zip` : `${agentName}-skills.zip`
-      }
+      const filename = skillNames.length === 1 ? `${skillNames[0]}.zip` : "skills.zip"
       const href = URL.createObjectURL(result.data)
       const link = document.createElement("a")
       link.href = href
@@ -249,13 +151,10 @@ export function SkillsClient({
     setDeleteNames([])
     setSelected(new Set())
 
-    const result =
-      type === "mutable"
-        ? await deleteAgentMutableSkills({
-            path: { agentName },
-            body: { skill_names: namesToDelete },
-          })
-        : await deleteImmutableSkills({ body: { skill_names: namesToDelete } })
+    const result = await deleteImmutableSkills({
+      body: { skill_names: namesToDelete },
+      headers: scopeHeaders,
+    })
     if (result.error) {
       setError(result.error.message)
       toast.error(namesToDelete.length === 1 ? "Failed to delete skill" : "Failed to delete skills")
@@ -266,17 +165,15 @@ export function SkillsClient({
     await refreshSkills()
   }
 
-  const canUseMutableSkills = mutableReady && (type === "immutable" || agentName.length > 0)
-  const showAgentFilter = type === "immutable" || liveAgents.length > 0
-
   return (
     <>
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Skills</h1>
+          <h2 className="text-xl font-semibold">Immutable Skills</h2>
         </div>
         <SkillsActions
-          disabled={!canUseMutableSkills}
+          canCreate={canCreate}
+          canDelete={canDeleteSelected}
           exporting={exporting}
           selectedCount={selected.size}
           onDelete={() => setDeleteNames([...selected])}
@@ -284,76 +181,30 @@ export function SkillsClient({
           onImport={() => setImportOpen(true)}
         />
       </div>
-      <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
-          <Select value={type} onValueChange={(value) => chooseType(skillKindSchema.parse(value))}>
-            <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="mutable">
-                  <Pencil className="inline-block" />
-                  Mutable
-                </SelectItem>
-                <SelectItem value="immutable">
-                  <Lock className="inline-block" />
-                  Immutable
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          {showAgentFilter ? (
-            <Select value={agentName} onValueChange={chooseAgent}>
-              <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {type === "immutable" ? (
-                    <SelectItem value={allAgentsValue}>
-                      <ScrollText className="inline-block" />
-                      All
-                    </SelectItem>
-                  ) : null}
-                  {liveAgents.map((agent) => (
-                    <SelectItem key={agent.name} value={agent.name}>
-                      <BotIcon className="inline-block" />
-                      {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          ) : null}
-        </div>
-      </div>
       {error ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive mx-4 mt-4 mb-4 rounded-lg border px-4 py-3 text-sm md:mx-6">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-sm">
           {error}
         </div>
       ) : null}
       <SkillTable
         data={skills}
-        disabled={!mutableReady}
         error={query.error}
         exporting={exporting}
         hasNextPage={query.data?.hasNextPage ?? false}
         loading={query.isPending}
         nextPageToken={query.data?.nextPageToken ?? ""}
         selected={selected}
-        showAgents={type === "immutable" && agentName === allAgentsValue}
-        showImmutable={type === "immutable"}
+        scopeLabel="Local"
         setDeleteNames={setDeleteNames}
         setSelected={setSelected}
         onEdit={setEditingSkill}
         onExport={(name) => void exportSkills([name])}
       />
       <SkillImportDialog
-        agents={liveAgents}
         open={importOpen}
         setOpen={setImportOpen}
         onImported={refreshSkills}
+        workspaceId={workspaceId}
       />
       <EditSkillDialog
         key={editingSkill ? `${editingSkill.name}:${editingSkill.version}` : "edit-skill"}
@@ -365,6 +216,7 @@ export function SkillsClient({
           }
         }}
         onUpdated={refreshSkills}
+        workspaceId={workspaceId}
       />
       <DeleteDialog
         names={deleteNames}
@@ -382,14 +234,16 @@ export function SkillsClient({
 }
 
 function SkillsActions({
-  disabled,
+  canCreate,
+  canDelete,
   exporting,
   selectedCount,
   onDelete,
   onExport,
   onImport,
 }: {
-  disabled: boolean
+  canCreate: boolean
+  canDelete: boolean
   exporting: boolean
   selectedCount: number
   onDelete: () => void
@@ -399,34 +253,38 @@ function SkillsActions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" disabled={disabled}>
+        <Button variant="ghost" size="icon">
           <span className="sr-only">Open skills menu</span>
           <MoreHorizontal />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              onImport()
-            }}
-          >
-            <Upload />
-            Import
-          </DropdownMenuItem>
+          {canCreate ? (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                onImport()
+              }}
+            >
+              <Upload />
+              Import
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem disabled={selectedCount === 0 || exporting} onSelect={onExport}>
             {exporting ? <Spinner /> : <Download />}
             Export
           </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={selectedCount === 0}
-            onSelect={onDelete}
-          >
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
+          {canDelete ? (
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={selectedCount === 0}
+              onSelect={onDelete}
+            >
+              <Trash2 />
+              Delete
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -438,17 +296,22 @@ function EditSkillDialog({
   open,
   setOpen,
   onUpdated,
+  workspaceId,
 }: {
   skill?: ImmutableSkill
   open: boolean
   setOpen: (open: boolean) => void
   onUpdated: () => Promise<void>
+  workspaceId?: string
 }) {
   const [error, setError] = React.useState<{ skillName: string; message: string }>()
   const [pending, startTransition] = React.useTransition()
   const [version, setVersion] = React.useState(String(skill?.version ?? ""))
   const versionsQuery = useQuery({
-    ...listImmutableSkillVersionsOptions({ path: { skillName: skill?.name ?? "" } }),
+    ...listImmutableSkillVersionsOptions({
+      headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+      path: { skillName: skill?.name ?? "" },
+    }),
     enabled: open && Boolean(skill?.name),
   })
   const versionValues = new Set(versionsQuery.data ?? [])
@@ -472,6 +335,7 @@ function EditSkillDialog({
     startTransition(async () => {
       setError(undefined)
       const result = await updateSkill({
+        headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
         path: { skillName: skill.name },
         body: { version: nextVersion },
       })
@@ -557,11 +421,8 @@ function DeleteDialog({
   onDelete: () => Promise<void>
 }) {
   const [pending, startTransition] = React.useTransition()
-  const immutableTargets = targets.filter(
-    (skill): skill is ImmutableSkill => skill.type === "immutable"
-  )
-  const agentRefs = new Set(immutableTargets.flatMap((skill) => skill.agents))
-  const sandboxRefs = new Set(immutableTargets.flatMap((skill) => skill.sandboxes))
+  const agentRefs = new Set(targets.flatMap((skill) => skill.agents))
+  const sandboxRefs = new Set(targets.flatMap((skill) => skill.sandboxes))
   const hasRefs = agentRefs.size > 0 || sandboxRefs.size > 0
   const title = names.length === 1 ? `Delete ${names[0]}?` : `Delete ${names.length} skills?`
 

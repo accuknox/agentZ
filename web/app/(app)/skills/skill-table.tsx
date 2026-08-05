@@ -19,7 +19,6 @@ import {
   Trash2,
 } from "lucide-react"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
-import { AgentGettingReady } from "@/components/agent-readiness"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -39,7 +38,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatAge, formatByteSize } from "@/lib/format"
 import type { ImmutableSkill, Skill } from "./skills-client"
 
@@ -49,37 +47,32 @@ const columnClassName: Record<string, string> = {
   version: "w-24",
   file_count: "w-24",
   size_bytes: "w-28",
-  agents: "w-52",
   modified_at: "w-44",
   actions: "w-14",
 }
 
 export function SkillTable({
   data,
-  disabled,
   error,
   exporting,
   hasNextPage,
   loading,
   nextPageToken,
   selected,
-  showAgents,
-  showImmutable,
+  scopeLabel,
   setDeleteNames,
   setSelected,
   onEdit,
   onExport,
 }: {
   data: Skill[]
-  disabled: boolean
   error: { message: string } | null
   exporting: boolean
   hasNextPage: boolean
   loading: boolean
   nextPageToken: string
   selected: Set<string>
-  showAgents: boolean
-  showImmutable: boolean
+  scopeLabel?: "Local" | `Inherited from ${string}`
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
   onEdit: (skill: ImmutableSkill) => void
@@ -92,27 +85,15 @@ export function SkillTable({
   const columns = React.useMemo(
     () =>
       createSkillColumns({
-        disabled,
         exporting,
         selected,
-        showAgents,
-        showImmutable,
+        scopeLabel,
         setDeleteNames,
         setSelected,
         onEdit,
         onExport,
       }),
-    [
-      disabled,
-      exporting,
-      onEdit,
-      onExport,
-      selected,
-      setDeleteNames,
-      setSelected,
-      showAgents,
-      showImmutable,
-    ]
+    [exporting, onEdit, onExport, selected, scopeLabel, setDeleteNames, setSelected]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -156,29 +137,22 @@ export function SkillTable({
             ))}
           </TableHeader>
           <TableBody>
-            {disabled ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <AgentGettingReady className="text-muted-foreground inline-flex items-center gap-2 text-sm" />
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {!disabled && loading ? <SkillTableSkeleton columns={columns.length} /> : null}
-            {!disabled && !loading && error ? (
+            {loading ? <SkillTableSkeleton columns={columns.length} /> : null}
+            {!loading && error ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="text-destructive h-24 text-center">
                   {error.message}
                 </TableCell>
               </TableRow>
             ) : null}
-            {!disabled && !loading && !error && table.getRowModel().rows.length === 0 ? (
+            {!loading && !error && table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
                   No skills
                 </TableCell>
               </TableRow>
             ) : null}
-            {!disabled && !loading && !error
+            {!loading && !error
               ? table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id} data-state={selected.has(row.original.name) && "selected"}>
                     {row.getVisibleCells().map((cell) => (
@@ -200,7 +174,7 @@ export function SkillTable({
           variant="ghost"
           size="sm"
           onClick={clearSelectionAndGoPrevious}
-          disabled={disabled || !canGoPrevious || pending}
+          disabled={!canGoPrevious || pending}
         >
           <ArrowLeft data-icon="inline-start" />
           Previous
@@ -209,7 +183,7 @@ export function SkillTable({
           variant="ghost"
           size="sm"
           onClick={clearSelectionAndGoNext}
-          disabled={disabled || !hasNextPage || pending}
+          disabled={!hasNextPage || pending}
         >
           Next
           <ArrowRight data-icon="inline-end" />
@@ -220,21 +194,17 @@ export function SkillTable({
 }
 
 function createSkillColumns({
-  disabled,
   exporting,
   selected,
-  showAgents,
-  showImmutable,
+  scopeLabel,
   setDeleteNames,
   setSelected,
   onEdit,
   onExport,
 }: {
-  disabled: boolean
   exporting: boolean
   selected: Set<string>
-  showAgents: boolean
-  showImmutable: boolean
+  scopeLabel?: "Local" | `Inherited from ${string}`
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
   onEdit: (skill: ImmutableSkill) => void
@@ -248,7 +218,6 @@ function createSkillColumns({
         const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.original.name))
         return (
           <Checkbox
-            disabled={disabled}
             checked={allSelected}
             aria-label="Select all skills"
             onCheckedChange={(checked) => {
@@ -269,7 +238,6 @@ function createSkillColumns({
       },
       cell: ({ row }) => (
         <Checkbox
-          disabled={disabled}
           checked={selected.has(row.original.name)}
           aria-label={`Select ${row.original.name}`}
           onCheckedChange={(checked) => {
@@ -291,25 +259,26 @@ function createSkillColumns({
       accessorKey: "name",
       header: ({ column }) => <SortButton column={column} label="Name" />,
       cell: ({ row }) => (
-        <span className="block min-w-0 truncate font-medium" title={row.original.name}>
-          {row.original.name}
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-medium" title={row.original.name}>
+            {row.original.name}
+          </span>
+          {scopeLabel ? (
+            <span className="text-muted-foreground shrink-0 text-xs">{scopeLabel}</span>
+          ) : null}
         </span>
       ),
     },
   ]
 
-  if (showImmutable) {
-    columns.push({
-      accessorKey: "version",
-      header: ({ column }) => <SortButton column={column} label="Version" />,
-      cell: ({ row }) => {
-        const skill = row.original
-        return skill.type === "immutable" ? (
-          <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
-        ) : null
-      },
-    })
-  }
+  columns.push({
+    accessorKey: "version",
+    header: ({ column }) => <SortButton column={column} label="Version" />,
+    cell: ({ row }) => {
+      const skill = row.original
+      return <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
+    },
+  })
 
   columns.push(
     {
@@ -330,17 +299,6 @@ function createSkillColumns({
     }
   )
 
-  if (showAgents) {
-    columns.push({
-      id: "agents",
-      header: "Agents",
-      cell: ({ row }) => (
-        <AgentsSummary agents={row.original.type === "immutable" ? row.original.agents : []} />
-      ),
-      enableSorting: false,
-    })
-  }
-
   columns.push(
     {
       accessorKey: "modified_at",
@@ -360,7 +318,6 @@ function createSkillColumns({
       id: "actions",
       cell: ({ row }) => (
         <SkillRowActions
-          disabled={disabled}
           exporting={exporting}
           skill={row.original}
           setDeleteNames={setDeleteNames}
@@ -394,37 +351,13 @@ function SortButton({
   )
 }
 
-function AgentsSummary({ agents }: { agents: string[] }) {
-  if (agents.length === 0) {
-    return <span className="text-muted-foreground">-</span>
-  }
-  const sorted = agents.toSorted()
-  const summary =
-    sorted.length <= 2
-      ? sorted.join(", ")
-      : `${sorted.slice(0, 2).join(", ")}, +${sorted.length - 2}`
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <code className="cursor-default">{summary}</code>
-        </TooltipTrigger>
-        <TooltipContent sideOffset={6}>{sorted.join(", ")}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
 function SkillRowActions({
-  disabled,
   exporting,
   skill,
   setDeleteNames,
   onEdit,
   onExport,
 }: {
-  disabled: boolean
   exporting: boolean
   skill: Skill
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
@@ -435,14 +368,14 @@ function SkillRowActions({
     <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button disabled={disabled} variant="ghost" size="icon" className="size-8">
+          <Button variant="ghost" size="icon" className="size-8">
             <span className="sr-only">Open skill menu</span>
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
-            {skill.type === "immutable" ? (
+            {skill.can_modify ? (
               <DropdownMenuItem onSelect={() => onEdit(skill)}>
                 <Pencil />
                 Edit
@@ -452,10 +385,12 @@ function SkillRowActions({
               {exporting ? <Spinner /> : <Download />}
               Export
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteNames([skill.name])}>
-              <Trash2 />
-              Delete
-            </DropdownMenuItem>
+            {skill.can_delete ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteNames([skill.name])}>
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>

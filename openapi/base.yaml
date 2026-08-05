@@ -790,6 +790,10 @@ paths:
       operationId: previewSkillImport
       summary: Parse a skill import and report live conflicts.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.read]
       requestBody:
         required: true
         content:
@@ -801,12 +805,6 @@ paths:
                 file:
                   type: string
                   format: binary
-                agents:
-                  type: array
-                  maxItems: 200
-                  uniqueItems: true
-                  items:
-                    $ref: '#/components/schemas/AgentName'
       responses:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
@@ -826,27 +824,23 @@ paths:
   /api/skill/import:
     post:
       operationId: importSkills
-      summary: Import mutable or immutable skills.
+      summary: Import immutable skills.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.create]
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required: [file, kind, decisions]
+              required: [file, decisions]
               properties:
                 file:
                   type: string
                   format: binary
-                kind:
-                  $ref: '#/components/schemas/SkillKind'
-                agents:
-                  type: array
-                  maxItems: 200
-                  uniqueItems: true
-                  items:
-                    $ref: '#/components/schemas/AgentName'
                 decisions:
                   type: array
                   minItems: 1
@@ -875,9 +869,12 @@ paths:
       summary: List immutable Skill resources.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Paginated immutable skills.
@@ -895,6 +892,10 @@ paths:
       operationId: createSkill
       summary: Create an immutable Skill resource.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.create]
       requestBody:
         required: true
         content:
@@ -922,6 +923,10 @@ paths:
       operationId: deleteImmutableSkills
       summary: Delete immutable Skill resources in one request.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.delete]
       requestBody:
         required: true
         content:
@@ -948,9 +953,12 @@ paths:
       summary: List immutable skills with active version file summaries.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Paginated immutable skill summaries.
@@ -970,6 +978,10 @@ paths:
       operationId: exportImmutableSkills
       summary: Stream selected active immutable Skill versions as ZIP.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.read]
       requestBody:
         required: true
         content:
@@ -1001,7 +1013,10 @@ paths:
       summary: Update an immutable Skill active version and references.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      security:
+      - GatewayBearer: [skill.modify]
       requestBody:
         required: true
         content:
@@ -1032,7 +1047,10 @@ paths:
       summary: Delete an immutable Skill resource.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      security:
+      - GatewayBearer: [skill.delete]
       responses:
         '204':
           description: Skill deleted.
@@ -1049,7 +1067,10 @@ paths:
       summary: List Agents and Sandboxes referencing an immutable Skill.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Skill references.
@@ -1070,7 +1091,10 @@ paths:
       summary: List stored versions for an immutable Skill.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Sorted stored versions.
@@ -1986,7 +2010,10 @@ paths:
       operationId: listMCPConnections
       summary: List paginated MCPConnection resources.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1998,12 +2025,20 @@ paths:
                 $ref: '#/components/schemas/ListMCPConnectionsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
     post:
       operationId: createMCPConnection
       summary: Create an MCPConnection resource.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -2025,6 +2060,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -2033,7 +2072,10 @@ paths:
       operationId: getMCPConnection
       summary: Get an MCPConnection resource.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/MCPConnectionNamePath'
       responses:
         '200':
@@ -2046,13 +2088,20 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
     delete:
       operationId: deleteMCPConnection
       summary: Delete an MCPConnection resource.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.delete]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/MCPConnectionNamePath'
       responses:
         '204':
@@ -2063,6 +2112,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -2075,6 +2128,10 @@ paths:
         WatchMCPConnectionsEvent. If names is omitted or empty, all MCP
         connections are watched.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.read]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: false
         content:
@@ -2094,6 +2151,10 @@ paths:
                 $ref: '#/components/schemas/WatchMCPConnectionsEvent'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -3187,14 +3248,16 @@ components:
 
     AuditTargetType:
       type: string
-      enum: [organization, organization_membership, workspace, role, sandbox, team]
+      enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection]
       x-enum-varnames:
       - AuditTargetOrganization
       - AuditTargetOrganizationMembership
       - AuditTargetWorkspace
       - AuditTargetRole
       - AuditTargetSandbox
+      - AuditTargetSkill
       - AuditTargetTeam
+      - AuditTargetMCPConnection
 
     AuditField:
       type: object
@@ -3423,9 +3486,23 @@ components:
         message:
           type: string
 
+    ResourceCapabilities:
+      type: object
+      additionalProperties: false
+      required: [read, create, modify, delete]
+      properties:
+        read:
+          type: boolean
+        create:
+          type: boolean
+        modify:
+          type: boolean
+        delete:
+          type: boolean
+
     Tenant:
       type: object
-      required: [tenant_id, namespace, ready, phase, conditions]
+      required: [tenant_id, namespace, ready, phase, conditions, skill_capabilities, mcp_connection_capabilities]
       properties:
         tenant_id:
           type: string
@@ -3439,6 +3516,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TenantCondition'
+        skill_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        mcp_connection_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
 
     WorkspaceState:
       type: string
@@ -3469,6 +3550,10 @@ components:
           minimum: 1
         failure_reason:
           type: string
+        skill_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        mcp_connection_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         workspace_admin_count:
           type: integer
           format: int64
@@ -3492,6 +3577,8 @@ components:
       - can_administer
       - created_at
       - updated_at
+      - skill_capabilities
+      - mcp_connection_capabilities
 
     ListWorkspacesResponse:
       type: object
@@ -4001,6 +4088,10 @@ components:
         created_at:
           type: string
           format: date-time
+        can_modify:
+          type: boolean
+        can_delete:
+          type: boolean
       required:
       - name
       - description
@@ -4009,10 +4100,8 @@ components:
       - agents
       - sandboxes
       - created_at
-
-    SkillKind:
-      type: string
-      enum: [mutable, immutable]
+      - can_modify
+      - can_delete
 
     SkillFileSummary:
       type: object
@@ -4045,6 +4134,10 @@ components:
         properties:
           description:
             type: string
+          can_modify:
+            type: boolean
+          can_delete:
+            type: boolean
           version:
             type: integer
             format: int64
@@ -4057,7 +4150,7 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/SandboxName'
-        required: [description, version, agents, sandboxes]
+        required: [description, version, agents, sandboxes, can_modify, can_delete]
 
     DeleteSkillsRequest:
       type: object
@@ -4138,13 +4231,9 @@ components:
       properties:
         name:
           $ref: '#/components/schemas/SkillName'
-        mutable_conflict_agents:
-          type: array
-          items:
-            $ref: '#/components/schemas/AgentName'
         immutable_conflict:
           type: boolean
-      required: [name, mutable_conflict_agents, immutable_conflict]
+      required: [name, immutable_conflict]
 
     SkillImportPreviewResponse:
       type: object
@@ -4177,11 +4266,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SkillName'
-        agents:
-          type: array
-          items:
-            $ref: '#/components/schemas/SkillImportAgentResult'
-      required: [skills, agents]
+      required: [skills]
 
     SkillReferences:
       type: object
@@ -6677,6 +6762,9 @@ components:
       type: object
       additionalProperties: false
       properties:
+        can_delete:
+          type: boolean
+          description: Whether the current principal may delete this connection in the selected scope.
         name:
           $ref: '#/components/schemas/MCPConnectionName'
         endpoint:
@@ -6698,12 +6786,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MCPConnectionTool'
-      required: [name, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools]
+      required: [name, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools, can_delete]
 
     MCPConnectionSummary:
       type: object
       additionalProperties: false
       properties:
+        can_delete:
+          type: boolean
+          description: Whether the current principal may delete this connection in the selected scope.
         name:
           $ref: '#/components/schemas/MCPConnectionName'
         auth_mode:
@@ -6725,7 +6816,7 @@ components:
           type: integer
           format: int64
           minimum: 0
-      required: [name, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count]
+      required: [name, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count, can_delete]
 
     MCPConnectionEndpoint:
       type: object

@@ -16,7 +16,9 @@ export type AuditTargetType =
   | "workspace"
   | "role"
   | "sandbox"
+  | "skill"
   | "team"
+  | "mcp_connection"
 
 export type AuditField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
@@ -117,12 +119,21 @@ export type TenantCondition = {
   message: string
 }
 
+export type ResourceCapabilities = {
+  read: boolean
+  create: boolean
+  modify: boolean
+  delete: boolean
+}
+
 export type Tenant = {
   tenant_id: string
   namespace: string
   ready: boolean
   phase: TenantPhase
   conditions: Array<TenantCondition>
+  skill_capabilities: ResourceCapabilities
+  mcp_connection_capabilities: ResourceCapabilities
 }
 
 export type WorkspaceState = "provisioning" | "ready" | "failed" | "deleting"
@@ -135,6 +146,8 @@ export type Workspace = {
   state: WorkspaceState
   provisioning_attempt: number
   failure_reason?: string
+  skill_capabilities: ResourceCapabilities
+  mcp_connection_capabilities: ResourceCapabilities
   workspace_admin_count: number
   can_administer: boolean
   created_at: string
@@ -355,9 +368,9 @@ export type Skill = {
   agents: Array<AgentName>
   sandboxes: Array<SandboxName>
   created_at: string
+  can_modify: boolean
+  can_delete: boolean
 }
-
-export type SkillKind = "mutable" | "immutable"
 
 export type SkillFileSummary = {
   name: SkillName
@@ -370,6 +383,8 @@ export type MutableSkillSummary = SkillFileSummary
 
 export type ImmutableSkillSummary = SkillFileSummary & {
   description: string
+  can_modify: boolean
+  can_delete: boolean
   version: number
   agents: Array<AgentName>
   sandboxes: Array<SandboxName>
@@ -412,7 +427,6 @@ export type RenameSkillImportDecision = {
 
 export type SkillImportPreviewItem = {
   name: SkillName
-  mutable_conflict_agents: Array<AgentName>
   immutable_conflict: boolean
 }
 
@@ -428,7 +442,6 @@ export type SkillImportAgentResult = {
 
 export type ImportSkillsResponse = {
   skills: Array<SkillName>
-  agents: Array<SkillImportAgentResult>
 }
 
 export type SkillReferences = {
@@ -1550,6 +1563,10 @@ export type McpConnectionTool = {
 }
 
 export type McpConnectionDetail = {
+  /**
+   * Whether the current principal may delete this connection in the selected scope.
+   */
+  can_delete: boolean
   name: McpConnectionName
   endpoint: McpConnectionEndpoint
   auth: McpConnectionAuth
@@ -1562,6 +1579,10 @@ export type McpConnectionDetail = {
 }
 
 export type McpConnectionSummary = {
+  /**
+   * Whether the current principal may delete this connection in the selected scope.
+   */
+  can_delete: boolean
   name: McpConnectionName
   auth_mode: string
   endpoint_url: string
@@ -3270,7 +3291,13 @@ export type ExportAgentMutableSkillsResponse =
 export type PreviewSkillImportData = {
   body: {
     file: Blob | File
-    agents?: Array<AgentName>
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
   }
   path?: never
   query?: never
@@ -3311,9 +3338,14 @@ export type PreviewSkillImportResponse =
 export type ImportSkillsData = {
   body: {
     file: Blob | File
-    kind: SkillKind
-    agents?: Array<AgentName>
     decisions: Array<SkillImportDecision>
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
   }
   path?: never
   query?: never
@@ -3352,6 +3384,13 @@ export type ImportSkillsResponse2 = ImportSkillsResponses[keyof ImportSkillsResp
 
 export type DeleteImmutableSkillsData = {
   body: DeleteSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/skill"
@@ -3396,6 +3435,13 @@ export type DeleteImmutableSkillsResponse =
 
 export type ListSkillsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -3443,6 +3489,13 @@ export type ListSkillsResponse2 = ListSkillsResponses[keyof ListSkillsResponses]
 
 export type CreateSkillData = {
   body: CreateSkillRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/skill"
@@ -3485,6 +3538,13 @@ export type CreateSkillResponse = CreateSkillResponses[keyof CreateSkillResponse
 
 export type ListImmutableSkillSummariesData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -3534,6 +3594,13 @@ export type ListImmutableSkillSummariesResponse2 =
 
 export type ExportImmutableSkillsData = {
   body: ExportSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/skill/export"
@@ -3578,6 +3645,13 @@ export type ExportImmutableSkillsResponse =
 
 export type DeleteSkillData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
@@ -3617,6 +3691,13 @@ export type DeleteSkillResponse = DeleteSkillResponses[keyof DeleteSkillResponse
 
 export type UpdateSkillData = {
   body: UpdateSkillRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
@@ -3669,6 +3750,13 @@ export type UpdateSkillResponse = UpdateSkillResponses[keyof UpdateSkillResponse
 
 export type GetSkillReferencesData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
@@ -3709,6 +3797,13 @@ export type GetSkillReferencesResponse =
 
 export type ListImmutableSkillVersionsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
@@ -5315,6 +5410,13 @@ export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxRe
 
 export type ListMcpConnectionsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -5335,6 +5437,14 @@ export type ListMcpConnectionsErrors = {
    */
   400: Error
   /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -5354,6 +5464,13 @@ export type ListMcpConnectionsResponse2 =
 
 export type CreateMcpConnectionData = {
   body: CreateMcpConnectionRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/mcp-connection"
@@ -5364,6 +5481,14 @@ export type CreateMcpConnectionErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -5397,6 +5522,13 @@ export type CreateMcpConnectionResponse =
 
 export type DeleteMcpConnectionData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * MCPConnection name.
@@ -5412,6 +5544,14 @@ export type DeleteMcpConnectionErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -5442,6 +5582,13 @@ export type DeleteMcpConnectionResponse =
 
 export type GetMcpConnectionData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * MCPConnection name.
@@ -5457,6 +5604,14 @@ export type GetMcpConnectionErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -5481,6 +5636,13 @@ export type GetMcpConnectionResponse = GetMcpConnectionResponses[keyof GetMcpCon
 
 export type WatchMcpConnectionsData = {
   body?: WatchMcpConnectionsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/mcp-connection/watch"
@@ -5491,6 +5653,14 @@ export type WatchMcpConnectionsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * The request Content-Type is not supported by this operation.
    */

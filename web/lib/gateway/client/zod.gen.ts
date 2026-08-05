@@ -14,7 +14,9 @@ export const zAuditTargetType = z.enum([
   "workspace",
   "role",
   "sandbox",
+  "skill",
   "team",
+  "mcp_connection",
 ])
 
 export const zAuditField = z.object({
@@ -125,12 +127,21 @@ export const zTenantCondition = z.object({
   message: z.string(),
 })
 
+export const zResourceCapabilities = z.object({
+  read: z.boolean(),
+  create: z.boolean(),
+  modify: z.boolean(),
+  delete: z.boolean(),
+})
+
 export const zTenant = z.object({
   tenant_id: z.string(),
   namespace: z.string(),
   ready: z.boolean(),
   phase: zTenantPhase,
   conditions: z.array(zTenantCondition),
+  skill_capabilities: zResourceCapabilities,
+  mcp_connection_capabilities: zResourceCapabilities,
 })
 
 export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
@@ -148,6 +159,8 @@ export const zWorkspace = z.object({
       error: "Invalid value: Expected int64 to be <= 9223372036854775807",
     }),
   failure_reason: z.string().optional(),
+  skill_capabilities: zResourceCapabilities,
+  mcp_connection_capabilities: zResourceCapabilities,
   workspace_admin_count: z.coerce
     .bigint()
     .gte(BigInt(0))
@@ -391,14 +404,14 @@ export const zSkill = z.object({
   agents: z.array(zAgentName),
   sandboxes: z.array(zSandboxName),
   created_at: z.iso.datetime(),
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
 })
 
 export const zListSkillsResponse = z.object({
   skills: z.array(zSkill),
   next_page_token: z.string(),
 })
-
-export const zSkillKind = z.enum(["mutable", "immutable"])
 
 export const zSkillFileSummary = z.object({
   name: zSkillName,
@@ -422,6 +435,8 @@ export const zListMutableSkillsResponse = z.object({
 export const zImmutableSkillSummary = zSkillFileSummary.and(
   z.object({
     description: z.string(),
+    can_modify: z.boolean(),
+    can_delete: z.boolean(),
     version: z.coerce
       .bigint()
       .gte(BigInt(1))
@@ -470,7 +485,6 @@ export const zSkillImportDecision = z.discriminatedUnion("action", [
 
 export const zSkillImportPreviewItem = z.object({
   name: zSkillName,
-  mutable_conflict_agents: z.array(zAgentName),
   immutable_conflict: z.boolean(),
 })
 
@@ -486,7 +500,6 @@ export const zSkillImportAgentResult = z.object({
 
 export const zImportSkillsResponse = z.object({
   skills: z.array(zSkillName),
-  agents: z.array(zSkillImportAgentResult),
 })
 
 export const zSkillReferences = z.object({
@@ -1907,6 +1920,7 @@ export const zMcpConnectionReason = z.enum([
 ])
 
 export const zMcpConnectionDetail = z.object({
+  can_delete: z.boolean(),
   name: zMcpConnectionName,
   endpoint: zMcpConnectionEndpoint,
   auth: zMcpConnectionAuth,
@@ -1919,6 +1933,7 @@ export const zMcpConnectionDetail = z.object({
 })
 
 export const zMcpConnectionSummary = z.object({
+  can_delete: z.boolean(),
   name: zMcpConnectionName,
   auth_mode: z.string(),
   endpoint_url: z.string(),

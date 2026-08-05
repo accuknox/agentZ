@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import type { Route } from "next"
 import Link from "next/link"
-import { Building2, LayoutDashboard, ScrollText, Settings2 } from "lucide-react"
+import { Building2, Cable, LayoutDashboard, ScrollText, Settings2 } from "lucide-react"
 import { NavAgents } from "./agents"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
@@ -23,17 +23,17 @@ import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
 import { NavSandboxes } from "./sandboxes"
-import { NavSkills } from "./skills"
 import { NavWorkflows } from "./workflows"
-import { NavMCPs } from "./mcps"
 import { NavInference } from "./inference"
 import type { OrganizationSummary } from "@/data/organizations"
-import type { Workspace } from "@/lib/gateway/client"
+import type { ResourceCapabilities, Workspace } from "@/lib/gateway/client"
 
 type WorkspaceNavigationScope = {
   canCreateWorkspace: boolean
   canEnterOrganization: boolean
   organization: OrganizationSummary
+  mcpConnectionCapabilities: ResourceCapabilities
+  skillCapabilities: ResourceCapabilities
   workspaces: Workspace[]
 }
 
@@ -69,10 +69,20 @@ export function AppSidebar({
       <SidebarContent className="gap-0">
         {scope.kind === "legacy" ? <LegacyNavigation /> : null}
         {scope.kind === "organization" ? (
-          <OrganizationNavigation organization={scope.organization} />
+          <OrganizationNavigation
+            canEnterOrganization={scope.canEnterOrganization}
+            mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
+            organization={scope.organization}
+            skillCapabilities={scope.skillCapabilities}
+          />
         ) : null}
         {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
-          <WorkspaceNavigation organization={scope.organization} workspace={scope.workspace} />
+          <WorkspaceNavigation
+            mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
+            organization={scope.organization}
+            skillCapabilities={scope.skillCapabilities}
+            workspace={scope.workspace}
+          />
         ) : null}
       </SidebarContent>
       {user ? (
@@ -90,10 +100,14 @@ export function AppSidebar({
 }
 
 function WorkspaceNavigation({
+  mcpConnectionCapabilities,
   organization,
+  skillCapabilities,
   workspace,
 }: {
+  mcpConnectionCapabilities: ResourceCapabilities
   organization: OrganizationSummary
+  skillCapabilities: ResourceCapabilities
   workspace: Workspace
 }) {
   return (
@@ -108,6 +122,28 @@ function WorkspaceNavigation({
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
+        {skillCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Skills">
+              <Link
+                href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/skills` as Route}
+              >
+                <ScrollText aria-hidden="true" />
+                <span>Skills</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {mcpConnectionCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="MCP">
+              <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/mcps` as Route}>
+                <Cable aria-hidden="true" />
+                <span>MCP</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
       </SidebarMenu>
     </SidebarGroup>
   )
@@ -129,8 +165,6 @@ async function LegacyNavigation() {
         <NavSandboxes />
         <NavSecrets />
         <NavInference />
-        <NavMCPs />
-        <NavSkills />
         <NavWorkflows />
       </SidebarGroup>
       <SidebarGroup className="px-2 py-2">
@@ -141,41 +175,73 @@ async function LegacyNavigation() {
   )
 }
 
-function OrganizationNavigation({ organization }: { organization: OrganizationSummary }) {
-  if (!organization.superadmin) {
-    return null
-  }
-
+function OrganizationNavigation({
+  canEnterOrganization,
+  mcpConnectionCapabilities,
+  organization,
+  skillCapabilities,
+}: {
+  canEnterOrganization: boolean
+  mcpConnectionCapabilities: ResourceCapabilities
+  organization: OrganizationSummary
+  skillCapabilities: ResourceCapabilities
+}) {
   const root = `/orgs/${organization.slug}`
 
   return (
     <SidebarGroup className="px-2 py-2">
       <SidebarGroupLabel>Organisation</SidebarGroupLabel>
       <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="Workspaces">
-            <Link href={`${root}/workspaces` as Route}>
-              <Building2 aria-hidden="true" />
-              <span>Workspaces</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="Audit">
-            <Link href={`${root}/audit` as Route}>
-              <ScrollText aria-hidden="true" />
-              <span>Audit</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="General">
-            <Link href={`${root}/general` as Route}>
-              <Settings2 aria-hidden="true" />
-              <span>General</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+        {canEnterOrganization ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Workspaces">
+              <Link href={`${root}/workspaces` as Route}>
+                <Building2 aria-hidden="true" />
+                <span>Workspaces</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {skillCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Skills">
+              <Link href={`${root}/skills` as Route}>
+                <ScrollText aria-hidden="true" />
+                <span>Skills</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {mcpConnectionCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="MCP">
+              <Link href={`${root}/mcps` as Route}>
+                <Cable aria-hidden="true" />
+                <span>MCP</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {organization.superadmin ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Audit">
+              <Link href={`${root}/audit` as Route}>
+                <ScrollText aria-hidden="true" />
+                <span>Audit</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {organization.superadmin ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="General">
+              <Link href={`${root}/general` as Route}>
+                <Settings2 aria-hidden="true" />
+                <span>General</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
       </SidebarMenu>
     </SidebarGroup>
   )

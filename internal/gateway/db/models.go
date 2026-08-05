@@ -193,8 +193,11 @@ type AuditTarget string
 const (
 	AuditTargetOrganization           AuditTarget = "organization"
 	AuditTargetOrganizationMembership AuditTarget = "organization_membership"
+	AuditTargetTeam                   AuditTarget = "team"
+	AuditTargetMcpConnection          AuditTarget = "mcp_connection"
 	AuditTargetRole                   AuditTarget = "role"
 	AuditTargetSandbox                AuditTarget = "sandbox"
+	AuditTargetSkill                  AuditTarget = "skill"
 	AuditTargetWorkspace              AuditTarget = "workspace"
 )
 

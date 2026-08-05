@@ -795,7 +795,7 @@ export const previewSkillImport = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Import mutable or immutable skills.
+ * Import immutable skills.
  */
 export const importSkills = <ThrowOnError extends boolean = false>(
   options: Options<ImportSkillsData, ThrowOnError>

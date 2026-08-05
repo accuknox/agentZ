@@ -42,16 +42,17 @@ const columnClassName: Record<string, string> = {
 
 const watchMcpConnectionsQueryOptions = (
   connectionNames: string[],
-  mcpConnections: McpConnectionSummary[]
+  mcpConnections: McpConnectionSummary[],
+  workspaceId?: string
 ) =>
   queryOptions({
-    queryKey: ["watchMcpConnections", connectionNames] as const,
+    queryKey: ["watchMcpConnections", workspaceId, connectionNames] as const,
     enabled: connectionNames.length > 0,
     placeholderData: mcpConnections,
     queryFn: streamedQuery<
       WatchMcpConnectionsEvent,
       McpConnectionSummary[],
-      readonly ["watchMcpConnections", string[]]
+      readonly ["watchMcpConnections", string | undefined, string[]]
     >({
       initialValue: mcpConnections,
       reducer: (rows, event) => {
@@ -74,6 +75,7 @@ const watchMcpConnectionsQueryOptions = (
             names: connectionNames,
           },
           signal,
+          headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
         })
         return result.stream
       },
@@ -91,6 +93,8 @@ export function McpTable({
   hasNextPage,
   nextPageToken,
   deleteMcpAction,
+  scopeLabel,
+  workspaceId,
 }: {
   mcpConnections: McpConnectionSummary[]
   hasNextPage: boolean
@@ -100,6 +104,8 @@ export function McpTable({
     state: DeleteMcpFormState,
     formData: FormData
   ) => Promise<DeleteMcpFormState>
+  scopeLabel?: "Local" | `Inherited from ${string}`
+  workspaceId?: string
 }) {
   "use no memo"
 
@@ -110,15 +116,18 @@ export function McpTable({
     () => mcpConnections.map((connection) => connection.name),
     [mcpConnections]
   )
-  const query = useQuery(watchMcpConnectionsQueryOptions(connectionNames, mcpConnections))
+  const query = useQuery(
+    watchMcpConnectionsQueryOptions(connectionNames, mcpConnections, workspaceId)
+  )
   const rows = query.data ?? mcpConnections
   const columns = React.useMemo(
     () =>
       createMcpColumns({
         deleteMcpAction,
+        scopeLabel,
         onViewAction: setViewConnectionName,
       }),
-    [deleteMcpAction]
+    [deleteMcpAction, scopeLabel]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -211,6 +220,7 @@ export function McpTable({
       {viewConnectionName ? (
         <McpViewSheet
           name={viewConnectionName}
+          workspaceId={workspaceId}
           open
           onOpenChangeAction={(open) => {
             if (!open) {

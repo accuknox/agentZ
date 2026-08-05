@@ -7,17 +7,20 @@ type ListImmutableSkillResponse =
   | { skills: Skill[]; error: undefined }
   | { skills: undefined; error: Error }
 
-export async function listImmutableSkillsCachedQuery(): Promise<ListImmutableSkillResponse> {
+export async function listImmutableSkillsCachedQuery(
+  workspaceId?: string
+): Promise<ListImmutableSkillResponse> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(skillsTag)
+  cacheTag(skillsTag, `${skillsTag}:${workspaceId ?? "organization"}`)
 
   const skills: Skill[] = []
   let pageToken = ""
   for (;;) {
     const result = await listSkills({
-      client: getGatewayServerClient(),
+      client: getGatewayServerClient(workspaceId),
+      headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
       query: { limit: 200, page_token: pageToken || undefined },
     })
     if (result.error) {

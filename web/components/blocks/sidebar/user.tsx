@@ -3,9 +3,19 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronsUpDown, LogOut, Monitor, KeyRound, SlidersHorizontal, User2 } from "lucide-react"
-import { useState } from "react"
+import {
+  Building2,
+  ChevronsUpDown,
+  KeyRound,
+  LogOut,
+  Monitor,
+  SlidersHorizontal,
+  User2,
+} from "lucide-react"
+import { useState, useTransition } from "react"
+import { switchOrganizationAction } from "@/app/(scoped)/orgs/actions"
 import { authClient } from "@/lib/auth-client"
+import type { OrganizationSummary } from "@/data/organizations"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -13,6 +23,8 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -25,8 +37,12 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavUser({
+  activeOrganizationId,
+  organizations,
   user,
 }: {
+  activeOrganizationId?: string | null
+  organizations: OrganizationSummary[]
   user: {
     email?: string | null
     name: string
@@ -36,6 +52,7 @@ export function NavUser({
   const router = useRouter()
   const { isMobile, setOpenMobile } = useSidebar()
   const [isPending, setIsPending] = useState(false)
+  const [isSwitching, startSwitch] = useTransition()
   const initials = user.name
     .split(/\s+/)
     .filter(Boolean)
@@ -66,6 +83,7 @@ export function NavUser({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
+              aria-label={`Open user menu for ${user.name}`}
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
@@ -78,7 +96,8 @@ export function NavUser({
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="min-w-56 rounded-lg"
+            aria-label="User menu"
+            className="w-72 max-w-[calc(100vw-2rem)] rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}
@@ -97,6 +116,48 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
+            {organizations.length > 0 ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="flex items-center gap-1.5">
+                  {isSwitching ? <Spinner className="size-3" /> : <Building2 className="size-3" />}
+                  Organisations
+                </DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={activeOrganizationId ?? ""}
+                  onValueChange={(organizationId) => {
+                    if (organizationId === activeOrganizationId) {
+                      return
+                    }
+
+                    if (isMobile) {
+                      setOpenMobile(false)
+                    }
+                    startSwitch(() => switchOrganizationAction(organizationId))
+                  }}
+                >
+                  {organizations.map((organization) => (
+                    <DropdownMenuRadioItem
+                      aria-label={`${organization.name} (${organization.slug})`}
+                      data-organization-id={organization.id}
+                      disabled={isSwitching}
+                      key={organization.id}
+                      textValue={`${organization.name} ${organization.slug}`}
+                      value={organization.id}
+                    >
+                      <span className="grid min-w-0 flex-1 text-left leading-tight">
+                        <span className="truncate font-medium" title={organization.name}>
+                          {organization.name}
+                        </span>
+                        <span className="text-muted-foreground truncate text-xs">
+                          {organization.slug}
+                        </span>
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuGroup
               onClick={() => {

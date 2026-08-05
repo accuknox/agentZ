@@ -16,7 +16,9 @@ import { signInURL } from "@/lib/sign-in-redirect"
  */
 export function proxy(request: NextRequest) {
   if (getSessionCookie(request)) {
-    return NextResponse.next()
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set("x-agentz-pathname", `${request.nextUrl.pathname}${request.nextUrl.search}`)
+    return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
   const returnTo = `${request.nextUrl.pathname}${request.nextUrl.search}`

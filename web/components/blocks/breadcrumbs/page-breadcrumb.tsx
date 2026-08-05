@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { Route } from "next"
 import Link from "next/link"
-import { useSelectedLayoutSegments } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { FolderTree } from "lucide-react"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import {
@@ -43,6 +43,7 @@ const labels = new Map<string, string>([
   ["mcps", "MCP"],
   ["network", "Network Telemetry"],
   ["new", "New"],
+  ["orgs", "Organisations"],
   ["process", "Process Telemetry"],
   ["preferences", "Preferences"],
   ["runs", "Runs"],
@@ -56,6 +57,8 @@ const labels = new Map<string, string>([
   ["traces", "Traces"],
   ["triggers", "Triggers"],
   ["update", "Update"],
+  ["general", "General"],
+  ["workspaces", "Workspaces"],
   ["workflows", "Workflows"],
 ])
 
@@ -69,6 +72,9 @@ const pageRoutes = new Set([
   "/lens/runtime-telemetry/network",
   "/lens/runtime-telemetry/process",
   "/lens/traces",
+  "/orgs/[orgSlug]",
+  "/orgs/[orgSlug]/general",
+  "/orgs/[orgSlug]/workspaces",
   "/mcps",
   "/sandboxes",
   "/sandboxes/new",
@@ -85,9 +91,14 @@ const pageRoutes = new Set([
   "/workflows/triggers/runs/graph",
 ])
 
-export function PageBreadcrumb(): React.JSX.Element {
-  const segments = useSelectedLayoutSegments().filter((segment) => !segment.startsWith("("))
-  const pathKey = segments.join("/")
+export function PageBreadcrumb({
+  labels: resolvedLabels,
+}: {
+  labels?: Readonly<Record<number, string>>
+}): React.JSX.Element {
+  const pathname = usePathname()
+  const segments = pathname.split("/").filter(Boolean)
+  const pathKey = pathname
   const agent = segments[0] === "agents" ? segments[1] : undefined
   const { dirtyAgent, openAgent, toggleAgent } = useFileWorkspace()
   const filesOpen = agent === openAgent
@@ -99,7 +110,7 @@ export function PageBreadcrumb(): React.JSX.Element {
   for (const [index, segment] of segments.entries()) {
     const pathSegments = segments.slice(0, index + 1)
     const href = `/${pathSegments.join("/")}` as Route
-    const label = labels.get(segment) ?? segment
+    const label = resolvedLabels?.[index] ?? labels.get(segment) ?? segment
 
     crumbs.push(pageRoutes.has(routePattern(pathSegments)) ? { href, label } : { label })
   }
@@ -272,6 +283,10 @@ function routePattern(segments: string[]): string {
 
   if (segments[0] === "sandboxes" && segments[1] === "update" && segments[2]) {
     return "/sandboxes/update/[name]"
+  }
+
+  if (segments[0] === "orgs" && segments[1]) {
+    return `/orgs/[orgSlug]${segments.length > 2 ? `/${segments.slice(2).join("/")}` : ""}`
   }
 
   return `/${segments.join("/")}`

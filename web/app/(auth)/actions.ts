@@ -29,10 +29,14 @@ async function signInWithProvider(provider: SocialProvider, formData: FormData):
   const errorCallbackURL = `${authPath}?${errorParams.toString()}`
   const result = await auth.api.signInSocial({
     body: {
+      additionalData: {
+        agentzEnrollment: authPath === "/signup" ? "direct" : "sign-in",
+      },
       callbackURL: returnTo ?? "/",
       disableRedirect: true,
       errorCallbackURL,
       provider,
+      requestSignUp: authPath === "/signup",
     },
     headers: requestHeaders,
   })

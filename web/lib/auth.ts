@@ -1,4 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
+import { and, asc, desc, eq, gt, isNull } from "drizzle-orm"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
 import { APIError, BASE_ERROR_CODES } from "@better-auth/core/error"
@@ -8,7 +9,7 @@ import { apiKey } from "@better-auth/api-key"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { jwt } from "better-auth/plugins/jwt"
 import { organization } from "better-auth/plugins/organization"
-import { createAccessControl, type Statements } from "better-auth/plugins/access"
+import { createAccessControl } from "better-auth/plugins/access"
 import { defaultStatements } from "better-auth/plugins/organization/access"
 import { twoFactor } from "better-auth/plugins/two-factor"
 import { z } from "zod"
@@ -32,12 +33,19 @@ const defaultTrustDeviceMaxAge = 30 * 24 * 60 * 60
 const credentialEmailSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
 })
-const organizationAccessControl = createAccessControl<Statements>(defaultStatements)
+const directOAuthStateSchema = z.object({
+  agentzEnrollment: z.literal("direct"),
+})
+const organizationAccessControl = createAccessControl(defaultStatements)
+const superadminRole = organizationAccessControl.newRole(defaultStatements)
 
 const disabledAuthPaths = [
   // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
-  // project's 1:1 user-organization invariant before minting a bearer token.
+  // active, enabled Organisation before minting a bearer token.
   "/token",
+  // OAuth initiation carries governed enrolment intent through signed state.
+  // Provider callbacks remain public because the upstream provider needs them.
+  "/sign-in/social",
   // Organisation state is governed and reconciled server-side. Native public
   // endpoints cannot enforce AgentZ scope, built-in Role, or cascade rules.
   "/organization/add-team-member",
@@ -80,6 +88,33 @@ const disabledAuthPaths = [
   "/two-factor/generate-backup-codes",
 ]
 
+async function listActiveSuperadmins(organizationId: string) {
+  return getDB()
+    .selectDistinct({ memberId: schema.members.id })
+    .from(schema.members)
+    .innerJoin(
+      schema.memberRoles,
+      and(
+        eq(schema.memberRoles.memberId, schema.members.id),
+        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.roleScopes,
+      and(
+        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.members.organizationId, organizationId),
+        isNull(schema.members.disabledAt),
+        eq(schema.roleScopes.systemRole, "superadmin")
+      )
+    )
+}
+
 function buildAuth() {
   const env = getEnv()
 
@@ -94,16 +129,100 @@ function buildAuth() {
       schema,
     }),
     databaseHooks: {
+      session: {
+        create: {
+          before: async (session) => {
+            const db = getDB()
+            const [lastContext] = await db
+              .select({ organizationId: schema.lastAccessibleContexts.organizationId })
+              .from(schema.lastAccessibleContexts)
+              .innerJoin(
+                schema.members,
+                and(
+                  eq(schema.members.organizationId, schema.lastAccessibleContexts.organizationId),
+                  eq(schema.members.userId, session.userId),
+                  isNull(schema.members.disabledAt)
+                )
+              )
+              .where(eq(schema.lastAccessibleContexts.userId, session.userId))
+              .orderBy(desc(schema.lastAccessibleContexts.updatedAt))
+              .limit(1)
+
+            if (lastContext) {
+              return {
+                data: {
+                  ...session,
+                  activeOrganizationId: lastContext.organizationId,
+                },
+              }
+            }
+
+            const [membership] = await db
+              .select({ organizationId: schema.members.organizationId })
+              .from(schema.members)
+              .where(
+                and(eq(schema.members.userId, session.userId), isNull(schema.members.disabledAt))
+              )
+              .orderBy(asc(schema.members.createdAt), asc(schema.members.organizationId))
+              .limit(1)
+
+            if (!membership) {
+              return
+            }
+
+            return {
+              data: {
+                ...session,
+                activeOrganizationId: membership.organizationId,
+              },
+            }
+          },
+        },
+      },
       user: {
         create: {
-          after: async (user) => {
-            await getAuth().api.createOrganization({
+          after: async (user, context) => {
+            if (context?.path === "/sign-up/email") {
+              const [invitation] = await getDB()
+                .select({ id: schema.invitations.id })
+                .from(schema.invitations)
+                .where(
+                  and(
+                    eq(schema.invitations.email, user.email),
+                    eq(schema.invitations.status, "pending"),
+                    gt(schema.invitations.expiresAt, new Date())
+                  )
+                )
+                .limit(1)
+
+              if (invitation) {
+                return
+              }
+            } else if (context?.path === "/callback/:id") {
+              const state = directOAuthStateSchema.safeParse(await getOAuthState())
+              if (!state.success) {
+                return
+              }
+            } else {
+              return
+            }
+
+            const organization = await getAuth().api.createOrganization({
               body: {
-                name: `${user.name || user.email}'s tenant`,
-                slug: `tenant-${randomUUID()}`,
+                name: `${user.name}'s Organisation`,
+                slug: `org-${randomUUID()}`,
                 userId: user.id,
               },
             })
+            await getDB()
+              .update(schema.sessions)
+              .set({ activeOrganizationId: organization.id })
+              .where(
+                and(
+                  eq(schema.sessions.userId, user.id),
+                  isNull(schema.sessions.activeOrganizationId)
+                )
+              )
           },
         },
       },
@@ -271,6 +390,7 @@ function buildAuth() {
             github: {
               clientId: env.GITHUB_CLIENT_ID,
               clientSecret: env.GITHUB_CLIENT_SECRET,
+              disableImplicitSignUp: true,
               // read:org is only needed when an org/team gate is configured.
               scope: ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])],
               getUserInfo: getGithubUserInfo,
@@ -282,6 +402,7 @@ function buildAuth() {
             google: {
               clientId: env.GOOGLE_CLIENT_ID,
               clientSecret: env.GOOGLE_CLIENT_SECRET,
+              disableImplicitSignUp: true,
               accessType: "offline",
               prompt: "select_account",
               getUserInfo: getGoogleUserInfo,
@@ -293,13 +414,164 @@ function buildAuth() {
       organization({
         ac: organizationAccessControl,
         allowUserToCreateOrganization: false,
+        creatorRole: "superadmin",
         disableOrganizationDeletion: true,
-        organizationLimit: 1,
-        membershipLimit: 1,
         cancelPendingInvitationsOnReInvite: true,
         requireEmailVerificationOnInvitation: false,
         dynamicAccessControl: {
           enabled: true,
+        },
+        roles: {
+          superadmin: superadminRole,
+        },
+        organizationHooks: {
+          beforeCreateOrganization: async ({ organization }) => {
+            if (!organization.slug) {
+              return
+            }
+
+            const [reservedSlug] = await getDB()
+              .select({ slug: schema.organizationSlugHistory.slug })
+              .from(schema.organizationSlugHistory)
+              .where(eq(schema.organizationSlugHistory.slug, organization.slug))
+              .limit(1)
+            if (reservedSlug) {
+              throw APIError.from("BAD_REQUEST", {
+                code: "ORGANIZATION_SLUG_UNAVAILABLE",
+                message: "That Organisation slug is unavailable.",
+              })
+            }
+          },
+          beforeUpdateOrganization: async () => {
+            throw APIError.from("FORBIDDEN", {
+              code: "GOVERNED_ORGANIZATION_MUTATION_REQUIRED",
+              message: "Organisation updates must use the governed product action.",
+            })
+          },
+          afterAddMember: async ({ member, organization }) => {
+            if (!member.role.split(",").includes("superadmin")) {
+              return
+            }
+
+            const roleId = `superadmin:${organization.id}`
+            const [role] = await getDB()
+              .select({ roleId: schema.roleScopes.roleId })
+              .from(schema.roleScopes)
+              .where(
+                and(
+                  eq(schema.roleScopes.roleId, roleId),
+                  eq(schema.roleScopes.organizationId, organization.id),
+                  eq(schema.roleScopes.systemRole, "superadmin")
+                )
+              )
+              .limit(1)
+            if (!role) {
+              return
+            }
+
+            await getDB()
+              .insert(schema.memberRoles)
+              .values({
+                memberId: member.id,
+                organizationId: organization.id,
+                roleId,
+              })
+              .onConflictDoNothing()
+          },
+          afterCreateOrganization: async ({ member, organization }) => {
+            const roleId = `superadmin:${organization.id}`
+
+            await getDB().transaction(async (tx) => {
+              await tx
+                .insert(schema.organizationRoles)
+                .values({
+                  id: roleId,
+                  organizationId: organization.id,
+                  permission: JSON.stringify(defaultStatements),
+                  role: "superadmin",
+                })
+                .onConflictDoNothing()
+              await tx
+                .insert(schema.roleScopes)
+                .values({
+                  displayName: "Superadmin",
+                  immutable: true,
+                  organizationId: organization.id,
+                  roleId,
+                  systemRole: "superadmin",
+                })
+                .onConflictDoNothing()
+              await tx
+                .insert(schema.memberRoles)
+                .values({
+                  memberId: member.id,
+                  organizationId: organization.id,
+                  roleId,
+                })
+                .onConflictDoNothing()
+              await tx
+                .insert(schema.organizationSlugHistory)
+                .values({
+                  organizationId: organization.id,
+                  slug: organization.slug,
+                })
+                .onConflictDoNothing()
+            })
+          },
+          beforeRemoveMember: async ({ member, organization }) => {
+            if (member.disabledAt || !member.role.split(",").includes("superadmin")) {
+              return
+            }
+
+            const superadmins = await listActiveSuperadmins(organization.id)
+            if (superadmins.length === 1 && superadmins[0]?.memberId === member.id) {
+              throw APIError.from("BAD_REQUEST", {
+                code: "FINAL_SUPERADMIN_REQUIRED",
+                message: "The final active Superadmin cannot be removed.",
+              })
+            }
+          },
+          beforeUpdateMemberRole: async ({ member, newRole, organization }) => {
+            if (
+              member.disabledAt ||
+              !member.role.split(",").includes("superadmin") ||
+              newRole.split(",").includes("superadmin")
+            ) {
+              return
+            }
+
+            const superadmins = await listActiveSuperadmins(organization.id)
+            if (superadmins.length === 1 && superadmins[0]?.memberId === member.id) {
+              throw APIError.from("BAD_REQUEST", {
+                code: "FINAL_SUPERADMIN_REQUIRED",
+                message: "The final active Superadmin cannot be demoted.",
+              })
+            }
+          },
+          afterUpdateMemberRole: async ({ member, organization }) => {
+            const roleId = `superadmin:${organization.id}`
+            if (member.role.split(",").includes("superadmin")) {
+              await getDB()
+                .insert(schema.memberRoles)
+                .values({
+                  memberId: member.id,
+                  organizationId: organization.id,
+                  roleId,
+                })
+                .onConflictDoNothing()
+              return
+            }
+
+            await getDB()
+              .delete(schema.memberRoles)
+              .where(
+                and(
+                  eq(schema.memberRoles.memberId, member.id),
+                  eq(schema.memberRoles.organizationId, organization.id),
+                  eq(schema.memberRoles.roleId, roleId)
+                )
+              )
+          },
         },
         schema: {
           member: {

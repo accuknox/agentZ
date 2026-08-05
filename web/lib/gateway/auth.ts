@@ -1,6 +1,6 @@
 import "server-only"
 
-import { headers } from "next/headers"
+import { getOrganizationSession } from "@/data/organizations"
 import { getAuth } from "@/lib/auth"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 
@@ -11,47 +11,27 @@ export type GatewayAuthContext = {
 }
 
 type GatewayAuthState = GatewayAuthContext & {
-  requestHeaders: Awaited<ReturnType<typeof headers>>
+  requestHeaders: Headers
 }
 
 async function resolveGatewayAuthState(): Promise<GatewayAuthState> {
-  const requestHeaders = await headers()
-  const auth = getAuth()
-  const session = await auth.api.getSession({
-    headers: requestHeaders,
-  })
-
-  if (!session) {
+  const organizationSession = await getOrganizationSession()
+  if (!organizationSession) {
     throw new GatewayUnauthorizedError()
   }
 
-  const organizations = await auth.api.listOrganizations({
-    headers: requestHeaders,
-  })
-
-  if (organizations.length > 1) {
-    throw new Error("gateway auth found multiple tenant organizations")
-  }
-
-  const organizationId = organizations[0]?.id
-  if (!organizationId) {
-    throw new Error("gateway auth found no tenant organization")
-  }
-
-  if (session.session.activeOrganizationId !== organizationId) {
-    await auth.api.setActiveOrganization({
-      body: {
-        organizationId,
-      },
-      headers: requestHeaders,
-    })
+  const organization = organizationSession.organizations.find(
+    (candidate) => candidate.id === organizationSession.session.session.activeOrganizationId
+  )
+  if (!organization) {
+    throw new GatewayUnauthorizedError()
   }
 
   return {
-    organizationId,
-    requestHeaders,
-    sessionId: session.session.id,
-    userId: session.user.id,
+    organizationId: organization.id,
+    requestHeaders: organizationSession.requestHeaders,
+    sessionId: organizationSession.session.session.id,
+    userId: organizationSession.session.user.id,
   }
 }
 

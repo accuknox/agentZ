@@ -1298,6 +1298,23 @@ WHERE id = sqlc.arg(id)
   AND state = 'running'
   AND lease_token = sqlc.arg(lease_token);
 
+-- name: GatewayIsActiveSuperadmin :one
+SELECT EXISTS(
+  SELECT 1
+  FROM members
+  JOIN member_roles
+    ON member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+  JOIN role_scopes
+    ON role_scopes.role_id = member_roles.role_id
+    AND role_scopes.organization_id = member_roles.organization_id
+  WHERE members.user_id = sqlc.arg(user_id)
+    AND members.organization_id = sqlc.arg(organization_id)
+    AND members.disabled_at IS NULL
+    AND role_scopes.system_role = 'superadmin'
+    AND role_scopes.immutable
+);
+
 -- name: GatewayCreateAuditEvent :one
 INSERT INTO audit_events(
   id,
@@ -1307,12 +1324,14 @@ INSERT INTO audit_events(
   actor_id,
   target_type,
   target_id,
+  category,
   action,
   result,
   before,
   after,
   automatic_cascade,
   cleanup_job_id,
+  interface,
   ip_address,
   user_agent
 )
@@ -1324,12 +1343,14 @@ VALUES (
   sqlc.narg(actor_id),
   sqlc.arg(target_type),
   sqlc.arg(target_id),
+  sqlc.arg(category),
   sqlc.arg(action),
   sqlc.arg(result),
   sqlc.narg(before),
   sqlc.narg(after),
   sqlc.arg(automatic_cascade),
   sqlc.narg(cleanup_job_id),
+  sqlc.arg(interface),
   sqlc.narg(ip_address),
   sqlc.narg(user_agent)
 )
@@ -1341,86 +1362,184 @@ RETURNING
   actor_id,
   target_type,
   target_id,
+  category,
   action,
   result,
   before,
   after,
   automatic_cascade,
   cleanup_job_id,
+  interface,
   ip_address,
   user_agent,
   created_at;
 
--- name: GatewayGetAuditEvent :one
-SELECT
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  ip_address,
-  user_agent,
-  created_at
-FROM audit_events
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id);
-
 -- name: GatewayListAuditEvents :many
 SELECT
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  ip_address,
-  user_agent,
-  created_at
+  audit_events.id,
+  audit_events.organization_id,
+  audit_events.workspace_id,
+  audit_events.actor_type,
+  audit_events.actor_id,
+  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  users.email AS actor_email,
+  audit_events.target_type,
+  audit_events.target_id,
+  COALESCE(
+    CASE audit_events.target_type
+      WHEN 'organization' THEN organizations.name
+      WHEN 'workspace' THEN target_workspaces.name
+      WHEN 'organization_membership' THEN target_users.name
+    END,
+    audit_events.target_id
+  ) AS target_name,
+  (COALESCE(
+    (CASE audit_events.target_type
+      WHEN 'organization' THEN organizations.slug
+      WHEN 'workspace' THEN target_workspaces.slug
+    END)::text,
+    ''
+  ))::text AS target_slug,
+  audit_events.category,
+  audit_events.action,
+  audit_events.result,
+  audit_events.before,
+  audit_events.after,
+  audit_events.automatic_cascade,
+  audit_events.cleanup_job_id,
+  audit_events.interface,
+  audit_events.ip_address,
+  audit_events.user_agent,
+  audit_events.created_at,
+  workspaces.name AS workspace_name,
+  workspaces.slug AS workspace_slug,
+  cleanup_jobs.state AS cleanup_state,
+  cleanup_jobs.completed_at AS cleanup_completed_at
 FROM audit_events
-WHERE organization_id = sqlc.arg(organization_id)
-  AND (created_at, id) < (sqlc.arg(before_created_at), sqlc.arg(before_id))
-ORDER BY created_at DESC, id DESC
+JOIN organizations
+  ON organizations.id = audit_events.organization_id
+LEFT JOIN users
+  ON audit_events.actor_type = 'user'
+  AND users.id = audit_events.actor_id
+LEFT JOIN apikeys
+  ON audit_events.actor_type = 'api_key'
+  AND apikeys.id = audit_events.actor_id
+LEFT JOIN workspaces
+  ON workspaces.id = audit_events.workspace_id
+  AND workspaces.organization_id = audit_events.organization_id
+LEFT JOIN workspaces AS target_workspaces
+  ON audit_events.target_type = 'workspace'
+  AND target_workspaces.id = audit_events.target_id
+  AND target_workspaces.organization_id = audit_events.organization_id
+LEFT JOIN members AS target_members
+  ON audit_events.target_type = 'organization_membership'
+  AND target_members.id = audit_events.target_id
+  AND target_members.organization_id = audit_events.organization_id
+LEFT JOIN users AS target_users
+  ON target_users.id = target_members.user_id
+LEFT JOIN cleanup_jobs
+  ON cleanup_jobs.id = audit_events.cleanup_job_id
+  AND cleanup_jobs.organization_id = audit_events.organization_id
+WHERE audit_events.organization_id = sqlc.arg(organization_id)
+  AND audit_events.created_at >= sqlc.arg(retained_after)
+  AND (
+    sqlc.narg(event_id)::text IS NULL
+    OR audit_events.id = sqlc.narg(event_id)::text
+  )
+  AND (
+    sqlc.narg(actor_type)::audit_actor IS NULL
+    OR audit_events.actor_type = sqlc.narg(actor_type)::audit_actor
+  )
+  AND (
+    sqlc.narg(actor_id)::text IS NULL
+    OR audit_events.actor_id = sqlc.narg(actor_id)::text
+  )
+  AND (
+    sqlc.narg(category)::text IS NULL
+    OR audit_events.category = sqlc.narg(category)::text
+  )
+  AND (
+    sqlc.narg(workspace_id)::text IS NULL
+    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+  )
+  AND (
+    sqlc.narg(target_type)::audit_target IS NULL
+    OR audit_events.target_type = sqlc.narg(target_type)::audit_target
+  )
+  AND (
+    sqlc.narg(result)::audit_result IS NULL
+    OR audit_events.result = sqlc.narg(result)::audit_result
+  )
+  AND (
+    sqlc.narg(created_after)::timestamptz IS NULL
+    OR audit_events.created_at >= sqlc.narg(created_after)::timestamptz
+  )
+  AND (
+    sqlc.narg(created_before)::timestamptz IS NULL
+    OR audit_events.created_at <= sqlc.narg(created_before)::timestamptz
+  )
+  AND (
+    NOT sqlc.arg(cursor_set)::boolean
+    OR audit_events.created_at < sqlc.arg(cursor_created_at)::timestamptz
+    OR (
+      audit_events.created_at = sqlc.arg(cursor_created_at)::timestamptz
+      AND audit_events.id < sqlc.arg(cursor_id)::text
+    )
+  )
+ORDER BY audit_events.created_at DESC, audit_events.id DESC
 LIMIT sqlc.arg(page_size);
 
--- name: GatewayListWorkspaceAuditEvents :many
+-- name: GatewayListAuditActors :many
 SELECT
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  ip_address,
-  user_agent,
-  created_at
+  audit_events.actor_type,
+  audit_events.actor_id,
+  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  users.email AS actor_email
+FROM audit_events
+LEFT JOIN users
+  ON audit_events.actor_type = 'user'
+  AND users.id = audit_events.actor_id
+LEFT JOIN apikeys
+  ON audit_events.actor_type = 'api_key'
+  AND apikeys.id = audit_events.actor_id
+WHERE audit_events.organization_id = sqlc.arg(organization_id)
+  AND audit_events.created_at >= sqlc.arg(retained_after)
+GROUP BY
+  audit_events.actor_type,
+  audit_events.actor_id,
+  users.name,
+  users.email,
+  apikeys.name
+ORDER BY COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System'), audit_events.actor_type;
+
+-- name: GatewayListAuditCategories :many
+SELECT DISTINCT category
 FROM audit_events
 WHERE organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND (created_at, id) < (sqlc.arg(before_created_at), sqlc.arg(before_id))
-ORDER BY created_at DESC, id DESC
-LIMIT sqlc.arg(page_size);
+  AND created_at >= sqlc.arg(retained_after)
+ORDER BY category;
+
+-- name: GatewayListAuditTargetTypes :many
+SELECT DISTINCT target_type
+FROM audit_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND created_at >= sqlc.arg(retained_after)
+ORDER BY target_type;
+
+-- name: GatewayListAuditWorkspaces :many
+SELECT
+  audit_events.workspace_id,
+  workspaces.name,
+  workspaces.slug
+FROM audit_events
+LEFT JOIN workspaces
+  ON workspaces.id = audit_events.workspace_id
+  AND workspaces.organization_id = audit_events.organization_id
+WHERE audit_events.organization_id = sqlc.arg(organization_id)
+  AND audit_events.workspace_id IS NOT NULL
+  AND audit_events.created_at >= sqlc.arg(retained_after)
+GROUP BY audit_events.workspace_id, workspaces.name, workspaces.slug
+ORDER BY workspaces.name, audit_events.workspace_id;
 
 -- name: GatewayDeleteExpiredAuditEvents :execrows
 DELETE FROM audit_events

@@ -26,6 +26,11 @@ import {
 
 export * from "./auth-schema"
 
+type AuditField = {
+  field: "member_id" | "name" | "role" | "slug" | "user_id"
+  value: string
+}
+
 export const themePreference = pgEnum("theme_preference", ["system", "light", "dark"])
 export const workspaceState = pgEnum("workspace_state", [
   "provisioning",
@@ -66,6 +71,18 @@ export const agentShareCapability = pgEnum("agent_share_capability", [
 ])
 export const auditActor = pgEnum("audit_actor", ["user", "api_key", "system"])
 export const auditResult = pgEnum("audit_result", ["succeeded", "denied", "failed"])
+export const auditTarget = pgEnum("audit_target", [
+  "organization",
+  "organization_membership",
+  "workspace",
+])
+export const auditInterface = pgEnum("audit_interface", [
+  "web",
+  "gateway",
+  "better_auth",
+  "controller",
+  "system",
+])
 export const cleanupState = pgEnum("cleanup_state", ["pending", "running", "succeeded", "failed"])
 export const destructiveOperation = pgEnum("destructive_operation", [
   "membership_disable",
@@ -563,26 +580,28 @@ export const auditEvents = pgTable(
     workspaceId: text("workspace_id"),
     actorType: auditActor("actor_type").notNull(),
     actorId: text("actor_id"),
-    targetType: text("target_type").notNull(),
+    targetType: auditTarget("target_type").notNull(),
     targetId: text("target_id").notNull(),
+    category: text("category").notNull(),
     action: text("action").notNull(),
     result: auditResult("result").notNull(),
-    before: jsonb("before"),
-    after: jsonb("after"),
+    before: jsonb("before").$type<AuditField[]>(),
+    after: jsonb("after").$type<AuditField[]>(),
     automaticCascade: boolean("automatic_cascade").default(false).notNull(),
     cleanupJobId: text("cleanup_job_id"),
+    interface: auditInterface("interface").notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    index("audit_events_organization_created_idx").on(table.organizationId, table.createdAt),
+    index("audit_events_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+      table.id
+    ),
     index("audit_events_workspace_created_idx").on(table.workspaceId, table.createdAt),
-    foreignKey({
-      columns: [table.workspaceId, table.organizationId],
-      foreignColumns: [workspaces.id, workspaces.organizationId],
-      name: "audit_events_workspace_organization_fk",
-    }).onDelete("restrict"),
+    index("audit_events_created_idx").on(table.createdAt),
     foreignKey({
       columns: [table.cleanupJobId, table.organizationId],
       foreignColumns: [cleanupJobs.id, cleanupJobs.organizationId],

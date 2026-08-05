@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import type { Route } from "next"
 import Link from "next/link"
-import { Building2, Settings2 } from "lucide-react"
+import { Building2, ScrollText, Settings2 } from "lucide-react"
 import { NavAgents } from "./agents"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
@@ -121,6 +121,14 @@ function OrganizationNavigation({ organization }: { organization: OrganizationSu
             <Link href={`${root}/workspaces` as Route}>
               <Building2 aria-hidden="true" />
               <span>Workspaces</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip="Audit">
+            <Link href={`${root}/audit` as Route}>
+              <ScrollText aria-hidden="true" />
+              <span>Audit</span>
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>

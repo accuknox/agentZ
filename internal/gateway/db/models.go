@@ -100,6 +100,51 @@ func (ns NullAuditActor) Value() (driver.Value, error) {
 	return string(ns.AuditActor), nil
 }
 
+type AuditInterface string
+
+const (
+	AuditInterfaceWeb        AuditInterface = "web"
+	AuditInterfaceGateway    AuditInterface = "gateway"
+	AuditInterfaceBetterAuth AuditInterface = "better_auth"
+	AuditInterfaceController AuditInterface = "controller"
+	AuditInterfaceSystem     AuditInterface = "system"
+)
+
+func (e *AuditInterface) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuditInterface(s)
+	case string:
+		*e = AuditInterface(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuditInterface: %T", src)
+	}
+	return nil
+}
+
+type NullAuditInterface struct {
+	AuditInterface AuditInterface `json:"audit_interface"`
+	Valid          bool           `json:"valid"` // Valid is true if AuditInterface is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuditInterface) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuditInterface, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuditInterface.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuditInterface) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuditInterface), nil
+}
+
 type AuditResult string
 
 const (
@@ -141,6 +186,49 @@ func (ns NullAuditResult) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.AuditResult), nil
+}
+
+type AuditTarget string
+
+const (
+	AuditTargetOrganization           AuditTarget = "organization"
+	AuditTargetOrganizationMembership AuditTarget = "organization_membership"
+	AuditTargetWorkspace              AuditTarget = "workspace"
+)
+
+func (e *AuditTarget) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuditTarget(s)
+	case string:
+		*e = AuditTarget(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuditTarget: %T", src)
+	}
+	return nil
+}
+
+type NullAuditTarget struct {
+	AuditTarget AuditTarget `json:"audit_target"`
+	Valid       bool        `json:"valid"` // Valid is true if AuditTarget is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuditTarget) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuditTarget, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuditTarget.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuditTarget) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuditTarget), nil
 }
 
 type CleanupState string
@@ -594,7 +682,7 @@ type AuditEvent struct {
 	WorkspaceID      pgtype.Text        `json:"workspace_id"`
 	ActorType        AuditActor         `json:"actor_type"`
 	ActorID          pgtype.Text        `json:"actor_id"`
-	TargetType       string             `json:"target_type"`
+	TargetType       AuditTarget        `json:"target_type"`
 	TargetID         string             `json:"target_id"`
 	Action           string             `json:"action"`
 	Result           AuditResult        `json:"result"`
@@ -605,6 +693,8 @@ type AuditEvent struct {
 	IpAddress        pgtype.Text        `json:"ip_address"`
 	UserAgent        pgtype.Text        `json:"user_agent"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	Category         string             `json:"category"`
+	Interface        AuditInterface     `json:"interface"`
 }
 
 type CleanupJob struct {

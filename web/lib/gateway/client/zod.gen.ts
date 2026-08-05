@@ -2,6 +2,89 @@
 
 import * as z from "zod"
 
+export const zAuditActorType = z.enum(["user", "api_key", "system"])
+
+export const zAuditResult = z.enum(["succeeded", "denied", "failed"])
+
+export const zAuditInterface = z.enum(["web", "gateway", "better_auth", "controller", "system"])
+
+export const zAuditTargetType = z.enum(["organization", "organization_membership", "workspace"])
+
+export const zAuditField = z.object({
+  field: z.enum(["member_id", "name", "role", "slug", "user_id"]),
+  value: z.string(),
+})
+
+export const zAuditActor = z.object({
+  type: zAuditActorType,
+  id: z.string().optional(),
+  name: z.string().optional(),
+  email: z.email().optional(),
+})
+
+export const zAuditTarget = z.object({
+  type: zAuditTargetType,
+  id: z.string(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+})
+
+export const zAuditWorkspace = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+})
+
+export const zAuditCleanup = z.object({
+  id: z.string(),
+  state: z.enum(["pending", "running", "succeeded", "failed"]),
+  completed_at: z.iso.datetime().optional(),
+})
+
+export const zAuditEvent = z.object({
+  id: z.string(),
+  actor: zAuditActor,
+  target: zAuditTarget,
+  workspace: zAuditWorkspace.optional(),
+  category: z.string(),
+  action: z.string(),
+  result: zAuditResult,
+  before: z.array(zAuditField),
+  after: z.array(zAuditField),
+  automatic_cascade: z.boolean(),
+  interface: zAuditInterface,
+  ip_address: z.string().optional(),
+  user_agent: z.string().optional(),
+  cleanup: zAuditCleanup.optional(),
+  created_at: z.iso.datetime(),
+})
+
+export const zAuditActorFilter = z.object({
+  id: z.string().optional(),
+  type: zAuditActorType,
+  name: z.string().optional(),
+  email: z.email().optional(),
+})
+
+export const zAuditWorkspaceFilter = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+})
+
+export const zAuditFilters = z.object({
+  actors: z.array(zAuditActorFilter),
+  categories: z.array(z.string()),
+  workspaces: z.array(zAuditWorkspaceFilter),
+  target_types: z.array(zAuditTargetType),
+})
+
+export const zListAuditEventsResponse = z.object({
+  events: z.array(zAuditEvent),
+  filters: zAuditFilters,
+  next_page_token: z.string(),
+})
+
 /**
  * Lowercase hexadecimal OTLP trace ID.
  */
@@ -1943,6 +2026,51 @@ export const zUpdateInferenceProviderRequestWritable = z.object({
 })
 
 /**
+ * Exact actor type.
+ */
+export const zAuditActorTypeQuery = zAuditActorType
+
+/**
+ * Stable audit event ID.
+ */
+export const zAuditEventIdPath = z.string().min(1)
+
+/**
+ * Exact actor ID.
+ */
+export const zAuditActorIdQuery = z.string().min(1)
+
+/**
+ * Exact audit category.
+ */
+export const zAuditCategoryQuery = z.string().min(1)
+
+/**
+ * Exact Workspace ID.
+ */
+export const zAuditWorkspaceIdQuery = z.string().min(1)
+
+/**
+ * Exact target resource type.
+ */
+export const zAuditTargetTypeQuery = zAuditTargetType
+
+/**
+ * Exact audit result.
+ */
+export const zAuditResultQuery = zAuditResult
+
+/**
+ * Inclusive lower event timestamp bound.
+ */
+export const zAuditCreatedAfterQuery = z.iso.datetime()
+
+/**
+ * Inclusive upper event timestamp bound.
+ */
+export const zAuditCreatedBeforeQuery = z.iso.datetime()
+
+/**
  * Agent name.
  */
 export const zAgentNameQuery = zAgentName
@@ -2062,6 +2190,16 @@ export const zFromDateQuery = z.iso.date()
  * Inclusive upper bound for MCP tool activity date.
  */
 export const zToDateQuery = z.iso.date()
+
+/**
+ * Paginated Organisation audit events and filter options.
+ */
+export const zListAuditEventsResponse2 = zListAuditEventsResponse
+
+/**
+ * Organisation audit event detail.
+ */
+export const zGetAuditEventResponse = zAuditEvent
 
 /**
  * Tenant bootstrap state.

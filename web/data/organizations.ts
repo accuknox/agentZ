@@ -1,5 +1,7 @@
 import "server-only"
 
+import { randomUUID } from "node:crypto"
+import { getIp } from "better-auth/api"
 import type { Route } from "next"
 import { cache } from "react"
 import { and, asc, eq, isNull } from "drizzle-orm"
@@ -244,7 +246,11 @@ export async function renameOrganization(
 
   return getDB().transaction(async (tx) => {
     const [organization] = await tx
-      .select({ id: schema.organizations.id, slug: schema.organizations.slug })
+      .select({
+        id: schema.organizations.id,
+        name: schema.organizations.name,
+        slug: schema.organizations.slug,
+      })
       .from(schema.organizations)
       .where(eq(schema.organizations.id, organizationId))
       .for("update")
@@ -253,16 +259,47 @@ export async function renameOrganization(
       return { error: "not-found" as const }
     }
 
-    const [superadmin] = await tx
-      .select({ memberId: schema.members.id })
+    const audit = {
+      id: `audit-${randomUUID()}`,
+      organizationId: organization.id,
+      actorType: "user",
+      actorId: organizationSession.session.user.id,
+      targetType: "organization",
+      targetId: organization.id,
+      category: "organization",
+      action: "organization.rename",
+      before: [
+        { field: "name", value: organization.name },
+        { field: "slug", value: organization.slug },
+      ],
+      after: [
+        { field: "name", value: input.name },
+        { field: "slug", value: input.slug },
+      ],
+      automaticCascade: false,
+      interface: "web",
+      ipAddress: getIp(organizationSession.requestHeaders, getAuth().options),
+      userAgent: organizationSession.requestHeaders.get("user-agent"),
+    } satisfies Omit<typeof schema.auditEvents.$inferInsert, "result">
+
+    const [member] = await tx
+      .select({ id: schema.members.id })
       .from(schema.members)
-      .innerJoin(
-        schema.memberRoles,
+      .where(
         and(
-          eq(schema.memberRoles.memberId, schema.members.id),
-          eq(schema.memberRoles.organizationId, schema.members.organizationId)
+          eq(schema.members.userId, organizationSession.session.user.id),
+          eq(schema.members.organizationId, organization.id),
+          isNull(schema.members.disabledAt)
         )
       )
+      .limit(1)
+    if (!member) {
+      return { error: "forbidden" as const }
+    }
+
+    const [superadmin] = await tx
+      .select({ roleId: schema.roleScopes.roleId })
+      .from(schema.memberRoles)
       .innerJoin(
         schema.roleScopes,
         and(
@@ -272,14 +309,15 @@ export async function renameOrganization(
       )
       .where(
         and(
-          eq(schema.members.userId, organizationSession.session.user.id),
-          eq(schema.members.organizationId, organization.id),
-          isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.systemRole, "superadmin")
+          eq(schema.memberRoles.memberId, member.id),
+          eq(schema.memberRoles.organizationId, organization.id),
+          eq(schema.roleScopes.systemRole, "superadmin"),
+          eq(schema.roleScopes.immutable, true)
         )
       )
       .limit(1)
     if (!superadmin) {
+      await tx.insert(schema.auditEvents).values({ ...audit, result: "denied" })
       return { error: "forbidden" as const }
     }
 
@@ -290,6 +328,7 @@ export async function renameOrganization(
         .where(eq(schema.organizations.slug, input.slug))
         .limit(1)
       if (canonicalSlug) {
+        await tx.insert(schema.auditEvents).values({ ...audit, result: "denied" })
         return { error: "slug-unavailable" as const }
       }
 
@@ -303,6 +342,7 @@ export async function renameOrganization(
         .onConflictDoNothing()
         .returning({ slug: schema.organizationSlugHistory.slug })
       if (!reservedSlug) {
+        await tx.insert(schema.auditEvents).values({ ...audit, result: "denied" })
         return { error: "slug-unavailable" as const }
       }
     }
@@ -311,6 +351,7 @@ export async function renameOrganization(
       .update(schema.organizations)
       .set({ name: input.name, slug: input.slug })
       .where(eq(schema.organizations.id, organization.id))
+    await tx.insert(schema.auditEvents).values({ ...audit, result: "succeeded" })
 
     return { slug: input.slug }
   })

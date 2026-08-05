@@ -64,6 +64,13 @@
       "when": 1785926288113,
       "tag": "0008_organization_workspace_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785939867556,
+      "tag": "0009_audit-events",
+      "breakpoints": true
     }
   ]
 }

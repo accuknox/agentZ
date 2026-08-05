@@ -32,6 +32,7 @@ import {
   ensureTenant,
   exportAgentMutableSkills,
   exportImmutableSkills,
+  getAuditEvent,
   getInferencePool,
   getInferencePoolUsage,
   getInferenceProvider,
@@ -48,6 +49,7 @@ import {
   listAgentMutableSkills,
   listAgents,
   listAgentWorkflowSchedules,
+  listAuditEvents,
   listFileObservability,
   listImmutableSkillSummaries,
   listImmutableSkillVersions,
@@ -171,6 +173,9 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsError,
   ExportImmutableSkillsResponse,
+  GetAuditEventData,
+  GetAuditEventError,
+  GetAuditEventResponse,
   GetInferencePoolData,
   GetInferencePoolError,
   GetInferencePoolResponse,
@@ -219,6 +224,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
+  ListAuditEventsData,
+  ListAuditEventsError,
+  ListAuditEventsResponse2,
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
@@ -367,6 +375,62 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
+
+export const listAuditEventsQueryKey = (options?: Options<ListAuditEventsData>) =>
+  createQueryKey("listAuditEvents", options)
+
+/**
+ * List Organisation audit events.
+ *
+ * Lists the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+ *
+ */
+export const listAuditEventsOptions = (options?: Options<ListAuditEventsData>) =>
+  queryOptions<
+    ListAuditEventsResponse2,
+    ListAuditEventsError,
+    ListAuditEventsResponse2,
+    ReturnType<typeof listAuditEventsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAuditEvents({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAuditEventsQueryKey(options),
+  })
+
+export const getAuditEventQueryKey = (options: Options<GetAuditEventData>) =>
+  createQueryKey("getAuditEvent", options)
+
+/**
+ * Get an Organisation audit event.
+ *
+ * Returns one event from the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+ *
+ */
+export const getAuditEventOptions = (options: Options<GetAuditEventData>) =>
+  queryOptions<
+    GetAuditEventResponse,
+    GetAuditEventError,
+    GetAuditEventResponse,
+    ReturnType<typeof getAuditEventQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAuditEvent({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAuditEventQueryKey(options),
+  })
 
 export const getTenantQueryKey = (options?: Options<GetTenantData>) =>
   createQueryKey("getTenant", options)

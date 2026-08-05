@@ -18,23 +18,29 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
 
 export default function OrganizationLayout({
+  auditEvent,
   children,
   params,
 }: {
+  auditEvent: React.ReactNode
   children: React.ReactNode
   params: Promise<{ orgSlug: string }>
 }) {
   return (
     <Suspense fallback={<AppShellFallback />}>
-      <OrganizationGate params={params}>{children}</OrganizationGate>
+      <OrganizationGate auditEvent={auditEvent} params={params}>
+        {children}
+      </OrganizationGate>
     </Suspense>
   )
 }
 
 async function OrganizationGate({
+  auditEvent,
   children,
   params,
 }: {
+  auditEvent: React.ReactNode
   children: React.ReactNode
   params: Promise<{ orgSlug: string }>
 }) {
@@ -96,11 +102,15 @@ async function OrganizationGate({
     redirect("/setting-up")
   }
 
-  await rememberOrganizationRoute(result.organization.id, requestedURL.pathname)
   const root = `/orgs/${result.organization.slug}`
+  const rememberedPath = requestedURL.pathname.startsWith(`${root}/audit/`)
+    ? `${root}/audit`
+    : requestedURL.pathname
+  await rememberOrganizationRoute(result.organization.id, rememberedPath)
   const tabs = result.organization.superadmin
     ? ([
         { href: `${root}/workspaces` as Route, label: "Workspaces" },
+        { href: `${root}/audit` as Route, label: "Audit" },
         { href: `${root}/general` as Route, label: "General" },
       ] as const satisfies readonly RouteTab[])
     : []
@@ -135,6 +145,7 @@ async function OrganizationGate({
         >
           {children}
         </AdministrationLayout>
+        {auditEvent}
       </AppShell>
     </>
   )

@@ -549,12 +549,14 @@ INSERT INTO audit_events(
   actor_id,
   target_type,
   target_id,
+  category,
   action,
   result,
   before,
   after,
   automatic_cascade,
   cleanup_job_id,
+  interface,
   ip_address,
   user_agent
 )
@@ -573,7 +575,9 @@ VALUES (
   $12,
   $13,
   $14,
-  $15
+  $15,
+  $16,
+  $17
 )
 RETURNING
   id,
@@ -583,36 +587,61 @@ RETURNING
   actor_id,
   target_type,
   target_id,
+  category,
   action,
   result,
   before,
   after,
   automatic_cascade,
   cleanup_job_id,
+  interface,
   ip_address,
   user_agent,
   created_at
 `
 
 type GatewayCreateAuditEventParams struct {
-	ID               string      `json:"id"`
-	OrganizationID   string      `json:"organization_id"`
-	WorkspaceID      pgtype.Text `json:"workspace_id"`
-	ActorType        AuditActor  `json:"actor_type"`
-	ActorID          pgtype.Text `json:"actor_id"`
-	TargetType       string      `json:"target_type"`
-	TargetID         string      `json:"target_id"`
-	Action           string      `json:"action"`
-	Result           AuditResult `json:"result"`
-	Before           []byte      `json:"before"`
-	After            []byte      `json:"after"`
-	AutomaticCascade bool        `json:"automatic_cascade"`
-	CleanupJobID     pgtype.Text `json:"cleanup_job_id"`
-	IpAddress        pgtype.Text `json:"ip_address"`
-	UserAgent        pgtype.Text `json:"user_agent"`
+	ID               string         `json:"id"`
+	OrganizationID   string         `json:"organization_id"`
+	WorkspaceID      pgtype.Text    `json:"workspace_id"`
+	ActorType        AuditActor     `json:"actor_type"`
+	ActorID          pgtype.Text    `json:"actor_id"`
+	TargetType       AuditTarget    `json:"target_type"`
+	TargetID         string         `json:"target_id"`
+	Category         string         `json:"category"`
+	Action           string         `json:"action"`
+	Result           AuditResult    `json:"result"`
+	Before           []byte         `json:"before"`
+	After            []byte         `json:"after"`
+	AutomaticCascade bool           `json:"automatic_cascade"`
+	CleanupJobID     pgtype.Text    `json:"cleanup_job_id"`
+	Interface        AuditInterface `json:"interface"`
+	IpAddress        pgtype.Text    `json:"ip_address"`
+	UserAgent        pgtype.Text    `json:"user_agent"`
 }
 
-func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreateAuditEventParams) (AuditEvent, error) {
+type GatewayCreateAuditEventRow struct {
+	ID               string             `json:"id"`
+	OrganizationID   string             `json:"organization_id"`
+	WorkspaceID      pgtype.Text        `json:"workspace_id"`
+	ActorType        AuditActor         `json:"actor_type"`
+	ActorID          pgtype.Text        `json:"actor_id"`
+	TargetType       AuditTarget        `json:"target_type"`
+	TargetID         string             `json:"target_id"`
+	Category         string             `json:"category"`
+	Action           string             `json:"action"`
+	Result           AuditResult        `json:"result"`
+	Before           []byte             `json:"before"`
+	After            []byte             `json:"after"`
+	AutomaticCascade bool               `json:"automatic_cascade"`
+	CleanupJobID     pgtype.Text        `json:"cleanup_job_id"`
+	Interface        AuditInterface     `json:"interface"`
+	IpAddress        pgtype.Text        `json:"ip_address"`
+	UserAgent        pgtype.Text        `json:"user_agent"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreateAuditEventParams) (GatewayCreateAuditEventRow, error) {
 	row := q.db.QueryRow(ctx, gatewayCreateAuditEvent,
 		arg.ID,
 		arg.OrganizationID,
@@ -621,16 +650,18 @@ func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreate
 		arg.ActorID,
 		arg.TargetType,
 		arg.TargetID,
+		arg.Category,
 		arg.Action,
 		arg.Result,
 		arg.Before,
 		arg.After,
 		arg.AutomaticCascade,
 		arg.CleanupJobID,
+		arg.Interface,
 		arg.IpAddress,
 		arg.UserAgent,
 	)
-	var i AuditEvent
+	var i GatewayCreateAuditEventRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
@@ -639,12 +670,14 @@ func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreate
 		&i.ActorID,
 		&i.TargetType,
 		&i.TargetID,
+		&i.Category,
 		&i.Action,
 		&i.Result,
 		&i.Before,
 		&i.After,
 		&i.AutomaticCascade,
 		&i.CleanupJobID,
+		&i.Interface,
 		&i.IpAddress,
 		&i.UserAgent,
 		&i.CreatedAt,
@@ -1386,58 +1419,6 @@ func (q *Queries) GatewayGetAgentOwner(ctx context.Context, arg GatewayGetAgentO
 	return i, err
 }
 
-const gatewayGetAuditEvent = `-- name: GatewayGetAuditEvent :one
-SELECT
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  ip_address,
-  user_agent,
-  created_at
-FROM audit_events
-WHERE id = $1
-  AND organization_id = $2
-`
-
-type GatewayGetAuditEventParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-}
-
-func (q *Queries) GatewayGetAuditEvent(ctx context.Context, arg GatewayGetAuditEventParams) (AuditEvent, error) {
-	row := q.db.QueryRow(ctx, gatewayGetAuditEvent, arg.ID, arg.OrganizationID)
-	var i AuditEvent
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.ActorType,
-		&i.ActorID,
-		&i.TargetType,
-		&i.TargetID,
-		&i.Action,
-		&i.Result,
-		&i.Before,
-		&i.After,
-		&i.AutomaticCascade,
-		&i.CleanupJobID,
-		&i.IpAddress,
-		&i.UserAgent,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const gatewayGetCleanupJob = `-- name: GatewayGetCleanupJob :one
 SELECT
   id,
@@ -1859,6 +1840,36 @@ func (q *Queries) GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspa
 	return i, err
 }
 
+const gatewayIsActiveSuperadmin = `-- name: GatewayIsActiveSuperadmin :one
+SELECT EXISTS(
+  SELECT 1
+  FROM members
+  JOIN member_roles
+    ON member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+  JOIN role_scopes
+    ON role_scopes.role_id = member_roles.role_id
+    AND role_scopes.organization_id = member_roles.organization_id
+  WHERE members.user_id = $1
+    AND members.organization_id = $2
+    AND members.disabled_at IS NULL
+    AND role_scopes.system_role = 'superadmin'
+    AND role_scopes.immutable
+)
+`
+
+type GatewayIsActiveSuperadminParams struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayIsActiveSuperadmin(ctx context.Context, arg GatewayIsActiveSuperadminParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayIsActiveSuperadmin, arg.UserID, arg.OrganizationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const gatewayListAPIKeyScopes = `-- name: GatewayListAPIKeyScopes :many
 SELECT
   api_key_scopes.api_key_id,
@@ -2081,70 +2092,396 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 	return items, nil
 }
 
-const gatewayListAuditEvents = `-- name: GatewayListAuditEvents :many
+const gatewayListAuditActors = `-- name: GatewayListAuditActors :many
 SELECT
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  ip_address,
-  user_agent,
-  created_at
+  audit_events.actor_type,
+  audit_events.actor_id,
+  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  users.email AS actor_email
+FROM audit_events
+LEFT JOIN users
+  ON audit_events.actor_type = 'user'
+  AND users.id = audit_events.actor_id
+LEFT JOIN apikeys
+  ON audit_events.actor_type = 'api_key'
+  AND apikeys.id = audit_events.actor_id
+WHERE audit_events.organization_id = $1
+  AND audit_events.created_at >= $2
+GROUP BY
+  audit_events.actor_type,
+  audit_events.actor_id,
+  users.name,
+  users.email,
+  apikeys.name
+ORDER BY COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System'), audit_events.actor_type
+`
+
+type GatewayListAuditActorsParams struct {
+	OrganizationID string             `json:"organization_id"`
+	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+}
+
+type GatewayListAuditActorsRow struct {
+	ActorType  AuditActor  `json:"actor_type"`
+	ActorID    pgtype.Text `json:"actor_id"`
+	ActorName  string      `json:"actor_name"`
+	ActorEmail pgtype.Text `json:"actor_email"`
+}
+
+func (q *Queries) GatewayListAuditActors(ctx context.Context, arg GatewayListAuditActorsParams) ([]GatewayListAuditActorsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListAuditActors, arg.OrganizationID, arg.RetainedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListAuditActorsRow{}
+	for rows.Next() {
+		var i GatewayListAuditActorsRow
+		if err := rows.Scan(
+			&i.ActorType,
+			&i.ActorID,
+			&i.ActorName,
+			&i.ActorEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAuditCategories = `-- name: GatewayListAuditCategories :many
+SELECT DISTINCT category
 FROM audit_events
 WHERE organization_id = $1
-  AND (created_at, id) < ($2, $3)
-ORDER BY created_at DESC, id DESC
-LIMIT $4
+  AND created_at >= $2
+ORDER BY category
+`
+
+type GatewayListAuditCategoriesParams struct {
+	OrganizationID string             `json:"organization_id"`
+	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+}
+
+func (q *Queries) GatewayListAuditCategories(ctx context.Context, arg GatewayListAuditCategoriesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, gatewayListAuditCategories, arg.OrganizationID, arg.RetainedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var category string
+		if err := rows.Scan(&category); err != nil {
+			return nil, err
+		}
+		items = append(items, category)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAuditEvents = `-- name: GatewayListAuditEvents :many
+SELECT
+  audit_events.id,
+  audit_events.organization_id,
+  audit_events.workspace_id,
+  audit_events.actor_type,
+  audit_events.actor_id,
+  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  users.email AS actor_email,
+  audit_events.target_type,
+  audit_events.target_id,
+  COALESCE(
+    CASE audit_events.target_type
+      WHEN 'organization' THEN organizations.name
+      WHEN 'workspace' THEN target_workspaces.name
+      WHEN 'organization_membership' THEN target_users.name
+    END,
+    audit_events.target_id
+  ) AS target_name,
+  (COALESCE(
+    (CASE audit_events.target_type
+      WHEN 'organization' THEN organizations.slug
+      WHEN 'workspace' THEN target_workspaces.slug
+    END)::text,
+    ''
+  ))::text AS target_slug,
+  audit_events.category,
+  audit_events.action,
+  audit_events.result,
+  audit_events.before,
+  audit_events.after,
+  audit_events.automatic_cascade,
+  audit_events.cleanup_job_id,
+  audit_events.interface,
+  audit_events.ip_address,
+  audit_events.user_agent,
+  audit_events.created_at,
+  workspaces.name AS workspace_name,
+  workspaces.slug AS workspace_slug,
+  cleanup_jobs.state AS cleanup_state,
+  cleanup_jobs.completed_at AS cleanup_completed_at
+FROM audit_events
+JOIN organizations
+  ON organizations.id = audit_events.organization_id
+LEFT JOIN users
+  ON audit_events.actor_type = 'user'
+  AND users.id = audit_events.actor_id
+LEFT JOIN apikeys
+  ON audit_events.actor_type = 'api_key'
+  AND apikeys.id = audit_events.actor_id
+LEFT JOIN workspaces
+  ON workspaces.id = audit_events.workspace_id
+  AND workspaces.organization_id = audit_events.organization_id
+LEFT JOIN workspaces AS target_workspaces
+  ON audit_events.target_type = 'workspace'
+  AND target_workspaces.id = audit_events.target_id
+  AND target_workspaces.organization_id = audit_events.organization_id
+LEFT JOIN members AS target_members
+  ON audit_events.target_type = 'organization_membership'
+  AND target_members.id = audit_events.target_id
+  AND target_members.organization_id = audit_events.organization_id
+LEFT JOIN users AS target_users
+  ON target_users.id = target_members.user_id
+LEFT JOIN cleanup_jobs
+  ON cleanup_jobs.id = audit_events.cleanup_job_id
+  AND cleanup_jobs.organization_id = audit_events.organization_id
+WHERE audit_events.organization_id = $1
+  AND audit_events.created_at >= $2
+  AND (
+    $3::text IS NULL
+    OR audit_events.id = $3::text
+  )
+  AND (
+    $4::audit_actor IS NULL
+    OR audit_events.actor_type = $4::audit_actor
+  )
+  AND (
+    $5::text IS NULL
+    OR audit_events.actor_id = $5::text
+  )
+  AND (
+    $6::text IS NULL
+    OR audit_events.category = $6::text
+  )
+  AND (
+    $7::text IS NULL
+    OR audit_events.workspace_id = $7::text
+  )
+  AND (
+    $8::audit_target IS NULL
+    OR audit_events.target_type = $8::audit_target
+  )
+  AND (
+    $9::audit_result IS NULL
+    OR audit_events.result = $9::audit_result
+  )
+  AND (
+    $10::timestamptz IS NULL
+    OR audit_events.created_at >= $10::timestamptz
+  )
+  AND (
+    $11::timestamptz IS NULL
+    OR audit_events.created_at <= $11::timestamptz
+  )
+  AND (
+    NOT $12::boolean
+    OR audit_events.created_at < $13::timestamptz
+    OR (
+      audit_events.created_at = $13::timestamptz
+      AND audit_events.id < $14::text
+    )
+  )
+ORDER BY audit_events.created_at DESC, audit_events.id DESC
+LIMIT $15
 `
 
 type GatewayListAuditEventsParams struct {
 	OrganizationID  string             `json:"organization_id"`
-	BeforeCreatedAt pgtype.Timestamptz `json:"before_created_at"`
-	BeforeID        pgtype.Timestamptz `json:"before_id"`
+	RetainedAfter   pgtype.Timestamptz `json:"retained_after"`
+	EventID         pgtype.Text        `json:"event_id"`
+	ActorType       NullAuditActor     `json:"actor_type"`
+	ActorID         pgtype.Text        `json:"actor_id"`
+	Category        pgtype.Text        `json:"category"`
+	WorkspaceID     pgtype.Text        `json:"workspace_id"`
+	TargetType      NullAuditTarget    `json:"target_type"`
+	Result          NullAuditResult    `json:"result"`
+	CreatedAfter    pgtype.Timestamptz `json:"created_after"`
+	CreatedBefore   pgtype.Timestamptz `json:"created_before"`
+	CursorSet       bool               `json:"cursor_set"`
+	CursorCreatedAt time.Time          `json:"cursor_created_at"`
+	CursorID        string             `json:"cursor_id"`
 	PageSize        int32              `json:"page_size"`
 }
 
-func (q *Queries) GatewayListAuditEvents(ctx context.Context, arg GatewayListAuditEventsParams) ([]AuditEvent, error) {
+type GatewayListAuditEventsRow struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	WorkspaceID        pgtype.Text        `json:"workspace_id"`
+	ActorType          AuditActor         `json:"actor_type"`
+	ActorID            pgtype.Text        `json:"actor_id"`
+	ActorName          string             `json:"actor_name"`
+	ActorEmail         pgtype.Text        `json:"actor_email"`
+	TargetType         AuditTarget        `json:"target_type"`
+	TargetID           string             `json:"target_id"`
+	TargetName         string             `json:"target_name"`
+	TargetSlug         string             `json:"target_slug"`
+	Category           string             `json:"category"`
+	Action             string             `json:"action"`
+	Result             AuditResult        `json:"result"`
+	Before             []byte             `json:"before"`
+	After              []byte             `json:"after"`
+	AutomaticCascade   bool               `json:"automatic_cascade"`
+	CleanupJobID       pgtype.Text        `json:"cleanup_job_id"`
+	Interface          AuditInterface     `json:"interface"`
+	IpAddress          pgtype.Text        `json:"ip_address"`
+	UserAgent          pgtype.Text        `json:"user_agent"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	WorkspaceName      pgtype.Text        `json:"workspace_name"`
+	WorkspaceSlug      pgtype.Text        `json:"workspace_slug"`
+	CleanupState       NullCleanupState   `json:"cleanup_state"`
+	CleanupCompletedAt pgtype.Timestamptz `json:"cleanup_completed_at"`
+}
+
+func (q *Queries) GatewayListAuditEvents(ctx context.Context, arg GatewayListAuditEventsParams) ([]GatewayListAuditEventsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListAuditEvents,
 		arg.OrganizationID,
-		arg.BeforeCreatedAt,
-		arg.BeforeID,
+		arg.RetainedAfter,
+		arg.EventID,
+		arg.ActorType,
+		arg.ActorID,
+		arg.Category,
+		arg.WorkspaceID,
+		arg.TargetType,
+		arg.Result,
+		arg.CreatedAfter,
+		arg.CreatedBefore,
+		arg.CursorSet,
+		arg.CursorCreatedAt,
+		arg.CursorID,
 		arg.PageSize,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AuditEvent{}
+	items := []GatewayListAuditEventsRow{}
 	for rows.Next() {
-		var i AuditEvent
+		var i GatewayListAuditEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
 			&i.WorkspaceID,
 			&i.ActorType,
 			&i.ActorID,
+			&i.ActorName,
+			&i.ActorEmail,
 			&i.TargetType,
 			&i.TargetID,
+			&i.TargetName,
+			&i.TargetSlug,
+			&i.Category,
 			&i.Action,
 			&i.Result,
 			&i.Before,
 			&i.After,
 			&i.AutomaticCascade,
 			&i.CleanupJobID,
+			&i.Interface,
 			&i.IpAddress,
 			&i.UserAgent,
 			&i.CreatedAt,
+			&i.WorkspaceName,
+			&i.WorkspaceSlug,
+			&i.CleanupState,
+			&i.CleanupCompletedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAuditTargetTypes = `-- name: GatewayListAuditTargetTypes :many
+SELECT DISTINCT target_type
+FROM audit_events
+WHERE organization_id = $1
+  AND created_at >= $2
+ORDER BY target_type
+`
+
+type GatewayListAuditTargetTypesParams struct {
+	OrganizationID string             `json:"organization_id"`
+	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+}
+
+func (q *Queries) GatewayListAuditTargetTypes(ctx context.Context, arg GatewayListAuditTargetTypesParams) ([]AuditTarget, error) {
+	rows, err := q.db.Query(ctx, gatewayListAuditTargetTypes, arg.OrganizationID, arg.RetainedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditTarget{}
+	for rows.Next() {
+		var target_type AuditTarget
+		if err := rows.Scan(&target_type); err != nil {
+			return nil, err
+		}
+		items = append(items, target_type)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAuditWorkspaces = `-- name: GatewayListAuditWorkspaces :many
+SELECT
+  audit_events.workspace_id,
+  workspaces.name,
+  workspaces.slug
+FROM audit_events
+LEFT JOIN workspaces
+  ON workspaces.id = audit_events.workspace_id
+  AND workspaces.organization_id = audit_events.organization_id
+WHERE audit_events.organization_id = $1
+  AND audit_events.workspace_id IS NOT NULL
+  AND audit_events.created_at >= $2
+GROUP BY audit_events.workspace_id, workspaces.name, workspaces.slug
+ORDER BY workspaces.name, audit_events.workspace_id
+`
+
+type GatewayListAuditWorkspacesParams struct {
+	OrganizationID string             `json:"organization_id"`
+	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
+}
+
+type GatewayListAuditWorkspacesRow struct {
+	WorkspaceID pgtype.Text `json:"workspace_id"`
+	Name        pgtype.Text `json:"name"`
+	Slug        pgtype.Text `json:"slug"`
+}
+
+func (q *Queries) GatewayListAuditWorkspaces(ctx context.Context, arg GatewayListAuditWorkspacesParams) ([]GatewayListAuditWorkspacesRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListAuditWorkspaces, arg.OrganizationID, arg.RetainedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListAuditWorkspacesRow{}
+	for rows.Next() {
+		var i GatewayListAuditWorkspacesRow
+		if err := rows.Scan(&i.WorkspaceID, &i.Name, &i.Slug); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3457,83 +3794,6 @@ func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesPa
 			&i.CostUsd,
 			&i.StatusCode,
 			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const gatewayListWorkspaceAuditEvents = `-- name: GatewayListWorkspaceAuditEvents :many
-SELECT
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  ip_address,
-  user_agent,
-  created_at
-FROM audit_events
-WHERE organization_id = $1
-  AND workspace_id = $2
-  AND (created_at, id) < ($3, $4)
-ORDER BY created_at DESC, id DESC
-LIMIT $5
-`
-
-type GatewayListWorkspaceAuditEventsParams struct {
-	OrganizationID  string             `json:"organization_id"`
-	WorkspaceID     pgtype.Text        `json:"workspace_id"`
-	BeforeCreatedAt pgtype.Timestamptz `json:"before_created_at"`
-	BeforeID        pgtype.Timestamptz `json:"before_id"`
-	PageSize        int32              `json:"page_size"`
-}
-
-func (q *Queries) GatewayListWorkspaceAuditEvents(ctx context.Context, arg GatewayListWorkspaceAuditEventsParams) ([]AuditEvent, error) {
-	rows, err := q.db.Query(ctx, gatewayListWorkspaceAuditEvents,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.BeforeCreatedAt,
-		arg.BeforeID,
-		arg.PageSize,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []AuditEvent{}
-	for rows.Next() {
-		var i AuditEvent
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.ActorType,
-			&i.ActorID,
-			&i.TargetType,
-			&i.TargetID,
-			&i.Action,
-			&i.Result,
-			&i.Before,
-			&i.After,
-			&i.AutomaticCascade,
-			&i.CleanupJobID,
-			&i.IpAddress,
-			&i.UserAgent,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

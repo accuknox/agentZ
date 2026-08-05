@@ -13,6 +13,8 @@ tags:
   description: Agent lifecycle and status APIs.
 - name: tenants
   description: Tenant bootstrap and readiness APIs.
+- name: audit
+  description: Organisation audit investigation APIs.
 - name: lens
   description: Trace, span, and OS observability APIs.
 - name: secrets
@@ -35,6 +37,68 @@ tags:
   description: Workflow webhook invocation and trigger listing APIs.
 
 paths:
+  /api/audit-event:
+    get:
+      operationId: listAuditEvents
+      summary: List Organisation audit events.
+      description: >
+        Lists the active Organisation's rolling audit history. Only an active
+        Superadmin may read Organisation-wide audit events.
+      tags: [audit]
+      parameters:
+      - $ref: '#/components/parameters/AuditActorTypeQuery'
+      - $ref: '#/components/parameters/AuditActorIDQuery'
+      - $ref: '#/components/parameters/AuditCategoryQuery'
+      - $ref: '#/components/parameters/AuditWorkspaceIDQuery'
+      - $ref: '#/components/parameters/AuditTargetTypeQuery'
+      - $ref: '#/components/parameters/AuditResultQuery'
+      - $ref: '#/components/parameters/AuditCreatedAfterQuery'
+      - $ref: '#/components/parameters/AuditCreatedBeforeQuery'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Paginated Organisation audit events and filter options.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAuditEventsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/audit-event/{eventId}:
+    get:
+      operationId: getAuditEvent
+      summary: Get an Organisation audit event.
+      description: >
+        Returns one event from the active Organisation's rolling audit
+        history. Only an active Superadmin may read Organisation-wide audit
+        events.
+      tags: [audit]
+      parameters:
+      - $ref: '#/components/parameters/AuditEventIDPath'
+      responses:
+        '200':
+          description: Organisation audit event detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/tenant:
     get:
       operationId: getTenant
@@ -2506,6 +2570,84 @@ components:
       in: header
       name: X-API-Key
   parameters:
+    AuditActorTypeQuery:
+      name: actor_type
+      in: query
+      required: false
+      description: Exact actor type.
+      schema:
+        $ref: '#/components/schemas/AuditActorType'
+
+    AuditEventIDPath:
+      name: eventId
+      in: path
+      required: true
+      description: Stable audit event ID.
+      schema:
+        type: string
+        minLength: 1
+
+    AuditActorIDQuery:
+      name: actor_id
+      in: query
+      required: false
+      description: Exact actor ID.
+      schema:
+        type: string
+        minLength: 1
+
+    AuditCategoryQuery:
+      name: category
+      in: query
+      required: false
+      description: Exact audit category.
+      schema:
+        type: string
+        minLength: 1
+
+    AuditWorkspaceIDQuery:
+      name: workspace_id
+      in: query
+      required: false
+      description: Exact Workspace ID.
+      schema:
+        type: string
+        minLength: 1
+
+    AuditTargetTypeQuery:
+      name: target_type
+      in: query
+      required: false
+      description: Exact target resource type.
+      schema:
+        $ref: '#/components/schemas/AuditTargetType'
+
+    AuditResultQuery:
+      name: result
+      in: query
+      required: false
+      description: Exact audit result.
+      schema:
+        $ref: '#/components/schemas/AuditResult'
+
+    AuditCreatedAfterQuery:
+      name: created_after
+      in: query
+      required: false
+      description: Inclusive lower event timestamp bound.
+      schema:
+        type: string
+        format: date-time
+
+    AuditCreatedBeforeQuery:
+      name: created_before
+      in: query
+      required: false
+      description: Inclusive upper event timestamp bound.
+      schema:
+        type: string
+        format: date-time
+
     AgentNameQuery:
       name: agent_name
       in: query
@@ -2733,6 +2875,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: The authenticated principal lacks authority for this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     NotFound:
       description: >
         Requested resource was not found. For tenant-gated APIs this can also
@@ -2783,6 +2931,213 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    AuditActorType:
+      type: string
+      enum: [user, api_key, system]
+
+    AuditResult:
+      type: string
+      enum: [succeeded, denied, failed]
+
+    AuditInterface:
+      type: string
+      enum: [web, gateway, better_auth, controller, system]
+
+    AuditTargetType:
+      type: string
+      enum: [organization, organization_membership, workspace]
+      x-enum-varnames:
+      - AuditTargetOrganization
+      - AuditTargetOrganizationMembership
+      - AuditTargetWorkspace
+
+    AuditField:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+          enum: [member_id, name, role, slug, user_id]
+          x-enum-varnames:
+          - AuditFieldMemberID
+          - AuditFieldName
+          - AuditFieldRole
+          - AuditFieldSlug
+          - AuditFieldUserID
+        value:
+          type: string
+      required: [field, value]
+
+    AuditActor:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          $ref: '#/components/schemas/AuditActorType'
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [type]
+
+    AuditTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          $ref: '#/components/schemas/AuditTargetType'
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required: [type, id]
+
+    AuditWorkspace:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required: [id]
+
+    AuditCleanup:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+          enum: [pending, running, succeeded, failed]
+        completed_at:
+          type: string
+          format: date-time
+      required: [id, state]
+
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        actor:
+          $ref: '#/components/schemas/AuditActor'
+        target:
+          $ref: '#/components/schemas/AuditTarget'
+        workspace:
+          $ref: '#/components/schemas/AuditWorkspace'
+        category:
+          type: string
+        action:
+          type: string
+        result:
+          $ref: '#/components/schemas/AuditResult'
+        before:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditField'
+        after:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditField'
+        automatic_cascade:
+          type: boolean
+        interface:
+          $ref: '#/components/schemas/AuditInterface'
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        cleanup:
+          $ref: '#/components/schemas/AuditCleanup'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - actor
+      - target
+      - category
+      - action
+      - result
+      - before
+      - after
+      - automatic_cascade
+      - interface
+      - created_at
+
+    AuditActorFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/AuditActorType'
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [type]
+
+    AuditWorkspaceFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required: [id]
+
+    AuditFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        actors:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditActorFilter'
+        categories:
+          type: array
+          items:
+            type: string
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditWorkspaceFilter'
+        target_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditTargetType'
+      required: [actors, categories, workspaces, target_types]
+
+    ListAuditEventsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+        filters:
+          $ref: '#/components/schemas/AuditFilters'
+        next_page_token:
+          type: string
+      required: [events, filters, next_page_token]
+
     TraceID:
       type: string
       minLength: 32

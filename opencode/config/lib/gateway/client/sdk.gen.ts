@@ -94,6 +94,9 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetAuditEventData,
+  GetAuditEventErrors,
+  GetAuditEventResponses,
   GetInferencePoolData,
   GetInferencePoolErrors,
   GetInferencePoolResponses,
@@ -142,6 +145,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
+  ListAuditEventsData,
+  ListAuditEventsErrors,
+  ListAuditEventsResponses,
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
@@ -312,6 +318,7 @@ import {
   zExportAgentMutableSkillsBody,
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
+  zGetAuditEventPath,
   zGetInferencePoolPath,
   zGetInferencePoolUsagePath,
   zGetInferenceProviderPath,
@@ -332,6 +339,7 @@ import {
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
+  zListAuditEventsQuery,
   zListFileObservabilityPath,
   zListFileObservabilityQuery,
   zListImmutableSkillSummariesQuery,
@@ -422,6 +430,52 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+/**
+ * List Organisation audit events.
+ *
+ * Lists the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+ *
+ */
+export const listAuditEvents = <ThrowOnError extends boolean = false>(
+  options?: Options<ListAuditEventsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListAuditEventsResponses, ListAuditEventsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListAuditEventsQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/audit-event",
+    ...options,
+  })
+
+/**
+ * Get an Organisation audit event.
+ *
+ * Returns one event from the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+ *
+ */
+export const getAuditEvent = <ThrowOnError extends boolean = false>(
+  options: Options<GetAuditEventData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAuditEventResponses, GetAuditEventErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetAuditEventPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/audit-event/{eventId}",
+    ...options,
+  })
 
 /**
  * Get the current tenant bootstrap state.

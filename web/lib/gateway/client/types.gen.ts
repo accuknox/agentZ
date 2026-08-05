@@ -4,6 +4,89 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type AuditActorType = "user" | "api_key" | "system"
+
+export type AuditResult = "succeeded" | "denied" | "failed"
+
+export type AuditInterface = "web" | "gateway" | "better_auth" | "controller" | "system"
+
+export type AuditTargetType = "organization" | "organization_membership" | "workspace"
+
+export type AuditField = {
+  field: "member_id" | "name" | "role" | "slug" | "user_id"
+  value: string
+}
+
+export type AuditActor = {
+  type: AuditActorType
+  id?: string
+  name?: string
+  email?: string
+}
+
+export type AuditTarget = {
+  type: AuditTargetType
+  id: string
+  name?: string
+  slug?: string
+}
+
+export type AuditWorkspace = {
+  id: string
+  name?: string
+  slug?: string
+}
+
+export type AuditCleanup = {
+  id: string
+  state: "pending" | "running" | "succeeded" | "failed"
+  completed_at?: string
+}
+
+export type AuditEvent = {
+  id: string
+  actor: AuditActor
+  target: AuditTarget
+  workspace?: AuditWorkspace
+  category: string
+  action: string
+  result: AuditResult
+  before: Array<AuditField>
+  after: Array<AuditField>
+  automatic_cascade: boolean
+  interface: AuditInterface
+  ip_address?: string
+  user_agent?: string
+  cleanup?: AuditCleanup
+  created_at: string
+}
+
+export type AuditActorFilter = {
+  id?: string
+  type: AuditActorType
+  name?: string
+  email?: string
+}
+
+export type AuditWorkspaceFilter = {
+  id: string
+  name?: string
+  slug?: string
+}
+
+export type AuditFilters = {
+  actors: Array<AuditActorFilter>
+  categories: Array<string>
+  workspaces: Array<AuditWorkspaceFilter>
+  target_types: Array<AuditTargetType>
+}
+
+export type ListAuditEventsResponse = {
+  events: Array<AuditEvent>
+  filters: AuditFilters
+  next_page_token: string
+}
+
 /**
  * Lowercase hexadecimal OTLP trace ID.
  */
@@ -1674,6 +1757,51 @@ export type UpdateInferenceProviderRequestWritable = {
 }
 
 /**
+ * Exact actor type.
+ */
+export type AuditActorTypeQuery = AuditActorType
+
+/**
+ * Stable audit event ID.
+ */
+export type AuditEventIdPath = string
+
+/**
+ * Exact actor ID.
+ */
+export type AuditActorIdQuery = string
+
+/**
+ * Exact audit category.
+ */
+export type AuditCategoryQuery = string
+
+/**
+ * Exact Workspace ID.
+ */
+export type AuditWorkspaceIdQuery = string
+
+/**
+ * Exact target resource type.
+ */
+export type AuditTargetTypeQuery = AuditTargetType
+
+/**
+ * Exact audit result.
+ */
+export type AuditResultQuery = AuditResult
+
+/**
+ * Inclusive lower event timestamp bound.
+ */
+export type AuditCreatedAfterQuery = string
+
+/**
+ * Inclusive upper event timestamp bound.
+ */
+export type AuditCreatedBeforeQuery = string
+
+/**
  * Agent name.
  */
 export type AgentNameQuery = AgentName
@@ -1793,6 +1921,127 @@ export type FromDateQuery = string
  * Inclusive upper bound for MCP tool activity date.
  */
 export type ToDateQuery = string
+
+export type ListAuditEventsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Exact actor type.
+     */
+    actor_type?: AuditActorType
+    /**
+     * Exact actor ID.
+     */
+    actor_id?: string
+    /**
+     * Exact audit category.
+     */
+    category?: string
+    /**
+     * Exact Workspace ID.
+     */
+    workspace_id?: string
+    /**
+     * Exact target resource type.
+     */
+    target_type?: AuditTargetType
+    /**
+     * Exact audit result.
+     */
+    result?: AuditResult
+    /**
+     * Inclusive lower event timestamp bound.
+     */
+    created_after?: string
+    /**
+     * Inclusive upper event timestamp bound.
+     */
+    created_before?: string
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/audit-event"
+}
+
+export type ListAuditEventsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAuditEventsError = ListAuditEventsErrors[keyof ListAuditEventsErrors]
+
+export type ListAuditEventsResponses = {
+  /**
+   * Paginated Organisation audit events and filter options.
+   */
+  200: ListAuditEventsResponse
+}
+
+export type ListAuditEventsResponse2 = ListAuditEventsResponses[keyof ListAuditEventsResponses]
+
+export type GetAuditEventData = {
+  body?: never
+  path: {
+    /**
+     * Stable audit event ID.
+     */
+    eventId: string
+  }
+  query?: never
+  url: "/api/audit-event/{eventId}"
+}
+
+export type GetAuditEventErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAuditEventError = GetAuditEventErrors[keyof GetAuditEventErrors]
+
+export type GetAuditEventResponses = {
+  /**
+   * Organisation audit event detail.
+   */
+  200: AuditEvent
+}
+
+export type GetAuditEventResponse = GetAuditEventResponses[keyof GetAuditEventResponses]
 
 export type GetTenantData = {
   body?: never

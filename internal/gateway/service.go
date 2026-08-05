@@ -218,13 +218,13 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err := sandboxutil.IndexAgentsBySandbox(ctx, usageCache); err != nil {
 		return fmt.Errorf("index agents by sandbox: %w", err)
 	}
-	cacheCtx, stopCache := context.WithCancel(ctx)
-	defer stopCache()
+	runCtx, stopRun := context.WithCancel(ctx)
+	defer stopRun()
 	cacheErrCh := make(chan error, 1)
 	go func() {
-		cacheErrCh <- usageCache.Start(cacheCtx)
+		cacheErrCh <- usageCache.Start(runCtx)
 	}()
-	if !usageCache.WaitForCacheSync(cacheCtx) {
+	if !usageCache.WaitForCacheSync(runCtx) {
 		return fmt.Errorf("sync inference usage cache")
 	}
 	k8s, err := kubernetes.NewForConfig(kubeCfg)
@@ -289,6 +289,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
 	}
+	auditRetentionDone := make(chan struct{})
+	go func() {
+		defer close(auditRetentionDone)
+		svc.runAuditRetention(runCtx)
+	}()
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -335,6 +340,8 @@ func Serve(ctx context.Context, cfg Config) error {
 			err = errors.Join(err, serveErr)
 		}
 	}
+	stopRun()
+	<-auditRetentionDone
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)

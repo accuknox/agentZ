@@ -53,6 +53,75 @@ components:
       schema:
         default: false
         type: boolean
+    AuditActorIDQuery:
+      description: Exact actor ID.
+      in: query
+      name: actor_id
+      required: false
+      schema:
+        minLength: 1
+        type: string
+    AuditActorTypeQuery:
+      description: Exact actor type.
+      in: query
+      name: actor_type
+      required: false
+      schema:
+        $ref: '#/components/schemas/AuditActorType'
+    AuditCategoryQuery:
+      description: Exact audit category.
+      in: query
+      name: category
+      required: false
+      schema:
+        minLength: 1
+        type: string
+    AuditCreatedAfterQuery:
+      description: Inclusive lower event timestamp bound.
+      in: query
+      name: created_after
+      required: false
+      schema:
+        format: date-time
+        type: string
+    AuditCreatedBeforeQuery:
+      description: Inclusive upper event timestamp bound.
+      in: query
+      name: created_before
+      required: false
+      schema:
+        format: date-time
+        type: string
+    AuditEventIDPath:
+      description: Stable audit event ID.
+      in: path
+      name: eventId
+      required: true
+      schema:
+        minLength: 1
+        type: string
+    AuditResultQuery:
+      description: Exact audit result.
+      in: query
+      name: result
+      required: false
+      schema:
+        $ref: '#/components/schemas/AuditResult'
+    AuditTargetTypeQuery:
+      description: Exact target resource type.
+      in: query
+      name: target_type
+      required: false
+      schema:
+        $ref: '#/components/schemas/AuditTargetType'
+    AuditWorkspaceIDQuery:
+      description: Exact Workspace ID.
+      in: query
+      name: workspace_id
+      required: false
+      schema:
+        minLength: 1
+        type: string
     EventTimeAfterQuery:
       description: Inclusive lower bound for event time.
       in: query
@@ -216,6 +285,12 @@ components:
             $ref: '#/components/schemas/Error'
       description: |
         Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+    Forbidden:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: The authenticated principal lacks authority for this operation.
     InternalError:
       content:
         application/json:
@@ -477,6 +552,223 @@ components:
           format: uri
           maxLength: 2048
           type: string
+      type: object
+    AuditActor:
+      additionalProperties: false
+      properties:
+        email:
+          format: email
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/AuditActorType'
+      required:
+      - type
+      type: object
+    AuditActorFilter:
+      additionalProperties: false
+      properties:
+        email:
+          format: email
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/AuditActorType'
+      required:
+      - type
+      type: object
+    AuditActorType:
+      enum:
+      - user
+      - api_key
+      - system
+      type: string
+    AuditCleanup:
+      additionalProperties: false
+      properties:
+        completed_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        state:
+          enum:
+          - pending
+          - running
+          - succeeded
+          - failed
+          type: string
+      required:
+      - id
+      - state
+      type: object
+    AuditEvent:
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+        actor:
+          $ref: '#/components/schemas/AuditActor'
+        after:
+          items:
+            $ref: '#/components/schemas/AuditField'
+          type: array
+        automatic_cascade:
+          type: boolean
+        before:
+          items:
+            $ref: '#/components/schemas/AuditField'
+          type: array
+        category:
+          type: string
+        cleanup:
+          $ref: '#/components/schemas/AuditCleanup'
+        created_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        interface:
+          $ref: '#/components/schemas/AuditInterface'
+        ip_address:
+          type: string
+        result:
+          $ref: '#/components/schemas/AuditResult'
+        target:
+          $ref: '#/components/schemas/AuditTarget'
+        user_agent:
+          type: string
+        workspace:
+          $ref: '#/components/schemas/AuditWorkspace'
+      required:
+      - id
+      - actor
+      - target
+      - category
+      - action
+      - result
+      - before
+      - after
+      - automatic_cascade
+      - interface
+      - created_at
+      type: object
+    AuditField:
+      additionalProperties: false
+      properties:
+        field:
+          enum:
+          - member_id
+          - name
+          - role
+          - slug
+          - user_id
+          type: string
+          x-enum-varnames:
+          - AuditFieldMemberID
+          - AuditFieldName
+          - AuditFieldRole
+          - AuditFieldSlug
+          - AuditFieldUserID
+        value:
+          type: string
+      required:
+      - field
+      - value
+      type: object
+    AuditFilters:
+      additionalProperties: false
+      properties:
+        actors:
+          items:
+            $ref: '#/components/schemas/AuditActorFilter'
+          type: array
+        categories:
+          items:
+            type: string
+          type: array
+        target_types:
+          items:
+            $ref: '#/components/schemas/AuditTargetType'
+          type: array
+        workspaces:
+          items:
+            $ref: '#/components/schemas/AuditWorkspaceFilter'
+          type: array
+      required:
+      - actors
+      - categories
+      - workspaces
+      - target_types
+      type: object
+    AuditInterface:
+      enum:
+      - web
+      - gateway
+      - better_auth
+      - controller
+      - system
+      type: string
+    AuditResult:
+      enum:
+      - succeeded
+      - denied
+      - failed
+      type: string
+    AuditTarget:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        type:
+          $ref: '#/components/schemas/AuditTargetType'
+      required:
+      - type
+      - id
+      type: object
+    AuditTargetType:
+      enum:
+      - organization
+      - organization_membership
+      - workspace
+      type: string
+      x-enum-varnames:
+      - AuditTargetOrganization
+      - AuditTargetOrganizationMembership
+      - AuditTargetWorkspace
+    AuditWorkspace:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required:
+      - id
+      type: object
+    AuditWorkspaceFilter:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required:
+      - id
       type: object
     AzureInferenceProviderRead:
       properties:
@@ -1886,6 +2178,22 @@ components:
           type: string
       required:
       - agents
+      - next_page_token
+      type: object
+    ListAuditEventsResponse:
+      additionalProperties: false
+      properties:
+        events:
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+          type: array
+        filters:
+          $ref: '#/components/schemas/AuditFilters'
+        next_page_token:
+          type: string
+      required:
+      - events
+      - filters
       - next_page_token
       type: object
     ListFileObservabilityResponse:
@@ -23256,6 +23564,65 @@ paths:
       summary: Watch agent status changes.
       tags:
       - agents
+  /api/audit-event:
+    get:
+      description: |
+        Lists the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+      operationId: listAuditEvents
+      parameters:
+      - $ref: '#/components/parameters/AuditActorTypeQuery'
+      - $ref: '#/components/parameters/AuditActorIDQuery'
+      - $ref: '#/components/parameters/AuditCategoryQuery'
+      - $ref: '#/components/parameters/AuditWorkspaceIDQuery'
+      - $ref: '#/components/parameters/AuditTargetTypeQuery'
+      - $ref: '#/components/parameters/AuditResultQuery'
+      - $ref: '#/components/parameters/AuditCreatedAfterQuery'
+      - $ref: '#/components/parameters/AuditCreatedBeforeQuery'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAuditEventsResponse'
+          description: Paginated Organisation audit events and filter options.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Organisation audit events.
+      tags:
+      - audit
+  /api/audit-event/{eventId}:
+    get:
+      description: |
+        Returns one event from the active Organisation's rolling audit history. Only an active Superadmin may read Organisation-wide audit events.
+      operationId: getAuditEvent
+      parameters:
+      - $ref: '#/components/parameters/AuditEventIDPath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEvent'
+          description: Organisation audit event detail.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get an Organisation audit event.
+      tags:
+      - audit
   /api/inference/pool:
     get:
       operationId: listInferencePools
@@ -37660,6 +38027,8 @@ tags:
   name: agents
 - description: Tenant bootstrap and readiness APIs.
   name: tenants
+- description: Organisation audit investigation APIs.
+  name: audit
 - description: Trace, span, and OS observability APIs.
   name: lens
 - description: Session secret management APIs.

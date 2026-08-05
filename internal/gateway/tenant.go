@@ -31,6 +31,7 @@ type tenantContextKey struct{}
 type requestAuth struct {
 	claims          *gatewayClaims
 	apiKeyID        string
+	organizationID  string
 	tenantName      string
 	tenantNamespace string
 }
@@ -52,15 +53,13 @@ func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantName := agentzv1alpha1.TenantName(auth.claims.TenantID)
-	var tenant agentzv1alpha1.Tenant
-	err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Name: tenantName}, &tenant)
+	tenant, err := s.findTenant(r.Context(), auth)
 	if err != nil {
 		writeError(w, r, mapKubeHTTPError("get tenant", err))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tenantView(&tenant))
+	writeJSON(w, http.StatusOK, tenantView(tenant))
 }
 
 // EnsureTenant handles PUT /api/tenant.
@@ -76,17 +75,32 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantName := agentzv1alpha1.TenantName(auth.claims.TenantID)
-	tenant := agentzv1alpha1.Tenant{
+	tenant, err := s.findTenant(r.Context(), auth)
+	if err == nil {
+		writeJSON(w, http.StatusOK, tenantView(tenant))
+		return
+	}
+	if !apierrors.IsNotFound(err) {
+		writeError(w, r, mapKubeHTTPError("get tenant", err))
+		return
+	}
+
+	tenantName := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		auth.claims.TenantID,
+	)
+	created := agentzv1alpha1.Tenant{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tenantName,
+			Labels: map[string]string{
+				agentzv1alpha1.TenantOrganizationIDLabel: tenantName,
+			},
 		},
 		Spec: agentzv1alpha1.TenantSpec{
 			OrganizationID: auth.claims.TenantID,
-			UserID:         auth.claims.UserID,
 		},
 	}
-	err := s.k8sClient.Create(r.Context(), &tenant)
+	err = s.k8sClient.Create(r.Context(), &created)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		writeError(w, r, mapKubeHTTPError("create tenant", err))
 		return
@@ -95,7 +109,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		err = s.k8sClient.Get(
 			r.Context(),
 			ctrlclient.ObjectKey{Name: tenantName},
-			&tenant,
+			&created,
 		)
 		if err != nil {
 			writeError(w, r, mapKubeHTTPError("get tenant", err))
@@ -103,9 +117,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	organizationMismatch := tenant.Spec.OrganizationID != auth.claims.TenantID
-	userMismatch := tenant.Spec.UserID != auth.claims.UserID
-	if organizationMismatch || userMismatch {
+	if created.Spec.OrganizationID != auth.claims.TenantID {
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"conflict",
@@ -115,7 +127,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tenantView(&tenant))
+	writeJSON(w, http.StatusOK, tenantView(&created))
 }
 
 func tenantView(tenant *agentzv1alpha1.Tenant) gatewayapi.Tenant {
@@ -150,7 +162,6 @@ func tenantView(tenant *agentzv1alpha1.Tenant) gatewayapi.Tenant {
 		Phase:      phase,
 		Ready:      ready,
 		TenantId:   tenant.Spec.OrganizationID,
-		UserId:     tenant.Spec.UserID,
 	}
 }
 
@@ -217,7 +228,8 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 			case apierrors.IsNotFound(err):
 				cleanupNamespace := auth.tenantNamespace
 				if cleanupNamespace == "" && auth.claims != nil {
-					cleanupNamespace = agentzv1alpha1.TenantName(
+					cleanupNamespace = agentzv1alpha1.ScopeNamespace(
+						agentzv1alpha1.ResourceScopeOrganisation,
 						auth.claims.TenantID,
 					)
 				}
@@ -739,22 +751,44 @@ func tenantReady(tenant *agentzv1alpha1.Tenant) bool {
 }
 
 func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1alpha1.Tenant, error) {
+	organizationID := auth.organizationID
 	if auth.claims != nil {
-		tenant := &agentzv1alpha1.Tenant{}
-		name := agentzv1alpha1.TenantName(auth.claims.TenantID)
-		err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: name}, tenant)
-		if err != nil {
-			return nil, err
+		organizationID = auth.claims.TenantID
+	}
+	if organizationID != "" {
+		list := &agentzv1alpha1.TenantList{}
+		selector := ctrlclient.MatchingLabels{
+			agentzv1alpha1.TenantOrganizationIDLabel: agentzv1alpha1.ScopeNamespace(
+				agentzv1alpha1.ResourceScopeOrganisation,
+				organizationID,
+			),
 		}
-		if !tenantMatchesClaims(tenant, auth.claims) {
-			return nil, newAPIError(
-				http.StatusForbidden,
-				"forbidden",
-				"tenant identity does not match bearer claims",
-				fmt.Errorf("tenant identity mismatch"),
-			)
+		if err := s.k8sClient.List(ctx, list, selector); err != nil {
+			return nil, fmt.Errorf("list tenants: %w", err)
 		}
-		return tenant, nil
+		var match *agentzv1alpha1.Tenant
+		for i := range list.Items {
+			tenant := &list.Items[i]
+			if tenant.Spec.OrganizationID != organizationID {
+				continue
+			}
+			if match != nil {
+				return nil, newAPIError(
+					http.StatusConflict,
+					"conflict",
+					"multiple tenants represent the current Organisation",
+					fmt.Errorf("duplicate tenant identity"),
+				)
+			}
+			match = tenant
+		}
+		if match != nil {
+			return match, nil
+		}
+		return nil, apierrors.NewNotFound(
+			agentzv1alpha1.Resource("tenant"),
+			organizationID,
+		)
 	}
 
 	if auth.tenantName != "" {
@@ -769,26 +803,17 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1al
 	return s.findTenantByNamespace(ctx, auth.tenantNamespace)
 }
 
-func tenantMatchesClaims(tenant *agentzv1alpha1.Tenant, claims *gatewayClaims) bool {
-	if tenant == nil || claims == nil {
-		return false
-	}
-	return tenant.Spec.OrganizationID == strings.TrimSpace(claims.TenantID) && tenant.Spec.UserID == strings.TrimSpace(claims.UserID)
-}
-
 func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace string) (*agentzv1alpha1.Tenant, error) {
-	list := &agentzv1alpha1.TenantList{}
-	if err := s.k8sClient.List(ctx, list); err != nil {
-		return nil, fmt.Errorf("list tenants: %w", err)
+	tenant := &agentzv1alpha1.Tenant{}
+	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: tenantNamespace}, tenant)
+	if err != nil {
+		return nil, err
 	}
-	for i := range list.Items {
-		tenant := &list.Items[i]
-		if tenant.Status.Namespace == tenantNamespace {
-			return tenant, nil
-		}
+	if tenant.Status.Namespace != tenantNamespace {
+		return nil, apierrors.NewNotFound(
+			agentzv1alpha1.Resource("tenant"),
+			tenantNamespace,
+		)
 	}
-	return nil, apierrors.NewNotFound(
-		agentzv1alpha1.Resource("tenant"),
-		tenantNamespace,
-	)
+	return tenant, nil
 }

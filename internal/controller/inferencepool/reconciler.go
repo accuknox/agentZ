@@ -260,6 +260,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, pool *agentzv1alpha1.Infe
 				}
 			}
 			status.Members = append(status.Members, agentzv1alpha1.InferencePoolMemberStatus{
+				Scope:    member.Ref.Scope,
 				Provider: member.Ref.Provider,
 				Model:    member.Ref.Model,
 				Protocol: member.Protocol,

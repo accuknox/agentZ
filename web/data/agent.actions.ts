@@ -25,8 +25,8 @@ export async function createAgentFormAction(
   const result = await createAgent({
     body: {
       name: parsed.data.name,
-      sandboxName: parsed.data.sandboxName,
-      skills: parsed.data.skills,
+      sandbox: { scope: "Organisation", name: parsed.data.sandboxName },
+      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
       memory: { enabled: parsed.data.memoryEnabled },
     },
     client: getGatewayServerClient(),
@@ -56,8 +56,8 @@ export async function updateAgentFormAction(
 
   const result = await updateAgent({
     body: {
-      sandboxName: parsed.data.sandboxName,
-      skills: parsed.data.skills,
+      sandbox: { scope: "Organisation", name: parsed.data.sandboxName },
+      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
       memory: { enabled: parsed.data.memoryEnabled },
     },
     client: getGatewayServerClient(),

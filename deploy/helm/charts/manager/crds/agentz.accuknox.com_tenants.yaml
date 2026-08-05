@@ -55,19 +55,17 @@ spec:
             description: spec defines the desired state of Tenant.
             properties:
               organizationID:
-                description: OrganizationID is the Better Auth organization ID that
-                  owns this tenant.
+                description: |-
+                  OrganizationID is the immutable Better Auth Organisation ID represented by
+                  this Tenant.
                 maxLength: 128
                 minLength: 1
                 type: string
-              userID:
-                description: UserID is the Better Auth user ID that owns this tenant.
-                maxLength: 128
-                minLength: 1
-                type: string
+                x-kubernetes-validations:
+                - message: organizationID is immutable
+                  rule: self == oldSelf
             required:
             - organizationID
-            - userID
             type: object
           status:
             description: status defines the observed state of Tenant.

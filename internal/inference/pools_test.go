@@ -61,8 +61,8 @@ func TestResolvePoolContract(t *testing.T) {
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
-			{Provider: primary.Name, Model: "model"},
-			{Provider: secondary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "model"},
 		}},
 	}
 	definition, issues, err := ResolvePool(context.Background(), reader, pool)
@@ -121,8 +121,8 @@ func TestResolvePoolResponsesAPI(t *testing.T) {
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
-			{Provider: primary.Name, Model: "model"},
-			{Provider: secondary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "model"},
 		}},
 	}
 	definition, issues, err := ResolvePool(context.Background(), reader, pool)
@@ -153,8 +153,8 @@ func TestResolvePoolRejectsUnsupportedAPIConversion(t *testing.T) {
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
-			{Provider: primary.Name, Model: "model"},
-			{Provider: secondary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "model"},
 		}},
 	}
 	_, issues, err := ResolvePool(context.Background(), reader, pool)
@@ -182,41 +182,46 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 	}{
 		{name: "empty", field: "members"},
 		{
+			name:    "unavailable workspace scope",
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeWorkspace, Provider: "provider", Model: "model"}},
+			field:   "members.0.scope",
+		},
+		{
 			name: "too many",
 			members: []agentzv1alpha1.InferencePoolMember{
-				{Provider: "provider", Model: "1"},
-				{Provider: "provider", Model: "2"},
-				{Provider: "provider", Model: "3"},
-				{Provider: "provider", Model: "4"},
-				{Provider: "provider", Model: "5"},
-				{Provider: "provider", Model: "6"},
-				{Provider: "provider", Model: "7"},
-				{Provider: "provider", Model: "8"},
-				{Provider: "provider", Model: "9"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "1"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "2"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "3"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "4"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "5"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "6"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "7"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "8"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "9"},
 			},
 			field: "members",
 		},
 		{
 			name: "duplicate",
 			members: []agentzv1alpha1.InferencePoolMember{
-				{Provider: "provider", Model: "model"},
-				{Provider: "provider", Model: "model"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model"},
 			},
 			field: "members.1",
 		},
 		{
 			name:    "missing provider",
-			members: []agentzv1alpha1.InferencePoolMember{{Provider: "missing", Model: "model"}},
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "missing", Model: "model"}},
 			field:   "members.0.provider",
 		},
 		{
 			name:    "missing model",
-			members: []agentzv1alpha1.InferencePoolMember{{Provider: "provider", Model: "missing"}},
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "missing"}},
 			field:   "members.0.model",
 		},
 		{
 			name:    "missing text output",
-			members: []agentzv1alpha1.InferencePoolMember{{Provider: "provider", Model: "model"}},
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model"}},
 			configure: func() {
 				provider.Spec.Models[0].Modalities.Output = []agentzv1alpha1.InferenceModelModality{
 					agentzv1alpha1.InferenceModelModalityAudio,
@@ -257,11 +262,11 @@ func TestRenderPoolBackend(t *testing.T) {
 	}
 	definition := PoolDefinition{Members: []ResolvedPoolMember{
 		{
-			Ref:      agentzv1alpha1.InferencePoolMember{Provider: primary.Name, Model: "gpt"},
+			Ref:      agentzv1alpha1.InferencePoolMember{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "gpt"},
 			Provider: primary,
 		},
 		{
-			Ref:      agentzv1alpha1.InferencePoolMember{Provider: secondary.Name, Model: "claude"},
+			Ref:      agentzv1alpha1.InferencePoolMember{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "claude"},
 			Provider: secondary,
 		},
 	}}

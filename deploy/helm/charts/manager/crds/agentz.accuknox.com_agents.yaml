@@ -305,26 +305,54 @@ spec:
                   configuration.
                 properties:
                   name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    description: Name is the immutable Kubernetes metadata name of
+                      the resource.
+                    maxLength: 63
+                    minLength: 1
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
+                  scope:
+                    description: Scope selects the current Organisation or Workspace
+                      namespace.
+                    enum:
+                    - Organisation
+                    - Workspace
+                    type: string
+                required:
+                - name
+                - scope
                 type: object
-                x-kubernetes-map-type: atomic
               skills:
                 description: Skills lists immutable Skill names attached directly
                   to this Agent.
                 items:
-                  maxLength: 32
-                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                  type: string
+                  description: ResourceReference identifies a resource by scope and
+                    metadata name.
+                  properties:
+                    name:
+                      description: Name is the immutable Kubernetes metadata name
+                        of the resource.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    scope:
+                      description: Scope selects the current Organisation or Workspace
+                        namespace.
+                      enum:
+                      - Organisation
+                      - Workspace
+                      type: string
+                  required:
+                  - name
+                  - scope
+                  type: object
                 maxItems: 200
                 type: array
-                x-kubernetes-list-type: set
+                x-kubernetes-list-map-keys:
+                - scope
+                - name
+                x-kubernetes-list-type: map
               telemetry:
                 description: Telemetry configures agent observability export.
                 properties:
@@ -339,6 +367,9 @@ spec:
             required:
             - sandboxRef
             type: object
+            x-kubernetes-validations:
+            - message: skill names must not exceed 32 characters
+              rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 32)'
           status:
             description: status defines the observed state of Agent.
             properties:

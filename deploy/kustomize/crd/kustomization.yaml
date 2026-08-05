@@ -10,6 +10,7 @@ resources:
 - bases/agentz.accuknox.com_workflowruns.yaml
 - bases/agentz.accuknox.com_mcpconnections.yaml
 - bases/agentz.accuknox.com_tenants.yaml
+- bases/agentz.accuknox.com_workspaces.yaml
 - bases/agentz.accuknox.com_secrets.yaml
 - bases/agentz.accuknox.com_skills.yaml
 # +kubebuilder:scaffold:crdkustomizeresource

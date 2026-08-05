@@ -64,10 +64,14 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().Sandboxes().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("secrets"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().Secrets().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("tenants"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().Tenants().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowruns"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().WorkflowRuns().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("workflowschedules"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().WorkflowSchedules().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("workspaces"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Agentz().V1alpha1().Workspaces().Informer()}, nil
 
 	}
 

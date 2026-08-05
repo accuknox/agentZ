@@ -77,6 +77,7 @@ import type {
 import { ProviderIcon, providerKindLabels } from "../providers/provider-shared"
 
 const poolMemberSchema = z.object({
+  scope: z.enum(["Organisation", "Workspace"]),
   provider: z
     .string({ error: "Choose a provider for this member" })
     .min(1, { message: "Choose a provider for this member" })
@@ -119,7 +120,11 @@ const poolSchema = z
     })
   })
 
-const blankMember: InferencePoolMember = { provider: "", model: "" }
+const blankMember: InferencePoolMember = {
+  scope: "Organisation",
+  provider: "",
+  model: "",
+}
 
 export function NewInferencePoolButton({ providers }: { providers: InferenceProvider[] }) {
   const [open, setOpen] = React.useState(false)

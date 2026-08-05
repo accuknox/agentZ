@@ -19,7 +19,14 @@ package v1alpha1
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // SkillSpec defines the desired state of an immutable Skill.
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)",message="creatorUserID is immutable"
 type SkillSpec struct {
+	// CreatorUserID is the immutable Better Auth User ID that created the Skill.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	// +optional
+	CreatorUserID string `json:"creatorUserID,omitempty"`
+
 	// Description summarizes when the skill should be used.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=1024

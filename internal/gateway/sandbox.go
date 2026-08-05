@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -99,7 +98,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name, fields := validateCreateSandboxRequest(req)
-	var rawSkills []gatewayapi.SkillName
+	var rawSkills []gatewayapi.ResourceReference
 	if req.Skills != nil {
 		rawSkills = *req.Skills
 	}
@@ -150,13 +149,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 	mcpConnectionRefs := make([]agentzv1alpha1.MCPConnectionRef, 0, len(rawMCPConnectionRefs))
 	for _, ref := range rawMCPConnectionRefs {
-		name := strings.TrimSpace(ref.Name)
+		name := ref.Name
 		if name == "" {
 			continue
 		}
 		tools := make([]agentzv1alpha1.SandboxMCPTool, 0, len(ref.Tools))
 		for _, rawTool := range ref.Tools {
-			toolName := strings.TrimSpace(rawTool.Name)
+			toolName := rawTool.Name
 			if toolName == "" {
 				continue
 			}
@@ -166,7 +165,10 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		mcpConnectionRefs = append(mcpConnectionRefs, agentzv1alpha1.MCPConnectionRef{
-			Name:  name,
+			ResourceReference: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScope(ref.Scope),
+				Name:  name,
+			},
 			Tools: tools,
 		})
 	}
@@ -201,7 +203,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 			Packages:          packages,
 			AllowedHosts:      allowedHosts,
 			MCPConnectionRefs: mcpConnectionRefs,
-			Skills:            slices.Clone(skills),
+			Skills:            resourceReferencesToCRD(skills),
 			Inference:         sandboxInferenceFromAPI(req.Inference),
 		},
 	}
@@ -307,13 +309,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	}
 	mcpConnectionRefs := make([]agentzv1alpha1.MCPConnectionRef, 0, len(req.McpConnectionRefs))
 	for _, ref := range req.McpConnectionRefs {
-		name := strings.TrimSpace(ref.Name)
+		name := ref.Name
 		if name == "" {
 			continue
 		}
 		tools := make([]agentzv1alpha1.SandboxMCPTool, 0, len(ref.Tools))
 		for _, rawTool := range ref.Tools {
-			toolName := strings.TrimSpace(rawTool.Name)
+			toolName := rawTool.Name
 			if toolName == "" {
 				continue
 			}
@@ -323,7 +325,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			})
 		}
 		mcpConnectionRefs = append(mcpConnectionRefs, agentzv1alpha1.MCPConnectionRef{
-			Name:  name,
+			ResourceReference: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScope(ref.Scope),
+				Name:  name,
+			},
 			Tools: tools,
 		})
 	}
@@ -359,7 +364,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		sandbox.Spec.Packages = packages
 		sandbox.Spec.AllowedHosts = allowedHosts
 		sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
-		sandbox.Spec.Skills = slices.Clone(skills)
+		sandbox.Spec.Skills = resourceReferencesToCRD(skills)
 		sandbox.Spec.Inference = sandboxInferenceFromAPI(req.Inference)
 
 		if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
@@ -407,6 +412,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandb
 				})
 			}
 			mcpConnectionRefs = append(mcpConnectionRefs, gatewayapi.MCPConnectionRef{
+				Scope: gatewayapi.ResourceScope(ref.Scope),
 				Name:  ref.Name,
 				Tools: tools,
 			})
@@ -417,7 +423,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandb
 		Packages:          packages,
 		AllowedHosts:      allowedHosts,
 		McpConnectionRefs: mcpConnectionRefs,
-		Skills:            append([]gatewayapi.SkillName{}, sb.Spec.Skills...),
+		Skills:            resourceReferencesFromCRD(sb.Spec.Skills),
 		CreatedAt:         sb.CreationTimestamp.Time,
 		Inference:         sandboxInferenceToAPI(sb.Spec.Inference),
 	}
@@ -432,6 +438,7 @@ func sandboxInferenceFromAPI(value gatewayapi.SandboxInference) agentzv1alpha1.S
 	models := make([]agentzv1alpha1.InferenceModelRef, 0, len(value.Models))
 	for _, model := range value.Models {
 		models = append(models, agentzv1alpha1.InferenceModelRef{
+			Scope:    agentzv1alpha1.ResourceScope(model.Scope),
 			Provider: model.Provider,
 			Model:    model.Model,
 		})
@@ -439,18 +446,21 @@ func sandboxInferenceFromAPI(value gatewayapi.SandboxInference) agentzv1alpha1.S
 	out := agentzv1alpha1.SandboxInference{
 		Models: models,
 		DefaultModel: agentzv1alpha1.InferenceModelRef{
+			Scope:    agentzv1alpha1.ResourceScope(value.DefaultModel.Scope),
 			Provider: value.DefaultModel.Provider,
 			Model:    value.DefaultModel.Model,
 		},
 	}
 	if value.SmallModel != nil {
 		out.SmallModel = &agentzv1alpha1.InferenceModelRef{
+			Scope:    agentzv1alpha1.ResourceScope(value.SmallModel.Scope),
 			Provider: value.SmallModel.Provider,
 			Model:    value.SmallModel.Model,
 		}
 	}
 	if value.AttachmentModel != nil {
 		out.AttachmentModel = &agentzv1alpha1.InferenceModelRef{
+			Scope:    agentzv1alpha1.ResourceScope(value.AttachmentModel.Scope),
 			Provider: value.AttachmentModel.Provider,
 			Model:    value.AttachmentModel.Model,
 		}
@@ -462,6 +472,7 @@ func sandboxInferenceToAPI(value agentzv1alpha1.SandboxInference) gatewayapi.San
 	models := make([]gatewayapi.SandboxInferenceModelRef, 0, len(value.Models))
 	for _, model := range value.Models {
 		models = append(models, gatewayapi.SandboxInferenceModelRef{
+			Scope:    gatewayapi.ResourceScope(model.Scope),
 			Provider: model.Provider,
 			Model:    model.Model,
 		})
@@ -469,18 +480,21 @@ func sandboxInferenceToAPI(value agentzv1alpha1.SandboxInference) gatewayapi.San
 	out := gatewayapi.SandboxInference{
 		Models: models,
 		DefaultModel: gatewayapi.SandboxInferenceModelRef{
+			Scope:    gatewayapi.ResourceScope(value.DefaultModel.Scope),
 			Provider: value.DefaultModel.Provider,
 			Model:    value.DefaultModel.Model,
 		},
 	}
 	if value.SmallModel != nil {
 		out.SmallModel = &gatewayapi.SandboxInferenceModelRef{
+			Scope:    gatewayapi.ResourceScope(value.SmallModel.Scope),
 			Provider: value.SmallModel.Provider,
 			Model:    value.SmallModel.Model,
 		}
 	}
 	if value.AttachmentModel != nil {
 		out.AttachmentModel = &gatewayapi.SandboxInferenceModelRef{
+			Scope:    gatewayapi.ResourceScope(value.AttachmentModel.Scope),
 			Provider: value.AttachmentModel.Provider,
 			Model:    value.AttachmentModel.Model,
 		}
@@ -491,6 +505,15 @@ func sandboxInferenceToAPI(value agentzv1alpha1.SandboxInference) gatewayapi.San
 func validateCreateSandboxRequest(req gatewayapi.CreateSandboxRequest) (string, []gatewayapi.FieldError) {
 	name := strings.TrimSpace(req.Name)
 	fields := validateSandboxName(name)
+	for i, model := range req.Inference.Models {
+		if model.Scope == gatewayapi.Organisation {
+			continue
+		}
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   fmt.Sprintf("inference.models[%d].scope", i),
+			Message: "workspace scope is not available on the current tenant path",
+		})
+	}
 	if req.Packages != nil {
 		fields = append(fields, validatePackageList(*req.Packages)...)
 	}
@@ -502,6 +525,15 @@ func validateCreateSandboxRequest(req gatewayapi.CreateSandboxRequest) (string, 
 
 func validateUpdateSandboxRequest(req gatewayapi.UpdateSandboxRequest) []gatewayapi.FieldError {
 	fields := validatePackageList(req.Packages)
+	for i, model := range req.Inference.Models {
+		if model.Scope == gatewayapi.Organisation {
+			continue
+		}
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   fmt.Sprintf("inference.models[%d].scope", i),
+			Message: "workspace scope is not available on the current tenant path",
+		})
+	}
 	fields = append(fields, validateMCPConnectionRefList(req.McpConnectionRefs)...)
 	return fields
 }
@@ -539,9 +571,16 @@ func validatePackageList(packages []string) []gatewayapi.FieldError {
 
 func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
-	seen := map[string]int{}
+	seen := map[gatewayapi.ResourceReference]int{}
 	for i, ref := range refs {
-		name := strings.TrimSpace(ref.Name)
+		name := ref.Name
+		if ref.Scope != gatewayapi.Organisation {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("mcp_connection_refs[%d].scope", i),
+				Message: "workspace scope is not available on the current tenant path",
+			})
+			continue
+		}
 		if name == "" {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
@@ -549,14 +588,15 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 			})
 			continue
 		}
-		if first, ok := seen[name]; ok {
+		key := gatewayapi.ResourceReference{Scope: ref.Scope, Name: name}
+		if first, ok := seen[key]; ok {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("mcp_connection_refs[%d].name", i),
 				Message: fmt.Sprintf("duplicate value %q first seen at index %d", name, first),
 			})
 			continue
 		}
-		seen[name] = i
+		seen[key] = i
 
 		if len(ref.Tools) == 0 {
 			fields = append(fields, gatewayapi.FieldError{
@@ -568,7 +608,7 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 
 		seenTools := map[string]int{}
 		for toolIndex, tool := range ref.Tools {
-			toolName := strings.TrimSpace(tool.Name)
+			toolName := tool.Name
 			if toolName == "" {
 				fields = append(fields, gatewayapi.FieldError{
 					Field:   fmt.Sprintf("mcp_connection_refs[%d].tools[%d].name", i, toolIndex),

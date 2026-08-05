@@ -64,6 +64,7 @@ const (
 )
 
 // AgentSpec defines the desired state of Agent.
+// +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 32)",message="skill names must not exceed 32 characters"
 type AgentSpec struct {
 	// Image is the container image used for the Agent runtime.
 	// +optional
@@ -95,15 +96,15 @@ type AgentSpec struct {
 	Memory MemoryConfig `json:"memory,omitempty"`
 
 	// SandboxRef references reusable package, policy, and inference configuration.
-	SandboxRef corev1.LocalObjectReference `json:"sandboxRef"`
+	SandboxRef ResourceReference `json:"sandboxRef"`
 
 	// Skills lists immutable Skill names attached directly to this Agent.
 	// +optional
-	// +listType=set
+	// +listType=map
+	// +listMapKey=scope
+	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=200
-	// +kubebuilder:validation:items:MaxLength=32
-	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	Skills []string `json:"skills,omitempty"`
+	Skills []ResourceReference `json:"skills,omitempty"`
 
 	// NixStoreSize sets the size of the agent-specific nix store PVC.
 	// +kubebuilder:default="5Gi"

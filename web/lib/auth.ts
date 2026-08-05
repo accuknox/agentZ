@@ -8,6 +8,8 @@ import { apiKey } from "@better-auth/api-key"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { jwt } from "better-auth/plugins/jwt"
 import { organization } from "better-auth/plugins/organization"
+import { createAccessControl, type Statements } from "better-auth/plugins/access"
+import { defaultStatements } from "better-auth/plugins/organization/access"
 import { twoFactor } from "better-auth/plugins/two-factor"
 import { z } from "zod"
 import { authErrorMessages } from "@/app/(auth)/shared"
@@ -30,35 +32,49 @@ const defaultTrustDeviceMaxAge = 30 * 24 * 60 * 60
 const credentialEmailSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
 })
+const organizationAccessControl = createAccessControl<Statements>(defaultStatements)
 
 const disabledAuthPaths = [
   // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
   // project's 1:1 user-organization invariant before minting a bearer token.
   "/token",
-  // Organization state is provisioned and reconciled server-side only. Public
-  // org endpoints would let a user mutate, delete, leave, or unset the single
-  // tenant organization that the gateway uses as its security boundary.
+  // Organisation state is governed and reconciled server-side. Native public
+  // endpoints cannot enforce AgentZ scope, built-in Role, or cascade rules.
+  "/organization/add-team-member",
   "/organization/accept-invitation",
   "/organization/cancel-invitation",
   "/organization/check-slug",
   "/organization/create",
+  "/organization/create-role",
+  "/organization/create-team",
   "/organization/delete",
+  "/organization/delete-role",
   "/organization/get-active-member",
   "/organization/get-active-member-role",
   "/organization/get-full-organization",
   "/organization/get-invitation",
+  "/organization/get-role",
   "/organization/has-permission",
   "/organization/invite-member",
   "/organization/leave",
   "/organization/list",
   "/organization/list-invitations",
   "/organization/list-members",
+  "/organization/list-roles",
+  "/organization/list-team-members",
+  "/organization/list-teams",
+  "/organization/list-user-teams",
   "/organization/list-user-invitations",
   "/organization/reject-invitation",
   "/organization/remove-member",
+  "/organization/remove-team",
+  "/organization/remove-team-member",
+  "/organization/set-active-team",
   "/organization/set-active",
   "/organization/update",
   "/organization/update-member-role",
+  "/organization/update-role",
+  "/organization/update-team",
   // Backup codes are issued once during enrollment and cannot be rotated later
   // through account settings or direct client calls.
   "/two-factor/generate-backup-codes",
@@ -275,10 +291,34 @@ function buildAuth() {
     },
     plugins: [
       organization({
+        ac: organizationAccessControl,
         allowUserToCreateOrganization: false,
         disableOrganizationDeletion: true,
         organizationLimit: 1,
         membershipLimit: 1,
+        cancelPendingInvitationsOnReInvite: true,
+        requireEmailVerificationOnInvitation: false,
+        dynamicAccessControl: {
+          enabled: true,
+        },
+        schema: {
+          member: {
+            additionalFields: {
+              disabledAt: {
+                type: "date",
+                required: false,
+                input: false,
+              },
+            },
+          },
+        },
+        teams: {
+          enabled: true,
+          allowRemovingAllTeams: true,
+          defaultTeam: {
+            enabled: false,
+          },
+        },
       }),
       apiKey([
         {

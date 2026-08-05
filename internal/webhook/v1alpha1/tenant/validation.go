@@ -19,7 +19,6 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -58,17 +57,14 @@ func (v *Validator) ValidateDelete(_ context.Context, obj *agentzv1alpha1.Tenant
 
 func validateTenant(oldObj, newObj *agentzv1alpha1.Tenant) error {
 	issues := field.ErrorList{}
-	specPath := field.NewPath("spec")
-
-	if strings.TrimSpace(newObj.Spec.OrganizationID) == "" {
-		issues = append(issues, field.Required(specPath.Child("organizationID"), "is required"))
-	}
-	if strings.TrimSpace(newObj.Spec.UserID) == "" {
-		issues = append(issues, field.Required(specPath.Child("userID"), "is required"))
-	}
-
-	expectedName := agentzv1alpha1.TenantName(newObj.Spec.OrganizationID)
-	if newObj.Name != expectedName {
+	if oldObj == nil {
+		expectedName := agentzv1alpha1.ScopeNamespace(
+			agentzv1alpha1.ResourceScopeOrganisation,
+			newObj.Spec.OrganizationID,
+		)
+		if newObj.Name == expectedName {
+			return nil
+		}
 		issues = append(issues, field.Invalid(
 			field.NewPath("metadata").Child("name"),
 			newObj.Name,
@@ -77,10 +73,10 @@ func validateTenant(oldObj, newObj *agentzv1alpha1.Tenant) error {
 	}
 
 	if oldObj != nil && oldObj.Spec.OrganizationID != newObj.Spec.OrganizationID {
-		issues = append(issues, field.Forbidden(specPath.Child("organizationID"), "is immutable"))
-	}
-	if oldObj != nil && oldObj.Spec.UserID != newObj.Spec.UserID {
-		issues = append(issues, field.Forbidden(specPath.Child("userID"), "is immutable"))
+		issues = append(issues, field.Forbidden(
+			field.NewPath("spec").Child("organizationID"),
+			"is immutable",
+		))
 	}
 
 	if len(issues) == 0 {

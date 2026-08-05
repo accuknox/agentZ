@@ -1,0 +1,10 @@
+apiVersion: agentz.accuknox.com/v1alpha1
+kind: Workspace
+metadata:
+  labels:
+    app.kubernetes.io/name: agentz
+    app.kubernetes.io/managed-by: kustomize
+  name: knox-5a28cd122db1f20cdba051c456512140
+spec:
+  organizationID: sample
+  workspaceID: sample-workspace

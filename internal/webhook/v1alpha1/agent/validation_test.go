@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -18,7 +17,7 @@ func TestValidatorValidateCreateRejectsInvalidAgentConfig(t *testing.T) {
 	agt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
 		Spec: agentzv1alpha1.AgentSpec{
-			SandboxRef:  corev1.LocalObjectReference{},
+			SandboxRef:  agentzv1alpha1.ResourceReference{},
 			Instruction: strings.Repeat("a", 4097),
 		},
 	}
@@ -42,6 +41,25 @@ func TestValidatorValidateCreateRejectsReservedAgentName(t *testing.T) {
 	}
 }
 
+func TestValidatorValidateCreateRejectsUnavailableWorkspaceReference(t *testing.T) {
+	t.Parallel()
+
+	agt := &agentzv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
+		Spec: agentzv1alpha1.AgentSpec{
+			SandboxRef: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScopeWorkspace,
+				Name:  "sandbox",
+			},
+		},
+	}
+
+	_, err := NewValidator(nil).ValidateCreate(context.Background(), agt)
+	if err == nil {
+		t.Fatal("ValidateCreate() unexpectedly accepted an unresolved Workspace reference")
+	}
+}
+
 func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T) {
 	t.Parallel()
 
@@ -49,7 +67,10 @@ func TestValidatorValidateUpdateRejectsMutableAndAcceptsValidFields(t *testing.T
 	oldAgt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
 		Spec: agentzv1alpha1.AgentSpec{
-			SandboxRef:   corev1.LocalObjectReference{Name: "python"},
+			SandboxRef: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScopeOrganisation,
+				Name:  "python",
+			},
 			NixStoreSize: resource.MustParse("5Gi"),
 		},
 	}

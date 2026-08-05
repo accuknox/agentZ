@@ -76,7 +76,7 @@ rules:
     verbs: ["get", "patch", "update"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants"]
-    verbs: ["get", "list", "use", "watch"]
+    verbs: ["get", "list", "patch", "update", "use", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules"]
     verbs: ["get", "list", "watch"]

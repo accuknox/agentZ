@@ -65,10 +65,17 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider, len(pool.Spec.Members))
 	for i, ref := range pool.Spec.Members {
 		field := fmt.Sprintf("members.%d", i)
+		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			issues = append(issues, Issue{
+				Field:   field + ".scope",
+				Message: "workspace scope is not available on the current tenant path",
+			})
+			continue
+		}
 		if _, exists := seen[ref]; exists {
 			issues = append(issues, Issue{
 				Field:   field,
-				Message: "provider-model pair is duplicated",
+				Message: "scoped provider-model reference is duplicated",
 			})
 			continue
 		}

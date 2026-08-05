@@ -84,6 +84,33 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.Get(ctx, req.NamespacedName, sandbox); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	for _, ref := range sandbox.Spec.Skills {
+		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			return ctrl.Result{}, fmt.Errorf(
+				"skill %q uses unavailable %s scope",
+				ref.Name,
+				ref.Scope,
+			)
+		}
+	}
+	for _, ref := range sandbox.Spec.MCPConnectionRefs {
+		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			return ctrl.Result{}, fmt.Errorf(
+				"mcp connection %q uses unavailable %s scope",
+				ref.Name,
+				ref.Scope,
+			)
+		}
+	}
+	for _, ref := range sandbox.Spec.Inference.Models {
+		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			return ctrl.Result{}, fmt.Errorf(
+				"inference provider %q uses unavailable %s scope",
+				ref.Provider,
+				ref.Scope,
+			)
+		}
+	}
 
 	agentNames, err := sandboxutil.ReferencingAgentNames(
 		ctx,
@@ -475,7 +502,10 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 			})
 		}
 		refsByName[name] = agentzv1alpha1.MCPConnectionRef{
-			Name:  name,
+			ResourceReference: agentzv1alpha1.ResourceReference{
+				Scope: ref.Scope,
+				Name:  name,
+			},
 			Tools: tools,
 		}
 	}

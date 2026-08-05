@@ -88,12 +88,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1.Skill) error {
+	ref := agentzv1alpha1.ResourceReference{
+		Scope: agentzv1alpha1.ResourceScopeOrganisation,
+		Name:  skill.Name,
+	}
 	agents := &agentzv1alpha1.AgentList{}
 	if err := r.List(ctx, agents, client.InNamespace(skill.Namespace)); err != nil {
 		return fmt.Errorf("list agents: %w", err)
 	}
 	for _, item := range agents.Items {
-		if !slices.Contains(item.Spec.Skills, skill.Name) {
+		if !slices.Contains(item.Spec.Skills, ref) {
 			continue
 		}
 		key := types.NamespacedName{Name: item.Name, Namespace: item.Namespace}
@@ -102,8 +106,8 @@ func (r *Reconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1
 			if err := r.Get(ctx, key, agt); err != nil {
 				return client.IgnoreNotFound(err)
 			}
-			next := slices.DeleteFunc(append([]string{}, agt.Spec.Skills...), func(name string) bool {
-				return name == skill.Name
+			next := slices.DeleteFunc(append([]agentzv1alpha1.ResourceReference{}, agt.Spec.Skills...), func(item agentzv1alpha1.ResourceReference) bool {
+				return item == ref
 			})
 			if len(next) == len(agt.Spec.Skills) {
 				return nil
@@ -121,7 +125,7 @@ func (r *Reconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1
 		return fmt.Errorf("list sandboxes: %w", err)
 	}
 	for _, item := range sandboxes.Items {
-		if !slices.Contains(item.Spec.Skills, skill.Name) {
+		if !slices.Contains(item.Spec.Skills, ref) {
 			continue
 		}
 		key := types.NamespacedName{Name: item.Name, Namespace: item.Namespace}
@@ -133,8 +137,8 @@ func (r *Reconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1
 				}
 				return err
 			}
-			next := slices.DeleteFunc(append([]string{}, sandbox.Spec.Skills...), func(name string) bool {
-				return name == skill.Name
+			next := slices.DeleteFunc(append([]agentzv1alpha1.ResourceReference{}, sandbox.Spec.Skills...), func(item agentzv1alpha1.ResourceReference) bool {
+				return item == ref
 			})
 			if len(next) == len(sandbox.Spec.Skills) {
 				return nil

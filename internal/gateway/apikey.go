@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
-	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -59,14 +58,9 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 		)
 	}
 
-	tenantName := agentzv1alpha1.TenantName(strings.TrimSpace(key.ReferenceID))
-	if tenantName == "" {
-		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
-	}
-
 	return requestAuth{
-		apiKeyID:   key.ID,
-		tenantName: tenantName,
+		apiKeyID:       key.ID,
+		organizationID: key.ReferenceID,
 	}, nil
 }
 
@@ -105,14 +99,9 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 		)
 	}
 
-	tenantName := agentzv1alpha1.TenantName(strings.TrimSpace(key.ReferenceID))
-	if tenantName == "" {
-		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
-	}
-
 	return requestAuth{
-		apiKeyID:   key.ID,
-		tenantName: tenantName,
+		apiKeyID:       key.ID,
+		organizationID: key.ReferenceID,
 	}, nil
 }
 
@@ -122,7 +111,7 @@ func (s *Service) getAPIKeyByHash(ctx context.Context, rawKey string, configID s
 		gatewaydb.GatewayGetAPIKeyByHashParams{
 			Key:      hashAPIKey(rawKey),
 			ConfigID: configID,
-			NowAt: pgtype.Timestamptz{
+			NowAt: pgtype.Timestamp{
 				Time:  time.Now().UTC(),
 				Valid: true,
 			},

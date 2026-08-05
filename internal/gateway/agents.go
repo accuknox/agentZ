@@ -82,13 +82,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name, fields := validateCreateAgentRequest(req)
-	envFields, serr := s.validateAgentSandboxName(r.Context(), ns, req.SandboxName)
+	envFields, serr := s.validateAgentSandbox(r.Context(), ns, req.Sandbox)
 	fields = append(fields, envFields...)
 	if serr != nil {
 		writeInternalError(w, r, serr)
 		return
 	}
-	var rawSkills []gatewayapi.SkillName
+	var rawSkills []gatewayapi.ResourceReference
 	if req.Skills != nil {
 		rawSkills = *req.Skills
 	}
@@ -142,8 +142,8 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
-		Name:        row.AgentName,
-		SandboxName: req.SandboxName,
+		Name:    row.AgentName,
+		Sandbox: req.Sandbox,
 		Memory: gatewayapi.AgentMemoryConfig{
 			Enabled: agt.Spec.Memory.Enabled,
 		},
@@ -182,8 +182,8 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		))
 		return
 	}
-	if req.SandboxName != nil {
-		envFields, err := s.validateAgentSandboxName(r.Context(), ns, *req.SandboxName)
+	if req.Sandbox != nil {
+		envFields, err := s.validateAgentSandbox(r.Context(), ns, *req.Sandbox)
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
@@ -268,8 +268,8 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		status = statusFromView(view)
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.Agent{
-		Name:        row.AgentName,
-		SandboxName: updated.Spec.SandboxRef.Name,
+		Name:    row.AgentName,
+		Sandbox: resourceReferenceFromCRD(updated.Spec.SandboxRef),
 		Memory: gatewayapi.AgentMemoryConfig{
 			Enabled: updated.Spec.Memory.Enabled,
 		},
@@ -277,7 +277,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		ModifiedAt:   row.UpdatedAt,
 		LastActivity: row.UpdatedAt,
 		Status:       status,
-		Skills:       append([]gatewayapi.SkillName{}, updated.Spec.Skills...),
+		Skills:       resourceReferencesFromCRD(updated.Spec.Skills),
 	})
 }
 
@@ -425,7 +425,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 			prevItem, ok := prev[item.Name]
 			unchanged := ok &&
 				prevItem.Name == item.Name &&
-				prevItem.SandboxName == item.SandboxName &&
+				prevItem.Sandbox == item.Sandbox &&
 				prevItem.Memory == item.Memory &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
@@ -517,18 +517,20 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 		}
 
 		status := gatewayapi.UNSPECIFIED
-		sandboxName := gatewayapi.SandboxName("")
+		sandbox := gatewayapi.ResourceReference{
+			Scope: gatewayapi.ResourceScope(agentzv1alpha1.ResourceScopeOrganisation),
+		}
 		resolved, resolveErr := s.resolver.resolveAgent(ctx, ns, row.AgentName)
 		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
 		}
 		if resolved != nil && resolved.Agent != nil {
 			status = statusFromView(statusFromAgent(resolved.Agent))
-			sandboxName = resolved.Agent.Spec.SandboxRef.Name
-			skills := append([]gatewayapi.SkillName{}, resolved.Agent.Spec.Skills...)
+			sandbox = resourceReferenceFromCRD(resolved.Agent.Spec.SandboxRef)
+			skills := resourceReferencesFromCRD(resolved.Agent.Spec.Skills)
 			items = append(items, gatewayapi.Agent{
-				Name:        row.AgentName,
-				SandboxName: sandboxName,
+				Name:    row.AgentName,
+				Sandbox: sandbox,
 				Memory: gatewayapi.AgentMemoryConfig{
 					Enabled: resolved.Agent.Spec.Memory.Enabled,
 				},
@@ -543,13 +545,13 @@ func (s *Service) listAgentItems(ctx context.Context, agentNames []string, limit
 
 		items = append(items, gatewayapi.Agent{
 			Name:         row.AgentName,
-			SandboxName:  sandboxName,
+			Sandbox:      sandbox,
 			Memory:       gatewayapi.AgentMemoryConfig{},
 			LastActivity: row.UpdatedAt,
 			CreatedAt:    row.CreatedAt,
 			ModifiedAt:   row.UpdatedAt,
 			Status:       status,
-			Skills:       []gatewayapi.SkillName{},
+			Skills:       []gatewayapi.ResourceReference{},
 		})
 	}
 	return items, next, nil
@@ -585,50 +587,56 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 	return name, fields
 }
 
-func validateAgentSandboxNameField(fields []gatewayapi.FieldError, name string) []gatewayapi.FieldError {
-	name = strings.TrimSpace(name)
+func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.ResourceReference) []gatewayapi.FieldError {
+	if ref.Scope != gatewayapi.Organisation {
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   "sandbox.scope",
+			Message: "workspace scope is not available on the current tenant path",
+		})
+	}
+	name := ref.Name
 	if name == "" {
 		return append(fields, gatewayapi.FieldError{
-			Field: "sandboxName", Message: "required",
+			Field: "sandbox", Message: "required",
 		})
 	}
 	if len(name) > 32 {
 		fields = append(fields, gatewayapi.FieldError{
-			Field: "sandboxName", Message: "must be at most 32 characters",
+			Field: "sandbox", Message: "must be at most 32 characters",
 		})
 	}
 	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
 		fields = append(fields, gatewayapi.FieldError{
-			Field: "sandboxName", Message: "must be a valid DNS label",
+			Field: "sandbox", Message: "must be a valid DNS label",
 		})
 	}
 	return fields
 }
 
-func (s *Service) validateAgentSandboxName(ctx context.Context, namespace string, name gatewayapi.SandboxName) ([]gatewayapi.FieldError, error) {
-	fields := validateAgentSandboxNameField(nil, name)
+func (s *Service) validateAgentSandbox(ctx context.Context, namespace string, ref gatewayapi.ResourceReference) ([]gatewayapi.FieldError, error) {
+	fields := validateAgentSandboxField(nil, ref)
 	if len(fields) > 0 {
 		return fields, nil
 	}
 
 	var sandbox agentzv1alpha1.Sandbox
-	key := types.NamespacedName{Namespace: namespace, Name: name}
+	key := types.NamespacedName{Namespace: namespace, Name: ref.Name}
 	if err := s.k8sClient.Get(ctx, key, &sandbox); err != nil {
 		if apierrors.IsNotFound(err) {
 			return []gatewayapi.FieldError{{
-				Field:   "sandboxName",
+				Field:   "sandbox",
 				Message: "sandbox not found",
 			}}, nil
 		}
-		return nil, fmt.Errorf("get sandbox %q: %w", name, err)
+		return nil, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
 	return nil, nil
 }
 
 func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, namespace string, tenant *agentzv1alpha1.Tenant, name string) *agentzv1alpha1.Agent {
-	sandbox := []corev1.EnvVar{}
+	env := []corev1.EnvVar{}
 	if req.Env != nil {
-		sandbox = envVarsFromMap(*req.Env)
+		env = envVarsFromMap(*req.Env)
 	}
 	agt := &agentzv1alpha1.Agent{
 		TypeMeta: metav1.TypeMeta{
@@ -650,18 +658,19 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 		},
 		Spec: agentzv1alpha1.AgentSpec{
 			Image: s.cfg.AgentImage,
-			Env:   sandbox,
+			Env:   env,
 			Telemetry: agentzv1alpha1.TelemetryConfig{
 				Enabled:       true,
 				TraceEndpoint: s.cfg.AgentTraceEndpoint,
 			},
-			SandboxRef: corev1.LocalObjectReference{
-				Name: req.SandboxName,
+			SandboxRef: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScope(req.Sandbox.Scope),
+				Name:  req.Sandbox.Name,
 			},
 		},
 	}
 	if req.Skills != nil {
-		agt.Spec.Skills = slices.Clone(*req.Skills)
+		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
 	}
 	if req.Memory != nil {
 		agt.Spec.Memory.Enabled = req.Memory.Enabled
@@ -674,7 +683,7 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 	if req.Env != nil {
 		return true
 	}
-	if req.SandboxName != nil {
+	if req.Sandbox != nil {
 		return true
 	}
 	if req.Opencode != nil {
@@ -697,18 +706,45 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 	if req.Env != nil {
 		agt.Spec.Env = envVarsFromMap(*req.Env)
 	}
-	if req.SandboxName != nil {
-		agt.Spec.SandboxRef = corev1.LocalObjectReference{
-			Name: *req.SandboxName,
+	if req.Sandbox != nil {
+		agt.Spec.SandboxRef = agentzv1alpha1.ResourceReference{
+			Scope: agentzv1alpha1.ResourceScope(req.Sandbox.Scope),
+			Name:  req.Sandbox.Name,
 		}
 	}
 	if req.Skills != nil {
-		agt.Spec.Skills = slices.Clone(*req.Skills)
+		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
 	}
 	if req.Memory != nil {
 		agt.Spec.Memory.Enabled = req.Memory.Enabled
 	}
 	applyOpencodeRequest(&agt.Spec, req.Opencode)
+}
+
+func resourceReferenceFromCRD(ref agentzv1alpha1.ResourceReference) gatewayapi.ResourceReference {
+	return gatewayapi.ResourceReference{
+		Scope: gatewayapi.ResourceScope(ref.Scope),
+		Name:  ref.Name,
+	}
+}
+
+func resourceReferencesFromCRD(refs []agentzv1alpha1.ResourceReference) []gatewayapi.ResourceReference {
+	out := make([]gatewayapi.ResourceReference, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, resourceReferenceFromCRD(ref))
+	}
+	return out
+}
+
+func resourceReferencesToCRD(refs []gatewayapi.ResourceReference) []agentzv1alpha1.ResourceReference {
+	out := make([]agentzv1alpha1.ResourceReference, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, agentzv1alpha1.ResourceReference{
+			Scope: agentzv1alpha1.ResourceScope(ref.Scope),
+			Name:  ref.Name,
+		})
+	}
+	return out
 }
 
 func envVarsFromMap(items map[string]string) []corev1.EnvVar {

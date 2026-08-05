@@ -28,6 +28,7 @@ import (
 	tenantwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/tenant"
 	workflowrunwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowrun"
 	workflowschedulewebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowschedule"
+	workspacewebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workspace"
 )
 
 // AgentWebhookConfig configures Agent defaulting behavior.
@@ -61,6 +62,11 @@ func SetupMCPConnectionWebhookWithManager(mgr ctrl.Manager, kubeClient client.Cl
 // SetupTenantWebhookWithManager registers the Tenant webhook.
 func SetupTenantWebhookWithManager(mgr ctrl.Manager) error {
 	return tenantwebhook.RegisterWithManager(mgr)
+}
+
+// SetupWorkspaceWebhookWithManager registers the Workspace webhook.
+func SetupWorkspaceWebhookWithManager(mgr ctrl.Manager) error {
+	return workspacewebhook.RegisterWithManager(mgr)
 }
 
 // SetupSecretWebhookWithManager registers the Secret webhook.

@@ -27,7 +27,7 @@ sql:
   schema:
   - internal/session/db/schema.sql
   - internal/observer/db/schema.sql
-  - internal/gateway/db/schema.sql
+  - web/drizzle
   gen:
     go:
       package: gatewaydb

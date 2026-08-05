@@ -340,27 +340,27 @@ func (s *Service) listSkillReferences(ctx context.Context, namespace string) (ma
 		return nil, fmt.Errorf("list sandboxes: %w", err)
 	}
 
-	sandboxSkills := make(map[string][]string, len(sandboxes.Items))
+	sandboxSkills := make(map[string][]agentzv1alpha1.ResourceReference, len(sandboxes.Items))
 	agentRefs := map[string]map[string]struct{}{}
 	sandboxRefs := map[string]map[string]struct{}{}
 	for _, sandbox := range sandboxes.Items {
 		sandboxSkills[sandbox.Name] = sandbox.Spec.Skills
-		for _, name := range sandbox.Spec.Skills {
-			if sandboxRefs[name] == nil {
-				sandboxRefs[name] = map[string]struct{}{}
+		for _, ref := range sandbox.Spec.Skills {
+			if sandboxRefs[ref.Name] == nil {
+				sandboxRefs[ref.Name] = map[string]struct{}{}
 			}
-			sandboxRefs[name][sandbox.Name] = struct{}{}
+			sandboxRefs[ref.Name][sandbox.Name] = struct{}{}
 		}
 	}
 
 	for _, agt := range agents.Items {
-		names := append([]string{}, agt.Spec.Skills...)
-		names = append(names, sandboxSkills[agt.Spec.SandboxRef.Name]...)
-		for _, name := range names {
-			if agentRefs[name] == nil {
-				agentRefs[name] = map[string]struct{}{}
+		refs := append([]agentzv1alpha1.ResourceReference{}, agt.Spec.Skills...)
+		refs = append(refs, sandboxSkills[agt.Spec.SandboxRef.Name]...)
+		for _, ref := range refs {
+			if agentRefs[ref.Name] == nil {
+				agentRefs[ref.Name] = map[string]struct{}{}
 			}
-			agentRefs[name][agt.Name] = struct{}{}
+			agentRefs[ref.Name][agt.Name] = struct{}{}
 		}
 	}
 
@@ -395,16 +395,16 @@ func (s *Service) effectiveAgentSkills(ctx context.Context, namespace string, ag
 		return nil, err
 	}
 	out := make(map[string]struct{}, len(agt.Spec.Skills))
-	for _, name := range agt.Spec.Skills {
-		out[name] = struct{}{}
+	for _, ref := range agt.Spec.Skills {
+		out[ref.Name] = struct{}{}
 	}
 	sandbox := &agentzv1alpha1.Sandbox{}
 	key = types.NamespacedName{Name: agt.Spec.SandboxRef.Name, Namespace: namespace}
 	if err := s.k8sClient.Get(ctx, key, sandbox); err != nil {
 		return nil, err
 	}
-	for _, name := range sandbox.Spec.Skills {
-		out[name] = struct{}{}
+	for _, ref := range sandbox.Spec.Skills {
+		out[ref.Name] = struct{}{}
 	}
 	return out, nil
 }
@@ -458,26 +458,35 @@ func validateSkillDescription(description string) []gatewayapi.FieldError {
 	return fields
 }
 
-func (s *Service) validateSkillRefs(ctx context.Context, namespace string, names []gatewayapi.SkillName) ([]gatewayapi.SkillName, []gatewayapi.FieldError, error) {
-	out := make([]gatewayapi.SkillName, 0, len(names))
+func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs []gatewayapi.ResourceReference) ([]gatewayapi.ResourceReference, []gatewayapi.FieldError, error) {
+	out := make([]gatewayapi.ResourceReference, 0, len(refs))
 	fields := []gatewayapi.FieldError{}
-	seen := map[string]int{}
-	for i, name := range names {
-		if name == "" {
+	seen := map[gatewayapi.ResourceReference]int{}
+	for i, ref := range refs {
+		name := ref.Name
+		field := fmt.Sprintf("skills[%d].name", i)
+		if ref.Scope != gatewayapi.Organisation {
 			fields = append(fields, gatewayapi.FieldError{
-				Field: fmt.Sprintf("skills[%d]", i), Message: "required",
+				Field:   fmt.Sprintf("skills[%d].scope", i),
+				Message: "workspace scope is not available on the current tenant path",
 			})
 			continue
 		}
-		if first, ok := seen[name]; ok {
+		if name == "" {
+			fields = append(fields, gatewayapi.FieldError{
+				Field: field, Message: "required",
+			})
+			continue
+		}
+		if first, ok := seen[ref]; ok {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("skills[%d]", i),
 				Message: fmt.Sprintf("duplicate value %q first seen at index %d", name, first),
 			})
 			continue
 		}
-		seen[name] = i
-		itemFields := validateSkillName(fmt.Sprintf("skills[%d]", i), name)
+		seen[ref] = i
+		itemFields := validateSkillName(field, name)
 		fields = append(fields, itemFields...)
 		if len(itemFields) > 0 {
 			continue
@@ -487,7 +496,7 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, names
 		if err := s.k8sClient.Get(ctx, key, skill); err != nil {
 			if apierrors.IsNotFound(err) {
 				fields = append(fields, gatewayapi.FieldError{
-					Field: fmt.Sprintf("skills[%d]", i), Message: "skill not found",
+					Field: field, Message: "skill not found",
 				})
 				continue
 			}
@@ -495,11 +504,11 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, names
 		}
 		if !skill.DeletionTimestamp.IsZero() {
 			fields = append(fields, gatewayapi.FieldError{
-				Field: fmt.Sprintf("skills[%d]", i), Message: "skill is being deleted",
+				Field: field, Message: "skill is being deleted",
 			})
 			continue
 		}
-		out = append(out, name)
+		out = append(out, ref)
 	}
 	return out, fields, nil
 }
@@ -898,9 +907,12 @@ func (s *Service) importImmutableSkills(ctx context.Context, namespace string, b
 		}
 	}
 
-	names := make([]string, 0, len(bundle.Skills))
+	refs := make([]agentzv1alpha1.ResourceReference, 0, len(bundle.Skills))
 	for _, tree := range bundle.Skills {
-		names = append(names, tree.Name)
+		refs = append(refs, agentzv1alpha1.ResourceReference{
+			Scope: agentzv1alpha1.ResourceScopeOrganisation,
+			Name:  tree.Name,
+		})
 	}
 	results := make([]gatewayapi.SkillImportAgentResult, len(agents))
 	for i, agentName := range agents {
@@ -919,8 +931,13 @@ func (s *Service) importImmutableSkills(ctx context.Context, namespace string, b
 				if err != nil {
 					return err
 				}
-				agt.Spec.Skills = append(agt.Spec.Skills, names...)
-				slices.Sort(agt.Spec.Skills)
+				agt.Spec.Skills = append(agt.Spec.Skills, refs...)
+				slices.SortFunc(agt.Spec.Skills, func(a, b agentzv1alpha1.ResourceReference) int {
+					if a.Scope != b.Scope {
+						return strings.Compare(string(a.Scope), string(b.Scope))
+					}
+					return strings.Compare(a.Name, b.Name)
+				})
 				agt.Spec.Skills = slices.Compact(agt.Spec.Skills)
 				_, err = s.resolver.client.AgentzV1alpha1().Agents(namespace).Update(
 					ctx, agt, metav1.UpdateOptions{},

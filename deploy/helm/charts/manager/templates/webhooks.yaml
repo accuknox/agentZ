@@ -232,4 +232,18 @@ webhooks:
         operations: ["CREATE", "UPDATE"]
         resources: ["workflowschedules"]
     sideEffects: None
+  - admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "manager.fullname" . }}-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-agentz-accuknox-com-v1alpha1-workspace
+    failurePolicy: Fail
+    name: vworkspace-v1alpha1.kb.io
+    rules:
+      - apiGroups: ["agentz.accuknox.com"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["workspaces"]
+    sideEffects: None
 {{- end }}

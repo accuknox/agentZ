@@ -65,6 +65,10 @@ type SecretListerExpansion interface{}
 // SecretNamespaceLister.
 type SecretNamespaceListerExpansion interface{}
 
+// TenantListerExpansion allows custom methods to be added to
+// TenantLister.
+type TenantListerExpansion interface{}
+
 // WorkflowRunListerExpansion allows custom methods to be added to
 // WorkflowRunLister.
 type WorkflowRunListerExpansion interface{}
@@ -80,3 +84,7 @@ type WorkflowScheduleListerExpansion interface{}
 // WorkflowScheduleNamespaceListerExpansion allows custom methods to be added to
 // WorkflowScheduleNamespaceLister.
 type WorkflowScheduleNamespaceListerExpansion interface{}
+
+// WorkspaceListerExpansion allows custom methods to be added to
+// WorkspaceLister.
+type WorkspaceListerExpansion interface{}

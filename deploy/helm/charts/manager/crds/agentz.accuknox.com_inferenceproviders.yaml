@@ -214,6 +214,13 @@ spec:
                 x-kubernetes-validations:
                 - message: catalog provider is immutable
                   rule: self == oldSelf
+              creatorUserID:
+                description: |-
+                  CreatorUserID is the immutable Better Auth User ID that created the
+                  InferenceProvider.
+                maxLength: 128
+                minLength: 1
+                type: string
               displayName:
                 description: DisplayName is the editable human-readable provider label.
                 maxLength: 128
@@ -552,6 +559,9 @@ spec:
                 ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) &&
                 !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock)
                 && !has(self.vertexAI) && !has(self.azure) : true'
+            - message: creatorUserID is immutable
+              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
+                == oldSelf.creatorUserID)'
           status:
             description: Status describes the observed provider runtime.
             properties:

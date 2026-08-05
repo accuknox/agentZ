@@ -37,7 +37,6 @@ export const zTenantCondition = z.object({
 
 export const zTenant = z.object({
   tenant_id: z.string(),
-  user_id: z.string(),
   namespace: z.string(),
   ready: z.boolean(),
   phase: zTenantPhase,
@@ -52,6 +51,17 @@ export const zAgentName = z
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
+export const zResourceScope = z.enum(["Organisation", "Workspace"])
+
+export const zResourceReference = z.object({
+  scope: zResourceScope,
+  name: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
+
 export const zAgentMemoryConfig = z.object({
   enabled: z.boolean(),
 })
@@ -60,9 +70,12 @@ export const zAgentFileType = z.enum(["file", "directory"])
 
 export const zAgentFileMetadata = z.object({
   path: z.string(),
-  size: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  size: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   media_type: z.string(),
   modified_at: z.iso.datetime(),
   version: z.string(),
@@ -215,9 +228,12 @@ export const zPatchWorkflowRunNodeStatusRequest = z.object({
 export const zSkill = z.object({
   name: zSkillName,
   description: z.string().min(1).max(1024),
-  version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  version: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   storage_path: z.string().min(1),
   agents: z.array(zAgentName),
   sandboxes: z.array(zSandboxName),
@@ -234,9 +250,12 @@ export const zSkillKind = z.enum(["mutable", "immutable"])
 export const zSkillFileSummary = z.object({
   name: zSkillName,
   file_count: z.int().gte(1),
-  size_bytes: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  size_bytes: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   modified_at: z.iso.datetime().nullable(),
 })
 
@@ -250,9 +269,12 @@ export const zListMutableSkillsResponse = z.object({
 export const zImmutableSkillSummary = zSkillFileSummary.and(
   z.object({
     description: z.string(),
-    version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-    }),
+    version: z.coerce
+      .bigint()
+      .gte(BigInt(1))
+      .max(BigInt("9223372036854775807"), {
+        error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+      }),
     agents: z.array(zAgentName),
     sandboxes: z.array(zSandboxName),
   })
@@ -322,29 +344,35 @@ export const zSkillReferences = z.object({
 export const zCreateSkillRequest = z.object({
   name: zSkillName,
   description: z.string().min(1).max(1024),
-  version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  version: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   storage_path: z.string().min(1),
 })
 
 export const zUpdateSkillRequest = z.object({
   description: z.string().min(1).max(1024).optional(),
-  version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  version: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
 })
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
 
 export const zAgent = z.object({
   name: zAgentName,
-  sandboxName: zSandboxName,
+  sandbox: zResourceReference,
   last_activity: z.iso.datetime(),
   memory: zAgentMemoryConfig,
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
-  skills: z.array(zSkillName),
+  skills: z.array(zResourceReference),
   status: zAgentStatus,
 })
 
@@ -476,16 +504,16 @@ export const zCreateAgentRequest = z.object({
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
-  sandboxName: zSandboxName,
-  skills: z.array(zSkillName).optional(),
+  sandbox: zResourceReference,
+  skills: z.array(zResourceReference).optional(),
   opencode: zAgentOpencodeConfig.optional(),
 })
 
 export const zUpdateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
-  sandboxName: zSandboxName.optional(),
-  skills: z.array(zSkillName).optional(),
+  sandbox: zResourceReference.optional(),
+  skills: z.array(zResourceReference).optional(),
   opencode: zAgentOpencodeConfig.optional(),
 })
 
@@ -495,34 +523,61 @@ export const zTrace = z.object({
   root_span_id: zOptionalSpanId,
   started_at: z.iso.datetime(),
   ended_at: z.iso.datetime(),
-  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  duration_ns: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   duration_ms: z.number().gte(0),
-  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  span_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  error_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  tool_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  model_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  input_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  output_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  cached_input_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  cached_write_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   cost_usd: z.number().gte(0),
   status_code: z.string(),
   updated_at: z.iso.datetime(),
@@ -540,34 +595,61 @@ export const zTraceSession = z.object({
   root_span_id: zOptionalSpanId,
   started_at: z.iso.datetime(),
   ended_at: z.iso.datetime(),
-  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  duration_ns: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   duration_ms: z.number().gte(0),
-  span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  error_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  model_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  span_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  error_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  tool_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  model_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  input_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  output_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  cached_input_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  cached_write_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   cost_usd: z.number().gte(0),
   status_code: z.string(),
   updated_at: z.iso.datetime(),
@@ -579,9 +661,12 @@ export const zListTraceSessionsResponse = z.object({
 })
 
 export const zSpan = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  id: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   agent_name: zAgentName,
   session_id: z.string(),
   trace_id: zTraceId,
@@ -589,9 +674,12 @@ export const zSpan = z.object({
   parent_span_id: zOptionalSpanId,
   start_time: z.iso.datetime(),
   end_time: z.iso.datetime(),
-  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  duration_ns: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   duration_ms: z.number().gte(0),
   name: z.string(),
   span_class: z.string(),
@@ -602,18 +690,30 @@ export const zSpan = z.object({
   error_message: z.string(),
   model: z.string(),
   tool_name: z.string(),
-  input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  output_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_input_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  cached_write_tokens: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  input_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  output_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  cached_input_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  cached_write_tokens: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   cost_usd: z.number().gte(0),
   llm_finish_reason: z.string(),
   ingested_at: z.iso.datetime(),
@@ -670,9 +770,12 @@ export const zMcpGraphResponse = z.object({
 })
 
 export const zProcessObservabilityEvent = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  id: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   agent_name: zAgentName,
   event_time: z.iso.datetime(),
   ingested_at: z.iso.datetime(),
@@ -693,9 +796,12 @@ export const zProcessObservabilityEventAggregated = z.object({
   command_invocation: z.string(),
   action: zObservabilityAction,
   source: z.string(),
-  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  occurrences: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
 })
 
 export const zListProcessObservabilityResponse = z.object({
@@ -704,9 +810,12 @@ export const zListProcessObservabilityResponse = z.object({
 })
 
 export const zFileObservabilityEvent = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  id: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   agent_name: zAgentName,
   event_time: z.iso.datetime(),
   ingested_at: z.iso.datetime(),
@@ -727,9 +836,12 @@ export const zFileObservabilityEventAggregated = z.object({
   command_invocation: z.string(),
   action: zObservabilityAction,
   source: z.string(),
-  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  occurrences: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
 })
 
 export const zListFileObservabilityResponse = z.object({
@@ -738,9 +850,12 @@ export const zListFileObservabilityResponse = z.object({
 })
 
 export const zNetworkObservabilityEvent = z.object({
-  id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  id: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   agent_name: zAgentName,
   event_time: z.iso.datetime(),
   ingested_at: z.iso.datetime(),
@@ -748,9 +863,12 @@ export const zNetworkObservabilityEvent = z.object({
   pod_name: z.string(),
   destination_domain: z.string(),
   destination_ip: z.string(),
-  destination_port: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  destination_port: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   protocol: z.string(),
   action: zObservabilityAction,
   source: z.string(),
@@ -761,15 +879,21 @@ export const zNetworkObservabilityEventAggregated = z.object({
   last_seen: z.iso.datetime(),
   destination_domain: z.string(),
   destination_ip: z.string(),
-  destination_port: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  destination_port: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   protocol: z.string(),
   action: zObservabilityAction,
   source: z.string(),
-  occurrences: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  occurrences: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
 })
 
 export const zListNetworkObservabilityResponse = z.object({
@@ -1028,6 +1152,7 @@ export const zWatchSecretsEvent = z.object({
 })
 
 export const zSandboxInferenceModelRef = z.object({
+  scope: zResourceScope,
   provider: zInferenceProviderName,
   model: z.string().min(1).max(512),
 })
@@ -1395,6 +1520,7 @@ export const zInferenceProviderUsage = z.object({
 })
 
 export const zInferencePoolMember = z.object({
+  scope: zResourceScope,
   provider: zInferenceProviderName,
   model: z.string().min(1).max(512),
 })
@@ -1429,6 +1555,7 @@ export const zInferencePoolWarning = z.object({
 })
 
 export const zInferencePoolMemberStatus = z.object({
+  scope: zResourceScope,
   provider: zInferenceProviderName,
   model: z.string().min(1).max(512),
   protocol: zInferenceProtocol,
@@ -1514,6 +1641,7 @@ export const zMcpConnectionToolRef = z.object({
 })
 
 export const zMcpConnectionRef = z.object({
+  scope: zResourceScope,
   tools: z.array(zMcpConnectionToolRef).min(1),
   name: zMcpConnectionName,
 })
@@ -1523,7 +1651,7 @@ export const zSandbox = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
-  skills: z.array(zSkillName),
+  skills: z.array(zResourceReference),
   inference: zSandboxInference,
   created_at: z.iso.datetime(),
   metadata: z.object({
@@ -1553,7 +1681,7 @@ export const zCreateSandboxRequest = z.object({
   packages: z.array(z.string().min(1)).optional(),
   allowed_hosts: z.array(z.string().min(1)).optional(),
   mcp_connection_refs: z.array(zMcpConnectionRef).optional(),
-  skills: z.array(zSkillName).optional(),
+  skills: z.array(zResourceReference).optional(),
   inference: zSandboxInference,
 })
 
@@ -1561,7 +1689,7 @@ export const zUpdateSandboxRequest = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
-  skills: z.array(zSkillName),
+  skills: z.array(zResourceReference),
   inference: zSandboxInference,
 })
 
@@ -1646,9 +1774,12 @@ export const zMcpConnectionSummary = z.object({
   reason: zMcpConnectionReason,
   message: z.string(),
   tool_catalog_ready: z.boolean(),
-  tool_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
+  tool_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
 })
 
 export const zListMcpConnectionsResponse = z.object({
@@ -2236,9 +2367,12 @@ export const zListImmutableSkillVersionsPath = z.object({
  * Sorted stored versions.
  */
 export const zListImmutableSkillVersionsResponse = z.array(
-  z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  })
+  z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
 )
 
 export const zListTraceSessionsPath = z.object({

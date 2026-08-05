@@ -86,6 +86,16 @@ func (v *Validator) validateSandbox(ctx context.Context, sandbox *agentzv1alpha1
 	fields := validateAllowedHostFields(sandbox)
 	fields = append(fields, v.validateMCPConnectionRefs(ctx, sandbox)...)
 	fields = append(fields, v.validateInference(ctx, sandbox)...)
+	for i, ref := range sandbox.Spec.Skills {
+		if ref.Scope != agentzv1alpha1.ResourceScopeWorkspace {
+			continue
+		}
+		fields = append(fields, field.NotSupported(
+			field.NewPath("spec").Child("skills").Index(i).Child("scope"),
+			ref.Scope,
+			[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
+		))
+	}
 	if len(fields) == 0 {
 		return nil
 	}
@@ -100,22 +110,28 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 		return append(fields, field.Required(path.Child("models"), "at least one model is required"))
 	}
 
-	allowed := make(map[string]struct{}, len(sandbox.Spec.Inference.Models))
+	allowed := make(map[agentzv1alpha1.InferenceModelRef]struct{}, len(sandbox.Spec.Inference.Models))
 	byProvider := make(map[string][]string, len(sandbox.Spec.Inference.Models))
 	pools := map[string]struct{}{}
 	for i, model := range sandbox.Spec.Inference.Models {
+		if model.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			fields = append(fields, field.NotSupported(
+				path.Child("models").Index(i).Child("scope"),
+				model.Scope,
+				[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
+			))
+		}
 		if strings.TrimSpace(model.Provider) == "" {
 			fields = append(fields, field.Required(path.Child("models").Index(i).Child("provider"), "field is required"))
 		}
 		if strings.TrimSpace(model.Model) == "" {
 			fields = append(fields, field.Required(path.Child("models").Index(i).Child("model"), "field is required"))
 		}
-		key := model.Provider + "\x00" + model.Model
-		if _, exists := allowed[key]; exists {
+		if _, exists := allowed[model]; exists {
 			fields = append(fields, field.Duplicate(path.Child("models").Index(i), model))
 			continue
 		}
-		allowed[key] = struct{}{}
+		allowed[model] = struct{}{}
 		if model.Provider == agentzv1alpha1.InferencePoolProvider {
 			pools[model.Model] = struct{}{}
 			continue
@@ -123,17 +139,14 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 		byProvider[model.Provider] = append(byProvider[model.Provider], model.Model)
 	}
 
-	defaultKey := sandbox.Spec.Inference.DefaultModel.Provider + "\x00" +
-		sandbox.Spec.Inference.DefaultModel.Model
-	if _, exists := allowed[defaultKey]; !exists {
+	if _, exists := allowed[sandbox.Spec.Inference.DefaultModel]; !exists {
 		fields = append(fields, field.Invalid(
 			path.Child("defaultModel"), sandbox.Spec.Inference.DefaultModel,
 			"must belong to the model allowlist",
 		))
 	}
 	if sandbox.Spec.Inference.SmallModel != nil {
-		smallKey := sandbox.Spec.Inference.SmallModel.Provider + "\x00" + sandbox.Spec.Inference.SmallModel.Model
-		if _, exists := allowed[smallKey]; !exists {
+		if _, exists := allowed[*sandbox.Spec.Inference.SmallModel]; !exists {
 			fields = append(fields, field.Invalid(
 				path.Child("smallModel"), sandbox.Spec.Inference.SmallModel,
 				"must belong to the model allowlist",
@@ -218,10 +231,17 @@ func validateAllowedHostFields(sandbox *agentzv1alpha1.Sandbox) field.ErrorList 
 func (v *Validator) validateMCPConnectionRefs(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) field.ErrorList {
 	fields := field.ErrorList{}
 	path := field.NewPath("spec").Child("mcpConnectionRefs")
-	seen := map[string]int{}
+	seen := map[agentzv1alpha1.ResourceReference]int{}
 
 	for i, ref := range sandbox.Spec.MCPConnectionRefs {
-		name := strings.TrimSpace(ref.Name)
+		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			fields = append(fields, field.NotSupported(
+				path.Index(i).Child("scope"),
+				ref.Scope,
+				[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
+			))
+		}
+		name := ref.Name
 		if name == "" {
 			fields = append(fields, field.Required(
 				path.Index(i).Child("name"),
@@ -230,22 +250,23 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, sandbox *agen
 			continue
 		}
 
-		if first, ok := seen[name]; ok {
+		key := agentzv1alpha1.ResourceReference{Scope: ref.Scope, Name: name}
+		if first, ok := seen[key]; ok {
 			fields = append(fields, field.Duplicate(
 				path.Index(i).Child("name"),
 				fmt.Sprintf("%s (first seen at index %d)", name, first),
 			))
 			continue
 		}
-		seen[name] = i
+		seen[key] = i
 
 		if v.client == nil {
 			continue
 		}
 
 		conn := &agentzv1alpha1.MCPConnection{}
-		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: name}
-		err := v.client.Get(ctx, key, conn)
+		objKey := client.ObjectKey{Namespace: sandbox.Namespace, Name: name}
+		err := v.client.Get(ctx, objKey, conn)
 		if apierrors.IsNotFound(err) {
 			fields = append(fields, field.NotFound(
 				path.Index(i).Child("name"),

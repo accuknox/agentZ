@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -61,19 +62,23 @@ spec:
                 description: Anthropic configures native Anthropic.
                 properties:
                   baseURL:
-                    description: BaseURL overrides the native Anthropic endpoint when set.
+                    description: BaseURL overrides the native Anthropic endpoint when
+                      set.
                     format: uri
                     maxLength: 2048
                     type: string
                 type: object
               anthropicCompatible:
-                description: AnthropicCompatible configures a custom Anthropic-compatible endpoint.
+                description: AnthropicCompatible configures a custom Anthropic-compatible
+                  endpoint.
                 properties:
                   allowPrivateEndpoint:
-                    description: AllowPrivateEndpoint explicitly permits private endpoints or plain HTTP.
+                    description: AllowPrivateEndpoint explicitly permits private endpoints
+                      or plain HTTP.
                     type: boolean
                   authHeader:
-                    description: AuthHeader is the lowercase destination header for the API key.
+                    description: AuthHeader is the lowercase destination header for
+                      the API key.
                     maxLength: 128
                     pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
                     type: string
@@ -84,7 +89,8 @@ spec:
                     - APIKey
                     type: string
                   authPrefix:
-                    description: AuthPrefix is prepended to the API key at the controlled upstream hop.
+                    description: AuthPrefix is prepended to the API key at the controlled
+                      upstream hop.
                     maxLength: 128
                     pattern: ^[^\x00-\x08\x0A-\x1F\x7F]*$
                     type: string
@@ -96,7 +102,8 @@ spec:
                   headers:
                     description: Headers contains non-secret upstream headers.
                     items:
-                      description: InferenceProviderHeader is one non-secret custom upstream header.
+                      description: InferenceProviderHeader is one non-secret custom
+                        upstream header.
                       properties:
                         name:
                           description: Name is the lowercase HTTP header name.
@@ -124,12 +131,14 @@ spec:
                     pattern: ^/[^?#]*$
                     type: string
                   pathPrefix:
-                    description: PathPrefix replaces the default provider API prefix when set.
+                    description: PathPrefix replaces the default provider API prefix
+                      when set.
                     maxLength: 1024
                     pattern: ^/[^?#]*$
                     type: string
                   skipTLSVerify:
-                    description: SkipTLSVerify explicitly disables upstream TLS certificate verification.
+                    description: SkipTLSVerify explicitly disables upstream TLS certificate
+                      verification.
                     type: boolean
                 required:
                 - authMode
@@ -137,7 +146,8 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: authentication header and prefix require API-key authentication
-                  rule: 'self.authMode == ''APIKey'' ? has(self.authHeader) : !has(self.authHeader) && !has(self.authPrefix)'
+                  rule: 'self.authMode == ''APIKey'' ? has(self.authHeader) : !has(self.authHeader)
+                    && !has(self.authPrefix)'
               azure:
                 description: Azure configures Azure OpenAI or Azure AI Foundry.
                 properties:
@@ -187,7 +197,8 @@ spec:
                     - BearerToken
                     type: string
                   region:
-                    description: Region is the AWS region used for SigV4 signing and dispatch.
+                    description: Region is the AWS region used for SigV4 signing and
+                      dispatch.
                     pattern: ^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$
                     type: string
                 required:
@@ -195,13 +206,21 @@ spec:
                 - region
                 type: object
               catalogProvider:
-                description: CatalogProvider is the immutable OpenCode provider ID or custom.
+                description: CatalogProvider is the immutable OpenCode provider ID
+                  or custom.
                 maxLength: 128
                 minLength: 1
                 type: string
                 x-kubernetes-validations:
                 - message: catalog provider is immutable
                   rule: self == oldSelf
+              creatorUserID:
+                description: |-
+                  CreatorUserID is the immutable Better Auth User ID that created the
+                  InferenceProvider.
+                maxLength: 128
+                minLength: 1
+                type: string
               displayName:
                 description: DisplayName is the editable human-readable provider label.
                 maxLength: 128
@@ -211,7 +230,8 @@ spec:
                 description: Gemini configures native Gemini.
                 properties:
                   baseURL:
-                    description: BaseURL overrides the native Gemini endpoint when set.
+                    description: BaseURL overrides the native Gemini endpoint when
+                      set.
                     format: uri
                     maxLength: 2048
                     type: string
@@ -238,7 +258,8 @@ spec:
                     saved OpenCode metadata.
                   properties:
                     api:
-                      description: API records the subscription provider API selected during discovery.
+                      description: API records the subscription provider API selected
+                        during discovery.
                       enum:
                       - ChatCompletions
                       - Responses
@@ -248,13 +269,16 @@ spec:
                       description: Capabilities controls OpenCode model behavior.
                       properties:
                         attachment:
-                          description: Attachment reports whether file attachments are supported.
+                          description: Attachment reports whether file attachments
+                            are supported.
                           type: boolean
                         reasoning:
-                          description: Reasoning reports whether reasoning controls are supported.
+                          description: Reasoning reports whether reasoning controls
+                            are supported.
                           type: boolean
                         temperature:
-                          description: Temperature reports whether temperature controls are supported.
+                          description: Temperature reports whether temperature controls
+                            are supported.
                           type: boolean
                         toolCall:
                           description: ToolCall reports whether tool calls are supported.
@@ -266,7 +290,8 @@ spec:
                       - toolCall
                       type: object
                     catalog:
-                      description: Catalog records advisory Models.dev provenance when selected there.
+                      description: Catalog records advisory Models.dev provenance
+                        when selected there.
                       properties:
                         provider:
                           description: Provider is the Models.dev provider identifier.
@@ -277,7 +302,8 @@ spec:
                       - provider
                       type: object
                     displayName:
-                      description: DisplayName is the editable model label shown to users.
+                      description: DisplayName is the editable model label shown to
+                        users.
                       maxLength: 128
                       minLength: 1
                       type: string
@@ -320,7 +346,8 @@ spec:
                         input:
                           description: Input lists supported input media.
                           items:
-                            description: InferenceModelModality describes input and output media understood by OpenCode.
+                            description: InferenceModelModality describes input and
+                              output media understood by OpenCode.
                             enum:
                             - text
                             - audio
@@ -335,7 +362,8 @@ spec:
                         output:
                           description: Output lists supported output media.
                           items:
-                            description: InferenceModelModality describes input and output media understood by OpenCode.
+                            description: InferenceModelModality describes input and
+                              output media understood by OpenCode.
                             enum:
                             - text
                             - audio
@@ -373,19 +401,23 @@ spec:
                 description: OpenAI configures native OpenAI.
                 properties:
                   baseURL:
-                    description: BaseURL overrides the native OpenAI endpoint when set.
+                    description: BaseURL overrides the native OpenAI endpoint when
+                      set.
                     format: uri
                     maxLength: 2048
                     type: string
                 type: object
               openAICompatible:
-                description: OpenAICompatible configures a custom OpenAI-compatible endpoint.
+                description: OpenAICompatible configures a custom OpenAI-compatible
+                  endpoint.
                 properties:
                   allowPrivateEndpoint:
-                    description: AllowPrivateEndpoint explicitly permits private endpoints or plain HTTP.
+                    description: AllowPrivateEndpoint explicitly permits private endpoints
+                      or plain HTTP.
                     type: boolean
                   authHeader:
-                    description: AuthHeader is the lowercase destination header for the API key.
+                    description: AuthHeader is the lowercase destination header for
+                      the API key.
                     maxLength: 128
                     pattern: ^[a-z0-9!#$%&'*+.^_|~-]+$
                     type: string
@@ -396,7 +428,8 @@ spec:
                     - APIKey
                     type: string
                   authPrefix:
-                    description: AuthPrefix is prepended to the API key at the controlled upstream hop.
+                    description: AuthPrefix is prepended to the API key at the controlled
+                      upstream hop.
                     maxLength: 128
                     pattern: ^[^\x00-\x08\x0A-\x1F\x7F]*$
                     type: string
@@ -408,7 +441,8 @@ spec:
                   headers:
                     description: Headers contains non-secret upstream headers.
                     items:
-                      description: InferenceProviderHeader is one non-secret custom upstream header.
+                      description: InferenceProviderHeader is one non-secret custom
+                        upstream header.
                       properties:
                         name:
                           description: Name is the lowercase HTTP header name.
@@ -436,12 +470,14 @@ spec:
                     pattern: ^/[^?#]*$
                     type: string
                   pathPrefix:
-                    description: PathPrefix replaces the default provider API prefix when set.
+                    description: PathPrefix replaces the default provider API prefix
+                      when set.
                     maxLength: 1024
                     pattern: ^/[^?#]*$
                     type: string
                   skipTLSVerify:
-                    description: SkipTLSVerify explicitly disables upstream TLS certificate verification.
+                    description: SkipTLSVerify explicitly disables upstream TLS certificate
+                      verification.
                     type: boolean
                 required:
                 - authMode
@@ -449,7 +485,8 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: authentication header and prefix require API-key authentication
-                  rule: 'self.authMode == ''APIKey'' ? has(self.authHeader) : !has(self.authHeader) && !has(self.authPrefix)'
+                  rule: 'self.authMode == ''APIKey'' ? has(self.authHeader) : !has(self.authHeader)
+                    && !has(self.authPrefix)'
               vertexAI:
                 description: VertexAI configures native Vertex AI.
                 properties:
@@ -477,30 +514,62 @@ spec:
             - message: provider kind is immutable
               rule: self.kind == oldSelf.kind
             - message: OpenAI kind requires only openAI configuration
-              rule: 'self.kind == ''OpenAI'' ? has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
+              rule: 'self.kind == ''OpenAI'' ? has(self.openAI) && !has(self.anthropic)
+                && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible)
+                && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) :
+                true'
             - message: Anthropic kind requires only anthropic configuration
-              rule: 'self.kind == ''Anthropic'' ? has(self.anthropic) && !has(self.openAI) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
+              rule: 'self.kind == ''Anthropic'' ? has(self.anthropic) && !has(self.openAI)
+                && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible)
+                && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) :
+                true'
             - message: Gemini kind requires only gemini configuration
-              rule: 'self.kind == ''Gemini'' ? has(self.gemini) && !has(self.openAI) && !has(self.anthropic) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
+              rule: 'self.kind == ''Gemini'' ? has(self.gemini) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.openAICompatible) && !has(self.anthropicCompatible)
+                && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) :
+                true'
             - message: OpenAICompatible kind requires only openAICompatible configuration
-              rule: 'self.kind == ''OpenAICompatible'' ? has(self.openAICompatible) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
-            - message: AnthropicCompatible kind requires only anthropicCompatible configuration
-              rule: 'self.kind == ''AnthropicCompatible'' ? has(self.anthropicCompatible) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
+              rule: 'self.kind == ''OpenAICompatible'' ? has(self.openAICompatible)
+                && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini)
+                && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI)
+                && !has(self.azure) : true'
+            - message: AnthropicCompatible kind requires only anthropicCompatible
+                configuration
+              rule: 'self.kind == ''AnthropicCompatible'' ? has(self.anthropicCompatible)
+                && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini)
+                && !has(self.openAICompatible) && !has(self.bedrock) && !has(self.vertexAI)
+                && !has(self.azure) : true'
             - message: Bedrock kind requires only bedrock configuration
-              rule: 'self.kind == ''Bedrock'' ? has(self.bedrock) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.vertexAI) && !has(self.azure) : true'
+              rule: 'self.kind == ''Bedrock'' ? has(self.bedrock) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible)
+                && !has(self.anthropicCompatible) && !has(self.vertexAI) && !has(self.azure)
+                : true'
             - message: VertexAI kind requires only vertexAI configuration
-              rule: 'self.kind == ''VertexAI'' ? has(self.vertexAI) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.azure) : true'
+              rule: 'self.kind == ''VertexAI'' ? has(self.vertexAI) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible)
+                && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.azure)
+                : true'
             - message: Azure kind requires only azure configuration
-              rule: 'self.kind == ''Azure'' ? has(self.azure) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) : true'
+              rule: 'self.kind == ''Azure'' ? has(self.azure) && !has(self.openAI)
+                && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible)
+                && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI)
+                : true'
             - message: subscription provider kinds do not accept endpoint configuration
-              rule: 'self.kind == ''OpenAICodex'' || self.kind == ''GitHubCopilot'' ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
+              rule: 'self.kind == ''OpenAICodex'' || self.kind == ''GitHubCopilot''
+                ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) &&
+                !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock)
+                && !has(self.vertexAI) && !has(self.azure) : true'
+            - message: creatorUserID is immutable
+              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
+                == oldSelf.creatorUserID)'
           status:
             description: Status describes the observed provider runtime.
             properties:
               conditions:
                 description: Conditions represent provider readiness dimensions.
                 items:
-                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-

@@ -330,22 +330,54 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 	skillNames := make([]string, 0, len(agt.Spec.Skills))
 	seenSkills := make(map[string]struct{}, len(agt.Spec.Skills))
-	for _, name := range agt.Spec.Skills {
-		if name == "" {
+	for _, ref := range agt.Spec.Skills {
+		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			return sandboxConfig{}, fmt.Errorf(
+				"skill %q uses unavailable %s scope",
+				ref.Name,
+				ref.Scope,
+			)
+		}
+		if ref.Name == "" {
 			continue
 		}
-		if _, ok := seenSkills[name]; ok {
+		if _, ok := seenSkills[ref.Name]; ok {
 			continue
 		}
-		seenSkills[name] = struct{}{}
-		skillNames = append(skillNames, name)
+		seenSkills[ref.Name] = struct{}{}
+		skillNames = append(skillNames, ref.Name)
 	}
 
 	ref := agt.Spec.SandboxRef
+	if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+		return sandboxConfig{}, fmt.Errorf(
+			"sandbox %q uses unavailable %s scope",
+			ref.Name,
+			ref.Scope,
+		)
+	}
 	sandbox := &agentzv1alpha1.Sandbox{}
 	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
 	if err := r.Get(ctx, key, sandbox); err != nil {
 		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
+	}
+	for _, conn := range sandbox.Spec.MCPConnectionRefs {
+		if conn.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			return sandboxConfig{}, fmt.Errorf(
+				"mcp connection %q uses unavailable %s scope",
+				conn.Name,
+				conn.Scope,
+			)
+		}
+	}
+	for _, model := range sandbox.Spec.Inference.Models {
+		if model.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			return sandboxConfig{}, fmt.Errorf(
+				"inference provider %q uses unavailable %s scope",
+				model.Provider,
+				model.Scope,
+			)
+		}
 	}
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
 	for _, modelRef := range sandbox.Spec.Inference.Models {
@@ -549,15 +581,22 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		)
 	}
 	cfg.InferenceURL = "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local"
-	for _, name := range sandbox.Spec.Skills {
-		if name == "" {
+	for _, ref := range sandbox.Spec.Skills {
+		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+			return sandboxConfig{}, fmt.Errorf(
+				"skill %q uses unavailable %s scope",
+				ref.Name,
+				ref.Scope,
+			)
+		}
+		if ref.Name == "" {
 			continue
 		}
-		if _, ok := seenSkills[name]; ok {
+		if _, ok := seenSkills[ref.Name]; ok {
 			continue
 		}
-		seenSkills[name] = struct{}{}
-		skillNames = append(skillNames, name)
+		seenSkills[ref.Name] = struct{}{}
+		skillNames = append(skillNames, ref.Name)
 	}
 	packages := make([]string, 0, len(sandbox.Spec.Packages))
 	for _, pkg := range sandbox.Spec.Packages {
@@ -733,8 +772,12 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 		return []reconcile.Request{}
 	}
 	sandboxRefs := map[string]struct{}{}
+	ref := agentzv1alpha1.ResourceReference{
+		Scope: agentzv1alpha1.ResourceScopeOrganisation,
+		Name:  skill.Name,
+	}
 	for _, sandbox := range sandboxes.Items {
-		if slices.Contains(sandbox.Spec.Skills, skill.Name) {
+		if slices.Contains(sandbox.Spec.Skills, ref) {
 			sandboxRefs[sandbox.Name] = struct{}{}
 		}
 	}
@@ -748,7 +791,7 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 	requests := []reconcile.Request{}
 	seen := map[string]struct{}{}
 	for _, agt := range agents.Items {
-		referenced := slices.Contains(agt.Spec.Skills, skill.Name)
+		referenced := slices.Contains(agt.Spec.Skills, ref)
 		if !referenced {
 			_, referenced = sandboxRefs[agt.Spec.SandboxRef.Name]
 		}

@@ -39,6 +39,12 @@ spec:
           spec:
             description: spec defines the desired state of Skill.
             properties:
+              creatorUserID:
+                description: CreatorUserID is the immutable Better Auth User ID that
+                  created the Skill.
+                maxLength: 128
+                minLength: 1
+                type: string
               description:
                 description: Description summarizes when the skill should be used.
                 maxLength: 1024
@@ -60,6 +66,10 @@ spec:
             - storagePath
             - version
             type: object
+            x-kubernetes-validations:
+            - message: creatorUserID is immutable
+              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
+                == oldSelf.creatorUserID)'
         required:
         - spec
         type: object

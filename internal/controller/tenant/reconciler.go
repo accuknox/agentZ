@@ -37,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -45,6 +46,7 @@ import (
 
 const (
 	agentLabelKey                  = "agentz.accuknox.com/agent"
+	legacyTenantUserIDAnnotation   = "agentz.accuknox.com/user-id"
 	packageJobLabelKey             = "agentz.accuknox.com/agent-package-job"
 	workflowScheduleRunnerLabelKey = "agentz.accuknox.com/workflow-schedule-runner"
 )
@@ -65,7 +67,7 @@ type Reconciler struct {
 	ManagerServiceAccountNamespace string
 }
 
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=use
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch
@@ -85,8 +87,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return ctrl.Result{}, fmt.Errorf("get tenant: %w", err)
 	}
+	organizationLabel := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		tenant.Spec.OrganizationID,
+	)
+	if tenant.Labels[agentzv1alpha1.TenantOrganizationIDLabel] != organizationLabel {
+		base := tenant.DeepCopy()
+		if tenant.Labels == nil {
+			tenant.Labels = map[string]string{}
+		}
+		tenant.Labels[agentzv1alpha1.TenantOrganizationIDLabel] = organizationLabel
+		if err := r.Patch(ctx, &tenant, client.MergeFrom(base)); err != nil {
+			return ctrl.Result{}, fmt.Errorf("label tenant identity: %w", err)
+		}
+	}
 
-	nsName := agentzv1alpha1.TenantName(tenant.Spec.OrganizationID)
+	nsName := tenant.Name
 	err := r.updateStatus(ctx, tenant.Name, func(current *agentzv1alpha1.Tenant) {
 		current.Status.Namespace = nsName
 		current.Status.ObservedGeneration = current.Generation
@@ -173,9 +189,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Tenant{}).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(tenantChangePredicate()).
 		Named("tenant").
 		Complete(r)
+}
+
+func tenantChangePredicate() predicate.Predicate {
+	identityLabelChanged := predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			key := agentzv1alpha1.TenantOrganizationIDLabel
+			return e.ObjectOld.GetLabels()[key] != e.ObjectNew.GetLabels()[key]
+		},
+	}
+	return predicate.Or(predicate.GenerationChangedPredicate{}, identityLabelChanged)
 }
 
 func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *agentzv1alpha1.Tenant, nsName string) error {
@@ -190,8 +216,8 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *agentzv1alp
 		if ns.Annotations == nil {
 			ns.Annotations = map[string]string{}
 		}
+		delete(ns.Annotations, legacyTenantUserIDAnnotation)
 		ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] = tenant.Spec.OrganizationID
-		ns.Annotations[agentzv1alpha1.TenantUserIDAnnotation] = tenant.Spec.UserID
 		ns.Annotations[agentzv1alpha1.KubeArmorVisibilityAnnotation] = "process"
 		ns.OwnerReferences = []metav1.OwnerReference{
 			{
@@ -498,7 +524,7 @@ func (r *Reconciler) directClient() client.Client {
 
 func (r *Reconciler) failTenant(ctx context.Context, tenant *agentzv1alpha1.Tenant, cause error) (ctrl.Result, error) {
 	err := r.updateStatus(ctx, tenant.Name, func(current *agentzv1alpha1.Tenant) {
-		current.Status.Namespace = agentzv1alpha1.TenantName(current.Spec.OrganizationID)
+		current.Status.Namespace = current.Name
 		current.Status.ObservedGeneration = current.Generation
 		current.Status.SetCondition(metav1.Condition{
 			Type:               agentzv1alpha1.TenantConditionProgressing,

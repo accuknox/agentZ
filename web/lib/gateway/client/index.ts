@@ -623,6 +623,8 @@ export type {
   RenameAgentEntryResponse,
   RenameAgentEntryResponses,
   RenameSkillImportDecision,
+  ResourceReference,
+  ResourceScope,
   Sandbox,
   SandboxInference,
   SandboxInferenceModelRef,

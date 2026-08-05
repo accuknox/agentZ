@@ -961,6 +961,10 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "Tenant")
 				os.Exit(1)
 			}
+			if err := webhookv1alpha1.SetupWorkspaceWebhookWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "Workspace")
+				os.Exit(1)
+			}
 			if err := webhookv1alpha1.SetupSecretWebhookWithManager(mgr); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "Secret")
 				os.Exit(1)

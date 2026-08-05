@@ -74,7 +74,7 @@ const sandboxFormDataSchema = z
         ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
         return z.NEVER
       }
-      inferenceModels.push({ provider, model })
+      inferenceModels.push({ scope: "Organisation", provider, model })
     }
     if (inferenceModels.length !== data.inferenceModelIDs.length) {
       ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
@@ -122,12 +122,14 @@ const sandboxFormDataSchema = z
       inference: {
         models: inferenceModels,
         default_model: {
+          scope: "Organisation",
           provider: data.inferenceDefaultProvider,
           model: data.inferenceDefaultModel,
         },
         ...(data.inferenceSmallProvider && data.inferenceSmallModel
           ? {
               small_model: {
+                scope: "Organisation",
                 provider: data.inferenceSmallProvider,
                 model: data.inferenceSmallModel,
               },
@@ -136,6 +138,7 @@ const sandboxFormDataSchema = z
         ...(data.inferenceAttachmentProvider && data.inferenceAttachmentModel
           ? {
               attachment_model: {
+                scope: "Organisation",
                 provider: data.inferenceAttachmentProvider,
                 model: data.inferenceAttachmentModel,
               },
@@ -270,6 +273,7 @@ export async function createSandboxFormAction(
       allowed_hosts: parsed.data.allowedHosts,
       mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
         (ref): McpConnectionRef => ({
+          scope: "Organisation",
           name: ref.name,
           tools: ref.tools.map((tool) => ({
             name: tool.name,
@@ -277,7 +281,7 @@ export async function createSandboxFormAction(
           })),
         })
       ),
-      skills: parsed.data.skills,
+      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
       inference: parsed.data.inference,
     },
   })
@@ -320,6 +324,7 @@ export async function updateSandboxFormAction(
       allowed_hosts: parsed.data.allowedHosts,
       mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
         (ref): McpConnectionRef => ({
+          scope: "Organisation",
           name: ref.name,
           tools: ref.tools.map((tool) => ({
             name: tool.name,
@@ -327,7 +332,7 @@ export async function updateSandboxFormAction(
           })),
         })
       ),
-      skills: parsed.data.skills,
+      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
       inference: parsed.data.inference,
     },
   })

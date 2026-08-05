@@ -30,7 +30,6 @@ export type TenantCondition = {
 
 export type Tenant = {
   tenant_id: string
-  user_id: string
   namespace: string
   ready: boolean
   phase: TenantPhase
@@ -40,6 +39,13 @@ export type Tenant = {
 export type ObservabilityAction = "Allowed" | "Blocked"
 
 export type AgentName = string
+
+export type ResourceScope = "Organisation" | "Workspace"
+
+export type ResourceReference = {
+  scope: ResourceScope
+  name: string
+}
 
 export type AgentMemoryConfig = {
   enabled: boolean
@@ -199,12 +205,12 @@ export type ListWorkflowWebhookTriggersResponse = {
 
 export type Agent = {
   name: AgentName
-  sandboxName: SandboxName
+  sandbox: ResourceReference
   last_activity: string
   memory: AgentMemoryConfig
   created_at: string
   modified_at: string
-  skills: Array<SkillName>
+  skills: Array<ResourceReference>
   status: AgentStatus
 }
 
@@ -317,8 +323,8 @@ export type CreateAgentRequest = {
   env?: {
     [key: string]: string
   }
-  sandboxName: SandboxName
-  skills?: Array<SkillName>
+  sandbox: ResourceReference
+  skills?: Array<ResourceReference>
   opencode?: AgentOpencodeConfig
 }
 
@@ -508,8 +514,8 @@ export type UpdateAgentRequest = {
     [key: string]: string
   }
   memory?: AgentMemoryConfig
-  sandboxName?: SandboxName
-  skills?: Array<SkillName>
+  sandbox?: ResourceReference
+  skills?: Array<ResourceReference>
   opencode?: AgentOpencodeConfig
 }
 
@@ -867,7 +873,7 @@ export type Sandbox = {
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
-  skills: Array<SkillName>
+  skills: Array<ResourceReference>
   inference: SandboxInference
   created_at: string
   metadata: {
@@ -888,7 +894,7 @@ export type CreateSandboxRequest = {
   packages?: Array<string>
   allowed_hosts?: Array<string>
   mcp_connection_refs?: Array<McpConnectionRef>
-  skills?: Array<SkillName>
+  skills?: Array<ResourceReference>
   inference: SandboxInference
 }
 
@@ -896,11 +902,12 @@ export type UpdateSandboxRequest = {
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
-  skills: Array<SkillName>
+  skills: Array<ResourceReference>
   inference: SandboxInference
 }
 
 export type SandboxInferenceModelRef = {
+  scope: ResourceScope
   provider: InferenceProviderName
   model: string
 }
@@ -1288,6 +1295,7 @@ export type InferenceProviderUsage = {
 }
 
 export type InferencePoolMember = {
+  scope: ResourceScope
   provider: InferenceProviderName
   model: string
 }
@@ -1322,6 +1330,7 @@ export type InferencePoolWarning = {
 }
 
 export type InferencePoolMemberStatus = {
+  scope: ResourceScope
   provider: InferenceProviderName
   model: string
   protocol: InferenceProtocol
@@ -1393,6 +1402,7 @@ export type InferenceModelSuggestions = {
 }
 
 export type McpConnectionRef = {
+  scope: ResourceScope
   tools: Array<McpConnectionToolRef>
   name: McpConnectionName
 }

@@ -33,8 +33,10 @@ type AgentzV1alpha1Interface interface {
 	MCPConnectionsGetter
 	SandboxesGetter
 	SecretsGetter
+	TenantsGetter
 	WorkflowRunsGetter
 	WorkflowSchedulesGetter
+	WorkspacesGetter
 }
 
 // AgentzV1alpha1Client is used to interact with features provided by the agentz group.
@@ -66,12 +68,20 @@ func (c *AgentzV1alpha1Client) Secrets(namespace string) SecretInterface {
 	return newSecrets(c, namespace)
 }
 
+func (c *AgentzV1alpha1Client) Tenants() TenantInterface {
+	return newTenants(c)
+}
+
 func (c *AgentzV1alpha1Client) WorkflowRuns(namespace string) WorkflowRunInterface {
 	return newWorkflowRuns(c, namespace)
 }
 
 func (c *AgentzV1alpha1Client) WorkflowSchedules(namespace string) WorkflowScheduleInterface {
 	return newWorkflowSchedules(c, namespace)
+}
+
+func (c *AgentzV1alpha1Client) Workspaces() WorkspaceInterface {
+	return newWorkspaces(c)
 }
 
 // NewForConfig creates a new AgentzV1alpha1Client for the given config.

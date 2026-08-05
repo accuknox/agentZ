@@ -104,6 +104,23 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 			"field is required",
 		))
 	}
+	if agt.Spec.SandboxRef.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+		allErrs = append(allErrs, field.NotSupported(
+			specPath.Child("sandboxRef").Child("scope"),
+			agt.Spec.SandboxRef.Scope,
+			[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
+		))
+	}
+	for i, ref := range agt.Spec.Skills {
+		if ref.Scope != agentzv1alpha1.ResourceScopeWorkspace {
+			continue
+		}
+		allErrs = append(allErrs, field.NotSupported(
+			specPath.Child("skills").Index(i).Child("scope"),
+			ref.Scope,
+			[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
+		))
+	}
 	if v.client != nil && agt.Spec.SandboxRef.Name != "" {
 		sandbox := &agentzv1alpha1.Sandbox{}
 		key := client.ObjectKey{Namespace: agt.Namespace, Name: agt.Spec.SandboxRef.Name}

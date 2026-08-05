@@ -361,6 +361,7 @@ func poolFromAPI(namespace, name string, input gatewayapi.InferencePoolWrite) *a
 	members := make([]agentzv1alpha1.InferencePoolMember, 0, len(input.Members))
 	for _, member := range input.Members {
 		members = append(members, agentzv1alpha1.InferencePoolMember{
+			Scope:    agentzv1alpha1.ResourceScope(member.Scope),
 			Provider: member.Provider,
 			Model:    member.Model,
 		})
@@ -387,6 +388,7 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int) gatewayapi.Inferen
 	members := make([]gatewayapi.InferencePoolMember, 0, len(pool.Spec.Members))
 	for _, member := range pool.Spec.Members {
 		members = append(members, gatewayapi.InferencePoolMember{
+			Scope:    gatewayapi.ResourceScope(member.Scope),
 			Provider: member.Provider,
 			Model:    member.Model,
 		})
@@ -407,6 +409,7 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int) gatewayapi.Inferen
 	statuses := make([]gatewayapi.InferencePoolMemberStatus, 0, len(pool.Status.Members))
 	for _, member := range pool.Status.Members {
 		statuses = append(statuses, gatewayapi.InferencePoolMemberStatus{
+			Scope:    gatewayapi.ResourceScope(member.Scope),
 			Provider: member.Provider,
 			Model:    member.Model,
 			Protocol: gatewayapi.InferenceProtocol(member.Protocol),

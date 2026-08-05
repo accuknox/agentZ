@@ -136,9 +136,9 @@ function AgentActions({
       <AgentDialog
         mode="update"
         agentName={agent.name}
-        initialSandboxName={agent.sandboxName}
+        initialSandboxName={agent.sandbox.name}
         initialMemoryEnabled={agent.memory.enabled}
-        initialSkills={agent.skills}
+        initialSkills={agent.skills.map((skill) => skill.name)}
         immutableSkills={immutableSkills}
         sandboxes={sandboxes}
         initialHasNextSandboxPage={initialHasNextSandboxPage}

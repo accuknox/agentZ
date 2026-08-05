@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -41,7 +40,10 @@ func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 		WithObjects(&agentzv1alpha1.Agent{
 			ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "default"},
 			Spec: agentzv1alpha1.AgentSpec{
-				SandboxRef: corev1.LocalObjectReference{Name: "sandbox"},
+				SandboxRef: agentzv1alpha1.ResourceReference{
+					Scope: agentzv1alpha1.ResourceScopeOrganisation,
+					Name:  "sandbox",
+				},
 			},
 		}).
 		Build()
@@ -73,7 +75,11 @@ func TestValidatorValidateCreateAllowsProviderHost(t *testing.T) {
 		},
 	}
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(provider).Build()
-	model := agentzv1alpha1.InferenceModelRef{Provider: "private", Model: "model"}
+	model := agentzv1alpha1.InferenceModelRef{
+		Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+		Provider: "private",
+		Model:    "model",
+	}
 	sandbox := &agentzv1alpha1.Sandbox{
 		ObjectMeta: metav1.ObjectMeta{Name: "sandbox", Namespace: "default"},
 		Spec: agentzv1alpha1.SandboxSpec{

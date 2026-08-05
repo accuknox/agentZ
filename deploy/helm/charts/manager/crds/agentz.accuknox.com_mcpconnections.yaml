@@ -206,6 +206,13 @@ spec:
                         type: string
                     type: object
                 type: object
+              creatorUserID:
+                description: |-
+                  CreatorUserID is the immutable Better Auth User ID that created the
+                  MCPConnection.
+                maxLength: 128
+                minLength: 1
+                type: string
               endpoint:
                 description: Endpoint defines the remote MCP server endpoint and transport
                   settings.
@@ -233,6 +240,10 @@ spec:
             required:
             - endpoint
             type: object
+            x-kubernetes-validations:
+            - message: creatorUserID is immutable
+              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
+                == oldSelf.creatorUserID)'
           status:
             description: Status defines the observed state of MCPConnection.
             properties:

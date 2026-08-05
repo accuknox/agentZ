@@ -1334,7 +1334,11 @@ function ModelsStep({
                 </div>
                 <div className="divide-y">
                   {pools.map((pool) => {
-                    const ref = { provider: "agentz-pools", model: pool.id }
+                    const ref: SandboxInferenceModelRef = {
+                      scope: "Organisation",
+                      provider: "agentz-pools",
+                      model: pool.id,
+                    }
                     const active = refs.has(JSON.stringify([ref.provider, ref.model]))
                     const available = pool.state === "Ready" || pool.state === "PartiallyDegraded"
                     const failures = pool.member_statuses.filter((member) => !member.ready)
@@ -1457,7 +1461,11 @@ function ModelsStep({
                       ) : (
                         <div className="divide-y border-t">
                           {provider.models.map((model) => {
-                            const ref = { provider: provider.id, model: model.id }
+                            const ref: SandboxInferenceModelRef = {
+                              scope: "Organisation",
+                              provider: provider.id,
+                              model: model.id,
+                            }
                             const active = refs.has(JSON.stringify([ref.provider, ref.model]))
                             return (
                               <label

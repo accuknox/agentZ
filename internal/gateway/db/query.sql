@@ -388,6 +388,1070 @@ HAVING (
 ORDER BY MAX(event_time) DESC
 LIMIT sqlc.arg(page_size);
 
+-- name: GatewayCreateWorkspace :one
+WITH created AS (
+  INSERT INTO workspaces(id, organization_id, name, slug, namespace, state)
+  VALUES (
+    sqlc.arg(id),
+    sqlc.arg(organization_id),
+    sqlc.arg(name),
+    sqlc.arg(slug),
+    sqlc.arg(namespace),
+    sqlc.arg(state)
+  )
+  RETURNING *
+), reserved AS (
+  INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
+  SELECT organization_id, id, slug
+  FROM created
+  RETURNING workspace_id
+)
+SELECT created.*
+FROM created
+JOIN reserved ON reserved.workspace_id = created.id;
+
+-- name: GatewayGetWorkspace :one
+SELECT
+  id,
+  organization_id,
+  name,
+  slug,
+  namespace,
+  state,
+  failure_reason,
+  deleted_at,
+  created_at,
+  updated_at
+FROM workspaces
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayListWorkspaces :many
+SELECT
+  id,
+  organization_id,
+  name,
+  slug,
+  namespace,
+  state,
+  failure_reason,
+  deleted_at,
+  created_at,
+  updated_at
+FROM workspaces
+WHERE organization_id = sqlc.arg(organization_id)
+  AND deleted_at IS NULL
+ORDER BY name, id;
+
+-- name: GatewayUpdateWorkspaceName :one
+UPDATE workspaces
+SET name = sqlc.arg(name), updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  organization_id,
+  name,
+  slug,
+  namespace,
+  state,
+  failure_reason,
+  deleted_at,
+  created_at,
+  updated_at;
+
+-- name: GatewayRenameWorkspace :one
+WITH reserved AS (
+  INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
+  SELECT workspaces.organization_id, workspaces.id, sqlc.arg(slug)
+  FROM workspaces
+  WHERE workspaces.id = sqlc.arg(id)
+    AND workspaces.organization_id = sqlc.arg(organization_id)
+    AND workspaces.deleted_at IS NULL
+  RETURNING workspace_id
+)
+UPDATE workspaces
+SET slug = sqlc.arg(slug), updated_at = sqlc.arg(updated_at)
+FROM reserved
+WHERE workspaces.id = reserved.workspace_id
+RETURNING workspaces.*;
+
+-- name: GatewayUpdateWorkspaceState :one
+UPDATE workspaces
+SET
+  state = sqlc.arg(state),
+  failure_reason = sqlc.narg(failure_reason),
+  updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  organization_id,
+  name,
+  slug,
+  namespace,
+  state,
+  failure_reason,
+  deleted_at,
+  created_at,
+  updated_at;
+
+-- name: GatewayFinalizeWorkspaceDeletion :one
+UPDATE workspaces
+SET
+  failure_reason = NULL,
+  deleted_at = sqlc.arg(deleted_at),
+  updated_at = sqlc.arg(deleted_at)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND state = 'deleting'
+  AND deleted_at IS NULL
+RETURNING *;
+
+-- name: GatewayReserveOrganizationSlug :exec
+INSERT INTO organization_slug_history(slug, organization_id)
+VALUES (sqlc.arg(slug), sqlc.arg(organization_id));
+
+-- name: GatewayResolveOrganizationSlug :one
+SELECT
+  organizations.id,
+  organizations.name,
+  organizations.slug
+FROM organization_slug_history
+JOIN organizations
+  ON organizations.id = organization_slug_history.organization_id
+WHERE organization_slug_history.slug = sqlc.arg(slug);
+
+-- name: GatewayReserveWorkspaceSlug :exec
+INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
+VALUES (
+  sqlc.arg(organization_id),
+  sqlc.arg(workspace_id),
+  sqlc.arg(slug)
+);
+
+-- name: GatewayResolveWorkspaceSlug :one
+SELECT
+  workspaces.id,
+  workspaces.organization_id,
+  workspaces.name,
+  workspaces.slug,
+  workspaces.namespace,
+  workspaces.state,
+  workspaces.failure_reason,
+  workspaces.deleted_at,
+  workspaces.created_at,
+  workspaces.updated_at
+FROM workspace_slug_history
+JOIN workspaces
+  ON workspaces.id = workspace_slug_history.workspace_id
+  AND workspaces.organization_id = workspace_slug_history.organization_id
+WHERE workspace_slug_history.organization_id = sqlc.arg(organization_id)
+  AND workspace_slug_history.slug = sqlc.arg(slug)
+  AND workspaces.deleted_at IS NULL;
+
+-- name: GatewayCreateRoleScope :one
+INSERT INTO role_scopes(
+  role_id,
+  organization_id,
+  workspace_id,
+  display_name,
+  system_role,
+  immutable
+)
+SELECT
+  organization_roles.id,
+  organization_roles.organization_id,
+  sqlc.narg(workspace_id),
+  sqlc.arg(display_name),
+  sqlc.narg(system_role),
+  sqlc.arg(immutable)
+FROM organization_roles
+LEFT JOIN workspaces
+  ON workspaces.id = sqlc.narg(workspace_id)
+  AND workspaces.organization_id = organization_roles.organization_id
+  AND workspaces.deleted_at IS NULL
+WHERE organization_roles.id = sqlc.arg(role_id)
+  AND organization_roles.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.narg(workspace_id)::text IS NULL OR workspaces.id IS NOT NULL)
+RETURNING
+  role_id,
+  organization_id,
+  workspace_id,
+  display_name,
+  system_role,
+  immutable,
+  created_at,
+  updated_at;
+
+-- name: GatewayGetRoleScope :one
+SELECT
+  role_id,
+  organization_id,
+  workspace_id,
+  display_name,
+  system_role,
+  immutable,
+  created_at,
+  updated_at
+FROM role_scopes
+WHERE role_id = sqlc.arg(role_id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayListRoleScopes :many
+SELECT
+  role_id,
+  organization_id,
+  workspace_id,
+  display_name,
+  system_role,
+  immutable,
+  created_at,
+  updated_at
+FROM role_scopes
+WHERE organization_id = sqlc.arg(organization_id)
+ORDER BY workspace_id NULLS FIRST, display_name, role_id;
+
+-- name: GatewayUpdateRoleDisplayName :one
+UPDATE role_scopes
+SET display_name = sqlc.arg(display_name), updated_at = sqlc.arg(updated_at)
+WHERE role_id = sqlc.arg(role_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND NOT immutable
+RETURNING *;
+
+-- name: GatewayDeleteRoleScope :execrows
+DELETE FROM role_scopes
+WHERE role_id = sqlc.arg(role_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND NOT immutable;
+
+-- name: GatewayCreatePermissionGrant :one
+INSERT INTO permission_grants(
+  role_id,
+  organization_id,
+  workspace_id,
+  resource,
+  action,
+  locked
+)
+SELECT
+  role_scopes.role_id,
+  role_scopes.organization_id,
+  sqlc.narg(workspace_id),
+  sqlc.arg(resource),
+  sqlc.arg(action),
+  sqlc.arg(locked)
+FROM role_scopes
+LEFT JOIN workspaces
+  ON workspaces.id = sqlc.narg(workspace_id)
+  AND workspaces.organization_id = role_scopes.organization_id
+  AND workspaces.deleted_at IS NULL
+WHERE role_scopes.role_id = sqlc.arg(role_id)
+  AND role_scopes.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.narg(workspace_id)::text IS NULL OR workspaces.id IS NOT NULL)
+  AND (
+    role_scopes.workspace_id IS NULL
+    OR role_scopes.workspace_id = sqlc.narg(workspace_id)
+  )
+  AND NOT role_scopes.immutable
+RETURNING
+  role_id,
+  organization_id,
+  workspace_id,
+  resource,
+  action,
+  locked,
+  created_at;
+
+-- name: GatewayCreateSystemPermissionGrant :one
+INSERT INTO permission_grants(
+  role_id,
+  organization_id,
+  workspace_id,
+  resource,
+  action,
+  locked
+)
+SELECT
+  role_scopes.role_id,
+  role_scopes.organization_id,
+  sqlc.narg(workspace_id),
+  sqlc.arg(resource),
+  sqlc.arg(action),
+  TRUE
+FROM role_scopes
+LEFT JOIN workspaces
+  ON workspaces.id = sqlc.narg(workspace_id)
+  AND workspaces.organization_id = role_scopes.organization_id
+  AND workspaces.deleted_at IS NULL
+WHERE role_scopes.role_id = sqlc.arg(role_id)
+  AND role_scopes.organization_id = sqlc.arg(organization_id)
+  AND role_scopes.system_role IS NOT NULL
+  AND role_scopes.immutable
+  AND (sqlc.narg(workspace_id)::text IS NULL OR workspaces.id IS NOT NULL)
+  AND (
+    role_scopes.workspace_id IS NULL
+    OR role_scopes.workspace_id = sqlc.narg(workspace_id)
+  )
+RETURNING
+  role_id,
+  organization_id,
+  workspace_id,
+  resource,
+  action,
+  locked,
+  created_at;
+
+-- name: GatewayListPermissionGrants :many
+SELECT
+  role_id,
+  organization_id,
+  workspace_id,
+  resource,
+  action,
+  locked,
+  created_at
+FROM permission_grants
+WHERE role_id = sqlc.arg(role_id)
+  AND organization_id = sqlc.arg(organization_id)
+ORDER BY workspace_id NULLS FIRST, resource, action;
+
+-- name: GatewayDeletePermissionGrants :execrows
+DELETE FROM permission_grants
+USING role_scopes
+WHERE permission_grants.role_id = role_scopes.role_id
+  AND permission_grants.organization_id = role_scopes.organization_id
+  AND permission_grants.role_id = sqlc.arg(role_id)
+  AND permission_grants.organization_id = sqlc.arg(organization_id)
+  AND NOT role_scopes.immutable
+  AND NOT permission_grants.locked;
+
+-- name: GatewayAssignMemberRole :exec
+INSERT INTO member_roles(member_id, role_id, organization_id)
+SELECT members.id, role_scopes.role_id, members.organization_id
+FROM members
+JOIN role_scopes
+  ON role_scopes.role_id = sqlc.arg(role_id)
+  AND role_scopes.organization_id = members.organization_id
+WHERE members.id = sqlc.arg(member_id)
+  AND members.organization_id = sqlc.arg(organization_id)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListMemberRoles :many
+SELECT member_id, role_id, organization_id, created_at
+FROM member_roles
+WHERE member_id = sqlc.arg(member_id)
+  AND organization_id = sqlc.arg(organization_id)
+ORDER BY role_id;
+
+-- name: GatewayUnassignMemberRole :execrows
+DELETE FROM member_roles
+WHERE member_id = sqlc.arg(member_id)
+  AND role_id = sqlc.arg(role_id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayAssignTeamRole :exec
+INSERT INTO team_roles(team_id, role_id, organization_id)
+SELECT teams.id, role_scopes.role_id, teams.organization_id
+FROM teams
+JOIN role_scopes
+  ON role_scopes.role_id = sqlc.arg(role_id)
+  AND role_scopes.organization_id = teams.organization_id
+WHERE teams.id = sqlc.arg(team_id)
+  AND teams.organization_id = sqlc.arg(organization_id)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListTeamRoles :many
+SELECT team_id, role_id, organization_id, created_at
+FROM team_roles
+WHERE team_id = sqlc.arg(team_id)
+  AND organization_id = sqlc.arg(organization_id)
+ORDER BY role_id;
+
+-- name: GatewayUnassignTeamRole :execrows
+DELETE FROM team_roles
+WHERE team_id = sqlc.arg(team_id)
+  AND role_id = sqlc.arg(role_id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayAssignInvitationRole :exec
+INSERT INTO invitation_roles(invitation_id, role_id, organization_id)
+SELECT invitations.id, role_scopes.role_id, invitations.organization_id
+FROM invitations
+JOIN role_scopes
+  ON role_scopes.role_id = sqlc.arg(role_id)
+  AND role_scopes.organization_id = invitations.organization_id
+WHERE invitations.id = sqlc.arg(invitation_id)
+  AND invitations.organization_id = sqlc.arg(organization_id)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListInvitationRoles :many
+SELECT invitation_id, role_id, organization_id, created_at
+FROM invitation_roles
+WHERE invitation_id = sqlc.arg(invitation_id)
+  AND organization_id = sqlc.arg(organization_id)
+ORDER BY role_id;
+
+-- name: GatewayUnassignInvitationRole :execrows
+DELETE FROM invitation_roles
+WHERE invitation_id = sqlc.arg(invitation_id)
+  AND role_id = sqlc.arg(role_id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayAssignInvitationTeam :exec
+INSERT INTO invitation_teams(invitation_id, team_id, organization_id)
+SELECT invitations.id, teams.id, invitations.organization_id
+FROM invitations
+JOIN teams ON teams.id = sqlc.arg(team_id)
+  AND teams.organization_id = invitations.organization_id
+WHERE invitations.id = sqlc.arg(invitation_id)
+  AND invitations.organization_id = sqlc.arg(organization_id)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListInvitationTeams :many
+SELECT invitation_id, team_id, organization_id, created_at
+FROM invitation_teams
+WHERE invitation_id = sqlc.arg(invitation_id)
+  AND organization_id = sqlc.arg(organization_id)
+ORDER BY team_id;
+
+-- name: GatewayUnassignInvitationTeam :execrows
+DELETE FROM invitation_teams
+WHERE invitation_id = sqlc.arg(invitation_id)
+  AND team_id = sqlc.arg(team_id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewaySetMemberDisabledAt :execrows
+UPDATE members
+SET disabled_at = sqlc.narg(disabled_at)
+WHERE id = sqlc.arg(member_id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayUpsertSocialAdmissionPolicy :one
+INSERT INTO social_admission_policies(organization_id, enabled)
+VALUES (sqlc.arg(organization_id), sqlc.arg(enabled))
+ON CONFLICT (organization_id) DO UPDATE
+SET
+  enabled = EXCLUDED.enabled,
+  updated_at = sqlc.arg(updated_at)
+RETURNING organization_id, enabled, created_at, updated_at;
+
+-- name: GatewayGetSocialAdmissionPolicy :one
+SELECT organization_id, enabled, created_at, updated_at
+FROM social_admission_policies
+WHERE organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayAddSocialAdmissionGoogleDomain :exec
+INSERT INTO social_admission_google_domains(organization_id, domain)
+VALUES (sqlc.arg(organization_id), sqlc.arg(domain))
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListSocialAdmissionGoogleDomains :many
+SELECT organization_id, domain
+FROM social_admission_google_domains
+WHERE organization_id = sqlc.arg(organization_id)
+ORDER BY domain;
+
+-- name: GatewayRemoveSocialAdmissionGoogleDomain :execrows
+DELETE FROM social_admission_google_domains
+WHERE organization_id = sqlc.arg(organization_id)
+  AND domain = sqlc.arg(domain);
+
+-- name: GatewayCreateSocialAdmissionGithubRule :one
+INSERT INTO social_admission_github_rules(
+  id,
+  organization_id,
+  github_organization,
+  github_team
+)
+VALUES (
+  sqlc.arg(id),
+  sqlc.arg(organization_id),
+  sqlc.arg(github_organization),
+  sqlc.narg(github_team)
+)
+RETURNING id, organization_id, github_organization, github_team;
+
+-- name: GatewayListSocialAdmissionGithubRules :many
+SELECT id, organization_id, github_organization, github_team
+FROM social_admission_github_rules
+WHERE organization_id = sqlc.arg(organization_id)
+ORDER BY github_organization, github_team, id;
+
+-- name: GatewayDeleteSocialAdmissionGithubRule :execrows
+DELETE FROM social_admission_github_rules
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayAddSocialAdmissionDefaultRole :exec
+INSERT INTO social_admission_default_roles(organization_id, role_id)
+SELECT role_scopes.organization_id, role_scopes.role_id
+FROM role_scopes
+WHERE role_scopes.organization_id = sqlc.arg(organization_id)
+  AND role_scopes.role_id = sqlc.arg(role_id)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListSocialAdmissionDefaultRoles :many
+SELECT organization_id, role_id
+FROM social_admission_default_roles
+WHERE organization_id = sqlc.arg(organization_id)
+ORDER BY role_id;
+
+-- name: GatewayRemoveSocialAdmissionDefaultRole :execrows
+DELETE FROM social_admission_default_roles
+WHERE organization_id = sqlc.arg(organization_id)
+  AND role_id = sqlc.arg(role_id);
+
+-- name: GatewayAddSocialAdmissionDefaultTeam :exec
+INSERT INTO social_admission_default_teams(organization_id, team_id)
+SELECT teams.organization_id, teams.id
+FROM teams
+WHERE teams.organization_id = sqlc.arg(organization_id)
+  AND teams.id = sqlc.arg(team_id)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListSocialAdmissionDefaultTeams :many
+SELECT organization_id, team_id
+FROM social_admission_default_teams
+WHERE organization_id = sqlc.arg(organization_id)
+ORDER BY team_id;
+
+-- name: GatewayRemoveSocialAdmissionDefaultTeam :execrows
+DELETE FROM social_admission_default_teams
+WHERE organization_id = sqlc.arg(organization_id)
+  AND team_id = sqlc.arg(team_id);
+
+-- name: GatewayCreateAPIKeyScope :one
+INSERT INTO api_key_scopes(
+  api_key_id,
+  organization_id,
+  workspace_id,
+  creator_user_id
+)
+SELECT
+  apikeys.id,
+  workspaces.organization_id,
+  workspaces.id,
+  creator.user_id
+FROM apikeys
+JOIN workspaces
+  ON workspaces.id = sqlc.arg(workspace_id)
+  AND workspaces.organization_id = sqlc.arg(organization_id)
+  AND workspaces.deleted_at IS NULL
+JOIN members AS creator
+  ON creator.organization_id = workspaces.organization_id
+  AND creator.user_id = sqlc.arg(creator_user_id)
+  AND creator.disabled_at IS NULL
+WHERE apikeys.id = sqlc.arg(api_key_id)
+  AND apikeys.reference_id = workspaces.organization_id
+RETURNING
+  api_key_id,
+  organization_id,
+  workspace_id,
+  creator_user_id,
+  created_at;
+
+-- name: GatewayGetAPIKeyScope :one
+SELECT
+  api_key_scopes.api_key_id,
+  api_key_scopes.organization_id,
+  api_key_scopes.workspace_id,
+  api_key_scopes.creator_user_id,
+  api_key_scopes.created_at
+FROM api_key_scopes
+JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
+  AND apikeys.reference_id = api_key_scopes.organization_id
+JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
+  AND workspaces.organization_id = api_key_scopes.organization_id
+  AND workspaces.deleted_at IS NULL
+WHERE api_key_scopes.api_key_id = sqlc.arg(api_key_id)
+  AND api_key_scopes.organization_id = sqlc.arg(organization_id)
+  AND api_key_scopes.workspace_id = sqlc.arg(workspace_id);
+
+-- name: GatewayListAPIKeyScopes :many
+SELECT
+  api_key_scopes.api_key_id,
+  api_key_scopes.organization_id,
+  api_key_scopes.workspace_id,
+  api_key_scopes.creator_user_id,
+  api_key_scopes.created_at
+FROM api_key_scopes
+JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
+  AND apikeys.reference_id = api_key_scopes.organization_id
+JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
+  AND workspaces.organization_id = api_key_scopes.organization_id
+  AND workspaces.deleted_at IS NULL
+WHERE api_key_scopes.organization_id = sqlc.arg(organization_id)
+  AND api_key_scopes.workspace_id = sqlc.arg(workspace_id)
+ORDER BY api_key_scopes.created_at, api_key_scopes.api_key_id;
+
+-- name: GatewayDeleteScopedAPIKey :execrows
+DELETE FROM apikeys
+USING api_key_scopes
+WHERE apikeys.id = api_key_scopes.api_key_id
+  AND apikeys.reference_id = api_key_scopes.organization_id
+  AND api_key_scopes.api_key_id = sqlc.arg(api_key_id)
+  AND api_key_scopes.organization_id = sqlc.arg(organization_id)
+  AND api_key_scopes.workspace_id = sqlc.arg(workspace_id);
+
+-- name: GatewayCreateAgentOwner :one
+INSERT INTO agent_owners(
+  organization_id,
+  workspace_id,
+  agent_name,
+  creator_user_id,
+  owner_user_id
+)
+SELECT
+  workspaces.organization_id,
+  workspaces.id,
+  sqlc.arg(agent_name),
+  creator.user_id,
+  owner_member.user_id
+FROM workspaces
+JOIN members AS creator
+  ON creator.organization_id = workspaces.organization_id
+  AND creator.user_id = sqlc.arg(creator_user_id)
+  AND creator.disabled_at IS NULL
+JOIN members AS owner_member
+  ON owner_member.organization_id = workspaces.organization_id
+  AND owner_member.user_id = sqlc.arg(owner_user_id)
+  AND owner_member.disabled_at IS NULL
+WHERE workspaces.id = sqlc.arg(workspace_id)
+  AND workspaces.organization_id = sqlc.arg(organization_id)
+  AND workspaces.deleted_at IS NULL
+RETURNING
+  agent_owners.organization_id,
+  agent_owners.workspace_id,
+  agent_owners.agent_name,
+  agent_owners.creator_user_id,
+  agent_owners.owner_user_id,
+  agent_owners.created_at,
+  agent_owners.updated_at;
+
+-- name: GatewayGetAgentOwner :one
+SELECT
+  organization_id,
+  workspace_id,
+  agent_name,
+  creator_user_id,
+  owner_user_id,
+  created_at,
+  updated_at
+FROM agent_owners
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name);
+
+-- name: GatewayTransferAgentOwner :one
+UPDATE agent_owners
+SET
+  owner_user_id = members.user_id,
+  updated_at = sqlc.arg(updated_at)
+FROM members, workspaces
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND agent_owners.organization_id = sqlc.arg(organization_id)
+  AND workspaces.id = agent_owners.workspace_id
+  AND workspaces.organization_id = agent_owners.organization_id
+  AND workspaces.deleted_at IS NULL
+  AND members.organization_id = agent_owners.organization_id
+  AND members.user_id = sqlc.arg(owner_user_id)
+  AND members.disabled_at IS NULL
+RETURNING
+  agent_owners.organization_id,
+  agent_owners.workspace_id,
+  agent_owners.agent_name,
+  agent_owners.creator_user_id,
+  agent_owners.owner_user_id,
+  agent_owners.created_at,
+  agent_owners.updated_at;
+
+-- name: GatewayCreateAgentShare :one
+INSERT INTO agent_shares(
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  target_user_id,
+  target_team_id,
+  created_by
+)
+SELECT
+  sqlc.arg(id),
+  agent_owners.organization_id,
+  agent_owners.workspace_id,
+  agent_owners.agent_name,
+  target_member.user_id,
+  target_team.id,
+  creator.user_id
+FROM agent_owners
+JOIN workspaces
+  ON workspaces.id = agent_owners.workspace_id
+  AND workspaces.organization_id = agent_owners.organization_id
+  AND workspaces.deleted_at IS NULL
+JOIN members AS creator
+  ON creator.organization_id = agent_owners.organization_id
+  AND creator.user_id = sqlc.arg(created_by)
+  AND creator.disabled_at IS NULL
+LEFT JOIN members AS target_member
+  ON target_member.organization_id = agent_owners.organization_id
+  AND target_member.user_id = sqlc.narg(target_user_id)
+  AND target_member.disabled_at IS NULL
+LEFT JOIN teams AS target_team
+  ON target_team.organization_id = agent_owners.organization_id
+  AND target_team.id = sqlc.narg(target_team_id)
+WHERE agent_owners.organization_id = sqlc.arg(organization_id)
+  AND agent_owners.workspace_id = sqlc.arg(workspace_id)
+  AND agent_owners.agent_name = sqlc.arg(agent_name)
+  AND num_nonnulls(target_member.user_id, target_team.id) = 1
+RETURNING
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  target_user_id,
+  target_team_id,
+  created_by,
+  created_at;
+
+-- name: GatewayListAgentShares :many
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  target_user_id,
+  target_team_id,
+  created_by,
+  created_at
+FROM agent_shares
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+ORDER BY target_user_id NULLS LAST, target_team_id NULLS LAST, id;
+
+-- name: GatewayDeleteAgentShare :execrows
+DELETE FROM agent_shares
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id);
+
+-- name: GatewayAddAgentShareGrant :execrows
+INSERT INTO agent_share_grants(share_id, capability)
+SELECT agent_shares.id, sqlc.arg(capability)
+FROM agent_shares
+JOIN workspaces
+  ON workspaces.id = agent_shares.workspace_id
+  AND workspaces.organization_id = agent_shares.organization_id
+  AND workspaces.deleted_at IS NULL
+WHERE agent_shares.id = sqlc.arg(share_id)
+  AND agent_shares.organization_id = sqlc.arg(organization_id)
+  AND agent_shares.workspace_id = sqlc.arg(workspace_id)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayListAgentShareGrants :many
+SELECT agent_share_grants.share_id, agent_share_grants.capability
+FROM agent_share_grants
+JOIN agent_shares ON agent_shares.id = agent_share_grants.share_id
+WHERE agent_share_grants.share_id = sqlc.arg(share_id)
+  AND agent_shares.organization_id = sqlc.arg(organization_id)
+  AND agent_shares.workspace_id = sqlc.arg(workspace_id)
+ORDER BY agent_share_grants.capability;
+
+-- name: GatewayRemoveAgentShareGrant :execrows
+DELETE FROM agent_share_grants
+USING agent_shares
+WHERE agent_share_grants.share_id = agent_shares.id
+  AND agent_shares.id = sqlc.arg(share_id)
+  AND agent_shares.organization_id = sqlc.arg(organization_id)
+  AND agent_shares.workspace_id = sqlc.arg(workspace_id)
+  AND agent_share_grants.capability = sqlc.arg(capability);
+
+-- name: GatewayCreateCleanupJob :one
+INSERT INTO cleanup_jobs(
+  id,
+  organization_id,
+  workspace_id,
+  operation,
+  target_type,
+  target_id,
+  payload
+)
+VALUES (
+  sqlc.arg(id),
+  sqlc.arg(organization_id),
+  sqlc.narg(workspace_id),
+  sqlc.arg(operation),
+  sqlc.arg(target_type),
+  sqlc.arg(target_id),
+  sqlc.arg(payload)
+)
+RETURNING
+  id,
+  organization_id,
+  workspace_id,
+  operation,
+  target_type,
+  target_id,
+  state,
+  payload,
+  attempts,
+  next_attempt_at,
+  lease_token,
+  lease_expires_at,
+  last_error,
+  created_at,
+  updated_at,
+  completed_at;
+
+-- name: GatewayGetCleanupJob :one
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  operation,
+  target_type,
+  target_id,
+  state,
+  payload,
+  attempts,
+  next_attempt_at,
+  lease_token,
+  lease_expires_at,
+  last_error,
+  created_at,
+  updated_at,
+  completed_at
+FROM cleanup_jobs
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayClaimCleanupJob :one
+WITH next_job AS (
+  SELECT id
+  FROM cleanup_jobs
+  WHERE (
+      state IN ('pending', 'failed')
+      AND next_attempt_at <= sqlc.arg(now_at)
+    ) OR (
+      state = 'running'
+      AND lease_expires_at <= sqlc.arg(now_at)
+    )
+  ORDER BY next_attempt_at, created_at, id
+  FOR UPDATE SKIP LOCKED
+  LIMIT 1
+)
+UPDATE cleanup_jobs
+SET
+  state = 'running',
+  attempts = attempts + 1,
+  lease_token = sqlc.arg(lease_token),
+  lease_expires_at = sqlc.arg(lease_expires_at),
+  updated_at = sqlc.arg(now_at)
+FROM next_job
+WHERE cleanup_jobs.id = next_job.id
+RETURNING
+  cleanup_jobs.id,
+  cleanup_jobs.organization_id,
+  cleanup_jobs.workspace_id,
+  cleanup_jobs.operation,
+  cleanup_jobs.target_type,
+  cleanup_jobs.target_id,
+  cleanup_jobs.state,
+  cleanup_jobs.payload,
+  cleanup_jobs.attempts,
+  cleanup_jobs.next_attempt_at,
+  cleanup_jobs.lease_token,
+  cleanup_jobs.lease_expires_at,
+  cleanup_jobs.last_error,
+  cleanup_jobs.created_at,
+  cleanup_jobs.updated_at,
+  cleanup_jobs.completed_at;
+
+-- name: GatewayCompleteCleanupJob :execrows
+UPDATE cleanup_jobs
+SET
+  state = 'succeeded',
+  lease_token = NULL,
+  lease_expires_at = NULL,
+  last_error = NULL,
+  updated_at = sqlc.arg(completed_at),
+  completed_at = sqlc.arg(completed_at)
+WHERE id = sqlc.arg(id)
+  AND state = 'running'
+  AND lease_token = sqlc.arg(lease_token);
+
+-- name: GatewayRetryCleanupJob :execrows
+UPDATE cleanup_jobs
+SET
+  state = 'failed',
+  next_attempt_at = sqlc.arg(next_attempt_at),
+  lease_token = NULL,
+  lease_expires_at = NULL,
+  last_error = sqlc.arg(last_error),
+  updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND state = 'running'
+  AND lease_token = sqlc.arg(lease_token);
+
+-- name: GatewayCreateAuditEvent :one
+INSERT INTO audit_events(
+  id,
+  organization_id,
+  workspace_id,
+  actor_type,
+  actor_id,
+  target_type,
+  target_id,
+  action,
+  result,
+  before,
+  after,
+  automatic_cascade,
+  cleanup_job_id,
+  ip_address,
+  user_agent
+)
+VALUES (
+  sqlc.arg(id),
+  sqlc.arg(organization_id),
+  sqlc.narg(workspace_id),
+  sqlc.arg(actor_type),
+  sqlc.narg(actor_id),
+  sqlc.arg(target_type),
+  sqlc.arg(target_id),
+  sqlc.arg(action),
+  sqlc.arg(result),
+  sqlc.narg(before),
+  sqlc.narg(after),
+  sqlc.arg(automatic_cascade),
+  sqlc.narg(cleanup_job_id),
+  sqlc.narg(ip_address),
+  sqlc.narg(user_agent)
+)
+RETURNING
+  id,
+  organization_id,
+  workspace_id,
+  actor_type,
+  actor_id,
+  target_type,
+  target_id,
+  action,
+  result,
+  before,
+  after,
+  automatic_cascade,
+  cleanup_job_id,
+  ip_address,
+  user_agent,
+  created_at;
+
+-- name: GatewayGetAuditEvent :one
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  actor_type,
+  actor_id,
+  target_type,
+  target_id,
+  action,
+  result,
+  before,
+  after,
+  automatic_cascade,
+  cleanup_job_id,
+  ip_address,
+  user_agent,
+  created_at
+FROM audit_events
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id);
+
+-- name: GatewayListAuditEvents :many
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  actor_type,
+  actor_id,
+  target_type,
+  target_id,
+  action,
+  result,
+  before,
+  after,
+  automatic_cascade,
+  cleanup_job_id,
+  ip_address,
+  user_agent,
+  created_at
+FROM audit_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND (created_at, id) < (sqlc.arg(before_created_at), sqlc.arg(before_id))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListWorkspaceAuditEvents :many
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  actor_type,
+  actor_id,
+  target_type,
+  target_id,
+  action,
+  result,
+  before,
+  after,
+  automatic_cascade,
+  cleanup_job_id,
+  ip_address,
+  user_agent,
+  created_at
+FROM audit_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND (created_at, id) < (sqlc.arg(before_created_at), sqlc.arg(before_id))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayDeleteExpiredAuditEvents :execrows
+DELETE FROM audit_events
+WHERE created_at < sqlc.arg(expires_before);
+
+-- name: GatewayUpsertLastAccessibleContext :one
+INSERT INTO last_accessible_contexts(
+  user_id,
+  organization_id,
+  workspace_id,
+  route
+)
+VALUES (
+  sqlc.arg(user_id),
+  sqlc.arg(organization_id),
+  sqlc.narg(workspace_id),
+  sqlc.arg(route)
+)
+ON CONFLICT (user_id, organization_id) DO UPDATE
+SET
+  workspace_id = EXCLUDED.workspace_id,
+  route = EXCLUDED.route,
+  updated_at = sqlc.arg(updated_at)
+RETURNING user_id, organization_id, workspace_id, route, updated_at;
+
+-- name: GatewayGetLastAccessibleContext :one
+SELECT user_id, organization_id, workspace_id, route, updated_at
+FROM last_accessible_contexts
+WHERE user_id = sqlc.arg(user_id)
+  AND organization_id = sqlc.arg(organization_id);
+
 -- name: GatewayListFileEventsAggregated :many
 SELECT
   agent_name,

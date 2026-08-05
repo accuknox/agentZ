@@ -77,7 +77,7 @@ async function UpdateSandboxContent({ name }: { name: string }) {
     packages: sandbox.packages ?? [],
     allowedHosts: sandbox.allowed_hosts ?? [],
     mcpConnectionRefs,
-    skills: sandbox.skills,
+    skills: sandbox.skills.map((skill) => skill.name),
     inference: sandbox.inference,
   })
 
@@ -93,7 +93,7 @@ async function UpdateSandboxContent({ name }: { name: string }) {
         initialPackages={sandbox.packages ?? []}
         initialAllowedHosts={sandbox.allowed_hosts ?? []}
         initialMcpConnectionRefs={mcpConnectionRefs}
-        initialSkills={sandbox.skills}
+        initialSkills={sandbox.skills.map((skill) => skill.name)}
         initialInference={sandbox.inference}
         immutableSkills={skills.skills ?? []}
         inferenceProviders={providers.providers ?? []}
@@ -113,7 +113,7 @@ async function listSandboxSecretHostSuggestions(sandboxName: string): Promise<Se
     }
 
     const agentNames = agentsResult.agents
-      .filter((agent) => agent.sandboxName === sandboxName)
+      .filter((agent) => agent.sandbox.name === sandboxName)
       .map((agent) => agent.name)
     if (agentNames.length === 0) {
       return []

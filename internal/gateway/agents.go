@@ -588,7 +588,7 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 }
 
 func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.ResourceReference) []gatewayapi.FieldError {
-	if ref.Scope != gatewayapi.Organisation {
+	if ref.Scope != gatewayapi.ResourceScopeOrganisation {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "sandbox.scope",
 			Message: "workspace scope is not available on the current tenant path",

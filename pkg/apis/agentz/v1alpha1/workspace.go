@@ -27,6 +27,22 @@ const (
 	WorkspaceConditionDegraded = "Degraded"
 )
 
+const (
+	// WorkspaceReasonProvisioning indicates namespace provisioning is active.
+	WorkspaceReasonProvisioning = "Provisioning"
+	// WorkspaceReasonNamespaceReady indicates the namespace is ready.
+	WorkspaceReasonNamespaceReady = "NamespaceReady"
+	// WorkspaceReasonProvisioningFailed indicates namespace provisioning failed.
+	WorkspaceReasonProvisioningFailed = "ProvisioningFailed"
+)
+
+const (
+	// WorkspaceNameLabel marks resources that belong to a Workspace.
+	WorkspaceNameLabel = "agentz.accuknox.com/workspace"
+	// WorkspaceIDAnnotation stores the immutable relational Workspace ID.
+	WorkspaceIDAnnotation = "agentz.accuknox.com/workspace-id"
+)
+
 // WorkspaceState summarizes the Workspace infrastructure lifecycle.
 // +kubebuilder:validation:Enum=Provisioning;Ready;Failed;Deleting
 type WorkspaceState string
@@ -42,7 +58,7 @@ const (
 	WorkspaceStateDeleting WorkspaceState = "Deleting"
 )
 
-// WorkspaceSpec defines the stable identity of a Workspace.
+// WorkspaceSpec defines the identity and provisioning attempt of a Workspace.
 type WorkspaceSpec struct {
 	// WorkspaceID is the immutable relational Workspace ID.
 	// +kubebuilder:validation:MinLength=1
@@ -55,6 +71,12 @@ type WorkspaceSpec struct {
 	// +kubebuilder:validation:MaxLength=128
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="organizationID is immutable"
 	OrganizationID string `json:"organizationID"`
+
+	// ProvisioningAttempt is incremented to retry failed provisioning.
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="provisioningAttempt cannot decrease"
+	ProvisioningAttempt int64 `json:"provisioningAttempt"`
 }
 
 // WorkspaceStatus defines the observed Workspace infrastructure state.
@@ -67,6 +89,10 @@ type WorkspaceStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
+	// ObservedAttempt is the latest provisioning attempt processed.
+	// +optional
+	ObservedAttempt int64 `json:"observedAttempt,omitempty"`
+
 	// State summarizes the Workspace infrastructure lifecycle.
 	// +optional
 	State WorkspaceState `json:"state,omitempty"`
@@ -76,6 +102,24 @@ type WorkspaceStatus struct {
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// SetCondition adds or updates a condition in the status.
+func (s *WorkspaceStatus) SetCondition(cond metav1.Condition) {
+	cond.LastTransitionTime = metav1.Now()
+	for i, cur := range s.Conditions {
+		if cur.Type != cond.Type {
+			continue
+		}
+		if cur.Status == cond.Status && cur.Reason == cond.Reason &&
+			cur.Message == cond.Message &&
+			cur.ObservedGeneration == cond.ObservedGeneration {
+			cond.LastTransitionTime = cur.LastTransitionTime
+		}
+		s.Conditions[i] = cond
+		return
+	}
+	s.Conditions = append(s.Conditions, cond)
 }
 
 // +genclient

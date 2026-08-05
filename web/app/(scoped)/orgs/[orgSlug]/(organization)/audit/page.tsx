@@ -86,7 +86,10 @@ export default async function AuditPage({
     ...filters,
     limit: 50,
   } satisfies NonNullable<ListAuditEventsData["query"]>
-  const audit = await listOrganizationAuditEvents(query)
+  const audit = await listOrganizationAuditEvents(orgSlug, query)
+  if (!audit) {
+    return null
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-4">

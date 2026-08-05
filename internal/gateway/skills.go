@@ -465,7 +465,7 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 	for i, ref := range refs {
 		name := ref.Name
 		field := fmt.Sprintf("skills[%d].name", i)
-		if ref.Scope != gatewayapi.Organisation {
+		if ref.Scope != gatewayapi.ResourceScopeOrganisation {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("skills[%d].scope", i),
 				Message: "workspace scope is not available on the current tenant path",

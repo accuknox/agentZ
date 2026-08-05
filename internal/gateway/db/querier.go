@@ -18,8 +18,8 @@ type Querier interface {
 	GatewayAgentExists(ctx context.Context, arg GatewayAgentExistsParams) (bool, error)
 	GatewayAssignInvitationRole(ctx context.Context, arg GatewayAssignInvitationRoleParams) error
 	GatewayAssignInvitationTeam(ctx context.Context, arg GatewayAssignInvitationTeamParams) error
-	GatewayAssignMemberRole(ctx context.Context, arg GatewayAssignMemberRoleParams) error
 	GatewayAssignTeamRole(ctx context.Context, arg GatewayAssignTeamRoleParams) error
+	GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayAssignWorkspaceAdminsParams) (int64, error)
 	GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCleanupJobParams) (CleanupJob, error)
 	GatewayCompleteCleanupJob(ctx context.Context, arg GatewayCompleteCleanupJobParams) (int64, error)
 	GatewayCreateAPIKeyScope(ctx context.Context, arg GatewayCreateAPIKeyScopeParams) (ApiKeyScope, error)
@@ -32,7 +32,8 @@ type Querier interface {
 	GatewayCreateRoleScope(ctx context.Context, arg GatewayCreateRoleScopeParams) (RoleScope, error)
 	GatewayCreateSocialAdmissionGithubRule(ctx context.Context, arg GatewayCreateSocialAdmissionGithubRuleParams) (SocialAdmissionGithubRule, error)
 	GatewayCreateSystemPermissionGrant(ctx context.Context, arg GatewayCreateSystemPermissionGrantParams) (PermissionGrant, error)
-	GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) (GatewayCreateWorkspaceRow, error)
+	GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) error
+	GatewayCreateWorkspaceAdminRole(ctx context.Context, arg GatewayCreateWorkspaceAdminRoleParams) (RoleScope, error)
 	GatewayDeleteAgent(ctx context.Context, arg GatewayDeleteAgentParams) (int64, error)
 	GatewayDeleteAgentShare(ctx context.Context, arg GatewayDeleteAgentShareParams) (int64, error)
 	GatewayDeleteExpiredAuditEvents(ctx context.Context, expiresBefore pgtype.Timestamptz) (int64, error)
@@ -53,8 +54,10 @@ type Querier interface {
 	GatewayGetSocialAdmissionPolicy(ctx context.Context, organizationID string) (SocialAdmissionPolicy, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)
 	GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspaceParams) (Workspace, error)
+	GatewayIsActiveOrganizationMember(ctx context.Context, arg GatewayIsActiveOrganizationMemberParams) (bool, error)
 	GatewayIsActiveSuperadmin(ctx context.Context, arg GatewayIsActiveSuperadminParams) (bool, error)
 	GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAPIKeyScopesParams) ([]ApiKeyScope, error)
+	GatewayListAccessibleWorkspaces(ctx context.Context, arg GatewayListAccessibleWorkspacesParams) ([]GatewayListAccessibleWorkspacesRow, error)
 	GatewayListAgentShareGrants(ctx context.Context, arg GatewayListAgentShareGrantsParams) ([]AgentShareGrant, error)
 	GatewayListAgentShares(ctx context.Context, arg GatewayListAgentSharesParams) ([]AgentShare, error)
 	GatewayListAgents(ctx context.Context, arg GatewayListAgentsParams) ([]Agent, error)
@@ -74,6 +77,7 @@ type Querier interface {
 	GatewayListPermissionGrants(ctx context.Context, arg GatewayListPermissionGrantsParams) ([]PermissionGrant, error)
 	GatewayListProcessEvents(ctx context.Context, arg GatewayListProcessEventsParams) ([]GatewayListProcessEventsRow, error)
 	GatewayListProcessEventsAggregated(ctx context.Context, arg GatewayListProcessEventsAggregatedParams) ([]GatewayListProcessEventsAggregatedRow, error)
+	GatewayListProvisioningWorkspaces(ctx context.Context) ([]Workspace, error)
 	GatewayListRoleScopes(ctx context.Context, organizationID string) ([]RoleScope, error)
 	GatewayListSocialAdmissionDefaultRoles(ctx context.Context, organizationID string) ([]SocialAdmissionDefaultRole, error)
 	GatewayListSocialAdmissionDefaultTeams(ctx context.Context, organizationID string) ([]SocialAdmissionDefaultTeam, error)
@@ -83,7 +87,8 @@ type Querier interface {
 	GatewayListTeamRoles(ctx context.Context, arg GatewayListTeamRolesParams) ([]TeamRole, error)
 	GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]GatewayListTraceSessionsRow, error)
 	GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]GatewayListTracesRow, error)
-	GatewayListWorkspaces(ctx context.Context, organizationID string) ([]Workspace, error)
+	GatewayListWorkspaceAdminCandidates(ctx context.Context, arg GatewayListWorkspaceAdminCandidatesParams) ([]GatewayListWorkspaceAdminCandidatesRow, error)
+	GatewayLockOrganization(ctx context.Context, organizationID string) (GatewayLockOrganizationRow, error)
 	GatewayRemoveAgentShareGrant(ctx context.Context, arg GatewayRemoveAgentShareGrantParams) (int64, error)
 	GatewayRemoveSocialAdmissionDefaultRole(ctx context.Context, arg GatewayRemoveSocialAdmissionDefaultRoleParams) (int64, error)
 	GatewayRemoveSocialAdmissionDefaultTeam(ctx context.Context, arg GatewayRemoveSocialAdmissionDefaultTeamParams) (int64, error)
@@ -92,17 +97,18 @@ type Querier interface {
 	GatewayReserveOrganizationSlug(ctx context.Context, arg GatewayReserveOrganizationSlugParams) error
 	GatewayReserveWorkspaceSlug(ctx context.Context, arg GatewayReserveWorkspaceSlugParams) error
 	GatewayResolveOrganizationSlug(ctx context.Context, slug string) (GatewayResolveOrganizationSlugRow, error)
-	GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (Workspace, error)
+	GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (GatewayResolveWorkspaceSlugRow, error)
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)
+	GatewayRetryWorkspaceProvisioning(ctx context.Context, arg GatewayRetryWorkspaceProvisioningParams) (int64, error)
 	GatewaySetMemberDisabledAt(ctx context.Context, arg GatewaySetMemberDisabledAtParams) (int64, error)
 	GatewayTransferAgentOwner(ctx context.Context, arg GatewayTransferAgentOwnerParams) (AgentOwner, error)
+	GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error)
 	GatewayUnassignInvitationRole(ctx context.Context, arg GatewayUnassignInvitationRoleParams) (int64, error)
 	GatewayUnassignInvitationTeam(ctx context.Context, arg GatewayUnassignInvitationTeamParams) (int64, error)
 	GatewayUnassignMemberRole(ctx context.Context, arg GatewayUnassignMemberRoleParams) (int64, error)
 	GatewayUnassignTeamRole(ctx context.Context, arg GatewayUnassignTeamRoleParams) (int64, error)
 	GatewayUpdateRoleDisplayName(ctx context.Context, arg GatewayUpdateRoleDisplayNameParams) (RoleScope, error)
-	GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpdateWorkspaceNameParams) (Workspace, error)
-	GatewayUpdateWorkspaceState(ctx context.Context, arg GatewayUpdateWorkspaceStateParams) (Workspace, error)
+	GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpdateWorkspaceNameParams) (GatewayUpdateWorkspaceNameRow, error)
 	GatewayUpsertLastAccessibleContext(ctx context.Context, arg GatewayUpsertLastAccessibleContextParams) (LastAccessibleContext, error)
 	GatewayUpsertSocialAdmissionPolicy(ctx context.Context, arg GatewayUpsertSocialAdmissionPolicyParams) (SocialAdmissionPolicy, error)
 }

@@ -166,29 +166,6 @@ func (q *Queries) GatewayAssignInvitationTeam(ctx context.Context, arg GatewayAs
 	return err
 }
 
-const gatewayAssignMemberRole = `-- name: GatewayAssignMemberRole :exec
-INSERT INTO member_roles(member_id, role_id, organization_id)
-SELECT members.id, role_scopes.role_id, members.organization_id
-FROM members
-JOIN role_scopes
-  ON role_scopes.role_id = $1
-  AND role_scopes.organization_id = members.organization_id
-WHERE members.id = $2
-  AND members.organization_id = $3
-ON CONFLICT DO NOTHING
-`
-
-type GatewayAssignMemberRoleParams struct {
-	RoleID         string `json:"role_id"`
-	MemberID       string `json:"member_id"`
-	OrganizationID string `json:"organization_id"`
-}
-
-func (q *Queries) GatewayAssignMemberRole(ctx context.Context, arg GatewayAssignMemberRoleParams) error {
-	_, err := q.db.Exec(ctx, gatewayAssignMemberRole, arg.RoleID, arg.MemberID, arg.OrganizationID)
-	return err
-}
-
 const gatewayAssignTeamRole = `-- name: GatewayAssignTeamRole :exec
 INSERT INTO team_roles(team_id, role_id, organization_id)
 SELECT teams.id, role_scopes.role_id, teams.organization_id
@@ -210,6 +187,54 @@ type GatewayAssignTeamRoleParams struct {
 func (q *Queries) GatewayAssignTeamRole(ctx context.Context, arg GatewayAssignTeamRoleParams) error {
 	_, err := q.db.Exec(ctx, gatewayAssignTeamRole, arg.RoleID, arg.TeamID, arg.OrganizationID)
 	return err
+}
+
+const gatewayAssignWorkspaceAdmins = `-- name: GatewayAssignWorkspaceAdmins :execrows
+INSERT INTO member_roles(member_id, role_id, organization_id)
+SELECT members.id, role_scopes.role_id, members.organization_id
+FROM members
+JOIN role_scopes
+  ON role_scopes.role_id = $1
+  AND role_scopes.organization_id = members.organization_id
+WHERE members.id = ANY($2::text[])
+  AND members.organization_id = $3
+  AND members.disabled_at IS NULL
+  AND role_scopes.workspace_id = $4
+  AND role_scopes.system_role = 'workspace_admin'
+  AND role_scopes.immutable
+  AND NOT EXISTS (
+    SELECT 1
+    FROM member_roles AS superadmin_roles
+    JOIN role_scopes AS superadmin_role_scopes
+      ON superadmin_role_scopes.role_id = superadmin_roles.role_id
+      AND superadmin_role_scopes.organization_id = superadmin_roles.organization_id
+    WHERE superadmin_roles.member_id = members.id
+      AND superadmin_roles.organization_id = members.organization_id
+      AND superadmin_role_scopes.workspace_id IS NULL
+      AND superadmin_role_scopes.system_role = 'superadmin'
+      AND superadmin_role_scopes.immutable
+  )
+ON CONFLICT DO NOTHING
+`
+
+type GatewayAssignWorkspaceAdminsParams struct {
+	RoleID         string      `json:"role_id"`
+	MemberIds      []string    `json:"member_ids"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+}
+
+func (q *Queries) GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayAssignWorkspaceAdminsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayAssignWorkspaceAdmins,
+		arg.RoleID,
+		arg.MemberIds,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const gatewayClaimCleanupJob = `-- name: GatewayClaimCleanupJob :one
@@ -1011,70 +1036,112 @@ func (q *Queries) GatewayCreateSystemPermissionGrant(ctx context.Context, arg Ga
 	return i, err
 }
 
-const gatewayCreateWorkspace = `-- name: GatewayCreateWorkspace :one
+const gatewayCreateWorkspace = `-- name: GatewayCreateWorkspace :exec
 WITH created AS (
-  INSERT INTO workspaces(id, organization_id, name, slug, namespace, state)
+  INSERT INTO workspaces(
+    id,
+    organization_id,
+    name,
+    slug,
+    namespace,
+    state,
+    provisioning_attempt
+  )
   VALUES (
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
+    'provisioning',
+    1
   )
-  RETURNING id, organization_id, name, slug, namespace, state, failure_reason, deleted_at, created_at, updated_at
-), reserved AS (
-  INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
-  SELECT organization_id, id, slug
-  FROM created
-  RETURNING workspace_id
+  RETURNING id, organization_id, name, slug, namespace, state, failure_reason, deleted_at, created_at, updated_at, provisioning_attempt
 )
-SELECT created.id, created.organization_id, created.name, created.slug, created.namespace, created.state, created.failure_reason, created.deleted_at, created.created_at, created.updated_at
+INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
+SELECT organization_id, id, slug
 FROM created
-JOIN reserved ON reserved.workspace_id = created.id
 `
 
 type GatewayCreateWorkspaceParams struct {
-	ID             string         `json:"id"`
-	OrganizationID string         `json:"organization_id"`
-	Name           string         `json:"name"`
-	Slug           string         `json:"slug"`
-	Namespace      string         `json:"namespace"`
-	State          WorkspaceState `json:"state"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	Name           string `json:"name"`
+	Slug           string `json:"slug"`
+	Namespace      string `json:"namespace"`
 }
 
-type GatewayCreateWorkspaceRow struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	Name           string             `json:"name"`
-	Slug           string             `json:"slug"`
-	Namespace      string             `json:"namespace"`
-	State          WorkspaceState     `json:"state"`
-	FailureReason  pgtype.Text        `json:"failure_reason"`
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) (GatewayCreateWorkspaceRow, error) {
-	row := q.db.QueryRow(ctx, gatewayCreateWorkspace,
+func (q *Queries) GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) error {
+	_, err := q.db.Exec(ctx, gatewayCreateWorkspace,
 		arg.ID,
 		arg.OrganizationID,
 		arg.Name,
 		arg.Slug,
 		arg.Namespace,
-		arg.State,
 	)
-	var i GatewayCreateWorkspaceRow
+	return err
+}
+
+const gatewayCreateWorkspaceAdminRole = `-- name: GatewayCreateWorkspaceAdminRole :one
+WITH organization_role AS (
+  INSERT INTO organization_roles(id, organization_id, role, permission)
+  SELECT
+    'workspace_admin:' || workspaces.id,
+    workspaces.organization_id,
+    'workspace_admin:' || workspaces.id,
+    '{}'
+  FROM workspaces
+  WHERE workspaces.id = $1
+    AND workspaces.organization_id = $2
+    AND workspaces.deleted_at IS NULL
+  RETURNING id, organization_id
+)
+INSERT INTO role_scopes(
+  role_id,
+  organization_id,
+  workspace_id,
+  display_name,
+  system_role,
+  immutable
+)
+SELECT
+  organization_role.id,
+  organization_role.organization_id,
+  workspaces.id,
+  'Workspace Admin',
+  'workspace_admin',
+  TRUE
+FROM organization_role
+JOIN workspaces
+  ON workspaces.id = $1
+  AND workspaces.organization_id = organization_role.organization_id
+  AND workspaces.deleted_at IS NULL
+RETURNING
+  role_id,
+  organization_id,
+  workspace_id,
+  display_name,
+  system_role,
+  immutable,
+  created_at,
+  updated_at
+`
+
+type GatewayCreateWorkspaceAdminRoleParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayCreateWorkspaceAdminRole(ctx context.Context, arg GatewayCreateWorkspaceAdminRoleParams) (RoleScope, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateWorkspaceAdminRole, arg.WorkspaceID, arg.OrganizationID)
+	var i RoleScope
 	err := row.Scan(
-		&i.ID,
+		&i.RoleID,
 		&i.OrganizationID,
-		&i.Name,
-		&i.Slug,
-		&i.Namespace,
-		&i.State,
-		&i.FailureReason,
-		&i.DeletedAt,
+		&i.WorkspaceID,
+		&i.DisplayName,
+		&i.SystemRole,
+		&i.Immutable,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1258,7 +1325,7 @@ WHERE id = $2
   AND organization_id = $3
   AND state = 'deleting'
   AND deleted_at IS NULL
-RETURNING id, organization_id, name, slug, namespace, state, failure_reason, deleted_at, created_at, updated_at
+RETURNING id, organization_id, name, slug, namespace, state, failure_reason, deleted_at, created_at, updated_at, provisioning_attempt
 `
 
 type GatewayFinalizeWorkspaceDeletionParams struct {
@@ -1281,6 +1348,7 @@ func (q *Queries) GatewayFinalizeWorkspaceDeletion(ctx context.Context, arg Gate
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningAttempt,
 	)
 	return i, err
 }
@@ -1801,17 +1869,7 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 }
 
 const gatewayGetWorkspace = `-- name: GatewayGetWorkspace :one
-SELECT
-  id,
-  organization_id,
-  name,
-  slug,
-  namespace,
-  state,
-  failure_reason,
-  deleted_at,
-  created_at,
-  updated_at
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
 FROM workspaces
 WHERE id = $1
   AND organization_id = $2
@@ -1836,8 +1894,31 @@ func (q *Queries) GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspa
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningAttempt,
 	)
 	return i, err
+}
+
+const gatewayIsActiveOrganizationMember = `-- name: GatewayIsActiveOrganizationMember :one
+SELECT EXISTS(
+  SELECT 1
+  FROM members
+  WHERE user_id = $1
+    AND organization_id = $2
+    AND disabled_at IS NULL
+)
+`
+
+type GatewayIsActiveOrganizationMemberParams struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayIsActiveOrganizationMember(ctx context.Context, arg GatewayIsActiveOrganizationMemberParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayIsActiveOrganizationMember, arg.UserID, arg.OrganizationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const gatewayIsActiveSuperadmin = `-- name: GatewayIsActiveSuperadmin :one
@@ -1908,6 +1989,99 @@ func (q *Queries) GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAP
 			&i.WorkspaceID,
 			&i.CreatorUserID,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAccessibleWorkspaces = `-- name: GatewayListAccessibleWorkspaces :many
+WITH actor_roles AS (
+  SELECT role_scopes.workspace_id, role_scopes.system_role
+  FROM members
+  JOIN member_roles
+    ON member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+  JOIN role_scopes
+    ON role_scopes.role_id = member_roles.role_id
+    AND role_scopes.organization_id = member_roles.organization_id
+  WHERE members.user_id = $2
+    AND members.organization_id = $1
+    AND members.disabled_at IS NULL
+    AND role_scopes.system_role IN ('superadmin', 'workspace_admin')
+    AND role_scopes.immutable
+)
+SELECT
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt,
+  (
+    SELECT COUNT(DISTINCT workspace_admins.member_id)
+    FROM role_scopes AS workspace_admin_role
+    JOIN member_roles AS workspace_admins
+      ON workspace_admins.role_id = workspace_admin_role.role_id
+      AND workspace_admins.organization_id = workspace_admin_role.organization_id
+    JOIN members AS workspace_admin_members
+      ON workspace_admin_members.id = workspace_admins.member_id
+      AND workspace_admin_members.organization_id = workspace_admins.organization_id
+      AND workspace_admin_members.disabled_at IS NULL
+    WHERE workspace_admin_role.organization_id = workspaces.organization_id
+      AND workspace_admin_role.workspace_id = workspaces.id
+      AND workspace_admin_role.system_role = 'workspace_admin'
+      AND workspace_admin_role.immutable
+  ) AS workspace_admin_count
+FROM workspaces
+WHERE workspaces.organization_id = $1
+  AND workspaces.deleted_at IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM actor_roles
+    WHERE (
+      actor_roles.system_role = 'superadmin'
+      AND actor_roles.workspace_id IS NULL
+    ) OR (
+      actor_roles.system_role = 'workspace_admin'
+      AND actor_roles.workspace_id = workspaces.id
+    )
+  )
+ORDER BY workspaces.name, workspaces.id
+`
+
+type GatewayListAccessibleWorkspacesParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+type GatewayListAccessibleWorkspacesRow struct {
+	Workspace           Workspace `json:"workspace"`
+	WorkspaceAdminCount int64     `json:"workspace_admin_count"`
+}
+
+func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg GatewayListAccessibleWorkspacesParams) ([]GatewayListAccessibleWorkspacesRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListAccessibleWorkspaces, arg.OrganizationID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListAccessibleWorkspacesRow{}
+	for rows.Next() {
+		var i GatewayListAccessibleWorkspacesRow
+		if err := rows.Scan(
+			&i.Workspace.ID,
+			&i.Workspace.OrganizationID,
+			&i.Workspace.Name,
+			&i.Workspace.Slug,
+			&i.Workspace.Namespace,
+			&i.Workspace.State,
+			&i.Workspace.FailureReason,
+			&i.Workspace.DeletedAt,
+			&i.Workspace.CreatedAt,
+			&i.Workspace.UpdatedAt,
+			&i.Workspace.ProvisioningAttempt,
+			&i.WorkspaceAdminCount,
 		); err != nil {
 			return nil, err
 		}
@@ -3231,6 +3405,46 @@ func (q *Queries) GatewayListProcessEventsAggregated(ctx context.Context, arg Ga
 	return items, nil
 }
 
+const gatewayListProvisioningWorkspaces = `-- name: GatewayListProvisioningWorkspaces :many
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
+FROM workspaces
+WHERE state = 'provisioning'
+  AND deleted_at IS NULL
+ORDER BY created_at, id
+`
+
+func (q *Queries) GatewayListProvisioningWorkspaces(ctx context.Context) ([]Workspace, error) {
+	rows, err := q.db.Query(ctx, gatewayListProvisioningWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Workspace{}
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Slug,
+			&i.Namespace,
+			&i.State,
+			&i.FailureReason,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProvisioningAttempt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListRoleScopes = `-- name: GatewayListRoleScopes :many
 SELECT
   role_id,
@@ -3805,44 +4019,76 @@ func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesPa
 	return items, nil
 }
 
-const gatewayListWorkspaces = `-- name: GatewayListWorkspaces :many
+const gatewayListWorkspaceAdminCandidates = `-- name: GatewayListWorkspaceAdminCandidates :many
 SELECT
-  id,
-  organization_id,
-  name,
-  slug,
-  namespace,
-  state,
-  failure_reason,
-  deleted_at,
-  created_at,
-  updated_at
-FROM workspaces
-WHERE organization_id = $1
-  AND deleted_at IS NULL
-ORDER BY name, id
+  members.id AS member_id,
+  members.user_id,
+  users.name,
+  users.email,
+  users.image
+FROM members
+JOIN users ON users.id = members.user_id
+WHERE members.organization_id = $1
+  AND members.disabled_at IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM members AS actor
+    JOIN member_roles AS actor_roles
+      ON actor_roles.member_id = actor.id
+      AND actor_roles.organization_id = actor.organization_id
+    JOIN role_scopes AS actor_role_scopes
+      ON actor_role_scopes.role_id = actor_roles.role_id
+      AND actor_role_scopes.organization_id = actor_roles.organization_id
+    WHERE actor.user_id = $2
+      AND actor.organization_id = members.organization_id
+      AND actor.disabled_at IS NULL
+      AND actor_role_scopes.workspace_id IS NULL
+      AND actor_role_scopes.system_role = 'superadmin'
+      AND actor_role_scopes.immutable
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM member_roles
+    JOIN role_scopes
+      ON role_scopes.role_id = member_roles.role_id
+      AND role_scopes.organization_id = member_roles.organization_id
+    WHERE member_roles.member_id = members.id
+      AND member_roles.organization_id = members.organization_id
+      AND role_scopes.workspace_id IS NULL
+      AND role_scopes.system_role = 'superadmin'
+      AND role_scopes.immutable
+  )
+ORDER BY users.name, users.email, members.id
 `
 
-func (q *Queries) GatewayListWorkspaces(ctx context.Context, organizationID string) ([]Workspace, error) {
-	rows, err := q.db.Query(ctx, gatewayListWorkspaces, organizationID)
+type GatewayListWorkspaceAdminCandidatesParams struct {
+	OrganizationID string `json:"organization_id"`
+	ActorUserID    string `json:"actor_user_id"`
+}
+
+type GatewayListWorkspaceAdminCandidatesRow struct {
+	MemberID string      `json:"member_id"`
+	UserID   string      `json:"user_id"`
+	Name     string      `json:"name"`
+	Email    string      `json:"email"`
+	Image    pgtype.Text `json:"image"`
+}
+
+func (q *Queries) GatewayListWorkspaceAdminCandidates(ctx context.Context, arg GatewayListWorkspaceAdminCandidatesParams) ([]GatewayListWorkspaceAdminCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListWorkspaceAdminCandidates, arg.OrganizationID, arg.ActorUserID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Workspace{}
+	items := []GatewayListWorkspaceAdminCandidatesRow{}
 	for rows.Next() {
-		var i Workspace
+		var i GatewayListWorkspaceAdminCandidatesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
+			&i.MemberID,
+			&i.UserID,
 			&i.Name,
-			&i.Slug,
-			&i.Namespace,
-			&i.State,
-			&i.FailureReason,
-			&i.DeletedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.Email,
+			&i.Image,
 		); err != nil {
 			return nil, err
 		}
@@ -3852,6 +4098,26 @@ func (q *Queries) GatewayListWorkspaces(ctx context.Context, organizationID stri
 		return nil, err
 	}
 	return items, nil
+}
+
+const gatewayLockOrganization = `-- name: GatewayLockOrganization :one
+SELECT id, name, slug
+FROM organizations
+WHERE id = $1
+FOR UPDATE
+`
+
+type GatewayLockOrganizationRow struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+func (q *Queries) GatewayLockOrganization(ctx context.Context, organizationID string) (GatewayLockOrganizationRow, error) {
+	row := q.db.QueryRow(ctx, gatewayLockOrganization, organizationID)
+	var i GatewayLockOrganizationRow
+	err := row.Scan(&i.ID, &i.Name, &i.Slug)
+	return i, err
 }
 
 const gatewayRemoveAgentShareGrant = `-- name: GatewayRemoveAgentShareGrant :execrows
@@ -3955,7 +4221,7 @@ UPDATE workspaces
 SET slug = $1, updated_at = $2
 FROM reserved
 WHERE workspaces.id = reserved.workspace_id
-RETURNING workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
+RETURNING workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
 `
 
 type GatewayRenameWorkspaceParams struct {
@@ -3984,6 +4250,7 @@ func (q *Queries) GatewayRenameWorkspace(ctx context.Context, arg GatewayRenameW
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningAttempt,
 	)
 	return i, err
 }
@@ -4049,16 +4316,7 @@ func (q *Queries) GatewayResolveOrganizationSlug(ctx context.Context, slug strin
 
 const gatewayResolveWorkspaceSlug = `-- name: GatewayResolveWorkspaceSlug :one
 SELECT
-  workspaces.id,
-  workspaces.organization_id,
-  workspaces.name,
-  workspaces.slug,
-  workspaces.namespace,
-  workspaces.state,
-  workspaces.failure_reason,
-  workspaces.deleted_at,
-  workspaces.created_at,
-  workspaces.updated_at
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
 FROM workspace_slug_history
 JOIN workspaces
   ON workspaces.id = workspace_slug_history.workspace_id
@@ -4066,27 +4324,56 @@ JOIN workspaces
 WHERE workspace_slug_history.organization_id = $1
   AND workspace_slug_history.slug = $2
   AND workspaces.deleted_at IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM members
+    JOIN member_roles
+      ON member_roles.member_id = members.id
+      AND member_roles.organization_id = members.organization_id
+    JOIN role_scopes
+      ON role_scopes.role_id = member_roles.role_id
+      AND role_scopes.organization_id = member_roles.organization_id
+    WHERE members.user_id = $3
+      AND members.organization_id = workspaces.organization_id
+      AND members.disabled_at IS NULL
+      AND role_scopes.immutable
+      AND (
+        (
+          role_scopes.system_role = 'superadmin'
+          AND role_scopes.workspace_id IS NULL
+        ) OR (
+          role_scopes.system_role = 'workspace_admin'
+          AND role_scopes.workspace_id = workspaces.id
+        )
+      )
+  )
 `
 
 type GatewayResolveWorkspaceSlugParams struct {
 	OrganizationID string `json:"organization_id"`
 	Slug           string `json:"slug"`
+	UserID         string `json:"user_id"`
 }
 
-func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (Workspace, error) {
-	row := q.db.QueryRow(ctx, gatewayResolveWorkspaceSlug, arg.OrganizationID, arg.Slug)
-	var i Workspace
+type GatewayResolveWorkspaceSlugRow struct {
+	Workspace Workspace `json:"workspace"`
+}
+
+func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (GatewayResolveWorkspaceSlugRow, error) {
+	row := q.db.QueryRow(ctx, gatewayResolveWorkspaceSlug, arg.OrganizationID, arg.Slug, arg.UserID)
+	var i GatewayResolveWorkspaceSlugRow
 	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Slug,
-		&i.Namespace,
-		&i.State,
-		&i.FailureReason,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Workspace.ID,
+		&i.Workspace.OrganizationID,
+		&i.Workspace.Name,
+		&i.Workspace.Slug,
+		&i.Workspace.Namespace,
+		&i.Workspace.State,
+		&i.Workspace.FailureReason,
+		&i.Workspace.DeletedAt,
+		&i.Workspace.CreatedAt,
+		&i.Workspace.UpdatedAt,
+		&i.Workspace.ProvisioningAttempt,
 	)
 	return i, err
 }
@@ -4121,6 +4408,33 @@ func (q *Queries) GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCl
 		arg.ID,
 		arg.LeaseToken,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayRetryWorkspaceProvisioning = `-- name: GatewayRetryWorkspaceProvisioning :execrows
+UPDATE workspaces
+SET
+  state = 'provisioning',
+  provisioning_attempt = provisioning_attempt + 1,
+  failure_reason = NULL,
+  updated_at = $1
+WHERE id = $2
+  AND organization_id = $3
+  AND state = 'failed'
+  AND deleted_at IS NULL
+`
+
+type GatewayRetryWorkspaceProvisioningParams struct {
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+}
+
+func (q *Queries) GatewayRetryWorkspaceProvisioning(ctx context.Context, arg GatewayRetryWorkspaceProvisioningParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayRetryWorkspaceProvisioning, arg.UpdatedAt, arg.ID, arg.OrganizationID)
 	if err != nil {
 		return 0, err
 	}
@@ -4200,6 +4514,54 @@ func (q *Queries) GatewayTransferAgentOwner(ctx context.Context, arg GatewayTran
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const gatewayTransitionWorkspaceProvisioning = `-- name: GatewayTransitionWorkspaceProvisioning :execrows
+UPDATE workspaces
+SET
+  state = $1,
+  failure_reason = CASE
+    WHEN $1::workspace_state = 'failed'
+    THEN $2
+    ELSE NULL
+  END,
+  updated_at = $3
+WHERE id = $4
+  AND organization_id = $5
+  AND provisioning_attempt = $6
+  AND state = 'provisioning'
+  AND (
+    $1::workspace_state = 'ready'
+    OR (
+      $1::workspace_state = 'failed'
+      AND NULLIF(BTRIM($2::text), '') IS NOT NULL
+    )
+  )
+  AND deleted_at IS NULL
+`
+
+type GatewayTransitionWorkspaceProvisioningParams struct {
+	State               WorkspaceState     `json:"state"`
+	FailureReason       pgtype.Text        `json:"failure_reason"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	ID                  string             `json:"id"`
+	OrganizationID      string             `json:"organization_id"`
+	ProvisioningAttempt int64              `json:"provisioning_attempt"`
+}
+
+func (q *Queries) GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayTransitionWorkspaceProvisioning,
+		arg.State,
+		arg.FailureReason,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.OrganizationID,
+		arg.ProvisioningAttempt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const gatewayUnassignInvitationRole = `-- name: GatewayUnassignInvitationRole :execrows
@@ -4336,6 +4698,7 @@ RETURNING
   slug,
   namespace,
   state,
+  provisioning_attempt,
   failure_reason,
   deleted_at,
   created_at,
@@ -4349,14 +4712,28 @@ type GatewayUpdateWorkspaceNameParams struct {
 	OrganizationID string             `json:"organization_id"`
 }
 
-func (q *Queries) GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpdateWorkspaceNameParams) (Workspace, error) {
+type GatewayUpdateWorkspaceNameRow struct {
+	ID                  string             `json:"id"`
+	OrganizationID      string             `json:"organization_id"`
+	Name                string             `json:"name"`
+	Slug                string             `json:"slug"`
+	Namespace           string             `json:"namespace"`
+	State               WorkspaceState     `json:"state"`
+	ProvisioningAttempt int64              `json:"provisioning_attempt"`
+	FailureReason       pgtype.Text        `json:"failure_reason"`
+	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpdateWorkspaceNameParams) (GatewayUpdateWorkspaceNameRow, error) {
 	row := q.db.QueryRow(ctx, gatewayUpdateWorkspaceName,
 		arg.Name,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.OrganizationID,
 	)
-	var i Workspace
+	var i GatewayUpdateWorkspaceNameRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
@@ -4364,60 +4741,7 @@ func (q *Queries) GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpd
 		&i.Slug,
 		&i.Namespace,
 		&i.State,
-		&i.FailureReason,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const gatewayUpdateWorkspaceState = `-- name: GatewayUpdateWorkspaceState :one
-UPDATE workspaces
-SET
-  state = $1,
-  failure_reason = $2,
-  updated_at = $3
-WHERE id = $4
-  AND organization_id = $5
-  AND deleted_at IS NULL
-RETURNING
-  id,
-  organization_id,
-  name,
-  slug,
-  namespace,
-  state,
-  failure_reason,
-  deleted_at,
-  created_at,
-  updated_at
-`
-
-type GatewayUpdateWorkspaceStateParams struct {
-	State          WorkspaceState     `json:"state"`
-	FailureReason  pgtype.Text        `json:"failure_reason"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-}
-
-func (q *Queries) GatewayUpdateWorkspaceState(ctx context.Context, arg GatewayUpdateWorkspaceStateParams) (Workspace, error) {
-	row := q.db.QueryRow(ctx, gatewayUpdateWorkspaceState,
-		arg.State,
-		arg.FailureReason,
-		arg.UpdatedAt,
-		arg.ID,
-		arg.OrganizationID,
-	)
-	var i Workspace
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Slug,
-		&i.Namespace,
-		&i.State,
+		&i.ProvisioningAttempt,
 		&i.FailureReason,
 		&i.DeletedAt,
 		&i.CreatedAt,

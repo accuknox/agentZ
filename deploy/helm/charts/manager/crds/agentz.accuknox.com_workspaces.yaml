@@ -63,6 +63,15 @@ spec:
                 x-kubernetes-validations:
                 - message: organizationID is immutable
                   rule: self == oldSelf
+              provisioningAttempt:
+                default: 1
+                description: ProvisioningAttempt is incremented to retry failed provisioning.
+                format: int64
+                minimum: 1
+                type: integer
+                x-kubernetes-validations:
+                - message: provisioningAttempt cannot decrease
+                  rule: self >= oldSelf
               workspaceID:
                 description: WorkspaceID is the immutable relational Workspace ID.
                 maxLength: 128
@@ -73,6 +82,7 @@ spec:
                   rule: self == oldSelf
             required:
             - organizationID
+            - provisioningAttempt
             - workspaceID
             type: object
           status:
@@ -143,6 +153,10 @@ spec:
                 description: Namespace is the isolated Kubernetes namespace for this
                   Workspace.
                 type: string
+              observedAttempt:
+                description: ObservedAttempt is the latest provisioning attempt processed.
+                format: int64
+                type: integer
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.
                 format: int64

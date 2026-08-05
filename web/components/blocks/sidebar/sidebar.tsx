@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import type { Route } from "next"
 import Link from "next/link"
-import { Building2, ScrollText, Settings2 } from "lucide-react"
+import { Building2, LayoutDashboard, ScrollText, Settings2 } from "lucide-react"
 import { NavAgents } from "./agents"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
@@ -28,11 +28,20 @@ import { NavWorkflows } from "./workflows"
 import { NavMCPs } from "./mcps"
 import { NavInference } from "./inference"
 import type { OrganizationSummary } from "@/data/organizations"
+import type { Workspace } from "@/lib/gateway/client"
+
+type WorkspaceNavigationScope = {
+  canCreateWorkspace: boolean
+  canEnterOrganization: boolean
+  organization: OrganizationSummary
+  workspaces: Workspace[]
+}
 
 export type SidebarScope =
   | { kind: "legacy" }
   | { kind: "account" }
-  | { kind: "organization"; organization: OrganizationSummary }
+  | ({ kind: "organization" } & WorkspaceNavigationScope)
+  | ({ kind: "workspace"; workspace: Workspace } & WorkspaceNavigationScope)
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user?: {
@@ -62,6 +71,9 @@ export function AppSidebar({
         {scope.kind === "organization" ? (
           <OrganizationNavigation organization={scope.organization} />
         ) : null}
+        {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
+          <WorkspaceNavigation organization={scope.organization} workspace={scope.workspace} />
+        ) : null}
       </SidebarContent>
       {user ? (
         <SidebarFooter className="border-t p-2">
@@ -74,6 +86,30 @@ export function AppSidebar({
       ) : null}
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+function WorkspaceNavigation({
+  organization,
+  workspace,
+}: {
+  organization: OrganizationSummary
+  workspace: Workspace
+}) {
+  return (
+    <SidebarGroup className="px-2 py-2">
+      <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip="Overview">
+            <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route}>
+              <LayoutDashboard aria-hidden="true" />
+              <span>Overview</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </SidebarGroup>
   )
 }
 

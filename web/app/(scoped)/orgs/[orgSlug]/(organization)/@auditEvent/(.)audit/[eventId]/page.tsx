@@ -8,12 +8,12 @@ export const unstable_instant = false
 export default async function InterceptedAuditEventPage({
   params,
 }: {
-  params: Promise<{ eventId: string }>
+  params: Promise<{ eventId: string; orgSlug: string }>
 }) {
-  const { eventId } = await params
+  const { eventId, orgSlug } = await params
   return (
     <AuditDrawer>
-      <AuditEventDetail eventId={eventId} />
+      <AuditEventDetail eventId={eventId} orgSlug={orgSlug} />
     </AuditDrawer>
   )
 }

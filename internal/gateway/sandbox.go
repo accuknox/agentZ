@@ -506,7 +506,7 @@ func validateCreateSandboxRequest(req gatewayapi.CreateSandboxRequest) (string, 
 	name := strings.TrimSpace(req.Name)
 	fields := validateSandboxName(name)
 	for i, model := range req.Inference.Models {
-		if model.Scope == gatewayapi.Organisation {
+		if model.Scope == gatewayapi.ResourceScopeOrganisation {
 			continue
 		}
 		fields = append(fields, gatewayapi.FieldError{
@@ -526,7 +526,7 @@ func validateCreateSandboxRequest(req gatewayapi.CreateSandboxRequest) (string, 
 func validateUpdateSandboxRequest(req gatewayapi.UpdateSandboxRequest) []gatewayapi.FieldError {
 	fields := validatePackageList(req.Packages)
 	for i, model := range req.Inference.Models {
-		if model.Scope == gatewayapi.Organisation {
+		if model.Scope == gatewayapi.ResourceScopeOrganisation {
 			continue
 		}
 		fields = append(fields, gatewayapi.FieldError{
@@ -574,7 +574,7 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef) []gatewaya
 	seen := map[gatewayapi.ResourceReference]int{}
 	for i, ref := range refs {
 		name := ref.Name
-		if ref.Scope != gatewayapi.Organisation {
+		if ref.Scope != gatewayapi.ResourceScopeOrganisation {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("mcp_connection_refs[%d].scope", i),
 				Message: "workspace scope is not available on the current tenant path",

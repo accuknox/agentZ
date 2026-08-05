@@ -31,7 +31,7 @@ generate:
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
 	oapi-codegen \
-		--include-tags agents,tenants,audit,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
+		--include-tags agents,tenants,workspaces,audit,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \

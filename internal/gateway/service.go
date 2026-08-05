@@ -289,6 +289,9 @@ func Serve(ctx context.Context, cfg Config) error {
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
 	}
+	if err := svc.recoverWorkspaceProvisioning(ctx); err != nil {
+		return err
+	}
 	auditRetentionDone := make(chan struct{})
 	go func() {
 		defer close(auditRetentionDone)

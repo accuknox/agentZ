@@ -77,6 +77,8 @@ const pageRoutes = new Set([
   "/orgs/[orgSlug]/audit",
   "/orgs/[orgSlug]/general",
   "/orgs/[orgSlug]/workspaces",
+  "/orgs/[orgSlug]/workspaces/new",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]",
   "/mcps",
   "/sandboxes",
   "/sandboxes/new",
@@ -288,6 +290,10 @@ function routePattern(segments: string[]): string {
   }
 
   if (segments[0] === "orgs" && segments[1]) {
+    if (segments[2] === "workspaces" && segments[3] && segments[3] !== "new") {
+      return "/orgs/[orgSlug]/workspaces/[workspaceSlug]"
+    }
+
     return `/orgs/[orgSlug]${segments.length > 2 ? `/${segments.slice(2).join("/")}` : ""}`
   }
 

@@ -11,7 +11,7 @@ export const zAuditInterface = z.enum(["web", "gateway", "better_auth", "control
 export const zAuditTargetType = z.enum(["organization", "organization_membership", "workspace"])
 
 export const zAuditField = z.object({
-  field: z.enum(["member_id", "name", "role", "slug", "user_id"]),
+  field: z.enum(["member_id", "name", "provisioning_attempt", "role", "slug", "state", "user_id"]),
   value: z.string(),
 })
 
@@ -124,6 +124,69 @@ export const zTenant = z.object({
   ready: z.boolean(),
   phase: zTenantPhase,
   conditions: z.array(zTenantCondition),
+})
+
+export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
+
+export const zWorkspace = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  namespace: z.string(),
+  state: zWorkspaceState,
+  provisioning_attempt: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  failure_reason: z.string().optional(),
+  workspace_admin_count: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  can_administer: z.boolean(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zListWorkspacesResponse = z.object({
+  workspaces: z.array(zWorkspace),
+  can_create: z.boolean(),
+  can_enter_organization: z.boolean(),
+})
+
+export const zCreateWorkspaceRequest = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/.*\S.*/),
+  admin_member_ids: z.array(z.string().min(1).max(128)).max(100),
+})
+
+export const zWorkspaceMemberCandidate = z.object({
+  member_id: z.string(),
+  user_id: z.string(),
+  name: z.string(),
+  email: z.email(),
+})
+
+export const zListWorkspaceMemberCandidatesResponse = z.object({
+  members: z.array(zWorkspaceMemberCandidate),
+})
+
+export const zUpdateWorkspaceLifecycleRequest = z.object({
+  provisioning_attempt: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  state: z.enum(["ready", "failed"]),
+  failure_reason: z.string().min(1).max(1024).optional(),
 })
 
 export const zObservabilityAction = z.enum(["Allowed", "Blocked"])
@@ -2026,6 +2089,16 @@ export const zUpdateInferenceProviderRequestWritable = z.object({
 })
 
 /**
+ * Stable Workspace ID.
+ */
+export const zWorkspaceIdPath = z.string().min(1).max(128)
+
+/**
+ * Current or historical Workspace slug.
+ */
+export const zWorkspaceSlugPath = z.string().min(1).max(128)
+
+/**
  * Exact actor type.
  */
 export const zAuditActorTypeQuery = zAuditActorType
@@ -2227,6 +2300,61 @@ export const zGetTenantResponse = zTenant
  * Tenant exists and current bootstrap state is returned.
  */
 export const zEnsureTenantResponse = zTenant
+
+/**
+ * Accessible Workspaces and navigation capabilities.
+ */
+export const zListWorkspacesResponse2 = zListWorkspacesResponse
+
+export const zCreateWorkspaceBody = zCreateWorkspaceRequest
+
+/**
+ * Workspace creation was accepted for provisioning.
+ */
+export const zCreateWorkspaceResponse = zWorkspace
+
+/**
+ * Eligible Workspace Admin candidates.
+ */
+export const zListWorkspaceMemberCandidatesResponse2 = zListWorkspaceMemberCandidatesResponse
+
+export const zResolveWorkspaceSlugPath = z.object({
+  workspaceSlug: z.string().min(1).max(128),
+})
+
+/**
+ * Accessible Workspace and canonical slug.
+ */
+export const zResolveWorkspaceSlugResponse = zWorkspace
+
+export const zGetWorkspacePath = z.object({
+  workspaceId: z.string().min(1).max(128),
+})
+
+/**
+ * Accessible Workspace lifecycle state.
+ */
+export const zGetWorkspaceResponse = zWorkspace
+
+export const zRetryWorkspacePath = z.object({
+  workspaceId: z.string().min(1).max(128),
+})
+
+/**
+ * Workspace returned to provisioning.
+ */
+export const zRetryWorkspaceResponse = zWorkspace
+
+export const zUpdateWorkspaceLifecycleBody = zUpdateWorkspaceLifecycleRequest
+
+export const zUpdateWorkspaceLifecyclePath = z.object({
+  workspaceId: z.string().min(1).max(128),
+})
+
+/**
+ * Lifecycle observation recorded or already current.
+ */
+export const zUpdateWorkspaceLifecycleResponse = z.void()
 
 export const zListAgentsQuery = z.object({
   agent_name: z.array(zAgentName).optional(),

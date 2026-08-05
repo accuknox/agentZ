@@ -1141,16 +1141,17 @@ type Verification struct {
 }
 
 type Workspace struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	Name           string             `json:"name"`
-	Slug           string             `json:"slug"`
-	Namespace      string             `json:"namespace"`
-	State          WorkspaceState     `json:"state"`
-	FailureReason  pgtype.Text        `json:"failure_reason"`
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID                  string             `json:"id"`
+	OrganizationID      string             `json:"organization_id"`
+	Name                string             `json:"name"`
+	Slug                string             `json:"slug"`
+	Namespace           string             `json:"namespace"`
+	State               WorkspaceState     `json:"state"`
+	FailureReason       pgtype.Text        `json:"failure_reason"`
+	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	ProvisioningAttempt int64              `json:"provisioning_attempt"`
 }
 
 type WorkspaceSlugHistory struct {

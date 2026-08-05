@@ -1,9 +1,8 @@
 import type { Route } from "next"
-import { Suspense } from "react"
 import { headers } from "next/headers"
 import { notFound, permanentRedirect, redirect } from "next/navigation"
 import { AdministrationLayout, AdministrationState } from "@/components/administration"
-import { AppShell, AppShellFallback } from "@/components/blocks/app-shell"
+import { AppShell } from "@/components/blocks/app-shell"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { ThemeSync } from "@/components/theme-sync"
@@ -13,29 +12,14 @@ import {
   resolveOrganizationSlug,
 } from "@/data/organizations"
 import { getCurrentUserPreferences } from "@/data/user-preferences"
+import { getWorkspaceDirectory } from "@/data/workspaces"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
 
-export default function OrganizationLayout({
-  auditEvent,
-  children,
-  params,
-}: {
-  auditEvent: React.ReactNode
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string }>
-}) {
-  return (
-    <Suspense fallback={<AppShellFallback />}>
-      <OrganizationGate auditEvent={auditEvent} params={params}>
-        {children}
-      </OrganizationGate>
-    </Suspense>
-  )
-}
+export const unstable_instant = false
 
-async function OrganizationGate({
+export default async function OrganizationLayout({
   auditEvent,
   children,
   params,
@@ -102,11 +86,16 @@ async function OrganizationGate({
     redirect("/setting-up")
   }
 
+  const workspaceResult = await getWorkspaceDirectory(result.organization.slug)
+  if (!workspaceResult.directory) {
+    throw new Error("workspace directory unavailable after organisation resolution")
+  }
+
   const root = `/orgs/${result.organization.slug}`
   const rememberedPath = requestedURL.pathname.startsWith(`${root}/audit/`)
     ? `${root}/audit`
     : requestedURL.pathname
-  await rememberOrganizationRoute(result.organization.id, rememberedPath)
+  await rememberOrganizationRoute(result.organization.id, rememberedPath, null)
   const tabs = result.organization.superadmin
     ? ([
         { href: `${root}/workspaces` as Route, label: "Workspaces" },
@@ -124,7 +113,13 @@ async function OrganizationGate({
           <AppSidebar
             activeOrganizationId={result.organization.id}
             organizations={result.organizationSession.organizations}
-            scope={{ kind: "organization", organization: result.organization }}
+            scope={{
+              canCreateWorkspace: workspaceResult.directory.can_create,
+              canEnterOrganization: workspaceResult.directory.can_enter_organization,
+              kind: "organization",
+              organization: result.organization,
+              workspaces: workspaceResult.directory.workspaces,
+            }}
             user={{
               email: result.organizationSession.session.user.email,
               image: result.organizationSession.session.user.image,

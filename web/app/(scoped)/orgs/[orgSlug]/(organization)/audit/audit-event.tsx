@@ -9,8 +9,11 @@ import { getOrganizationAuditEvent } from "@/data/audit"
 import { formatTimestampWithAge } from "@/lib/format"
 import type { AuditField, AuditResult } from "@/lib/gateway/client"
 
-export async function AuditEventDetail({ eventId }: { eventId: string }) {
-  const result = await getOrganizationAuditEvent(eventId)
+export async function AuditEventDetail({ eventId, orgSlug }: { eventId: string; orgSlug: string }) {
+  const result = await getOrganizationAuditEvent(orgSlug, eventId)
+  if (!result) {
+    return null
+  }
   if (result.error) {
     if (result.response?.status === 404) {
       notFound()

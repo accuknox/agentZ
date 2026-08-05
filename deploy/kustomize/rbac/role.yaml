@@ -90,6 +90,7 @@ rules:
   - tenants/status
   - workflowruns/status
   - workflowschedules/status
+  - workspaces/status
   verbs:
   - get
   - patch
@@ -144,6 +145,7 @@ rules:
   - agentz.accuknox.com
   resources:
   - workflowschedules
+  - workspaces
   verbs:
   - get
   - list

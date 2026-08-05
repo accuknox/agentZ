@@ -22,7 +22,11 @@ export const unstable_instant = {
   ],
 }
 
-export default async function AuditEventPage({ params }: { params: Promise<{ eventId: string }> }) {
-  const { eventId } = await params
-  return <AuditEventDetail eventId={eventId} />
+export default async function AuditEventPage({
+  params,
+}: {
+  params: Promise<{ eventId: string; orgSlug: string }>
+}) {
+  const { eventId, orgSlug } = await params
+  return <AuditEventDetail eventId={eventId} orgSlug={orgSlug} />
 }

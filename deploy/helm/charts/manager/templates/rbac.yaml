@@ -71,12 +71,16 @@ rules:
       - mcpconnections/status
       - secrets/status
       - tenants/status
+      - workspaces/status
       - workflowruns/status
       - workflowschedules/status
     verbs: ["get", "patch", "update"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["tenants"]
     verbs: ["get", "list", "patch", "update", "use", "watch"]
+  - apiGroups: ["agentz.accuknox.com"]
+    resources: ["workspaces"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["workflowschedules"]
     verbs: ["get", "list", "watch"]

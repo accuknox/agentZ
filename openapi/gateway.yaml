@@ -264,6 +264,24 @@ components:
       schema:
         default: false
         type: boolean
+    WorkspaceIDPath:
+      description: Stable Workspace ID.
+      in: path
+      name: workspaceId
+      required: true
+      schema:
+        maxLength: 128
+        minLength: 1
+        type: string
+    WorkspaceSlugPath:
+      description: Current or historical Workspace slug.
+      in: path
+      name: workspaceSlug
+      required: true
+      schema:
+        maxLength: 128
+        minLength: 1
+        type: string
   requestBodies: {}
   responses:
     BadGateway:
@@ -666,15 +684,19 @@ components:
           enum:
           - member_id
           - name
+          - provisioning_attempt
           - role
           - slug
+          - state
           - user_id
           type: string
           x-enum-varnames:
           - AuditFieldMemberID
           - AuditFieldName
+          - AuditFieldProvisioningAttempt
           - AuditFieldRole
           - AuditFieldSlug
+          - AuditFieldState
           - AuditFieldUserID
         value:
           type: string
@@ -1222,6 +1244,26 @@ components:
       - name
       - schedule
       - timeout_seconds
+      type: object
+    CreateWorkspaceRequest:
+      additionalProperties: false
+      properties:
+        admin_member_ids:
+          items:
+            maxLength: 128
+            minLength: 1
+            type: string
+          maxItems: 100
+          type: array
+          uniqueItems: true
+        name:
+          maxLength: 80
+          minLength: 1
+          pattern: .*\S.*
+          type: string
+      required:
+      - name
+      - admin_member_ids
       type: object
     DeleteSecretsRequest:
       additionalProperties: false
@@ -2422,6 +2464,32 @@ components:
       required:
       - webhook_triggers
       - next_page_token
+      type: object
+    ListWorkspaceMemberCandidatesResponse:
+      additionalProperties: false
+      properties:
+        members:
+          items:
+            $ref: '#/components/schemas/WorkspaceMemberCandidate'
+          type: array
+      required:
+      - members
+      type: object
+    ListWorkspacesResponse:
+      additionalProperties: false
+      properties:
+        can_create:
+          type: boolean
+        can_enter_organization:
+          type: boolean
+        workspaces:
+          items:
+            $ref: '#/components/schemas/Workspace'
+          type: array
+      required:
+      - workspaces
+      - can_create
+      - can_enter_organization
       type: object
     MCPConnectionAuth:
       additionalProperties: false
@@ -22449,6 +22517,29 @@ components:
       - schedule
       - timeout_seconds
       type: object
+    UpdateWorkspaceLifecycleRequest:
+      additionalProperties: false
+      properties:
+        failure_reason:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        provisioning_attempt:
+          format: int64
+          minimum: 1
+          type: integer
+        state:
+          enum:
+          - ready
+          - failed
+          type: string
+          x-enum-varnames:
+          - UpdateWorkspaceLifecycleRequestStateReady
+          - UpdateWorkspaceLifecycleRequestStateFailed
+      required:
+      - provisioning_attempt
+      - state
+      type: object
     VertexAIInferenceProviderRead:
       properties:
         kind:
@@ -23060,6 +23151,79 @@ components:
       - api_key_id
       - last_triggered_at
       type: object
+    Workspace:
+      additionalProperties: false
+      properties:
+        can_administer:
+          type: boolean
+        created_at:
+          format: date-time
+          type: string
+        failure_reason:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        provisioning_attempt:
+          format: int64
+          minimum: 1
+          type: integer
+        slug:
+          type: string
+        state:
+          $ref: '#/components/schemas/WorkspaceState'
+        updated_at:
+          format: date-time
+          type: string
+        workspace_admin_count:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+      - id
+      - name
+      - slug
+      - namespace
+      - state
+      - provisioning_attempt
+      - workspace_admin_count
+      - can_administer
+      - created_at
+      - updated_at
+      type: object
+    WorkspaceMemberCandidate:
+      additionalProperties: false
+      properties:
+        email:
+          format: email
+          type: string
+        member_id:
+          type: string
+        name:
+          type: string
+        user_id:
+          type: string
+      required:
+      - member_id
+      - user_id
+      - name
+      - email
+      type: object
+    WorkspaceState:
+      enum:
+      - provisioning
+      - ready
+      - failed
+      - deleting
+      type: string
+      x-enum-varnames:
+      - WorkspaceStateProvisioning
+      - WorkspaceStateReady
+      - WorkspaceStateFailed
+      - WorkspaceStateDeleting
     WriteAgentFileRequest:
       additionalProperties: false
       properties:
@@ -38017,6 +38181,177 @@ paths:
       summary: List webhook trigger rows for an agent.
       tags:
       - workflow-webhooks
+  /api/workspace:
+    get:
+      description: |
+        Lists nondeleted Workspaces accessible to the current active Organisation membership. Superadmins receive every Workspace.
+      operationId: listWorkspaces
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspacesResponse'
+          description: Accessible Workspaces and navigation capabilities.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List accessible Workspaces.
+      tags:
+      - workspaces
+    post:
+      description: |
+        Creates the complete relational Workspace aggregate and starts cluster provisioning. Only an active Superadmin may create a Workspace or assign its initial Workspace Admins.
+      operationId: createWorkspace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Workspace creation was accepted for provisioning.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create a Workspace.
+      tags:
+      - workspaces
+  /api/workspace/{workspaceId}:
+    get:
+      operationId: getWorkspace
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Accessible Workspace lifecycle state.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Get an accessible Workspace.
+      tags:
+      - workspaces
+  /api/workspace/{workspaceId}/lifecycle:
+    patch:
+      description: |
+        Accepts a controller-observed terminal state for the current provisioning attempt. Stale attempts cannot overwrite current state.
+      operationId: updateWorkspaceLifecycle
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceLifecycleRequest'
+        required: true
+      responses:
+        "204":
+          description: Lifecycle observation recorded or already current.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Record observed Workspace lifecycle state.
+      tags:
+      - workspaces
+  /api/workspace/{workspaceId}/retry:
+    post:
+      description: Only an active Superadmin may retry a failed Workspace.
+      operationId: retryWorkspace
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Workspace returned to provisioning.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Retry failed Workspace provisioning.
+      tags:
+      - workspaces
+  /api/workspace/member-candidate:
+    get:
+      description: |
+        Lists active, non-Superadmin members of the current Organisation. Only an active Superadmin may inspect the candidates.
+      operationId: listWorkspaceMemberCandidates
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspaceMemberCandidatesResponse'
+          description: Eligible Workspace Admin candidates.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List eligible initial Workspace Admins.
+      tags:
+      - workspaces
+  /api/workspace/slug/{workspaceSlug}:
+    get:
+      description: |
+        Resolves current and historical slugs inside the active Organisation without exposing inaccessible Workspace identity.
+      operationId: resolveWorkspaceSlug
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceSlugPath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Accessible Workspace and canonical slug.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Resolve an accessible Workspace slug.
+      tags:
+      - workspaces
 security:
 - GatewayBearer: []
 servers:
@@ -38027,6 +38362,8 @@ tags:
   name: agents
 - description: Tenant bootstrap and readiness APIs.
   name: tenants
+- description: Workspace provisioning and navigation APIs.
+  name: workspaces
 - description: Organisation audit investigation APIs.
   name: audit
 - description: Trace, span, and OS observability APIs.

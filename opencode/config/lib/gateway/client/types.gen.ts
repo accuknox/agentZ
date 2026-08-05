@@ -13,7 +13,7 @@ export type AuditInterface = "web" | "gateway" | "better_auth" | "controller" | 
 export type AuditTargetType = "organization" | "organization_membership" | "workspace"
 
 export type AuditField = {
-  field: "member_id" | "name" | "role" | "slug" | "user_id"
+  field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
   value: string
 }
 
@@ -117,6 +117,50 @@ export type Tenant = {
   ready: boolean
   phase: TenantPhase
   conditions: Array<TenantCondition>
+}
+
+export type WorkspaceState = "provisioning" | "ready" | "failed" | "deleting"
+
+export type Workspace = {
+  id: string
+  name: string
+  slug: string
+  namespace: string
+  state: WorkspaceState
+  provisioning_attempt: number
+  failure_reason?: string
+  workspace_admin_count: number
+  can_administer: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type ListWorkspacesResponse = {
+  workspaces: Array<Workspace>
+  can_create: boolean
+  can_enter_organization: boolean
+}
+
+export type CreateWorkspaceRequest = {
+  name: string
+  admin_member_ids: Array<string>
+}
+
+export type WorkspaceMemberCandidate = {
+  member_id: string
+  user_id: string
+  name: string
+  email: string
+}
+
+export type ListWorkspaceMemberCandidatesResponse = {
+  members: Array<WorkspaceMemberCandidate>
+}
+
+export type UpdateWorkspaceLifecycleRequest = {
+  provisioning_attempt: number
+  state: "ready" | "failed"
+  failure_reason?: string
 }
 
 export type ObservabilityAction = "Allowed" | "Blocked"
@@ -1757,6 +1801,16 @@ export type UpdateInferenceProviderRequestWritable = {
 }
 
 /**
+ * Stable Workspace ID.
+ */
+export type WorkspaceIdPath = string
+
+/**
+ * Current or historical Workspace slug.
+ */
+export type WorkspaceSlugPath = string
+
+/**
  * Exact actor type.
  */
 export type AuditActorTypeQuery = AuditActorType
@@ -2102,6 +2156,293 @@ export type EnsureTenantResponses = {
 }
 
 export type EnsureTenantResponse = EnsureTenantResponses[keyof EnsureTenantResponses]
+
+export type ListWorkspacesData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/workspace"
+}
+
+export type ListWorkspacesErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkspacesError = ListWorkspacesErrors[keyof ListWorkspacesErrors]
+
+export type ListWorkspacesResponses = {
+  /**
+   * Accessible Workspaces and navigation capabilities.
+   */
+  200: ListWorkspacesResponse
+}
+
+export type ListWorkspacesResponse2 = ListWorkspacesResponses[keyof ListWorkspacesResponses]
+
+export type CreateWorkspaceData = {
+  body: CreateWorkspaceRequest
+  path?: never
+  query?: never
+  url: "/api/workspace"
+}
+
+export type CreateWorkspaceErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateWorkspaceError = CreateWorkspaceErrors[keyof CreateWorkspaceErrors]
+
+export type CreateWorkspaceResponses = {
+  /**
+   * Workspace creation was accepted for provisioning.
+   */
+  201: Workspace
+}
+
+export type CreateWorkspaceResponse = CreateWorkspaceResponses[keyof CreateWorkspaceResponses]
+
+export type ListWorkspaceMemberCandidatesData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/workspace/member-candidate"
+}
+
+export type ListWorkspaceMemberCandidatesErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkspaceMemberCandidatesError =
+  ListWorkspaceMemberCandidatesErrors[keyof ListWorkspaceMemberCandidatesErrors]
+
+export type ListWorkspaceMemberCandidatesResponses = {
+  /**
+   * Eligible Workspace Admin candidates.
+   */
+  200: ListWorkspaceMemberCandidatesResponse
+}
+
+export type ListWorkspaceMemberCandidatesResponse2 =
+  ListWorkspaceMemberCandidatesResponses[keyof ListWorkspaceMemberCandidatesResponses]
+
+export type ResolveWorkspaceSlugData = {
+  body?: never
+  path: {
+    /**
+     * Current or historical Workspace slug.
+     */
+    workspaceSlug: string
+  }
+  query?: never
+  url: "/api/workspace/slug/{workspaceSlug}"
+}
+
+export type ResolveWorkspaceSlugErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ResolveWorkspaceSlugError = ResolveWorkspaceSlugErrors[keyof ResolveWorkspaceSlugErrors]
+
+export type ResolveWorkspaceSlugResponses = {
+  /**
+   * Accessible Workspace and canonical slug.
+   */
+  200: Workspace
+}
+
+export type ResolveWorkspaceSlugResponse =
+  ResolveWorkspaceSlugResponses[keyof ResolveWorkspaceSlugResponses]
+
+export type GetWorkspaceData = {
+  body?: never
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}"
+}
+
+export type GetWorkspaceErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetWorkspaceError = GetWorkspaceErrors[keyof GetWorkspaceErrors]
+
+export type GetWorkspaceResponses = {
+  /**
+   * Accessible Workspace lifecycle state.
+   */
+  200: Workspace
+}
+
+export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses]
+
+export type RetryWorkspaceData = {
+  body?: never
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/retry"
+}
+
+export type RetryWorkspaceErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type RetryWorkspaceError = RetryWorkspaceErrors[keyof RetryWorkspaceErrors]
+
+export type RetryWorkspaceResponses = {
+  /**
+   * Workspace returned to provisioning.
+   */
+  200: Workspace
+}
+
+export type RetryWorkspaceResponse = RetryWorkspaceResponses[keyof RetryWorkspaceResponses]
+
+export type UpdateWorkspaceLifecycleData = {
+  body: UpdateWorkspaceLifecycleRequest
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/lifecycle"
+}
+
+export type UpdateWorkspaceLifecycleErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateWorkspaceLifecycleError =
+  UpdateWorkspaceLifecycleErrors[keyof UpdateWorkspaceLifecycleErrors]
+
+export type UpdateWorkspaceLifecycleResponses = {
+  /**
+   * Lifecycle observation recorded or already current.
+   */
+  204: void
+}
+
+export type UpdateWorkspaceLifecycleResponse =
+  UpdateWorkspaceLifecycleResponses[keyof UpdateWorkspaceLifecycleResponses]
 
 export type ListAgentsData = {
   body?: never

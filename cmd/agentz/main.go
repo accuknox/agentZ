@@ -62,6 +62,7 @@ import (
 	"github.com/accuknox/agentz/internal/controller/tenant"
 	workflowruncontroller "github.com/accuknox/agentz/internal/controller/workflowrun"
 	workflowschedulecontroller "github.com/accuknox/agentz/internal/controller/workflowschedule"
+	workspacecontroller "github.com/accuknox/agentz/internal/controller/workspace"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
@@ -1023,19 +1024,15 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
+		directClient, err := client.New(restCfg, client.Options{Scheme: mgr.GetScheme()})
+		if err != nil {
+			setupLog.Error(err, "failed to create direct controller client")
+			os.Exit(1)
+		}
 		tenantReconciler := &tenant.Reconciler{
-			Client:     mgr.GetClient(),
-			CertClient: cmClient,
-			Direct: func() client.Client {
-				c, err := client.New(restCfg, client.Options{
-					Scheme: mgr.GetScheme(),
-				})
-				if err != nil {
-					setupLog.Error(err, "failed to create direct tenant client")
-					os.Exit(1)
-				}
-				return c
-			}(),
+			Client:                         mgr.GetClient(),
+			CertClient:                     cmClient,
+			Direct:                         directClient,
 			Scheme:                         mgr.GetScheme(),
 			NixStorePVCName:                nixStorePVC,
 			NixStorePVCSize:                tenantPVCSize,
@@ -1048,6 +1045,18 @@ var managerCmd = &cli.Command{
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Tenant")
+			os.Exit(1)
+		}
+
+		workspaceReconciler := &workspacecontroller.Reconciler{
+			Client:        mgr.GetClient(),
+			Direct:        directClient,
+			GatewayClient: gwClient,
+			Scheme:        mgr.GetScheme(),
+			TokenPath:     managerGatewayTokenPath,
+		}
+		if err := workspaceReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "failed to create controller", "controller", "Workspace")
 			os.Exit(1)
 		}
 

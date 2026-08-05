@@ -46,6 +46,9 @@ import type {
   CreateWorkflowScheduleData,
   CreateWorkflowScheduleErrors,
   CreateWorkflowScheduleResponses,
+  CreateWorkspaceData,
+  CreateWorkspaceErrors,
+  CreateWorkspaceResponses,
   DeleteAgentData,
   DeleteAgentEntryData,
   DeleteAgentEntryErrors,
@@ -130,6 +133,9 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunErrors,
   GetWorkflowRunResponses,
+  GetWorkspaceData,
+  GetWorkspaceErrors,
+  GetWorkspaceResponses,
   ImportSkillsData,
   ImportSkillsErrors,
   ImportSkillsResponses,
@@ -205,6 +211,12 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersErrors,
   ListWorkflowWebhookTriggersResponses,
+  ListWorkspaceMemberCandidatesData,
+  ListWorkspaceMemberCandidatesErrors,
+  ListWorkspaceMemberCandidatesResponses,
+  ListWorkspacesData,
+  ListWorkspacesErrors,
+  ListWorkspacesResponses,
   PatchWorkflowRunNodeStatusData,
   PatchWorkflowRunNodeStatusErrors,
   PatchWorkflowRunNodeStatusResponses,
@@ -229,6 +241,12 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
+  ResolveWorkspaceSlugData,
+  ResolveWorkspaceSlugErrors,
+  ResolveWorkspaceSlugResponses,
+  RetryWorkspaceData,
+  RetryWorkspaceErrors,
+  RetryWorkspaceResponses,
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
@@ -250,6 +268,9 @@ import type {
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
+  UpdateWorkspaceLifecycleData,
+  UpdateWorkspaceLifecycleErrors,
+  UpdateWorkspaceLifecycleResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
@@ -298,6 +319,7 @@ import {
   zCreateWorkflowRunPath,
   zCreateWorkflowScheduleBody,
   zCreateWorkflowSchedulePath,
+  zCreateWorkspaceBody,
   zDeleteAgentEntryPath,
   zDeleteAgentEntryQuery,
   zDeleteAgentMutableSkillsBody,
@@ -330,6 +352,7 @@ import {
   zGetSpanDetailPath,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
+  zGetWorkspacePath,
   zImportSkillsBody,
   zInvokeWorkflowWebhookBody,
   zInvokeWorkflowWebhookPath,
@@ -384,6 +407,8 @@ import {
   zRefreshInferenceProviderModelsPath,
   zRenameAgentEntryBody,
   zRenameAgentEntryPath,
+  zResolveWorkspaceSlugPath,
+  zRetryWorkspacePath,
   zStatAgentFilePath,
   zStatAgentFileQuery,
   zUpdateAgentBody,
@@ -398,6 +423,8 @@ import {
   zUpdateSkillPath,
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
+  zUpdateWorkspaceLifecycleBody,
+  zUpdateWorkspaceLifecyclePath,
   zWatchAgentsBody,
   zWatchInferencePoolsBody,
   zWatchInferenceProvidersBody,
@@ -518,6 +545,183 @@ export const ensureTenant = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/tenant",
     ...options,
+  })
+
+/**
+ * List accessible Workspaces.
+ *
+ * Lists nondeleted Workspaces accessible to the current active Organisation membership. Superadmins receive every Workspace.
+ *
+ */
+export const listWorkspaces = <ThrowOnError extends boolean = false>(
+  options?: Options<ListWorkspacesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListWorkspacesResponses, ListWorkspacesErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace",
+    ...options,
+  })
+
+/**
+ * Create a Workspace.
+ *
+ * Creates the complete relational Workspace aggregate and starts cluster provisioning. Only an active Superadmin may create a Workspace or assign its initial Workspace Admins.
+ *
+ */
+export const createWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateWorkspaceResponses, CreateWorkspaceErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateWorkspaceBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List eligible initial Workspace Admins.
+ *
+ * Lists active, non-Superadmin members of the current Organisation. Only an active Superadmin may inspect the candidates.
+ *
+ */
+export const listWorkspaceMemberCandidates = <ThrowOnError extends boolean = false>(
+  options?: Options<ListWorkspaceMemberCandidatesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListWorkspaceMemberCandidatesResponses,
+    ListWorkspaceMemberCandidatesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/member-candidate",
+    ...options,
+  })
+
+/**
+ * Resolve an accessible Workspace slug.
+ *
+ * Resolves current and historical slugs inside the active Organisation without exposing inaccessible Workspace identity.
+ *
+ */
+export const resolveWorkspaceSlug = <ThrowOnError extends boolean = false>(
+  options: Options<ResolveWorkspaceSlugData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ResolveWorkspaceSlugResponses,
+    ResolveWorkspaceSlugErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zResolveWorkspaceSlugPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/slug/{workspaceSlug}",
+    ...options,
+  })
+
+/**
+ * Get an accessible Workspace.
+ */
+export const getWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetWorkspaceResponses, GetWorkspaceErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetWorkspacePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}",
+    ...options,
+  })
+
+/**
+ * Retry failed Workspace provisioning.
+ *
+ * Only an active Superadmin may retry a failed Workspace.
+ */
+export const retryWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<RetryWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).post<RetryWorkspaceResponses, RetryWorkspaceErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zRetryWorkspacePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/retry",
+    ...options,
+  })
+
+/**
+ * Record observed Workspace lifecycle state.
+ *
+ * Accepts a controller-observed terminal state for the current provisioning attempt. Stale attempts cannot overwrite current state.
+ *
+ */
+export const updateWorkspaceLifecycle = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateWorkspaceLifecycleData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateWorkspaceLifecycleResponses,
+    UpdateWorkspaceLifecycleErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateWorkspaceLifecycleBody,
+          path: zUpdateWorkspaceLifecyclePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/lifecycle",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

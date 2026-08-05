@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
+import { provisionWorkspace, retryWorkspaceProvisioning } from "@/data/workspaces"
+import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
 
 const renameOrganizationSchema = z.object({
   name: z
@@ -30,6 +32,14 @@ export type RenameOrganizationFormState = {
     form?: string
     name?: string[]
     slug?: string[]
+  }
+}
+
+export type CreateWorkspaceFormState = {
+  error?: string
+  errors?: {
+    admin_member_ids?: string[]
+    name?: string[]
   }
 }
 
@@ -74,4 +84,47 @@ export async function renameOrganizationAction(
 
   revalidatePath("/orgs", "layout")
   redirect(`/orgs/${result.slug}/general` as Route)
+}
+
+export async function createWorkspaceAction(
+  orgSlug: string,
+  _state: CreateWorkspaceFormState,
+  formData: FormData
+): Promise<CreateWorkspaceFormState> {
+  const parsed = zCreateWorkspaceRequest.safeParse({
+    admin_member_ids: formData.getAll("admin_member_ids"),
+    name: formData.get("name"),
+  })
+  if (!parsed.success) {
+    const fields = z.flattenError(parsed.error).fieldErrors
+    return {
+      errors: {
+        admin_member_ids: fields.admin_member_ids,
+        name: fields.name,
+      },
+    }
+  }
+
+  const result = await provisionWorkspace(orgSlug, parsed.data)
+  if (!result) {
+    return { error: "You no longer have permission to create a Workspace." }
+  }
+  if (result.error) {
+    return { error: result.error.message }
+  }
+
+  revalidatePath(`/orgs/${orgSlug}`, "layout")
+  redirect(`/orgs/${orgSlug}/workspaces/${result.data.slug}` as Route)
+}
+
+export async function retryWorkspaceAction(orgSlug: string, workspaceId: string): Promise<void> {
+  const result = await retryWorkspaceProvisioning(orgSlug, workspaceId)
+  if (!result) {
+    throw new Error("You no longer have permission to retry this Workspace.")
+  }
+  if (result.error) {
+    throw new Error(result.error.message)
+  }
+
+  revalidatePath(`/orgs/${orgSlug}`, "layout")
 }

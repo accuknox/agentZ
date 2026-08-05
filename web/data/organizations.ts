@@ -200,7 +200,11 @@ export async function switchOrganization(organizationId: string): Promise<Route 
   return organizationDestination(organization, lastContext?.route)
 }
 
-export async function rememberOrganizationRoute(organizationId: string, route: string) {
+export async function rememberOrganizationRoute(
+  organizationId: string,
+  route: string,
+  workspaceId: string | null
+) {
   const organizationSession = await getOrganizationSession()
   const organization = organizationSession?.organizations.find(
     (candidate) => candidate.id === organizationId
@@ -220,13 +224,14 @@ export async function rememberOrganizationRoute(organizationId: string, route: s
       organizationId: organization.id,
       route,
       userId: organizationSession.session.user.id,
+      workspaceId,
     })
     .onConflictDoUpdate({
       target: [schema.lastAccessibleContexts.userId, schema.lastAccessibleContexts.organizationId],
       set: {
         route,
         updatedAt: new Date(),
-        workspaceId: null,
+        workspaceId,
       },
     })
 }

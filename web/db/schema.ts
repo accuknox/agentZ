@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm"
 import {
   boolean,
+  bigint,
   check,
   foreignKey,
   index,
@@ -27,7 +28,14 @@ import {
 export * from "./auth-schema"
 
 type AuditField = {
-  field: "member_id" | "name" | "role" | "slug" | "user_id"
+  field:
+    | "member_id"
+    | "name"
+    | "provisioning_attempt"
+    | "role"
+    | "slug"
+    | "state"
+    | "user_id"
   value: string
 }
 
@@ -123,6 +131,9 @@ export const workspaces = pgTable(
     slug: text("slug").notNull(),
     namespace: text("namespace").notNull().unique(),
     state: workspaceState("state").default("provisioning").notNull(),
+    provisioningAttempt: bigint("provisioning_attempt", { mode: "number" })
+      .default(1)
+      .notNull(),
     failureReason: text("failure_reason"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -135,6 +146,15 @@ export const workspaces = pgTable(
     uniqueIndex("workspaces_organization_slug_uidx").on(table.organizationId, table.slug),
     unique("workspaces_id_organization_uidx").on(table.id, table.organizationId),
     index("workspaces_organization_state_idx").on(table.organizationId, table.state),
+    check(
+      "workspaces_provisioning_attempt_ck",
+      sql`${table.provisioningAttempt} >= 1`
+    ),
+    check(
+      "workspaces_state_failure_reason_ck",
+      sql`(${table.state} = 'failed' AND NULLIF(BTRIM(${table.failureReason}), '') IS NOT NULL) OR
+        (${table.state} <> 'failed' AND ${table.failureReason} IS NULL)`
+    ),
   ]
 )
 
@@ -611,6 +631,11 @@ export const auditEvents = pgTable(
       "audit_events_actor_ck",
       sql`(${table.actorType} = 'system' AND ${table.actorId} IS NULL) OR
         (${table.actorType} <> 'system' AND ${table.actorId} IS NOT NULL)`
+    ),
+    check(
+      "audit_events_workspace_target_ck",
+      sql`${table.targetType} <> 'workspace' OR
+        (${table.workspaceId} IS NOT NULL AND ${table.targetId} = ${table.workspaceId})`
     ),
   ]
 )

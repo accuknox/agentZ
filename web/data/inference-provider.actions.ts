@@ -50,6 +50,7 @@ const pendingInferenceOAuthSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("OpenAICodex"),
     initiator: gatewayAuthContextSchema,
+    workspaceId: z.string().min(1).optional(),
     deviceAuthId: z.string().min(1),
     userCode: z.string().min(1),
     interval: z.number().int().positive(),
@@ -58,6 +59,7 @@ const pendingInferenceOAuthSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("GitHubCopilot"),
     initiator: gatewayAuthContextSchema,
+    workspaceId: z.string().min(1).optional(),
     deviceCode: z.string().min(1),
     interval: z.number().int().positive(),
     expiresAt: z.number().int().positive(),
@@ -120,7 +122,10 @@ type SaveInferenceProviderInput =
   | { providerName: string; body: UpdateInferenceProviderRequestWritable }
   | { providerName?: undefined; body: CreateInferenceProviderRequestWritable }
 
+export type InferenceProviderActionScope = { workspaceId?: string }
+
 export async function startInferenceProviderOAuthAction(
+  scope: InferenceProviderActionScope,
   value: InferenceProviderKind
 ): Promise<InferenceOAuthChallenge | { status: "error"; message: string }> {
   const kind = inferenceOAuthKindSchema.safeParse(value)
@@ -154,6 +159,7 @@ export async function startInferenceProviderOAuthAction(
           {
             kind: kind.data,
             initiator,
+            workspaceId: scope.workspaceId,
             deviceAuthId: device.device_auth_id,
             userCode: device.user_code,
             interval,
@@ -201,6 +207,7 @@ export async function startInferenceProviderOAuthAction(
         {
           kind: kind.data,
           initiator,
+          workspaceId: scope.workspaceId,
           deviceCode: device.device_code,
           interval: device.interval,
           expiresAt,
@@ -227,7 +234,9 @@ export async function startInferenceProviderOAuthAction(
   }
 }
 
-export async function pollInferenceProviderOAuthAction(): Promise<InferenceOAuthPoll> {
+export async function pollInferenceProviderOAuthAction(
+  scope: InferenceProviderActionScope
+): Promise<InferenceOAuthPoll> {
   const cookieStore = await cookies()
   const sealed = cookieStore.get(inferenceOAuthCookieName)?.value
   if (!sealed) {
@@ -246,7 +255,8 @@ export async function pollInferenceProviderOAuthAction(): Promise<InferenceOAuth
   if (
     pending.initiator.organizationId !== initiator.organizationId ||
     pending.initiator.sessionId !== initiator.sessionId ||
-    pending.initiator.userId !== initiator.userId
+    pending.initiator.userId !== initiator.userId ||
+    pending.workspaceId !== scope.workspaceId
   ) {
     cookieStore.delete(inferenceOAuthCookieName)
     return { status: "error", message: "Sign-in can no longer be used. Please try again." }
@@ -258,9 +268,9 @@ export async function pollInferenceProviderOAuthAction(): Promise<InferenceOAuth
 
   try {
     if (pending.kind === "OpenAICodex") {
-      return await pollOpenAICodex(pending, cookieStore)
+      return await pollOpenAICodex(pending, cookieStore, scope.workspaceId)
     }
-    return await pollGitHubCopilot(pending, cookieStore)
+    return await pollGitHubCopilot(pending, cookieStore, scope.workspaceId)
   } catch {
     return { status: "error", message: "Sign-in could not be completed. Please try again." }
   }
@@ -268,7 +278,8 @@ export async function pollInferenceProviderOAuthAction(): Promise<InferenceOAuth
 
 async function pollOpenAICodex(
   pending: Extract<z.infer<typeof pendingInferenceOAuthSchema>, { kind: "OpenAICodex" }>,
-  cookieStore: Awaited<ReturnType<typeof cookies>>
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  workspaceId?: string
 ): Promise<InferenceOAuthPoll> {
   const response = await fetch("https://auth.openai.com/api/accounts/deviceauth/token", {
     method: "POST",
@@ -319,7 +330,8 @@ async function pollOpenAICodex(
         expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
       },
     },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
   })
   if (result.error) {
     return { status: "error", message: "Your subscription could not be connected" }
@@ -330,7 +342,8 @@ async function pollOpenAICodex(
 
 async function pollGitHubCopilot(
   pending: Extract<z.infer<typeof pendingInferenceOAuthSchema>, { kind: "GitHubCopilot" }>,
-  cookieStore: Awaited<ReturnType<typeof cookies>>
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  workspaceId?: string
 ): Promise<InferenceOAuthPoll> {
   const response = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
@@ -374,7 +387,8 @@ async function pollGitHubCopilot(
       kind: pending.kind,
       credentials: { access_token: token.access_token },
     },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
   })
   if (result.error) {
     return { status: "error", message: "Your subscription could not be connected" }
@@ -384,6 +398,7 @@ async function pollGitHubCopilot(
 }
 
 export async function saveInferenceProviderAction(
+  scope: InferenceProviderActionScope,
   input: SaveInferenceProviderInput
 ): Promise<SaveInferenceProviderState> {
   let result
@@ -408,7 +423,8 @@ export async function saveInferenceProviderAction(
     result = await updateInferenceProvider({
       path: { providerName: providerName.data },
       body: parsed.data,
-      client: getGatewayServerClient(),
+      client: getGatewayServerClient(scope.workspaceId),
+      headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     })
   } else {
     const parsed = zCreateInferenceProviderRequestWritable.safeParse(input.body)
@@ -426,7 +442,8 @@ export async function saveInferenceProviderAction(
     }
     result = await createInferenceProvider({
       body: parsed.data,
-      client: getGatewayServerClient(),
+      client: getGatewayServerClient(scope.workspaceId),
+      headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     })
   }
   if (result.error) {
@@ -438,6 +455,7 @@ export async function saveInferenceProviderAction(
 }
 
 export async function deleteInferenceProviderAction(
+  scope: InferenceProviderActionScope,
   name: string
 ): Promise<{ error?: GatewayError }> {
   const parsed = zInferenceProviderName.safeParse(name)
@@ -451,7 +469,8 @@ export async function deleteInferenceProviderAction(
   }
   const result = await deleteInferenceProvider({
     path: { providerName: parsed.data },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
   })
   if (result.error) {
     return { error: result.error }
@@ -462,6 +481,7 @@ export async function deleteInferenceProviderAction(
 }
 
 export async function getInferenceProviderUsageAction(
+  scope: InferenceProviderActionScope,
   name: string
 ): Promise<{ usage?: InferenceProviderUsage; error?: GatewayError }> {
   const parsed = zInferenceProviderName.safeParse(name)
@@ -470,7 +490,8 @@ export async function getInferenceProviderUsageAction(
   }
   const result = await getInferenceProviderUsage({
     path: { providerName: parsed.data },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
   })
   if (result.error) {
     return { error: result.error }
@@ -478,13 +499,20 @@ export async function getInferenceProviderUsageAction(
   return { usage: result.data }
 }
 
-export async function refreshInferenceProvidersAction(): Promise<InferenceProvidersResult> {
+export async function refreshInferenceProvidersAction(
+  scope: InferenceProviderActionScope
+): Promise<InferenceProvidersResult> {
   updateTag(inferenceProvidersTag)
-  return listInferenceProvidersCachedQuery()
+  return listInferenceProvidersCachedQuery(scope.workspaceId)
 }
 
-export async function listInferenceProviderCatalogAction(): Promise<ListInferenceProviderCatalogState> {
-  const result = await listInferenceProviderCatalog({ client: getGatewayServerClient() })
+export async function listInferenceProviderCatalogAction(
+  scope: InferenceProviderActionScope
+): Promise<ListInferenceProviderCatalogState> {
+  const result = await listInferenceProviderCatalog({
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
+  })
   if (result.error) {
     return { error: result.error }
   }
@@ -492,6 +520,7 @@ export async function listInferenceProviderCatalogAction(): Promise<ListInferenc
 }
 
 export async function suggestInferenceModelsAction(
+  scope: InferenceProviderActionScope,
   catalogProvider: string,
   providerKind: InferenceProviderKind
 ): Promise<SuggestInferenceModelsState> {
@@ -506,7 +535,8 @@ export async function suggestInferenceModelsAction(
   const result = await listInferenceModelSuggestions({
     path: { catalogProvider: provider.data },
     query: { provider_kind: parsed.data },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
   })
   if (result.error) {
     return { error: result.error }
@@ -515,6 +545,7 @@ export async function suggestInferenceModelsAction(
 }
 
 export async function refreshInferenceProviderModelsAction(
+  scope: InferenceProviderActionScope,
   name: string
 ): Promise<SuggestInferenceModelsState> {
   const parsed = zInferenceProviderName.safeParse(name)
@@ -523,7 +554,8 @@ export async function refreshInferenceProviderModelsAction(
   }
   const result = await refreshInferenceProviderModels({
     path: { providerName: parsed.data },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
   })
   if (result.error) {
     return { error: result.error }

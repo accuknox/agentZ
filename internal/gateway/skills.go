@@ -22,6 +22,7 @@ import (
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -568,13 +569,6 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 	for i, ref := range refs {
 		name := ref.Name
 		field := fmt.Sprintf("skills[%d].name", i)
-		if ref.Scope != gatewayapi.ResourceScopeOrganisation {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("skills[%d].scope", i),
-				Message: "workspace scope is not available on the current tenant path",
-			})
-			continue
-		}
 		if name == "" {
 			fields = append(fields, gatewayapi.FieldError{
 				Field: field, Message: "required",
@@ -594,8 +588,21 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 		if len(itemFields) > 0 {
 			continue
 		}
+		ns, err := scoperesolver.Namespace(
+			ctx,
+			s.k8sClient,
+			namespace,
+			agentzv1alpha1.ResourceScope(ref.Scope),
+		)
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("skills[%d].scope", i),
+				Message: "scope is not available from the selected Sandbox scope",
+			})
+			continue
+		}
 		skill := &agentzv1alpha1.Skill{}
-		key := types.NamespacedName{Name: name, Namespace: namespace}
+		key := types.NamespacedName{Name: name, Namespace: ns}
 		if err := s.k8sClient.Get(ctx, key, skill); err != nil {
 			if apierrors.IsNotFound(err) {
 				fields = append(fields, gatewayapi.FieldError{
@@ -775,12 +782,12 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request, params ga
 	for _, tree := range bundle.Skills {
 		names = append(names, tree.Name)
 	}
-	skillCapabilities, _, err := s.resolveResourceCapabilities(r.Context(), access.claims, workspaceID)
+	capabilities, err := s.resolveResourceCapabilities(r.Context(), access.claims, workspaceID)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	err = s.importImmutableSkills(r, ns, bundle, decisions, access, skillCapabilities.Modify)
+	err = s.importImmutableSkills(r, ns, bundle, decisions, access, capabilities.skill.Modify)
 	if err != nil {
 		writeError(w, r, err)
 		return

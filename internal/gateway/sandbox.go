@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/sandboxutil"
@@ -68,7 +69,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 
 	items := make([]gatewayapi.Sandbox, 0, len(sandboxList.Items))
 	for _, sb := range sandboxList.Items {
-		items = append(items, sandboxFromCRD(sb, refs[sb.Name]))
+		items = append(items, sandboxFromCRD(sb, refs[sb.Name], access))
 	}
 
 	start := min(offset, len(items))
@@ -285,6 +286,38 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			Inference:         sandboxInferenceFromAPI(req.Inference),
 		},
 	}
+	dependencyFields, err := s.validateSandboxDependencies(r.Context(), access, sandbox)
+	if err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
+		writeInternalError(w, r, err)
+		return
+	}
+	if len(dependencyFields) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			dependencyFields...,
+		))
+		return
+	}
 
 	if err := s.k8sClient.Create(r.Context(), sandbox); err != nil {
 		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
@@ -308,7 +341,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, sandboxFromCRD(*sandbox, false))
+	writeJSON(w, http.StatusCreated, sandboxFromCRD(*sandbox, false, access))
 }
 
 // DeleteSandbox handles DELETE /api/sandbox/{sandboxName}.
@@ -569,6 +602,47 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		writeError(w, r, apiErr)
 		return
 	}
+	desiredInference := sandboxInferenceFromAPI(req.Inference)
+	dependencies := &agentzv1alpha1.Sandbox{
+		ObjectMeta: metav1.ObjectMeta{Namespace: access.namespace},
+		Spec: agentzv1alpha1.SandboxSpec{
+			MCPConnectionRefs: mcpConnectionRefs,
+			Skills:            resourceReferencesToCRD(skills),
+			Inference:         desiredInference,
+		},
+	}
+	dependencyFields, err := s.validateSandboxDependencies(r.Context(), access, dependencies)
+	if err != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		})
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
+		writeInternalError(w, r, err)
+		return
+	}
+	if len(dependencyFields) > 0 {
+		if err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access,
+			name:   name,
+			result: gatewaydb.AuditResultFailed,
+		}); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			dependencyFields...,
+		))
+		return
+	}
 
 	var updated *agentzv1alpha1.Sandbox
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -584,7 +658,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		sandbox.Spec.AllowedHosts = allowedHosts
 		sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
 		sandbox.Spec.Skills = resourceReferencesToCRD(skills)
-		sandbox.Spec.Inference = sandboxInferenceFromAPI(req.Inference)
+		sandbox.Spec.Inference = desiredInference
 
 		if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
 			return updateErr
@@ -633,10 +707,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0))
+	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0, access))
 }
 
-func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandbox {
+func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceAccess) gatewayapi.Sandbox {
 	packages := []string{}
 	if sb.Spec.Packages != nil {
 		packages = sb.Spec.Packages
@@ -672,6 +746,14 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool) gatewayapi.Sandb
 		CreatedAt:         sb.CreationTimestamp.Time,
 		Inference:         sandboxInferenceToAPI(sb.Spec.Inference),
 	}
+	scope := authorization.Scope{
+		OrganizationID: access.claims.TenantID,
+		WorkspaceID:    access.workspaceID,
+	}
+	creator := sb.Spec.CreatorUserID == access.claims.UserID &&
+		access.effective.Allows(scope, authorization.OperationCreateSandbox)
+	out.CanModify = access.effective.Allows(scope, authorization.OperationUpdateSandbox) || creator
+	out.CanDelete = access.effective.Allows(scope, authorization.OperationDeleteSandbox) || creator
 	out.Metadata.PackageCount = int32(len(packages))
 	out.Metadata.AllowedHostCount = int32(len(allowedHosts))
 	out.Metadata.SkillCount = int32(len(sb.Spec.Skills))
@@ -971,6 +1053,116 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 		}
 	}
 	return fields
+}
+
+func (s *Service) validateSandboxDependencies(ctx context.Context, access sandboxAccess, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.FieldError, error) {
+	fields := []gatewayapi.FieldError{}
+	allows := func(scope agentzv1alpha1.ResourceScope, operation authorization.Operation) bool {
+		workspaceID := ""
+		if scope == agentzv1alpha1.ResourceScopeWorkspace {
+			workspaceID = access.workspaceID
+		}
+		return access.effective.Allows(authorization.Scope{
+			OrganizationID: access.claims.TenantID,
+			WorkspaceID:    workspaceID,
+		}, operation)
+	}
+	for i, ref := range sandbox.Spec.Skills {
+		if allows(ref.Scope, authorization.OperationListSkills) {
+			continue
+		}
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   fmt.Sprintf("skills[%d]", i),
+			Message: "effective Skill read permission is required in the referenced scope",
+		})
+	}
+	for i, ref := range sandbox.Spec.MCPConnectionRefs {
+		if allows(ref.Scope, authorization.OperationGetMCPConnection) {
+			continue
+		}
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   fmt.Sprintf("mcp_connection_refs[%d]", i),
+			Message: "effective MCP Connection read permission is required in the referenced scope",
+		})
+	}
+	for i, ref := range sandbox.Spec.Inference.Models {
+		ns, err := scoperesolver.Namespace(ctx, s.k8sClient, access.namespace, ref.Scope)
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("inference.models[%d].scope", i),
+				Message: "scope is not available from the selected Sandbox scope",
+			})
+			continue
+		}
+		if ref.Provider == agentzv1alpha1.InferencePoolProvider {
+			if !allows(ref.Scope, authorization.OperationGetInferencePool) {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   fmt.Sprintf("inference.models[%d]", i),
+					Message: "effective Inference Pool read permission is required in the referenced scope",
+				})
+				continue
+			}
+			pool := &agentzv1alpha1.InferencePool{}
+			err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: ns, Name: ref.Model}, pool)
+			if apierrors.IsNotFound(err) {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   fmt.Sprintf("inference.models[%d].model", i),
+					Message: fmt.Sprintf("inference pool %q was not found", ref.Model),
+				})
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("get inference pool %q: %w", ref.Model, err)
+			}
+			if !pool.DeletionTimestamp.IsZero() {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   fmt.Sprintf("inference.models[%d].model", i),
+					Message: fmt.Sprintf("inference pool %q is being deleted", ref.Model),
+				})
+			}
+			continue
+		}
+		if !allows(ref.Scope, authorization.OperationGetInferenceProvider) {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("inference.models[%d]", i),
+				Message: "effective Inference Provider read permission is required in the referenced scope",
+			})
+			continue
+		}
+		provider := &agentzv1alpha1.InferenceProvider{}
+		err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: ns, Name: ref.Provider}, provider)
+		if apierrors.IsNotFound(err) {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("inference.models[%d].provider", i),
+				Message: fmt.Sprintf("inference provider %q was not found", ref.Provider),
+			})
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("get inference provider %q: %w", ref.Provider, err)
+		}
+		if !provider.DeletionTimestamp.IsZero() {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("inference.models[%d].provider", i),
+				Message: fmt.Sprintf("inference provider %q is being deleted", ref.Provider),
+			})
+			continue
+		}
+		modelFound := false
+		for _, model := range provider.Spec.Models {
+			if model.ID == ref.Model {
+				modelFound = true
+				break
+			}
+		}
+		if !modelFound {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("inference.models[%d].model", i),
+				Message: fmt.Sprintf("model %q is not enabled by inference provider %q", ref.Model, ref.Provider),
+			})
+		}
+	}
+	return fields, nil
 }
 
 func writeAllowedHostsError(w http.ResponseWriter, r *http.Request, err error) {

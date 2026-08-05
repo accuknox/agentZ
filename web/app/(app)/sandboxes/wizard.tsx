@@ -78,7 +78,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { createSandboxFormAction, updateSandboxFormAction } from "@/data/sandbox.actions"
+import {
+  createSandboxFormAction,
+  updateSandboxFormAction,
+  type SandboxActionScope,
+} from "@/data/sandbox.actions"
 import { refreshInferenceProvidersAction } from "@/data/inference-provider.actions"
 import { refreshInferencePoolsAction } from "@/data/inference-pool.actions"
 import * as z from "zod"
@@ -174,6 +178,7 @@ type SandboxWizardProps = {
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
   mode: SandboxWizardMode
+  scope: SandboxActionScope
   secretHostSuggestions?: Promise<SecretHost[]>
 }
 
@@ -194,6 +199,7 @@ type AllowedHostsStepProps = {
   skills: string[]
   inference: SandboxInference
   mode: SandboxWizardMode
+  scope: SandboxActionScope
   secretHostSuggestions?: Promise<SecretHost[]>
   onAllowedHostsChangeAction: (data: AllowedHostsDraft) => void
   onPrev: () => void
@@ -203,6 +209,7 @@ type ModelsStepProps = {
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
   initialInference?: SandboxInference
+  scope: SandboxActionScope
   onAdvanceAction: () => void
   onNext: (inference: SandboxInference) => void
   onPrev: () => void
@@ -1118,6 +1125,7 @@ function ModelsStep({
   inferenceProviders,
   inferencePools,
   initialInference,
+  scope,
   onAdvanceAction,
   onNext,
   onPrev,
@@ -1280,7 +1288,7 @@ function ModelsStep({
           </div>
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <a href="/inference/providers" target="_blank" rel="noreferrer">
+              <a href={`${scope.basePath}/inference/providers`} target="_blank" rel="noreferrer">
                 Open provider setup
               </a>
             </Button>
@@ -1290,10 +1298,13 @@ function ModelsStep({
               disabled={refreshing}
               onClick={() =>
                 startRefresh(async () => {
-                  const [providerResult, poolResult] = await Promise.all([
-                    refreshInferenceProvidersAction(),
-                    refreshInferencePoolsAction(),
-                  ])
+                  const providerResult = await refreshInferenceProvidersAction(scope)
+                  const poolResult = scope.workspaceId
+                    ? await refreshInferencePoolsAction({
+                        basePath: scope.basePath,
+                        workspaceId: scope.workspaceId,
+                      })
+                    : { pools: [], error: undefined }
                   if (providerResult.error || poolResult.error) {
                     setRefreshError(
                       providerResult.error?.message ??
@@ -1335,7 +1346,7 @@ function ModelsStep({
                 <div className="divide-y">
                   {pools.map((pool) => {
                     const ref: SandboxInferenceModelRef = {
-                      scope: "Organisation",
+                      scope: scope.workspaceId ? "Workspace" : "Organisation",
                       provider: "agentz-pools",
                       model: pool.id,
                     }
@@ -1462,7 +1473,7 @@ function ModelsStep({
                         <div className="divide-y border-t">
                           {provider.models.map((model) => {
                             const ref: SandboxInferenceModelRef = {
-                              scope: "Organisation",
+                              scope: scope.workspaceId ? "Workspace" : "Organisation",
                               provider: provider.id,
                               model: model.id,
                             }
@@ -1654,6 +1665,7 @@ function AllowedHostsStep({
   skills,
   inference,
   mode,
+  scope,
   secretHostSuggestions,
   onAllowedHostsChangeAction,
   onPrev,
@@ -1661,7 +1673,9 @@ function AllowedHostsStep({
   const [draft, setDraft] = React.useState(initialDraft)
   const [draftError, setDraftError] = React.useState<string>()
   const formAction =
-    mode === "update" ? updateSandboxFormAction.bind(null, identity.name) : createSandboxFormAction
+    mode === "update"
+      ? updateSandboxFormAction.bind(null, scope, identity.name)
+      : createSandboxFormAction.bind(null, scope)
   const [state, action, pending] = useActionState(formAction, {})
   const form = useForm<AllowedHostsStepValues>({
     resolver: zodResolver(allowedHostsStepSchema),
@@ -1980,6 +1994,7 @@ export function SandboxWizard({
   inferencePools,
   mcpConnections,
   mode,
+  scope,
   secretHostSuggestions,
 }: SandboxWizardProps) {
   const [direction, setDirection] = useState(1)
@@ -2140,6 +2155,7 @@ export function SandboxWizard({
                   inferenceProviders={inferenceProviders}
                   inferencePools={inferencePools}
                   initialInference={data.inference ?? initialInference}
+                  scope={scope}
                   onAdvanceAction={() => {
                     pendingNavigationRef.current = undefined
                   }}
@@ -2161,6 +2177,7 @@ export function SandboxWizard({
                   skills={data.skills ?? initialSkills}
                   inference={data.inference ?? initialInference!}
                   mode={mode}
+                  scope={scope}
                   secretHostSuggestions={secretHostSuggestions}
                   onAllowedHostsChangeAction={(nextData) => {
                     stepper.metadata.set("allowedHosts", nextData)

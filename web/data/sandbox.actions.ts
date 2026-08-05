@@ -22,6 +22,10 @@ import { sandboxesTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 type SandboxFormValues = Omit<z.input<typeof createSandboxFormSchema>, "name">
+export type SandboxActionScope = {
+  basePath: string
+  workspaceId?: string
+}
 
 const mcpToolRefSchema = z.string({ error: "MCP tool must be text" }).transform((value, ctx) => {
   const [name, tool, extra] = value.split("\u0000")
@@ -39,6 +43,7 @@ const inferenceRefPartSchema = z
 
 const sandboxFormDataSchema = z
   .object({
+    scope: z.enum(["Organisation", "Workspace"]),
     packages: z.array(z.string({ error: "Package name must be text" }), {
       error: "Packages must be a list",
     }),
@@ -74,7 +79,7 @@ const sandboxFormDataSchema = z
         ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
         return z.NEVER
       }
-      inferenceModels.push({ scope: "Organisation", provider, model })
+      inferenceModels.push({ scope: data.scope, provider, model })
     }
     if (inferenceModels.length !== data.inferenceModelIDs.length) {
       ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
@@ -122,14 +127,14 @@ const sandboxFormDataSchema = z
       inference: {
         models: inferenceModels,
         default_model: {
-          scope: "Organisation",
+          scope: data.scope,
           provider: data.inferenceDefaultProvider,
           model: data.inferenceDefaultModel,
         },
         ...(data.inferenceSmallProvider && data.inferenceSmallModel
           ? {
               small_model: {
-                scope: "Organisation",
+                scope: data.scope,
                 provider: data.inferenceSmallProvider,
                 model: data.inferenceSmallModel,
               },
@@ -138,7 +143,7 @@ const sandboxFormDataSchema = z
         ...(data.inferenceAttachmentProvider && data.inferenceAttachmentModel
           ? {
               attachment_model: {
-                scope: "Organisation",
+                scope: data.scope,
                 provider: data.inferenceAttachmentProvider,
                 model: data.inferenceAttachmentModel,
               },
@@ -149,11 +154,13 @@ const sandboxFormDataSchema = z
   })
 
 export async function listSandboxesAction(
-  query?: ListSandboxesData["query"]
+  query?: ListSandboxesData["query"],
+  workspaceId?: string
 ): Promise<ListSandboxActionResponse> {
   const result = await listSandboxes({
     query,
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
   })
   if (result.error) {
     return {
@@ -176,8 +183,9 @@ export async function listSandboxesAction(
   }
 }
 
-function sandboxFormValues(formData: FormData) {
+function sandboxFormValues(formData: FormData, workspaceId?: string) {
   return sandboxFormDataSchema.safeParse({
+    scope: workspaceId ? "Workspace" : "Organisation",
     packages: formData.getAll("packages"),
     allowedHosts: formData.getAll("allowedHosts"),
     mcpConnectionRefs: formData.getAll("mcpConnectionRefs"),
@@ -196,6 +204,7 @@ function sandboxFormValues(formData: FormData) {
 }
 
 export async function deleteSandboxFormAction(
+  scope: SandboxActionScope,
   name: string,
   _: DeleteSandboxFormState,
   _formData: FormData
@@ -208,7 +217,8 @@ export async function deleteSandboxFormAction(
   let pageToken = ""
   for (;;) {
     const listResult = await listSandboxes({
-      client: getGatewayServerClient(),
+      client: getGatewayServerClient(scope.workspaceId),
+      headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
       query: { limit: 200, page_token: pageToken || undefined },
     })
     if (listResult.error) {
@@ -235,7 +245,8 @@ export async function deleteSandboxFormAction(
   }
 
   const result = await deleteSandbox({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     path: { sandboxName: sandboxName.data },
   })
   if (result.error) {
@@ -244,14 +255,15 @@ export async function deleteSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect("/sandboxes")
+  redirect(scope.basePath)
 }
 
 export async function createSandboxFormAction(
+  scope: SandboxActionScope,
   _: CreateSandboxFormState,
   formData: FormData
 ): Promise<CreateSandboxFormState> {
-  const values = sandboxFormValues(formData)
+  const values = sandboxFormValues(formData, scope.workspaceId)
   if (!values.success) {
     return invalidSandboxFormState(values.error)
   }
@@ -266,14 +278,15 @@ export async function createSandboxFormAction(
   }
 
   const result = await createSandbox({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     body: {
       name: parsed.data.name,
       packages: parsed.data.packages,
       allowed_hosts: parsed.data.allowedHosts,
       mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
         (ref): McpConnectionRef => ({
-          scope: "Organisation",
+          scope: scope.workspaceId ? "Workspace" : "Organisation",
           name: ref.name,
           tools: ref.tools.map((tool) => ({
             name: tool.name,
@@ -281,7 +294,10 @@ export async function createSandboxFormAction(
           })),
         })
       ),
-      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
+      skills: parsed.data.skills.map((name) => ({
+        scope: scope.workspaceId ? "Workspace" : "Organisation",
+        name,
+      })),
       inference: parsed.data.inference,
     },
   })
@@ -292,10 +308,11 @@ export async function createSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect("/sandboxes")
+  redirect(scope.basePath)
 }
 
 export async function updateSandboxFormAction(
+  scope: SandboxActionScope,
   name: string,
   _: CreateSandboxFormState,
   formData: FormData
@@ -305,7 +322,7 @@ export async function updateSandboxFormAction(
     return invalidSandboxFormState(sandboxName.error)
   }
 
-  const values = sandboxFormValues(formData)
+  const values = sandboxFormValues(formData, scope.workspaceId)
   if (!values.success) {
     return invalidSandboxFormState(values.error)
   }
@@ -317,14 +334,15 @@ export async function updateSandboxFormAction(
   }
 
   const result = await updateSandbox({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     path: { sandboxName: sandboxName.data },
     body: {
       packages: parsed.data.packages,
       allowed_hosts: parsed.data.allowedHosts,
       mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
         (ref): McpConnectionRef => ({
-          scope: "Organisation",
+          scope: scope.workspaceId ? "Workspace" : "Organisation",
           name: ref.name,
           tools: ref.tools.map((tool) => ({
             name: tool.name,
@@ -332,7 +350,10 @@ export async function updateSandboxFormAction(
           })),
         })
       ),
-      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
+      skills: parsed.data.skills.map((name) => ({
+        scope: scope.workspaceId ? "Workspace" : "Organisation",
+        name,
+      })),
       inference: parsed.data.inference,
     },
   })
@@ -343,7 +364,7 @@ export async function updateSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect("/sandboxes")
+  redirect(scope.basePath)
 }
 
 function invalidSandboxFormState(error: z.ZodError): CreateSandboxFormState {

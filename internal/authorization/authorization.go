@@ -54,6 +54,42 @@ const (
 	OperationCreateMCPConnection Operation = "createMCPConnection"
 	// OperationDeleteMCPConnection deletes an MCP Connection resource.
 	OperationDeleteMCPConnection Operation = "deleteMCPConnection"
+	// OperationListInferenceProviders lists Inference Provider resources.
+	OperationListInferenceProviders Operation = "listInferenceProviders"
+	// OperationWatchInferenceProviders watches Inference Provider resources.
+	OperationWatchInferenceProviders Operation = "watchInferenceProviders"
+	// OperationGetInferenceProvider reads one Inference Provider resource.
+	OperationGetInferenceProvider Operation = "getInferenceProvider"
+	// OperationGetInferenceProviderUsage reads Inference Provider usage.
+	OperationGetInferenceProviderUsage Operation = "getInferenceProviderUsage"
+	// OperationRefreshInferenceProviderModels reads current Provider models.
+	OperationRefreshInferenceProviderModels Operation = "refreshInferenceProviderModels"
+	// OperationListInferenceProviderCatalog reads the Provider catalog.
+	OperationListInferenceProviderCatalog Operation = "listInferenceProviderCatalog"
+	// OperationListInferenceModelSuggestions reads catalog model suggestions.
+	OperationListInferenceModelSuggestions Operation = "listInferenceModelSuggestions"
+	// OperationCreateInferenceProvider creates an Inference Provider resource.
+	OperationCreateInferenceProvider Operation = "createInferenceProvider"
+	// OperationCreateInferenceProviderOAuthTicket creates Provider credentials.
+	OperationCreateInferenceProviderOAuthTicket Operation = "createInferenceProviderOAuthTicket"
+	// OperationUpdateInferenceProvider modifies an Inference Provider resource.
+	OperationUpdateInferenceProvider Operation = "updateInferenceProvider"
+	// OperationDeleteInferenceProvider deletes an Inference Provider resource.
+	OperationDeleteInferenceProvider Operation = "deleteInferenceProvider"
+	// OperationListInferencePools lists Inference Pool resources.
+	OperationListInferencePools Operation = "listInferencePools"
+	// OperationWatchInferencePools watches Inference Pool resources.
+	OperationWatchInferencePools Operation = "watchInferencePools"
+	// OperationGetInferencePool reads one Inference Pool resource.
+	OperationGetInferencePool Operation = "getInferencePool"
+	// OperationGetInferencePoolUsage reads Inference Pool usage.
+	OperationGetInferencePoolUsage Operation = "getInferencePoolUsage"
+	// OperationCreateInferencePool creates an Inference Pool resource.
+	OperationCreateInferencePool Operation = "createInferencePool"
+	// OperationUpdateInferencePool modifies an Inference Pool resource.
+	OperationUpdateInferencePool Operation = "updateInferencePool"
+	// OperationDeleteInferencePool deletes an Inference Pool resource.
+	OperationDeleteInferencePool Operation = "deleteInferencePool"
 )
 
 // BearerScope returns the generated bearer scope for the operation.
@@ -216,6 +252,31 @@ func mapOperation(operation Operation) (operationMapping, bool) {
 		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionCreate, "mcp_connection.create"}, true
 	case OperationDeleteMCPConnection:
 		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionDelete, "mcp_connection.delete"}, true
+	case OperationListInferenceProviders,
+		OperationWatchInferenceProviders,
+		OperationGetInferenceProvider,
+		OperationGetInferenceProviderUsage,
+		OperationRefreshInferenceProviderModels,
+		OperationListInferenceProviderCatalog,
+		OperationListInferenceModelSuggestions:
+		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionRead, "inference_provider.read"}, true
+	case OperationCreateInferenceProvider, OperationCreateInferenceProviderOAuthTicket:
+		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionCreate, "inference_provider.create"}, true
+	case OperationUpdateInferenceProvider:
+		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionModify, "inference_provider.modify"}, true
+	case OperationDeleteInferenceProvider:
+		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionDelete, "inference_provider.delete"}, true
+	case OperationListInferencePools,
+		OperationWatchInferencePools,
+		OperationGetInferencePool,
+		OperationGetInferencePoolUsage:
+		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionRead, "inference_pool.read"}, true
+	case OperationCreateInferencePool:
+		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionCreate, "inference_pool.create"}, true
+	case OperationUpdateInferencePool:
+		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionModify, "inference_pool.modify"}, true
+	case OperationDeleteInferencePool:
+		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionDelete, "inference_pool.delete"}, true
 	default:
 		return operationMapping{}, false
 	}

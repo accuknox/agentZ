@@ -27,7 +27,10 @@ type SaveInferencePoolInput =
   | { poolName: string; resourceVersion: string; pool: InferencePoolWrite }
   | { poolName?: undefined; resourceVersion?: undefined; pool: InferencePoolWrite }
 
+export type InferencePoolActionScope = { basePath: string; workspaceId: string }
+
 export async function saveInferencePoolAction(
+  scope: InferencePoolActionScope,
   input: SaveInferencePoolInput
 ): Promise<{ pool?: InferencePool; error?: GatewayError }> {
   let result
@@ -43,7 +46,8 @@ export async function saveInferencePoolAction(
     result = await updateInferencePool({
       path: { poolName: name.data },
       body: body.data,
-      client: getGatewayServerClient(),
+      client: getGatewayServerClient(scope.workspaceId),
+      headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     })
   } else {
     const body = zCreateInferencePoolRequest.safeParse(input.pool)
@@ -59,7 +63,11 @@ export async function saveInferencePoolAction(
         },
       }
     }
-    result = await createInferencePool({ body: body.data, client: getGatewayServerClient() })
+    result = await createInferencePool({
+      body: body.data,
+      client: getGatewayServerClient(scope.workspaceId),
+      headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
+    })
   }
   if (result.error) {
     return { error: result.error }
@@ -67,19 +75,23 @@ export async function saveInferencePoolAction(
   updateTag(inferencePoolsTag)
   updateTag(inferenceProvidersTag)
   updateTag(sandboxesTag)
-  revalidatePath("/sandboxes/new")
-  revalidatePath("/sandboxes/update/[name]", "page")
+  revalidatePath(`${scope.basePath}/sandboxes/new`)
+  revalidatePath(`${scope.basePath}/sandboxes/update/[name]`, "page")
   return { pool: result.data }
 }
 
-export async function deleteInferencePoolAction(name: string): Promise<{ error?: GatewayError }> {
+export async function deleteInferencePoolAction(
+  scope: InferencePoolActionScope,
+  name: string
+): Promise<{ error?: GatewayError }> {
   const parsed = zInferencePoolName.safeParse(name)
   if (!parsed.success) {
     return { error: { code: "INVALID_FORM", message: "Invalid Pool ID" } }
   }
   const result = await deleteInferencePool({
     path: { poolName: parsed.data },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
   })
   if (result.error) {
     return { error: result.error }
@@ -87,12 +99,13 @@ export async function deleteInferencePoolAction(name: string): Promise<{ error?:
   updateTag(inferencePoolsTag)
   updateTag(inferenceProvidersTag)
   updateTag(sandboxesTag)
-  revalidatePath("/sandboxes/new")
-  revalidatePath("/sandboxes/update/[name]", "page")
+  revalidatePath(`${scope.basePath}/sandboxes/new`)
+  revalidatePath(`${scope.basePath}/sandboxes/update/[name]`, "page")
   return {}
 }
 
 export async function getInferencePoolUsageAction(
+  scope: InferencePoolActionScope,
   name: string
 ): Promise<{ usage?: InferencePoolUsage; error?: GatewayError }> {
   const parsed = zInferencePoolName.safeParse(name)
@@ -101,7 +114,8 @@ export async function getInferencePoolUsageAction(
   }
   const result = await getInferencePoolUsage({
     path: { poolName: parsed.data },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
   })
   if (result.error) {
     return { error: result.error }
@@ -109,7 +123,9 @@ export async function getInferencePoolUsageAction(
   return { usage: result.data }
 }
 
-export async function refreshInferencePoolsAction(): Promise<InferencePoolsResult> {
+export async function refreshInferencePoolsAction(
+  scope: InferencePoolActionScope
+): Promise<InferencePoolsResult> {
   updateTag(inferencePoolsTag)
-  return listInferencePoolsCachedQuery()
+  return listInferencePoolsCachedQuery(scope.workspaceId)
 }

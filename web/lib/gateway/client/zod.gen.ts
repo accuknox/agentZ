@@ -17,6 +17,8 @@ export const zAuditTargetType = z.enum([
   "skill",
   "team",
   "mcp_connection",
+  "inference_provider",
+  "inference_pool",
 ])
 
 export const zAuditField = z.object({
@@ -142,6 +144,9 @@ export const zTenant = z.object({
   conditions: z.array(zTenantCondition),
   skill_capabilities: zResourceCapabilities,
   mcp_connection_capabilities: zResourceCapabilities,
+  sandbox_capabilities: zResourceCapabilities,
+  inference_provider_capabilities: zResourceCapabilities,
+  inference_pool_capabilities: zResourceCapabilities,
 })
 
 export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
@@ -161,6 +166,9 @@ export const zWorkspace = z.object({
   failure_reason: z.string().optional(),
   skill_capabilities: zResourceCapabilities,
   mcp_connection_capabilities: zResourceCapabilities,
+  sandbox_capabilities: zResourceCapabilities,
+  inference_provider_capabilities: zResourceCapabilities,
+  inference_pool_capabilities: zResourceCapabilities,
   workspace_admin_count: z.coerce
     .bigint()
     .gte(BigInt(0))
@@ -1661,6 +1669,8 @@ export const zInferenceProvider = zInferenceProviderReadFields
       conditions: z.array(zInferenceProviderCondition),
       model_count: z.int().gte(0),
       usage_count: z.int().gte(0),
+      can_modify: z.boolean(),
+      can_delete: z.boolean(),
       created_at: z.iso.datetime(),
       updated_at: z.iso.datetime(),
     })
@@ -1743,6 +1753,8 @@ export const zInferencePool = z.object({
   warnings: z.array(zInferencePoolWarning),
   member_statuses: z.array(zInferencePoolMemberStatus),
   usage_count: z.int().gte(0),
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })
@@ -1819,6 +1831,8 @@ export const zSandbox = z.object({
   mcp_connection_refs: z.array(zMcpConnectionRef),
   skills: z.array(zResourceReference),
   inference: zSandboxInference,
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
   created_at: z.iso.datetime(),
   metadata: z.object({
     package_count: z

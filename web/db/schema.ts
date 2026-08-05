@@ -77,6 +77,8 @@ export const auditTarget = pgEnum("audit_target", [
   "organization_membership",
   "team",
   "mcp_connection",
+  "inference_provider",
+  "inference_pool",
   "role",
   "sandbox",
   "skill",

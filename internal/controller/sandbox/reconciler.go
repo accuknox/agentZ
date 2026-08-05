@@ -81,7 +81,7 @@ const (
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;httproutes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;httproutes;referencegrants,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends;agentgatewayparameters;agentgatewaypolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch;delete
 
@@ -91,34 +91,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.Get(ctx, req.NamespacedName, sandbox); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	for _, ref := range sandbox.Spec.Skills {
-		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			return ctrl.Result{}, fmt.Errorf(
-				"skill %q uses unavailable %s scope",
-				ref.Name,
-				ref.Scope,
-			)
-		}
-	}
-	for _, ref := range sandbox.Spec.MCPConnectionRefs {
-		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			return ctrl.Result{}, fmt.Errorf(
-				"mcp connection %q uses unavailable %s scope",
-				ref.Name,
-				ref.Scope,
-			)
-		}
-	}
-	for _, ref := range sandbox.Spec.Inference.Models {
-		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			return ctrl.Result{}, fmt.Errorf(
-				"inference provider %q uses unavailable %s scope",
-				ref.Provider,
-				ref.Scope,
-			)
-		}
-	}
-
 	if !sandbox.DeletionTimestamp.IsZero() {
 		agentNames, err := r.referencingAgentNames(ctx, sandbox)
 		if err != nil {
@@ -129,6 +101,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		if err := r.deleteStaleInferenceRuntime(ctx, sandbox, map[string]struct{}{}); err != nil {
 			return ctrl.Result{}, err
+		}
+		if err := r.DeleteAllOf(ctx, &gwv1.ReferenceGrant{}, client.MatchingLabels{
+			inference.SandboxLabel: sandbox.Name,
+			sandboxNamespaceLabel:  sandbox.Namespace,
+		}); err != nil {
+			return ctrl.Result{}, fmt.Errorf("delete inference backend reference grants: %w", err)
 		}
 		if err := r.reconcileInferenceGateway(ctx, sandbox.Namespace); err != nil {
 			return ctrl.Result{}, err
@@ -312,7 +290,6 @@ func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj clie
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(provider.Namespace),
 		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
 	)
 	if err != nil {
@@ -327,6 +304,20 @@ func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj clie
 	}
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for _, sandbox := range sandboxes.Items {
+		matched := false
+		for _, model := range sandbox.Spec.Inference.Models {
+			if model.Provider != provider.Name {
+				continue
+			}
+			ns, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, model.Scope)
+			if err == nil && ns == provider.Namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: client.ObjectKeyFromObject(&sandbox),
 		})
@@ -340,7 +331,6 @@ func (r *Reconciler) sandboxesForInferencePool(ctx context.Context, obj client.O
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(pool.Namespace),
 		client.MatchingFields{inference.SandboxByPoolIndex: pool.Name},
 	)
 	if err != nil {
@@ -355,6 +345,20 @@ func (r *Reconciler) sandboxesForInferencePool(ctx context.Context, obj client.O
 	}
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for _, sandbox := range sandboxes.Items {
+		matched := false
+		for _, model := range sandbox.Spec.Inference.Models {
+			if model.Provider != agentzv1alpha1.InferencePoolProvider || model.Model != pool.Name {
+				continue
+			}
+			ns, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, model.Scope)
+			if err == nil && ns == pool.Namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: client.ObjectKeyFromObject(&sandbox),
 		})
@@ -399,7 +403,6 @@ func (r *Reconciler) sandboxesForMCPConnection(ctx context.Context, obj client.O
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(conn.Namespace),
 		client.MatchingFields{mcp.SandboxByMCPConnectionIndex: conn.Name},
 	)
 	if err != nil {
@@ -415,6 +418,20 @@ func (r *Reconciler) sandboxesForMCPConnection(ctx context.Context, obj client.O
 
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for _, sandbox := range sandboxes.Items {
+		matched := false
+		for _, ref := range sandbox.Spec.MCPConnectionRefs {
+			if ref.Name != conn.Name {
+				continue
+			}
+			ns, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, ref.Scope)
+			if err == nil && ns == conn.Namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: sandbox.Namespace,

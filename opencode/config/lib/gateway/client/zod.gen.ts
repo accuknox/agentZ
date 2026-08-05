@@ -17,6 +17,8 @@ export const zAuditTargetType = z.enum([
   "skill",
   "team",
   "mcp_connection",
+  "inference_provider",
+  "inference_pool",
 ])
 
 export const zAuditField = z.object({
@@ -142,6 +144,9 @@ export const zTenant = z.object({
   conditions: z.array(zTenantCondition),
   skill_capabilities: zResourceCapabilities,
   mcp_connection_capabilities: zResourceCapabilities,
+  sandbox_capabilities: zResourceCapabilities,
+  inference_provider_capabilities: zResourceCapabilities,
+  inference_pool_capabilities: zResourceCapabilities,
 })
 
 export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
@@ -161,6 +166,9 @@ export const zWorkspace = z.object({
   failure_reason: z.string().optional(),
   skill_capabilities: zResourceCapabilities,
   mcp_connection_capabilities: zResourceCapabilities,
+  sandbox_capabilities: zResourceCapabilities,
+  inference_provider_capabilities: zResourceCapabilities,
+  inference_pool_capabilities: zResourceCapabilities,
   workspace_admin_count: z.coerce
     .bigint()
     .gte(BigInt(0))
@@ -1661,6 +1669,8 @@ export const zInferenceProvider = zInferenceProviderReadFields
       conditions: z.array(zInferenceProviderCondition),
       model_count: z.int().gte(0),
       usage_count: z.int().gte(0),
+      can_modify: z.boolean(),
+      can_delete: z.boolean(),
       created_at: z.iso.datetime(),
       updated_at: z.iso.datetime(),
     })
@@ -1743,6 +1753,8 @@ export const zInferencePool = z.object({
   warnings: z.array(zInferencePoolWarning),
   member_statuses: z.array(zInferencePoolMemberStatus),
   usage_count: z.int().gte(0),
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })
@@ -1819,6 +1831,8 @@ export const zSandbox = z.object({
   mcp_connection_refs: z.array(zMcpConnectionRef),
   skills: z.array(zResourceReference),
   inference: zSandboxInference,
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
   created_at: z.iso.datetime(),
   metadata: z.object({
     package_count: z
@@ -2924,6 +2938,10 @@ export const zCreateSandboxHeaders = z.object({
  */
 export const zCreateSandboxResponse = zSandbox
 
+export const zListInferenceProvidersHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zListInferenceProvidersQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
@@ -2936,6 +2954,10 @@ export const zListInferenceProvidersResponse2 = zListInferenceProvidersResponse
 
 export const zCreateInferenceProviderBody = zCreateInferenceProviderRequestWritable
 
+export const zCreateInferenceProviderHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 /**
  * Provider created.
  */
@@ -2944,11 +2966,19 @@ export const zCreateInferenceProviderResponse = zInferenceProvider
 export const zCreateInferenceProviderOAuthTicketBody =
   zCreateInferenceProviderOAuthTicketRequestWritable
 
+export const zCreateInferenceProviderOAuthTicketHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 /**
  * Single-use provider ticket and non-secret model metadata.
  */
 export const zCreateInferenceProviderOAuthTicketResponse2 =
   zCreateInferenceProviderOAuthTicketResponse
+
+export const zDeleteInferenceProviderHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zDeleteInferenceProviderPath = z.object({
   providerName: zInferenceProviderName,
@@ -2958,6 +2988,10 @@ export const zDeleteInferenceProviderPath = z.object({
  * Provider deletion accepted.
  */
 export const zDeleteInferenceProviderResponse = z.void()
+
+export const zGetInferenceProviderHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zGetInferenceProviderPath = z.object({
   providerName: zInferenceProviderName,
@@ -2970,6 +3004,10 @@ export const zGetInferenceProviderResponse = zInferenceProvider
 
 export const zUpdateInferenceProviderBody = zUpdateInferenceProviderRequestWritable
 
+export const zUpdateInferenceProviderHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zUpdateInferenceProviderPath = z.object({
   providerName: zInferenceProviderName,
 })
@@ -2981,10 +3019,18 @@ export const zUpdateInferenceProviderResponse = zInferenceProvider
 
 export const zWatchInferenceProvidersBody = zWatchInferenceProvidersRequest
 
+export const zWatchInferenceProvidersHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 /**
  * Stream of inference provider updates.
  */
 export const zWatchInferenceProvidersResponse = zWatchInferenceProvidersEvent
+
+export const zGetInferenceProviderUsageHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zGetInferenceProviderUsagePath = z.object({
   providerName: zInferenceProviderName,
@@ -2995,6 +3041,10 @@ export const zGetInferenceProviderUsagePath = z.object({
  */
 export const zGetInferenceProviderUsageResponse = zInferenceProviderUsage
 
+export const zRefreshInferenceProviderModelsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zRefreshInferenceProviderModelsPath = z.object({
   providerName: zInferenceProviderName,
 })
@@ -3004,6 +3054,10 @@ export const zRefreshInferenceProviderModelsPath = z.object({
  */
 export const zRefreshInferenceProviderModelsResponse = zInferenceModelSuggestions
 
+export const zListInferenceProviderCatalogHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zListInferenceProviderCatalogQuery = z.object({
   q: z.string().max(128).optional(),
 })
@@ -3012,6 +3066,10 @@ export const zListInferenceProviderCatalogQuery = z.object({
  * Supported provider/runtime variants.
  */
 export const zListInferenceProviderCatalogResponse = zInferenceProviderCatalog
+
+export const zListInferenceModelSuggestionsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zListInferenceModelSuggestionsPath = z.object({
   catalogProvider: z.string().min(1).max(128),
@@ -3026,6 +3084,10 @@ export const zListInferenceModelSuggestionsQuery = z.object({
  */
 export const zListInferenceModelSuggestionsResponse = zInferenceModelSuggestions
 
+export const zListInferencePoolsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string(),
+})
+
 export const zListInferencePoolsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
@@ -3038,10 +3100,18 @@ export const zListInferencePoolsResponse2 = zListInferencePoolsResponse
 
 export const zCreateInferencePoolBody = zInferencePoolWrite
 
+export const zCreateInferencePoolHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string(),
+})
+
 /**
  * Pool created.
  */
 export const zCreateInferencePoolResponse = zInferencePool
+
+export const zDeleteInferencePoolHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string(),
+})
 
 export const zDeleteInferencePoolPath = z.object({
   poolName: zInferencePoolName,
@@ -3051,6 +3121,10 @@ export const zDeleteInferencePoolPath = z.object({
  * Pool deletion accepted.
  */
 export const zDeleteInferencePoolResponse = z.void()
+
+export const zGetInferencePoolHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string(),
+})
 
 export const zGetInferencePoolPath = z.object({
   poolName: zInferencePoolName,
@@ -3063,6 +3137,10 @@ export const zGetInferencePoolResponse = zInferencePool
 
 export const zUpdateInferencePoolBody = zUpdateInferencePoolRequest
 
+export const zUpdateInferencePoolHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string(),
+})
+
 export const zUpdateInferencePoolPath = z.object({
   poolName: zInferencePoolName,
 })
@@ -3071,6 +3149,10 @@ export const zUpdateInferencePoolPath = z.object({
  * Pool updated.
  */
 export const zUpdateInferencePoolResponse = zInferencePool
+
+export const zGetInferencePoolUsageHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string(),
+})
 
 export const zGetInferencePoolUsagePath = z.object({
   poolName: zInferencePoolName,
@@ -3082,6 +3164,10 @@ export const zGetInferencePoolUsagePath = z.object({
 export const zGetInferencePoolUsageResponse = zInferencePoolUsage
 
 export const zWatchInferencePoolsBody = zWatchInferencePoolsRequest
+
+export const zWatchInferencePoolsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string(),
+})
 
 /**
  * Stream of inference Pool updates.

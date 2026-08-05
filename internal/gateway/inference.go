@@ -24,6 +24,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/authorization"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/oauth"
@@ -98,13 +100,53 @@ type providerUsage struct {
 	sandboxes []string
 }
 
+func (s *Service) resolveInferenceProviderAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (resourceAccess, *apiError) {
+	req := resourceAccessRequest{
+		resource: "Inference Provider", workspaceID: workspaceID, operation: operation,
+	}
+	if name != "" && (operation == authorization.OperationUpdateInferenceProvider || operation == authorization.OperationDeleteInferenceProvider) {
+		req.creatorFallback = authorization.OperationCreateInferenceProvider
+		req.isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
+			item := &agentzv1alpha1.InferenceProvider{}
+			err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: name, Namespace: namespace}, item)
+			return item.Spec.CreatorUserID == userID, err
+		}
+	}
+	return s.resolveResourceAccess(ctx, req)
+}
+
+func (s *Service) createInferenceProviderAudit(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.AuditResult) error {
+	action := "unmapped"
+	switch access.operation {
+	case authorization.OperationCreateInferenceProvider:
+		action = "create"
+	case authorization.OperationCreateInferenceProviderOAuthTicket:
+		action = "create_oauth_ticket"
+	case authorization.OperationUpdateInferenceProvider:
+		action = "modify"
+	case authorization.OperationDeleteInferenceProvider:
+		action = "delete"
+	}
+	return s.createResourceAudit(
+		ctx, r, access, gatewaydb.AuditTargetInferenceProvider, name,
+		"inference_provider", action, result,
+	)
+}
+
 // ListInferenceProviders handles GET /api/inference/provider.
 func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProvidersParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, "", authorization.OperationListInferenceProviders,
+	)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
 		return
 	}
+	ns := access.namespace
 	limit := 50
 	if params.Limit != nil {
 		limit = int(*params.Limit)
@@ -122,7 +164,7 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 	if !ok {
 		return
 	}
-	items, err := s.listInferenceProviderItems(r.Context(), ns, nil)
+	items, err := s.listInferenceProviderItems(r.Context(), ns, nil, access)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -139,12 +181,19 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 }
 
 // WatchInferenceProviders handles POST /api/inference/provider/watch.
-func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request, params gatewayapi.WatchInferenceProvidersParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, "", authorization.OperationWatchInferenceProviders,
+	)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
 		return
 	}
+	ns := access.namespace
 	var req gatewayapi.WatchInferenceProvidersRequest
 	if r.Body != nil && !decodeJSONBody(w, r, &req, true) {
 		return
@@ -173,7 +222,7 @@ func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request
 
 	var previous []gatewayapi.InferenceProvider
 	writeChanges := func() bool {
-		items, err := s.listInferenceProviderItems(r.Context(), ns, filter)
+		items, err := s.listInferenceProviderItems(r.Context(), ns, filter, access)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				recordRequestError(w, "internal_error", err)
@@ -250,7 +299,7 @@ func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (s *Service) listInferenceProviderItems(ctx context.Context, namespace string, filter map[string]struct{}) ([]gatewayapi.InferenceProvider, error) {
+func (s *Service) listInferenceProviderItems(ctx context.Context, namespace string, filter map[string]struct{}, access resourceAccess) ([]gatewayapi.InferenceProvider, error) {
 	providers := &agentzv1alpha1.InferenceProviderList{}
 	if err := s.k8sClient.List(ctx, providers, ctrlclient.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list inference providers: %w", err)
@@ -314,7 +363,7 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 				continue
 			}
 		}
-		item, err := providerToAPI(&providers.Items[i], len(usage[providers.Items[i].Name]))
+		item, err := providerToAPI(&providers.Items[i], len(usage[providers.Items[i].Name]), access)
 		if err != nil {
 			return nil, err
 		}
@@ -325,12 +374,41 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 
 // CreateInferenceProviderOAuthTicket handles POST
 // /api/inference/provider/oauth-ticket.
-func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request, params gatewayapi.CreateInferenceProviderOAuthTicketParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, "", authorization.OperationCreateInferenceProviderOAuthTicket,
+	)
+	if apiErr != nil {
+		if access.claims.TenantID != "" {
+			err := s.createInferenceProviderAudit(
+				r.Context(), r, access, "oauth-ticket", access.failureResult(),
+			)
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
 		return
 	}
+	persistenceAudited := false
+	defer func() {
+		if persistenceAudited {
+			return
+		}
+		err := s.createInferenceProviderAudit(
+			context.WithoutCancel(r.Context()), r, access, "oauth-ticket",
+			gatewaydb.AuditResultFailed,
+		)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "audit failed Inference Provider OAuth ticket", slog.Any("err", err))
+		}
+	}()
+	ns := access.namespace
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
 		writeError(w, r, newAPIError(
@@ -451,12 +529,20 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		return
 	}
 	path := ns + "/" + oauthTicketPathDir + "/" + id
+	persistenceAudited = true
 	err = s.baoKV.PutMetadata(r.Context(), path, baoapi.KVMetadataPutInput{
 		CASRequired:        true,
 		DeleteVersionAfter: oauthTicketLifetime,
 		MaxVersions:        1,
 	})
 	if err != nil {
+		auditErr := s.createInferenceProviderAudit(
+			r.Context(), r, access, id, gatewaydb.AuditResultFailed,
+		)
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeError(w, r, mapOpenBaoError(err))
 		return
 	}
@@ -466,7 +552,20 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		if cleanupErr != nil && !errors.Is(cleanupErr, baoapi.ErrSecretNotFound) {
 			err = errors.Join(err, fmt.Errorf("clean up oauth ticket metadata: %w", cleanupErr))
 		}
+		auditErr := s.createInferenceProviderAudit(
+			r.Context(), r, access, id, gatewaydb.AuditResultFailed,
+		)
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeError(w, r, mapOpenBaoError(err))
+		return
+	}
+	if err := s.createInferenceProviderAudit(
+		r.Context(), r, access, id, gatewaydb.AuditResultSucceeded,
+	); err != nil {
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, gatewayapi.CreateInferenceProviderOAuthTicketResponse{
@@ -478,28 +577,49 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 }
 
 // CreateInferenceProvider handles POST /api/inference/provider.
-func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-	tenant, err := tenantObject(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
+func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request, params gatewayapi.CreateInferenceProviderParams) {
 	var req gatewayapi.CreateInferenceProviderRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
+	name := "ip-" + strings.ReplaceAll(uuid.NewString()[:13], "-", "")
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, "", authorization.OperationCreateInferenceProvider,
+	)
+	if apiErr != nil {
+		if access.claims.TenantID != "" {
+			err := s.createInferenceProviderAudit(
+				r.Context(), r, access, name, access.failureResult(),
+			)
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
+		return
+	}
+	persistenceAudited := false
+	defer func() {
+		if persistenceAudited {
+			return
+		}
+		if err := s.createInferenceProviderAudit(context.WithoutCancel(r.Context()), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+			slog.ErrorContext(r.Context(), "audit failed Inference Provider create", slog.Any("err", err))
+		}
+	}()
+	ns := access.namespace
 	input, err := providerInputFromWrite(req.Provider)
 	if err != nil {
 		writeProviderInputError(w, r, err)
 		return
 	}
-	name := "ip-" + strings.ReplaceAll(uuid.NewString()[:13], "-", "")
 	provider := providerFromInput(ns, name, input)
+	provider.Spec.CreatorUserID = access.claims.UserID
 	fields := inference.ValidateProvider(provider.Spec)
 	if len(fields) > 0 {
 		writeInferenceIssues(w, r, fields)
@@ -565,12 +685,8 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	provider.OwnerReferences = []metav1.OwnerReference{
-		*metav1.NewControllerRef(
-			tenant,
-			agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
-		),
-	}
+	provider.OwnerReferences = []metav1.OwnerReference{access.owner}
+	persistenceAudited = true
 	if err := s.k8sClient.Create(r.Context(), provider); err != nil {
 		if record != nil {
 			cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
@@ -584,10 +700,23 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 				return
 			}
 		}
+		auditErr := s.createInferenceProviderAudit(
+			r.Context(), r, access, name, gatewaydb.AuditResultFailed,
+		)
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeError(w, r, mapKubeHTTPError("create inference provider", err))
 		return
 	}
-	item, err := providerToAPI(provider, 0)
+	if err := s.createInferenceProviderAudit(
+		r.Context(), r, access, name, gatewaydb.AuditResultSucceeded,
+	); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	item, err := providerToAPI(provider, 0, access)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -596,12 +725,23 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 }
 
 // GetInferenceProvider handles GET /api/inference/provider/{providerName}.
-func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
-	provider, usage, ok := s.providerAndUsage(w, r, providerName)
+func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.GetInferenceProviderParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, providerName, authorization.OperationGetInferenceProvider,
+	)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
+	provider, usage, ok := s.providerAndUsage(w, r, access.namespace, providerName)
 	if !ok {
 		return
 	}
-	item, err := providerToAPI(provider, len(usage.sandboxes))
+	item, err := providerToAPI(provider, len(usage.sandboxes), access)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -611,8 +751,20 @@ func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, p
 
 // RefreshInferenceProviderModels handles GET
 // /api/inference/provider/{providerName}/models.
-func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
-	provider, _, ok := s.providerAndUsage(w, r, providerName)
+func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.RefreshInferenceProviderModelsParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, providerName,
+		authorization.OperationRefreshInferenceProviderModels,
+	)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
+	provider, _, ok := s.providerAndUsage(w, r, access.namespace, providerName)
 	if !ok {
 		return
 	}
@@ -717,16 +869,46 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 }
 
 // UpdateInferenceProvider handles PUT /api/inference/provider/{providerName}.
-func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
+func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.UpdateInferenceProviderParams) {
 	var req gatewayapi.UpdateInferenceProviderRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, providerName,
+		authorization.OperationUpdateInferenceProvider,
+	)
+	if apiErr != nil {
+		if access.claims.TenantID != "" {
+			err := s.createInferenceProviderAudit(
+				r.Context(), r, access, providerName, access.failureResult(),
+			)
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
+		return
+	}
+	persistenceAudited := false
+	defer func() {
+		if persistenceAudited {
+			return
+		}
+		err := s.createInferenceProviderAudit(
+			context.WithoutCancel(r.Context()), r, access, providerName,
+			gatewaydb.AuditResultFailed,
+		)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "audit failed Inference Provider update", slog.Any("err", err))
+		}
+	}()
+	ns := access.namespace
 	input, err := providerInputFromWrite(req.Provider)
 	if err != nil {
 		writeProviderInputError(w, r, err)
@@ -752,6 +934,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	desired := providerFromInput(ns, current.Name, input)
+	desired.Spec.CreatorUserID = current.Spec.CreatorUserID
 	if desired.Spec.Kind != current.Spec.Kind {
 		writeInferenceIssues(w, r, []inference.Issue{{
 			Field: "kind", Message: "provider kind is immutable",
@@ -831,7 +1014,15 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		current.Annotations = map[string]string{}
 	}
 	current.Annotations[providerUpdatedAtAnnotation] = time.Now().UTC().Format(time.RFC3339Nano)
+	persistenceAudited = true
 	if err := s.k8sClient.Update(r.Context(), current); err != nil {
+		auditErr := s.createInferenceProviderAudit(
+			r.Context(), r, access, providerName, gatewaydb.AuditResultFailed,
+		)
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		if credentialChanged {
 			status := http.StatusInternalServerError
 			code := "credentials_changed_provider_update_failed"
@@ -847,11 +1038,17 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, mapKubeHTTPError("update inference provider", err))
 		return
 	}
-	_, usage, ok := s.providerAndUsage(w, r, current.Name)
+	if err := s.createInferenceProviderAudit(
+		r.Context(), r, access, providerName, gatewaydb.AuditResultSucceeded,
+	); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	_, usage, ok := s.providerAndUsage(w, r, ns, current.Name)
 	if !ok {
 		return
 	}
-	item, err := providerToAPI(current, len(usage.sandboxes))
+	item, err := providerToAPI(current, len(usage.sandboxes), access)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -860,8 +1057,38 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 }
 
 // DeleteInferenceProvider handles DELETE /api/inference/provider/{providerName}.
-func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
-	provider, usage, ok := s.providerAndUsage(w, r, providerName)
+func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.DeleteInferenceProviderParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, providerName,
+		authorization.OperationDeleteInferenceProvider,
+	)
+	if apiErr != nil {
+		if access.claims.TenantID != "" {
+			err := s.createInferenceProviderAudit(
+				r.Context(), r, access, providerName, access.failureResult(),
+			)
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+		}
+		writeError(w, r, apiErr)
+		return
+	}
+	persistenceAudited := false
+	defer func() {
+		if persistenceAudited {
+			return
+		}
+		if err := s.createInferenceProviderAudit(context.WithoutCancel(r.Context()), r, access, providerName, gatewaydb.AuditResultFailed); err != nil {
+			slog.ErrorContext(r.Context(), "audit failed Inference Provider delete", slog.Any("err", err))
+		}
+	}()
+	provider, usage, ok := s.providerAndUsage(w, r, access.namespace, providerName)
 	if !ok {
 		return
 	}
@@ -886,16 +1113,42 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		))
 		return
 	}
+	persistenceAudited = true
 	if err := s.k8sClient.Delete(r.Context(), provider); err != nil {
+		auditErr := s.createInferenceProviderAudit(
+			r.Context(), r, access, providerName, gatewaydb.AuditResultFailed,
+		)
+		if auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
 		writeError(w, r, mapKubeHTTPError("delete inference provider", err))
+		return
+	}
+	if err := s.createInferenceProviderAudit(
+		r.Context(), r, access, providerName, gatewaydb.AuditResultSucceeded,
+	); err != nil {
+		writeInternalError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // GetInferenceProviderUsage handles GET /api/inference/provider/{providerName}/usage.
-func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath) {
-	_, usage, ok := s.providerAndUsage(w, r, providerName)
+func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.GetInferenceProviderUsageParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, providerName,
+		authorization.OperationGetInferenceProviderUsage,
+	)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
+	_, usage, ok := s.providerAndUsage(w, r, access.namespace, providerName)
 	if !ok {
 		return
 	}
@@ -906,6 +1159,17 @@ func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Reque
 
 // ListInferenceProviderCatalog handles GET /api/inference/provider/catalog.
 func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProviderCatalogParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	_, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, "", authorization.OperationListInferenceProviderCatalog,
+	)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
 	var query string
 	if params.Q != nil {
 		query = *params.Q
@@ -941,6 +1205,17 @@ func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Re
 
 // ListInferenceModelSuggestions handles the provider model-catalog endpoint.
 func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request, catalogProvider string, params gatewayapi.ListInferenceModelSuggestionsParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	_, apiErr := s.resolveInferenceProviderAccess(
+		r.Context(), workspaceID, "", authorization.OperationListInferenceModelSuggestions,
+	)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
 	models, provenance, err := s.catalog.Suggestions(
 		r.Context(),
 		catalogProvider,
@@ -970,27 +1245,22 @@ func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.R
 	})
 }
 
-func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, providerName string) (*agentzv1alpha1.InferenceProvider, providerUsage, bool) {
+func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, namespace, providerName string) (*agentzv1alpha1.InferenceProvider, providerUsage, bool) {
 	usage := providerUsage{
 		pools:     []string{},
 		sandboxes: []string{},
 	}
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return nil, usage, false
-	}
 	provider := &agentzv1alpha1.InferenceProvider{}
-	key := ctrlclient.ObjectKey{Namespace: ns, Name: strings.TrimSpace(providerName)}
+	key := ctrlclient.ObjectKey{Namespace: namespace, Name: strings.TrimSpace(providerName)}
 	if err := s.k8sClient.Get(r.Context(), key, provider); err != nil {
 		writeError(w, r, mapKubeHTTPError("get inference provider", err))
 		return nil, usage, false
 	}
 	pools := &agentzv1alpha1.InferencePoolList{}
-	err = s.usageReader.List(
+	err := s.usageReader.List(
 		r.Context(),
 		pools,
-		ctrlclient.InNamespace(ns),
+		ctrlclient.InNamespace(namespace),
 		ctrlclient.MatchingFields{inference.PoolByProviderIndex: provider.Name},
 	)
 	if err != nil {
@@ -1003,7 +1273,7 @@ func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, provi
 		usage.pools = append(usage.pools, pool.Name)
 	}
 	sandboxes := &agentzv1alpha1.SandboxList{}
-	err = s.usageReader.List(r.Context(), sandboxes, ctrlclient.InNamespace(ns))
+	err = s.usageReader.List(r.Context(), sandboxes, ctrlclient.InNamespace(namespace))
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("list inference provider usage: %w", err))
 		return nil, usage, false
@@ -1282,7 +1552,7 @@ func providerFromInput(namespace, name string, input providerInput) *agentzv1alp
 	return provider
 }
 
-func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatewayapi.InferenceProvider, error) {
+func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access resourceAccess) (gatewayapi.InferenceProvider, error) {
 	state := gatewayapi.InferenceProviderState(provider.Status.State)
 	if state == "" {
 		state = gatewayapi.InferenceProviderStateAccepted
@@ -1300,6 +1570,12 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 			updatedAt = value
 		}
 	}
+	scope := authorization.Scope{
+		OrganizationID: access.claims.TenantID,
+		WorkspaceID:    access.workspaceID,
+	}
+	creator := provider.Spec.CreatorUserID == access.claims.UserID &&
+		access.effective.Allows(scope, authorization.OperationCreateInferenceProvider)
 	out := gatewayapi.InferenceProvider{
 		Id: provider.Name, ResourceVersion: provider.ResourceVersion,
 		DisplayName:     provider.Spec.DisplayName,
@@ -1307,6 +1583,12 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int) (gatew
 		Models:          modelsToAPI(provider.Spec.Models),
 		State:           state, Conditions: conditions,
 		ModelCount: len(provider.Spec.Models), UsageCount: usage,
+		CanModify: access.effective.Allows(
+			scope, authorization.OperationUpdateInferenceProvider,
+		) || creator,
+		CanDelete: access.effective.Allows(
+			scope, authorization.OperationDeleteInferenceProvider,
+		) || creator,
 		CreatedAt: provider.CreationTimestamp.Time, UpdatedAt: updatedAt,
 	}
 	switch provider.Spec.Kind {

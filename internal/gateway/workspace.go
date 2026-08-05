@@ -61,13 +61,12 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, row := range rows {
-		skill, mcp := resourceCapabilities(effective, claims.TenantID, row.Workspace.ID)
+		capabilities := resourceCapabilities(effective, claims.TenantID, row.Workspace.ID)
 		workspaces = append(workspaces, workspaceView(
 			row.Workspace,
 			row.WorkspaceAdminCount,
 			row.CanAdminister,
-			skill,
-			mcp,
+			capabilities,
 		))
 	}
 
@@ -348,12 +347,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	skill, mcp, err := s.resolveResourceCapabilities(r.Context(), claims, row.ID)
+	capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, row.ID)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, workspaceView(row, int64(len(req.AdminMemberIds)), true, skill, mcp))
+	writeJSON(w, http.StatusCreated, workspaceView(row, int64(len(req.AdminMemberIds)), true, capabilities))
 }
 
 // GetWorkspace handles GET /api/workspace/{workspaceId}.
@@ -370,7 +369,7 @@ func (s *Service) GetWorkspace(w http.ResponseWriter, r *http.Request, workspace
 	}
 	for _, row := range rows {
 		if row.Workspace.ID == workspaceID {
-			skill, mcp, err := s.resolveResourceCapabilities(r.Context(), claims, row.Workspace.ID)
+			capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, row.Workspace.ID)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -379,8 +378,7 @@ func (s *Service) GetWorkspace(w http.ResponseWriter, r *http.Request, workspace
 				row.Workspace,
 				row.WorkspaceAdminCount,
 				row.CanAdminister,
-				skill,
-				mcp,
+				capabilities,
 			))
 			return
 		}
@@ -418,7 +416,7 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 	}
 	for _, row := range rows {
 		if row.Workspace.ID == resolved.Workspace.ID {
-			skill, mcp, err := s.resolveResourceCapabilities(r.Context(), claims, row.Workspace.ID)
+			capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, row.Workspace.ID)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -427,8 +425,7 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 				row.Workspace,
 				row.WorkspaceAdminCount,
 				row.CanAdminister,
-				skill,
-				mcp,
+				capabilities,
 			))
 			return
 		}
@@ -600,7 +597,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 	}
 	for _, row := range rows {
 		if row.Workspace.ID == current.ID {
-			skill, mcp, err := s.resolveResourceCapabilities(r.Context(), claims, current.ID)
+			capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, current.ID)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -609,8 +606,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 				current,
 				row.WorkspaceAdminCount,
 				row.CanAdminister,
-				skill,
-				mcp,
+				capabilities,
 			))
 			return
 		}
@@ -833,20 +829,23 @@ func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]
 	return rows, superadmin, member, nil
 }
 
-func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdminister bool, skill, mcp gatewayapi.ResourceCapabilities) gatewayapi.Workspace {
+func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdminister bool, capabilities resourceCapabilitySet) gatewayapi.Workspace {
 	view := gatewayapi.Workspace{
-		CanAdminister:             canAdminister,
-		SkillCapabilities:         skill,
-		McpConnectionCapabilities: mcp,
-		CreatedAt:                 row.CreatedAt.Time,
-		Id:                        row.ID,
-		Name:                      row.Name,
-		Namespace:                 row.Namespace,
-		ProvisioningAttempt:       row.ProvisioningAttempt,
-		Slug:                      row.Slug,
-		State:                     gatewayapi.WorkspaceState(row.State),
-		UpdatedAt:                 row.UpdatedAt.Time,
-		WorkspaceAdminCount:       workspaceAdminCount,
+		CanAdminister:                 canAdminister,
+		SkillCapabilities:             capabilities.skill,
+		McpConnectionCapabilities:     capabilities.mcp,
+		SandboxCapabilities:           capabilities.sandbox,
+		InferenceProviderCapabilities: capabilities.inferenceProvider,
+		InferencePoolCapabilities:     capabilities.inferencePool,
+		CreatedAt:                     row.CreatedAt.Time,
+		Id:                            row.ID,
+		Name:                          row.Name,
+		Namespace:                     row.Namespace,
+		ProvisioningAttempt:           row.ProvisioningAttempt,
+		Slug:                          row.Slug,
+		State:                         gatewayapi.WorkspaceState(row.State),
+		UpdatedAt:                     row.UpdatedAt.Time,
+		WorkspaceAdminCount:           workspaceAdminCount,
 	}
 	if row.FailureReason.Valid {
 		view.FailureReason = &row.FailureReason.String

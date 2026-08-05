@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -62,13 +63,14 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	}
 	resolved := make([]ResolvedPoolMember, 0, len(pool.Spec.Members))
 	seen := make(map[agentzv1alpha1.InferencePoolMember]struct{}, len(pool.Spec.Members))
-	providers := make(map[string]*agentzv1alpha1.InferenceProvider, len(pool.Spec.Members))
+	providers := make(map[types.NamespacedName]*agentzv1alpha1.InferenceProvider, len(pool.Spec.Members))
 	for i, ref := range pool.Spec.Members {
 		field := fmt.Sprintf("members.%d", i)
-		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+		ns, err := scoperesolver.Namespace(ctx, reader, pool.Namespace, ref.Scope)
+		if err != nil {
 			issues = append(issues, Issue{
 				Field:   field + ".scope",
-				Message: "workspace scope is not available on the current tenant path",
+				Message: "scope is not available from the selected Pool scope",
 			})
 			continue
 		}
@@ -81,13 +83,11 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 		}
 		seen[ref] = struct{}{}
 
-		provider := providers[ref.Provider]
+		key := types.NamespacedName{Namespace: ns, Name: ref.Provider}
+		provider := providers[key]
 		if provider == nil {
 			provider = &agentzv1alpha1.InferenceProvider{}
-			err := reader.Get(ctx, types.NamespacedName{
-				Namespace: pool.Namespace,
-				Name:      ref.Provider,
-			}, provider)
+			err := reader.Get(ctx, key, provider)
 			if apierrors.IsNotFound(err) {
 				issues = append(issues, Issue{
 					Field:   field + ".provider",
@@ -98,7 +98,7 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 			if err != nil {
 				return PoolDefinition{}, nil, fmt.Errorf("get inference provider %q: %w", ref.Provider, err)
 			}
-			providers[ref.Provider] = provider
+			providers[key] = provider
 		}
 
 		var model *agentzv1alpha1.InferenceModel

@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { deleteInferenceProviderAction } from "@/data/inference-provider.actions"
+import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
 import { formatAge } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
@@ -100,14 +101,17 @@ const providerStateMeta = {
   }
 >
 
-const watchProvidersQueryOptions = (providers: InferenceProvider[]) =>
+const watchProvidersQueryOptions = (
+  providers: InferenceProvider[],
+  scope: InferenceProviderActionScope
+) =>
   queryOptions({
-    queryKey: ["watchInferenceProviders"] as const,
+    queryKey: ["watchInferenceProviders", scope.workspaceId ?? "organization"] as const,
     placeholderData: providers,
     queryFn: streamedQuery<
       WatchInferenceProvidersEvent,
       InferenceProvider[],
-      readonly ["watchInferenceProviders"]
+      readonly ["watchInferenceProviders", string]
     >({
       initialValue: providers,
       reducer: (_, event) => event.providers,
@@ -116,6 +120,7 @@ const watchProvidersQueryOptions = (providers: InferenceProvider[]) =>
         const result = await watchInferenceProviders({
           baseUrl: await getGatewayBaseURL(),
           body: {},
+          headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
           signal,
         })
         return result.stream
@@ -128,10 +133,16 @@ const watchProvidersQueryOptions = (providers: InferenceProvider[]) =>
     staleTime: Infinity,
   })
 
-export function InferenceProviderTable({ providers }: { providers: InferenceProvider[] }) {
+export function InferenceProviderTable({
+  providers,
+  scope,
+}: {
+  providers: InferenceProvider[]
+  scope: InferenceProviderActionScope
+}) {
   "use no memo"
 
-  const watched = useQuery(watchProvidersQueryOptions(providers)).data ?? providers
+  const watched = useQuery(watchProvidersQueryOptions(providers, scope)).data ?? providers
   const [editing, setEditing] = React.useState<InferenceProvider>()
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "updated_at", desc: true }])
   const [page, setPage] = React.useState(0)
@@ -196,10 +207,12 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
       },
       {
         id: "actions",
-        cell: ({ row }) => <ProviderActions provider={row.original} onEditAction={setEditing} />,
+        cell: ({ row }) => (
+          <ProviderActions provider={row.original} scope={scope} onEditAction={setEditing} />
+        ),
       },
     ],
-    []
+    [scope]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -241,12 +254,14 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
               visibleRows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setEditing(row.original)}
+                  className={row.original.can_modify ? "cursor-pointer" : undefined}
+                  role={row.original.can_modify ? "button" : undefined}
+                  tabIndex={row.original.can_modify ? 0 : undefined}
+                  onClick={() => {
+                    if (row.original.can_modify) setEditing(row.original)
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
+                    if (!row.original.can_modify || (event.key !== "Enter" && event.key !== " ")) {
                       return
                     }
 
@@ -304,6 +319,7 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
             setEditing(undefined)
           }
         }}
+        scope={scope}
       />
     </div>
   )
@@ -342,9 +358,11 @@ function ProviderStatusBadge({ provider }: { provider: InferenceProvider }) {
 /** ProviderActions renders the per-row menu and its delete confirmation. */
 function ProviderActions({
   provider,
+  scope,
   onEditAction,
 }: {
   provider: InferenceProvider
+  scope: InferenceProviderActionScope
   onEditAction: (provider: InferenceProvider) => void
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
@@ -359,27 +377,38 @@ function ProviderActions({
         event.stopPropagation()
       }}
     >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <span className="sr-only">Open menu</span>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={() => onEditAction(provider)}>
-              <Pencil />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-              <Trash2 />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DeleteProviderDialog provider={provider} open={deleteOpen} setOpen={setDeleteOpen} />
+      {provider.can_modify || provider.can_delete ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuGroup>
+              {provider.can_modify ? (
+                <DropdownMenuItem onSelect={() => onEditAction(provider)}>
+                  <Pencil />
+                  Edit
+                </DropdownMenuItem>
+              ) : null}
+              {provider.can_delete ? (
+                <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                  <Trash2 />
+                  Delete
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      <DeleteProviderDialog
+        provider={provider}
+        open={deleteOpen}
+        scope={scope}
+        setOpen={setDeleteOpen}
+      />
     </div>
   )
 }
@@ -391,10 +420,12 @@ function ProviderActions({
 function DeleteProviderDialog({
   provider,
   open,
+  scope,
   setOpen,
 }: {
   provider: InferenceProvider
   open: boolean
+  scope: InferenceProviderActionScope
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const [error, setError] = React.useState("")
@@ -434,7 +465,7 @@ function DeleteProviderDialog({
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
-                const result = await deleteInferenceProviderAction(provider.id)
+                const result = await deleteInferenceProviderAction(scope, provider.id)
                 if (result.error) {
                   const details = result.error.errors?.map(
                     (fieldError) => `${fieldError.field}: ${fieldError.message}`

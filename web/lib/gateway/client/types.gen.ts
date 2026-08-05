@@ -19,6 +19,8 @@ export type AuditTargetType =
   | "skill"
   | "team"
   | "mcp_connection"
+  | "inference_provider"
+  | "inference_pool"
 
 export type AuditField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
@@ -134,6 +136,9 @@ export type Tenant = {
   conditions: Array<TenantCondition>
   skill_capabilities: ResourceCapabilities
   mcp_connection_capabilities: ResourceCapabilities
+  sandbox_capabilities: ResourceCapabilities
+  inference_provider_capabilities: ResourceCapabilities
+  inference_pool_capabilities: ResourceCapabilities
 }
 
 export type WorkspaceState = "provisioning" | "ready" | "failed" | "deleting"
@@ -148,6 +153,9 @@ export type Workspace = {
   failure_reason?: string
   skill_capabilities: ResourceCapabilities
   mcp_connection_capabilities: ResourceCapabilities
+  sandbox_capabilities: ResourceCapabilities
+  inference_provider_capabilities: ResourceCapabilities
+  inference_pool_capabilities: ResourceCapabilities
   workspace_admin_count: number
   can_administer: boolean
   created_at: string
@@ -1021,6 +1029,8 @@ export type Sandbox = {
   mcp_connection_refs: Array<McpConnectionRef>
   skills: Array<ResourceReference>
   inference: SandboxInference
+  can_modify: boolean
+  can_delete: boolean
   created_at: string
   metadata: {
     package_count: number
@@ -1417,6 +1427,8 @@ export type InferenceProvider = InferenceProviderReadFields &
     conditions: Array<InferenceProviderCondition>
     model_count: number
     usage_count: number
+    can_modify: boolean
+    can_delete: boolean
     created_at: string
     updated_at: string
   }
@@ -1498,6 +1510,8 @@ export type InferencePool = {
   warnings: Array<InferencePoolWarning>
   member_statuses: Array<InferencePoolMemberStatus>
   usage_count: number
+  can_modify: boolean
+  can_delete: boolean
   created_at: string
   updated_at: string
 }
@@ -4564,6 +4578,13 @@ export type CreateSandboxResponse = CreateSandboxResponses[keyof CreateSandboxRe
 
 export type ListInferenceProvidersData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -4604,6 +4625,13 @@ export type ListInferenceProvidersResponse2 =
 
 export type CreateInferenceProviderData = {
   body: CreateInferenceProviderRequestWritable
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/inference/provider"
@@ -4648,6 +4676,13 @@ export type CreateInferenceProviderResponse =
 
 export type CreateInferenceProviderOAuthTicketData = {
   body: CreateInferenceProviderOAuthTicketRequestWritable
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/inference/provider/oauth-ticket"
@@ -4691,6 +4726,13 @@ export type CreateInferenceProviderOAuthTicketResponse2 =
 
 export type DeleteInferenceProviderData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
@@ -4733,6 +4775,13 @@ export type DeleteInferenceProviderResponse =
 
 export type GetInferenceProviderData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
@@ -4769,6 +4818,13 @@ export type GetInferenceProviderResponse =
 
 export type UpdateInferenceProviderData = {
   body: UpdateInferenceProviderRequestWritable
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
@@ -4823,6 +4879,13 @@ export type UpdateInferenceProviderResponse =
 
 export type WatchInferenceProvidersData = {
   body?: WatchInferenceProvidersRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/inference/provider/watch"
@@ -4862,6 +4925,13 @@ export type WatchInferenceProvidersResponse =
 
 export type GetInferenceProviderUsageData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
@@ -4899,6 +4969,13 @@ export type GetInferenceProviderUsageResponse =
 
 export type RefreshInferenceProviderModelsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
@@ -4940,6 +5017,13 @@ export type RefreshInferenceProviderModelsResponse =
 
 export type ListInferenceProviderCatalogData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     q?: string
@@ -4973,6 +5057,13 @@ export type ListInferenceProviderCatalogResponse =
 
 export type ListInferenceModelSuggestionsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     catalogProvider: string
   }
@@ -5008,6 +5099,9 @@ export type ListInferenceModelSuggestionsResponse =
 
 export type ListInferencePoolsData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path?: never
   query?: {
     /**
@@ -5047,6 +5141,9 @@ export type ListInferencePoolsResponse2 =
 
 export type CreateInferencePoolData = {
   body: InferencePoolWrite
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path?: never
   query?: never
   url: "/api/inference/pool"
@@ -5090,6 +5187,9 @@ export type CreateInferencePoolResponse =
 
 export type DeleteInferencePoolData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -5131,6 +5231,9 @@ export type DeleteInferencePoolResponse =
 
 export type GetInferencePoolData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -5166,6 +5269,9 @@ export type GetInferencePoolResponse = GetInferencePoolResponses[keyof GetInfere
 
 export type UpdateInferencePoolData = {
   body: UpdateInferencePoolRequest
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -5219,6 +5325,9 @@ export type UpdateInferencePoolResponse =
 
 export type GetInferencePoolUsageData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -5256,6 +5365,9 @@ export type GetInferencePoolUsageResponse =
 
 export type WatchInferencePoolsData = {
   body?: WatchInferencePoolsRequest
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path?: never
   query?: never
   url: "/api/inference/pool/watch"

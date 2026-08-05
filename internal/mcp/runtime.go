@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -185,12 +186,19 @@ func MCPConnectionRefNames(env *agentzv1alpha1.Sandbox) []string {
 // Missing references are ignored so callers can converge runtime state from
 // currently resolvable connections.
 func LoadConnections(ctx context.Context, c client.Reader, env *agentzv1alpha1.Sandbox) ([]agentzv1alpha1.MCPConnection, error) {
-	names := MCPConnectionRefNames(env)
-	conns := make([]agentzv1alpha1.MCPConnection, 0, len(names))
-	for _, name := range names {
+	conns := make([]agentzv1alpha1.MCPConnection, 0, len(env.Spec.MCPConnectionRefs))
+	for _, ref := range env.Spec.MCPConnectionRefs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			continue
+		}
+		ns, err := scoperesolver.Namespace(ctx, c, env.Namespace, ref.Scope)
+		if err != nil {
+			return nil, fmt.Errorf("resolve mcp connection %q scope: %w", name, err)
+		}
 		conn := &agentzv1alpha1.MCPConnection{}
-		key := types.NamespacedName{Namespace: env.Namespace, Name: name}
-		err := c.Get(ctx, key, conn)
+		key := types.NamespacedName{Namespace: ns, Name: name}
+		err = c.Get(ctx, key, conn)
 		if apierrors.IsNotFound(err) {
 			continue
 		}

@@ -195,6 +195,8 @@ const (
 	AuditTargetOrganizationMembership AuditTarget = "organization_membership"
 	AuditTargetTeam                   AuditTarget = "team"
 	AuditTargetMcpConnection          AuditTarget = "mcp_connection"
+	AuditTargetInferenceProvider      AuditTarget = "inference_provider"
+	AuditTargetInferencePool          AuditTarget = "inference_pool"
 	AuditTargetRole                   AuditTarget = "role"
 	AuditTargetSandbox                AuditTarget = "sandbox"
 	AuditTargetSkill                  AuditTarget = "skill"

@@ -69,6 +69,7 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { deleteInferencePoolAction } from "@/data/inference-pool.actions"
+import type { InferencePoolActionScope } from "@/data/inference-pool.actions"
 import { formatAge, formatCompactNumber } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
@@ -107,15 +108,19 @@ const stateMeta = {
   }
 >
 
-const watchPoolsQueryOptions = (poolIDs: string[], pools: InferencePool[]) =>
+const watchPoolsQueryOptions = (
+  poolIDs: string[],
+  pools: InferencePool[],
+  scope: InferencePoolActionScope
+) =>
   queryOptions({
-    queryKey: ["watchInferencePools", poolIDs] as const,
+    queryKey: ["watchInferencePools", scope.workspaceId, poolIDs] as const,
     enabled: poolIDs.length > 0,
     placeholderData: pools,
     queryFn: streamedQuery<
       WatchInferencePoolsEvent,
       InferencePool[],
-      readonly ["watchInferencePools", string[]]
+      readonly ["watchInferencePools", string, string[]]
     >({
       initialValue: pools,
       reducer: (rows, event) => {
@@ -127,6 +132,7 @@ const watchPoolsQueryOptions = (poolIDs: string[], pools: InferencePool[]) =>
         const result = await watchInferencePools({
           baseUrl: await getGatewayBaseURL(),
           body: { pool_ids: poolIDs },
+          headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
           signal,
         })
         return result.stream
@@ -143,9 +149,11 @@ const watchPoolsQueryOptions = (poolIDs: string[], pools: InferencePool[]) =>
 export function InferencePoolTable({
   pools,
   providers,
+  scope,
 }: {
   pools: InferencePool[]
   providers: InferenceProvider[]
+  scope: InferencePoolActionScope
 }) {
   "use no memo"
 
@@ -168,7 +176,7 @@ export function InferencePoolTable({
       .slice(currentPage * pageSize, currentPage * pageSize + pageSize)
       .map((pool) => pool.id)
   }, [currentPage, pools, sorting])
-  const watched = useQuery(watchPoolsQueryOptions(poolIDs, pools)).data ?? pools
+  const watched = useQuery(watchPoolsQueryOptions(poolIDs, pools, scope)).data ?? pools
   const providerByID = React.useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),
     [providers]
@@ -287,13 +295,14 @@ export function InferencePoolTable({
         cell: ({ row }) => (
           <PoolActions
             pool={row.original}
+            scope={scope}
             view={() => setViewing(row.original)}
             edit={() => setEditing(row.original)}
           />
         ),
       },
     ],
-    [providerByID]
+    [providerByID, scope]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -388,6 +397,7 @@ export function InferencePoolTable({
           providers={providers}
           open={Boolean(viewing)}
           onOpenChange={(open) => !open && setViewing(undefined)}
+          scope={scope}
         />
         <PoolSheet
           key={editing?.id ?? "closed"}
@@ -395,6 +405,7 @@ export function InferencePoolTable({
           providers={providers}
           open={Boolean(editing)}
           onOpenChange={(open) => !open && setEditing(undefined)}
+          scope={scope}
         />
       </div>
     </TooltipProvider>
@@ -426,10 +437,12 @@ function PoolStatusBadge({ pool }: { pool: InferencePool }) {
 
 function PoolActions({
   pool,
+  scope,
   view,
   edit,
 }: {
   pool: InferencePool
+  scope: InferencePoolActionScope
   view: () => void
   edit: () => void
 }) {
@@ -452,16 +465,20 @@ function PoolActions({
             <DropdownMenuItem onSelect={view}>
               <Eye /> View
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={edit}>
-              <Pencil /> Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-              <Trash2 /> Delete
-            </DropdownMenuItem>
+            {pool.can_modify ? (
+              <DropdownMenuItem onSelect={edit}>
+                <Pencil /> Edit
+              </DropdownMenuItem>
+            ) : null}
+            {pool.can_delete ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                <Trash2 /> Delete
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <DeletePoolDialog pool={pool} open={deleteOpen} setOpen={setDeleteOpen} />
+      <DeletePoolDialog pool={pool} open={deleteOpen} scope={scope} setOpen={setDeleteOpen} />
     </div>
   )
 }
@@ -469,10 +486,12 @@ function PoolActions({
 function DeletePoolDialog({
   pool,
   open,
+  scope,
   setOpen,
 }: {
   pool: InferencePool
   open: boolean
+  scope: InferencePoolActionScope
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const [error, setError] = React.useState("")
@@ -510,7 +529,7 @@ function DeletePoolDialog({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const result = await deleteInferencePoolAction(pool.id)
+                const result = await deleteInferencePoolAction(scope, pool.id)
                 if (result.error) {
                   const details =
                     result.error.errors?.map((item) => `${item.field}: ${item.message}`) ?? []
@@ -535,23 +554,33 @@ function PoolViewSheet({
   providers,
   open,
   onOpenChange,
+  scope,
 }: {
   pool?: InferencePool
   providers: InferenceProvider[]
   open: boolean
   onOpenChange: (open: boolean) => void
+  scope: InferencePoolActionScope
 }) {
   const poolName = pool?.id
   const query = useQuery(
     queryOptions({
       enabled: open && Boolean(poolName),
-      queryKey: ["inference-pool", poolName],
+      queryKey: ["inference-pool", scope.workspaceId, poolName],
       queryFn: async () => {
         if (!poolName) throw new Error("Pool is unavailable")
         const baseUrl = await getGatewayBaseURL()
         const [detail, usage] = await Promise.all([
-          getInferencePool({ baseUrl, path: { poolName } }),
-          getInferencePoolUsage({ baseUrl, path: { poolName } }),
+          getInferencePool({
+            baseUrl,
+            headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
+            path: { poolName },
+          }),
+          getInferencePoolUsage({
+            baseUrl,
+            headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
+            path: { poolName },
+          }),
         ])
         if (detail.error) throw new Error(detail.error.message)
         if (usage.error) throw new Error(usage.error.message)
@@ -731,7 +760,7 @@ function PoolViewSheet({
                   {query.data.usage.sandboxes.map((sandbox) => (
                     <Link
                       key={sandbox}
-                      href={`/sandboxes/update/${encodeURIComponent(sandbox)}`}
+                      href={`${scope.basePath}/sandboxes/update/${encodeURIComponent(sandbox)}`}
                       className="hover:bg-accent focus-visible:ring-ring flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2"
                     >
                       <span className="break-anywhere min-w-0">{sandbox}</span>

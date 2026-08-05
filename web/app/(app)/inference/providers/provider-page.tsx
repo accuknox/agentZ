@@ -6,31 +6,45 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { NewInferenceProviderButton } from "./new-provider-button"
 import { InferenceProviderTable } from "./provider-table"
+import type { ResourceCapabilities } from "@/lib/gateway/client"
+import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
+import { Badge } from "@/components/ui/badge"
 
 export const metadata: Metadata = { title: "Providers" }
 
-export default function InferenceProvidersPage() {
+export default function InferenceProvidersPage({
+  capabilities,
+  scope,
+  scopeLabel,
+}: {
+  capabilities: ResourceCapabilities
+  scope: InferenceProviderActionScope
+  scopeLabel: "Local" | "Organisation"
+}) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
         <div className="min-w-0 space-y-1">
-          <h1 className="text-2xl font-semibold tracking-normal">Providers</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-normal">Providers</h1>
+            <Badge variant="outline">{scopeLabel}</Badge>
+          </div>
         </div>
-        <NewInferenceProviderButton />
+        {capabilities.create ? <NewInferenceProviderButton scope={scope} /> : null}
       </div>
       <Suspense fallback={<TableSkeleton />}>
-        <Providers />
+        <Providers scope={scope} />
       </Suspense>
     </main>
   )
 }
 
-async function Providers() {
-  const result = await listInferenceProvidersCachedQuery()
+async function Providers({ scope }: { scope: InferenceProviderActionScope }) {
+  const result = await listInferenceProvidersCachedQuery(scope.workspaceId)
   if (result.error) {
     return <ErrorPanel message={result.error.message} />
   }
-  return <InferenceProviderTable providers={result.providers} />
+  return <InferenceProviderTable providers={result.providers} scope={scope} />
 }
 
 function TableSkeleton() {

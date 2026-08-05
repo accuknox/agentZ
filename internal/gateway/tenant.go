@@ -171,18 +171,21 @@ func (s *Service) tenantView(ctx context.Context, claims gatewayClaims, tenant *
 		phase = gatewayapi.FAILED
 	}
 
-	skill, mcp, err := s.resolveResourceCapabilities(ctx, claims, "")
+	capabilities, err := s.resolveResourceCapabilities(ctx, claims, "")
 	if err != nil {
 		return gatewayapi.Tenant{}, err
 	}
 	return gatewayapi.Tenant{
-		Conditions:                conditions,
-		SkillCapabilities:         skill,
-		McpConnectionCapabilities: mcp,
-		Namespace:                 tenant.Status.Namespace,
-		Phase:                     phase,
-		Ready:                     ready,
-		TenantId:                  tenant.Spec.OrganizationID,
+		Conditions:                    conditions,
+		SkillCapabilities:             capabilities.skill,
+		McpConnectionCapabilities:     capabilities.mcp,
+		SandboxCapabilities:           capabilities.sandbox,
+		InferenceProviderCapabilities: capabilities.inferenceProvider,
+		InferencePoolCapabilities:     capabilities.inferencePool,
+		Namespace:                     tenant.Status.Namespace,
+		Phase:                         phase,
+		Ready:                         ready,
+		TenantId:                      tenant.Spec.OrganizationID,
 	}, nil
 }
 

@@ -23,6 +23,7 @@ import {
 import type { DeleteSandboxFormState } from "@/data/types"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { ArrowLeft, ArrowRight } from "lucide-react"
+import type { Route } from "next"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
@@ -37,11 +38,13 @@ const columnClassName: Record<string, string> = {
 
 export function SandboxTable({
   sandboxes,
+  basePath,
   hasNextPage,
   nextPageToken,
   deleteSandboxAction,
 }: {
   sandboxes: Sandbox[]
+  basePath: string
   hasNextPage: boolean
   nextPageToken: string
   deleteSandboxAction: (
@@ -56,8 +59,8 @@ export function SandboxTable({
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const router = useRouter()
   const columns = React.useMemo(
-    () => createSandboxColumns(deleteSandboxAction),
-    [deleteSandboxAction]
+    () => createSandboxColumns(basePath, deleteSandboxAction),
+    [basePath, deleteSandboxAction]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -97,19 +100,25 @@ export function SandboxTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="cursor-pointer"
-                  role="link"
-                  tabIndex={0}
+                  className={row.original.can_modify ? "cursor-pointer" : undefined}
+                  role={row.original.can_modify ? "link" : undefined}
+                  tabIndex={row.original.can_modify ? 0 : undefined}
                   onClick={() => {
-                    router.push(`/sandboxes/update/${encodeURIComponent(row.original.name)}`)
+                    if (row.original.can_modify) {
+                      router.push(
+                        `${basePath}/update/${encodeURIComponent(row.original.name)}` as Route
+                      )
+                    }
                   }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
+                    if (!row.original.can_modify || (event.key !== "Enter" && event.key !== " ")) {
                       return
                     }
 
                     event.preventDefault()
-                    router.push(`/sandboxes/update/${encodeURIComponent(row.original.name)}`)
+                    router.push(
+                      `${basePath}/update/${encodeURIComponent(row.original.name)}` as Route
+                    )
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (

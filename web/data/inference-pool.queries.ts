@@ -11,18 +11,21 @@ export type InferencePoolsResult =
   | { pools: InferencePool[]; error: undefined }
   | { pools: undefined; error: GatewayError }
 
-export async function listInferencePoolsCachedQuery(): Promise<InferencePoolsResult> {
+export async function listInferencePoolsCachedQuery(
+  workspaceId: string
+): Promise<InferencePoolsResult> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(inferencePoolsTag)
+  cacheTag(inferencePoolsTag, `${inferencePoolsTag}:${workspaceId}`)
 
   const pools: InferencePool[] = []
   let pageToken: string | undefined
   do {
     const { data, error } = await listInferencePools({
       query: { limit: 200, page_token: pageToken },
-      client: getGatewayServerClient(),
+      client: getGatewayServerClient(workspaceId),
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
     })
     if (error) {
       return { pools: undefined, error }

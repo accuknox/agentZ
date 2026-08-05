@@ -1973,13 +1973,13 @@ export const listInferenceModelSuggestionsOptions = (
     queryKey: listInferenceModelSuggestionsQueryKey(options),
   })
 
-export const listInferencePoolsQueryKey = (options?: Options<ListInferencePoolsData>) =>
+export const listInferencePoolsQueryKey = (options: Options<ListInferencePoolsData>) =>
   createQueryKey("listInferencePools", options)
 
 /**
  * List paginated inference Pools.
  */
-export const listInferencePoolsOptions = (options?: Options<ListInferencePoolsData>) =>
+export const listInferencePoolsOptions = (options: Options<ListInferencePoolsData>) =>
   queryOptions<
     ListInferencePoolsResponse2,
     ListInferencePoolsError,

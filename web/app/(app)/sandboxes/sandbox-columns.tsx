@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import type { Route } from "next"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
@@ -32,6 +33,7 @@ type DeleteSandboxAction = (
 ) => Promise<DeleteSandboxFormState>
 
 export function createSandboxColumns(
+  basePath: string,
   deleteSandboxAction: DeleteSandboxAction
 ): ColumnDef<Sandbox>[] {
   return [
@@ -113,7 +115,13 @@ export function createSandboxColumns(
       cell: ({ row }) => {
         const sandbox = row.original
 
-        return <SandboxActions sandbox={sandbox} deleteSandboxAction={deleteSandboxAction} />
+        return (
+          <SandboxActions
+            basePath={basePath}
+            sandbox={sandbox}
+            deleteSandboxAction={deleteSandboxAction}
+          />
+        )
       },
     },
   ]
@@ -121,9 +129,11 @@ export function createSandboxColumns(
 
 function SandboxActions({
   sandbox,
+  basePath,
   deleteSandboxAction,
 }: {
   sandbox: Sandbox
+  basePath: string
   deleteSandboxAction: DeleteSandboxAction
 }) {
   const [open, setOpen] = React.useState(false)
@@ -135,27 +145,33 @@ function SandboxActions({
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <span className="sr-only">Open menu</span>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href={`/sandboxes/update/${sandbox.name}`}>Edit</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={referenced}
-            onSelect={() => setOpen(true)}
-          >
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {sandbox.can_modify || sandbox.can_delete ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {sandbox.can_modify ? (
+              <DropdownMenuItem asChild>
+                <Link href={`${basePath}/update/${sandbox.name}` as Route}>Edit</Link>
+              </DropdownMenuItem>
+            ) : null}
+            {sandbox.can_delete ? (
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={referenced}
+                onSelect={() => setOpen(true)}
+              >
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       <DeleteSandboxDialog
         sandbox={sandbox}
         deleteSandboxAction={deleteSandboxAction}

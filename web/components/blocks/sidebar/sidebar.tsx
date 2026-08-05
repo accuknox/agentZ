@@ -1,7 +1,16 @@
 import { Suspense } from "react"
 import type { Route } from "next"
 import Link from "next/link"
-import { Building2, Cable, LayoutDashboard, ScrollText, Settings2 } from "lucide-react"
+import {
+  Box,
+  Brain,
+  Building2,
+  Cable,
+  Layers3,
+  LayoutDashboard,
+  ScrollText,
+  Settings2,
+} from "lucide-react"
 import { NavAgents } from "./agents"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
@@ -22,9 +31,7 @@ import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
-import { NavSandboxes } from "./sandboxes"
 import { NavWorkflows } from "./workflows"
-import { NavInference } from "./inference"
 import type { OrganizationSummary } from "@/data/organizations"
 import type { ResourceCapabilities, Workspace } from "@/lib/gateway/client"
 
@@ -33,6 +40,9 @@ type WorkspaceNavigationScope = {
   canEnterOrganization: boolean
   organization: OrganizationSummary
   mcpConnectionCapabilities: ResourceCapabilities
+  inferencePoolCapabilities: ResourceCapabilities
+  inferenceProviderCapabilities: ResourceCapabilities
+  sandboxCapabilities: ResourceCapabilities
   skillCapabilities: ResourceCapabilities
   workspaces: Workspace[]
 }
@@ -72,15 +82,20 @@ export function AppSidebar({
           <OrganizationNavigation
             canEnterOrganization={scope.canEnterOrganization}
             mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
+            inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
             organization={scope.organization}
             skillCapabilities={scope.skillCapabilities}
+            sandboxCapabilities={scope.sandboxCapabilities}
           />
         ) : null}
         {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
           <WorkspaceNavigation
             mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
+            inferencePoolCapabilities={scope.inferencePoolCapabilities}
+            inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
             organization={scope.organization}
             skillCapabilities={scope.skillCapabilities}
+            sandboxCapabilities={scope.sandboxCapabilities}
             workspace={scope.workspace}
           />
         ) : null}
@@ -101,13 +116,19 @@ export function AppSidebar({
 
 function WorkspaceNavigation({
   mcpConnectionCapabilities,
+  inferencePoolCapabilities,
+  inferenceProviderCapabilities,
   organization,
   skillCapabilities,
+  sandboxCapabilities,
   workspace,
 }: {
   mcpConnectionCapabilities: ResourceCapabilities
+  inferencePoolCapabilities: ResourceCapabilities
+  inferenceProviderCapabilities: ResourceCapabilities
   organization: OrganizationSummary
   skillCapabilities: ResourceCapabilities
+  sandboxCapabilities: ResourceCapabilities
   workspace: Workspace
 }) {
   return (
@@ -144,6 +165,46 @@ function WorkspaceNavigation({
             </SidebarMenuButton>
           </SidebarMenuItem>
         ) : null}
+        {sandboxCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Sandboxes">
+              <Link
+                href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/sandboxes` as Route}
+              >
+                <Box aria-hidden="true" />
+                <span>Sandboxes</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {inferenceProviderCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Inference providers">
+              <Link
+                href={
+                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/providers` as Route
+                }
+              >
+                <Brain aria-hidden="true" />
+                <span>Providers</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {inferencePoolCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Inference pools">
+              <Link
+                href={
+                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/pools` as Route
+                }
+              >
+                <Layers3 aria-hidden="true" />
+                <span>Pools</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
       </SidebarMenu>
     </SidebarGroup>
   )
@@ -162,9 +223,7 @@ async function LegacyNavigation() {
         <Suspense fallback={null}>
           <NavLens />
         </Suspense>
-        <NavSandboxes />
         <NavSecrets />
-        <NavInference />
         <NavWorkflows />
       </SidebarGroup>
       <SidebarGroup className="px-2 py-2">
@@ -178,13 +237,17 @@ async function LegacyNavigation() {
 function OrganizationNavigation({
   canEnterOrganization,
   mcpConnectionCapabilities,
+  inferenceProviderCapabilities,
   organization,
   skillCapabilities,
+  sandboxCapabilities,
 }: {
   canEnterOrganization: boolean
   mcpConnectionCapabilities: ResourceCapabilities
+  inferenceProviderCapabilities: ResourceCapabilities
   organization: OrganizationSummary
   skillCapabilities: ResourceCapabilities
+  sandboxCapabilities: ResourceCapabilities
 }) {
   const root = `/orgs/${organization.slug}`
 
@@ -218,6 +281,26 @@ function OrganizationNavigation({
               <Link href={`${root}/mcps` as Route}>
                 <Cable aria-hidden="true" />
                 <span>MCP</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {sandboxCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Sandboxes">
+              <Link href={`${root}/sandboxes` as Route}>
+                <Box aria-hidden="true" />
+                <span>Sandboxes</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
+        {inferenceProviderCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Inference providers">
+              <Link href={`${root}/inference/providers` as Route}>
+                <Brain aria-hidden="true" />
+                <span>Providers</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

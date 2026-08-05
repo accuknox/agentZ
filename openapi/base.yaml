@@ -1517,7 +1517,10 @@ paths:
       operationId: listInferenceProviders
       summary: List paginated inference providers.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1535,6 +1538,10 @@ paths:
       operationId: createInferenceProvider
       summary: Create an inference provider and its write-only credentials.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -1567,6 +1574,10 @@ paths:
         Credential material is written directly to OpenBao and is never
         included in this or any later API response.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -1593,10 +1604,13 @@ paths:
   /api/inference/provider/{providerName}:
     parameters:
     - $ref: '#/components/parameters/InferenceProviderNamePath'
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
     get:
       operationId: getInferenceProvider
       summary: Get an inference provider without credential material.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       responses:
         '200':
           description: Inference provider.
@@ -1613,6 +1627,8 @@ paths:
       operationId: updateInferenceProvider
       summary: Replace provider configuration and optionally rotate credentials.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.modify]
       requestBody:
         required: true
         content:
@@ -1642,6 +1658,8 @@ paths:
       operationId: deleteInferenceProvider
       summary: Delete an unreferenced inference provider.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.delete]
       responses:
         '204':
           description: Provider deletion accepted.
@@ -1660,6 +1678,10 @@ paths:
         Returns an SSE stream. Each payload contains the current read shapes
         for the requested provider IDs, or all providers when IDs are omitted.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: false
         content:
@@ -1687,8 +1709,11 @@ paths:
       operationId: getInferenceProviderUsage
       summary: List Sandboxes referencing an inference provider.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       responses:
         '200':
           description: Provider usage.
@@ -1706,8 +1731,11 @@ paths:
       operationId: refreshInferenceProviderModels
       summary: Refresh non-secret model metadata for a subscription provider.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       responses:
         '200':
           description: Current subscription model suggestions.
@@ -1727,7 +1755,10 @@ paths:
       operationId: listInferenceProviderCatalog
       summary: Search the pinned OpenCode provider catalog.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: q
         in: query
         required: false
@@ -1750,7 +1781,10 @@ paths:
       operationId: listInferenceModelSuggestions
       summary: List Models.dev suggestions for one provider/runtime variant.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: catalogProvider
         in: path
         required: true
@@ -1780,7 +1814,14 @@ paths:
       operationId: listInferencePools
       summary: List paginated inference Pools.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.read]
       parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1798,6 +1839,14 @@ paths:
       operationId: createInferencePool
       summary: Create an inference Pool with ordered provider-model members.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.create]
+      parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -1825,10 +1874,17 @@ paths:
   /api/inference/pool/{poolName}:
     parameters:
     - $ref: '#/components/parameters/InferencePoolNamePath'
+    - in: header
+      name: X-AgentZ-Workspace-ID
+      required: true
+      schema:
+        type: string
     get:
       operationId: getInferencePool
       summary: Get an inference Pool and its derived contract.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.read]
       responses:
         '200':
           description: Inference Pool.
@@ -1844,6 +1900,8 @@ paths:
       operationId: updateInferencePool
       summary: Replace Pool membership or routing behavior.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.modify]
       requestBody:
         required: true
         content:
@@ -1873,6 +1931,8 @@ paths:
       operationId: deleteInferencePool
       summary: Delete an inference Pool not referenced by a Sandbox.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.delete]
       responses:
         '204':
           description: Pool deletion accepted.
@@ -1890,6 +1950,13 @@ paths:
       tags: [inference]
       parameters:
       - $ref: '#/components/parameters/InferencePoolNamePath'
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
+      security:
+      - GatewayBearer: [inference_pool.read]
       responses:
         '200':
           description: Pool usage.
@@ -1910,6 +1977,14 @@ paths:
         Returns an SSE stream. Each payload contains current Pool read shapes
         for the requested IDs, or all Pools when IDs are omitted.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.read]
+      parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       requestBody:
         required: false
         content:
@@ -3248,7 +3323,7 @@ components:
 
     AuditTargetType:
       type: string
-      enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection]
+      enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection, inference_provider, inference_pool]
       x-enum-varnames:
       - AuditTargetOrganization
       - AuditTargetOrganizationMembership
@@ -3258,6 +3333,8 @@ components:
       - AuditTargetSkill
       - AuditTargetTeam
       - AuditTargetMCPConnection
+      - AuditTargetInferenceProvider
+      - AuditTargetInferencePool
 
     AuditField:
       type: object
@@ -3502,7 +3579,7 @@ components:
 
     Tenant:
       type: object
-      required: [tenant_id, namespace, ready, phase, conditions, skill_capabilities, mcp_connection_capabilities]
+      required: [tenant_id, namespace, ready, phase, conditions, skill_capabilities, mcp_connection_capabilities, sandbox_capabilities, inference_provider_capabilities, inference_pool_capabilities]
       properties:
         tenant_id:
           type: string
@@ -3519,6 +3596,12 @@ components:
         skill_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
         mcp_connection_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        sandbox_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_provider_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_pool_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
 
     WorkspaceState:
@@ -3554,6 +3637,12 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         mcp_connection_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
+        sandbox_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_provider_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_pool_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         workspace_admin_count:
           type: integer
           format: int64
@@ -3579,6 +3668,9 @@ components:
       - updated_at
       - skill_capabilities
       - mcp_connection_capabilities
+      - sandbox_capabilities
+      - inference_provider_capabilities
+      - inference_pool_capabilities
 
     ListWorkspacesResponse:
       type: object
@@ -5893,6 +5985,10 @@ components:
             $ref: '#/components/schemas/ResourceReference'
         inference:
           $ref: '#/components/schemas/SandboxInference'
+        can_modify:
+          type: boolean
+        can_delete:
+          type: boolean
         created_at:
           type: string
           format: date-time
@@ -5915,7 +6011,7 @@ components:
             referenced_by_agent:
               type: boolean
           required: [package_count, allowed_host_count, skill_count, referenced_by_agent]
-      required: [name, packages, allowed_hosts, mcp_connection_refs, skills, inference, created_at, metadata]
+      required: [name, packages, allowed_hosts, mcp_connection_refs, skills, inference, created_at, can_modify, can_delete, metadata]
 
     ListSandboxesResponse:
       type: object
@@ -6490,9 +6586,11 @@ components:
             items: {$ref: '#/components/schemas/InferenceProviderCondition'}
           model_count: {type: integer, minimum: 0}
           usage_count: {type: integer, minimum: 0}
+          can_modify: {type: boolean}
+          can_delete: {type: boolean}
           created_at: {type: string, format: date-time}
           updated_at: {type: string, format: date-time}
-        required: [id, resource_version, state, conditions, model_count, usage_count, created_at, updated_at]
+        required: [id, resource_version, state, conditions, model_count, usage_count, can_modify, can_delete, created_at, updated_at]
 
     ListInferenceProvidersResponse:
       type: object
@@ -6634,9 +6732,11 @@ components:
           type: array
           items: {$ref: '#/components/schemas/InferencePoolMemberStatus'}
         usage_count: {type: integer, minimum: 0}
+        can_modify: {type: boolean}
+        can_delete: {type: boolean}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
-      required: [id, display_name, resource_version, automatic_failover, members, state, conditions, warnings, member_statuses, usage_count, created_at, updated_at]
+      required: [id, display_name, resource_version, automatic_failover, members, state, conditions, warnings, member_statuses, usage_count, can_modify, can_delete, created_at, updated_at]
 
     ListInferencePoolsResponse:
       type: object

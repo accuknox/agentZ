@@ -24,8 +24,11 @@ import (
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+const sandboxNamespaceLabel = "agentz.accuknox.com/sandbox-namespace"
 
 func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) (bool, error) {
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
@@ -33,9 +36,13 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 	targets := []inference.SandboxTarget{}
 	ready := len(sandbox.Spec.Inference.Models) > 0
 	for _, ref := range sandbox.Spec.Inference.Models {
+		ns, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, ref.Scope)
+		if err != nil {
+			return false, fmt.Errorf("resolve inference reference scope: %w", err)
+		}
 		if ref.Provider == agentzv1alpha1.InferencePoolProvider {
 			pool := &agentzv1alpha1.InferencePool{}
-			key := client.ObjectKey{Namespace: sandbox.Namespace, Name: ref.Model}
+			key := client.ObjectKey{Namespace: ns, Name: ref.Model}
 			if err := r.Get(ctx, key, pool); err != nil {
 				return false, fmt.Errorf("get inference pool %q: %w", ref.Model, err)
 			}
@@ -45,29 +52,31 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 			isAvailable := pool.Status.State == agentzv1alpha1.InferencePoolStateReady || pool.Status.State == agentzv1alpha1.InferencePoolStatePartiallyDegraded
 			ready = ready && isAvailable
 			targets = append(targets, inference.SandboxTarget{
-				Name:    "pool-" + pool.Name,
-				Backend: pool.Name,
-				Path:    inference.SandboxPoolPath(sandbox.Name, pool.Name),
-				Models:  []string{pool.Name},
-				Labels:  map[string]string{inference.PoolLabel: pool.Name},
-				ExtAuth: true,
+				Name:             "pool-" + pool.Name,
+				Backend:          pool.Name,
+				BackendNamespace: pool.Namespace,
+				Path:             inference.SandboxPoolPath(sandbox.Name, pool.Name),
+				Models:           []string{pool.Name},
+				Labels:           map[string]string{inference.PoolLabel: pool.Name},
+				ExtAuth:          true,
 			})
 			if pool.Spec.AutomaticFailover {
 				targets[len(targets)-1].Retries = len(pool.Spec.Members) - 1
 			}
 			continue
 		}
-		provider := providers[ref.Provider]
+		providerKey := ns + "/" + ref.Provider
+		provider := providers[providerKey]
 		if provider == nil {
 			provider = &agentzv1alpha1.InferenceProvider{}
-			key := client.ObjectKey{Namespace: sandbox.Namespace, Name: ref.Provider}
+			key := client.ObjectKey{Namespace: ns, Name: ref.Provider}
 			if err := r.Get(ctx, key, provider); err != nil {
 				return false, fmt.Errorf("get inference provider %q: %w", ref.Provider, err)
 			}
 			if !provider.DeletionTimestamp.IsZero() {
 				return false, fmt.Errorf("inference provider %q is terminating", ref.Provider)
 			}
-			providers[ref.Provider] = provider
+			providers[providerKey] = provider
 			ready = ready && provider.Status.State == agentzv1alpha1.InferenceProviderStateReady
 		}
 		var found bool
@@ -84,16 +93,17 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 				ref.Model,
 			)
 		}
-		models[ref.Provider] = append(models[ref.Provider], ref.Model)
+		models[providerKey] = append(models[providerKey], ref.Model)
 	}
-	for providerName := range providers {
-		kind := providers[providerName].Spec.Kind
+	for providerKey, provider := range providers {
+		kind := provider.Spec.Kind
 		targets = append(targets, inference.SandboxTarget{
-			Name:    providerName,
-			Backend: providerName,
-			Path:    inference.SandboxProviderPath(sandbox.Name, providerName),
-			Models:  models[providerName],
-			Labels:  map[string]string{inference.ProviderLabel: providerName},
+			Name:             provider.Name,
+			Backend:          provider.Name,
+			BackendNamespace: provider.Namespace,
+			Path:             inference.SandboxProviderPath(sandbox.Name, provider.Name),
+			Models:           models[providerKey],
+			Labels:           map[string]string{inference.ProviderLabel: provider.Name},
 			ExtAuth: kind == agentzv1alpha1.InferenceProviderKindOpenAICodex ||
 				kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot,
 		})
@@ -123,9 +133,43 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 	}
 	ready = ready && inferencePolicyReady(tracePolicy)
 	desired := make(map[string]struct{}, len(targets))
+	desiredGrants := make(map[client.ObjectKey]struct{}, len(targets))
 	for _, target := range targets {
 		runtime := inference.RenderSandboxTarget(sandbox.Namespace, sandbox.Name, target)
 		desired[runtime.Route.Name] = struct{}{}
+		if target.BackendNamespace != "" && target.BackendNamespace != sandbox.Namespace {
+			grant := &gwv1.ReferenceGrant{ObjectMeta: metav1.ObjectMeta{
+				Name: inference.SandboxProviderRuntimeName(
+					sandbox.Namespace+"-"+sandbox.Name,
+					target.Name,
+				),
+				Namespace: target.BackendNamespace,
+			}}
+			_, err := ctrlutil.CreateOrPatch(ctx, r.Client, grant, func() error {
+				backend := gwv1.ObjectName(target.Backend)
+				grant.Labels = map[string]string{
+					inference.SandboxLabel: sandbox.Name,
+					sandboxNamespaceLabel:  sandbox.Namespace,
+				}
+				grant.Spec = gwv1.ReferenceGrantSpec{
+					From: []gwv1.ReferenceGrantFrom{{
+						Group:     "gateway.networking.k8s.io",
+						Kind:      "HTTPRoute",
+						Namespace: gwv1.Namespace(sandbox.Namespace),
+					}},
+					To: []gwv1.ReferenceGrantTo{{
+						Group: "agentgateway.dev",
+						Kind:  "AgentgatewayBackend",
+						Name:  &backend,
+					}},
+				}
+				return nil
+			})
+			if err != nil {
+				return false, fmt.Errorf("reconcile inference backend reference grant: %w", err)
+			}
+			desiredGrants[client.ObjectKeyFromObject(grant)] = struct{}{}
+		}
 		currentRoute := &gwv1.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: runtime.Route.Name, Namespace: runtime.Route.Namespace,
@@ -160,6 +204,21 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 			return false, fmt.Errorf("reconcile inference authorization: %w", err)
 		}
 		ready = ready && inferencePolicyReady(currentPolicy)
+	}
+	grants := &gwv1.ReferenceGrantList{}
+	if err := r.List(ctx, grants, client.MatchingLabels{
+		inference.SandboxLabel: sandbox.Name,
+		sandboxNamespaceLabel:  sandbox.Namespace,
+	}); err != nil {
+		return false, fmt.Errorf("list inference backend reference grants: %w", err)
+	}
+	for i := range grants.Items {
+		if _, ok := desiredGrants[client.ObjectKeyFromObject(&grants.Items[i])]; ok {
+			continue
+		}
+		if err := r.Delete(ctx, &grants.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+			return false, fmt.Errorf("delete stale inference backend reference grant: %w", err)
+		}
 	}
 	if err := r.deleteStaleInferenceRuntime(ctx, sandbox, desired); err != nil {
 		return false, err
@@ -267,27 +326,42 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: inference.GatewayName, Namespace: namespace},
 	}
-	providerNames := map[string]struct{}{}
+	providerKeys := map[client.ObjectKey]struct{}{}
 	for i := range owners {
 		for _, model := range owners[i].Spec.Inference.Models {
+			ns, err := scoperesolver.Namespace(ctx, r.Client, namespace, model.Scope)
+			if err != nil {
+				return fmt.Errorf("resolve inference policy reference scope: %w", err)
+			}
 			if model.Provider != agentzv1alpha1.InferencePoolProvider {
-				providerNames[model.Provider] = struct{}{}
+				providerKeys[client.ObjectKey{Namespace: ns, Name: model.Provider}] = struct{}{}
 				continue
 			}
 			pool := &agentzv1alpha1.InferencePool{}
-			key := client.ObjectKey{Namespace: namespace, Name: model.Model}
+			key := client.ObjectKey{Namespace: ns, Name: model.Model}
 			if err := r.Get(ctx, key, pool); err != nil {
 				return fmt.Errorf("get inference policy pool: %w", err)
 			}
 			for _, member := range pool.Spec.Members {
-				providerNames[member.Provider] = struct{}{}
+				memberNamespace, err := scoperesolver.Namespace(
+					ctx,
+					r.Client,
+					pool.Namespace,
+					member.Scope,
+				)
+				if err != nil {
+					return fmt.Errorf("resolve inference policy pool member scope: %w", err)
+				}
+				providerKeys[client.ObjectKey{
+					Namespace: memberNamespace,
+					Name:      member.Provider,
+				}] = struct{}{}
 			}
 		}
 	}
-	egressTargets := make([]networkpolicy.Target, 0, len(providerNames)+1)
-	for name := range providerNames {
+	egressTargets := make([]networkpolicy.Target, 0, len(providerKeys)+1)
+	for key := range providerKeys {
 		provider := &agentzv1alpha1.InferenceProvider{}
-		key := client.ObjectKey{Namespace: namespace, Name: name}
 		if err := r.Get(ctx, key, provider); err != nil {
 			return fmt.Errorf("get inference policy provider: %w", err)
 		}

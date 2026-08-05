@@ -1355,9 +1355,9 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
  * List paginated inference Pools.
  */
 export const listInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<ListInferencePoolsData, ThrowOnError>
+  options: Options<ListInferencePoolsData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<
+  (options.client ?? client).get<
     ListInferencePoolsResponses,
     ListInferencePoolsErrors,
     ThrowOnError
@@ -1458,9 +1458,9 @@ export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
  *
  */
 export const watchInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
+  options: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
 ) =>
-  (options?.client ?? client).sse.post<
+  (options.client ?? client).sse.post<
     WatchInferencePoolsResponses,
     WatchInferencePoolsErrors,
     ThrowOnError
@@ -1470,7 +1470,7 @@ export const watchInferencePools = <ThrowOnError extends boolean = false>(
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...options?.headers,
+      ...options.headers,
     },
   })
 

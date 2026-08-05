@@ -83,6 +83,7 @@ import {
   saveInferenceProviderAction,
   startInferenceProviderOAuthAction,
   suggestInferenceModelsAction,
+  type InferenceProviderActionScope,
 } from "@/data/inference-provider.actions"
 import { formatCompactNumber } from "@/lib/format"
 import {
@@ -680,10 +681,12 @@ export function ProviderSheet({
   provider,
   open,
   onOpenChange,
+  scope,
 }: {
   provider?: InferenceProvider
   open: boolean
   onOpenChange: (open: boolean) => void
+  scope: InferenceProviderActionScope
 }) {
   const defaults = provider
     ? zInferenceProviderWriteDiscriminatorWritable.parse(
@@ -881,7 +884,7 @@ export function ProviderSheet({
     }
 
     let ignore = false
-    void listInferenceProviderCatalogAction().then((result) => {
+    void listInferenceProviderCatalogAction(scope).then((result) => {
       if (ignore) {
         return
       }
@@ -896,7 +899,7 @@ export function ProviderSheet({
     return () => {
       ignore = true
     }
-  }, [open])
+  }, [open, scope])
 
   React.useEffect(() => {
     if (!open || !catalogProvider || (isSubscription && !provider)) {
@@ -904,12 +907,12 @@ export function ProviderSheet({
     }
 
     let ignore = false
-    let request = suggestInferenceModelsAction(catalogProvider, kind)
+    let request = suggestInferenceModelsAction(scope, catalogProvider, kind)
     if (isSubscription) {
       if (!provider) {
         return
       }
-      request = refreshInferenceProviderModelsAction(provider.id)
+      request = refreshInferenceProviderModelsAction(scope, provider.id)
     }
     void request.then((result) => {
       if (ignore) {
@@ -926,7 +929,7 @@ export function ProviderSheet({
     return () => {
       ignore = true
     }
-  }, [catalogProvider, isSubscription, kind, open, provider])
+  }, [catalogProvider, isSubscription, kind, open, provider, scope])
 
   React.useEffect(() => {
     if (!open || subscriptionOAuth.status !== "challenge") {
@@ -937,7 +940,7 @@ export function ProviderSheet({
     let timer: ReturnType<typeof setTimeout>
     const poll = (interval: number) => {
       timer = setTimeout(() => {
-        void pollInferenceProviderOAuthAction().then((result) => {
+        void pollInferenceProviderOAuthAction(scope).then((result) => {
           if (cancelled) {
             return
           }
@@ -964,7 +967,7 @@ export function ProviderSheet({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [models, open, subscriptionOAuth])
+  }, [models, open, scope, subscriptionOAuth])
 
   const selectedCatalogEntry = catalog.find(
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
@@ -977,7 +980,7 @@ export function ProviderSheet({
     setSubscriptionOAuth({ status: "starting" })
     setSubmitError("")
     startTransition(async () => {
-      const result = await startInferenceProviderOAuthAction(kind)
+      const result = await startInferenceProviderOAuthAction(scope, kind)
       setSubscriptionOAuth(result)
       if (result.status !== "challenge") {
         return
@@ -992,14 +995,14 @@ export function ProviderSheet({
     form.clearErrors()
     startTransition(async () => {
       const result = provider
-        ? await saveInferenceProviderAction({
+        ? await saveInferenceProviderAction(scope, {
             providerName: provider.id,
             body: {
               provider: values,
               resource_version: provider.resource_version,
             },
           })
-        : await saveInferenceProviderAction({
+        : await saveInferenceProviderAction(scope, {
             body: {
               provider: values,
               oauth_ticket:
@@ -1067,7 +1070,7 @@ export function ProviderSheet({
     }
 
     startTransition(async () => {
-      const result = await getInferenceProviderUsageAction(provider.id)
+      const result = await getInferenceProviderUsageAction(scope, provider.id)
       if (result.error) {
         setSubmitError(result.error.message)
         return

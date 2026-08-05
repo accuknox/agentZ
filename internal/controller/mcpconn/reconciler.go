@@ -42,6 +42,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/openbao"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -207,18 +208,22 @@ func (r *MCPConnectionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *MCPConnectionReconciler) mcpConnectionsForSandbox(_ context.Context, obj client.Object) []reconcile.Request {
+func (r *MCPConnectionReconciler) mcpConnectionsForSandbox(ctx context.Context, obj client.Object) []reconcile.Request {
 	sandbox, ok := obj.(*agentzv1alpha1.Sandbox)
 	if !ok {
 		return nil
 	}
 
 	requests := make([]reconcile.Request, 0, len(sandbox.Spec.MCPConnectionRefs))
-	for _, name := range mcp.MCPConnectionRefNames(sandbox) {
+	for _, ref := range sandbox.Spec.MCPConnectionRefs {
+		namespace, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, ref.Scope)
+		if err != nil {
+			continue
+		}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
-				Namespace: sandbox.Namespace,
-				Name:      name,
+				Namespace: namespace,
+				Name:      ref.Name,
 			},
 		})
 	}
@@ -230,13 +235,25 @@ func (r *MCPConnectionReconciler) referencingSandboxes(ctx context.Context, name
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(namespace),
 		client.MatchingFields{mcp.SandboxByMCPConnectionIndex: name},
 	)
 	if err != nil {
 		return nil, err
 	}
-	return sandboxes.Items, nil
+	refs := make([]agentzv1alpha1.Sandbox, 0, len(sandboxes.Items))
+	for i := range sandboxes.Items {
+		for _, ref := range sandboxes.Items[i].Spec.MCPConnectionRefs {
+			if ref.Name != name {
+				continue
+			}
+			ns, err := scoperesolver.Namespace(ctx, r.Client, sandboxes.Items[i].Namespace, ref.Scope)
+			if err == nil && ns == namespace {
+				refs = append(refs, sandboxes.Items[i])
+				break
+			}
+		}
+	}
+	return refs, nil
 }
 
 func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Context, conn *agentzv1alpha1.MCPConnection, refs []agentzv1alpha1.Sandbox) (*agentzv1alpha1.MCPConnectionManagedResourceRef, error) {

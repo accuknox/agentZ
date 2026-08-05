@@ -45,13 +45,14 @@ func Gateway(namespace string) *gwv1.Gateway {
 
 // SandboxTarget describes one logical inference target exposed by a Sandbox.
 type SandboxTarget struct {
-	Name    string
-	Backend string
-	Path    string
-	Models  []string
-	Labels  map[string]string
-	ExtAuth bool
-	Retries int
+	Name             string
+	Backend          string
+	BackendNamespace string
+	Path             string
+	Models           []string
+	Labels           map[string]string
+	ExtAuth          bool
+	Retries          int
 }
 
 // SandboxTargetRuntime contains the fail-closed route and authorization policy
@@ -125,6 +126,10 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 				}},
 			}},
 		},
+	}
+	if target.BackendNamespace != "" && target.BackendNamespace != namespace {
+		backendNamespace := gwv1.Namespace(target.BackendNamespace)
+		route.Spec.Rules[0].BackendRefs[0].Namespace = &backendNamespace
 	}
 	if target.ExtAuth {
 		route.Spec.Rules[0].Filters = append(

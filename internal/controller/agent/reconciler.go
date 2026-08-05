@@ -366,29 +366,20 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	if err := r.Get(ctx, key, sandbox); err != nil {
 		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
-	for _, conn := range sandbox.Spec.MCPConnectionRefs {
-		if conn.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			return sandboxConfig{}, fmt.Errorf(
-				"mcp connection %q uses unavailable %s scope",
-				conn.Name,
-				conn.Scope,
-			)
-		}
-	}
-	for _, model := range sandbox.Spec.Inference.Models {
-		if model.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			return sandboxConfig{}, fmt.Errorf(
-				"inference provider %q uses unavailable %s scope",
-				model.Provider,
-				model.Scope,
-			)
-		}
-	}
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
 	for _, modelRef := range sandbox.Spec.Inference.Models {
+		modelNamespace, err := scoperesolver.Namespace(
+			ctx,
+			r.Client,
+			sandboxNamespace,
+			modelRef.Scope,
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve inference model scope: %w", err)
+		}
 		if modelRef.Provider == agentzv1alpha1.InferencePoolProvider {
 			pool := &agentzv1alpha1.InferencePool{}
-			key := types.NamespacedName{Name: modelRef.Model, Namespace: sandboxNamespace}
+			key := types.NamespacedName{Name: modelRef.Model, Namespace: modelNamespace}
 			if err := r.Get(ctx, key, pool); err != nil {
 				return sandboxConfig{}, fmt.Errorf("get inference pool %q: %w", modelRef.Model, err)
 			}
@@ -440,8 +431,21 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				},
 			}
 			for _, member := range pool.Spec.Members {
+				memberNamespace, err := scoperesolver.Namespace(
+					ctx,
+					r.Client,
+					pool.Namespace,
+					member.Scope,
+				)
+				if err != nil {
+					return sandboxConfig{}, fmt.Errorf(
+						"resolve inference pool %q provider scope: %w",
+						pool.Name,
+						err,
+					)
+				}
 				memberProvider := &agentzv1alpha1.InferenceProvider{}
-				key := types.NamespacedName{Name: member.Provider, Namespace: sandboxNamespace}
+				key := types.NamespacedName{Name: member.Provider, Namespace: memberNamespace}
 				if err := r.Get(ctx, key, memberProvider); err != nil {
 					return sandboxConfig{}, fmt.Errorf(
 						"get inference pool %q provider %q: %w",
@@ -459,14 +463,15 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			}
 			continue
 		}
-		provider := providers[modelRef.Provider]
+		providerKey := modelNamespace + "/" + modelRef.Provider
+		provider := providers[providerKey]
 		if provider == nil {
 			provider = &agentzv1alpha1.InferenceProvider{}
-			key := types.NamespacedName{Name: modelRef.Provider, Namespace: sandboxNamespace}
+			key := types.NamespacedName{Name: modelRef.Provider, Namespace: modelNamespace}
 			if err := r.Get(ctx, key, provider); err != nil {
 				return sandboxConfig{}, fmt.Errorf("get inference provider %q: %w", modelRef.Provider, err)
 			}
-			providers[modelRef.Provider] = provider
+			providers[providerKey] = provider
 			switch provider.Spec.Kind {
 			case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 				cfg.OpenAICodexProviderIDs = append(
@@ -729,7 +734,6 @@ func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(provider.Namespace),
 		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
 	)
 	if err != nil {
@@ -744,6 +748,25 @@ func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.
 	}
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for i := range sandboxes.Items {
+		matched := false
+		for _, model := range sandboxes.Items[i].Spec.Inference.Models {
+			if model.Provider != provider.Name {
+				continue
+			}
+			ns, err := scoperesolver.Namespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				model.Scope,
+			)
+			if err == nil && ns == provider.Namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
 		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
 	}
 	return requests
@@ -755,7 +778,6 @@ func (r *Reconciler) agentsForInferencePool(ctx context.Context, obj client.Obje
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(pool.Namespace),
 		client.MatchingFields{inference.SandboxByPoolIndex: pool.Name},
 	)
 	if err != nil {
@@ -770,6 +792,25 @@ func (r *Reconciler) agentsForInferencePool(ctx context.Context, obj client.Obje
 	}
 	requests := []reconcile.Request{}
 	for i := range sandboxes.Items {
+		matched := false
+		for _, model := range sandboxes.Items[i].Spec.Inference.Models {
+			if model.Provider != agentzv1alpha1.InferencePoolProvider || model.Model != pool.Name {
+				continue
+			}
+			ns, err := scoperesolver.Namespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				model.Scope,
+			)
+			if err == nil && ns == pool.Namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
 		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
 	}
 	return requests

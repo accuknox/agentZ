@@ -112,6 +112,12 @@ export default async function OrganizationLayout({
   if (tenant.data.mcp_connection_capabilities.read) {
     tabs.push({ href: `${root}/mcps` as Route, label: "MCP" })
   }
+  if (tenant.data.sandbox_capabilities.read) {
+    tabs.push({ href: `${root}/sandboxes` as Route, label: "Sandboxes" })
+  }
+  if (tenant.data.inference_provider_capabilities.read) {
+    tabs.push({ href: `${root}/inference/providers` as Route, label: "Providers" })
+  }
 
   return (
     <>
@@ -127,7 +133,10 @@ export default async function OrganizationLayout({
               canEnterOrganization: workspaceResult.directory.can_enter_organization,
               kind: "organization",
               mcpConnectionCapabilities: tenant.data.mcp_connection_capabilities,
+              inferencePoolCapabilities: tenant.data.inference_pool_capabilities,
+              inferenceProviderCapabilities: tenant.data.inference_provider_capabilities,
               organization: result.organization,
+              sandboxCapabilities: tenant.data.sandbox_capabilities,
               skillCapabilities: tenant.data.skill_capabilities,
               workspaces: workspaceResult.directory.workspaces,
             }}

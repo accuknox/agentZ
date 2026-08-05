@@ -1,24 +1,27 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { sandboxAllowedHostSchema } from "@/data/schema"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
-import { listSecretsCachedQuery } from "@/data/secret.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
-import type { SecretHost } from "@/lib/gateway/client"
-import { SandboxWizard } from "../../wizard"
+import { SandboxWizard } from "./wizard"
+import { AdministrationState } from "@/components/administration"
 
 type UpdateSandboxPageProps = {
+  basePath: string
   params: Promise<{
     name: string
   }>
+  workspaceId?: string
 }
 
-export async function generateMetadata({ params }: UpdateSandboxPageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ name: string }>
+}): Promise<Metadata> {
   const { name } = await params
 
   return {
@@ -26,23 +29,36 @@ export async function generateMetadata({ params }: UpdateSandboxPageProps): Prom
   }
 }
 
-export default async function UpdateSandboxPage({ params }: UpdateSandboxPageProps) {
+export default async function UpdateSandboxPage({
+  basePath,
+  params,
+  workspaceId,
+}: UpdateSandboxPageProps) {
   const { name } = await params
 
   return (
     <Suspense fallback={<UpdateSandboxSkeleton />}>
-      <UpdateSandboxContent name={name} />
+      <UpdateSandboxContent basePath={basePath} name={name} workspaceId={workspaceId} />
     </Suspense>
   )
 }
 
-async function UpdateSandboxContent({ name }: { name: string }) {
-  const sandboxResult = listSandboxesCachedQuery({ limit: 200 })
-  const mcpResult = listMcpConnectionsCachedQuery({ limit: 200 })
-  const skillsResult = listImmutableSkillsCachedQuery()
-  const providersResult = listInferenceProvidersCachedQuery()
-  const poolsResult = listInferencePoolsCachedQuery()
-  const secretHostSuggestions = listSandboxSecretHostSuggestions(name)
+async function UpdateSandboxContent({
+  basePath,
+  name,
+  workspaceId,
+}: {
+  basePath: string
+  name: string
+  workspaceId?: string
+}) {
+  const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
+  const mcpResult = listMcpConnectionsCachedQuery({ limit: 200 }, workspaceId)
+  const skillsResult = listImmutableSkillsCachedQuery(workspaceId)
+  const providersResult = listInferenceProvidersCachedQuery(workspaceId)
+  const poolsResult = workspaceId
+    ? listInferencePoolsCachedQuery(workspaceId)
+    : Promise.resolve({ pools: [], error: undefined })
   const [sandboxes, mcpConnections, skills, providers, pools] = await Promise.all([
     sandboxResult,
     mcpResult,
@@ -62,6 +78,9 @@ async function UpdateSandboxContent({ name }: { name: string }) {
   const sandbox = sandboxes.sandboxes.find((item) => item.name === name)
   if (!sandbox) {
     notFound()
+  }
+  if (!sandbox.can_modify) {
+    return <AdministrationState kind="forbidden" />
   }
 
   const mcpConnectionRefs = sandbox.mcp_connection_refs.map((ref) => ({
@@ -89,6 +108,7 @@ async function UpdateSandboxContent({ name }: { name: string }) {
       <SandboxWizard
         key={wizardKey}
         mode="update"
+        scope={{ basePath, workspaceId }}
         initialName={sandbox.name}
         initialPackages={sandbox.packages ?? []}
         initialAllowedHosts={sandbox.allowed_hosts ?? []}
@@ -99,48 +119,9 @@ async function UpdateSandboxContent({ name }: { name: string }) {
         inferenceProviders={providers.providers ?? []}
         inferencePools={pools.pools ?? []}
         mcpConnections={mcpConnections.mcpConnections ?? []}
-        secretHostSuggestions={secretHostSuggestions}
       />
     </main>
   )
-}
-
-async function listSandboxSecretHostSuggestions(sandboxName: string): Promise<SecretHost[]> {
-  try {
-    const agentsResult = await listAgentsCachedQuery({ limit: 200 })
-    if (agentsResult.error) {
-      return []
-    }
-
-    const agentNames = agentsResult.agents
-      .filter((agent) => agent.sandbox.name === sandboxName)
-      .map((agent) => agent.name)
-    if (agentNames.length === 0) {
-      return []
-    }
-
-    const secrets = await Promise.all(
-      agentNames.map((agentName) => listSecretsCachedQuery(agentName, { limit: 200 }))
-    )
-
-    return Array.from(
-      new Set(
-        secrets.flatMap((result) => {
-          if (result.error) {
-            return []
-          }
-          return result.items.flatMap((secret) =>
-            secret.hosts.flatMap((host) => {
-              const parsed = sandboxAllowedHostSchema.safeParse(host)
-              return parsed.success ? [parsed.data] : []
-            })
-          )
-        })
-      )
-    ).sort()
-  } catch {
-    return []
-  }
 }
 
 function UpdateSandboxSkeleton() {

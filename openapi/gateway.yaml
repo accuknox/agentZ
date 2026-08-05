@@ -778,6 +778,8 @@ components:
       - skill
       - team
       - mcp_connection
+      - inference_provider
+      - inference_pool
       type: string
       x-enum-varnames:
       - AuditTargetOrganization
@@ -788,6 +790,8 @@ components:
       - AuditTargetSkill
       - AuditTargetTeam
       - AuditTargetMCPConnection
+      - AuditTargetInferenceProvider
+      - AuditTargetInferencePool
     AuditWorkspace:
       additionalProperties: false
       properties:
@@ -1704,6 +1708,10 @@ components:
       properties:
         automatic_failover:
           type: boolean
+        can_delete:
+          type: boolean
+        can_modify:
+          type: boolean
         conditions:
           items:
             $ref: '#/components/schemas/InferenceProviderCondition'
@@ -1756,6 +1764,8 @@ components:
       - warnings
       - member_statuses
       - usage_count
+      - can_modify
+      - can_delete
       - created_at
       - updated_at
       type: object
@@ -1889,6 +1899,10 @@ components:
       - $ref: '#/components/schemas/InferenceProviderReadFields'
       - $ref: '#/components/schemas/InferenceProviderReadDiscriminator'
       - properties:
+          can_delete:
+            type: boolean
+          can_modify:
+            type: boolean
           conditions:
             items:
               $ref: '#/components/schemas/InferenceProviderCondition'
@@ -1922,6 +1936,8 @@ components:
         - conditions
         - model_count
         - usage_count
+        - can_modify
+        - can_delete
         - created_at
         - updated_at
         type: object
@@ -21723,6 +21739,10 @@ components:
             minLength: 1
             type: string
           type: array
+        can_delete:
+          type: boolean
+        can_modify:
+          type: boolean
         created_at:
           format: date-time
           type: string
@@ -21774,6 +21794,8 @@ components:
       - skills
       - inference
       - created_at
+      - can_modify
+      - can_delete
       - metadata
       type: object
     SandboxInference:
@@ -22225,6 +22247,10 @@ components:
           items:
             $ref: '#/components/schemas/TenantCondition'
           type: array
+        inference_pool_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_provider_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         mcp_connection_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
         namespace:
@@ -22233,6 +22259,8 @@ components:
           $ref: '#/components/schemas/TenantPhase'
         ready:
           type: boolean
+        sandbox_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         skill_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
         tenant_id:
@@ -22245,6 +22273,9 @@ components:
       - conditions
       - skill_capabilities
       - mcp_connection_capabilities
+      - sandbox_capabilities
+      - inference_provider_capabilities
+      - inference_pool_capabilities
       type: object
     TenantCondition:
       properties:
@@ -23213,6 +23244,10 @@ components:
           type: string
         id:
           type: string
+        inference_pool_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_provider_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         mcp_connection_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
         name:
@@ -23223,6 +23258,8 @@ components:
           format: int64
           minimum: 1
           type: integer
+        sandbox_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         skill_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
         slug:
@@ -23249,6 +23286,9 @@ components:
       - updated_at
       - skill_capabilities
       - mcp_connection_capabilities
+      - sandbox_capabilities
+      - inference_provider_capabilities
+      - inference_pool_capabilities
       type: object
     WorkspaceMemberCandidate:
       additionalProperties: false
@@ -23849,6 +23889,11 @@ paths:
     get:
       operationId: listInferencePools
       parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -23862,11 +23907,20 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_pool.read
       summary: List paginated inference Pools.
       tags:
       - inference
     post:
       operationId: createInferencePool
+      parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -23890,6 +23944,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_pool.create
       summary: Create an inference Pool with ordered provider-model members.
       tags:
       - inference
@@ -23905,6 +23962,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_pool.delete
       summary: Delete an inference Pool not referenced by a Sandbox.
       tags:
       - inference
@@ -23921,11 +23981,19 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_pool.read
       summary: Get an inference Pool and its derived contract.
       tags:
       - inference
     parameters:
     - $ref: '#/components/parameters/InferencePoolNamePath'
+    - in: header
+      name: X-AgentZ-Workspace-ID
+      required: true
+      schema:
+        type: string
     put:
       operationId: updateInferencePool
       requestBody:
@@ -23953,6 +24021,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_pool.modify
       summary: Replace Pool membership or routing behavior.
       tags:
       - inference
@@ -23961,6 +24032,11 @@ paths:
       operationId: getInferencePoolUsage
       parameters:
       - $ref: '#/components/parameters/InferencePoolNamePath'
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -23972,6 +24048,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_pool.read
       summary: List Sandboxes directly referencing an inference Pool.
       tags:
       - inference
@@ -23980,6 +24059,12 @@ paths:
       description: |
         Returns an SSE stream. Each payload contains current Pool read shapes for the requested IDs, or all Pools when IDs are omitted.
       operationId: watchInferencePools
+      parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -24001,6 +24086,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_pool.read
       summary: Watch inference Pool status and usage changes.
       tags:
       - inference
@@ -24008,6 +24096,7 @@ paths:
     get:
       operationId: listInferenceProviders
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -24021,11 +24110,16 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.read
       summary: List paginated inference providers.
       tags:
       - inference
     post:
       operationId: createInferenceProvider
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         content:
           application/json:
@@ -24049,6 +24143,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.create
       summary: Create an inference provider and its write-only credentials.
       tags:
       - inference
@@ -24064,6 +24161,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.delete
       summary: Delete an unreferenced inference provider.
       tags:
       - inference
@@ -24080,11 +24180,15 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.read
       summary: Get an inference provider without credential material.
       tags:
       - inference
     parameters:
     - $ref: '#/components/parameters/InferenceProviderNamePath'
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
     put:
       operationId: updateInferenceProvider
       requestBody:
@@ -24112,6 +24216,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.modify
       summary: Replace provider configuration and optionally rotate credentials.
       tags:
       - inference
@@ -24120,6 +24227,7 @@ paths:
       operationId: refreshInferenceProviderModels
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       responses:
         "200":
           content:
@@ -24133,6 +24241,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.read
       summary: Refresh non-secret model metadata for a subscription provider.
       tags:
       - inference
@@ -24141,6 +24252,7 @@ paths:
       operationId: getInferenceProviderUsage
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       responses:
         "200":
           content:
@@ -24152,6 +24264,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.read
       summary: List Sandboxes referencing an inference provider.
       tags:
       - inference
@@ -24159,6 +24274,7 @@ paths:
     get:
       operationId: listInferenceProviderCatalog
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - in: query
         name: q
         required: false
@@ -24176,6 +24292,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.read
       summary: Search the pinned OpenCode provider catalog.
       tags:
       - inference
@@ -24183,6 +24302,7 @@ paths:
     get:
       operationId: listInferenceModelSuggestions
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - in: path
         name: catalogProvider
         required: true
@@ -24206,6 +24326,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.read
       summary: List Models.dev suggestions for one provider/runtime variant.
       tags:
       - inference
@@ -24214,6 +24337,8 @@ paths:
       description: |
         Credential material is written directly to OpenBao and is never included in this or any later API response.
       operationId: createInferenceProviderOAuthTicket
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         content:
           application/json:
@@ -24237,6 +24362,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.create
       summary: Store subscription credentials and return a single-use provider ticket.
       tags:
       - inference
@@ -24245,6 +24373,8 @@ paths:
       description: |
         Returns an SSE stream. Each payload contains the current read shapes for the requested provider IDs, or all providers when IDs are omitted.
       operationId: watchInferenceProviders
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         content:
           application/json:
@@ -24266,6 +24396,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.read
       summary: Watch inference provider status changes.
       tags:
       - inference

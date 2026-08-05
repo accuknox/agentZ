@@ -309,8 +309,11 @@ import {
   zCreateAgentFileBody,
   zCreateAgentFilePath,
   zCreateInferencePoolBody,
+  zCreateInferencePoolHeaders,
   zCreateInferenceProviderBody,
+  zCreateInferenceProviderHeaders,
   zCreateInferenceProviderOAuthTicketBody,
+  zCreateInferenceProviderOAuthTicketHeaders,
   zCreateMcpConnectionBody,
   zCreateMcpConnectionHeaders,
   zCreateSandboxBody,
@@ -330,7 +333,9 @@ import {
   zDeleteAgentPath,
   zDeleteImmutableSkillsBody,
   zDeleteImmutableSkillsHeaders,
+  zDeleteInferencePoolHeaders,
   zDeleteInferencePoolPath,
+  zDeleteInferenceProviderHeaders,
   zDeleteInferenceProviderPath,
   zDeleteMcpConnectionHeaders,
   zDeleteMcpConnectionPath,
@@ -350,9 +355,13 @@ import {
   zExportImmutableSkillsHeaders,
   zGetAuditEventHeaders,
   zGetAuditEventPath,
+  zGetInferencePoolHeaders,
   zGetInferencePoolPath,
+  zGetInferencePoolUsageHeaders,
   zGetInferencePoolUsagePath,
+  zGetInferenceProviderHeaders,
   zGetInferenceProviderPath,
+  zGetInferenceProviderUsageHeaders,
   zGetInferenceProviderUsagePath,
   zGetMcpConnectionHeaders,
   zGetMcpConnectionPath,
@@ -382,10 +391,14 @@ import {
   zListImmutableSkillSummariesQuery,
   zListImmutableSkillVersionsHeaders,
   zListImmutableSkillVersionsPath,
+  zListInferenceModelSuggestionsHeaders,
   zListInferenceModelSuggestionsPath,
   zListInferenceModelSuggestionsQuery,
+  zListInferencePoolsHeaders,
   zListInferencePoolsQuery,
+  zListInferenceProviderCatalogHeaders,
   zListInferenceProviderCatalogQuery,
+  zListInferenceProvidersHeaders,
   zListInferenceProvidersQuery,
   zListMcpConnectionsHeaders,
   zListMcpConnectionsQuery,
@@ -423,6 +436,7 @@ import {
   zReadAgentFileQuery,
   zReadAgentFileRawPath,
   zReadAgentFileRawQuery,
+  zRefreshInferenceProviderModelsHeaders,
   zRefreshInferenceProviderModelsPath,
   zRenameAgentEntryBody,
   zRenameAgentEntryPath,
@@ -433,8 +447,10 @@ import {
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateInferencePoolBody,
+  zUpdateInferencePoolHeaders,
   zUpdateInferencePoolPath,
   zUpdateInferenceProviderBody,
+  zUpdateInferenceProviderHeaders,
   zUpdateInferenceProviderPath,
   zUpdateSandboxBody,
   zUpdateSandboxHeaders,
@@ -448,7 +464,9 @@ import {
   zUpdateWorkspaceLifecyclePath,
   zWatchAgentsBody,
   zWatchInferencePoolsBody,
+  zWatchInferencePoolsHeaders,
   zWatchInferenceProvidersBody,
+  zWatchInferenceProvidersHeaders,
   zWatchMcpConnectionsBody,
   zWatchMcpConnectionsHeaders,
   zWatchSecretsBody,
@@ -1760,6 +1778,7 @@ export const listInferenceProviders = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferenceProvidersHeaders.optional(),
           path: z.never().optional(),
           query: zListInferenceProvidersQuery.optional(),
         })
@@ -1784,6 +1803,7 @@ export const createInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateInferenceProviderBody,
+          headers: zCreateInferenceProviderHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1815,6 +1835,7 @@ export const createInferenceProviderOAuthTicket = <ThrowOnError extends boolean 
       await z
         .object({
           body: zCreateInferenceProviderOAuthTicketBody,
+          headers: zCreateInferenceProviderOAuthTicketHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1843,6 +1864,7 @@ export const deleteInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteInferenceProviderHeaders.optional(),
           path: zDeleteInferenceProviderPath,
           query: z.never().optional(),
         })
@@ -1867,6 +1889,7 @@ export const getInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferenceProviderHeaders.optional(),
           path: zGetInferenceProviderPath,
           query: z.never().optional(),
         })
@@ -1891,6 +1914,7 @@ export const updateInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateInferenceProviderBody,
+          headers: zUpdateInferenceProviderHeaders.optional(),
           path: zUpdateInferenceProviderPath,
           query: z.never().optional(),
         })
@@ -1922,6 +1946,7 @@ export const watchInferenceProviders = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zWatchInferenceProvidersBody.optional(),
+          headers: zWatchInferenceProvidersHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1950,6 +1975,7 @@ export const getInferenceProviderUsage = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferenceProviderUsageHeaders.optional(),
           path: zGetInferenceProviderUsagePath,
           query: z.never().optional(),
         })
@@ -1974,6 +2000,7 @@ export const refreshInferenceProviderModels = <ThrowOnError extends boolean = fa
       await z
         .object({
           body: z.never().optional(),
+          headers: zRefreshInferenceProviderModelsHeaders.optional(),
           path: zRefreshInferenceProviderModelsPath,
           query: z.never().optional(),
         })
@@ -1998,6 +2025,7 @@ export const listInferenceProviderCatalog = <ThrowOnError extends boolean = fals
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferenceProviderCatalogHeaders.optional(),
           path: z.never().optional(),
           query: zListInferenceProviderCatalogQuery.optional(),
         })
@@ -2022,6 +2050,7 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferenceModelSuggestionsHeaders.optional(),
           path: zListInferenceModelSuggestionsPath,
           query: zListInferenceModelSuggestionsQuery,
         })
@@ -2035,9 +2064,9 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
  * List paginated inference Pools.
  */
 export const listInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<ListInferencePoolsData, ThrowOnError>
+  options: Options<ListInferencePoolsData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<
+  (options.client ?? client).get<
     ListInferencePoolsResponses,
     ListInferencePoolsErrors,
     ThrowOnError
@@ -2046,6 +2075,7 @@ export const listInferencePools = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferencePoolsHeaders,
           path: z.never().optional(),
           query: zListInferencePoolsQuery.optional(),
         })
@@ -2070,6 +2100,7 @@ export const createInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateInferencePoolBody,
+          headers: zCreateInferencePoolHeaders,
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -2098,6 +2129,7 @@ export const deleteInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteInferencePoolHeaders,
           path: zDeleteInferencePoolPath,
           query: z.never().optional(),
         })
@@ -2118,6 +2150,7 @@ export const getInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferencePoolHeaders,
           path: zGetInferencePoolPath,
           query: z.never().optional(),
         })
@@ -2142,6 +2175,7 @@ export const updateInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateInferencePoolBody,
+          headers: zUpdateInferencePoolHeaders,
           path: zUpdateInferencePoolPath,
           query: z.never().optional(),
         })
@@ -2170,6 +2204,7 @@ export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferencePoolUsageHeaders,
           path: zGetInferencePoolUsagePath,
           query: z.never().optional(),
         })
@@ -2186,9 +2221,9 @@ export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
  *
  */
 export const watchInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
+  options: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
 ) =>
-  (options?.client ?? client).sse.post<
+  (options.client ?? client).sse.post<
     WatchInferencePoolsResponses,
     WatchInferencePoolsErrors,
     ThrowOnError
@@ -2197,6 +2232,7 @@ export const watchInferencePools = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zWatchInferencePoolsBody.optional(),
+          headers: zWatchInferencePoolsHeaders,
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -2206,7 +2242,7 @@ export const watchInferencePools = <ThrowOnError extends boolean = false>(
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...options?.headers,
+      ...options.headers,
     },
   })
 

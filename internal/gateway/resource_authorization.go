@@ -188,32 +188,60 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 	return access, nil
 }
 
-func (s *Service) resolveResourceCapabilities(ctx context.Context, claims gatewayClaims, workspaceID string) (gatewayapi.ResourceCapabilities, gatewayapi.ResourceCapabilities, error) {
+type resourceCapabilitySet struct {
+	skill             gatewayapi.ResourceCapabilities
+	mcp               gatewayapi.ResourceCapabilities
+	sandbox           gatewayapi.ResourceCapabilities
+	inferenceProvider gatewayapi.ResourceCapabilities
+	inferencePool     gatewayapi.ResourceCapabilities
+}
+
+func (s *Service) resolveResourceCapabilities(ctx context.Context, claims gatewayClaims, workspaceID string) (resourceCapabilitySet, error) {
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
 		UserID: claims.UserID, OrganizationID: claims.TenantID,
 	})
 	if err != nil {
-		return gatewayapi.ResourceCapabilities{}, gatewayapi.ResourceCapabilities{}, fmt.Errorf("resolve resource capabilities: %w", err)
+		return resourceCapabilitySet{}, fmt.Errorf("resolve resource capabilities: %w", err)
 	}
-	skill, mcp := resourceCapabilities(effective, claims.TenantID, workspaceID)
-	return skill, mcp, nil
+	return resourceCapabilities(effective, claims.TenantID, workspaceID), nil
 }
 
-func resourceCapabilities(effective authorization.Effective, organizationID, workspaceID string) (gatewayapi.ResourceCapabilities, gatewayapi.ResourceCapabilities) {
+func resourceCapabilities(effective authorization.Effective, organizationID, workspaceID string) resourceCapabilitySet {
 	scope := authorization.Scope{OrganizationID: organizationID, WorkspaceID: workspaceID}
-	skill := gatewayapi.ResourceCapabilities{
+	capabilities := resourceCapabilitySet{}
+	capabilities.skill = gatewayapi.ResourceCapabilities{
 		Read:   effective.Allows(scope, authorization.OperationListSkills),
 		Create: effective.Allows(scope, authorization.OperationCreateSkill),
 		Modify: effective.Allows(scope, authorization.OperationUpdateSkill),
 		Delete: effective.Allows(scope, authorization.OperationDeleteSkill),
 	}
-	mcp := gatewayapi.ResourceCapabilities{
+	capabilities.mcp = gatewayapi.ResourceCapabilities{
 		Read:   effective.Allows(scope, authorization.OperationListMCPConnections),
 		Create: effective.Allows(scope, authorization.OperationCreateMCPConnection),
 		Modify: false,
 		Delete: effective.Allows(scope, authorization.OperationDeleteMCPConnection),
 	}
-	return skill, mcp
+	capabilities.sandbox = gatewayapi.ResourceCapabilities{
+		Read:   effective.Allows(scope, authorization.OperationListSandboxes),
+		Create: effective.Allows(scope, authorization.OperationCreateSandbox),
+		Modify: effective.Allows(scope, authorization.OperationUpdateSandbox),
+		Delete: effective.Allows(scope, authorization.OperationDeleteSandbox),
+	}
+	capabilities.inferenceProvider = gatewayapi.ResourceCapabilities{
+		Read:   effective.Allows(scope, authorization.OperationListInferenceProviders),
+		Create: effective.Allows(scope, authorization.OperationCreateInferenceProvider),
+		Modify: effective.Allows(scope, authorization.OperationUpdateInferenceProvider),
+		Delete: effective.Allows(scope, authorization.OperationDeleteInferenceProvider),
+	}
+	if workspaceID != "" {
+		capabilities.inferencePool = gatewayapi.ResourceCapabilities{
+			Read:   effective.Allows(scope, authorization.OperationListInferencePools),
+			Create: effective.Allows(scope, authorization.OperationCreateInferencePool),
+			Modify: effective.Allows(scope, authorization.OperationUpdateInferencePool),
+			Delete: effective.Allows(scope, authorization.OperationDeleteInferencePool),
+		}
+	}
+	return capabilities
 }
 
 func resourceForbidden(cause error) *apiError {

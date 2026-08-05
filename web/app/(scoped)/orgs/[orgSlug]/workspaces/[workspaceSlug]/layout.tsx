@@ -93,6 +93,15 @@ export default async function WorkspaceLayout({
   if (result.workspace.mcp_connection_capabilities.read) {
     tabs.push({ href: `${root}/mcps` as Route, label: "MCP" })
   }
+  if (result.workspace.sandbox_capabilities.read) {
+    tabs.push({ href: `${root}/sandboxes` as Route, label: "Sandboxes" })
+  }
+  if (result.workspace.inference_provider_capabilities.read) {
+    tabs.push({ href: `${root}/inference/providers` as Route, label: "Providers" })
+  }
+  if (result.workspace.inference_pool_capabilities.read) {
+    tabs.push({ href: `${root}/inference/pools` as Route, label: "Pools" })
+  }
 
   return (
     <>
@@ -111,7 +120,10 @@ export default async function WorkspaceLayout({
               canEnterOrganization: result.directory.can_enter_organization,
               kind: "workspace",
               mcpConnectionCapabilities: result.workspace.mcp_connection_capabilities,
+              inferencePoolCapabilities: result.workspace.inference_pool_capabilities,
+              inferenceProviderCapabilities: result.workspace.inference_provider_capabilities,
               organization: result.scope.organization,
+              sandboxCapabilities: result.workspace.sandbox_capabilities,
               skillCapabilities: result.workspace.skill_capabilities,
               workspace: result.workspace,
               workspaces: result.directory.workspaces,

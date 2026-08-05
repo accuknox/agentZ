@@ -37,6 +37,10 @@ var extAuthServeCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.StringSliceFlag{
+			Name:  "source-namespace",
+			Usage: "Workspace namespace allowed to originate requests; repeat for multiple namespaces",
+		},
 		&cli.StringFlag{
 			Name:     "openbao-addr",
 			Usage:    "OpenBao server address (e.g. http://openbao:8200)",
@@ -92,6 +96,7 @@ var extAuthServeCmd = &cli.Command{
 		return extauth.Serve(ctx, extauth.Config{
 			Addr:                    c.String("addr"),
 			Namespace:               c.String("namespace"),
+			SourceNamespaces:        c.StringSlice("source-namespace"),
 			OpenBaoAddr:             c.String("openbao-addr"),
 			OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
 			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),

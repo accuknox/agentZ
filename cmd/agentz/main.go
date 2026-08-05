@@ -32,6 +32,7 @@ import (
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
+	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
@@ -66,6 +67,7 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
@@ -108,6 +110,8 @@ var (
 	managerGatewayTokenAudience                      string
 	managerServiceAccountName                        string
 	managerServiceAccountNamespace                   string
+	gatewayServiceAccountName                        string
+	gatewayServiceAccountNamespace                   string
 	sinjectorCASecretName                            string
 	sinjectorCASecretCertKey                         string
 	sinjectorCASecretKeyKey                          string
@@ -115,9 +119,10 @@ var (
 	sinjectorCACertPath                              string
 	sinjectorCAKeyPath                               string
 	agentCABundlePath                                string
-	tenantNixStoreSize                               string
-	tenantNixStoreAccessModes                        []string
-	tenantNixStoreStorageClass                       string
+	nixStoreSize                                     string
+	nixStoreAccessModes                              []string
+	nixStoreStorageClass                             string
+	nixCacheEndpoint                                 string
 	skillsS3Endpoint                                 string
 	skillsS3Region                                   string
 	skillsS3Bucket                                   string
@@ -354,31 +359,40 @@ var managerCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:        "nix-store-pvc",
-			Usage:       "Name of the tenant-shared nix store PVC used by agent package jobs",
+			Usage:       "Name of each scope-local shared nix store PVC used by agent package jobs",
 			Destination: &nixStorePVC,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringFlag{
-			Name:        "tenant-nix-store-size",
-			Usage:       "Requested storage size for the tenant nix store PVC",
+			Name:        "nix-store-size",
+			Usage:       "Requested storage size for each scope-local nix store PVC",
 			Value:       "5Gi",
-			Destination: &tenantNixStoreSize,
+			Destination: &nixStoreSize,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
 		},
 		&cli.StringSliceFlag{
-			Name:        "tenant-nix-store-access-mode",
-			Usage:       "Access mode for the tenant nix store PVC; repeat for multiple values",
+			Name:        "nix-store-access-mode",
+			Usage:       "Access mode for scope-local nix store PVCs; repeat for multiple values",
 			Value:       []string{"ReadWriteOnce"},
-			Destination: &tenantNixStoreAccessModes,
+			Destination: &nixStoreAccessModes,
 		},
 		&cli.StringFlag{
-			Name:        "tenant-nix-store-storage-class",
-			Usage:       "Optional storage class for the tenant nix store PVC",
-			Destination: &tenantNixStoreStorageClass,
+			Name:        "nix-store-storage-class",
+			Usage:       "Optional storage class for scope-local nix store PVCs",
+			Destination: &nixStoreStorageClass,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "nix-cache-endpoint",
+			Usage:       "Nix binary cache endpoint used by agent package jobs",
+			Value:       "https://cache.nixos.org",
+			Destination: &nixCacheEndpoint,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -527,6 +541,24 @@ var managerCmd = &cli.Command{
 			Name:        "manager-service-account-namespace",
 			Usage:       "Manager ServiceAccount namespace granted tenant gateway access",
 			Destination: &managerServiceAccountNamespace,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "gateway-service-account-name",
+			Usage:       "Gateway ServiceAccount granted access in managed namespaces",
+			Value:       "gateway",
+			Destination: &gatewayServiceAccountName,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "gateway-service-account-namespace",
+			Usage:       "Namespace containing the Gateway ServiceAccount",
+			Value:       "agentz-system",
+			Destination: &gatewayServiceAccountNamespace,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -826,22 +858,30 @@ var managerCmd = &cli.Command{
 		if err := skillStoreConfig.Validate(); err != nil {
 			return err
 		}
-
-		tenantPVCSize, err := resource.ParseQuantity(tenantNixStoreSize)
+		nixCacheTarget, err := networkpolicy.URLTarget(nixCacheEndpoint)
 		if err != nil {
-			return fmt.Errorf("parse tenant nix store size: %w", err)
+			return fmt.Errorf("parse nix cache endpoint: %w", err)
 		}
-		tenantPVCAccessModes := make(
+		skillsS3Target, err := networkpolicy.URLTarget(skillStoreConfig.Endpoint)
+		if err != nil {
+			return fmt.Errorf("parse skills s3 endpoint: %w", err)
+		}
+
+		nixPVCSize, err := resource.ParseQuantity(nixStoreSize)
+		if err != nil {
+			return fmt.Errorf("parse nix store size: %w", err)
+		}
+		nixPVCAccessModes := make(
 			[]corev1.PersistentVolumeAccessMode,
 			0,
-			len(tenantNixStoreAccessModes),
+			len(nixStoreAccessModes),
 		)
-		for _, value := range tenantNixStoreAccessModes {
+		for _, value := range nixStoreAccessModes {
 			switch corev1.PersistentVolumeAccessMode(value) {
 			case corev1.ReadWriteOnce, corev1.ReadOnlyMany, corev1.ReadWriteMany, corev1.ReadWriteOncePod:
-				tenantPVCAccessModes = append(tenantPVCAccessModes, corev1.PersistentVolumeAccessMode(value))
+				nixPVCAccessModes = append(nixPVCAccessModes, corev1.PersistentVolumeAccessMode(value))
 			default:
-				return fmt.Errorf("invalid tenant nix store access mode %q", value)
+				return fmt.Errorf("invalid nix store access mode %q", value)
 			}
 		}
 
@@ -849,6 +889,7 @@ var managerCmd = &cli.Command{
 			AgentDefaultImage:                agentImage,
 			GatewayURL:                       gatewayURL,
 			SharedNixPVC:                     nixStorePVC,
+			NixCacheEndpoint:                 nixCacheEndpoint,
 			AgentInitImage:                   agentInitImage,
 			OpenBaoAddr:                      openBaoAddr,
 			ManagerOpenBaoAddr:               managerOpenBaoAddr,
@@ -1035,13 +1076,15 @@ var managerCmd = &cli.Command{
 			Direct:                         directClient,
 			Scheme:                         mgr.GetScheme(),
 			NixStorePVCName:                nixStorePVC,
-			NixStorePVCSize:                tenantPVCSize,
-			NixStorePVCAccessModes:         tenantPVCAccessModes,
-			NixStorePVCStorageClass:        tenantNixStoreStorageClass,
+			NixStorePVCSize:                nixPVCSize,
+			NixStorePVCAccessModes:         nixPVCAccessModes,
+			NixStorePVCStorageClass:        nixStoreStorageClass,
 			SinjectorCASecretName:          sinjectorCASecretName,
 			ClusterIssuerName:              tenantSinjectorClusterIssuerName,
 			ManagerServiceAccountName:      managerServiceAccountName,
 			ManagerServiceAccountNamespace: managerServiceAccountNamespace,
+			GatewayServiceAccountName:      gatewayServiceAccountName,
+			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Tenant")
@@ -1049,11 +1092,22 @@ var managerCmd = &cli.Command{
 		}
 
 		workspaceReconciler := &workspacecontroller.Reconciler{
-			Client:        mgr.GetClient(),
-			Direct:        directClient,
-			GatewayClient: gwClient,
-			Scheme:        mgr.GetScheme(),
-			TokenPath:     managerGatewayTokenPath,
+			Client:                         mgr.GetClient(),
+			Direct:                         directClient,
+			CertClient:                     cmClient,
+			GatewayClient:                  gwClient,
+			Scheme:                         mgr.GetScheme(),
+			TokenPath:                      managerGatewayTokenPath,
+			SinjectorCASecretName:          sinjectorCASecretName,
+			ClusterIssuerName:              tenantSinjectorClusterIssuerName,
+			GatewayServiceAccountName:      gatewayServiceAccountName,
+			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
+			NixStorePVCName:                nixStorePVC,
+			NixStorePVCSize:                nixPVCSize,
+			NixStorePVCAccessModes:         nixPVCAccessModes,
+			NixStorePVCStorageClass:        nixStoreStorageClass,
+			NixCacheTarget:                 nixCacheTarget,
+			SkillsS3Target:                 skillsS3Target,
 		}
 		if err := workspaceReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Workspace")
@@ -1108,6 +1162,7 @@ var managerCmd = &cli.Command{
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(agentzv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(cmapi.AddToScheme(scheme))
 	utilruntime.Must(ciliumv2.AddToScheme(scheme))
 	utilruntime.Must(externalsecretsv1.AddToScheme(scheme))
 	utilruntime.Must(gwv1.Install(scheme))

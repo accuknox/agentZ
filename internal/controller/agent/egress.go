@@ -97,9 +97,13 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg san
 		agt.Spec.Telemetry.TraceEndpoint,
 	)...)
 	if envCfg.MCPURL != "" {
-		egress = append(egress, gatewayEgressRule(agt.Namespace, mcp.GatewayName))
+		egress = append(egress, gatewayEgressRule(envCfg.SandboxNamespace, mcp.GatewayName))
 	}
-	egress = append(egress, gatewayEgressRule(agt.Namespace, inference.GatewayName))
+	inferenceNamespace := agt.Namespace
+	if envCfg.InferenceURL != "" {
+		inferenceNamespace = envCfg.SandboxNamespace
+	}
+	egress = append(egress, gatewayEgressRule(inferenceNamespace, inference.GatewayName))
 	egress = append(egress, sinjectorEgressRule(agt))
 
 	return &ciliumapi.Rule{

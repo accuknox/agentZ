@@ -542,7 +542,10 @@ SET
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND provisioning_attempt = sqlc.arg(provisioning_attempt)
-  AND state = 'provisioning'
+  AND (
+    state = 'provisioning'
+    OR (state = 'ready' AND sqlc.arg(state)::workspace_state = 'failed')
+  )
   AND (
     sqlc.arg(state)::workspace_state = 'ready'
     OR (

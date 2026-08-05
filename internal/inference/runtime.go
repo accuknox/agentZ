@@ -146,8 +146,9 @@ type Runtime struct {
 // configuration. Model is empty for direct provider backends and set for Pool
 // members so the logical Pool ID never reaches an upstream.
 type ProviderTarget struct {
-	LLM      agentgatewayv1alpha1.LLMProvider
-	Policies *agentgatewayv1alpha1.BackendWithAI
+	LLM             agentgatewayv1alpha1.LLMProvider
+	Policies        *agentgatewayv1alpha1.BackendWithAI
+	AdditionalHosts []string
 
 	secretKeys         map[string]string
 	extractCredentials bool
@@ -349,6 +350,9 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			if err != nil {
 				return ProviderTarget{}, err
 			}
+		} else {
+			target.LLM.Host = "api.openai.com"
+			target.LLM.Port = 443
 		}
 	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		target.LLM.Anthropic = &agentgatewayv1alpha1.AnthropicConfig{Model: modelRef}
@@ -360,6 +364,9 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			if err != nil {
 				return ProviderTarget{}, err
 			}
+		} else {
+			target.LLM.Host = "api.anthropic.com"
+			target.LLM.Port = 443
 		}
 	case agentzv1alpha1.InferenceProviderKindGemini:
 		target.LLM.Gemini = &agentgatewayv1alpha1.GeminiConfig{Model: modelRef}
@@ -371,6 +378,9 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			if err != nil {
 				return ProviderTarget{}, err
 			}
+		} else {
+			target.LLM.Host = "generativelanguage.googleapis.com"
+			target.LLM.Port = 443
 		}
 	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
@@ -397,6 +407,18 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			ProjectId: provider.Spec.VertexAI.Project,
 			Region:    provider.Spec.VertexAI.Region,
 		}
+		switch provider.Spec.VertexAI.Region {
+		case "", "global":
+			target.LLM.Host = "aiplatform.googleapis.com"
+		case "us", "eu":
+			target.LLM.Host = "aiplatform." + provider.Spec.VertexAI.Region +
+				".rep.googleapis.com"
+		default:
+			target.LLM.Host = provider.Spec.VertexAI.Region +
+				"-aiplatform.googleapis.com"
+		}
+		target.LLM.Port = 443
+		target.AdditionalHosts = []string{"discoveryengine.googleapis.com"}
 		aliases := make(map[string]string)
 		for _, model := range provider.Spec.Models {
 			name := vertexModelName(provider, model.ID)
@@ -417,6 +439,13 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			Region: provider.Spec.Bedrock.Region,
 			Model:  modelRef,
 		}
+		target.LLM.Host = "bedrock-runtime." + provider.Spec.Bedrock.Region +
+			".amazonaws.com"
+		target.LLM.Port = 443
+		target.AdditionalHosts = []string{
+			"bedrock-agent-runtime." + provider.Spec.Bedrock.Region +
+				".amazonaws.com",
+		}
 		if provider.Spec.Bedrock.AuthMode == agentzv1alpha1.BedrockAuthModeBearerToken {
 			target.secretKeys[secretAuthorization] = credentialBearerToken
 			auth.SecretRef = secretRef
@@ -433,6 +462,11 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			ResourceName: azure.ResourceName,
 			ResourceType: agentgatewayv1alpha1.AzureResourceType(azure.ResourceType),
 		}
+		target.LLM.Host = azure.ResourceName + ".openai.azure.com"
+		if azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry {
+			target.LLM.Host = azure.ResourceName + ".services.ai.azure.com"
+		}
+		target.LLM.Port = 443
 		if azure.Project != "" {
 			value := azure.Project
 			target.LLM.Azure.ProjectName = &value

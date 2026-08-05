@@ -22,6 +22,7 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/inference"
+	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -266,6 +267,51 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: inference.GatewayName, Namespace: namespace},
 	}
+	providerNames := map[string]struct{}{}
+	for i := range owners {
+		for _, model := range owners[i].Spec.Inference.Models {
+			if model.Provider != agentzv1alpha1.InferencePoolProvider {
+				providerNames[model.Provider] = struct{}{}
+				continue
+			}
+			pool := &agentzv1alpha1.InferencePool{}
+			key := client.ObjectKey{Namespace: namespace, Name: model.Model}
+			if err := r.Get(ctx, key, pool); err != nil {
+				return fmt.Errorf("get inference policy pool: %w", err)
+			}
+			for _, member := range pool.Spec.Members {
+				providerNames[member.Provider] = struct{}{}
+			}
+		}
+	}
+	egressTargets := make([]networkpolicy.Target, 0, len(providerNames)+1)
+	for name := range providerNames {
+		provider := &agentzv1alpha1.InferenceProvider{}
+		key := client.ObjectKey{Namespace: namespace, Name: name}
+		if err := r.Get(ctx, key, provider); err != nil {
+			return fmt.Errorf("get inference policy provider: %w", err)
+		}
+		target, err := inference.RenderProviderTarget(provider, "")
+		if err != nil {
+			return fmt.Errorf("render inference policy provider: %w", err)
+		}
+		egressTargets = append(egressTargets, networkpolicy.Target{
+			Host: target.LLM.Host,
+			Port: target.LLM.Port,
+		})
+		for _, host := range target.AdditionalHosts {
+			egressTargets = append(egressTargets, networkpolicy.Target{
+				Host: host,
+				Port: target.LLM.Port,
+			})
+		}
+	}
+	if r.TraceBackend.Mode == TraceBackendModeStatic {
+		egressTargets = append(egressTargets, networkpolicy.Target{
+			Host: r.TraceBackend.Host,
+			Port: r.TraceBackend.Port,
+		})
+	}
 	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
 		ingress := make([]ciliumapi.IngressRule, 0, len(owners))
 		for i := range owners {
@@ -338,6 +384,20 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 		policy.OwnerReferences = sandboxOwnerReferences(owners)
 		policy.Spec = gatewayNetworkPolicySpec(namespace, inference.GatewayName)
 		policy.Spec.Ingress = ingress
+		policy.Spec.Egress = append(
+			policy.Spec.Egress,
+			networkpolicy.ExternalEgress(egressTargets)...,
+		)
+		if r.TraceBackend.Mode == TraceBackendModeService {
+			policy.Spec.Egress = append(
+				policy.Spec.Egress,
+				networkpolicy.ServiceEgress(
+					r.TraceBackend.ServiceNamespace,
+					r.TraceBackend.ServiceName,
+					r.TraceBackend.ServicePort,
+				),
+			)
+		}
 		return nil
 	})
 	if err != nil {

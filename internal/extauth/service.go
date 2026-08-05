@@ -38,6 +38,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclientset "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
@@ -81,6 +82,7 @@ var (
 type Config struct {
 	Addr                    string
 	Namespace               string
+	SourceNamespaces        []string
 	OpenBaoAddr             string
 	OpenBaoSecretMountPath  string
 	OpenBaoK8sAuthRole      string
@@ -125,6 +127,16 @@ func Serve(ctx context.Context, cfg Config) error {
 	if namespace == "" {
 		namespace = DefaultNamespace
 	}
+	sourceNamespaces := make([]string, 1, len(cfg.SourceNamespaces)+1)
+	sourceNamespaces[0] = namespace
+	for _, sourceNamespace := range cfg.SourceNamespaces {
+		sourceNamespace = strings.TrimSpace(sourceNamespace)
+		if sourceNamespace != "" {
+			sourceNamespaces = append(sourceNamespaces, sourceNamespace)
+		}
+	}
+	slices.Sort(sourceNamespaces)
+	sourceNamespaces = slices.Compact(sourceNamespaces)
 
 	scheme := runtime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil {
@@ -175,12 +187,13 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	svc := &Service{
-		namespace:     namespace,
-		probeInterval: cfg.MCPProbeInterval,
-		probeTimeout:  cfg.MCPProbeTimeout,
-		kube:          kubeClient,
-		kubeCore:      kubeCore,
-		kv:            baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		namespace:        namespace,
+		sourceNamespaces: sourceNamespaces,
+		probeInterval:    cfg.MCPProbeInterval,
+		probeTimeout:     cfg.MCPProbeTimeout,
+		kube:             kubeClient,
+		kubeCore:         kubeCore,
+		kv:               baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 		http: &http.Client{
 			Timeout: httpClientTimeout,
 		},
@@ -349,6 +362,7 @@ type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
 	namespace          string
+	sourceNamespaces   []string
 	probeInterval      time.Duration
 	probeTimeout       time.Duration
 	kube               ctrlclient.Client
@@ -550,7 +564,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 }
 
 func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, sandboxName, connName string) (string, error) {
-	pod, err := s.lookupAgentPodByIP(ctx, namespace, sourceIP)
+	pod, err := s.lookupAgentPodByIP(ctx, sourceIP)
 	if err != nil {
 		return "", err
 	}
@@ -565,7 +579,7 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 
 	agent := &agentzv1alpha1.Agent{}
 	agentKey := ctrlclient.ObjectKey{
-		Namespace: namespace,
+		Namespace: pod.Namespace,
 		Name:      agentName,
 	}
 	if err := s.kube.Get(agentCtx, agentKey, agent); err != nil {
@@ -591,6 +605,15 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 			agentSandboxName,
 			sandboxName,
 		)
+	}
+	targetNamespace, err := scoperesolver.Namespace(
+		ctx,
+		s.kube,
+		pod.Namespace,
+		agent.Spec.SandboxRef.Scope,
+	)
+	if err != nil || targetNamespace != namespace {
+		return "", fmt.Errorf("agent %q Sandbox scope is not authorized", agentName)
 	}
 
 	envCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
@@ -623,7 +646,7 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 	return agentName, nil
 }
 
-func (s *Service) lookupAgentPodByIP(ctx context.Context, namespace, ip string) (*corev1.Pod, error) {
+func (s *Service) lookupAgentPodByIP(ctx context.Context, ip string) (*corev1.Pod, error) {
 	podCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 
@@ -635,16 +658,28 @@ func (s *Service) lookupAgentPodByIP(ctx context.Context, namespace, ip string) 
 		}, ","),
 	}
 
-	pods, err := s.kubeCore.CoreV1().Pods(namespace).List(podCtx, opts)
-	if err != nil {
-		return nil, fmt.Errorf("list pods for ip %q: %w: %w", ip, err, errCredentialUnavailable)
+	var found *corev1.Pod
+	for _, namespace := range s.sourceNamespaces {
+		pods, err := s.kubeCore.CoreV1().Pods(namespace).List(podCtx, opts)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"list source pods in namespace %q: %w: %w",
+				namespace,
+				err,
+				errCredentialUnavailable,
+			)
+		}
+		for i := range pods.Items {
+			if found != nil {
+				return nil, fmt.Errorf("multiple agent pods use source ip %q", ip)
+			}
+			found = pods.Items[i].DeepCopy()
+		}
 	}
-	if len(pods.Items) != 1 {
-		return nil, fmt.Errorf("expected 1 agent pod for ip %q, got %d", ip, len(pods.Items))
+	if found == nil {
+		return nil, fmt.Errorf("no authorized agent pod uses source ip %q", ip)
 	}
-
-	pod := pods.Items[0]
-	return &pod, nil
+	return found, nil
 }
 
 func (s *Service) loadConnection(ctx context.Context, namespace, name string) (*agentzv1alpha1.MCPConnection, error) {

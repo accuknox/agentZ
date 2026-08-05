@@ -113,9 +113,9 @@ func SandboxRoutePath(name string) string {
 	return "/mcp/" + name
 }
 
-// SecretPath returns the tenant-scoped OpenBao path for one MCP credential record.
-func SecretPath(tenantNamespace, name string) string {
-	return tenantNamespace + "/" + SecretPathDir + "/" + name
+// SecretPath returns the stable namespace-scoped OpenBao path for one MCP credential record.
+func SecretPath(namespace, name string) string {
+	return namespace + "/" + SecretPathDir + "/" + name
 }
 
 // ManagedRef returns a status reference for one namespaced object.

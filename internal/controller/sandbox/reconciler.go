@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
@@ -49,7 +51,9 @@ import (
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -62,8 +66,11 @@ type Reconciler struct {
 }
 
 const (
-	traceServiceName       = "mcp-otel"
-	traceEndpointSliceName = "mcp-otel"
+	traceServiceName                  = "mcp-otel"
+	traceEndpointSliceName            = "mcp-otel"
+	agentGatewayControlPlaneName      = "agentgateway"
+	agentGatewayControlPlaneNamespace = "agentgateway-system"
+	agentGatewayControlPlanePort      = 9978
 )
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch;patch
@@ -112,17 +119,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	agentNames, err := sandboxutil.ReferencingAgentNames(
-		ctx,
-		r.Client,
-		sandbox.Namespace,
-		sandbox.Name,
-	)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("find referencing agent: %w", err)
-	}
-
 	if !sandbox.DeletionTimestamp.IsZero() {
+		agentNames, err := r.referencingAgentNames(ctx, sandbox)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("find referencing agent: %w", err)
+		}
 		if len(agentNames) > 0 {
 			return ctrl.Result{}, fmt.Errorf("sandbox %q is referenced by agent %q", sandbox.Name, agentNames[0])
 		}
@@ -195,6 +196,39 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// referencingAgentNames resolves explicit scope because Sandbox names are only
+// unique within their target namespace, while the Agent index is cluster-wide.
+func (r *Reconciler) referencingAgentNames(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) ([]string, error) {
+	agents := &agentzv1alpha1.AgentList{}
+	err := r.List(
+		ctx,
+		agents,
+		client.MatchingFields{sandboxutil.AgentBySandboxIndex: sandbox.Name},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(agents.Items))
+	for i := range agents.Items {
+		agt := &agents.Items[i]
+		namespace, err := scoperesolver.Namespace(
+			ctx,
+			r.Client,
+			agt.Namespace,
+			agt.Spec.SandboxRef.Scope,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("resolve Agent Sandbox scope: %w", err)
+		}
+		if namespace == sandbox.Namespace {
+			names = append(names, agt.Name)
+		}
+	}
+	slices.Sort(names)
+	return names, nil
 }
 
 // updateStatus computes spec-derived counters and persists them to status.
@@ -328,7 +362,7 @@ func (r *Reconciler) sandboxesForInferencePool(ctx context.Context, obj client.O
 	return requests
 }
 
-func (r *Reconciler) sandboxForAgent(_ context.Context, obj client.Object) []reconcile.Request {
+func (r *Reconciler) sandboxForAgent(ctx context.Context, obj client.Object) []reconcile.Request {
 	agt, ok := obj.(*agentzv1alpha1.Agent)
 	if !ok {
 		return nil
@@ -337,10 +371,20 @@ func (r *Reconciler) sandboxForAgent(_ context.Context, obj client.Object) []rec
 	if ref.Name == "" {
 		return nil
 	}
+	namespace, err := scoperesolver.Namespace(
+		ctx,
+		r.Client,
+		agt.Namespace,
+		ref.Scope,
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, "resolve Agent Sandbox scope", slog.Any("err", err))
+		return nil
+	}
 	return []reconcile.Request{{
 		NamespacedName: types.NamespacedName{
 			Name:      ref.Name,
-			Namespace: agt.Namespace,
+			Namespace: namespace,
 		},
 	}}
 }
@@ -1008,8 +1052,93 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
+		ingress := make([]ciliumapi.IngressRule, 0, len(owners))
+		targets := []networkpolicy.Target{}
+		for i := range owners {
+			connections, err := mcp.LoadConnections(ctx, r.Client, &owners[i])
+			if err != nil {
+				return fmt.Errorf("load sandbox connections: %w", err)
+			}
+			for j := range connections {
+				target, err := mcp.ParseTarget(&connections[j])
+				if err != nil {
+					return fmt.Errorf("resolve MCP target: %w", err)
+				}
+				targets = append(targets, networkpolicy.Target{
+					Host: target.Host,
+					Port: target.Port,
+				})
+			}
+			agents := &agentzv1alpha1.AgentList{}
+			err = r.List(
+				ctx,
+				agents,
+				client.MatchingFields{
+					sandboxutil.AgentBySandboxIndex: owners[i].Name,
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("find sandbox agents: %w", err)
+			}
+			for j := range agents.Items {
+				agt := &agents.Items[j]
+				target, err := scoperesolver.Namespace(
+					ctx,
+					r.Client,
+					agt.Namespace,
+					agt.Spec.SandboxRef.Scope,
+				)
+				if err != nil || target != namespace {
+					continue
+				}
+				path := "^" + regexp.QuoteMeta(mcp.SandboxRoutePath(owners[i].Name)) + "(/.*)?$"
+				ingress = append(ingress, ciliumapi.IngressRule{
+					IngressCommonRule: ciliumapi.IngressCommonRule{
+						FromEndpoints: []ciliumapi.EndpointSelector{
+							ciliumapi.NewESFromLabels(
+								ciliumlabels.NewLabel(
+									"io.kubernetes.pod.namespace",
+									agt.Namespace,
+									ciliumlabels.LabelSourceK8s,
+								),
+								ciliumlabels.NewLabel(
+									"app.kubernetes.io/name",
+									"agentz-agent",
+									ciliumlabels.LabelSourceK8s,
+								),
+								ciliumlabels.NewLabel(
+									"app.kubernetes.io/instance",
+									agt.Name,
+									ciliumlabels.LabelSourceK8s,
+								),
+								ciliumlabels.NewLabel(
+									"agentz.accuknox.com/agent",
+									agt.Name,
+									ciliumlabels.LabelSourceK8s,
+								),
+							),
+						},
+					},
+					ToPorts: []ciliumapi.PortRule{{
+						Ports: []ciliumapi.PortProtocol{{
+							Port: "80", Protocol: ciliumapi.ProtoTCP,
+						}},
+						Rules: &ciliumapi.L7Rules{HTTP: ciliumapi.PortRulesHTTP{
+							{Method: "GET", Path: path},
+							{Method: "POST", Path: path},
+							{Method: "DELETE", Path: path},
+						}},
+					}},
+				})
+			}
+		}
 		policy.OwnerReferences = sandboxOwnerReferences(owners)
 		policy.Spec = gatewayNetworkPolicySpec(namespace, mcp.GatewayName)
+		policy.Spec.Ingress = ingress
+		policy.Spec.Egress = append(
+			policy.Spec.Egress,
+			networkpolicy.ExternalEgress(targets)...,
+		)
 		return nil
 	})
 	if err != nil {
@@ -1042,40 +1171,23 @@ func gatewayNetworkPolicySpec(namespace, gatewayName string) *ciliumapi.Rule {
 				ciliumlabels.LabelSourceK8s,
 			),
 		),
-		Ingress: []ciliumapi.IngressRule{{
-			IngressCommonRule: ciliumapi.IngressCommonRule{
-				FromEndpoints: []ciliumapi.EndpointSelector{
-					ciliumapi.NewESFromLabels(
-						ciliumlabels.NewLabel(
-							"io.kubernetes.pod.namespace",
-							namespace,
-							ciliumlabels.LabelSourceK8s,
+		Egress: []ciliumapi.EgressRule{
+			{
+				EgressCommonRule: ciliumapi.EgressCommonRule{
+					ToEndpoints: []ciliumapi.EndpointSelector{
+						ciliumapi.NewESFromK8sLabelSelector(
+							ciliumlabels.LabelSourceK8sKeyPrefix,
+							&slimv1.LabelSelector{},
 						),
-						ciliumlabels.NewLabel(
-							"app.kubernetes.io/name",
-							"agentz-agent",
-							ciliumlabels.LabelSourceK8s,
-						),
-						ciliumlabels.NewLabel(
-							"agentz.accuknox.com/managed",
-							"true",
-							ciliumlabels.LabelSourceK8s,
-						),
-					),
+					},
 				},
 			},
-			ToPorts: []ciliumapi.PortRule{{
-				Ports: []ciliumapi.PortProtocol{{
-					Port:     "80",
-					Protocol: ciliumapi.ProtoTCP,
-				}},
-			}},
-		}},
-		Egress: []ciliumapi.EgressRule{{
-			EgressCommonRule: ciliumapi.EgressCommonRule{
-				ToEntities: ciliumapi.EntitySlice{ciliumapi.EntityAll},
-			},
-		}},
+			networkpolicy.ServiceEgress(
+				agentGatewayControlPlaneNamespace,
+				agentGatewayControlPlaneName,
+				agentGatewayControlPlanePort,
+			),
+		},
 	}
 }
 

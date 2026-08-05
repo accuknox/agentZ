@@ -4529,7 +4529,10 @@ SET
 WHERE id = $4
   AND organization_id = $5
   AND provisioning_attempt = $6
-  AND state = 'provisioning'
+  AND (
+    state = 'provisioning'
+    OR (state = 'ready' AND $1::workspace_state = 'failed')
+  )
   AND (
     $1::workspace_state = 'ready'
     OR (

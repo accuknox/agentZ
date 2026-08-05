@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -104,27 +105,24 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 			"field is required",
 		))
 	}
-	if agt.Spec.SandboxRef.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-		allErrs = append(allErrs, field.NotSupported(
-			specPath.Child("sandboxRef").Child("scope"),
-			agt.Spec.SandboxRef.Scope,
-			[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
-		))
-	}
-	for i, ref := range agt.Spec.Skills {
-		if ref.Scope != agentzv1alpha1.ResourceScopeWorkspace {
-			continue
-		}
-		allErrs = append(allErrs, field.NotSupported(
-			specPath.Child("skills").Index(i).Child("scope"),
-			ref.Scope,
-			[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
-		))
-	}
 	if v.client != nil && agt.Spec.SandboxRef.Name != "" {
+		namespace, err := scoperesolver.Namespace(
+			ctx,
+			v.client,
+			agt.Namespace,
+			agt.Spec.SandboxRef.Scope,
+		)
+		if err != nil {
+			allErrs = append(allErrs, field.Invalid(
+				specPath.Child("sandboxRef").Child("scope"),
+				agt.Spec.SandboxRef.Scope,
+				"scope cannot be resolved from the Agent namespace",
+			))
+			return allErrs
+		}
 		sandbox := &agentzv1alpha1.Sandbox{}
-		key := client.ObjectKey{Namespace: agt.Namespace, Name: agt.Spec.SandboxRef.Name}
-		err := v.client.Get(ctx, key, sandbox)
+		key := client.ObjectKey{Namespace: namespace, Name: agt.Spec.SandboxRef.Name}
+		err = v.client.Get(ctx, key, sandbox)
 		switch {
 		case apierrors.IsNotFound(err):
 			allErrs = append(allErrs, field.NotFound(

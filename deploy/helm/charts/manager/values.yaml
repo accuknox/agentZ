@@ -72,10 +72,11 @@ config:
   agentgatewayTraceHost: ""
   agentgatewayTracePort: 4317
   nixStorePVC: ""
-  tenantNixStoreSize: 5Gi
-  tenantNixStoreAccessModes:
+  nixStoreSize: 5Gi
+  nixStoreAccessModes:
   - ReadWriteOnce
-  tenantNixStoreStorageClass: ""
+  nixStoreStorageClass: ""
+  nixCacheEndpoint: https://cache.nixos.org
   skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
   skillsS3Region: us-east-1
   skillsS3Bucket: agentz
@@ -92,6 +93,8 @@ config:
   managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
   managerGatewayTokenPath: /var/run/secrets/agentz/gateway/token
   managerGatewayTokenAudience: agentz-gateway
+  gatewayServiceAccountName: ""
+  gatewayServiceAccountNamespace: ""
   sinjectorCASecretName: sinjector
   sinjectorCASecretCertKey: tls.crt
   sinjectorCASecretKeyKey: tls.key

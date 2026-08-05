@@ -184,6 +184,7 @@ func New(ctx context.Context, c Config) (*Client, error) {
 	}, nil
 }
 
+// The namespace is a typed stable-ID scope, so names and slugs never enter S3 keys.
 func immutableSkillPrefix(namespace, name string) string {
 	return namespace + "/" + immutableDir + "/" + name + "/"
 }

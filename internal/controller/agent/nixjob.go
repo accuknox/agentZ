@@ -98,7 +98,12 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 		image = nixInitImage
 	}
 
-	hash, err := packageJobHash(image, r.Config.SkillStore, envCfg)
+	hash, err := packageJobHash(
+		image,
+		r.Config.NixCacheEndpoint,
+		r.Config.SkillStore,
+		envCfg,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +127,9 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 	env := []corev1.EnvVar{{
 		Name:  "AGENTZ_NIX_ROOT",
 		Value: nixVolumeRootMount + "/" + nixStoreSubPath,
+	}, {
+		Name:  "AGENTZ_NIX_CACHE_ENDPOINT",
+		Value: r.Config.NixCacheEndpoint,
 	}}
 	initContainers := make([]corev1.Container, 0, 1)
 
@@ -172,7 +180,8 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 				},
 			},
 		})
-		immutableMounts = append(immutableMounts,
+		immutableMounts = append(
+			immutableMounts,
 			corev1.VolumeMount{Name: configVolume, MountPath: opencodeConfigDir, ReadOnly: true},
 			corev1.VolumeMount{
 				Name: immutableSkillsBucketVolume, MountPath: immutableSkillsSecretMount, ReadOnly: true,

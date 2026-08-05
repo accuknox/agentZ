@@ -151,18 +151,21 @@ manager:
     # OTLP/gRPC endpoint used by agentgateway for MCP traces.
     agentgatewayTraceEndpoint: observer.agentz-system.svc.cluster.local:4317
 
-    # Name of the tenant-shared PVC used by agent package jobs.
+    # Name of each scope-local shared PVC used by agent package jobs.
     nixStorePVC: ""
 
-    # Requested storage size for the tenant nix store PVC.
-    tenantNixStoreSize: 5Gi
+    # Requested storage size for each scope-local nix store PVC.
+    nixStoreSize: 5Gi
 
-    # Access modes for the tenant nix store PVC.
-    tenantNixStoreAccessModes:
+    # Access modes for scope-local nix store PVCs.
+    nixStoreAccessModes:
     - ReadWriteOnce
 
-    # Optional storage class for the tenant nix store PVC.
-    tenantNixStoreStorageClass: ""
+    # Optional storage class for scope-local nix store PVCs.
+    nixStoreStorageClass: ""
+
+    # Nix binary cache endpoint used by agent package jobs.
+    nixCacheEndpoint: https://cache.nixos.org
 
     # S3-compatible endpoint for immutable Skill object storage.
     skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
@@ -213,6 +216,8 @@ manager:
     # Audience bound onto the projected ServiceAccount token used for gateway
     # auth.
     managerGatewayTokenAudience: agentz-gateway
+    gatewayServiceAccountName: ""
+    gatewayServiceAccountNamespace: ""
 
     # Secret name that stores the sinjector CA materials.
     sinjectorCASecretName: sinjector

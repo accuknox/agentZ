@@ -41,7 +41,7 @@ func TestValidatorValidateCreateRejectsReservedAgentName(t *testing.T) {
 	}
 }
 
-func TestValidatorValidateCreateRejectsUnavailableWorkspaceReference(t *testing.T) {
+func TestValidatorValidateCreateAcceptsTypedWorkspaceReference(t *testing.T) {
 	t.Parallel()
 
 	agt := &agentzv1alpha1.Agent{
@@ -55,8 +55,8 @@ func TestValidatorValidateCreateRejectsUnavailableWorkspaceReference(t *testing.
 	}
 
 	_, err := NewValidator(nil).ValidateCreate(context.Background(), agt)
-	if err == nil {
-		t.Fatal("ValidateCreate() unexpectedly accepted an unresolved Workspace reference")
+	if err != nil {
+		t.Fatalf("ValidateCreate() rejected a typed Workspace reference: %v", err)
 	}
 }
 

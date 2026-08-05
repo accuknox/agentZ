@@ -616,6 +616,13 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		writeError(w, r, mapGatewayStoreError("update workspace lifecycle", err))
 		return
 	}
+	previous, previousErr := q.GatewayGetWorkspace(
+		r.Context(),
+		gatewaydb.GatewayGetWorkspaceParams{
+			ID:             workspaceID,
+			OrganizationID: tenant.Spec.OrganizationID,
+		},
+	)
 	changed, err := q.GatewayTransitionWorkspaceProvisioning(
 		r.Context(),
 		gatewaydb.GatewayTransitionWorkspaceProvisioningParams{
@@ -631,23 +638,16 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		writeInternalError(w, r, fmt.Errorf("transition workspace lifecycle: %w", err))
 		return
 	}
-	current, getErr := q.GatewayGetWorkspace(
-		r.Context(),
-		gatewaydb.GatewayGetWorkspaceParams{
-			ID:             workspaceID,
-			OrganizationID: tenant.Spec.OrganizationID,
-		},
-	)
 	if changed == 0 {
-		if errors.Is(getErr, pgx.ErrNoRows) {
+		if errors.Is(previousErr, pgx.ErrNoRows) {
 			writeError(w, r, workspaceNotFound(workspaceID))
 			return
 		}
-		if getErr != nil {
-			writeInternalError(w, r, fmt.Errorf("get workspace lifecycle: %w", getErr))
+		if previousErr != nil {
+			writeInternalError(w, r, fmt.Errorf("get workspace lifecycle: %w", previousErr))
 			return
 		}
-		if current.ProvisioningAttempt == req.ProvisioningAttempt && current.State == state {
+		if previous.ProvisioningAttempt == req.ProvisioningAttempt && previous.State == state {
 			if err := tx.Commit(r.Context()); err != nil {
 				writeInternalError(w, r, fmt.Errorf("commit idempotent workspace lifecycle: %w", err))
 				return
@@ -667,7 +667,7 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 					Field: gatewayapi.AuditFieldProvisioningAttempt,
 					Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
 				},
-				{Field: gatewayapi.AuditFieldState, Value: string(current.State)},
+				{Field: gatewayapi.AuditFieldState, Value: string(previous.State)},
 			},
 			after: []gatewayapi.AuditField{
 				{
@@ -693,8 +693,8 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		))
 		return
 	}
-	if getErr != nil {
-		writeInternalError(w, r, fmt.Errorf("read workspace lifecycle result: %w", getErr))
+	if previousErr != nil {
+		writeInternalError(w, r, fmt.Errorf("read previous workspace lifecycle: %w", previousErr))
 		return
 	}
 	err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
@@ -709,7 +709,7 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 				Field: gatewayapi.AuditFieldProvisioningAttempt,
 				Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
 			},
-			{Field: gatewayapi.AuditFieldState, Value: "provisioning"},
+			{Field: gatewayapi.AuditFieldState, Value: string(previous.State)},
 		},
 		after: []gatewayapi.AuditField{
 			{

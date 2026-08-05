@@ -6,10 +6,12 @@ import (
 	_ "embed"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"text/template"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	appsv1 "k8s.io/api/apps/v1"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
+	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/openbao"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -53,6 +56,12 @@ type extAuthPolicyData struct {
 	MCPMetadataPath       string
 	InferenceDataPath     string
 	InferenceMetadataPath string
+}
+
+type workspaceAccess struct {
+	name      string
+	namespace string
+	owner     metav1.OwnerReference
 }
 
 // ExtAuthRuntimeReconciler owns the one shared ext-auth runtime in each tenant
@@ -83,8 +92,23 @@ func (r *ExtAuthRuntimeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&agentzv1alpha1.InferenceProvider{},
 			handler.EnqueueRequestsFromMapFunc(r.namespaceForObject),
 		).
+		Watches(
+			&agentzv1alpha1.Workspace{},
+			handler.EnqueueRequestsFromMapFunc(r.namespaceForWorkspace),
+		).
 		Named("extauth-runtime").
 		Complete(r)
+}
+
+func (r *ExtAuthRuntimeReconciler) namespaceForWorkspace(_ context.Context, obj client.Object) []reconcile.Request {
+	workspace, ok := obj.(*agentzv1alpha1.Workspace)
+	if !ok {
+		return nil
+	}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		workspace.Spec.OrganizationID,
+	)}}}
 }
 
 func (r *ExtAuthRuntimeReconciler) namespaceForObject(_ context.Context, obj client.Object) []reconcile.Request {
@@ -156,6 +180,10 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		"app.kubernetes.io/managed-by": "agentz-extauth-controller",
 		"agentz.accuknox.com/managed":  "true",
 	}
+	workspaces, err := r.workspaceAccess(ctx, ns)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	if err := r.reconcileExtAuthServiceAccount(ctx, ns.Name, labels, ownerRefs); err != nil {
 		return ctrl.Result{}, err
@@ -164,6 +192,12 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileExtAuthRoleBinding(ctx, ns.Name, labels, ownerRefs); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileExtAuthScopeReader(ctx, ns.Name, workspaces, labels, ownerRefs); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileExtAuthWorkspaceAccess(ctx, ns.Name, workspaces, labels); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileExtAuthOpenBao(ctx, ns.Name); err != nil {
@@ -175,10 +209,48 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := r.reconcileExtAuthPolicy(ctx, ns.Name, labels, ownerRefs); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthDeployment(ctx, ns.Name, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthDeployment(ctx, ns.Name, workspaces, labels, ownerRefs); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *ExtAuthRuntimeReconciler) workspaceAccess(ctx context.Context, ns *corev1.Namespace) ([]workspaceAccess, error) {
+	organizationID := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation]
+	if organizationID == "" {
+		return nil, fmt.Errorf("tenant namespace has no organization identity")
+	}
+	workspaces := &agentzv1alpha1.WorkspaceList{}
+	if err := r.List(ctx, workspaces); err != nil {
+		return nil, fmt.Errorf("list organization workspaces: %w", err)
+	}
+
+	access := make([]workspaceAccess, 0, len(workspaces.Items))
+	for i := range workspaces.Items {
+		workspace := &workspaces.Items[i]
+		if workspace.Spec.OrganizationID != organizationID {
+			continue
+		}
+		expected := agentzv1alpha1.ScopeNamespace(
+			agentzv1alpha1.ResourceScopeWorkspace,
+			workspace.Spec.WorkspaceID,
+		)
+		if workspace.Name != expected {
+			continue
+		}
+		access = append(access, workspaceAccess{
+			name:      workspace.Name,
+			namespace: expected,
+			owner: *metav1.NewControllerRef(
+				workspace,
+				agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
+			),
+		})
+	}
+	slices.SortFunc(access, func(a, b workspaceAccess) int {
+		return strings.Compare(a.namespace, b.namespace)
+	})
+	return access, nil
 }
 
 func (r *ExtAuthRuntimeReconciler) reconcileExtAuthServiceAccount(ctx context.Context, ns string, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
@@ -216,18 +288,20 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRole(ctx context.Context, ns 
 			{
 				APIGroups: []string{""},
 				Resources: []string{"pods"},
-				Verbs:     []string{"get", "list"},
+				Verbs:     []string{"list"},
 			},
 			{
-				APIGroups: []string{"agentz.accuknox.com"},
-				Resources: []string{
-					"agents", "sandboxes", "mcpconnections",
-					"inferenceproviders", "inferencepools",
-				},
-				Verbs: []string{"get", "list", "watch"},
+				APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
+				Resources: []string{"agents", "sandboxes", "inferenceproviders", "inferencepools"},
+				Verbs:     []string{"get"},
 			},
 			{
-				APIGroups: []string{"agentz.accuknox.com"},
+				APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
+				Resources: []string{"mcpconnections"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
 				Resources: []string{"mcpconnections/status"},
 				Verbs:     []string{"get", "update", "patch"},
 			},
@@ -238,6 +312,116 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRole(ctx context.Context, ns 
 		return fmt.Errorf("create or patch ext auth role: %w", err)
 	}
 
+	return nil
+}
+
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthScopeReader(ctx context.Context, ns string, workspaces []workspaceAccess, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+	name := mcp.ExtAuthOpenBaoName(ns) + "-scope-reader"
+	namespaces := make([]string, 1, len(workspaces)+1)
+	namespaces[0] = ns
+	workspaceNames := make([]string, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		namespaces = append(namespaces, workspace.namespace)
+		workspaceNames = append(workspaceNames, workspace.name)
+	}
+	role := &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
+		role.Labels = maps.Clone(labels)
+		role.OwnerReferences = ownerRefs
+		role.Rules = []rbacv1.PolicyRule{
+			{
+				APIGroups:     []string{""},
+				Resources:     []string{"namespaces"},
+				ResourceNames: namespaces,
+				Verbs:         []string{"get"},
+			},
+		}
+		if len(workspaceNames) > 0 {
+			role.Rules = append(role.Rules, rbacv1.PolicyRule{
+				APIGroups:     []string{"agentz.accuknox.com"},
+				Resources:     []string{"workspaces"},
+				ResourceNames: workspaceNames,
+				Verbs:         []string{"get"},
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch ext auth scope reader role: %w", err)
+	}
+
+	binding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, binding, func() error {
+		binding.Labels = maps.Clone(labels)
+		binding.OwnerReferences = ownerRefs
+		binding.RoleRef = rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "ClusterRole",
+			Name:     name,
+		}
+		binding.Subjects = []rbacv1.Subject{{
+			Kind:      rbacv1.ServiceAccountKind,
+			Name:      mcp.ExtAuthServiceName,
+			Namespace: ns,
+		}}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("create or patch ext auth scope reader binding: %w", err)
+	}
+	return nil
+}
+
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthWorkspaceAccess(ctx context.Context, org string, workspaces []workspaceAccess, labels map[string]string) error {
+	for _, workspace := range workspaces {
+		role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{
+			Name:      mcp.ExtAuthServiceName,
+			Namespace: workspace.namespace,
+		}}
+		_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
+			role.Labels = maps.Clone(labels)
+			role.OwnerReferences = []metav1.OwnerReference{workspace.owner}
+			role.Rules = []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{""},
+					Resources: []string{"pods"},
+					Verbs:     []string{"list"},
+				},
+				{
+					APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
+					Resources: []string{"agents"},
+					Verbs:     []string{"get"},
+				},
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("reconcile workspace ext auth role: %w", err)
+		}
+
+		binding := &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{
+			Name:      mcp.ExtAuthServiceName,
+			Namespace: workspace.namespace,
+		}}
+		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, binding, func() error {
+			binding.Labels = maps.Clone(labels)
+			binding.OwnerReferences = []metav1.OwnerReference{workspace.owner}
+			binding.RoleRef = rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     mcp.ExtAuthServiceName,
+			}
+			binding.Subjects = []rbacv1.Subject{{
+				Kind:      rbacv1.ServiceAccountKind,
+				Name:      mcp.ExtAuthServiceName,
+				Namespace: org,
+			}}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("reconcile workspace ext auth role binding: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -308,7 +492,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthService(ctx context.Context, 
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Context, ns string, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Context, ns string, workspaces []workspaceAccess, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.ExtAuthServiceName,
@@ -322,7 +506,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 	runAsNonRoot := true
 	allowPrivilegeEscalation := false
 	automountServiceAccountToken := true
-	args := []string{
+	args := make([]string, 0, 16+2*len(workspaces))
+	args = append(args,
 		"extauth",
 		"serve",
 		"--addr", "0.0.0.0:18081",
@@ -332,6 +517,9 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 		"--openbao-k8s-auth-role", mcp.ExtAuthOpenBaoName(ns),
 		"--openbao-k8s-auth-mount-path", r.OpenBaoK8sAuthMountPath,
 		"--openbao-k8s-auth-token-path", extAuthTokenPath,
+	)
+	for _, workspace := range workspaces {
+		args = append(args, "--source-namespace", workspace.namespace)
 	}
 
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, deployment, func() error {
@@ -402,10 +590,56 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, n
 		},
 	}
 
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
+	connections := &agentzv1alpha1.MCPConnectionList{}
+	err := r.List(ctx, connections, client.InNamespace(ns))
+	if err != nil {
+		return fmt.Errorf("list ext auth MCP connections: %w", err)
+	}
+	targets := make([]networkpolicy.Target, 0, len(connections.Items)*2)
+	for i := range connections.Items {
+		target, err := mcp.ParseTarget(&connections.Items[i])
+		if err != nil {
+			return fmt.Errorf("resolve ext auth MCP target: %w", err)
+		}
+		targets = append(targets, networkpolicy.Target{
+			Host: target.Host,
+			Port: target.Port,
+		})
+		auth := connections.Items[i].Spec.Auth
+		if auth == nil || auth.OAuth == nil || auth.OAuth.TokenEndpoint == "" {
+			continue
+		}
+		tokenTarget, err := networkpolicy.URLTarget(auth.OAuth.TokenEndpoint)
+		if err != nil {
+			return fmt.Errorf("resolve ext auth OAuth target: %w", err)
+		}
+		targets = append(targets, tokenTarget)
+	}
+	openBao, err := networkpolicy.URLTarget(r.OpenBaoAddr)
+	if err != nil {
+		return fmt.Errorf("resolve ext auth OpenBao target: %w", err)
+	}
+
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
 		policy.Labels = maps.Clone(labels)
 		policy.OwnerReferences = ownerRefs
 		policy.Spec = extAuthPolicySpec(ns)
+		policy.Spec.Egress = append(
+			policy.Spec.Egress,
+			networkpolicy.ExternalEgress(targets)...,
+		)
+		parts := strings.Split(openBao.Host, ".")
+		if len(parts) >= 4 && parts[2] == "svc" {
+			policy.Spec.Egress = append(
+				policy.Spec.Egress,
+				networkpolicy.ServiceEgress(parts[1], parts[0], openBao.Port),
+			)
+		} else {
+			policy.Spec.Egress = append(
+				policy.Spec.Egress,
+				networkpolicy.ExternalEgress([]networkpolicy.Target{openBao})...,
+			)
+		}
 		return nil
 	})
 	if err != nil {
@@ -459,11 +693,23 @@ func extAuthPolicySpec(ns string) *ciliumapi.Rule {
 				},
 			}},
 		}},
-		Egress: []ciliumapi.EgressRule{{
-			EgressCommonRule: ciliumapi.EgressCommonRule{
-				ToEntities: ciliumapi.EntitySlice{ciliumapi.EntityAll},
+		Egress: []ciliumapi.EgressRule{
+			{
+				EgressCommonRule: ciliumapi.EgressCommonRule{
+					ToEndpoints: []ciliumapi.EndpointSelector{
+						ciliumapi.NewESFromK8sLabelSelector(
+							ciliumlabels.LabelSourceK8sKeyPrefix,
+							&slimv1.LabelSelector{},
+						),
+					},
+				},
 			},
-		}},
+			{
+				EgressCommonRule: ciliumapi.EgressCommonRule{
+					ToEntities: ciliumapi.EntitySlice{ciliumapi.EntityKubeAPIServer},
+				},
+			},
+		},
 	}
 }
 

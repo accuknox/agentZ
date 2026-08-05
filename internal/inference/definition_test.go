@@ -279,6 +279,26 @@ func TestRenderProviderTargetVertexModelNames(t *testing.T) {
 	}
 }
 
+func TestRenderProviderTargetUsesConcreteDefaultEndpoint(t *testing.T) {
+	t.Parallel()
+
+	provider := &agentzv1alpha1.InferenceProvider{
+		ObjectMeta: metav1.ObjectMeta{Name: "openai", Namespace: "default"},
+		Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindOpenAI),
+	}
+	target, err := RenderProviderTarget(provider, "")
+	if err != nil {
+		t.Fatalf("RenderProviderTarget() error = %v", err)
+	}
+	if target.LLM.Host != "api.openai.com" || target.LLM.Port != 443 {
+		t.Fatalf(
+			"RenderProviderTarget() endpoint = %s:%d, want api.openai.com:443",
+			target.LLM.Host,
+			target.LLM.Port,
+		)
+	}
+}
+
 func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
 	t.Parallel()
 

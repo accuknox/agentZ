@@ -46,6 +46,7 @@ import (
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -298,6 +299,7 @@ type sandboxConfig struct {
 	GitHubCopilotPoolIDs     []string
 	InferenceURL             string
 	MCPURL                   string
+	SandboxNamespace         string
 	MCPConsentPermissionIDs  []string
 	MCPRefs                  []mcpRefConfig
 	Skills                   []skillpkg.ManifestSkill
@@ -324,6 +326,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		GitHubCopilotPoolIDs:     []string{},
 		InferenceURL:             "",
 		MCPURL:                   "",
+		SandboxNamespace:         "",
 		MCPConsentPermissionIDs:  []string{},
 		MCPRefs:                  []mcpRefConfig{},
 		Skills:                   []skillpkg.ManifestSkill{},
@@ -349,15 +352,17 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 
 	ref := agt.Spec.SandboxRef
-	if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-		return sandboxConfig{}, fmt.Errorf(
-			"sandbox %q uses unavailable %s scope",
-			ref.Name,
-			ref.Scope,
-		)
+	sandboxNamespace, err := scoperesolver.Namespace(
+		ctx,
+		r.Client,
+		agt.Namespace,
+		ref.Scope,
+	)
+	if err != nil {
+		return sandboxConfig{}, fmt.Errorf("resolve sandbox scope: %w", err)
 	}
 	sandbox := &agentzv1alpha1.Sandbox{}
-	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
+	key := types.NamespacedName{Name: ref.Name, Namespace: sandboxNamespace}
 	if err := r.Get(ctx, key, sandbox); err != nil {
 		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
@@ -383,7 +388,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	for _, modelRef := range sandbox.Spec.Inference.Models {
 		if modelRef.Provider == agentzv1alpha1.InferencePoolProvider {
 			pool := &agentzv1alpha1.InferencePool{}
-			key := types.NamespacedName{Name: modelRef.Model, Namespace: agt.Namespace}
+			key := types.NamespacedName{Name: modelRef.Model, Namespace: sandboxNamespace}
 			if err := r.Get(ctx, key, pool); err != nil {
 				return sandboxConfig{}, fmt.Errorf("get inference pool %q: %w", modelRef.Model, err)
 			}
@@ -431,12 +436,12 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				},
 				Provider: &opencodeModelProviderFile{
 					NPM: npm,
-					API: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+					API: "http://" + inference.GatewayName + "." + sandboxNamespace + ".svc.cluster.local" + path,
 				},
 			}
 			for _, member := range pool.Spec.Members {
 				memberProvider := &agentzv1alpha1.InferenceProvider{}
-				key := types.NamespacedName{Name: member.Provider, Namespace: agt.Namespace}
+				key := types.NamespacedName{Name: member.Provider, Namespace: sandboxNamespace}
 				if err := r.Get(ctx, key, memberProvider); err != nil {
 					return sandboxConfig{}, fmt.Errorf(
 						"get inference pool %q provider %q: %w",
@@ -457,7 +462,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		provider := providers[modelRef.Provider]
 		if provider == nil {
 			provider = &agentzv1alpha1.InferenceProvider{}
-			key := types.NamespacedName{Name: modelRef.Provider, Namespace: agt.Namespace}
+			key := types.NamespacedName{Name: modelRef.Provider, Namespace: sandboxNamespace}
 			if err := r.Get(ctx, key, provider); err != nil {
 				return sandboxConfig{}, fmt.Errorf("get inference provider %q: %w", modelRef.Provider, err)
 			}
@@ -495,7 +500,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				Models: map[string]opencodeModelFile{},
 				Options: &opencodeProviderOptionsFile{
 					APIKey:  apiKey,
-					BaseURL: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+					BaseURL: "http://" + inference.GatewayName + "." + sandboxNamespace + ".svc.cluster.local" + path,
 				},
 			}
 		}
@@ -580,7 +585,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			attachmentModel.Provider+"/"+attachmentModel.Model,
 		)
 	}
-	cfg.InferenceURL = "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local"
+	cfg.InferenceURL = "http://" + inference.GatewayName + "." + sandboxNamespace + ".svc.cluster.local"
 	for _, ref := range sandbox.Spec.Skills {
 		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
 			return sandboxConfig{}, fmt.Errorf(
@@ -633,13 +638,14 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		})
 	}
 	slices.Sort(mcpConsentPermissionIDs)
-	skills, err := r.resolveImmutableSkills(ctx, agt.Namespace, skillNames)
+	skills, err := r.resolveImmutableSkills(ctx, sandboxNamespace, skillNames)
 	if err != nil {
 		return sandboxConfig{}, err
 	}
 	cfg.Packages = packages
 	cfg.AllowedHosts = allowedHosts
-	cfg.MCPURL = r.sandboxMCPURL(ctx, agt.Namespace, sandbox)
+	cfg.MCPURL = r.sandboxMCPURL(ctx, sandboxNamespace, sandbox)
+	cfg.SandboxNamespace = sandboxNamespace
 	cfg.MCPConsentPermissionIDs = mcpConsentPermissionIDs
 	cfg.MCPRefs = mcpRefs
 	cfg.Skills = skills
@@ -689,7 +695,6 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	err := r.List(
 		ctx,
 		agents,
-		client.InNamespace(sandbox.Namespace),
 		client.MatchingFields{sandboxutil.AgentBySandboxIndex: sandbox.Name},
 	)
 	if err != nil {
@@ -697,7 +702,17 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	}
 
 	requests := []reconcile.Request{}
-	for _, agt := range agents.Items {
+	for i := range agents.Items {
+		agt := &agents.Items[i]
+		namespace, err := scoperesolver.Namespace(
+			ctx,
+			r.Client,
+			agt.Namespace,
+			agt.Spec.SandboxRef.Scope,
+		)
+		if err != nil || namespace != sandbox.Namespace {
+			continue
+		}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      agt.Name,

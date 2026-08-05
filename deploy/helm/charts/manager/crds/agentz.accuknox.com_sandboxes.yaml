@@ -309,7 +309,7 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: skill names must not exceed 32 characters
-              rule: self.skills.all(s, size(s.name) <= 32)
+              rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 32)'
             - message: creatorUserID is immutable
               rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
                 == oldSelf.creatorUserID)'

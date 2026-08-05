@@ -75,9 +75,12 @@ spec:
         - --manager-gateway-token-audience=agentz-gateway
         - --manager-service-account-name=controller-manager
         - --manager-service-account-namespace=system
+        - --gateway-service-account-name=gateway
+        - --gateway-service-account-namespace=system
         - --nix-store-pvc=nix-store
-        - --tenant-nix-store-size=5Gi
-        - --tenant-nix-store-access-mode=ReadWriteOnce
+        - --nix-store-size=5Gi
+        - --nix-store-access-mode=ReadWriteOnce
+        - --nix-cache-endpoint=https://cache.nixos.org
         - --skills-s3-endpoint=http://rustfs.rustfs.svc.cluster.local:9000
         - --skills-s3-region=us-east-1
         - --skills-s3-bucket=agentz

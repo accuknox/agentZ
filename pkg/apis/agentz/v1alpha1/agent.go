@@ -42,6 +42,8 @@ const (
 const (
 	// AgentNameMCPConnection is reserved for tenant-scoped MCP credentials.
 	AgentNameMCPConnection = "mcp-connection"
+	// AgentPackageJobLabel selects package preparation Jobs and their Pods.
+	AgentPackageJobLabel = "agentz.accuknox.com/agent-package-job"
 
 	// ReasonConfigInvalid indicates the Agent spec cannot produce a runtime.
 	ReasonConfigInvalid = "ConfigInvalid"

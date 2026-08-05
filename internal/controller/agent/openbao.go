@@ -96,8 +96,18 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 func renderSinjectorPolicy(mount, namespace, agentName string) (string, error) {
 	mount = strings.Trim(mount, "/")
 	data := sinjectorPolicyData{
-		DataPath:     fmt.Sprintf("%s/data/%s/%s/*", mount, namespace, agentName),
-		MetadataPath: fmt.Sprintf("%s/metadata/%s/%s/*", mount, namespace, agentName),
+		DataPath: fmt.Sprintf(
+			"%s/data/%s/agent-secrets/%s/*",
+			mount,
+			namespace,
+			agentName,
+		),
+		MetadataPath: fmt.Sprintf(
+			"%s/metadata/%s/agent-secrets/%s/*",
+			mount,
+			namespace,
+			agentName,
+		),
 	}
 	var out bytes.Buffer
 	if err := sinjectorPolicy.Execute(&out, data); err != nil {

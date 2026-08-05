@@ -120,10 +120,13 @@ run-manager:
 		--manager-gateway-token-path=/tmp/gateway-sa-token \
 		--manager-service-account-name=default \
 		--manager-service-account-namespace=$(K8S_NAMESPACE) \
+		--gateway-service-account-name=default \
+		--gateway-service-account-namespace=$(K8S_NAMESPACE) \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=nix-store \
-		--tenant-nix-store-size=5Gi \
-		--tenant-nix-store-access-mode=ReadWriteOnce \
+		--nix-store-size=5Gi \
+		--nix-store-access-mode=ReadWriteOnce \
+		--nix-cache-endpoint=https://cache.nixos.org \
 		--skills-s3-endpoint=$(SKILLS_S3_ENDPOINT) \
 		--skills-s3-region=$(SKILLS_S3_REGION) \
 		--skills-s3-bucket=$(SKILLS_S3_BUCKET) \

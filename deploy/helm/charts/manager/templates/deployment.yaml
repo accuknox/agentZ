@@ -70,6 +70,8 @@ spec:
             - --manager-gateway-token-audience={{ .Values.config.managerGatewayTokenAudience }}
             - --manager-service-account-name={{ include "manager.serviceAccountName" . }}
             - --manager-service-account-namespace={{ .Release.Namespace }}
+            - --gateway-service-account-name={{ default (printf "%s-gateway" .Release.Name) .Values.config.gatewayServiceAccountName }}
+            - --gateway-service-account-namespace={{ default .Release.Namespace .Values.config.gatewayServiceAccountNamespace }}
             - --sinjector-ca-secret-name={{ .Values.config.sinjectorCASecretName }}
             - --sinjector-ca-secret-cert-key={{ .Values.config.sinjectorCASecretCertKey }}
             - --sinjector-ca-secret-key-key={{ .Values.config.sinjectorCASecretKeyKey }}
@@ -77,10 +79,11 @@ spec:
             - --sinjector-ca-cert-path={{ .Values.config.sinjectorCACertPath }}
             - --sinjector-ca-key-path={{ .Values.config.sinjectorCAKeyPath }}
             - --agent-ca-bundle-path={{ .Values.config.agentCABundlePath }}
-            - --tenant-nix-store-size={{ .Values.config.tenantNixStoreSize }}
-            {{- range .Values.config.tenantNixStoreAccessModes }}
-            - --tenant-nix-store-access-mode={{ . }}
+            - --nix-store-size={{ .Values.config.nixStoreSize }}
+            {{- range .Values.config.nixStoreAccessModes }}
+            - --nix-store-access-mode={{ . }}
             {{- end }}
+            - --nix-cache-endpoint={{ required "manager.config.nixCacheEndpoint is required" .Values.config.nixCacheEndpoint }}
             - --skills-s3-endpoint={{ required "manager.config.skillsS3Endpoint is required" .Values.config.skillsS3Endpoint }}
             - --skills-s3-region={{ required "manager.config.skillsS3Region is required" .Values.config.skillsS3Region }}
             - --skills-s3-bucket={{ required "manager.config.skillsS3Bucket is required" .Values.config.skillsS3Bucket }}
@@ -103,8 +106,8 @@ spec:
             {{- if .Values.config.nixStorePVC }}
             - --nix-store-pvc={{ .Values.config.nixStorePVC }}
             {{- end }}
-            {{- if .Values.config.tenantNixStoreStorageClass }}
-            - --tenant-nix-store-storage-class={{ .Values.config.tenantNixStoreStorageClass }}
+            {{- if .Values.config.nixStoreStorageClass }}
+            - --nix-store-storage-class={{ .Values.config.nixStoreStorageClass }}
             {{- end }}
             {{- if .Values.config.watchNamespace }}
             - --watch-namespace={{ .Values.config.watchNamespace }}

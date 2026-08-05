@@ -18,6 +18,7 @@ import (
 
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -588,12 +589,6 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 }
 
 func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.ResourceReference) []gatewayapi.FieldError {
-	if ref.Scope != gatewayapi.ResourceScopeOrganisation {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "sandbox.scope",
-			Message: "workspace scope is not available on the current tenant path",
-		})
-	}
 	name := ref.Name
 	if name == "" {
 		return append(fields, gatewayapi.FieldError{
@@ -619,8 +614,21 @@ func (s *Service) validateAgentSandbox(ctx context.Context, namespace string, re
 		return fields, nil
 	}
 
+	resourceNamespace, err := scoperesolver.Namespace(
+		ctx,
+		s.k8sClient,
+		namespace,
+		agentzv1alpha1.ResourceScope(ref.Scope),
+	)
+	if err != nil {
+		return []gatewayapi.FieldError{{
+			Field:   "sandbox.scope",
+			Message: "scope cannot be resolved from the active Workspace",
+		}}, nil
+	}
+
 	var sandbox agentzv1alpha1.Sandbox
-	key := types.NamespacedName{Namespace: namespace, Name: ref.Name}
+	key := types.NamespacedName{Namespace: resourceNamespace, Name: ref.Name}
 	if err := s.k8sClient.Get(ctx, key, &sandbox); err != nil {
 		if apierrors.IsNotFound(err) {
 			return []gatewayapi.FieldError{{

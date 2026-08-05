@@ -30,10 +30,26 @@ const (
 const (
 	// WorkspaceReasonProvisioning indicates namespace provisioning is active.
 	WorkspaceReasonProvisioning = "Provisioning"
-	// WorkspaceReasonNamespaceReady indicates the namespace is ready.
-	WorkspaceReasonNamespaceReady = "NamespaceReady"
-	// WorkspaceReasonProvisioningFailed indicates namespace provisioning failed.
-	WorkspaceReasonProvisioningFailed = "ProvisioningFailed"
+	// WorkspaceReasonInfrastructureReady indicates all Workspace infrastructure is ready.
+	WorkspaceReasonInfrastructureReady = "InfrastructureReady"
+	// WorkspaceReasonIdentityInvalid indicates immutable Workspace identity is invalid.
+	WorkspaceReasonIdentityInvalid = "IdentityInvalid"
+	// WorkspaceReasonTenantUnavailable indicates Organisation infrastructure is unavailable.
+	WorkspaceReasonTenantUnavailable = "TenantUnavailable"
+	// WorkspaceReasonNamespaceConflict indicates the stable namespace belongs to another owner.
+	WorkspaceReasonNamespaceConflict = "NamespaceConflict"
+	// WorkspaceReasonStoragePending indicates shared package storage is not ready.
+	WorkspaceReasonStoragePending = "StoragePending"
+	// WorkspaceReasonStorageInvalid indicates shared package storage cannot be safely adopted.
+	WorkspaceReasonStorageInvalid = "StorageInvalid"
+	// WorkspaceReasonNetworkPolicyPending indicates Cilium has not accepted the policy yet.
+	WorkspaceReasonNetworkPolicyPending = "NetworkPolicyPending"
+	// WorkspaceReasonNetworkPolicyInvalid indicates Cilium rejected the isolation policy.
+	WorkspaceReasonNetworkPolicyInvalid = "NetworkPolicyInvalid"
+	// WorkspaceReasonCertificatePending indicates cert-manager has not issued the Workspace CA.
+	WorkspaceReasonCertificatePending = "CertificatePending"
+	// WorkspaceReasonCertificateInvalid indicates the Workspace CA could not be reconciled safely.
+	WorkspaceReasonCertificateInvalid = "CertificateInvalid"
 )
 
 const (
@@ -41,6 +57,10 @@ const (
 	WorkspaceNameLabel = "agentz.accuknox.com/workspace"
 	// WorkspaceIDAnnotation stores the immutable relational Workspace ID.
 	WorkspaceIDAnnotation = "agentz.accuknox.com/workspace-id"
+	// WorkspaceIsolationPolicyName is the baseline Cilium policy for a Workspace.
+	WorkspaceIsolationPolicyName = "workspace-isolation"
+	// WorkspacePackagePolicyName is the restricted package-job Cilium policy.
+	WorkspacePackagePolicyName = "workspace-package-jobs"
 )
 
 // WorkspaceState summarizes the Workspace infrastructure lifecycle.

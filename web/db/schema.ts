@@ -153,6 +153,38 @@ export const workspaces = pgTable(
   ]
 )
 
+export const workspaceInheritedResources = pgTable(
+  "workspace_inherited_resources",
+  {
+    workspaceId: text("workspace_id").notNull(),
+    organizationId: text("organization_id").notNull(),
+    resource: permissionResource("resource").notNull(),
+    resourceName: text("resource_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.resource, table.resourceName] }),
+    foreignKey({
+      columns: [table.workspaceId, table.organizationId],
+      foreignColumns: [workspaces.id, workspaces.organizationId],
+      name: "workspace_inherited_resources_workspace_organization_fk",
+    }).onDelete("cascade"),
+    index("workspace_inherited_resources_organization_resource_idx").on(
+      table.organizationId,
+      table.resource,
+      table.resourceName
+    ),
+    check(
+      "workspace_inherited_resources_resource_ck",
+      sql`${table.resource} IN ('skill', 'sandbox', 'mcp_connection', 'inference_provider')`
+    ),
+    check(
+      "workspace_inherited_resources_name_ck",
+      sql`NULLIF(BTRIM(${table.resourceName}), '') IS NOT NULL`
+    ),
+  ]
+)
+
 export const organizationSlugHistory = pgTable("organization_slug_history", {
   slug: text("slug").primaryKey(),
   organizationId: text("organization_id")

@@ -209,6 +209,9 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersErrors,
   ListWorkflowWebhookTriggersResponses,
+  ListWorkspaceInheritedResourcesData,
+  ListWorkspaceInheritedResourcesErrors,
+  ListWorkspaceInheritedResourcesResponses,
   ListWorkspaceMemberCandidatesData,
   ListWorkspaceMemberCandidatesErrors,
   ListWorkspaceMemberCandidatesResponses,
@@ -239,6 +242,9 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
+  ReplaceWorkspaceInheritedResourcesData,
+  ReplaceWorkspaceInheritedResourcesErrors,
+  ReplaceWorkspaceInheritedResourcesResponses,
   ResolveWorkspaceSlugData,
   ResolveWorkspaceSlugErrors,
   ResolveWorkspaceSlugResponses,
@@ -458,6 +464,46 @@ export const getWorkspace = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workspace/{workspaceId}",
     ...options,
+  })
+
+/**
+ * List Organisation resources available for Workspace inheritance.
+ *
+ * Only an active Superadmin may browse and manage inheritance.
+ */
+export const listWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkspaceInheritedResourcesResponses,
+    ListWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+  })
+
+/**
+ * Replace one type of explicitly inherited Organisation resource.
+ *
+ * Consumed resources cannot be unselected.
+ */
+export const replaceWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ReplaceWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    ReplaceWorkspaceInheritedResourcesResponses,
+    ReplaceWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

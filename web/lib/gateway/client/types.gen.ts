@@ -171,6 +171,38 @@ export type ListWorkspacesResponse = {
 export type CreateWorkspaceRequest = {
   name: string
   admin_member_ids: Array<string>
+  selected_organization_resources: SelectedOrganizationResources
+}
+
+export type InheritedResourceType = "skill" | "sandbox" | "mcp_connection" | "inference_provider"
+
+export type SelectedOrganizationResources = {
+  skills: Array<string>
+  sandboxes: Array<string>
+  mcp_connections: Array<string>
+  inference_providers: Array<string>
+}
+
+export type InheritedResourceConsumer = {
+  kind: string
+  name: string
+}
+
+export type WorkspaceInheritedResource = {
+  name: string
+  ready: boolean
+  selected: boolean
+  consumers: Array<InheritedResourceConsumer>
+  disabled_reason?: string
+}
+
+export type ListWorkspaceInheritedResourcesResponse = {
+  resource_type: InheritedResourceType
+  resources: Array<WorkspaceInheritedResource>
+}
+
+export type ReplaceWorkspaceInheritedResourcesRequest = {
+  names: Array<string>
 }
 
 export type WorkspaceMemberCandidate = {
@@ -370,6 +402,7 @@ export type Agent = {
 
 export type Skill = {
   name: SkillName
+  scope: ResourceScope
   description: string
   version: number
   storage_path: string
@@ -391,6 +424,7 @@ export type MutableSkillSummary = SkillFileSummary
 
 export type ImmutableSkillSummary = SkillFileSummary & {
   description: string
+  scope: ResourceScope
   can_modify: boolean
   can_delete: boolean
   version: number
@@ -403,7 +437,7 @@ export type DeleteSkillsRequest = {
 }
 
 export type ExportSkillsRequest = {
-  skill_names: Array<SkillName>
+  skills: Array<ResourceReference>
 }
 
 export type SkillImportDecision =
@@ -1024,6 +1058,7 @@ export type WatchSecretsEvent = {
 
 export type Sandbox = {
   name: SandboxName
+  scope: ResourceScope
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
@@ -1422,6 +1457,7 @@ export type InferenceProviderCondition = {
 export type InferenceProvider = InferenceProviderReadFields &
   InferenceProviderReadDiscriminator & {
     id: InferenceProviderName
+    scope: ResourceScope
     resource_version: string
     state: "Accepted" | "Ready" | "Degraded"
     conditions: Array<InferenceProviderCondition>
@@ -1439,7 +1475,7 @@ export type ListInferenceProvidersResponse = {
 }
 
 export type WatchInferenceProvidersRequest = {
-  provider_ids?: Array<InferenceProviderName>
+  providers?: Array<ResourceReference>
 }
 
 export type WatchInferenceProvidersEvent = {
@@ -1582,6 +1618,7 @@ export type McpConnectionDetail = {
    */
   can_delete: boolean
   name: McpConnectionName
+  scope: ResourceScope
   endpoint: McpConnectionEndpoint
   auth: McpConnectionAuth
   created_at: string
@@ -1598,6 +1635,7 @@ export type McpConnectionSummary = {
    */
   can_delete: boolean
   name: McpConnectionName
+  scope: ResourceScope
   auth_mode: string
   endpoint_url: string
   created_at: string
@@ -1671,7 +1709,7 @@ export type ListMcpConnectionsResponse = {
 }
 
 export type WatchMcpConnectionsRequest = {
-  names?: Array<McpConnectionName>
+  connections?: Array<ResourceReference>
 }
 
 export type WatchMcpConnectionsEvent = {
@@ -1851,6 +1889,10 @@ export type WorkspaceIdHeader = string
  * Stable Workspace ID.
  */
 export type WorkspaceIdPath = string
+
+export type InheritedResourceTypePath = InheritedResourceType
+
+export type ResourceScopeQuery = ResourceScope
 
 /**
  * Current or historical Workspace slug.
@@ -2406,6 +2448,107 @@ export type GetWorkspaceResponses = {
 }
 
 export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses]
+
+export type ListWorkspaceInheritedResourcesData = {
+  body?: never
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+    resourceType: InheritedResourceType
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}"
+}
+
+export type ListWorkspaceInheritedResourcesErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkspaceInheritedResourcesError =
+  ListWorkspaceInheritedResourcesErrors[keyof ListWorkspaceInheritedResourcesErrors]
+
+export type ListWorkspaceInheritedResourcesResponses = {
+  /**
+   * Organisation resource selection state and consumers.
+   */
+  200: ListWorkspaceInheritedResourcesResponse
+}
+
+export type ListWorkspaceInheritedResourcesResponse2 =
+  ListWorkspaceInheritedResourcesResponses[keyof ListWorkspaceInheritedResourcesResponses]
+
+export type ReplaceWorkspaceInheritedResourcesData = {
+  body: ReplaceWorkspaceInheritedResourcesRequest
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+    resourceType: InheritedResourceType
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}"
+}
+
+export type ReplaceWorkspaceInheritedResourcesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReplaceWorkspaceInheritedResourcesError =
+  ReplaceWorkspaceInheritedResourcesErrors[keyof ReplaceWorkspaceInheritedResourcesErrors]
+
+export type ReplaceWorkspaceInheritedResourcesResponses = {
+  /**
+   * Updated Organisation resource selection state.
+   */
+  200: ListWorkspaceInheritedResourcesResponse
+}
+
+export type ReplaceWorkspaceInheritedResourcesResponse =
+  ReplaceWorkspaceInheritedResourcesResponses[keyof ReplaceWorkspaceInheritedResourcesResponses]
 
 export type RetryWorkspaceData = {
   body?: never
@@ -3777,7 +3920,9 @@ export type GetSkillReferencesData = {
      */
     skillName: SkillName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/skill/{skillName}/references"
 }
 
@@ -3824,7 +3969,9 @@ export type ListImmutableSkillVersionsData = {
      */
     skillName: SkillName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/skill/{skillName}/version"
 }
 
@@ -4788,7 +4935,9 @@ export type GetInferenceProviderData = {
      */
     providerName: InferenceProviderName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/inference/provider/{providerName}"
 }
 
@@ -4938,7 +5087,9 @@ export type GetInferenceProviderUsageData = {
      */
     providerName: InferenceProviderName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/inference/provider/{providerName}/usage"
 }
 
@@ -4982,7 +5133,9 @@ export type RefreshInferenceProviderModelsData = {
      */
     providerName: InferenceProviderName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/inference/provider/{providerName}/models"
 }
 
@@ -5707,7 +5860,9 @@ export type GetMcpConnectionData = {
      */
     name: McpConnectionName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/mcp-connection/{name}"
 }
 

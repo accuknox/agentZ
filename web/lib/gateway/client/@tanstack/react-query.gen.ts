@@ -71,6 +71,7 @@ import {
   listWorkflowSchedules,
   listWorkflowSummaries,
   listWorkflowWebhookTriggers,
+  listWorkspaceInheritedResources,
   listWorkspaceMemberCandidates,
   listWorkspaces,
   type Options,
@@ -82,6 +83,7 @@ import {
   readAgentFileRaw,
   refreshInferenceProviderModels,
   renameAgentEntry,
+  replaceWorkspaceInheritedResources,
   resolveWorkspaceSlug,
   retryWorkspace,
   statAgentFile,
@@ -297,6 +299,9 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersError,
   ListWorkflowWebhookTriggersResponse2,
+  ListWorkspaceInheritedResourcesData,
+  ListWorkspaceInheritedResourcesError,
+  ListWorkspaceInheritedResourcesResponse2,
   ListWorkspaceMemberCandidatesData,
   ListWorkspaceMemberCandidatesError,
   ListWorkspaceMemberCandidatesResponse2,
@@ -327,6 +332,9 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryError,
   RenameAgentEntryResponse,
+  ReplaceWorkspaceInheritedResourcesData,
+  ReplaceWorkspaceInheritedResourcesError,
+  ReplaceWorkspaceInheritedResourcesResponse,
   ResolveWorkspaceSlugData,
   ResolveWorkspaceSlugError,
   ResolveWorkspaceSlugResponse,
@@ -652,6 +660,65 @@ export const getWorkspaceOptions = (options: Options<GetWorkspaceData>) =>
     },
     queryKey: getWorkspaceQueryKey(options),
   })
+
+export const listWorkspaceInheritedResourcesQueryKey = (
+  options: Options<ListWorkspaceInheritedResourcesData>
+) => createQueryKey("listWorkspaceInheritedResources", options)
+
+/**
+ * List Organisation resources available for Workspace inheritance.
+ *
+ * Only an active Superadmin may browse and manage inheritance.
+ */
+export const listWorkspaceInheritedResourcesOptions = (
+  options: Options<ListWorkspaceInheritedResourcesData>
+) =>
+  queryOptions<
+    ListWorkspaceInheritedResourcesResponse2,
+    ListWorkspaceInheritedResourcesError,
+    ListWorkspaceInheritedResourcesResponse2,
+    ReturnType<typeof listWorkspaceInheritedResourcesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkspaceInheritedResources({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkspaceInheritedResourcesQueryKey(options),
+  })
+
+/**
+ * Replace one type of explicitly inherited Organisation resource.
+ *
+ * Consumed resources cannot be unselected.
+ */
+export const replaceWorkspaceInheritedResourcesMutation = (
+  options?: Partial<Options<ReplaceWorkspaceInheritedResourcesData>>
+): UseMutationOptions<
+  ReplaceWorkspaceInheritedResourcesResponse,
+  ReplaceWorkspaceInheritedResourcesError,
+  Options<ReplaceWorkspaceInheritedResourcesData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReplaceWorkspaceInheritedResourcesResponse,
+    ReplaceWorkspaceInheritedResourcesError,
+    Options<ReplaceWorkspaceInheritedResourcesData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await replaceWorkspaceInheritedResources({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 /**
  * Retry failed Workspace provisioning.

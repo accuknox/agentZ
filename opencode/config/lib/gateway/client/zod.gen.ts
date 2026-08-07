@@ -186,6 +186,20 @@ export const zListWorkspacesResponse = z.object({
   can_enter_organization: z.boolean(),
 })
 
+export const zInheritedResourceType = z.enum([
+  "skill",
+  "sandbox",
+  "mcp_connection",
+  "inference_provider",
+])
+
+export const zSelectedOrganizationResources = z.object({
+  skills: z.array(z.string().min(1)),
+  sandboxes: z.array(z.string().min(1)),
+  mcp_connections: z.array(z.string().min(1)),
+  inference_providers: z.array(z.string().min(1)),
+})
+
 export const zCreateWorkspaceRequest = z.object({
   name: z
     .string()
@@ -193,6 +207,29 @@ export const zCreateWorkspaceRequest = z.object({
     .max(80)
     .regex(/.*\S.*/),
   admin_member_ids: z.array(z.string().min(1).max(128)).max(100),
+  selected_organization_resources: zSelectedOrganizationResources,
+})
+
+export const zInheritedResourceConsumer = z.object({
+  kind: z.string(),
+  name: z.string(),
+})
+
+export const zWorkspaceInheritedResource = z.object({
+  name: z.string(),
+  ready: z.boolean(),
+  selected: z.boolean(),
+  consumers: z.array(zInheritedResourceConsumer),
+  disabled_reason: z.string().optional(),
+})
+
+export const zListWorkspaceInheritedResourcesResponse = z.object({
+  resource_type: zInheritedResourceType,
+  resources: z.array(zWorkspaceInheritedResource),
+})
+
+export const zReplaceWorkspaceInheritedResourcesRequest = z.object({
+  names: z.array(z.string().min(1)),
 })
 
 export const zWorkspaceMemberCandidate = z.object({
@@ -401,6 +438,7 @@ export const zPatchWorkflowRunNodeStatusRequest = z.object({
 
 export const zSkill = z.object({
   name: zSkillName,
+  scope: zResourceScope,
   description: z.string().min(1).max(1024),
   version: z.coerce
     .bigint()
@@ -443,6 +481,7 @@ export const zListMutableSkillsResponse = z.object({
 export const zImmutableSkillSummary = zSkillFileSummary.and(
   z.object({
     description: z.string(),
+    scope: zResourceScope,
     can_modify: z.boolean(),
     can_delete: z.boolean(),
     version: z.coerce
@@ -466,7 +505,7 @@ export const zDeleteSkillsRequest = z.object({
 })
 
 export const zExportSkillsRequest = z.object({
-  skill_names: z.array(zSkillName).min(1).max(200),
+  skills: z.array(zResourceReference).min(1).max(200),
 })
 
 export const zCreateSkillImportDecision = z.object({
@@ -1664,6 +1703,7 @@ export const zInferenceProvider = zInferenceProviderReadFields
   .and(
     z.object({
       id: zInferenceProviderName,
+      scope: zResourceScope,
       resource_version: z.string(),
       state: z.enum(["Accepted", "Ready", "Degraded"]),
       conditions: z.array(zInferenceProviderCondition),
@@ -1682,7 +1722,7 @@ export const zListInferenceProvidersResponse = z.object({
 })
 
 export const zWatchInferenceProvidersRequest = z.object({
-  provider_ids: z.array(zInferenceProviderName).max(200).optional(),
+  providers: z.array(zResourceReference).max(200).optional(),
 })
 
 export const zWatchInferenceProvidersEvent = z.object({
@@ -1826,6 +1866,7 @@ export const zMcpConnectionRef = z.object({
 
 export const zSandbox = z.object({
   name: zSandboxName,
+  scope: zResourceScope,
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
@@ -1936,6 +1977,7 @@ export const zMcpConnectionReason = z.enum([
 export const zMcpConnectionDetail = z.object({
   can_delete: z.boolean(),
   name: zMcpConnectionName,
+  scope: zResourceScope,
   endpoint: zMcpConnectionEndpoint,
   auth: zMcpConnectionAuth,
   created_at: z.iso.datetime(),
@@ -1949,6 +1991,7 @@ export const zMcpConnectionDetail = z.object({
 export const zMcpConnectionSummary = z.object({
   can_delete: z.boolean(),
   name: zMcpConnectionName,
+  scope: zResourceScope,
   auth_mode: z.string(),
   endpoint_url: z.string(),
   created_at: z.iso.datetime(),
@@ -1970,7 +2013,7 @@ export const zListMcpConnectionsResponse = z.object({
 })
 
 export const zWatchMcpConnectionsRequest = z.object({
-  names: z.array(zMcpConnectionName).optional(),
+  connections: z.array(zResourceReference).optional(),
 })
 
 export const zWatchMcpConnectionsEvent = z.object({
@@ -2134,6 +2177,10 @@ export const zWorkspaceIdHeader = z.string().min(1).max(128)
  * Stable Workspace ID.
  */
 export const zWorkspaceIdPath = z.string().min(1).max(128)
+
+export const zInheritedResourceTypePath = zInheritedResourceType
+
+export const zResourceScopeQuery = zResourceScope
 
 /**
  * Current or historical Workspace slug.
@@ -2385,6 +2432,28 @@ export const zGetWorkspacePath = z.object({
  * Accessible Workspace lifecycle state.
  */
 export const zGetWorkspaceResponse = zWorkspace
+
+export const zListWorkspaceInheritedResourcesPath = z.object({
+  workspaceId: z.string().min(1).max(128),
+  resourceType: zInheritedResourceType,
+})
+
+/**
+ * Organisation resource selection state and consumers.
+ */
+export const zListWorkspaceInheritedResourcesResponse2 = zListWorkspaceInheritedResourcesResponse
+
+export const zReplaceWorkspaceInheritedResourcesBody = zReplaceWorkspaceInheritedResourcesRequest
+
+export const zReplaceWorkspaceInheritedResourcesPath = z.object({
+  workspaceId: z.string().min(1).max(128),
+  resourceType: zInheritedResourceType,
+})
+
+/**
+ * Updated Organisation resource selection state.
+ */
+export const zReplaceWorkspaceInheritedResourcesResponse = zListWorkspaceInheritedResourcesResponse
 
 export const zRetryWorkspacePath = z.object({
   workspaceId: z.string().min(1).max(128),
@@ -2724,6 +2793,10 @@ export const zGetSkillReferencesPath = z.object({
   skillName: zSkillName,
 })
 
+export const zGetSkillReferencesQuery = z.object({
+  scope: zResourceScope,
+})
+
 /**
  * Skill references.
  */
@@ -2735,6 +2808,10 @@ export const zListImmutableSkillVersionsHeaders = z.object({
 
 export const zListImmutableSkillVersionsPath = z.object({
   skillName: zSkillName,
+})
+
+export const zListImmutableSkillVersionsQuery = z.object({
+  scope: zResourceScope,
 })
 
 /**
@@ -2997,6 +3074,10 @@ export const zGetInferenceProviderPath = z.object({
   providerName: zInferenceProviderName,
 })
 
+export const zGetInferenceProviderQuery = z.object({
+  scope: zResourceScope,
+})
+
 /**
  * Inference provider.
  */
@@ -3036,6 +3117,10 @@ export const zGetInferenceProviderUsagePath = z.object({
   providerName: zInferenceProviderName,
 })
 
+export const zGetInferenceProviderUsageQuery = z.object({
+  scope: zResourceScope,
+})
+
 /**
  * Provider usage.
  */
@@ -3047,6 +3132,10 @@ export const zRefreshInferenceProviderModelsHeaders = z.object({
 
 export const zRefreshInferenceProviderModelsPath = z.object({
   providerName: zInferenceProviderName,
+})
+
+export const zRefreshInferenceProviderModelsQuery = z.object({
+  scope: zResourceScope,
 })
 
 /**
@@ -3246,6 +3335,10 @@ export const zGetMcpConnectionHeaders = z.object({
 
 export const zGetMcpConnectionPath = z.object({
   name: zMcpConnectionName,
+})
+
+export const zGetMcpConnectionQuery = z.object({
+  scope: zResourceScope,
 })
 
 /**

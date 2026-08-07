@@ -426,6 +426,46 @@ FROM workspaces
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id);
 
+-- name: GatewayListWorkspaceInheritedResources :many
+SELECT resource, resource_name
+FROM workspace_inherited_resources
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND organization_id = sqlc.arg(organization_id)
+ORDER BY resource, resource_name;
+
+-- name: GatewayInsertWorkspaceInheritedResources :execrows
+INSERT INTO workspace_inherited_resources(
+  workspace_id,
+  organization_id,
+  resource,
+  resource_name
+)
+SELECT
+  sqlc.arg(workspace_id),
+  sqlc.arg(organization_id),
+  sqlc.arg(resource),
+  selected.resource_name
+FROM unnest(sqlc.arg(resource_names)::text[]) AS selected(resource_name)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayDeleteWorkspaceInheritedResources :execrows
+DELETE FROM workspace_inherited_resources
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND resource = sqlc.arg(resource);
+
+-- name: GatewayListWorkspacesSelectingOrganizationResource :many
+SELECT workspaces.*
+FROM workspace_inherited_resources
+JOIN workspaces
+  ON workspaces.id = workspace_inherited_resources.workspace_id
+  AND workspaces.organization_id = workspace_inherited_resources.organization_id
+WHERE workspace_inherited_resources.organization_id = sqlc.arg(organization_id)
+  AND workspace_inherited_resources.resource = sqlc.arg(resource)
+  AND workspace_inherited_resources.resource_name = sqlc.arg(resource_name)
+  AND workspaces.deleted_at IS NULL
+ORDER BY workspaces.name, workspaces.id;
+
 -- name: GatewayListProvisioningWorkspaces :many
 SELECT workspaces.*
 FROM workspaces

@@ -169,6 +169,12 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/InferenceProviderName'
+    InheritedResourceTypePath:
+      in: path
+      name: resourceType
+      required: true
+      schema:
+        $ref: '#/components/schemas/InheritedResourceType'
     LimitQuery:
       description: Maximum number of items to return.
       in: query
@@ -195,6 +201,12 @@ components:
       schema:
         minLength: 1
         type: string
+    ResourceScopeQuery:
+      in: query
+      name: scope
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceScope'
     SandboxNamePath:
       description: Sandbox name.
       in: path
@@ -1285,9 +1297,12 @@ components:
           minLength: 1
           pattern: .*\S.*
           type: string
+        selected_organization_resources:
+          $ref: '#/components/schemas/SelectedOrganizationResources'
       required:
       - name
       - admin_member_ids
+      - selected_organization_resources
       type: object
     DeleteSecretsRequest:
       additionalProperties: false
@@ -1346,15 +1361,15 @@ components:
     ExportSkillsRequest:
       additionalProperties: false
       properties:
-        skill_names:
+        skills:
           items:
-            $ref: '#/components/schemas/SkillName'
+            $ref: '#/components/schemas/ResourceReference'
           maxItems: 200
           minItems: 1
           type: array
           uniqueItems: true
       required:
-      - skill_names
+      - skills
       type: object
     FieldError:
       additionalProperties: false
@@ -1551,12 +1566,15 @@ components:
             items:
               $ref: '#/components/schemas/SandboxName'
             type: array
+          scope:
+            $ref: '#/components/schemas/ResourceScope'
           version:
             format: int64
             minimum: 1
             type: integer
         required:
         - description
+        - scope
         - version
         - agents
         - sandboxes
@@ -1917,6 +1935,8 @@ components:
             type: integer
           resource_version:
             type: string
+          scope:
+            $ref: '#/components/schemas/ResourceScope'
           state:
             enum:
             - Accepted
@@ -1931,6 +1951,7 @@ components:
             type: integer
         required:
         - id
+        - scope
         - resource_version
         - state
         - conditions
@@ -2230,6 +2251,29 @@ components:
       - $ref: '#/components/schemas/AzureInferenceProviderWrite'
       - $ref: '#/components/schemas/OpenAICompatibleInferenceProviderWrite'
       - $ref: '#/components/schemas/AnthropicCompatibleInferenceProviderWrite'
+    InheritedResourceConsumer:
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+      required:
+      - kind
+      - name
+      type: object
+    InheritedResourceType:
+      enum:
+      - skill
+      - sandbox
+      - mcp_connection
+      - inference_provider
+      type: string
+      x-enum-varnames:
+      - InheritedResourceTypeSkill
+      - InheritedResourceTypeSandbox
+      - InheritedResourceTypeMCPConnection
+      - InheritedResourceTypeInferenceProvider
     JSONObject:
       additionalProperties:
         $ref: '#/components/schemas/JSONValue'
@@ -2502,6 +2546,19 @@ components:
       - webhook_triggers
       - next_page_token
       type: object
+    ListWorkspaceInheritedResourcesResponse:
+      additionalProperties: false
+      properties:
+        resource_type:
+          $ref: '#/components/schemas/InheritedResourceType'
+        resources:
+          items:
+            $ref: '#/components/schemas/WorkspaceInheritedResource'
+          type: array
+      required:
+      - resource_type
+      - resources
+      type: object
     ListWorkspaceMemberCandidatesResponse:
       additionalProperties: false
       properties:
@@ -2598,6 +2655,8 @@ components:
           $ref: '#/components/schemas/MCPConnectionName'
         reason:
           $ref: '#/components/schemas/MCPConnectionReason'
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
         status:
           $ref: '#/components/schemas/MCPConnectionLifecycle'
         tool_catalog_ready:
@@ -2608,6 +2667,7 @@ components:
           type: array
       required:
       - name
+      - scope
       - endpoint
       - auth
       - created_at
@@ -2764,6 +2824,8 @@ components:
           $ref: '#/components/schemas/MCPConnectionName'
         reason:
           $ref: '#/components/schemas/MCPConnectionReason'
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
         status:
           $ref: '#/components/schemas/MCPConnectionLifecycle'
         tool_catalog_ready:
@@ -2774,6 +2836,7 @@ components:
           type: integer
       required:
       - name
+      - scope
       - auth_mode
       - endpoint_url
       - created_at
@@ -21695,6 +21758,18 @@ components:
       - name
       - rename
       type: object
+    ReplaceWorkspaceInheritedResourcesRequest:
+      additionalProperties: false
+      properties:
+        names:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+      required:
+      - names
+      type: object
     ResourceCapabilities:
       additionalProperties: false
       properties:
@@ -21782,12 +21857,15 @@ components:
             minLength: 1
             type: string
           type: array
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
         skills:
           items:
             $ref: '#/components/schemas/ResourceReference'
           type: array
       required:
       - name
+      - scope
       - packages
       - allowed_hosts
       - mcp_connection_refs
@@ -21959,6 +22037,39 @@ components:
       description: Secret value. Max 48 KB.
       maxLength: 49152
       type: string
+    SelectedOrganizationResources:
+      additionalProperties: false
+      properties:
+        inference_providers:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+        mcp_connections:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+        sandboxes:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+        skills:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+      required:
+      - skills
+      - sandboxes
+      - mcp_connections
+      - inference_providers
+      type: object
     Skill:
       additionalProperties: false
       properties:
@@ -21983,6 +22094,8 @@ components:
           items:
             $ref: '#/components/schemas/SandboxName'
           type: array
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
         storage_path:
           minLength: 1
           type: string
@@ -21992,6 +22105,7 @@ components:
           type: integer
       required:
       - name
+      - scope
       - description
       - version
       - storage_path
@@ -22733,9 +22847,9 @@ components:
     WatchInferenceProvidersRequest:
       additionalProperties: false
       properties:
-        provider_ids:
+        providers:
           items:
-            $ref: '#/components/schemas/InferenceProviderName'
+            $ref: '#/components/schemas/ResourceReference'
           maxItems: 200
           type: array
           uniqueItems: true
@@ -22753,9 +22867,9 @@ components:
     WatchMCPConnectionsRequest:
       additionalProperties: false
       properties:
-        names:
+        connections:
           items:
-            $ref: '#/components/schemas/MCPConnectionName'
+            $ref: '#/components/schemas/ResourceReference'
           type: array
       type: object
     WatchSecretsEvent:
@@ -23289,6 +23403,27 @@ components:
       - sandbox_capabilities
       - inference_provider_capabilities
       - inference_pool_capabilities
+      type: object
+    WorkspaceInheritedResource:
+      additionalProperties: false
+      properties:
+        consumers:
+          items:
+            $ref: '#/components/schemas/InheritedResourceConsumer'
+          type: array
+        disabled_reason:
+          type: string
+        name:
+          type: string
+        ready:
+          type: boolean
+        selected:
+          type: boolean
+      required:
+      - name
+      - ready
+      - selected
+      - consumers
       type: object
     WorkspaceMemberCandidate:
       additionalProperties: false
@@ -24169,6 +24304,8 @@ paths:
       - inference
     get:
       operationId: getInferenceProvider
+      parameters:
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         "200":
           content:
@@ -24228,6 +24365,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
       - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         "200":
           content:
@@ -24253,6 +24391,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
       - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         "200":
           content:
@@ -24711,6 +24850,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/MCPConnectionNamePath'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         "200":
           content:
@@ -37601,6 +37741,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         "200":
           content:
@@ -37626,6 +37767,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         "200":
           content:
@@ -38551,6 +38693,65 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Get an accessible Workspace.
+      tags:
+      - workspaces
+  /api/workspace/{workspaceId}/inherited-resource/{resourceType}:
+    get:
+      description: Only an active Superadmin may browse and manage inheritance.
+      operationId: listWorkspaceInheritedResources
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      - $ref: '#/components/parameters/InheritedResourceTypePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspaceInheritedResourcesResponse'
+          description: Organisation resource selection state and consumers.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Organisation resources available for Workspace inheritance.
+      tags:
+      - workspaces
+    put:
+      description: Consumed resources cannot be unselected.
+      operationId: replaceWorkspaceInheritedResources
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      - $ref: '#/components/parameters/InheritedResourceTypePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceWorkspaceInheritedResourcesRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspaceInheritedResourcesResponse'
+          description: Updated Organisation resource selection state.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Replace one type of explicitly inherited Organisation resource.
       tags:
       - workspaces
   /api/workspace/{workspaceId}/lifecycle:

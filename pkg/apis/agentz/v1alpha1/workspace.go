@@ -16,7 +16,11 @@ limitations under the License.
 
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"slices"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	// WorkspaceConditionReady indicates the Workspace namespace is ready.
@@ -97,6 +101,86 @@ type WorkspaceSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:XValidation:rule="self >= oldSelf",message="provisioningAttempt cannot decrease"
 	ProvisioningAttempt int64 `json:"provisioningAttempt"`
+
+	// SelectedOrganizationResources identifies the Organisation resources that
+	// this Workspace may consume live and read-only.
+	// +optional
+	SelectedOrganizationResources SelectedOrganizationResources `json:"selectedOrganizationResources,omitempty"`
+}
+
+// SelectedOrganizationResources is the explicit Organisation resource set
+// available to a Workspace. Resources created later are not selected.
+type SelectedOrganizationResources struct {
+	// Skills contains selected immutable Organisation Skill names.
+	// +listType=set
+	// +optional
+	Skills []string `json:"skills,omitempty"`
+
+	// Sandboxes contains selected Organisation Sandbox names.
+	// +listType=set
+	// +optional
+	Sandboxes []string `json:"sandboxes,omitempty"`
+
+	// MCPConnections contains selected Organisation MCPConnection names.
+	// +listType=set
+	// +optional
+	MCPConnections []string `json:"mcpConnections,omitempty"`
+
+	// InferenceProviders contains selected Organisation InferenceProvider names.
+	// +listType=set
+	// +optional
+	InferenceProviders []string `json:"inferenceProviders,omitempty"`
+}
+
+// OrganizationResourceKind identifies a selectable Organisation resource.
+type OrganizationResourceKind string
+
+const (
+	// OrganizationResourceKindSkill identifies immutable Skills.
+	OrganizationResourceKindSkill OrganizationResourceKind = "Skill"
+	// OrganizationResourceKindSandbox identifies Sandboxes.
+	OrganizationResourceKindSandbox OrganizationResourceKind = "Sandbox"
+	// OrganizationResourceKindMCPConnection identifies MCP Connections.
+	OrganizationResourceKindMCPConnection OrganizationResourceKind = "MCPConnection"
+	// OrganizationResourceKindInferenceProvider identifies Inference Providers.
+	OrganizationResourceKindInferenceProvider OrganizationResourceKind = "InferenceProvider"
+)
+
+// Names returns the selected names for kind.
+func (s SelectedOrganizationResources) Names(kind OrganizationResourceKind) []string {
+	switch kind {
+	case OrganizationResourceKindSkill:
+		return s.Skills
+	case OrganizationResourceKindSandbox:
+		return s.Sandboxes
+	case OrganizationResourceKindMCPConnection:
+		return s.MCPConnections
+	case OrganizationResourceKindInferenceProvider:
+		return s.InferenceProviders
+	}
+	return nil
+}
+
+// Set replaces the selected names for kind.
+func (s *SelectedOrganizationResources) Set(kind OrganizationResourceKind, names []string) {
+	switch kind {
+	case OrganizationResourceKindSkill:
+		s.Skills = slices.Clone(names)
+	case OrganizationResourceKindSandbox:
+		s.Sandboxes = slices.Clone(names)
+	case OrganizationResourceKindMCPConnection:
+		s.MCPConnections = slices.Clone(names)
+	case OrganizationResourceKindInferenceProvider:
+		s.InferenceProviders = slices.Clone(names)
+	}
+}
+
+// Equal reports whether two explicit selections contain the same ordered sets.
+func (s SelectedOrganizationResources) Equal(other SelectedOrganizationResources) bool {
+	return slices.Equal(s.Skills, other.Skills) &&
+		slices.Equal(s.Sandboxes, other.Sandboxes) &&
+		slices.Equal(s.MCPConnections, other.MCPConnections) &&
+		slices.Equal(s.InferenceProviders, other.InferenceProviders)
 }
 
 // WorkspaceStatus defines the observed Workspace infrastructure state.

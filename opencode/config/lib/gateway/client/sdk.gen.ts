@@ -211,6 +211,9 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersErrors,
   ListWorkflowWebhookTriggersResponses,
+  ListWorkspaceInheritedResourcesData,
+  ListWorkspaceInheritedResourcesErrors,
+  ListWorkspaceInheritedResourcesResponses,
   ListWorkspaceMemberCandidatesData,
   ListWorkspaceMemberCandidatesErrors,
   ListWorkspaceMemberCandidatesResponses,
@@ -241,6 +244,9 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
+  ReplaceWorkspaceInheritedResourcesData,
+  ReplaceWorkspaceInheritedResourcesErrors,
+  ReplaceWorkspaceInheritedResourcesResponses,
   ResolveWorkspaceSlugData,
   ResolveWorkspaceSlugErrors,
   ResolveWorkspaceSlugResponses,
@@ -361,14 +367,18 @@ import {
   zGetInferencePoolUsagePath,
   zGetInferenceProviderHeaders,
   zGetInferenceProviderPath,
+  zGetInferenceProviderQuery,
   zGetInferenceProviderUsageHeaders,
   zGetInferenceProviderUsagePath,
+  zGetInferenceProviderUsageQuery,
   zGetMcpConnectionHeaders,
   zGetMcpConnectionPath,
+  zGetMcpConnectionQuery,
   zGetMcpGraphPath,
   zGetMcpGraphQuery,
   zGetSkillReferencesHeaders,
   zGetSkillReferencesPath,
+  zGetSkillReferencesQuery,
   zGetSpanDetailPath,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
@@ -391,6 +401,7 @@ import {
   zListImmutableSkillSummariesQuery,
   zListImmutableSkillVersionsHeaders,
   zListImmutableSkillVersionsPath,
+  zListImmutableSkillVersionsQuery,
   zListInferenceModelSuggestionsHeaders,
   zListInferenceModelSuggestionsPath,
   zListInferenceModelSuggestionsQuery,
@@ -423,6 +434,7 @@ import {
   zListWorkflowSummariesPath,
   zListWorkflowWebhookTriggersPath,
   zListWorkflowWebhookTriggersQuery,
+  zListWorkspaceInheritedResourcesPath,
   zPatchWorkflowRunNodeStatusBody,
   zPatchWorkflowRunNodeStatusPath,
   zPatchWorkflowRunStatusBody,
@@ -438,8 +450,11 @@ import {
   zReadAgentFileRawQuery,
   zRefreshInferenceProviderModelsHeaders,
   zRefreshInferenceProviderModelsPath,
+  zRefreshInferenceProviderModelsQuery,
   zRenameAgentEntryBody,
   zRenameAgentEntryPath,
+  zReplaceWorkspaceInheritedResourcesBody,
+  zReplaceWorkspaceInheritedResourcesPath,
   zResolveWorkspaceSlugPath,
   zRetryWorkspacePath,
   zStatAgentFilePath,
@@ -711,6 +726,62 @@ export const getWorkspace = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workspace/{workspaceId}",
     ...options,
+  })
+
+/**
+ * List Organisation resources available for Workspace inheritance.
+ *
+ * Only an active Superadmin may browse and manage inheritance.
+ */
+export const listWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkspaceInheritedResourcesResponses,
+    ListWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkspaceInheritedResourcesPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+  })
+
+/**
+ * Replace one type of explicitly inherited Organisation resource.
+ *
+ * Consumed resources cannot be unselected.
+ */
+export const replaceWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ReplaceWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    ReplaceWorkspaceInheritedResourcesResponses,
+    ReplaceWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zReplaceWorkspaceInheritedResourcesBody,
+          path: zReplaceWorkspaceInheritedResourcesPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**
@@ -1426,7 +1497,7 @@ export const getSkillReferences = <ThrowOnError extends boolean = false>(
           body: z.never().optional(),
           headers: zGetSkillReferencesHeaders.optional(),
           path: zGetSkillReferencesPath,
-          query: z.never().optional(),
+          query: zGetSkillReferencesQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1451,7 +1522,7 @@ export const listImmutableSkillVersions = <ThrowOnError extends boolean = false>
           body: z.never().optional(),
           headers: zListImmutableSkillVersionsHeaders.optional(),
           path: zListImmutableSkillVersionsPath,
-          query: z.never().optional(),
+          query: zListImmutableSkillVersionsQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1891,7 +1962,7 @@ export const getInferenceProvider = <ThrowOnError extends boolean = false>(
           body: z.never().optional(),
           headers: zGetInferenceProviderHeaders.optional(),
           path: zGetInferenceProviderPath,
-          query: z.never().optional(),
+          query: zGetInferenceProviderQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1977,7 +2048,7 @@ export const getInferenceProviderUsage = <ThrowOnError extends boolean = false>(
           body: z.never().optional(),
           headers: zGetInferenceProviderUsageHeaders.optional(),
           path: zGetInferenceProviderUsagePath,
-          query: z.never().optional(),
+          query: zGetInferenceProviderUsageQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -2002,7 +2073,7 @@ export const refreshInferenceProviderModels = <ThrowOnError extends boolean = fa
           body: z.never().optional(),
           headers: zRefreshInferenceProviderModelsHeaders.optional(),
           path: zRefreshInferenceProviderModelsPath,
-          query: z.never().optional(),
+          query: zRefreshInferenceProviderModelsQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -2387,7 +2458,7 @@ export const getMcpConnection = <ThrowOnError extends boolean = false>(
           body: z.never().optional(),
           headers: zGetMcpConnectionHeaders.optional(),
           path: zGetMcpConnectionPath,
-          query: z.never().optional(),
+          query: zGetMcpConnectionQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],

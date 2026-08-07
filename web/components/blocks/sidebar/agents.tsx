@@ -4,6 +4,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { motion } from "motion/react"
+import { nanoid } from "nanoid"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -186,7 +187,7 @@ function AgentSessionsItem({
     if (query.isError) return
     if (sessions.some((session) => session.id === sessionID)) return
 
-    void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
+    void router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
   }, [agent.name, isOpen, newSessionPath, path, query.isError, query.isPending, router, sessions])
 
   return (
@@ -210,7 +211,7 @@ function AgentSessionsItem({
               href={newSessionPath}
               onClick={(event) => {
                 event.preventDefault()
-                void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
+                void router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
               }}
               prefetch={false}
             >
@@ -309,7 +310,7 @@ function SessionItem({
 
       if (path !== href) return
 
-      router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
+      router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
       router.refresh()
     })
   }, [agentName, href, isPending, newSessionPath, path, pendingState.success, queryClient, router])

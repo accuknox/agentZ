@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -219,6 +220,39 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
+	selected := agentzv1alpha1.SelectedOrganizationResources{
+		Skills:             slices.Clone(req.SelectedOrganizationResources.Skills),
+		Sandboxes:          slices.Clone(req.SelectedOrganizationResources.Sandboxes),
+		MCPConnections:     slices.Clone(req.SelectedOrganizationResources.McpConnections),
+		InferenceProviders: slices.Clone(req.SelectedOrganizationResources.InferenceProviders),
+	}
+	fields, err := s.validateOrganizationResourceSelection(
+		r.Context(), claims.TenantID, selected,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if len(fields) > 0 {
+		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+			request: r, organizationID: claims.TenantID, workspaceID: id,
+			actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
+			action: "workspace.create", result: gatewaydb.AuditResultFailed,
+			interfaceName: gatewaydb.AuditInterfaceGateway,
+		})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"selected Organisation resources are invalid",
+			errBadRequest,
+			fields...,
+		))
+		return
+	}
 
 	err = q.GatewayCreateWorkspace(r.Context(), gatewaydb.GatewayCreateWorkspaceParams{
 		ID:             id,
@@ -229,6 +263,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("create workspace", err))
+		return
+	}
+	if err := insertWorkspaceResourceSelection(
+		r.Context(), q, id, claims.TenantID, selected,
+	); err != nil {
+		writeInternalError(w, r, err)
 		return
 	}
 	role, err := q.GatewayCreateWorkspaceAdminRole(
@@ -867,6 +907,12 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 	var workspace agentzv1alpha1.Workspace
 	err = s.k8sClient.Get(ctx, key, &workspace)
 	if apierrors.IsNotFound(err) {
+		selected, err := s.workspaceResourceSelection(
+			ctx, row.ID, row.OrganizationID,
+		)
+		if err != nil {
+			return err
+		}
 		workspace = agentzv1alpha1.Workspace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: row.Namespace,
@@ -883,9 +929,10 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 				)},
 			},
 			Spec: agentzv1alpha1.WorkspaceSpec{
-				WorkspaceID:         row.ID,
-				OrganizationID:      row.OrganizationID,
-				ProvisioningAttempt: row.ProvisioningAttempt,
+				WorkspaceID:                   row.ID,
+				OrganizationID:                row.OrganizationID,
+				ProvisioningAttempt:           row.ProvisioningAttempt,
+				SelectedOrganizationResources: selected,
 			},
 		}
 		return s.k8sClient.Create(ctx, &workspace)
@@ -897,10 +944,16 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 		workspace.Spec.OrganizationID != row.OrganizationID {
 		return fmt.Errorf("workspace resource identity conflicts with database state")
 	}
-	if workspace.Spec.ProvisioningAttempt == row.ProvisioningAttempt {
+	selected, err := s.workspaceResourceSelection(ctx, row.ID, row.OrganizationID)
+	if err != nil {
+		return err
+	}
+	if workspace.Spec.ProvisioningAttempt == row.ProvisioningAttempt &&
+		workspace.Spec.SelectedOrganizationResources.Equal(selected) {
 		return nil
 	}
 	workspace.Spec.ProvisioningAttempt = row.ProvisioningAttempt
+	workspace.Spec.SelectedOrganizationResources = selected
 	return s.k8sClient.Update(ctx, &workspace)
 }
 

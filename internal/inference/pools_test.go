@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -57,7 +59,7 @@ func TestResolvePoolContract(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(primary, secondary).Build()
+	reader := poolTestReader(t, scheme, primary, secondary)
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
@@ -117,7 +119,7 @@ func TestResolvePoolResponsesAPI(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(primary, secondary).Build()
+	reader := poolTestReader(t, scheme, primary, secondary)
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
@@ -149,7 +151,7 @@ func TestResolvePoolRejectsUnsupportedAPIConversion(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(primary, secondary).Build()
+	reader := poolTestReader(t, scheme, primary, secondary)
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
@@ -235,7 +237,7 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 			if test.configure != nil {
 				test.configure()
 			}
-			reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(provider.DeepCopy()).Build()
+			reader := poolTestReader(t, scheme, provider.DeepCopy())
 			pool := &agentzv1alpha1.InferencePool{
 				ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 				Spec:       agentzv1alpha1.InferencePoolSpec{Members: test.members},
@@ -369,4 +371,23 @@ func poolProvider(name string, kind agentzv1alpha1.InferenceProviderKind) *agent
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
 		Spec:       providerSpec(kind),
 	}
+}
+
+func poolTestReader(t testing.TB, scheme *runtime.Scheme, providers ...*agentzv1alpha1.InferenceProvider) client.Reader {
+	t.Helper()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	objects := []client.Object{&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default",
+			Labels: map[string]string{
+				agentzv1alpha1.TenantNameLabel: "default",
+			},
+		},
+	}}
+	for _, provider := range providers {
+		objects = append(objects, provider)
+	}
+	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/openbao"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -58,6 +59,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferencepools,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workspaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaypolicies,verbs=get;list;watch;create;update;patch;delete
@@ -201,7 +203,6 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(provider.Namespace),
 		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
 	)
 	if err != nil {
@@ -211,15 +212,25 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			r.blockDeletion(ctx, provider, "ReferenceCheckFailed", err),
 		)
 	}
-	if len(sandboxes.Items) > 0 {
-		err := fmt.Errorf("provider is still referenced by sandbox %q", sandboxes.Items[0].Name)
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+	for i := range sandboxes.Items {
+		for _, ref := range sandboxes.Items[i].Spec.Inference.Models {
+			if ref.Provider != provider.Name {
+				continue
+			}
+			ns, resolveErr := scoperesolver.SelectedNamespace(
+				ctx, r.Client, sandboxes.Items[i].Namespace, ref.Scope,
+				agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
+			)
+			if resolveErr == nil && ns == provider.Namespace {
+				err := fmt.Errorf("provider is still referenced by sandbox %q", sandboxes.Items[i].Name)
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+			}
+		}
 	}
 	pools := &agentzv1alpha1.InferencePoolList{}
 	err = r.List(
 		ctx,
 		pools,
-		client.InNamespace(provider.Namespace),
 		client.MatchingFields{inference.PoolByProviderIndex: provider.Name},
 	)
 	if err != nil {
@@ -229,9 +240,20 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			r.blockDeletion(ctx, provider, "ReferenceCheckFailed", err),
 		)
 	}
-	if len(pools.Items) > 0 {
-		err := fmt.Errorf("provider is still referenced by pool %q", pools.Items[0].Name)
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+	for i := range pools.Items {
+		for _, ref := range pools.Items[i].Spec.Members {
+			if ref.Provider != provider.Name {
+				continue
+			}
+			ns, resolveErr := scoperesolver.SelectedNamespace(
+				ctx, r.Client, pools.Items[i].Namespace, ref.Scope,
+				agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
+			)
+			if resolveErr == nil && ns == provider.Namespace {
+				err := fmt.Errorf("provider is still referenced by pool %q", pools.Items[i].Name)
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+			}
+		}
 	}
 	if err := r.deleteCredentialResources(ctx, provider); err != nil {
 		return ctrl.Result{}, errors.Join(

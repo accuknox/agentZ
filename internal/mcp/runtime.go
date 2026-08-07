@@ -192,7 +192,10 @@ func LoadConnections(ctx context.Context, c client.Reader, env *agentzv1alpha1.S
 		if name == "" {
 			continue
 		}
-		ns, err := scoperesolver.Namespace(ctx, c, env.Namespace, ref.Scope)
+		ns, err := scoperesolver.SelectedNamespace(
+			ctx, c, env.Namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindMCPConnection, ref.Name,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("resolve mcp connection %q scope: %w", name, err)
 		}

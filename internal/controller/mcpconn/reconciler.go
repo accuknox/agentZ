@@ -47,12 +47,14 @@ import (
 )
 
 const (
-	conditionAccepted = mcp.ConditionAccepted
-	conditionReady    = mcp.ConditionReady
-	conditionDegraded = mcp.ConditionDegraded
-	reasonAccepted    = mcp.ReasonAccepted
-	reasonReady       = mcp.ReasonReady
-	reasonDegraded    = mcp.ReasonReconcileFailed
+	conditionAccepted        = mcp.ConditionAccepted
+	conditionReady           = mcp.ConditionReady
+	conditionDegraded        = mcp.ConditionDegraded
+	reasonAccepted           = mcp.ReasonAccepted
+	reasonReady              = mcp.ReasonReady
+	reasonDegraded           = mcp.ReasonReconcileFailed
+	connectionNameLabel      = "agentz.accuknox.com/mcp-connection"
+	connectionNamespaceLabel = "agentz.accuknox.com/mcp-connection-namespace"
 )
 
 // MCPConnectionReconciler reconciles one MCPConnection object.
@@ -80,6 +82,7 @@ func (r *MCPConnectionReconciler) managerOpenBaoAddr() string {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workspaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods;serviceaccounts;services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
@@ -216,7 +219,10 @@ func (r *MCPConnectionReconciler) mcpConnectionsForSandbox(ctx context.Context, 
 
 	requests := make([]reconcile.Request, 0, len(sandbox.Spec.MCPConnectionRefs))
 	for _, ref := range sandbox.Spec.MCPConnectionRefs {
-		namespace, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, ref.Scope)
+		namespace, err := scoperesolver.SelectedNamespace(
+			ctx, r.Client, sandbox.Namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindMCPConnection, ref.Name,
+		)
 		if err != nil {
 			continue
 		}
@@ -246,7 +252,14 @@ func (r *MCPConnectionReconciler) referencingSandboxes(ctx context.Context, name
 			if ref.Name != name {
 				continue
 			}
-			ns, err := scoperesolver.Namespace(ctx, r.Client, sandboxes.Items[i].Namespace, ref.Scope)
+			ns, err := scoperesolver.SelectedNamespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				ref.Scope,
+				agentzv1alpha1.OrganizationResourceKindMCPConnection,
+				ref.Name,
+			)
 			if err == nil && ns == namespace {
 				refs = append(refs, sandboxes.Items[i])
 				break
@@ -265,14 +278,7 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 	}
 
 	if conn.Spec.Auth == nil && len(conn.Spec.Endpoint.Headers) == 0 {
-		for _, sandbox := range namespaceEnvs.Items {
-			name := mcp.SandboxAuthPolicyName(sandbox.Name, conn.Name)
-			err := policies.Delete(ctx, name, metav1.DeleteOptions{})
-			if err != nil && !apierrors.IsNotFound(err) {
-				return nil, fmt.Errorf("delete auth policy %q: %w", name, err)
-			}
-		}
-		return nil, nil
+		return nil, r.deleteAuthPolicies(ctx, conn)
 	}
 
 	activeEnvNames := make(map[string]struct{}, len(refs))
@@ -291,7 +297,9 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 	}
 
 	var managedRef *agentzv1alpha1.MCPConnectionManagedResourceRef
+	desiredPolicies := make(map[client.ObjectKey]struct{}, len(refs))
 	for _, sandbox := range refs {
+		policies := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(sandbox.Namespace)
 		name := mcp.SandboxAuthPolicyName(sandbox.Name, conn.Name)
 		obj, err := policies.Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
@@ -301,13 +309,14 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			obj = &agentgatewayv1alpha1.AgentgatewayPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
-					Namespace: conn.Namespace,
+					Namespace: sandbox.Namespace,
 				},
 			}
 		}
 
 		currentSpec := obj.Spec.DeepCopy()
 		currentOwners := slices.Clone(obj.OwnerReferences)
+		currentLabels := maps.Clone(obj.Labels)
 
 		var transformation *agentgatewayv1alpha1.Transformation
 		if len(conn.Spec.Endpoint.Headers) > 0 {
@@ -337,14 +346,16 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 				},
 				GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
 					ContextExtensions: map[string]string{
-						"agentz.namespace":      conn.Namespace,
-						"agentz.sandbox":        sandbox.Name,
-						"agentz.mcp_connection": conn.Name,
+						"agentz.namespace":                sandbox.Namespace,
+						"agentz.sandbox":                  sandbox.Name,
+						"agentz.mcp_connection":           conn.Name,
+						"agentz.mcp_connection_namespace": conn.Namespace,
 					},
 					RequestMetadata: map[string]agentgatewayv1alpha1.CELExpression{
-						"agentz.namespace":      agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
-						"agentz.sandbox":        agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", sandbox.Name)),
-						"agentz.mcp_connection": agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Name)),
+						"agentz.namespace":                agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", sandbox.Namespace)),
+						"agentz.sandbox":                  agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", sandbox.Name)),
+						"agentz.mcp_connection":           agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Name)),
+						"agentz.mcp_connection_namespace": agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
 					},
 				},
 			}
@@ -366,8 +377,16 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			},
 		}
 
-		if err := ctrl.SetControllerReference(conn, obj, r.Scheme); err != nil {
-			return nil, fmt.Errorf("set auth policy owner: %w", err)
+		obj.Labels = map[string]string{
+			connectionNameLabel:      conn.Name,
+			connectionNamespaceLabel: conn.Namespace,
+		}
+		if conn.Namespace == sandbox.Namespace {
+			if err := ctrl.SetControllerReference(conn, obj, r.Scheme); err != nil {
+				return nil, fmt.Errorf("set auth policy owner: %w", err)
+			}
+		} else {
+			obj.OwnerReferences = nil
 		}
 
 		if obj.CreationTimestamp.IsZero() {
@@ -378,7 +397,8 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 		exists := !obj.CreationTimestamp.IsZero()
 		specChanged := !reflect.DeepEqual(currentSpec, obj.Spec)
 		ownersChanged := !reflect.DeepEqual(currentOwners, obj.OwnerReferences)
-		if exists && (specChanged || ownersChanged) {
+		labelsChanged := !reflect.DeepEqual(currentLabels, obj.Labels)
+		if exists && (specChanged || ownersChanged || labelsChanged) {
 			_, err := policies.Update(ctx, obj, metav1.UpdateOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("update auth policy %q: %w", name, err)
@@ -386,7 +406,24 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 		}
 
 		if managedRef == nil {
-			managedRef = mcp.ManagedRef(conn.Namespace, name)
+			managedRef = mcp.ManagedRef(sandbox.Namespace, name)
+		}
+		desiredPolicies[client.ObjectKeyFromObject(obj)] = struct{}{}
+	}
+	managed := &agentgatewayv1alpha1.AgentgatewayPolicyList{}
+	err = r.List(ctx, managed, client.MatchingLabels{
+		connectionNameLabel:      conn.Name,
+		connectionNamespaceLabel: conn.Namespace,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list managed auth policies: %w", err)
+	}
+	for i := range managed.Items {
+		if _, ok := desiredPolicies[client.ObjectKeyFromObject(&managed.Items[i])]; ok {
+			continue
+		}
+		if err := r.Delete(ctx, &managed.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("delete stale auth policy %q: %w", managed.Items[i].Name, err)
 		}
 	}
 
@@ -502,8 +539,22 @@ func resolveAuthMode(auth *agentzv1alpha1.MCPConnectionAuth) string {
 }
 
 func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *agentzv1alpha1.MCPConnection) error {
+	managed := &agentgatewayv1alpha1.AgentgatewayPolicyList{}
+	err := r.List(ctx, managed, client.MatchingLabels{
+		connectionNameLabel:      conn.Name,
+		connectionNamespaceLabel: conn.Namespace,
+	})
+	if err != nil {
+		return fmt.Errorf("list managed auth policies: %w", err)
+	}
+	for i := range managed.Items {
+		if err := r.Delete(ctx, &managed.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete managed auth policy %q: %w", managed.Items[i].Name, err)
+		}
+	}
+
 	sandboxes := &agentzv1alpha1.SandboxList{}
-	err := r.List(ctx, sandboxes, client.InNamespace(conn.Namespace))
+	err = r.List(ctx, sandboxes, client.InNamespace(conn.Namespace))
 	if err != nil {
 		return fmt.Errorf("list namespace sandboxes for auth policy cleanup: %w", err)
 	}

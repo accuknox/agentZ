@@ -169,6 +169,20 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 		writeInternalError(w, r, err)
 		return
 	}
+	if workspaceID != "" {
+		inherited, err := s.listInheritedInferenceProviders(r.Context(), access)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		items = append(items, inherited...)
+	}
+	slices.SortFunc(items, func(a, b gatewayapi.InferenceProvider) int {
+		if a.Id != b.Id {
+			return strings.Compare(a.Id, b.Id)
+		}
+		return strings.Compare(string(a.Scope), string(b.Scope))
+	})
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
 	var next string
@@ -178,6 +192,36 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, gatewayapi.ListInferenceProvidersResponse{
 		Providers: items[start:end], NextPageToken: next,
 	})
+}
+
+func (s *Service) listInheritedInferenceProviders(ctx context.Context, access resourceAccess) ([]gatewayapi.InferenceProvider, error) {
+	selected, err := s.selectedOrganizationResourceNames(
+		ctx,
+		access.workspaceID,
+		access.claims.TenantID,
+		agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(selected) == 0 {
+		return []gatewayapi.InferenceProvider{}, nil
+	}
+	organizationAccess := access
+	organizationAccess.workspaceID = ""
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		access.claims.TenantID,
+	)
+	items, err := s.listInferenceProviderItems(ctx, organizationNamespace, selected, organizationAccess)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].CanModify = false
+		items[i].CanDelete = false
+	}
+	return items, nil
 }
 
 // WatchInferenceProviders handles POST /api/inference/provider/watch.
@@ -199,10 +243,10 @@ func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var filter map[string]struct{}
-	if req.ProviderIds != nil {
-		filter = make(map[string]struct{}, len(*req.ProviderIds))
-		for _, name := range *req.ProviderIds {
-			filter[name] = struct{}{}
+	if req.Providers != nil {
+		filter = make(map[string]struct{}, len(*req.Providers))
+		for _, ref := range *req.Providers {
+			filter[ref.Name] = struct{}{}
 		}
 	}
 	flusher, ok := w.(http.Flusher)
@@ -1092,6 +1136,19 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	conflict, err := s.selectedOrganizationResourceConflict(
+		r.Context(), access,
+		agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+		providerName,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if conflict != nil {
+		writeError(w, r, conflict)
+		return
+	}
 	if len(usage.pools) > 0 || len(usage.sandboxes) > 0 {
 		fields := make([]gatewayapi.FieldError, 0, len(usage.pools)+len(usage.sandboxes))
 		for _, pool := range usage.pools {
@@ -1577,7 +1634,8 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 	creator := provider.Spec.CreatorUserID == access.claims.UserID &&
 		access.effective.Allows(scope, authorization.OperationCreateInferenceProvider)
 	out := gatewayapi.InferenceProvider{
-		Id: provider.Name, ResourceVersion: provider.ResourceVersion,
+		Scope: resourceScope(access.workspaceID),
+		Id:    provider.Name, ResourceVersion: provider.ResourceVersion,
 		DisplayName:     provider.Spec.DisplayName,
 		CatalogProvider: provider.Spec.CatalogProvider,
 		Models:          modelsToAPI(provider.Spec.Models),

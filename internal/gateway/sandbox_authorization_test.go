@@ -61,6 +61,10 @@ func (q *sandboxQueries) GatewayGetWorkspace(_ context.Context, arg gatewaydb.Ga
 	return gatewaydb.Workspace{}, pgx.ErrNoRows
 }
 
+func (q *sandboxQueries) GatewayListWorkspaceInheritedResources(context.Context, gatewaydb.GatewayListWorkspaceInheritedResourcesParams) ([]gatewaydb.GatewayListWorkspaceInheritedResourcesRow, error) {
+	return []gatewaydb.GatewayListWorkspaceInheritedResourcesRow{}, nil
+}
+
 func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
 	t.Parallel()
 
@@ -281,9 +285,11 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 
 func sandboxTestAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		workspaceID := r.Header.Get("X-AgentZ-Workspace-ID")
 		ctx := context.WithValue(r.Context(), authContextKey{}, requestAuth{claims: &gatewayClaims{
-			TenantID: testOrganizationID,
-			UserID:   testUserID,
+			TenantID:    testOrganizationID,
+			WorkspaceID: workspaceID,
+			UserID:      testUserID,
 		}})
 		ctx = context.WithValue(ctx, tenantContextKey{}, tenantRequest{tenant: &agentzv1alpha1.Tenant{
 			Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},

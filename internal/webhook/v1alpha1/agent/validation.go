@@ -106,11 +106,13 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 		))
 	}
 	if v.client != nil && agt.Spec.SandboxRef.Name != "" {
-		namespace, err := scoperesolver.Namespace(
+		namespace, err := scoperesolver.SelectedNamespace(
 			ctx,
 			v.client,
 			agt.Namespace,
 			agt.Spec.SandboxRef.Scope,
+			agentzv1alpha1.OrganizationResourceKindSandbox,
+			agt.Spec.SandboxRef.Name,
 		)
 		if err != nil {
 			allErrs = append(allErrs, field.Invalid(

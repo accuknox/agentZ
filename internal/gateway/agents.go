@@ -614,11 +614,13 @@ func (s *Service) validateAgentSandbox(ctx context.Context, namespace string, re
 		return fields, nil
 	}
 
-	resourceNamespace, err := scoperesolver.Namespace(
+	resourceNamespace, err := scoperesolver.SelectedNamespace(
 		ctx,
 		s.k8sClient,
 		namespace,
 		agentzv1alpha1.ResourceScope(ref.Scope),
+		agentzv1alpha1.OrganizationResourceKindSandbox,
+		ref.Name,
 	)
 	if err != nil {
 		return []gatewayapi.FieldError{{

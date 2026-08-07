@@ -79,6 +79,7 @@ const (
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;inferencepools,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workspaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;httproutes;referencegrants,verbs=get;list;watch;create;update;patch;delete
@@ -192,11 +193,13 @@ func (r *Reconciler) referencingAgentNames(ctx context.Context, sandbox *agentzv
 	names := make([]string, 0, len(agents.Items))
 	for i := range agents.Items {
 		agt := &agents.Items[i]
-		namespace, err := scoperesolver.Namespace(
+		namespace, err := scoperesolver.SelectedNamespace(
 			ctx,
 			r.Client,
 			agt.Namespace,
 			agt.Spec.SandboxRef.Scope,
+			agentzv1alpha1.OrganizationResourceKindSandbox,
+			agt.Spec.SandboxRef.Name,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("resolve Agent Sandbox scope: %w", err)
@@ -309,7 +312,10 @@ func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj clie
 			if model.Provider != provider.Name {
 				continue
 			}
-			ns, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, model.Scope)
+			ns, err := scoperesolver.SelectedNamespace(
+				ctx, r.Client, sandbox.Namespace, model.Scope,
+				agentzv1alpha1.OrganizationResourceKindInferenceProvider, model.Provider,
+			)
 			if err == nil && ns == provider.Namespace {
 				matched = true
 				break
@@ -375,11 +381,13 @@ func (r *Reconciler) sandboxForAgent(ctx context.Context, obj client.Object) []r
 	if ref.Name == "" {
 		return nil
 	}
-	namespace, err := scoperesolver.Namespace(
+	namespace, err := scoperesolver.SelectedNamespace(
 		ctx,
 		r.Client,
 		agt.Namespace,
 		ref.Scope,
+		agentzv1alpha1.OrganizationResourceKindSandbox,
+		ref.Name,
 	)
 	if err != nil {
 		slog.ErrorContext(ctx, "resolve Agent Sandbox scope", slog.Any("err", err))
@@ -423,7 +431,10 @@ func (r *Reconciler) sandboxesForMCPConnection(ctx context.Context, obj client.O
 			if ref.Name != conn.Name {
 				continue
 			}
-			ns, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, ref.Scope)
+			ns, err := scoperesolver.SelectedNamespace(
+				ctx, r.Client, sandbox.Namespace, ref.Scope,
+				agentzv1alpha1.OrganizationResourceKindMCPConnection, ref.Name,
+			)
 			if err == nil && ns == conn.Namespace {
 				matched = true
 				break
@@ -1099,11 +1110,13 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 			}
 			for j := range agents.Items {
 				agt := &agents.Items[j]
-				target, err := scoperesolver.Namespace(
+				target, err := scoperesolver.SelectedNamespace(
 					ctx,
 					r.Client,
 					agt.Namespace,
 					agt.Spec.SandboxRef.Scope,
+					agentzv1alpha1.OrganizationResourceKindSandbox,
+					agt.Spec.SandboxRef.Name,
 				)
 				if err != nil || target != namespace {
 					continue

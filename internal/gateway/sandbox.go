@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -71,6 +72,20 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	for _, sb := range sandboxList.Items {
 		items = append(items, sandboxFromCRD(sb, refs[sb.Name], access))
 	}
+	if workspaceID != "" {
+		inherited, err := s.listInheritedSandboxes(r.Context(), access, refs)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		items = append(items, inherited...)
+	}
+	slices.SortFunc(items, func(a, b gatewayapi.Sandbox) int {
+		if a.Name != b.Name {
+			return strings.Compare(a.Name, b.Name)
+		}
+		return strings.Compare(string(a.Scope), string(b.Scope))
+	})
 
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
@@ -85,6 +100,42 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		Sandboxes:     page,
 		NextPageToken: next,
 	})
+}
+
+func (s *Service) listInheritedSandboxes(ctx context.Context, access resourceAccess, refs map[string]bool) ([]gatewayapi.Sandbox, error) {
+	selected, err := s.selectedOrganizationResourceNames(
+		ctx,
+		access.workspaceID,
+		access.claims.TenantID,
+		agentzv1alpha1.OrganizationResourceKindSandbox,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(selected) == 0 {
+		return []gatewayapi.Sandbox{}, nil
+	}
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		access.claims.TenantID,
+	)
+	var sandboxes agentzv1alpha1.SandboxList
+	if err := s.k8sClient.List(ctx, &sandboxes, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+		return nil, fmt.Errorf("list inherited Organisation Sandboxes: %w", err)
+	}
+	organizationAccess := access
+	organizationAccess.workspaceID = ""
+	items := make([]gatewayapi.Sandbox, 0, len(sandboxes.Items))
+	for _, sb := range sandboxes.Items {
+		if _, ok := selected[sb.Name]; !ok {
+			continue
+		}
+		item := sandboxFromCRD(sb, refs[sb.Name], organizationAccess)
+		item.CanModify = false
+		item.CanDelete = false
+		items = append(items, item)
+	}
+	return items, nil
 }
 
 // CreateSandbox handles POST /api/sandbox.
@@ -375,6 +426,20 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			}
 		}
 		writeError(w, r, apiErr)
+		return
+	}
+	conflict, err := s.selectedOrganizationResourceConflict(
+		r.Context(), access, agentzv1alpha1.OrganizationResourceKindSandbox, name,
+	)
+	if err != nil || conflict != nil {
+		auditErr := s.createSandboxAudit(r.Context(), r, sandboxAudit{
+			access: access, name: name, result: gatewaydb.AuditResultFailed,
+		})
+		if err != nil || auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
+		writeError(w, r, conflict)
 		return
 	}
 
@@ -738,6 +803,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceA
 		}
 	}
 	out := gatewayapi.Sandbox{
+		Scope:             resourceScope(access.workspaceID),
 		Name:              sb.Name,
 		Packages:          packages,
 		AllowedHosts:      allowedHosts,
@@ -989,7 +1055,10 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef, workspace 
 func (s *Service) validateSandboxMCPConnections(ctx context.Context, current string, refs []agentzv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
 	for i, ref := range refs {
-		ns, err := scoperesolver.Namespace(ctx, s.k8sClient, current, ref.Scope)
+		ns, err := scoperesolver.SelectedNamespace(
+			ctx, s.k8sClient, current, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindMCPConnection, ref.Name,
+		)
 		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("mcp_connection_refs[%d].scope", i),
@@ -1120,6 +1189,17 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access sandbo
 					Message: fmt.Sprintf("inference pool %q is being deleted", ref.Model),
 				})
 			}
+			continue
+		}
+		ns, err = scoperesolver.SelectedNamespace(
+			ctx, s.k8sClient, access.namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
+		)
+		if err != nil {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("inference.models[%d].scope", i),
+				Message: "inference provider is not selected in the referenced scope",
+			})
 			continue
 		}
 		if !allows(ref.Scope, authorization.OperationGetInferenceProvider) {

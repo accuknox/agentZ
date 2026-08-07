@@ -156,11 +156,18 @@ func (s *service) exportSkills(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, ferr)
 		return
 	}
-	if err := skill.ValidateNames(req.SkillNames); err != nil {
+	names := make([]string, 0, len(req.Skills))
+	for _, ref := range req.Skills {
+		if ref.Scope != gatewayapi.ResourceScopeWorkspace {
+			writeFailure(w, r, badRequest("skills is invalid", errors.New("skill scope must be Workspace")))
+			return
+		}
+		names = append(names, ref.Name)
+	}
+	if err := skill.ValidateNames(names); err != nil {
 		writeFailure(w, r, badRequest("skill_names is invalid", err))
 		return
 	}
-	names := req.SkillNames
 
 	files := make([]string, 0)
 	for _, name := range names {

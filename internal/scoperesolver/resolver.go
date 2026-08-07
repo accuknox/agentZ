@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,4 +68,22 @@ func Namespace(ctx context.Context, c client.Reader, current string, scope agent
 		return "", errors.New("current namespace has an invalid Organisation identity")
 	}
 	return organizationNamespace, nil
+}
+
+// SelectedNamespace resolves a scoped resource reference and enforces the
+// Workspace's explicit Organisation selection for the generated resource kind.
+func SelectedNamespace(ctx context.Context, c client.Reader, current string, scope agentzv1alpha1.ResourceScope, kind agentzv1alpha1.OrganizationResourceKind, name string) (string, error) {
+	ns, err := Namespace(ctx, c, current, scope)
+	if err != nil || scope == agentzv1alpha1.ResourceScopeWorkspace || ns == current {
+		return ns, err
+	}
+	workspace := &agentzv1alpha1.Workspace{}
+	if err := c.Get(ctx, client.ObjectKey{Name: current}, workspace); err != nil {
+		return "", fmt.Errorf("get Workspace selection: %w", err)
+	}
+	names := workspace.Spec.SelectedOrganizationResources.Names(kind)
+	if !slices.Contains(names, name) {
+		return "", fmt.Errorf("Organisation resource %q is not selected by Workspace", name)
+	}
+	return ns, nil
 }

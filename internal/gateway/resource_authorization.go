@@ -196,6 +196,13 @@ type resourceCapabilitySet struct {
 	inferencePool     gatewayapi.ResourceCapabilities
 }
 
+func resourceScope(workspaceID string) gatewayapi.ResourceScope {
+	if workspaceID == "" {
+		return gatewayapi.ResourceScopeOrganisation
+	}
+	return gatewayapi.ResourceScopeWorkspace
+}
+
 func (s *Service) resolveResourceCapabilities(ctx context.Context, claims gatewayClaims, workspaceID string) (resourceCapabilitySet, error) {
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
 		UserID: claims.UserID, OrganizationID: claims.TenantID,

@@ -56,21 +56,22 @@ const (
 	// DefaultMCPProbeTimeout bounds one end-to-end MCP probe.
 	DefaultMCPProbeTimeout = 15 * time.Second
 
-	managedLabelKey      = "agentz.accuknox.com/managed"
-	managedLabelValue    = "true"
-	agentLabelKey        = "agentz.accuknox.com/agent"
-	appNameLabelKey      = "app.kubernetes.io/name"
-	appNameAgent         = "agentz-agent"
-	sessionHeaderName    = "x-opencode-session-id"
-	contextNamespaceKey  = "agentz.namespace"
-	contextSandboxKey    = "agentz.sandbox"
-	contextConnectionKey = "agentz.mcp_connection"
-	contextProviderKey   = "agentz.inference_provider"
-	contextPoolKey       = "agentz.inference_pool"
-	kubeRequestTimeout   = 5 * time.Second
-	grpcShutdownTimeout  = 15 * time.Second
-	httpClientTimeout    = 15 * time.Second
-	probeQueueName       = "extauth-mcp-probe"
+	managedLabelKey               = "agentz.accuknox.com/managed"
+	managedLabelValue             = "true"
+	agentLabelKey                 = "agentz.accuknox.com/agent"
+	appNameLabelKey               = "app.kubernetes.io/name"
+	appNameAgent                  = "agentz-agent"
+	sessionHeaderName             = "x-opencode-session-id"
+	contextNamespaceKey           = "agentz.namespace"
+	contextSandboxKey             = "agentz.sandbox"
+	contextConnectionKey          = "agentz.mcp_connection"
+	contextConnectionNamespaceKey = "agentz.mcp_connection_namespace"
+	contextProviderKey            = "agentz.inference_provider"
+	contextPoolKey                = "agentz.inference_pool"
+	kubeRequestTimeout            = 5 * time.Second
+	grpcShutdownTimeout           = 15 * time.Second
+	httpClientTimeout             = 15 * time.Second
+	probeQueueName                = "extauth-mcp-probe"
 )
 
 var (
@@ -408,16 +409,17 @@ func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.
 }
 
 type requestAttrs struct {
-	namespace        string
-	sandbox          string
-	connection       string
-	provider         string
-	pool             string
-	agent            string
-	sourceIP         string
-	sessionID        string
-	refreshAttempted bool
-	refreshSucceeded bool
+	namespace           string
+	sandbox             string
+	connection          string
+	connectionNamespace string
+	provider            string
+	pool                string
+	agent               string
+	sourceIP            string
+	sessionID           string
+	refreshAttempted    bool
+	refreshSucceeded    bool
 }
 
 type checkDecision struct {
@@ -464,6 +466,18 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		), attrs
 	}
 	attrs.connection = connName
+	attrs.connectionNamespace = strings.TrimSpace(
+		checkAttrs.GetContextExtensions()[contextConnectionNamespaceKey],
+	)
+	if attrs.connectionNamespace == "" {
+		return denyDecision(
+			codes.Unavailable,
+			typev3.StatusCode_ServiceUnavailable,
+			"mcp connection namespace context is missing",
+			"missing_connection_namespace_context",
+			slog.LevelError,
+		), attrs
+	}
 
 	sandboxName := strings.TrimSpace(checkAttrs.GetContextExtensions()[contextSandboxKey])
 	if sandboxName == "" {
@@ -538,7 +552,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	}
 	attrs.agent = agentName
 
-	conn, err := s.loadConnection(ctx, attrs.namespace, connName)
+	conn, err := s.loadConnection(ctx, attrs.connectionNamespace, connName)
 	if err != nil {
 		return denyDecision(
 			codes.Unavailable,
@@ -606,11 +620,13 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 			sandboxName,
 		)
 	}
-	targetNamespace, err := scoperesolver.Namespace(
+	targetNamespace, err := scoperesolver.SelectedNamespace(
 		ctx,
 		s.kube,
 		pod.Namespace,
 		agent.Spec.SandboxRef.Scope,
+		agentzv1alpha1.OrganizationResourceKindSandbox,
+		agent.Spec.SandboxRef.Name,
 	)
 	if err != nil || targetNamespace != namespace {
 		return "", fmt.Errorf("agent %q Sandbox scope is not authorized", agentName)

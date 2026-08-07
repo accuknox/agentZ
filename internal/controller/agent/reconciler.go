@@ -66,6 +66,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workspaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
@@ -331,32 +332,35 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		MCPRefs:                  []mcpRefConfig{},
 		Skills:                   []skillpkg.ManifestSkill{},
 	}
-	skillNames := make([]string, 0, len(agt.Spec.Skills))
-	seenSkills := make(map[string]struct{}, len(agt.Spec.Skills))
+	skillKeys := make([]types.NamespacedName, 0, len(agt.Spec.Skills))
+	seenSkills := make(map[types.NamespacedName]struct{}, len(agt.Spec.Skills))
 	for _, ref := range agt.Spec.Skills {
-		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			return sandboxConfig{}, fmt.Errorf(
-				"skill %q uses unavailable %s scope",
-				ref.Name,
-				ref.Scope,
-			)
-		}
 		if ref.Name == "" {
 			continue
 		}
-		if _, ok := seenSkills[ref.Name]; ok {
+		ns, err := scoperesolver.SelectedNamespace(
+			ctx, r.Client, agt.Namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve skill %q scope: %w", ref.Name, err)
+		}
+		key := types.NamespacedName{Namespace: ns, Name: ref.Name}
+		if _, ok := seenSkills[key]; ok {
 			continue
 		}
-		seenSkills[ref.Name] = struct{}{}
-		skillNames = append(skillNames, ref.Name)
+		seenSkills[key] = struct{}{}
+		skillKeys = append(skillKeys, key)
 	}
 
 	ref := agt.Spec.SandboxRef
-	sandboxNamespace, err := scoperesolver.Namespace(
+	sandboxNamespace, err := scoperesolver.SelectedNamespace(
 		ctx,
 		r.Client,
 		agt.Namespace,
 		ref.Scope,
+		agentzv1alpha1.OrganizationResourceKindSandbox,
+		ref.Name,
 	)
 	if err != nil {
 		return sandboxConfig{}, fmt.Errorf("resolve sandbox scope: %w", err)
@@ -431,11 +435,13 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				},
 			}
 			for _, member := range pool.Spec.Members {
-				memberNamespace, err := scoperesolver.Namespace(
+				memberNamespace, err := scoperesolver.SelectedNamespace(
 					ctx,
 					r.Client,
 					pool.Namespace,
 					member.Scope,
+					agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					member.Provider,
 				)
 				if err != nil {
 					return sandboxConfig{}, fmt.Errorf(
@@ -462,6 +468,13 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				}
 			}
 			continue
+		}
+		modelNamespace, err = scoperesolver.SelectedNamespace(
+			ctx, r.Client, sandboxNamespace, modelRef.Scope,
+			agentzv1alpha1.OrganizationResourceKindInferenceProvider, modelRef.Provider,
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve inference provider scope: %w", err)
 		}
 		providerKey := modelNamespace + "/" + modelRef.Provider
 		provider := providers[providerKey]
@@ -592,21 +605,22 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 	cfg.InferenceURL = "http://" + inference.GatewayName + "." + sandboxNamespace + ".svc.cluster.local"
 	for _, ref := range sandbox.Spec.Skills {
-		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			return sandboxConfig{}, fmt.Errorf(
-				"skill %q uses unavailable %s scope",
-				ref.Name,
-				ref.Scope,
-			)
-		}
 		if ref.Name == "" {
 			continue
 		}
-		if _, ok := seenSkills[ref.Name]; ok {
+		ns, err := scoperesolver.SelectedNamespace(
+			ctx, r.Client, sandbox.Namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve skill %q scope: %w", ref.Name, err)
+		}
+		key := types.NamespacedName{Namespace: ns, Name: ref.Name}
+		if _, ok := seenSkills[key]; ok {
 			continue
 		}
-		seenSkills[ref.Name] = struct{}{}
-		skillNames = append(skillNames, ref.Name)
+		seenSkills[key] = struct{}{}
+		skillKeys = append(skillKeys, key)
 	}
 	packages := make([]string, 0, len(sandbox.Spec.Packages))
 	for _, pkg := range sandbox.Spec.Packages {
@@ -643,7 +657,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		})
 	}
 	slices.Sort(mcpConsentPermissionIDs)
-	skills, err := r.resolveImmutableSkills(ctx, sandboxNamespace, skillNames)
+	skills, err := r.resolveImmutableSkills(ctx, skillKeys)
 	if err != nil {
 		return sandboxConfig{}, err
 	}
@@ -657,13 +671,12 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	return cfg, nil
 }
 
-func (r *Reconciler) resolveImmutableSkills(ctx context.Context, namespace string, names []string) ([]skillpkg.ManifestSkill, error) {
-	skills := make([]skillpkg.ManifestSkill, 0, len(names))
-	for _, name := range names {
+func (r *Reconciler) resolveImmutableSkills(ctx context.Context, keys []types.NamespacedName) ([]skillpkg.ManifestSkill, error) {
+	skills := make([]skillpkg.ManifestSkill, 0, len(keys))
+	for _, key := range keys {
 		skill := &agentzv1alpha1.Skill{}
-		key := types.NamespacedName{Name: name, Namespace: namespace}
 		if err := r.Get(ctx, key, skill); err != nil {
-			return nil, fmt.Errorf("get immutable skill %q: %w", name, err)
+			return nil, fmt.Errorf("get immutable skill %q: %w", key.Name, err)
 		}
 		skills = append(skills, skillpkg.ManifestSkill{
 			Name:        skill.Name,
@@ -709,11 +722,13 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	requests := []reconcile.Request{}
 	for i := range agents.Items {
 		agt := &agents.Items[i]
-		namespace, err := scoperesolver.Namespace(
+		namespace, err := scoperesolver.SelectedNamespace(
 			ctx,
 			r.Client,
 			agt.Namespace,
 			agt.Spec.SandboxRef.Scope,
+			agentzv1alpha1.OrganizationResourceKindSandbox,
+			agt.Spec.SandboxRef.Name,
 		)
 		if err != nil || namespace != sandbox.Namespace {
 			continue
@@ -753,11 +768,13 @@ func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.
 			if model.Provider != provider.Name {
 				continue
 			}
-			ns, err := scoperesolver.Namespace(
+			ns, err := scoperesolver.SelectedNamespace(
 				ctx,
 				r.Client,
 				sandboxes.Items[i].Namespace,
 				model.Scope,
+				agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				model.Provider,
 			)
 			if err == nil && ns == provider.Namespace {
 				matched = true
@@ -822,42 +839,58 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 		return []reconcile.Request{}
 	}
 
-	sandboxes := &agentzv1alpha1.SandboxList{}
-	err := r.List(ctx, sandboxes, client.InNamespace(skill.Namespace))
-	if err != nil {
-		return []reconcile.Request{}
-	}
-	sandboxRefs := map[string]struct{}{}
-	ref := agentzv1alpha1.ResourceReference{
-		Scope: agentzv1alpha1.ResourceScopeOrganisation,
-		Name:  skill.Name,
-	}
-	for _, sandbox := range sandboxes.Items {
-		if slices.Contains(sandbox.Spec.Skills, ref) {
-			sandboxRefs[sandbox.Name] = struct{}{}
-		}
-	}
-
 	agents := &agentzv1alpha1.AgentList{}
-	err = r.List(ctx, agents, client.InNamespace(skill.Namespace))
+	err := r.List(ctx, agents)
 	if err != nil {
 		return []reconcile.Request{}
 	}
 
 	requests := []reconcile.Request{}
-	seen := map[string]struct{}{}
-	for _, agt := range agents.Items {
-		referenced := slices.Contains(agt.Spec.Skills, ref)
+	for i := range agents.Items {
+		agt := &agents.Items[i]
+		referenced := false
+		for _, ref := range agt.Spec.Skills {
+			ns, err := scoperesolver.SelectedNamespace(
+				ctx, r.Client, agt.Namespace, ref.Scope,
+				agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
+			)
+			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
+				referenced = true
+				break
+			}
+		}
 		if !referenced {
-			_, referenced = sandboxRefs[agt.Spec.SandboxRef.Name]
+			ns, err := scoperesolver.SelectedNamespace(
+				ctx,
+				r.Client,
+				agt.Namespace,
+				agt.Spec.SandboxRef.Scope,
+				agentzv1alpha1.OrganizationResourceKindSandbox,
+				agt.Spec.SandboxRef.Name,
+			)
+			if err == nil {
+				sandbox := &agentzv1alpha1.Sandbox{}
+				err = r.Get(ctx, client.ObjectKey{
+					Namespace: ns,
+					Name:      agt.Spec.SandboxRef.Name,
+				}, sandbox)
+				if err == nil {
+					for _, ref := range sandbox.Spec.Skills {
+						skillNamespace, err := scoperesolver.SelectedNamespace(
+							ctx, r.Client, sandbox.Namespace, ref.Scope,
+							agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
+						)
+						if err == nil && skillNamespace == skill.Namespace && ref.Name == skill.Name {
+							referenced = true
+							break
+						}
+					}
+				}
+			}
 		}
 		if !referenced {
 			continue
 		}
-		if _, ok := seen[agt.Name]; ok {
-			continue
-		}
-		seen[agt.Name] = struct{}{}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      agt.Name,

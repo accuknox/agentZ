@@ -110,9 +110,6 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		writeInternalError(w, r, fmt.Errorf("list skills: %w", err))
 		return
 	}
-	slices.SortFunc(skillList.Items, func(a, b agentzv1alpha1.Skill) int {
-		return strings.Compare(a.Name, b.Name)
-	})
 	refsBySkill, err := s.listSkillReferences(r.Context(), ns)
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -128,6 +125,20 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		}
 		items = append(items, skillFromCRD(item, refsBySkill[item.Name], access))
 	}
+	if workspaceID != "" {
+		organizationItems, err := s.listInheritedSkills(r.Context(), access, effective)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		items = append(items, organizationItems...)
+	}
+	slices.SortFunc(items, func(a, b gatewayapi.Skill) int {
+		if a.Name != b.Name {
+			return strings.Compare(a.Name, b.Name)
+		}
+		return strings.Compare(string(a.Scope), string(b.Scope))
+	})
 
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
@@ -141,6 +152,47 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		Skills:        page,
 		NextPageToken: next,
 	})
+}
+
+func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess, effective map[string]struct{}) ([]gatewayapi.Skill, error) {
+	selected, err := s.selectedOrganizationResourceNames(
+		ctx,
+		access.workspaceID,
+		access.claims.TenantID,
+		agentzv1alpha1.OrganizationResourceKindSkill,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(selected) == 0 {
+		return []gatewayapi.Skill{}, nil
+	}
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		access.claims.TenantID,
+	)
+	skills := &agentzv1alpha1.SkillList{}
+	if err := s.k8sClient.List(ctx, skills, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+		return nil, fmt.Errorf("list inherited Organisation Skills: %w", err)
+	}
+	items := make([]gatewayapi.Skill, 0, len(skills.Items))
+	organizationAccess := access
+	organizationAccess.workspaceID = ""
+	for _, item := range skills.Items {
+		if _, ok := selected[item.Name]; !ok {
+			continue
+		}
+		if effective != nil {
+			if _, ok := effective[item.Name]; !ok {
+				continue
+			}
+		}
+		skill := skillFromCRD(item, gatewayapi.SkillReferences{}, organizationAccess)
+		skill.CanModify = false
+		skill.CanDelete = false
+		items = append(items, skill)
+	}
+	return items, nil
 }
 
 // CreateSkill handles POST /api/skill.
@@ -265,7 +317,7 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		))
 		return
 	}
-	_, err = s.skillStore.VersionSummary(r.Context(), ns, skillName, req.Version)
+	_, err := s.skillStore.VersionSummary(r.Context(), ns, skillName, req.Version)
 	if errors.Is(err, fs.ErrNotExist) {
 		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "immutable skill version not found", err))
 		return
@@ -345,6 +397,18 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 		))
 		return
 	}
+	conflict, err := s.selectedOrganizationResourceConflict(
+		r.Context(), access, agentzv1alpha1.OrganizationResourceKindSkill, skillName,
+	)
+	if err != nil || conflict != nil {
+		auditErr := s.createSkillAudit(r.Context(), r, access, skillName, gatewaydb.AuditResultFailed)
+		if err != nil || auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
+		writeError(w, r, conflict)
+		return
+	}
 
 	skill := &agentzv1alpha1.Skill{}
 	skill.Name = skillName
@@ -412,6 +476,7 @@ func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences, a
 	creator := skill.Spec.CreatorUserID == access.claims.UserID &&
 		access.effective.Allows(scope, authorization.OperationCreateSkill)
 	return gatewayapi.Skill{
+		Scope:       resourceScope(access.workspaceID),
 		Name:        skill.Name,
 		CanModify:   access.effective.Allows(scope, authorization.OperationUpdateSkill) || creator,
 		CanDelete:   access.effective.Allows(scope, authorization.OperationDeleteSkill) || creator,
@@ -588,11 +653,13 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 		if len(itemFields) > 0 {
 			continue
 		}
-		ns, err := scoperesolver.Namespace(
+		ns, err := scoperesolver.SelectedNamespace(
 			ctx,
 			s.k8sClient,
 			namespace,
 			agentzv1alpha1.ResourceScope(ref.Scope),
+			agentzv1alpha1.OrganizationResourceKindSkill,
+			name,
 		)
 		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
@@ -787,9 +854,9 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request, params ga
 		writeInternalError(w, r, err)
 		return
 	}
-	err = s.importImmutableSkills(r, ns, bundle, decisions, access, capabilities.skill.Modify)
-	if err != nil {
-		writeError(w, r, err)
+	importErr := s.importImmutableSkills(r, ns, bundle, decisions, access, capabilities.skill.Modify)
+	if importErr != nil {
+		writeError(w, r, importErr)
 		return
 	}
 	audited = true
@@ -1311,19 +1378,33 @@ func (s *Service) ExportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	names, ok := validateRequestedSkillNames(w, r, req.SkillNames)
-	if !ok {
-		return
-	}
-	selections := make([]skill.VersionSelection, 0, len(names))
-	for _, name := range names {
+	selections := make([]skill.VersionSelection, 0, len(req.Skills))
+	for _, ref := range req.Skills {
+		name := ref.Name
+		if fields := validateSkillName("skills.name", name); len(fields) > 0 {
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest, "invalid_request",
+				"request validation failed", errBadRequest, fields...,
+			))
+			return
+		}
+		ns, err := scoperesolver.SelectedNamespace(
+			r.Context(), s.k8sClient, access.namespace,
+			agentzv1alpha1.ResourceScope(ref.Scope),
+			agentzv1alpha1.OrganizationResourceKindSkill,
+			name,
+		)
+		if err != nil {
+			writeError(w, r, resourceForbidden(err))
+			return
+		}
 		item := &agentzv1alpha1.Skill{}
 		key := types.NamespacedName{Namespace: ns, Name: name}
 		if err := s.k8sClient.Get(r.Context(), key, item); err != nil {
 			writeError(w, r, mapKubeHTTPError("get immutable skill", err))
 			return
 		}
-		_, err := s.skillStore.VersionSummary(r.Context(), ns, name, item.Spec.Version)
+		_, err = s.skillStore.VersionSummary(r.Context(), ns, name, item.Spec.Version)
 		if err != nil {
 			writeInternalError(w, r, fmt.Errorf("inspect immutable skill export: %w", err))
 			return

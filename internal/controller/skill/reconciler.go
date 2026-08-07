@@ -19,15 +19,12 @@ package skill
 import (
 	"context"
 	"fmt"
-	"slices"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -42,8 +39,7 @@ type Reconciler struct {
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills/finalizers,verbs=update
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents;sandboxes;workspaces,verbs=get;list;watch
 
 // Reconcile keeps immutable Skill deletion and references consistent.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -57,8 +53,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if !ctrlutil.ContainsFinalizer(skill, skillFinalizer) {
 			return ctrl.Result{}, nil
 		}
-		if err := r.detachReferences(ctx, skill); err != nil {
-			return ctrl.Result{}, fmt.Errorf("detach skill references: %w", err)
+		consumer, err := r.referencingConsumer(ctx, skill)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("check skill references: %w", err)
+		}
+		if consumer != "" {
+			return ctrl.Result{}, fmt.Errorf("skill is still referenced by %s", consumer)
 		}
 		store, err := skillpkg.New(ctx, r.StoreConfig)
 		if err != nil {
@@ -87,70 +87,39 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) detachReferences(ctx context.Context, skill *agentzv1alpha1.Skill) error {
-	ref := agentzv1alpha1.ResourceReference{
-		Scope: agentzv1alpha1.ResourceScopeOrganisation,
-		Name:  skill.Name,
-	}
+func (r *Reconciler) referencingConsumer(ctx context.Context, skill *agentzv1alpha1.Skill) (string, error) {
 	agents := &agentzv1alpha1.AgentList{}
-	if err := r.List(ctx, agents, client.InNamespace(skill.Namespace)); err != nil {
-		return fmt.Errorf("list agents: %w", err)
+	if err := r.List(ctx, agents); err != nil {
+		return "", fmt.Errorf("list agents: %w", err)
 	}
-	for _, item := range agents.Items {
-		if !slices.Contains(item.Spec.Skills, ref) {
-			continue
-		}
-		key := types.NamespacedName{Name: item.Name, Namespace: item.Namespace}
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			agt := &agentzv1alpha1.Agent{}
-			if err := r.Get(ctx, key, agt); err != nil {
-				return client.IgnoreNotFound(err)
+	for i := range agents.Items {
+		for _, ref := range agents.Items[i].Spec.Skills {
+			ns, err := scoperesolver.SelectedNamespace(
+				ctx, r.Client, agents.Items[i].Namespace, ref.Scope,
+				agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
+			)
+			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
+				return fmt.Sprintf("Agent %q", agents.Items[i].Name), nil
 			}
-			next := slices.DeleteFunc(append([]agentzv1alpha1.ResourceReference{}, agt.Spec.Skills...), func(item agentzv1alpha1.ResourceReference) bool {
-				return item == ref
-			})
-			if len(next) == len(agt.Spec.Skills) {
-				return nil
-			}
-			agt.Spec.Skills = next
-			return r.Update(ctx, agt)
-		})
-		if err != nil {
-			return fmt.Errorf("detach skill from agent %q: %w", item.Name, err)
 		}
 	}
 
 	sandboxes := &agentzv1alpha1.SandboxList{}
-	if err := r.List(ctx, sandboxes, client.InNamespace(skill.Namespace)); err != nil {
-		return fmt.Errorf("list sandboxes: %w", err)
+	if err := r.List(ctx, sandboxes); err != nil {
+		return "", fmt.Errorf("list sandboxes: %w", err)
 	}
-	for _, item := range sandboxes.Items {
-		if !slices.Contains(item.Spec.Skills, ref) {
-			continue
-		}
-		key := types.NamespacedName{Name: item.Name, Namespace: item.Namespace}
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			sandbox := &agentzv1alpha1.Sandbox{}
-			if err := r.Get(ctx, key, sandbox); err != nil {
-				if errors.IsNotFound(err) {
-					return nil
-				}
-				return err
+	for i := range sandboxes.Items {
+		for _, ref := range sandboxes.Items[i].Spec.Skills {
+			ns, err := scoperesolver.SelectedNamespace(
+				ctx, r.Client, sandboxes.Items[i].Namespace, ref.Scope,
+				agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
+			)
+			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
+				return fmt.Sprintf("Sandbox %q", sandboxes.Items[i].Name), nil
 			}
-			next := slices.DeleteFunc(append([]agentzv1alpha1.ResourceReference{}, sandbox.Spec.Skills...), func(item agentzv1alpha1.ResourceReference) bool {
-				return item == ref
-			})
-			if len(next) == len(sandbox.Spec.Skills) {
-				return nil
-			}
-			sandbox.Spec.Skills = next
-			return r.Update(ctx, sandbox)
-		})
-		if err != nil {
-			return fmt.Errorf("detach skill from sandbox %q: %w", item.Name, err)
 		}
 	}
-	return nil
+	return "", nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

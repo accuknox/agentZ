@@ -86,6 +86,9 @@ func TestReconcileDeletionFindsOrganisationSandboxAgentAcrossWorkspaces(t *testi
 			Spec: agentzv1alpha1.WorkspaceSpec{
 				WorkspaceID:    workspaceID,
 				OrganizationID: organizationID,
+				SelectedOrganizationResources: agentzv1alpha1.SelectedOrganizationResources{
+					Sandboxes: []string{sandboxName},
+				},
 			},
 		},
 		&agentzv1alpha1.Agent{

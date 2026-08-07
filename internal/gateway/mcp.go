@@ -64,6 +64,20 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 		writeMCPInternalError(w, r, err)
 		return
 	}
+	if workspaceID != "" {
+		inherited, err := s.listInheritedMCPConnectionSummaries(r.Context(), access)
+		if err != nil {
+			writeMCPInternalError(w, r, err)
+			return
+		}
+		items = append(items, inherited...)
+	}
+	slices.SortFunc(items, func(a, b gatewayapi.MCPConnectionSummary) int {
+		if a.Name != b.Name {
+			return strings.Compare(a.Name, b.Name)
+		}
+		return strings.Compare(string(a.Scope), string(b.Scope))
+	})
 
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
@@ -77,6 +91,40 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, access mcpAccess) ([]gatewayapi.MCPConnectionSummary, error) {
+	selected, err := s.selectedOrganizationResourceNames(
+		ctx,
+		access.workspaceID,
+		access.claims.TenantID,
+		agentzv1alpha1.OrganizationResourceKindMCPConnection,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(selected) == 0 {
+		return []gatewayapi.MCPConnectionSummary{}, nil
+	}
+	organizationAccess := access
+	organizationAccess.workspaceID = ""
+	organizationAccess.namespace = agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		access.claims.TenantID,
+	)
+	items, err := s.listMCPConnectionSummaries(organizationAccess, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]gatewayapi.MCPConnectionSummary, 0, len(items))
+	for _, item := range items {
+		if _, ok := selected[item.Name]; !ok {
+			continue
+		}
+		item.CanDelete = false
+		out = append(out, item)
+	}
+	return out, nil
 }
 
 // WatchMCPConnections handles POST /api/mcp-connection/watch.
@@ -101,10 +149,10 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 
 	names := []string{}
 	nameFilter := map[string]struct{}{}
-	if req.Names != nil {
-		names = make([]string, 0, len(*req.Names))
-		for _, rawName := range *req.Names {
-			name := strings.TrimSpace(rawName)
+	if req.Connections != nil {
+		names = make([]string, 0, len(*req.Connections))
+		for _, ref := range *req.Connections {
+			name := strings.TrimSpace(ref.Name)
 			fields := validateMCPConnectionName(name, "names")
 			if len(fields) > 0 {
 				writeError(w, r, newAPIError(
@@ -436,6 +484,18 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 		}
 		return
 	}
+	conflict, err := s.selectedOrganizationResourceConflict(
+		r.Context(), access, agentzv1alpha1.OrganizationResourceKindMCPConnection, name,
+	)
+	if err != nil || conflict != nil {
+		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
+		if err != nil || auditErr != nil {
+			writeInternalError(w, r, errors.Join(err, auditErr))
+			return
+		}
+		writeError(w, r, conflict)
+		return
+	}
 
 	referrers, err := s.referencingSandboxes(r.Context(), access.namespace, conn.Name)
 	if err != nil {
@@ -556,6 +616,7 @@ func (s *Service) listMCPConnectionSummaries(access mcpAccess, names []string) (
 func (s *Service) mcpConnectionSummary(access mcpAccess, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
 	status, reason, message := s.mcpConnectionStatus(conn)
 	return gatewayapi.MCPConnectionSummary{
+		Scope:            resourceScope(access.workspaceID),
 		CanDelete:        mcpCanDelete(access, conn),
 		Name:             conn.Name,
 		AuthMode:         conn.Status.AuthMode,
@@ -625,6 +686,7 @@ func (s *Service) mcpConnectionDetail(access mcpAccess, conn agentzv1alpha1.MCPC
 		tools = append(tools, gatewayapi.MCPConnectionTool{Name: tool.Name})
 	}
 	return gatewayapi.MCPConnectionDetail{
+		Scope:            resourceScope(access.workspaceID),
 		CanDelete:        mcpCanDelete(access, conn),
 		Name:             conn.Name,
 		CreatedAt:        conn.CreationTimestamp.Time,

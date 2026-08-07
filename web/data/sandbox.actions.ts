@@ -1,5 +1,6 @@
 "use server"
 
+import type { Route } from "next"
 import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
 import {
@@ -255,7 +256,7 @@ export async function deleteSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect(scope.basePath)
+  redirect(scope.basePath as Route)
 }
 
 export async function createSandboxFormAction(
@@ -308,7 +309,7 @@ export async function createSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect(scope.basePath)
+  redirect(scope.basePath as Route)
 }
 
 export async function updateSandboxFormAction(
@@ -364,7 +365,7 @@ export async function updateSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect(scope.basePath)
+  redirect(scope.basePath as Route)
 }
 
 function invalidSandboxFormState(error: z.ZodError): CreateSandboxFormState {

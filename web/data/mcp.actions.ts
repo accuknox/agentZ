@@ -1,5 +1,6 @@
 "use server"
 
+import type { Route } from "next"
 import { updateTag } from "next/cache"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
@@ -254,5 +255,5 @@ export async function deleteScopedMcpFormAction(
   }
 
   updateTag(mcpsTag)
-  redirect(scope.basePath)
+  redirect(scope.basePath as Route)
 }

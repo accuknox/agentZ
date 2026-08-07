@@ -16,9 +16,15 @@ import {
   saveWorkspaceRole,
 } from "@/data/roles"
 import { deleteTeam, previewTeamAccess, saveTeam } from "@/data/teams"
-import { provisionWorkspace, retryWorkspaceProvisioning } from "@/data/workspaces"
+import {
+  provisionWorkspace,
+  replaceWorkspaceInheritedResourceSelection,
+  retryWorkspaceProvisioning,
+} from "@/data/workspaces"
 import { schema } from "@/db"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
+import { zReplaceWorkspaceInheritedResourcesRequest } from "@/lib/gateway/client/zod.gen"
+import type { InheritedResourceType } from "@/lib/gateway/client"
 
 const renameOrganizationSchema = z.object({
   name: z
@@ -157,6 +163,12 @@ export async function createWorkspaceAction(
   const parsed = zCreateWorkspaceRequest.safeParse({
     admin_member_ids: formData.getAll("admin_member_ids"),
     name: formData.get("name"),
+    selected_organization_resources: {
+      skills: formData.getAll("inherited_skills"),
+      sandboxes: formData.getAll("inherited_sandboxes"),
+      mcp_connections: formData.getAll("inherited_mcp_connections"),
+      inference_providers: formData.getAll("inherited_inference_providers"),
+    },
   })
   if (!parsed.success) {
     const fields = z.flattenError(parsed.error).fieldErrors
@@ -178,6 +190,37 @@ export async function createWorkspaceAction(
 
   revalidatePath(`/orgs/${orgSlug}`, "layout")
   redirect(`/orgs/${orgSlug}/workspaces/${result.data.slug}` as Route)
+}
+
+export type WorkspaceInheritanceFormState = { error?: string }
+
+export async function replaceWorkspaceInheritanceAction(
+  orgSlug: string,
+  workspaceSlug: string,
+  resourceType: InheritedResourceType,
+  _state: WorkspaceInheritanceFormState,
+  formData: FormData
+): Promise<WorkspaceInheritanceFormState> {
+  const parsed = zReplaceWorkspaceInheritedResourcesRequest.safeParse({
+    names: formData.getAll("names"),
+  })
+  if (!parsed.success) {
+    return { error: "The resource selection is invalid. Refresh and try again." }
+  }
+  const result = await replaceWorkspaceInheritedResourceSelection(
+    orgSlug,
+    workspaceSlug,
+    resourceType,
+    parsed.data.names
+  )
+  if (!result) {
+    return { error: "You no longer have permission to manage inherited resources." }
+  }
+  if (result.error) {
+    return { error: result.error.message }
+  }
+  revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/settings/inherited`, "layout")
+  return {}
 }
 
 export async function retryWorkspaceAction(orgSlug: string, workspaceId: string): Promise<void> {
@@ -315,7 +358,7 @@ export async function deleteOrganizationRoleAction(
           : result.error === "immutable"
             ? "Built-in Roles cannot be deleted."
             : "The Role could not be deleted.",
-      references: result.references,
+      references: result.error === "referenced" ? result.references : undefined,
     }
   }
 
@@ -453,7 +496,7 @@ export async function deleteWorkspaceRoleAction(
           : result.error === "immutable"
             ? "Built-in Roles cannot be deleted."
             : "The Workspace Role could not be deleted.",
-      references: result.references,
+      references: result.error === "referenced" ? result.references : undefined,
     }
   }
 

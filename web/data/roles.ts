@@ -466,7 +466,7 @@ export async function assignOrganizationRoleUsers(
   if (scope) return assignRoleUsers(scope, roleId, memberIds)
   const denied = await getDeniedRoleActor(orgSlug)
   if (denied) await auditRoleMutation(denied, "role.assign", roleId, "denied")
-  return { error: "forbidden" }
+  return { error: "forbidden" as const }
 }
 
 export async function deleteOrganizationRole(orgSlug: string, roleId: string) {
@@ -474,7 +474,7 @@ export async function deleteOrganizationRole(orgSlug: string, roleId: string) {
   if (scope) return removeRole(scope, roleId)
   const denied = await getDeniedRoleActor(orgSlug)
   if (denied) await auditRoleMutation(denied, "role.delete", roleId, "denied")
-  return { error: "forbidden" }
+  return { error: "forbidden" as const }
 }
 
 async function getWorkspaceRoleActor(
@@ -722,7 +722,7 @@ async function listRoles(scope: RoleManagement) {
   })
 }
 
-async function loadRoleEditor(scope: RoleManagement, roleId?: string) {
+async function loadRoleEditor(scope: RoleManagement, roleId?: string): Promise<RoleEditorData> {
   const workspaces = scope.workspace
     ? [scope.workspace]
     : await getDB()
@@ -1530,7 +1530,7 @@ export async function assignWorkspaceRoleUsers(
   if (denied) {
     await auditRoleMutation(denied, "workspace_role.assign", roleId, "denied", denied.workspace.id)
   }
-  return { error: "forbidden" }
+  return { error: "forbidden" as const }
 }
 
 export async function deleteWorkspaceRole(orgSlug: string, workspaceSlug: string, roleId: string) {
@@ -1540,5 +1540,5 @@ export async function deleteWorkspaceRole(orgSlug: string, workspaceSlug: string
   if (denied) {
     await auditRoleMutation(denied, "workspace_role.delete", roleId, "denied", denied.workspace.id)
   }
-  return { error: "forbidden" }
+  return { error: "forbidden" as const }
 }

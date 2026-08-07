@@ -52,7 +52,14 @@ export function createSandboxColumns(
       cell: ({ row }) => {
         const sandbox = row.original
 
-        return <span className="font-medium">{sandbox.name}</span>
+        return (
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium">{sandbox.name}</span>
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {sandbox.scope === "Organisation" ? `Organisation / ${sandbox.name}` : "Local"}
+            </span>
+          </span>
+        )
       },
     },
     {

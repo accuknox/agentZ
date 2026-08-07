@@ -18,5 +18,11 @@ export default async function NewWorkspacePage({
     return <AdministrationState kind="forbidden" />
   }
 
-  return <WorkspaceForm candidates={result.candidates} orgSlug={result.scope.organization.slug} />
+  return (
+    <WorkspaceForm
+      candidates={result.candidates}
+      orgSlug={result.scope.organization.slug}
+      resources={result.resources}
+    />
+  )
 }

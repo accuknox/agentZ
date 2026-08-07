@@ -167,6 +167,11 @@ export function InferenceProviderTable({
           <div className="flex min-w-0 items-center gap-2">
             <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
             <span className="min-w-0 truncate font-medium">{row.original.display_name}</span>
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {row.original.scope === "Organisation"
+                ? `Organisation / ${row.original.id}`
+                : "Local"}
+            </span>
           </div>
         ),
       },

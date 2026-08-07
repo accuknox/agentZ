@@ -87,6 +87,12 @@ export default async function WorkspaceLayout({
       { href: `${root}/audit` as Route, label: "Audit" }
     )
   }
+  if (result.scope.organization.superadmin) {
+    tabs.push({
+      href: `${root}/settings/inherited` as Route,
+      label: "Inherited Resources",
+    })
+  }
   if (result.workspace.skill_capabilities.read) {
     tabs.push({ href: `${root}/skills` as Route, label: "Skills" })
   }

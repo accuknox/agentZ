@@ -490,6 +490,7 @@ export async function getInferenceProviderUsageAction(
   }
   const result = await getInferenceProviderUsage({
     path: { providerName: parsed.data },
+    query: { scope: scope.workspaceId ? "Workspace" : "Organisation" },
     client: getGatewayServerClient(scope.workspaceId),
     headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
   })
@@ -554,6 +555,7 @@ export async function refreshInferenceProviderModelsAction(
   }
   const result = await refreshInferenceProviderModels({
     path: { providerName: parsed.data },
+    query: { scope: scope.workspaceId ? "Workspace" : "Organisation" },
     client: getGatewayServerClient(scope.workspaceId),
     headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
   })

@@ -14,6 +14,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
+import type { Route } from "next"
 import Link from "next/link"
 import {
   ArrowLeft,
@@ -760,7 +761,9 @@ function PoolViewSheet({
                   {query.data.usage.sandboxes.map((sandbox) => (
                     <Link
                       key={sandbox}
-                      href={`${scope.basePath}/sandboxes/update/${encodeURIComponent(sandbox)}`}
+                      href={
+                        `${scope.basePath}/sandboxes/update/${encodeURIComponent(sandbox)}` as Route
+                      }
                       className="hover:bg-accent focus-visible:ring-ring flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2"
                     >
                       <span className="break-anywhere min-w-0">{sandbox}</span>

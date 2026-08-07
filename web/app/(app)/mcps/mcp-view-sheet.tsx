@@ -59,6 +59,7 @@ export function McpViewSheet({
         const result = await getMcpConnection({
           baseUrl: await getGatewayBaseURL(),
           path: { name },
+          query: { scope: workspaceId ? "Workspace" : "Organisation" },
           headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
         })
         if (result.error) {

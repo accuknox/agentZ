@@ -72,7 +72,10 @@ const watchMcpConnectionsQueryOptions = (
         const result = await watchMcpConnections({
           baseUrl: await getGatewayBaseURL(),
           body: {
-            names: connectionNames,
+            connections: connectionNames.map((name) => ({
+              name,
+              scope: workspaceId ? "Workspace" : "Organisation",
+            })),
           },
           signal,
           headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
@@ -93,7 +96,6 @@ export function McpTable({
   hasNextPage,
   nextPageToken,
   deleteMcpAction,
-  scopeLabel,
   workspaceId,
 }: {
   mcpConnections: McpConnectionSummary[]
@@ -104,7 +106,6 @@ export function McpTable({
     state: DeleteMcpFormState,
     formData: FormData
   ) => Promise<DeleteMcpFormState>
-  scopeLabel?: "Local" | `Inherited from ${string}`
   workspaceId?: string
 }) {
   "use no memo"
@@ -124,10 +125,9 @@ export function McpTable({
     () =>
       createMcpColumns({
         deleteMcpAction,
-        scopeLabel,
         onViewAction: setViewConnectionName,
       }),
-    [deleteMcpAction, scopeLabel]
+    [deleteMcpAction]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

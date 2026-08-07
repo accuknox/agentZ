@@ -62,7 +62,6 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
-  scopeLabel?: "Local" | `Inherited from ${string}`
   onViewAction: (name: string) => void
   deleteMcpAction: (
     name: string,
@@ -83,7 +82,7 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <McpNameCell connection={row.original} scopeLabel={actions.scopeLabel} />,
+      cell: ({ row }) => <McpNameCell connection={row.original} />,
     },
     {
       id: "auth_mode",
@@ -138,13 +137,7 @@ export function createMcpColumns(actions: {
   ]
 }
 
-function McpNameCell({
-  connection,
-  scopeLabel,
-}: {
-  connection: McpConnectionSummary
-  scopeLabel?: "Local" | `Inherited from ${string}`
-}) {
+function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       {renderMcpServerIcon(connection.endpoint_url, {
@@ -152,9 +145,9 @@ function McpNameCell({
         className: "size-4 shrink-0",
       })}
       <span className="min-w-0 truncate font-medium">{connection.name}</span>
-      {scopeLabel ? (
-        <span className="text-muted-foreground shrink-0 text-xs">{scopeLabel}</span>
-      ) : null}
+      <span className="text-muted-foreground shrink-0 text-xs">
+        {connection.scope === "Organisation" ? `Organisation / ${connection.name}` : "Local"}
+      </span>
     </div>
   )
 }

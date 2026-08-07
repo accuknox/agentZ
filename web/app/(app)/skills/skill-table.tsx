@@ -59,7 +59,6 @@ export function SkillTable({
   loading,
   nextPageToken,
   selected,
-  scopeLabel,
   setDeleteNames,
   setSelected,
   onEdit,
@@ -72,7 +71,6 @@ export function SkillTable({
   loading: boolean
   nextPageToken: string
   selected: Set<string>
-  scopeLabel?: "Local" | `Inherited from ${string}`
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
   onEdit: (skill: ImmutableSkill) => void
@@ -87,13 +85,12 @@ export function SkillTable({
       createSkillColumns({
         exporting,
         selected,
-        scopeLabel,
         setDeleteNames,
         setSelected,
         onEdit,
         onExport,
       }),
-    [exporting, onEdit, onExport, selected, scopeLabel, setDeleteNames, setSelected]
+    [exporting, onEdit, onExport, selected, setDeleteNames, setSelected]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -196,7 +193,6 @@ export function SkillTable({
 function createSkillColumns({
   exporting,
   selected,
-  scopeLabel,
   setDeleteNames,
   setSelected,
   onEdit,
@@ -204,7 +200,6 @@ function createSkillColumns({
 }: {
   exporting: boolean
   selected: Set<string>
-  scopeLabel?: "Local" | `Inherited from ${string}`
   setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
   onEdit: (skill: ImmutableSkill) => void
@@ -263,9 +258,11 @@ function createSkillColumns({
           <span className="truncate font-medium" title={row.original.name}>
             {row.original.name}
           </span>
-          {scopeLabel ? (
-            <span className="text-muted-foreground shrink-0 text-xs">{scopeLabel}</span>
-          ) : null}
+          <span className="text-muted-foreground shrink-0 text-xs">
+            {row.original.scope === "Organisation"
+              ? `Organisation / ${row.original.name}`
+              : "Local"}
+          </span>
         </span>
       ),
     },

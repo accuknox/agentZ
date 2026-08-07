@@ -87,7 +87,6 @@ async function Connections({
         organizationId,
         workspaceId,
       })}
-      scopeLabel="Local"
       workspaceId={workspaceId}
     />
   )

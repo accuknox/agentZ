@@ -598,6 +598,7 @@ function McpToolsPanel({
         const result = await getMcpConnection({
           baseUrl: await getGatewayBaseURL(),
           path: { name: connection.name },
+          query: { scope: connection.scope },
         })
         if (result.error) {
           throw new Error(result.error.message)
@@ -790,6 +791,7 @@ function McpStep({
           const result = await getMcpConnection({
             baseUrl: await getGatewayBaseURL(),
             path: { name: connection.name },
+            query: { scope: connection.scope },
           })
           if (result.error || !result.data.tool_catalog_ready) {
             return

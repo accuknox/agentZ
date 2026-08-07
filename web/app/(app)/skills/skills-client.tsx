@@ -119,7 +119,12 @@ export function SkillsClient({
     setExporting(true)
     try {
       const result = await exportImmutableSkills({
-        body: { skill_names: skillNames },
+        body: {
+          skills: skillNames.map((name) => ({
+            name,
+            scope: workspaceId ? "Workspace" : "Organisation",
+          })),
+        },
         headers: scopeHeaders,
       })
       if (result.error) {
@@ -194,7 +199,6 @@ export function SkillsClient({
         loading={query.isPending}
         nextPageToken={query.data?.nextPageToken ?? ""}
         selected={selected}
-        scopeLabel="Local"
         setDeleteNames={setDeleteNames}
         setSelected={setSelected}
         onEdit={setEditingSkill}
@@ -311,6 +315,7 @@ function EditSkillDialog({
     ...listImmutableSkillVersionsOptions({
       headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
       path: { skillName: skill?.name ?? "" },
+      query: { scope: workspaceId ? "Workspace" : "Organisation" },
     }),
     enabled: open && Boolean(skill?.name),
   })

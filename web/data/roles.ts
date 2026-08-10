@@ -1134,6 +1134,12 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
   const { actor, workspace } = scope
   const selected = [...new Set(memberIds)]
   return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+
     const [role] = await tx
       .select({ systemRole: schema.roleScopes.systemRole })
       .from(schema.roleScopes)

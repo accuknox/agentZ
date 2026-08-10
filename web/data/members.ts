@@ -3,16 +3,19 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 import { getIp } from "better-auth/api"
 import { APIError } from "@better-auth/core/error"
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, exists, gt, inArray, isNull, or, sql } from "drizzle-orm"
 import { headers } from "next/headers"
+import { cache } from "react"
 import { getDB, schema } from "@/db"
 import { getOrganizationSession, resolveOrganizationSlug } from "@/data/organizations"
+import { analyzeDestructiveImpact, type DestructiveTarget } from "@/data/operations"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
 
 export type MemberTab = "active" | "invited" | "disabled"
 
 export type MemberDirectory = {
+  actorUserId: string
   organization: { id: string; name: string; slug: string }
   active: ActiveMember[]
   disabled: ActiveMember[]
@@ -52,6 +55,28 @@ export type InvitationRow = {
 
 export type AssignmentOption = { id: string; name: string }
 
+export type MemberAdministration = {
+  organization: { id: string; name: string; slug: string }
+  member: ActiveMember
+  self: boolean
+  agents: { name: string; workspace: string; workspaceSlug: string; updatedAt: string }[]
+  apiKeys: {
+    id: string
+    name: string
+    workspace: string
+    workspaceSlug: string
+    createdAt: string
+    revokedAt: string | null
+  }[]
+  activity: {
+    id: string
+    action: string
+    actor: string
+    createdAt: string
+    result: typeof schema.auditEvents.$inferSelect.result
+  }[]
+}
+
 export type SocialAdmission = {
   organization: { id: string; name: string; slug: string }
   enabled: boolean
@@ -68,6 +93,42 @@ type Actor = {
   headers: Headers
   organization: { id: string; name: string; slug: string }
   userId: string
+}
+
+type MembershipDatabase = Pick<ReturnType<typeof getDB>, "select">
+
+async function hasActiveSuperadminAuthority(
+  db: MembershipDatabase,
+  organizationId: string,
+  userId: string
+) {
+  const [authority] = await db
+    .select({ memberId: schema.members.id })
+    .from(schema.members)
+    .innerJoin(
+      schema.memberRoles,
+      and(
+        eq(schema.memberRoles.memberId, schema.members.id),
+        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.roleScopes,
+      and(
+        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.members.organizationId, organizationId),
+        eq(schema.members.userId, userId),
+        isNull(schema.members.disabledAt),
+        eq(schema.roleScopes.systemRole, "superadmin")
+      )
+    )
+    .limit(1)
+  return authority !== undefined
 }
 
 async function superadminActor(orgSlug: string): Promise<Actor | undefined> {
@@ -120,7 +181,8 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
       .from(schema.members)
       .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
       .where(eq(schema.members.organizationId, actor.organization.id))
-      .orderBy(asc(schema.users.name), asc(schema.users.email)),
+      .orderBy(asc(schema.users.name), asc(schema.users.email))
+      .limit(500),
     db
       .select({
         id: schema.invitations.id,
@@ -137,17 +199,20 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
           eq(schema.invitations.status, "pending")
         )
       )
-      .orderBy(desc(schema.invitations.createdAt), desc(schema.invitations.id)),
+      .orderBy(desc(schema.invitations.createdAt), desc(schema.invitations.id))
+      .limit(500),
     db
       .select({ id: schema.roleScopes.roleId, name: schema.roleScopes.displayName })
       .from(schema.roleScopes)
       .where(eq(schema.roleScopes.organizationId, actor.organization.id))
-      .orderBy(asc(schema.roleScopes.displayName), asc(schema.roleScopes.roleId)),
+      .orderBy(asc(schema.roleScopes.displayName), asc(schema.roleScopes.roleId))
+      .limit(500),
     db
       .select({ id: schema.teams.id, name: schema.teams.name })
       .from(schema.teams)
       .where(eq(schema.teams.organizationId, actor.organization.id))
-      .orderBy(asc(schema.teams.name), asc(schema.teams.id)),
+      .orderBy(asc(schema.teams.name), asc(schema.teams.id))
+      .limit(500),
   ])
 
   const memberIds = members.map((member) => member.id)
@@ -283,6 +348,7 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
   const now = Date.now()
   return {
     active,
+    actorUserId: actor.userId,
     disabled,
     invited: invitations.map((invitation) => ({
       ...invitation,
@@ -300,6 +366,109 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
     teams: teamRows,
   }
 }
+
+export const getMemberAdministration = cache(
+  async (orgSlug: string, memberId: string): Promise<MemberAdministration | null | undefined> => {
+    const directory = await getMemberDirectory(orgSlug)
+    if (!directory) return
+    const member = [...directory.active, ...directory.disabled].find(
+      (candidate) => candidate.id === memberId
+    )
+    if (!member) return null
+
+    const db = getDB()
+    const [agents, apiKeys, activity] = await Promise.all([
+      db
+        .select({
+          name: schema.agentOwners.agentName,
+          updatedAt: schema.agentOwners.updatedAt,
+          workspace: schema.workspaces.name,
+          workspaceSlug: schema.workspaces.slug,
+        })
+        .from(schema.agentOwners)
+        .innerJoin(
+          schema.workspaces,
+          and(
+            eq(schema.workspaces.id, schema.agentOwners.workspaceId),
+            eq(schema.workspaces.organizationId, schema.agentOwners.organizationId)
+          )
+        )
+        .where(
+          and(
+            eq(schema.agentOwners.organizationId, directory.organization.id),
+            eq(schema.agentOwners.ownerUserId, member.userId)
+          )
+        )
+        .orderBy(asc(schema.workspaces.name), asc(schema.agentOwners.agentName))
+        .limit(500),
+      db
+        .select({
+          createdAt: schema.apiKeyScopes.createdAt,
+          id: schema.apiKeyScopes.apiKeyId,
+          name: schema.apikeys.name,
+          revokedAt: schema.apiKeyScopes.revokedAt,
+          workspace: schema.workspaces.name,
+          workspaceSlug: schema.workspaces.slug,
+        })
+        .from(schema.apiKeyScopes)
+        .innerJoin(schema.apikeys, eq(schema.apikeys.id, schema.apiKeyScopes.apiKeyId))
+        .innerJoin(
+          schema.workspaces,
+          and(
+            eq(schema.workspaces.id, schema.apiKeyScopes.workspaceId),
+            eq(schema.workspaces.organizationId, schema.apiKeyScopes.organizationId)
+          )
+        )
+        .where(
+          and(
+            eq(schema.apiKeyScopes.organizationId, directory.organization.id),
+            eq(schema.apiKeyScopes.creatorUserId, member.userId)
+          )
+        )
+        .orderBy(desc(schema.apiKeyScopes.createdAt), desc(schema.apiKeyScopes.apiKeyId))
+        .limit(500),
+      db
+        .select({
+          action: schema.auditEvents.action,
+          actor: schema.users.name,
+          createdAt: schema.auditEvents.createdAt,
+          id: schema.auditEvents.id,
+          result: schema.auditEvents.result,
+        })
+        .from(schema.auditEvents)
+        .leftJoin(schema.users, eq(schema.users.id, schema.auditEvents.actorId))
+        .where(
+          and(
+            eq(schema.auditEvents.organizationId, directory.organization.id),
+            eq(schema.auditEvents.targetType, "organization_membership"),
+            eq(schema.auditEvents.targetId, member.id)
+          )
+        )
+        .orderBy(desc(schema.auditEvents.createdAt), desc(schema.auditEvents.id))
+        .limit(100),
+    ])
+
+    return {
+      activity: activity.map(({ actor, createdAt, ...event }) => ({
+        ...event,
+        actor: actor ?? "System",
+        createdAt: createdAt.toISOString(),
+      })),
+      agents: agents.map(({ updatedAt, ...agent }) => ({
+        ...agent,
+        updatedAt: updatedAt.toISOString(),
+      })),
+      apiKeys: apiKeys.map(({ createdAt, revokedAt, ...key }) => ({
+        ...key,
+        createdAt: createdAt.toISOString(),
+        revokedAt: revokedAt?.toISOString() ?? null,
+      })),
+      member,
+      organization: directory.organization,
+      self: directory.actorUserId === member.userId,
+    }
+  }
+)
 
 export async function inviteMember(
   orgSlug: string,
@@ -438,15 +607,23 @@ export async function cancelInvitation(orgSlug: string, invitationId: string) {
   return {}
 }
 
-export async function setMemberDisabled(orgSlug: string, memberId: string, disabled: boolean) {
+export async function restoreMembership(orgSlug: string, memberId: string) {
   const actor = await superadminActor(orgSlug)
   if (!actor) {
     return { error: "forbidden" as const }
   }
 
   return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    if (!authorized) return { error: "forbidden" as const }
+
     const [member] = await tx
-      .select({ id: schema.members.id, userId: schema.members.userId })
+      .select({ disabledAt: schema.members.disabledAt, id: schema.members.id })
       .from(schema.members)
       .where(
         and(
@@ -458,6 +635,109 @@ export async function setMemberDisabled(orgSlug: string, memberId: string, disab
       .limit(1)
     if (!member) {
       return { error: "not-found" as const }
+    }
+    if (!member.disabledAt) {
+      return { error: "already-active" as const }
+    }
+
+    await tx
+      .update(schema.members)
+      .set({ disabledAt: null })
+      .where(
+        and(
+          eq(schema.members.organizationId, actor.organization.id),
+          eq(schema.members.id, member.id)
+        )
+      )
+    await tx.insert(schema.auditEvents).values({
+      action: "membership.restore",
+      actorId: actor.userId,
+      actorType: "user",
+      after: [{ field: "state", value: "active" }],
+      automaticCascade: false,
+      category: "membership",
+      id: `audit-${randomUUID()}`,
+      interface: "web",
+      ipAddress: getIp(actor.headers, getAuth().options),
+      organizationId: actor.organization.id,
+      result: "succeeded",
+      targetId: member.id,
+      targetType: "organization_membership",
+      userAgent: actor.headers.get("user-agent"),
+    })
+    return {}
+  })
+}
+
+export async function removeMembership(
+  orgSlug: string,
+  memberId: string,
+  operation: "membership_disable" | "membership_remove",
+  confirmation: string,
+  fingerprint: string
+) {
+  const actor = await superadminActor(orgSlug)
+  if (!actor) return { error: "forbidden" as const }
+  const target: DestructiveTarget = {
+    operation,
+    targetId: memberId,
+    targetType: "organization_membership",
+  }
+
+  return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    if (!authorized) return { error: "forbidden" as const }
+
+    const [member] = await tx
+      .select({
+        disabledAt: schema.members.disabledAt,
+        id: schema.members.id,
+        userId: schema.members.userId,
+      })
+      .from(schema.members)
+      .where(
+        and(
+          eq(schema.members.id, memberId),
+          eq(schema.members.organizationId, actor.organization.id)
+        )
+      )
+      .for("update")
+      .limit(1)
+    if (!member) return { error: "not-found" as const }
+    if (member.userId === actor.userId) return { error: "self-removal" as const }
+    if (operation === "membership_disable" && member.disabledAt) {
+      return { error: "already-disabled" as const }
+    }
+
+    const ownedAgents = await tx
+      .select({
+        agentName: schema.agentOwners.agentName,
+        workspaceId: schema.agentOwners.workspaceId,
+      })
+      .from(schema.agentOwners)
+      .where(
+        and(
+          eq(schema.agentOwners.organizationId, actor.organization.id),
+          eq(schema.agentOwners.ownerUserId, member.userId)
+        )
+      )
+      .orderBy(asc(schema.agentOwners.workspaceId), asc(schema.agentOwners.agentName))
+      .for("update")
+
+    const impact = await analyzeDestructiveImpact(
+      tx,
+      actor.organization.id,
+      actor.organization.slug,
+      target
+    )
+    if (!impact) return { error: "not-found" as const }
+    if (impact.confirmation !== confirmation || impact.fingerprint !== fingerprint) {
+      return { error: "stale-preview" as const }
     }
 
     const [superadmin] = await tx
@@ -478,9 +758,9 @@ export async function setMemberDisabled(orgSlug: string, memberId: string, disab
         )
       )
       .limit(1)
-    if (disabled && superadmin) {
-      const activeSuperadmins = await tx
-        .selectDistinct({ memberId: schema.members.id })
+    if (superadmin && !member.disabledAt) {
+      const [{ activeSuperadmins }] = await tx
+        .select({ activeSuperadmins: count() })
         .from(schema.members)
         .innerJoin(
           schema.memberRoles,
@@ -503,54 +783,96 @@ export async function setMemberDisabled(orgSlug: string, memberId: string, disab
             eq(schema.roleScopes.systemRole, "superadmin")
           )
         )
-      if (activeSuperadmins.length === 1) {
-        return { error: "final-superadmin" as const }
+      if (activeSuperadmins === 1) return { error: "final-superadmin" as const }
+    }
+
+    const teams = await tx
+      .select({ id: schema.teams.id, name: schema.teams.name })
+      .from(schema.teamMembers)
+      .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+      .where(
+        and(
+          eq(schema.teamMembers.userId, member.userId),
+          eq(schema.teams.organizationId, actor.organization.id)
+        )
+      )
+      .orderBy(asc(schema.teams.name))
+    if (!member.disabledAt && teams.length) {
+      const activeTeams = await tx
+        .select({ activeMembers: count(), teamId: schema.teamMembers.teamId })
+        .from(schema.teamMembers)
+        .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
+        .where(
+          and(
+            inArray(
+              schema.teamMembers.teamId,
+              teams.map((team) => team.id)
+            ),
+            eq(schema.members.organizationId, actor.organization.id),
+            isNull(schema.members.disabledAt)
+          )
+        )
+        .groupBy(schema.teamMembers.teamId)
+      const counts = new Map(activeTeams.map((team) => [team.teamId, team.activeMembers]))
+      const finalTeams = teams.filter((team) => (counts.get(team.id) ?? 0) <= 1)
+      if (finalTeams.length) {
+        return { error: "final-team-member" as const, teams: finalTeams.map((team) => team.name) }
       }
     }
 
     const now = new Date()
-    const ownedAgents = disabled
-      ? await tx
-          .select({
-            agentName: schema.agentOwners.agentName,
-            workspaceId: schema.agentOwners.workspaceId,
-          })
-          .from(schema.agentOwners)
-          .where(
-            and(
-              eq(schema.agentOwners.organizationId, actor.organization.id),
-              eq(schema.agentOwners.ownerUserId, member.userId)
+    const impactedKeys = await tx
+      .selectDistinct({ id: schema.apiKeyScopes.apiKeyId })
+      .from(schema.apiKeyScopes)
+      .innerJoin(
+        schema.apiKeyTargets,
+        eq(schema.apiKeyTargets.apiKeyId, schema.apiKeyScopes.apiKeyId)
+      )
+      .where(
+        and(
+          eq(schema.apiKeyScopes.organizationId, actor.organization.id),
+          isNull(schema.apiKeyScopes.revokedAt),
+          or(
+            eq(schema.apiKeyScopes.creatorUserId, member.userId),
+            exists(
+              tx
+                .select({ ownerUserId: schema.agentOwners.ownerUserId })
+                .from(schema.agentOwners)
+                .where(
+                  and(
+                    eq(schema.agentOwners.organizationId, actor.organization.id),
+                    eq(schema.agentOwners.ownerUserId, member.userId),
+                    eq(schema.agentOwners.workspaceId, schema.apiKeyScopes.workspaceId),
+                    eq(schema.agentOwners.agentName, schema.apiKeyTargets.agentName)
+                  )
+                )
             )
           )
-      : []
-    if (ownedAgents.length) {
-      await tx
-        .delete(schema.agentOwners)
-        .where(
-          and(
-            eq(schema.agentOwners.organizationId, actor.organization.id),
-            eq(schema.agentOwners.ownerUserId, member.userId)
-          )
         )
-    }
-
-    const revokedAPIKeys = disabled
+      )
+    const revokedKeys = impactedKeys.length
       ? await tx
           .update(schema.apiKeyScopes)
           .set({
             revokedAt: now,
-            revokedReason: "Organisation Membership disabled.",
+            revokedReason:
+              operation === "membership_remove"
+                ? "Organisation Membership removed or an owned Agent target deleted."
+                : "Organisation Membership disabled or an owned Agent target deleted.",
           })
           .where(
             and(
               eq(schema.apiKeyScopes.organizationId, actor.organization.id),
-              eq(schema.apiKeyScopes.creatorUserId, member.userId),
+              inArray(
+                schema.apiKeyScopes.apiKeyId,
+                impactedKeys.map((key) => key.id)
+              ),
               isNull(schema.apiKeyScopes.revokedAt)
             )
           )
-          .returning({ apiKeyId: schema.apiKeyScopes.apiKeyId })
+          .returning({ id: schema.apiKeyScopes.apiKeyId })
       : []
-    if (revokedAPIKeys.length) {
+    if (revokedKeys.length) {
       await tx
         .update(schema.apikeys)
         .set({ enabled: false, updatedAt: now })
@@ -559,57 +881,90 @@ export async function setMemberDisabled(orgSlug: string, memberId: string, disab
             eq(schema.apikeys.referenceId, actor.organization.id),
             inArray(
               schema.apikeys.id,
-              revokedAPIKeys.map((key) => key.apiKeyId)
+              revokedKeys.map((key) => key.id)
             )
           )
         )
     }
-
-    const cleanupId = disabled ? `cleanup-${randomUUID()}` : undefined
-    if (cleanupId) {
-      await tx.insert(schema.cleanupJobs).values({
-        id: cleanupId,
-        operation: "membership_disable",
-        organizationId: actor.organization.id,
-        payload: {
-          api_key_count: revokedAPIKeys.length,
-          operation: "membership_disable",
-          owned_agent_count: ownedAgents.length,
-          owned_agents: ownedAgents.map((agent) => ({
-            agent_name: agent.agentName,
-            workspace_id: agent.workspaceId,
-          })),
-          member_id: member.id,
-          user_id: member.userId,
-          revokes_authorization_first: true,
-        },
-        targetId: member.id,
-        targetType: "organization_membership",
-      })
-    }
     await tx
-      .update(schema.members)
-      .set({ disabledAt: disabled ? now : null })
+      .delete(schema.agentShares)
       .where(
         and(
-          eq(schema.members.organizationId, actor.organization.id),
-          eq(schema.members.id, member.id)
+          eq(schema.agentShares.organizationId, actor.organization.id),
+          eq(schema.agentShares.targetUserId, member.userId)
         )
       )
+    await tx
+      .delete(schema.agentOwners)
+      .where(
+        and(
+          eq(schema.agentOwners.organizationId, actor.organization.id),
+          eq(schema.agentOwners.ownerUserId, member.userId)
+        )
+      )
+
+    if (operation === "membership_remove") {
+      if (teams.length) {
+        await tx.delete(schema.teamMembers).where(
+          and(
+            eq(schema.teamMembers.userId, member.userId),
+            inArray(
+              schema.teamMembers.teamId,
+              teams.map((team) => team.id)
+            )
+          )
+        )
+      }
+      await tx
+        .delete(schema.members)
+        .where(
+          and(
+            eq(schema.members.id, member.id),
+            eq(schema.members.organizationId, actor.organization.id)
+          )
+        )
+    } else {
+      await tx
+        .update(schema.members)
+        .set({ disabledAt: now })
+        .where(
+          and(
+            eq(schema.members.id, member.id),
+            eq(schema.members.organizationId, actor.organization.id)
+          )
+        )
+    }
+
+    const cleanupId = `cleanup-${randomUUID()}`
+    await tx.insert(schema.cleanupJobs).values({
+      id: cleanupId,
+      operation,
+      organizationId: actor.organization.id,
+      payload: {
+        api_key_count: revokedKeys.length,
+        member_id: member.id,
+        operation,
+        owned_agent_count: ownedAgents.length,
+        owned_agents: ownedAgents.map((agent) => ({
+          agent_name: agent.agentName,
+          workspace_id: agent.workspaceId,
+        })),
+        revokes_authorization_first: true,
+        user_id: member.userId,
+      },
+      targetId: member.id,
+      targetType: "organization_membership",
+    })
     await tx.insert(schema.auditEvents).values({
-      action: disabled ? "membership.disable" : "membership.restore",
+      action: operation === "membership_remove" ? "membership.remove" : "membership.disable",
       actorId: actor.userId,
       actorType: "user",
       after: [
-        { field: "member_id", value: member.id },
-        ...(disabled
-          ? [{ field: "role" as const, value: `${revokedAPIKeys.length} API keys revoked` }]
-          : []),
-        ...(disabled
-          ? [{ field: "state" as const, value: `${ownedAgents.length} owned Agents queued` }]
-          : []),
+        { field: "state", value: operation === "membership_remove" ? "removed" : "disabled" },
+        { field: "role", value: `${revokedKeys.length} API keys revoked` },
+        { field: "name", value: `${ownedAgents.length} owned Agents queued` },
       ],
-      automaticCascade: Boolean(cleanupId),
+      automaticCascade: true,
       category: "membership",
       cleanupJobId: cleanupId,
       id: `audit-${randomUUID()}`,
@@ -621,7 +976,7 @@ export async function setMemberDisabled(orgSlug: string, memberId: string, disab
       targetType: "organization_membership",
       userAgent: actor.headers.get("user-agent"),
     })
-    return {}
+    return { cleanupId }
   })
 }
 

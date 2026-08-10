@@ -1926,6 +1926,14 @@ SELECT EXISTS(
     AND disabled_at IS NULL
 );
 
+-- name: GatewayLockActiveOrganizationMember :one
+SELECT id
+FROM members
+WHERE user_id = sqlc.arg(user_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND disabled_at IS NULL
+FOR UPDATE;
+
 -- name: GatewayCreateAuditEvent :one
 INSERT INTO audit_events(
   id,

@@ -1,11 +1,13 @@
 "use client"
 
+import Link from "next/link"
+import type { Route } from "next"
 import { useActionState, useTransition } from "react"
-import { Send, ShieldOff, ShieldPlus, X } from "lucide-react"
+import { Send, ShieldPlus, X } from "lucide-react"
 import {
   cancelInvitationAction,
   inviteMemberAction,
-  setMemberDisabledAction,
+  restoreMembershipAction,
   type InviteMemberFormState,
 } from "@/app/(scoped)/orgs/actions"
 import type { AssignmentOption, InvitationRow } from "@/data/members"
@@ -128,16 +130,23 @@ export function MembershipStateButton({
   orgSlug: string
 }) {
   const [pending, start] = useTransition()
+  if (!disabled) {
+    return (
+      <Button asChild size="sm" variant="outline">
+        <Link href={`/orgs/${orgSlug}/users/${memberId}` as Route}>Manage</Link>
+      </Button>
+    )
+  }
   return (
     <Button
       disabled={pending}
-      onClick={() => start(() => setMemberDisabledAction(orgSlug, memberId, !disabled))}
+      onClick={() => start(() => restoreMembershipAction(orgSlug, memberId))}
       size="sm"
       type="button"
-      variant={disabled ? "outline" : "destructive"}
+      variant="outline"
     >
-      {pending ? <Spinner /> : disabled ? <ShieldPlus /> : <ShieldOff />}
-      {disabled ? "Restore" : "Disable"}
+      {pending ? <Spinner /> : <ShieldPlus />}
+      Restore
     </Button>
   )
 }

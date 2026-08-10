@@ -99,6 +99,7 @@ type Querier interface {
 	GatewayListWorkspaceAdminCandidates(ctx context.Context, arg GatewayListWorkspaceAdminCandidatesParams) ([]GatewayListWorkspaceAdminCandidatesRow, error)
 	GatewayListWorkspaceInheritedResources(ctx context.Context, arg GatewayListWorkspaceInheritedResourcesParams) ([]GatewayListWorkspaceInheritedResourcesRow, error)
 	GatewayListWorkspacesSelectingOrganizationResource(ctx context.Context, arg GatewayListWorkspacesSelectingOrganizationResourceParams) ([]Workspace, error)
+	GatewayLockActiveOrganizationMember(ctx context.Context, arg GatewayLockActiveOrganizationMemberParams) (string, error)
 	GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgentOwnerParams) (AgentOwner, error)
 	GatewayLockAgentShares(ctx context.Context, arg GatewayLockAgentSharesParams) ([]AgentShare, error)
 	GatewayLockOrganization(ctx context.Context, organizationID string) (GatewayLockOrganizationRow, error)

@@ -485,11 +485,67 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			return fmt.Errorf("get workspace %q for cleanup: %w", agent.WorkspaceID, err)
 		}
 
+		schedules, err := s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).List(
+			ctx,
+			metav1.ListOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("list Agent %q WorkflowSchedules: %w", agent.AgentName, err)
+		}
+		for i := range schedules.Items {
+			if schedules.Items[i].Spec.AgentName != agent.AgentName {
+				continue
+			}
+			err = s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).Delete(
+				ctx,
+				schedules.Items[i].Name,
+				metav1.DeleteOptions{
+					PropagationPolicy: new(metav1.DeletePropagationBackground),
+				},
+			)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf(
+					"delete Agent %q WorkflowSchedule %q: %w",
+					agent.AgentName,
+					schedules.Items[i].Name,
+					err,
+				)
+			}
+		}
+
+		runs, err := s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).List(
+			ctx,
+			metav1.ListOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("list Agent %q WorkflowRuns: %w", agent.AgentName, err)
+		}
+		for i := range runs.Items {
+			if runs.Items[i].Spec.AgentName != agent.AgentName {
+				continue
+			}
+			err = s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).Delete(
+				ctx,
+				runs.Items[i].Name,
+				metav1.DeleteOptions{
+					PropagationPolicy: new(metav1.DeletePropagationBackground),
+				},
+			)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf(
+					"delete Agent %q WorkflowRun %q: %w",
+					agent.AgentName,
+					runs.Items[i].Name,
+					err,
+				)
+			}
+		}
+
 		err = s.resolver.client.AgentzV1alpha1().Agents(workspace.Namespace).Delete(
 			ctx,
 			agent.AgentName,
 			metav1.DeleteOptions{
-				PropagationPolicy: new(metav1.DeletePropagationBackground),
+				PropagationPolicy: new(metav1.DeletePropagationForeground),
 			},
 		)
 		if err != nil && !apierrors.IsNotFound(err) {
@@ -498,6 +554,61 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		if err := s.deleteAgentSecretResources(ctx, workspace.Namespace, agent.AgentName); err != nil {
 			return fmt.Errorf("delete Agent %q secrets: %w", agent.AgentName, err)
 		}
+
+		schedules, err = s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).List(
+			ctx,
+			metav1.ListOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("confirm Agent %q WorkflowSchedule cleanup: %w", agent.AgentName, err)
+		}
+		for i := range schedules.Items {
+			if schedules.Items[i].Spec.AgentName == agent.AgentName {
+				return fmt.Errorf(
+					"Agent %q WorkflowSchedule %q cleanup is pending",
+					agent.AgentName,
+					schedules.Items[i].Name,
+				)
+			}
+		}
+
+		runs, err = s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).List(
+			ctx,
+			metav1.ListOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("confirm Agent %q WorkflowRun cleanup: %w", agent.AgentName, err)
+		}
+		for i := range runs.Items {
+			if runs.Items[i].Spec.AgentName == agent.AgentName {
+				return fmt.Errorf(
+					"Agent %q WorkflowRun %q cleanup is pending",
+					agent.AgentName,
+					runs.Items[i].Name,
+				)
+			}
+		}
+
+		_, err = s.resolver.client.AgentzV1alpha1().Agents(workspace.Namespace).Get(
+			ctx,
+			agent.AgentName,
+			metav1.GetOptions{},
+		)
+		if err == nil {
+			return fmt.Errorf("Agent %q cleanup is pending", agent.AgentName)
+		}
+		if !apierrors.IsNotFound(err) {
+			return fmt.Errorf("confirm Agent %q cleanup: %w", agent.AgentName, err)
+		}
+
+		secrets, err := s.listAgentSecrets(workspace.Namespace, agent.AgentName)
+		if err != nil {
+			return fmt.Errorf("confirm Agent %q secret cleanup: %w", agent.AgentName, err)
+		}
+		if len(secrets) != 0 {
+			return fmt.Errorf("Agent %q secret cleanup is pending", agent.AgentName)
+		}
+
 		_, err = s.queries.GatewayDeleteAgent(ctx, gatewaydb.GatewayDeleteAgentParams{
 			TenantNamespace: workspace.Namespace,
 			AgentName:       agent.AgentName,

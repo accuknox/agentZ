@@ -17,10 +17,13 @@ import { formatTimestampWithAge } from "@/lib/format"
 
 export default async function DestructiveOperationsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string }>
+  searchParams: Promise<{ job?: string }>
 }) {
   const { orgSlug } = await params
+  const { job } = await searchParams
   const data = await listDestructiveOperations(orgSlug)
   if (!data) {
     return <AdministrationState kind="forbidden" />
@@ -76,7 +79,7 @@ export default async function DestructiveOperationsPage({
               </TableHeader>
               <TableBody>
                 {data.rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow className={row.id === job ? "bg-muted/50" : undefined} key={row.id}>
                     <TableCell className="font-medium">{row.operation}</TableCell>
                     <TableCell className="max-w-72">
                       <div className="truncate">{row.targetType}</div>

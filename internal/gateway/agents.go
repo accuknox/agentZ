@@ -307,6 +307,21 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
+	_, err = q.GatewayLockActiveOrganizationMember(
+		r.Context(),
+		gatewaydb.GatewayLockActiveOrganizationMemberParams{
+			UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+		},
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, r, resourceForbidden(errors.New("Agent creation requires active membership")))
+		return
+	}
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("lock Agent creator membership: %w", err))
+		return
+	}
+
 	row, err := q.GatewayCreateAgent(r.Context(), gatewaydb.GatewayCreateAgentParams{
 		TenantNamespace: ns,
 		AgentName:       name,
@@ -686,6 +701,34 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
+	_, err = q.GatewayLockActiveOrganizationMember(
+		r.Context(),
+		gatewaydb.GatewayLockActiveOrganizationMemberParams{
+			UserID: req.OwnerUserId, OrganizationID: access.claims.TenantID,
+		},
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, r, resourceForbidden(errors.New("new owner requires active membership")))
+		return
+	}
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("lock new Agent owner membership: %w", err))
+		return
+	}
+
+	effective, err := authorization.New(q).Resolve(r.Context(), authorization.Subject{
+		UserID: req.OwnerUserId, OrganizationID: access.claims.TenantID,
+	})
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("resolve new Agent owner permissions: %w", err))
+		return
+	}
+	if !effective.HasWorkspaceAccess(scope) ||
+		!effective.Allows(scope, authorization.OperationCreateAgent) {
+		writeError(w, r, resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")))
+		return
+	}
+
 	previous, err := q.GatewayLockAgentOwner(r.Context(), gatewaydb.GatewayLockAgentOwnerParams{
 		OrganizationID: access.claims.TenantID,
 		WorkspaceID:    access.workspaceID,
@@ -701,26 +744,6 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	}
 	if previous.OwnerUserID != access.claims.UserID && !access.effective.CanAdminister(scope) {
 		writeError(w, r, resourceForbidden(errors.New("Agent ownership changed before transfer")))
-		return
-	}
-
-	active, err := q.GatewayIsActiveOrganizationMember(r.Context(), gatewaydb.GatewayIsActiveOrganizationMemberParams{
-		UserID: req.OwnerUserId, OrganizationID: access.claims.TenantID,
-	})
-	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve new Agent owner membership: %w", err))
-		return
-	}
-	effective, err := authorization.New(q).Resolve(r.Context(), authorization.Subject{
-		UserID: req.OwnerUserId, OrganizationID: access.claims.TenantID,
-	})
-	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve new Agent owner permissions: %w", err))
-		return
-	}
-	if !active || !effective.HasWorkspaceAccess(scope) ||
-		!effective.Allows(scope, authorization.OperationCreateAgent) {
-		writeError(w, r, resourceForbidden(errors.New("new owner requires active membership, independent Workspace access, and Agent Author")))
 		return
 	}
 

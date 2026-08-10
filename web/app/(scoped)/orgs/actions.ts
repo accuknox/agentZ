@@ -10,8 +10,9 @@ import {
   applyInvitation,
   cancelInvitation,
   inviteMember,
+  removeMembership,
+  restoreMembership,
   saveSocialAdmission,
-  setMemberDisabled,
 } from "@/data/members"
 import {
   assignOrganizationRoleUsers,
@@ -212,21 +213,39 @@ export async function cancelInvitationAction(orgSlug: string, invitationId: stri
   revalidatePath(`/orgs/${orgSlug}/users`, "page")
 }
 
-export async function setMemberDisabledAction(
-  orgSlug: string,
-  memberId: string,
-  disabled: boolean
-) {
-  const result = await setMemberDisabled(orgSlug, memberId, disabled)
+export async function restoreMembershipAction(orgSlug: string, memberId: string) {
+  const result = await restoreMembership(orgSlug, memberId)
   if ("error" in result) {
-    throw new Error(
-      result.error === "final-superadmin"
-        ? "The final active Superadmin cannot be disabled."
-        : "Membership state could not be changed."
-    )
+    throw new Error("Membership could not be restored.")
   }
 
   revalidatePath(`/orgs/${orgSlug}/users`, "page")
+}
+
+export async function removeMembershipAction(
+  orgSlug: string,
+  memberId: string,
+  operation: "membership_disable" | "membership_remove",
+  formData: FormData
+) {
+  const parsed = z
+    .object({ confirmation: z.string(), fingerprint: z.string().length(64) })
+    .safeParse({
+      confirmation: formData.get("confirmation"),
+      fingerprint: formData.get("fingerprint"),
+    })
+  const root = `/orgs/${orgSlug}/users/${memberId}/remove?operation=${operation}`
+  if (!parsed.success) redirect(`${root}&error=invalid` as Route)
+
+  const result = await removeMembership(
+    orgSlug,
+    memberId,
+    operation,
+    parsed.data.confirmation,
+    parsed.data.fingerprint
+  )
+  if ("error" in result) redirect(`${root}&error=${result.error}` as Route)
+  redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
 }
 
 export async function socialAdmissionAction(

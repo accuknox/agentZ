@@ -287,8 +287,9 @@ type CleanupState string
 const (
 	CleanupStatePending   CleanupState = "pending"
 	CleanupStateRunning   CleanupState = "running"
-	CleanupStateSucceeded CleanupState = "succeeded"
+	CleanupStateRetrying  CleanupState = "retrying"
 	CleanupStateFailed    CleanupState = "failed"
+	CleanupStateSucceeded CleanupState = "succeeded"
 )
 
 func (e *CleanupState) Scan(src interface{}) error {

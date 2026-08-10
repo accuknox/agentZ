@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto"
 import { defaultKeyHasher } from "@better-auth/api-key"
 import { getIp } from "better-auth/api"
 import { generateRandomString } from "better-auth/crypto"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray, isNull } from "drizzle-orm"
 import { updateTag } from "next/cache"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
@@ -160,6 +160,35 @@ export async function createAPIKeyFormAction(
   try {
     const hash = await defaultKeyHasher(secret)
     await getDB().transaction(async (tx) => {
+      const [member] = await tx
+        .select({ id: schema.members.id })
+        .from(schema.members)
+        .where(
+          and(
+            eq(schema.members.organizationId, authContext.organizationId),
+            eq(schema.members.userId, authContext.userId),
+            isNull(schema.members.disabledAt)
+          )
+        )
+        .for("update")
+        .limit(1)
+      if (!member) throw new Error("active Membership is required")
+
+      const targetAgents =
+        parsed.data.type === "agent" ? agentNames : [...workflowsByAgent.keys()].toSorted()
+      const owners = await tx
+        .select({ agentName: schema.agentOwners.agentName })
+        .from(schema.agentOwners)
+        .where(
+          and(
+            eq(schema.agentOwners.organizationId, authContext.organizationId),
+            eq(schema.agentOwners.workspaceId, scope.workspaceId),
+            inArray(schema.agentOwners.agentName, targetAgents)
+          )
+        )
+        .for("share")
+      if (owners.length !== targetAgents.length) throw new Error("API key target no longer exists")
+
       await tx.insert(schema.apikeys).values({
         configId,
         createdAt: now,

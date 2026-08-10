@@ -1,4 +1,5 @@
 import type { Route } from "next"
+import Link from "next/link"
 import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -114,9 +115,13 @@ function MembersTable({
                 <TableCell className="max-w-72">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium" title={member.name}>
+                      <Link
+                        className="truncate font-medium underline-offset-4 hover:underline"
+                        href={`/orgs/${orgSlug}/users/${member.id}` as Route}
+                        title={member.name}
+                      >
                         {member.name}
-                      </span>
+                      </Link>
                       {member.superadmin ? <Badge variant="secondary">Superadmin</Badge> : null}
                       <Badge variant={disabled ? "destructive" : "outline"}>
                         {disabled ? "Disabled" : "Active"}

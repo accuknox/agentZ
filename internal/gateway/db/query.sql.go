@@ -4637,6 +4637,27 @@ func (q *Queries) GatewayListWorkspacesSelectingOrganizationResource(ctx context
 	return items, nil
 }
 
+const gatewayLockActiveOrganizationMember = `-- name: GatewayLockActiveOrganizationMember :one
+SELECT id
+FROM members
+WHERE user_id = $1
+  AND organization_id = $2
+  AND disabled_at IS NULL
+FOR UPDATE
+`
+
+type GatewayLockActiveOrganizationMemberParams struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayLockActiveOrganizationMember(ctx context.Context, arg GatewayLockActiveOrganizationMemberParams) (string, error) {
+	row := q.db.QueryRow(ctx, gatewayLockActiveOrganizationMember, arg.UserID, arg.OrganizationID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const gatewayLockAgentOwner = `-- name: GatewayLockAgentOwner :one
 SELECT
   organization_id,

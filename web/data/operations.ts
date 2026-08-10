@@ -2,7 +2,7 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import { getIp } from "better-auth/api"
-import { and, asc, desc, eq, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, exists, isNull, or } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 import { getAuth } from "@/lib/auth"
@@ -79,9 +79,16 @@ export async function analyzeDestructiveImpact(
     if (!member) return null
     targetLabel = member.name
 
-    const [roles, teams, agents, keys, shares] = await Promise.all([
+    const [roles, teams, teamRoles, workspaces, agents, keys, shares] = await Promise.all([
       db
-        .select({ id: schema.roleScopes.roleId, name: schema.roleScopes.displayName })
+        .select({
+          id: schema.roleScopes.roleId,
+          name: schema.roleScopes.displayName,
+          systemRole: schema.roleScopes.systemRole,
+          workspaceId: schema.roleScopes.workspaceId,
+          workspace: schema.workspaces.name,
+          workspaceSlug: schema.workspaces.slug,
+        })
         .from(schema.memberRoles)
         .innerJoin(
           schema.roleScopes,
@@ -90,14 +97,20 @@ export async function analyzeDestructiveImpact(
             eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
           )
         )
+        .leftJoin(
+          schema.workspaces,
+          and(
+            eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+            eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
+          )
+        )
         .where(
           and(
             eq(schema.memberRoles.organizationId, organizationId),
             eq(schema.memberRoles.memberId, target.targetId)
           )
         )
-        .orderBy(asc(schema.roleScopes.displayName))
-        .limit(500),
+        .orderBy(asc(schema.roleScopes.displayName)),
       db
         .select({ id: schema.teams.id, name: schema.teams.name })
         .from(schema.teamMembers)
@@ -108,11 +121,49 @@ export async function analyzeDestructiveImpact(
             eq(schema.teamMembers.userId, member.userId)
           )
         )
-        .orderBy(asc(schema.teams.name))
-        .limit(500),
+        .orderBy(asc(schema.teams.name)),
+      db
+        .selectDistinct({ workspaceId: schema.roleScopes.workspaceId })
+        .from(schema.teamMembers)
+        .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+        .innerJoin(
+          schema.teamRoles,
+          and(
+            eq(schema.teamRoles.teamId, schema.teams.id),
+            eq(schema.teamRoles.organizationId, schema.teams.organizationId)
+          )
+        )
+        .innerJoin(
+          schema.roleScopes,
+          and(
+            eq(schema.roleScopes.roleId, schema.teamRoles.roleId),
+            eq(schema.roleScopes.organizationId, schema.teamRoles.organizationId)
+          )
+        )
+        .where(
+          and(
+            eq(schema.teams.organizationId, organizationId),
+            eq(schema.teamMembers.userId, member.userId)
+          )
+        ),
+      db
+        .select({
+          id: schema.workspaces.id,
+          name: schema.workspaces.name,
+          slug: schema.workspaces.slug,
+        })
+        .from(schema.workspaces)
+        .where(
+          and(
+            eq(schema.workspaces.organizationId, organizationId),
+            isNull(schema.workspaces.deletedAt)
+          )
+        )
+        .orderBy(asc(schema.workspaces.name), asc(schema.workspaces.slug)),
       db
         .select({
           name: schema.agentOwners.agentName,
+          workspaceId: schema.workspaces.id,
           workspace: schema.workspaces.name,
           workspaceSlug: schema.workspaces.slug,
         })
@@ -130,26 +181,58 @@ export async function analyzeDestructiveImpact(
             eq(schema.agentOwners.ownerUserId, member.userId)
           )
         )
-        .orderBy(asc(schema.workspaces.name), asc(schema.agentOwners.agentName))
-        .limit(500),
+        .orderBy(asc(schema.workspaces.name), asc(schema.agentOwners.agentName)),
       db
-        .select({ id: schema.apiKeyScopes.apiKeyId, name: schema.apikeys.name })
+        .selectDistinct({
+          id: schema.apiKeyScopes.apiKeyId,
+          name: schema.apikeys.name,
+          workspaceId: schema.workspaces.id,
+          workspace: schema.workspaces.name,
+          workspaceSlug: schema.workspaces.slug,
+        })
         .from(schema.apiKeyScopes)
         .innerJoin(schema.apikeys, eq(schema.apikeys.id, schema.apiKeyScopes.apiKeyId))
+        .innerJoin(
+          schema.apiKeyTargets,
+          eq(schema.apiKeyTargets.apiKeyId, schema.apiKeyScopes.apiKeyId)
+        )
+        .innerJoin(
+          schema.workspaces,
+          and(
+            eq(schema.workspaces.id, schema.apiKeyScopes.workspaceId),
+            eq(schema.workspaces.organizationId, schema.apiKeyScopes.organizationId)
+          )
+        )
         .where(
           and(
             eq(schema.apiKeyScopes.organizationId, organizationId),
-            eq(schema.apiKeyScopes.creatorUserId, member.userId),
-            isNull(schema.apiKeyScopes.revokedAt)
+            isNull(schema.apiKeyScopes.revokedAt),
+            or(
+              eq(schema.apiKeyScopes.creatorUserId, member.userId),
+              exists(
+                db
+                  .select({ ownerUserId: schema.agentOwners.ownerUserId })
+                  .from(schema.agentOwners)
+                  .where(
+                    and(
+                      eq(schema.agentOwners.organizationId, organizationId),
+                      eq(schema.agentOwners.ownerUserId, member.userId),
+                      eq(schema.agentOwners.workspaceId, schema.apiKeyScopes.workspaceId),
+                      eq(schema.agentOwners.agentName, schema.apiKeyTargets.agentName)
+                    )
+                  )
+              )
+            )
           )
         )
-        .orderBy(asc(schema.apikeys.name), asc(schema.apiKeyScopes.apiKeyId))
-        .limit(500),
+        .orderBy(asc(schema.apikeys.name), asc(schema.apiKeyScopes.apiKeyId)),
       db
         .select({
           id: schema.agentShares.id,
           name: schema.agentShares.agentName,
+          workspaceId: schema.workspaces.id,
           workspace: schema.workspaces.name,
+          workspaceSlug: schema.workspaces.slug,
         })
         .from(schema.agentShares)
         .innerJoin(
@@ -165,14 +248,40 @@ export async function analyzeDestructiveImpact(
             eq(schema.agentShares.targetUserId, member.userId)
           )
         )
-        .orderBy(asc(schema.workspaces.name), asc(schema.agentShares.agentName))
-        .limit(500),
+        .orderBy(asc(schema.workspaces.name), asc(schema.agentShares.agentName)),
     ])
+    const workspacesById = new Map(workspaces.map((workspace) => [workspace.id, workspace]))
+    const affectedWorkspaces = new Map<string, { id: string; name: string; slug: string }>()
+    if (roles.some((role) => role.systemRole === "superadmin")) {
+      for (const workspace of workspaces) affectedWorkspaces.set(workspace.id, workspace)
+    }
+    for (const role of [...roles, ...teamRoles]) {
+      if (!role.workspaceId) continue
+      const workspace = workspacesById.get(role.workspaceId)
+      if (workspace) affectedWorkspaces.set(workspace.id, workspace)
+    }
+    for (const workspace of [...agents, ...keys, ...shares]) {
+      affectedWorkspaces.set(workspace.workspaceId, {
+        id: workspace.workspaceId,
+        name: workspace.workspace,
+        slug: workspace.workspaceSlug,
+      })
+    }
     items.push(
-      ...roles.map((role) => ({
-        detail: "Direct Role assignment is removed from the effective permission union.",
+      ...affectedWorkspaces.values().map((workspace) => ({
+        detail: "All effective Membership access in this Workspace is removed.",
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/roles/${role.id}`,
+        href: `/orgs/${orgSlug}/workspaces/${workspace.slug}`,
+        id: `workspace:${workspace.id}`,
+        label: workspace.name,
+        severity: "critical" as const,
+      })),
+      ...roles.map((role) => ({
+        detail: `${role.workspace ?? "Organisation"} scope; the direct Role assignment is removed from the effective permission union.`,
+        group: "Access loss" as const,
+        href: role.workspaceSlug
+          ? `/orgs/${orgSlug}/workspaces/${role.workspaceSlug}/roles/${role.id}`
+          : `/orgs/${orgSlug}/roles/${role.id}`,
         id: `role:${role.id}`,
         label: role.name,
         severity: "critical" as const,
@@ -195,14 +304,23 @@ export async function analyzeDestructiveImpact(
       ...agents.map((agent) => ({
         detail: `${agent.workspace}; Kubernetes and secret resources are queued for cleanup.`,
         group: "Owned Agents" as const,
-        href: `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.name)}`,
+        href: `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.name)}/ownership`,
         id: `agent:${agent.workspaceSlug}:${agent.name}`,
         label: agent.name,
         severity: "critical" as const,
       })),
+      ...agents.map((agent) => ({
+        detail:
+          "Workflow schedules and runs, mutable Skills, secrets, shares, sessions, and telemetry are removed with the Agent.",
+        group: "Consumers" as const,
+        id: `agent-resources:${agent.workspaceSlug}:${agent.name}`,
+        label: `${agent.name} bound resources`,
+        severity: "warning" as const,
+      })),
       ...keys.map((key) => ({
-        detail: "The credential is revoked in the same transaction as access removal.",
+        detail: `${key.workspace}; the credential is revoked in the same transaction as access removal.`,
         group: "API keys" as const,
+        href: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys`,
         id: `key:${key.id}`,
         label: key.name,
         severity: "critical" as const,

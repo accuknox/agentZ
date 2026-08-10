@@ -17,7 +17,7 @@ import { authErrorMessages } from "@/app/(auth)/shared"
 import { getDB, schema } from "@/db"
 import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { getEnv } from "@/lib/env"
-import { getGithubUserInfo } from "@/lib/github-membership"
+import { getGithubUserInfo, socialOAuthStateSchema } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
 import { minPasswordLength } from "@/lib/password-policy"
 import { signInReturnTo } from "@/lib/sign-in-redirect"
@@ -35,11 +35,6 @@ const credentialEmailSchema = z.object({
 })
 const directOAuthStateSchema = z.object({
   agentzEnrollment: z.literal("direct"),
-})
-const socialOAuthStateSchema = z.object({
-  agentzEnrollment: z.literal("social"),
-  organizationId: z.string().min(1),
-  provider: z.enum(["github", "google"]),
 })
 const organizationAccessControl = createAccessControl(defaultStatements)
 const superadminRole = organizationAccessControl.newRole(defaultStatements)
@@ -226,11 +221,6 @@ function buildAuth() {
                 return
               }
 
-              const social = socialOAuthStateSchema.safeParse(state)
-              if (!social.success) {
-                return
-              }
-              await createSocialAdmissionMembership(user, social.data)
               return
             } else {
               return
@@ -311,7 +301,11 @@ function buildAuth() {
         const state = await getOAuthState()
         const social = socialOAuthStateSchema.safeParse(state)
         if (newSession?.user && social.success) {
-          await createSocialAdmissionMembership(newSession.user, social.data)
+          await createSocialAdmissionMembership(
+            newSession.user,
+            newSession.session.token,
+            social.data
+          )
         }
         if (!newSession?.user.twoFactorEnabled) {
           return
@@ -425,8 +419,7 @@ function buildAuth() {
               clientId: env.GITHUB_CLIENT_ID,
               clientSecret: env.GITHUB_CLIENT_SECRET,
               disableImplicitSignUp: true,
-              // read:org is only needed when an org/team gate is configured.
-              scope: ["user:email", ...(env.GITHUB_ORG ? (["read:org"] as const) : [])],
+              scope: ["user:email", "read:org"],
               getUserInfo: getGithubUserInfo,
             },
           }
@@ -483,33 +476,28 @@ function buildAuth() {
             })
           },
           afterAddMember: async ({ member, organization }) => {
-            if (!member.role.split(",").includes("superadmin")) {
-              return
-            }
-
-            const roleId = `superadmin:${organization.id}`
-            const [role] = await getDB()
-              .select({ roleId: schema.roleScopes.roleId })
-              .from(schema.roleScopes)
+            const roles = await getDB()
+              .select({ roleId: schema.organizationRoles.id })
+              .from(schema.organizationRoles)
               .where(
                 and(
-                  eq(schema.roleScopes.roleId, roleId),
-                  eq(schema.roleScopes.organizationId, organization.id),
-                  eq(schema.roleScopes.systemRole, "superadmin")
+                  eq(schema.organizationRoles.organizationId, organization.id),
+                  inArray(schema.organizationRoles.role, member.role.split(","))
                 )
               )
-              .limit(1)
-            if (!role) {
+            if (!roles.length) {
               return
             }
 
             await getDB()
               .insert(schema.memberRoles)
-              .values({
-                memberId: member.id,
-                organizationId: organization.id,
-                roleId,
-              })
+              .values(
+                roles.map(({ roleId }) => ({
+                  memberId: member.id,
+                  organizationId: organization.id,
+                  roleId,
+                }))
+              )
               .onConflictDoNothing()
           },
           afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
@@ -744,9 +732,10 @@ function buildAuth() {
 
 async function createSocialAdmissionMembership(
   user: { id: string; email: string },
+  sessionToken: string,
   state: z.infer<typeof socialOAuthStateSchema>
 ) {
-  await getDB().transaction(async (tx) => {
+  const admission = await getDB().transaction(async (tx) => {
     const [policy] = await tx
       .select({ enabled: schema.socialAdmissionPolicies.enabled })
       .from(schema.socialAdmissionPolicies)
@@ -807,39 +796,10 @@ async function createSocialAdmissionMembership(
       return
     }
 
-    const memberId = `member-${randomUUID()}`
-    await tx.insert(schema.members).values({
-      createdAt: new Date(),
-      id: memberId,
-      organizationId: state.organizationId,
-      role: "member",
-      userId: user.id,
-    })
-    await tx.insert(schema.memberRoles).values(
-      roles.map(({ roleId }) => ({
-        memberId,
-        organizationId: state.organizationId,
-        roleId,
-      }))
-    )
-
     const teams = await tx
       .select({ teamId: schema.socialAdmissionDefaultTeams.teamId })
       .from(schema.socialAdmissionDefaultTeams)
       .where(eq(schema.socialAdmissionDefaultTeams.organizationId, state.organizationId))
-    if (teams.length) {
-      await tx
-        .insert(schema.teamMembers)
-        .values(
-          teams.map(({ teamId }) => ({
-            id: `team-member-${randomUUID()}`,
-            teamId,
-            userId: user.id,
-          }))
-        )
-        .onConflictDoNothing()
-    }
-
     const transports = await tx
       .select({ role: schema.organizationRoles.role })
       .from(schema.organizationRoles)
@@ -852,21 +812,70 @@ async function createSocialAdmissionMembership(
           )
         )
       )
-    await tx
-      .update(schema.members)
-      .set({
-        role:
-          transports
-            .map(({ role: transport }) => transport)
-            .sort()
-            .join(",") || "member",
-      })
-      .where(eq(schema.members.id, memberId))
-    await tx
-      .update(schema.sessions)
-      .set({ activeOrganizationId: state.organizationId })
-      .where(and(eq(schema.sessions.userId, user.id), isNull(schema.sessions.activeOrganizationId)))
+    if (transports.length !== roles.length) {
+      return
+    }
+    return {
+      roles: transports.map(({ role }) => role),
+      teams: teams.map(({ teamId }) => teamId),
+    }
   })
+  if (!admission) {
+    return
+  }
+
+  const firstTeam = admission.teams[0]
+  try {
+    await getAuth().api.addMember({
+      body: firstTeam
+        ? {
+            organizationId: state.organizationId,
+            role: admission.roles,
+            teamId: firstTeam,
+            userId: user.id,
+          }
+        : {
+            organizationId: state.organizationId,
+            role: admission.roles,
+            userId: user.id,
+          },
+    })
+  } catch (error) {
+    if (
+      error instanceof APIError &&
+      error.body?.code === "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION"
+    ) {
+      return
+    }
+    throw error
+  }
+  const sessionHeaders = new Headers({ authorization: `Bearer ${sessionToken}` })
+  await getAuth().api.setActiveOrganization({
+    headers: sessionHeaders,
+    body: { organizationId: state.organizationId },
+  })
+  for (const teamId of admission.teams.slice(1)) {
+    await getAuth().api.addTeamMember({
+      headers: sessionHeaders,
+      body: { organizationId: state.organizationId, teamId, userId: user.id },
+    })
+  }
+  await getDB()
+    .insert(schema.auditEvents)
+    .values({
+      action: "social_admission.accept",
+      actorId: user.id,
+      actorType: "user",
+      after: [{ field: "user_id", value: user.id }],
+      automaticCascade: false,
+      category: "membership",
+      id: `audit-${randomUUID()}`,
+      interface: "auth",
+      organizationId: state.organizationId,
+      result: "succeeded",
+      targetId: user.id,
+      targetType: "organization_membership",
+    })
 }
 
 export type Auth = ReturnType<typeof buildAuth>

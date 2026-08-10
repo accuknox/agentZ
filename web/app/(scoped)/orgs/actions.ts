@@ -72,6 +72,41 @@ const teamFormSchema = z.object({
   roleIds: z.array(z.string().min(1)).min(1, "Select at least one Role.").max(1_000),
   updatedAt: z.string().optional(),
 })
+const socialAdmissionFormSchema = z
+  .object({
+    enabled: z.boolean(),
+    githubOrganizations: z.array(
+      z
+        .string()
+        .trim()
+        .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/)
+        .or(z.literal(""))
+    ),
+    githubTeams: z.array(
+      z
+        .string()
+        .trim()
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+        .or(z.literal(""))
+    ),
+    googleDomains: z.array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/)
+    ),
+    roleIds: z.array(z.string().min(1)),
+    teamIds: z.array(z.string().min(1)),
+  })
+  .superRefine((data, ctx) => {
+    if (data.githubOrganizations.length !== data.githubTeams.length) {
+      ctx.addIssue({ code: "custom", message: "GitHub rules are incomplete." })
+    }
+    if (data.enabled && data.roleIds.length === 0) {
+      ctx.addIssue({ code: "custom", message: "Select at least one default Role." })
+    }
+  })
 
 export type RenameOrganizationFormState = {
   values: {
@@ -193,19 +228,27 @@ export async function socialAdmissionAction(
   _state: SocialAdmissionFormState,
   formData: FormData
 ): Promise<SocialAdmissionFormState> {
-  const githubOrganizations = formData.getAll("github_organization").map(String)
-  const githubTeams = formData.getAll("github_team").map(String)
-  const result = await saveSocialAdmission(orgSlug, {
+  const parsed = socialAdmissionFormSchema.safeParse({
     enabled: formData.get("enabled") === "on",
-    githubRules: githubOrganizations.map((organization, index) => ({
+    githubOrganizations: formData.getAll("github_organization"),
+    githubTeams: formData.getAll("github_team"),
+    googleDomains: formData.getAll("google_domains"),
+    roleIds: formData.getAll("role_ids"),
+    teamIds: formData.getAll("team_ids"),
+  })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Social Admission is invalid." }
+  }
+
+  const result = await saveSocialAdmission(orgSlug, {
+    enabled: parsed.data.enabled,
+    githubRules: parsed.data.githubOrganizations.map((organization, index) => ({
       organization,
-      team: githubTeams[index],
+      team: parsed.data.githubTeams[index],
     })),
-    googleDomains: String(formData.get("google_domains") ?? "")
-      .split(/[\s,]+/)
-      .filter(Boolean),
-    roleIds: formData.getAll("role_ids").map(String),
-    teamIds: formData.getAll("team_ids").map(String),
+    googleDomains: parsed.data.googleDomains,
+    roleIds: parsed.data.roleIds,
+    teamIds: parsed.data.teamIds,
   })
   if ("error" in result) {
     return {

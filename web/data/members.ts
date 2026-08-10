@@ -720,6 +720,35 @@ export async function saveSocialAdmission(
     .filter((rule) => rule.organization)
 
   return getDB().transaction(async (tx) => {
+    const teamIds = [...new Set(input.teamIds)]
+    const [roles, teams] = await Promise.all([
+      roleIds.length
+        ? tx
+            .select({ id: schema.roleScopes.roleId })
+            .from(schema.roleScopes)
+            .where(
+              and(
+                eq(schema.roleScopes.organizationId, actor.organization.id),
+                inArray(schema.roleScopes.roleId, roleIds)
+              )
+            )
+        : [],
+      teamIds.length
+        ? tx
+            .select({ id: schema.teams.id })
+            .from(schema.teams)
+            .where(
+              and(
+                eq(schema.teams.organizationId, actor.organization.id),
+                inArray(schema.teams.id, teamIds)
+              )
+            )
+        : [],
+    ])
+    if (roles.length !== roleIds.length || teams.length !== teamIds.length) {
+      return { error: "invalid-assignment" as const }
+    }
+
     await tx
       .insert(schema.socialAdmissionPolicies)
       .values({ enabled: input.enabled, organizationId: actor.organization.id })
@@ -760,15 +789,13 @@ export async function saveSocialAdmission(
         .insert(schema.socialAdmissionDefaultRoles)
         .values(roleIds.map((roleId) => ({ organizationId: actor.organization.id, roleId })))
     }
-    if (input.teamIds.length) {
-      await tx
-        .insert(schema.socialAdmissionDefaultTeams)
-        .values(
-          [...new Set(input.teamIds)].map((teamId) => ({
-            organizationId: actor.organization.id,
-            teamId,
-          }))
-        )
+    if (teamIds.length) {
+      await tx.insert(schema.socialAdmissionDefaultTeams).values(
+        teamIds.map((teamId) => ({
+          organizationId: actor.organization.id,
+          teamId,
+        }))
+      )
     }
     await tx.insert(schema.auditEvents).values({
       action: "social_admission.update",

@@ -3,6 +3,8 @@ import ipaddr from "ipaddr.js"
 import {
   zAgentName,
   zMcpConnectionName,
+  zResourceReference,
+  zResourceScope,
   zSandboxName,
   zSandboxInference,
   zSecretKey,
@@ -120,6 +122,7 @@ const selectedMcpToolSchema = z.object({
 })
 
 const selectedMcpConnectionSchema = z.object({
+  scope: zResourceScope,
   name: z
     .string({ error: "MCP connection name is required" })
     .trim()
@@ -352,12 +355,14 @@ export const sandboxAllowedHostSchema = z
 
 export const createAgentSimpleFormSchema = z.object({
   name: agentNameSchema,
+  sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
   skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
   memoryEnabled: z.boolean(),
 })
 
 export const updateAgentSimpleFormSchema = z.object({
+  sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
   skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
   memoryEnabled: z.boolean(),
@@ -365,14 +370,15 @@ export const updateAgentSimpleFormSchema = z.object({
 
 export const createSandboxFormSchema = z.object({
   name: sandboxNameSchema,
-  skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
+  skills: z.array(zResourceReference, { error: "Skills must be a list" }),
   packages: z.array(sandboxPackageSchema, { error: "Packages must be a list" }),
   mcpConnectionRefs: z
     .array(selectedMcpConnectionSchema, { error: "MCP connections must be a list" })
     .superRefine((refs, ctx) => {
-      const names = new Set<string>()
+      const references = new Set<string>()
       for (const [index, ref] of refs.entries()) {
-        if (names.has(ref.name)) {
+        const reference = JSON.stringify([ref.scope, ref.name])
+        if (references.has(reference)) {
           ctx.addIssue({
             code: "custom",
             message: "Duplicate MCP connection references are not allowed",
@@ -380,7 +386,7 @@ export const createSandboxFormSchema = z.object({
           })
           continue
         }
-        names.add(ref.name)
+        references.add(reference)
 
         const toolNames = new Set<string>()
         for (const [toolIndex, tool] of ref.tools.entries()) {
@@ -398,8 +404,9 @@ export const createSandboxFormSchema = z.object({
     })
     .transform((refs) =>
       refs
-        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .toSorted((a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope))
         .map((ref) => ({
+          scope: ref.scope,
           name: ref.name,
           tools: ref.tools.toSorted((a, b) => a.name.localeCompare(b.name)),
         }))

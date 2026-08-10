@@ -25,6 +25,7 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	internalmcp "github.com/accuknox/agentz/internal/mcp"
 	internaloauth "github.com/accuknox/agentz/internal/oauth"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -93,7 +94,7 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, access mcpAccess) ([]gatewayapi.MCPConnectionSummary, error) {
+func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, access resourceAccess) ([]gatewayapi.MCPConnectionSummary, error) {
 	selected, err := s.selectedOrganizationResourceNames(
 		ctx,
 		access.workspaceID,
@@ -439,7 +440,9 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, s.mcpConnectionDetail(access, *conn))
+	writeJSON(w, http.StatusCreated, s.mcpConnectionDetail(
+		access, resourceScope(access.workspaceID), *conn,
+	))
 }
 
 // GetMCPConnection handles GET /api/mcp-connection/{name}.
@@ -453,11 +456,24 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 		writeError(w, r, apiErr)
 		return
 	}
-	conn, ok := s.getMCPConnection(w, r, access.namespace, name)
+	scope := agentzv1alpha1.ResourceScope(params.Scope)
+	ns, err := scoperesolver.SelectedNamespace(
+		r.Context(), s.k8sClient, access.namespace, scope,
+		agentzv1alpha1.OrganizationResourceKindMCPConnection, name,
+	)
+	if err != nil {
+		writeError(w, r, &apiError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "mcp connection not found",
+		})
+		return
+	}
+	conn, ok := s.getMCPConnection(w, r, ns, name)
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(access, *conn))
+	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(access, params.Scope, *conn))
 }
 
 // DeleteMCPConnection handles DELETE /api/mcp-connection/{name}.
@@ -594,7 +610,7 @@ func (s *Service) listMCPConnections(namespace string) ([]agentzv1alpha1.MCPConn
 	return items, nil
 }
 
-func (s *Service) listMCPConnectionSummaries(access mcpAccess, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
+func (s *Service) listMCPConnectionSummaries(access resourceAccess, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
 	items, err := s.listMCPConnections(access.namespace)
 	if err != nil {
 		return nil, err
@@ -613,7 +629,7 @@ func (s *Service) listMCPConnectionSummaries(access mcpAccess, names []string) (
 	return summaries, nil
 }
 
-func (s *Service) mcpConnectionSummary(access mcpAccess, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
+func (s *Service) mcpConnectionSummary(access resourceAccess, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
 	status, reason, message := s.mcpConnectionStatus(conn)
 	return gatewayapi.MCPConnectionSummary{
 		Scope:            resourceScope(access.workspaceID),
@@ -630,7 +646,7 @@ func (s *Service) mcpConnectionSummary(access mcpAccess, conn agentzv1alpha1.MCP
 	}
 }
 
-func (s *Service) mcpConnectionDetail(access mcpAccess, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
+func (s *Service) mcpConnectionDetail(access resourceAccess, scope gatewayapi.ResourceScope, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
 	headers := map[string]string{}
 	maps.Copy(headers, conn.Spec.Endpoint.Headers)
 
@@ -685,9 +701,13 @@ func (s *Service) mcpConnectionDetail(access mcpAccess, conn agentzv1alpha1.MCPC
 	for _, tool := range conn.Status.Tools {
 		tools = append(tools, gatewayapi.MCPConnectionTool{Name: tool.Name})
 	}
+	canDelete := false
+	if scope == resourceScope(access.workspaceID) {
+		canDelete = mcpCanDelete(access, conn)
+	}
 	return gatewayapi.MCPConnectionDetail{
-		Scope:            resourceScope(access.workspaceID),
-		CanDelete:        mcpCanDelete(access, conn),
+		Scope:            scope,
+		CanDelete:        canDelete,
 		Name:             conn.Name,
 		CreatedAt:        conn.CreationTimestamp.Time,
 		Endpoint:         endpoint,
@@ -700,7 +720,7 @@ func (s *Service) mcpConnectionDetail(access mcpAccess, conn agentzv1alpha1.MCPC
 	}
 }
 
-func mcpCanDelete(access mcpAccess, conn agentzv1alpha1.MCPConnection) bool {
+func mcpCanDelete(access resourceAccess, conn agentzv1alpha1.MCPConnection) bool {
 	scope := authorization.Scope{
 		OrganizationID: access.claims.TenantID,
 		WorkspaceID:    access.workspaceID,

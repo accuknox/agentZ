@@ -105,74 +105,12 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 		return access, resourceForbidden(fmt.Errorf("effective %s permission is missing", req.resource))
 	}
 
-	if req.workspaceID == "" {
-		tenant, err := tenantObject(ctx)
-		if err != nil {
-			return access, newAPIError(
-				http.StatusInternalServerError,
-				"internal_error",
-				"unexpected server error",
-				fmt.Errorf("resolve Organisation %s scope: %w", req.resource, err),
-			)
-		}
-		if tenant.Spec.OrganizationID != claims.TenantID {
-			return access, resourceForbidden(errors.New("Organisation identity does not match bearer claims"))
-		}
-		access.namespace = tenant.Status.Namespace
-		access.owner = *metav1.NewControllerRef(
-			tenant,
-			agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
-		)
-	} else {
-		row, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-			ID: req.workspaceID, OrganizationID: claims.TenantID,
-		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return access, workspaceNotFound(req.workspaceID)
-		}
-		if err != nil {
-			return access, newAPIError(
-				http.StatusInternalServerError,
-				"internal_error",
-				"unexpected server error",
-				fmt.Errorf("resolve Workspace %s scope: %w", req.resource, err),
-			)
-		}
-		if row.DeletedAt.Valid || row.State != gatewaydb.WorkspaceStateReady {
-			return access, newAPIError(
-				http.StatusConflict,
-				"workspace_not_ready",
-				"Workspace is not ready",
-				fmt.Errorf("workspace %q state is %q", row.ID, row.State),
-			)
-		}
-		workspace := &agentzv1alpha1.Workspace{}
-		err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: row.Namespace}, workspace)
-		if err != nil {
-			return access, newAPIError(
-				http.StatusConflict,
-				"workspace_not_ready",
-				"Workspace is not ready",
-				fmt.Errorf("get Workspace %s scope: %w", req.resource, err),
-			)
-		}
-		valid := workspace.Spec.WorkspaceID == row.ID &&
-			workspace.Spec.OrganizationID == row.OrganizationID &&
-			workspace.Status.Namespace == row.Namespace
-		if !valid {
-			return access, newAPIError(
-				http.StatusConflict,
-				"workspace_not_ready",
-				"Workspace is not ready",
-				fmt.Errorf("Workspace %s scope identity is inconsistent", req.resource),
-			)
-		}
-		access.namespace = row.Namespace
-		access.owner = *metav1.NewControllerRef(
-			workspace,
-			agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
-		)
+	namespace, owner, apiErr := s.resolveResourceScope(ctx, claims, req.workspaceID, req.resource)
+	if apiErr != nil {
+		return access, apiErr
 	}
+	access.namespace = namespace
+	access.owner = owner
 
 	if creatorOnly {
 		creator, err := req.isCreator(ctx, access.namespace, claims.UserID)
@@ -186,6 +124,75 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 
 	access.authorized = true
 	return access, nil
+}
+
+func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims, workspaceID string, resource string) (string, metav1.OwnerReference, *apiError) {
+	if workspaceID == "" {
+		tenant, err := tenantObject(ctx)
+		if err != nil {
+			return "", metav1.OwnerReference{}, newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"unexpected server error",
+				fmt.Errorf("resolve Organisation %s scope: %w", resource, err),
+			)
+		}
+		if tenant.Spec.OrganizationID != claims.TenantID {
+			return "", metav1.OwnerReference{}, resourceForbidden(errors.New("organisation identity does not match bearer claims"))
+		}
+		return tenant.Status.Namespace, *metav1.NewControllerRef(
+			tenant,
+			agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+		), nil
+	}
+
+	row, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
+		ID: workspaceID, OrganizationID: claims.TenantID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", metav1.OwnerReference{}, workspaceNotFound(workspaceID)
+	}
+	if err != nil {
+		return "", metav1.OwnerReference{}, newAPIError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"unexpected server error",
+			fmt.Errorf("resolve Workspace %s scope: %w", resource, err),
+		)
+	}
+	if row.DeletedAt.Valid || row.State != gatewaydb.WorkspaceStateReady {
+		return "", metav1.OwnerReference{}, newAPIError(
+			http.StatusConflict,
+			"workspace_not_ready",
+			"Workspace is not ready",
+			fmt.Errorf("workspace %q state is %q", row.ID, row.State),
+		)
+	}
+	workspace := &agentzv1alpha1.Workspace{}
+	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: row.Namespace}, workspace)
+	if err != nil {
+		return "", metav1.OwnerReference{}, newAPIError(
+			http.StatusConflict,
+			"workspace_not_ready",
+			"Workspace is not ready",
+			fmt.Errorf("get Workspace %s scope: %w", resource, err),
+		)
+	}
+	valid := workspace.Spec.WorkspaceID == row.ID &&
+		workspace.Spec.OrganizationID == row.OrganizationID &&
+		workspace.Status.Namespace == row.Namespace
+	if !valid {
+		return "", metav1.OwnerReference{}, newAPIError(
+			http.StatusConflict,
+			"workspace_not_ready",
+			"Workspace is not ready",
+			fmt.Errorf("workspace %s scope identity is inconsistent", resource),
+		)
+	}
+	return row.Namespace, *metav1.NewControllerRef(
+		workspace,
+		agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
+	), nil
 }
 
 type resourceCapabilitySet struct {

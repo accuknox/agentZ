@@ -56,16 +56,17 @@ const watchMcpConnectionsQueryOptions = (
     >({
       initialValue: mcpConnections,
       reducer: (rows, event) => {
-        const byName = new Map(rows.map((row) => [row.name, row]))
+        const byReference = new Map(rows.map((row) => [JSON.stringify([row.scope, row.name]), row]))
 
         for (const connection of event.mcp_connections) {
-          if (!byName.has(connection.name)) {
+          const reference = JSON.stringify([connection.scope, connection.name])
+          if (!byReference.has(reference)) {
             continue
           }
-          byName.set(connection.name, connection)
+          byReference.set(reference, connection)
         }
 
-        return rows.map((row) => byName.get(row.name) ?? row)
+        return rows.map((row) => byReference.get(JSON.stringify([row.scope, row.name])) ?? row)
       },
       refetchMode: "reset",
       streamFn: async ({ signal }) => {
@@ -114,8 +115,11 @@ export function McpTable({
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const [viewConnectionName, setViewConnectionName] = React.useState<string>()
   const connectionNames = React.useMemo(
-    () => mcpConnections.map((connection) => connection.name),
-    [mcpConnections]
+    () =>
+      mcpConnections
+        .filter((connection) => connection.scope === (workspaceId ? "Workspace" : "Organisation"))
+        .map((connection) => connection.name),
+    [mcpConnections, workspaceId]
   )
   const query = useQuery(
     watchMcpConnectionsQueryOptions(connectionNames, mcpConnections, workspaceId)

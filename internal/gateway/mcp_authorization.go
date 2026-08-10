@@ -28,9 +28,7 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-type mcpAccess = resourceAccess
-
-func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (mcpAccess, *apiError) {
+func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (resourceAccess, *apiError) {
 	creatorFallback := authorization.Operation("")
 	switch operation {
 	case authorization.OperationListMCPConnections,
@@ -40,12 +38,12 @@ func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string
 	case authorization.OperationDeleteMCPConnection:
 		creatorFallback = authorization.OperationCreateMCPConnection
 	default:
-		return mcpAccess{workspaceID: workspaceID, operation: operation},
+		return resourceAccess{workspaceID: workspaceID, operation: operation},
 			resourceForbidden(fmt.Errorf("MCP Connection operation %q is unknown", operation))
 	}
 	_, mapped := operation.BearerScope()
 	if !mapped {
-		return mcpAccess{workspaceID: workspaceID, operation: operation},
+		return resourceAccess{workspaceID: workspaceID, operation: operation},
 			resourceForbidden(fmt.Errorf("MCP Connection operation %q is unmapped", operation))
 	}
 
@@ -65,7 +63,7 @@ func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string
 	})
 }
 
-func (s *Service) createMCPAudit(ctx context.Context, r *http.Request, access mcpAccess, name string, result gatewaydb.AuditResult) error {
+func (s *Service) createMCPAudit(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.AuditResult) error {
 	return s.createResourceAudit(
 		ctx,
 		r,

@@ -378,14 +378,15 @@ func poolTestReader(t testing.TB, scheme *runtime.Scheme, providers ...*agentzv1
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	objects := []client.Object{&corev1.Namespace{
+	objects := make([]client.Object, 0, len(providers)+1)
+	objects = append(objects, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default",
 			Labels: map[string]string{
 				agentzv1alpha1.TenantNameLabel: "default",
 			},
 		},
-	}}
+	})
 	for _, provider := range providers {
 		objects = append(objects, provider)
 	}

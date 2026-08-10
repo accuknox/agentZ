@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -84,18 +85,9 @@ func (v *Validator) ValidateDelete(ctx context.Context, sandbox *agentzv1alpha1.
 
 func (v *Validator) validateSandbox(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) error {
 	fields := validateAllowedHostFields(sandbox)
+	fields = append(fields, v.validateSkillRefs(ctx, sandbox)...)
 	fields = append(fields, v.validateMCPConnectionRefs(ctx, sandbox)...)
 	fields = append(fields, v.validateInference(ctx, sandbox)...)
-	for i, ref := range sandbox.Spec.Skills {
-		if ref.Scope != agentzv1alpha1.ResourceScopeWorkspace {
-			continue
-		}
-		fields = append(fields, field.NotSupported(
-			field.NewPath("spec").Child("skills").Index(i).Child("scope"),
-			ref.Scope,
-			[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
-		))
-	}
 	if len(fields) == 0 {
 		return nil
 	}
@@ -111,16 +103,9 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 	}
 
 	allowed := make(map[agentzv1alpha1.InferenceModelRef]struct{}, len(sandbox.Spec.Inference.Models))
-	byProvider := make(map[string][]string, len(sandbox.Spec.Inference.Models))
+	byProvider := make(map[agentzv1alpha1.ResourceReference][]string, len(sandbox.Spec.Inference.Models))
 	pools := map[string]struct{}{}
 	for i, model := range sandbox.Spec.Inference.Models {
-		if model.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			fields = append(fields, field.NotSupported(
-				path.Child("models").Index(i).Child("scope"),
-				model.Scope,
-				[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
-			))
-		}
 		if strings.TrimSpace(model.Provider) == "" {
 			fields = append(fields, field.Required(path.Child("models").Index(i).Child("provider"), "field is required"))
 		}
@@ -133,10 +118,22 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 		}
 		allowed[model] = struct{}{}
 		if model.Provider == agentzv1alpha1.InferencePoolProvider {
+			if model.Scope != agentzv1alpha1.ResourceScopeWorkspace {
+				fields = append(fields, field.NotSupported(
+					path.Child("models").Index(i).Child("scope"),
+					model.Scope,
+					[]string{string(agentzv1alpha1.ResourceScopeWorkspace)},
+				))
+				continue
+			}
 			pools[model.Model] = struct{}{}
 			continue
 		}
-		byProvider[model.Provider] = append(byProvider[model.Provider], model.Model)
+		provider := agentzv1alpha1.ResourceReference{
+			Scope: model.Scope,
+			Name:  model.Provider,
+		}
+		byProvider[provider] = append(byProvider[provider], model.Model)
 	}
 
 	if _, exists := allowed[sandbox.Spec.Inference.DefaultModel]; !exists {
@@ -156,9 +153,19 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 	if v.client == nil {
 		return fields
 	}
+	poolNamespace, poolErr := scoperesolver.Namespace(
+		ctx, v.client, sandbox.Namespace, agentzv1alpha1.ResourceScopeWorkspace,
+	)
 	for poolID := range pools {
+		if poolErr != nil {
+			fields = append(fields, field.Invalid(
+				path.Child("models"), poolID,
+				"Workspace inference pool scope cannot be resolved from the Sandbox namespace",
+			))
+			continue
+		}
 		pool := &agentzv1alpha1.InferencePool{}
-		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: poolID}
+		key := client.ObjectKey{Namespace: poolNamespace, Name: poolID}
 		err := v.client.Get(ctx, key, pool)
 		if apierrors.IsNotFound(err) {
 			fields = append(fields, field.NotFound(path.Child("models"), poolID))
@@ -177,23 +184,34 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 		}
 	}
 
-	for providerID, modelIDs := range byProvider {
+	for ref, modelIDs := range byProvider {
+		ns, err := scoperesolver.SelectedNamespace(
+			ctx, v.client, sandbox.Namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Name,
+		)
+		if err != nil {
+			fields = append(fields, field.Invalid(
+				path.Child("models"), ref,
+				"inference provider scope cannot be resolved from the Sandbox namespace",
+			))
+			continue
+		}
 		provider := &agentzv1alpha1.InferenceProvider{}
-		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: providerID}
-		err := v.client.Get(ctx, key, provider)
+		key := client.ObjectKey{Namespace: ns, Name: ref.Name}
+		err = v.client.Get(ctx, key, provider)
 		if apierrors.IsNotFound(err) {
-			fields = append(fields, field.NotFound(path.Child("models"), providerID))
+			fields = append(fields, field.NotFound(path.Child("models"), ref.Name))
 			continue
 		}
 		if err != nil {
 			fields = append(fields, field.InternalError(
-				path.Child("models"), fmt.Errorf("get inference provider %q: %w", providerID, err),
+				path.Child("models"), fmt.Errorf("get inference provider %q: %w", ref.Name, err),
 			))
 			continue
 		}
 		if !provider.DeletionTimestamp.IsZero() {
 			fields = append(fields, field.Forbidden(
-				path.Child("models"), fmt.Sprintf("provider %q is terminating", providerID),
+				path.Child("models"), fmt.Sprintf("provider %q is terminating", ref.Name),
 			))
 			continue
 		}
@@ -206,7 +224,45 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 				continue
 			}
 			fields = append(fields, field.NotFound(
-				path.Child("models"), providerID+"/"+modelID,
+				path.Child("models"), ref.Name+"/"+modelID,
+			))
+		}
+	}
+	return fields
+}
+
+func (v *Validator) validateSkillRefs(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) field.ErrorList {
+	if v.client == nil {
+		return nil
+	}
+
+	fields := field.ErrorList{}
+	path := field.NewPath("spec").Child("skills")
+	for i, ref := range sandbox.Spec.Skills {
+		ns, err := scoperesolver.SelectedNamespace(
+			ctx, v.client, sandbox.Namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
+		)
+		if err != nil {
+			fields = append(fields, field.Invalid(
+				path.Index(i).Child("scope"), ref.Scope,
+				"scope cannot be resolved from the Sandbox namespace",
+			))
+			continue
+		}
+
+		skill := &agentzv1alpha1.Skill{}
+		err = v.client.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, skill)
+		switch {
+		case apierrors.IsNotFound(err):
+			fields = append(fields, field.NotFound(path.Index(i).Child("name"), ref.Name))
+		case err != nil:
+			fields = append(fields, field.InternalError(
+				path.Index(i).Child("name"), fmt.Errorf("get skill %q: %w", ref.Name, err),
+			))
+		case !skill.DeletionTimestamp.IsZero():
+			fields = append(fields, field.Forbidden(
+				path.Index(i).Child("name"), fmt.Sprintf("skill %q is terminating", ref.Name),
 			))
 		}
 	}
@@ -234,13 +290,6 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, sandbox *agen
 	seen := map[agentzv1alpha1.ResourceReference]int{}
 
 	for i, ref := range sandbox.Spec.MCPConnectionRefs {
-		if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
-			fields = append(fields, field.NotSupported(
-				path.Index(i).Child("scope"),
-				ref.Scope,
-				[]string{string(agentzv1alpha1.ResourceScopeOrganisation)},
-			))
-		}
 		name := ref.Name
 		if name == "" {
 			fields = append(fields, field.Required(
@@ -263,10 +312,21 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, sandbox *agen
 		if v.client == nil {
 			continue
 		}
+		ns, err := scoperesolver.SelectedNamespace(
+			ctx, v.client, sandbox.Namespace, ref.Scope,
+			agentzv1alpha1.OrganizationResourceKindMCPConnection, name,
+		)
+		if err != nil {
+			fields = append(fields, field.Invalid(
+				path.Index(i).Child("scope"), ref.Scope,
+				"scope cannot be resolved from the Sandbox namespace",
+			))
+			continue
+		}
 
 		conn := &agentzv1alpha1.MCPConnection{}
-		objKey := client.ObjectKey{Namespace: sandbox.Namespace, Name: name}
-		err := v.client.Get(ctx, objKey, conn)
+		objKey := client.ObjectKey{Namespace: ns, Name: name}
+		err = v.client.Get(ctx, objKey, conn)
 		if apierrors.IsNotFound(err) {
 			fields = append(fields, field.NotFound(
 				path.Index(i).Child("name"),

@@ -30,7 +30,7 @@ import (
 
 func (s *Service) resolveInferencePoolAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (resourceAccess, *apiError) {
 	if workspaceID == "" {
-		return resourceAccess{operation: operation}, resourceForbidden(errors.New("Inference Pool requires a Workspace scope"))
+		return resourceAccess{operation: operation}, resourceForbidden(errors.New("inference pool requires a Workspace scope"))
 	}
 	req := resourceAccessRequest{
 		resource:    "Inference Pool",

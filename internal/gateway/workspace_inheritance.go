@@ -184,7 +184,7 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 			writeError(w, r, newAPIError(
 				http.StatusForbidden, "forbidden",
 				"Superadmin authority is required",
-				errors.New("Workspace inheritance requires Superadmin authority"),
+				errors.New("workspace inheritance requires Superadmin authority"),
 			))
 			return gatewayClaims{}, gatewaydb.Workspace{}, false
 		}

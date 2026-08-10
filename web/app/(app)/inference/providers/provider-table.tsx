@@ -114,7 +114,13 @@ const watchProvidersQueryOptions = (
       readonly ["watchInferenceProviders", string]
     >({
       initialValue: providers,
-      reducer: (_, event) => event.providers,
+      reducer: (_, event) =>
+        scope.workspaceId
+          ? [
+              ...event.providers,
+              ...providers.filter((provider) => provider.scope === "Organisation"),
+            ]
+          : event.providers,
       refetchMode: "reset",
       streamFn: async ({ signal }) => {
         const result = await watchInferenceProviders({

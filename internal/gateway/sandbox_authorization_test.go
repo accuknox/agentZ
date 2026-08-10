@@ -31,6 +31,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -140,77 +141,46 @@ func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
 	}
 }
 
-func TestSandboxOperationMappingDeniesUnknownAndAmbiguousScopes(t *testing.T) {
-	t.Parallel()
-
-	svc := sandboxTestService(t, &sandboxQueries{})
-	tests := []struct {
-		name   string
-		scopes []string
-	}{
-		{name: "missing", scopes: nil},
-		{name: "unknown", scopes: []string{"sandbox.inspect"}},
-		{name: "ambiguous", scopes: []string{"sandbox.read", "sandbox.create"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, authContextKey{}, requestAuth{claims: &gatewayClaims{
-				TenantID: testOrganizationID,
-				UserID:   testUserID,
-			}})
-			// The generated context key is a string constant owned by oapi-codegen.
-			ctx = context.WithValue(ctx, gatewayapi.GatewayBearerScopes, tt.scopes) //nolint:staticcheck
-			_, apiErr := svc.resolveSandboxAccess(ctx, "", "")
-			if apiErr == nil || apiErr.Status != http.StatusForbidden {
-				t.Fatalf("error = %#v, want forbidden", apiErr)
-			}
-		})
-	}
-}
-
 func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name       string
 		userID     string
-		scope      string
+		operation  authorization.Operation
 		action     gatewaydb.PermissionAction
 		wantStatus int
 	}{
 		{
-			name:   "creator with Create may modify",
-			userID: testUserID,
-			scope:  "sandbox.modify",
-			action: gatewaydb.PermissionActionCreate,
+			name:      "creator with Create may modify",
+			userID:    testUserID,
+			operation: authorization.OperationUpdateSandbox,
+			action:    gatewaydb.PermissionActionCreate,
 		},
 		{
-			name:   "creator with Create may delete",
-			userID: testUserID,
-			scope:  "sandbox.delete",
-			action: gatewaydb.PermissionActionCreate,
+			name:      "creator with Create may delete",
+			userID:    testUserID,
+			operation: authorization.OperationDeleteSandbox,
+			action:    gatewaydb.PermissionActionCreate,
 		},
 		{
 			name:       "non-creator with Create may not modify",
 			userID:     "user-2",
-			scope:      "sandbox.modify",
+			operation:  authorization.OperationUpdateSandbox,
 			action:     gatewaydb.PermissionActionCreate,
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name:   "broad Modify allows a non-creator",
-			userID: "user-2",
-			scope:  "sandbox.modify",
-			action: gatewaydb.PermissionActionModify,
+			name:      "broad Modify allows a non-creator",
+			userID:    "user-2",
+			operation: authorization.OperationUpdateSandbox,
+			action:    gatewaydb.PermissionActionModify,
 		},
 		{
-			name:   "broad Delete allows a non-creator",
-			userID: "user-2",
-			scope:  "sandbox.delete",
-			action: gatewaydb.PermissionActionDelete,
+			name:      "broad Delete allows a non-creator",
+			userID:    "user-2",
+			operation: authorization.OperationDeleteSandbox,
+			action:    gatewaydb.PermissionActionDelete,
 		},
 	}
 	for _, tt := range tests {
@@ -238,10 +208,16 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 				Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},
 				Status: agentzv1alpha1.TenantStatus{Namespace: testOrgNamespace},
 			}})
+			scope, ok := tt.operation.BearerScope()
+			if !ok {
+				t.Fatalf("operation %q is not mapped", tt.operation)
+			}
 			// The generated context key is a string constant owned by oapi-codegen.
-			ctx = context.WithValue(ctx, gatewayapi.GatewayBearerScopes, []string{tt.scope}) //nolint:staticcheck
+			ctx = context.WithValue(ctx, gatewayapi.GatewayBearerScopes, []string{scope}) //nolint:staticcheck
 
-			_, apiErr := svc.resolveSandboxAccess(ctx, "", "organization-sandbox")
+			_, apiErr := svc.resolveSandboxAccess(
+				ctx, "", "organization-sandbox", tt.operation,
+			)
 			if tt.wantStatus == 0 && apiErr != nil {
 				t.Fatalf("error = %#v, want authorized", apiErr)
 			}

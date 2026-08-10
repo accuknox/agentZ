@@ -84,6 +84,7 @@ async function UpdateSandboxContent({
   }
 
   const mcpConnectionRefs = sandbox.mcp_connection_refs.map((ref) => ({
+    scope: ref.scope,
     name: ref.name,
     tools: (ref.tools ?? []).map((tool) => ({
       name: tool.name,
@@ -96,7 +97,7 @@ async function UpdateSandboxContent({
     packages: sandbox.packages ?? [],
     allowedHosts: sandbox.allowed_hosts ?? [],
     mcpConnectionRefs,
-    skills: sandbox.skills.map((skill) => skill.name),
+    skills: sandbox.skills,
     inference: sandbox.inference,
   })
 
@@ -113,7 +114,7 @@ async function UpdateSandboxContent({
         initialPackages={sandbox.packages ?? []}
         initialAllowedHosts={sandbox.allowed_hosts ?? []}
         initialMcpConnectionRefs={mcpConnectionRefs}
-        initialSkills={sandbox.skills.map((skill) => skill.name)}
+        initialSkills={sandbox.skills}
         initialInference={sandbox.inference}
         immutableSkills={skills.skills ?? []}
         inferenceProviders={providers.providers ?? []}

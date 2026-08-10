@@ -901,7 +901,7 @@ func (s *Service) importImmutableSkills(r *http.Request, namespace string, bundl
 			if err := s.createSkillAudit(ctx, r, auditAccess, tree.Name, gatewaydb.AuditResultDenied); err != nil {
 				return newAPIError(http.StatusInternalServerError, "internal_error", "unexpected server error", err)
 			}
-			return resourceForbidden(errors.New("Skill creator privilege is missing"))
+			return resourceForbidden(errors.New("skill creator privilege is missing"))
 		}
 		if action != skill.DecisionOverwrite && exists {
 			return newAPIError(

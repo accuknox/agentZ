@@ -83,7 +83,7 @@ func SelectedNamespace(ctx context.Context, c client.Reader, current string, sco
 	}
 	names := workspace.Spec.SelectedOrganizationResources.Names(kind)
 	if !slices.Contains(names, name) {
-		return "", fmt.Errorf("Organisation resource %q is not selected by Workspace", name)
+		return "", fmt.Errorf("organisation resource %q is not selected by Workspace", name)
 	}
 	return ns, nil
 }

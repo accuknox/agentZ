@@ -18,44 +18,22 @@ package gateway
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
 
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
-	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-type sandboxAccess = resourceAccess
-
 type sandboxAudit struct {
-	access sandboxAccess
+	access resourceAccess
 	name   string
 	result gatewaydb.AuditResult
 }
 
-func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandboxName string) (sandboxAccess, *apiError) {
-	scopes, ok := ctx.Value(gatewayapi.GatewayBearerScopes).([]string)
-	if !ok || len(scopes) != 1 {
-		return sandboxAccess{}, resourceForbidden(errors.New("Sandbox operation mapping is missing or ambiguous"))
-	}
-	operation := authorization.Operation("")
-	switch scopes[0] {
-	case "sandbox.read":
-		operation = authorization.OperationListSandboxes
-	case "sandbox.create":
-		operation = authorization.OperationCreateSandbox
-	case "sandbox.modify":
-		operation = authorization.OperationUpdateSandbox
-	case "sandbox.delete":
-		operation = authorization.OperationDeleteSandbox
-	default:
-		return sandboxAccess{}, resourceForbidden(fmt.Errorf("Sandbox operation mapping %q is unknown", scopes[0]))
-	}
+func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandboxName string, operation authorization.Operation) (resourceAccess, *apiError) {
 	creatorFallback := authorization.Operation("")
 	var isCreator func(context.Context, string, string) (bool, error)
 	if sandboxName != "" && (operation == authorization.OperationUpdateSandbox || operation == authorization.OperationDeleteSandbox) {
@@ -73,7 +51,7 @@ func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandbox
 		creatorFallback: creatorFallback,
 		isCreator:       isCreator,
 	})
-	return sandboxAccess(access), apiErr
+	return access, apiErr
 }
 
 func (s *Service) createSandboxAudit(ctx context.Context, r *http.Request, audit sandboxAudit) error {

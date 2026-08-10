@@ -28,7 +28,9 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, "")
+	access, apiErr := s.resolveSandboxAccess(
+		r.Context(), workspaceID, "", authorization.OperationListSandboxes,
+	)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
 		return
@@ -150,7 +152,9 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	name, fields := validateCreateSandboxRequest(req, workspaceID != "")
-	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, "")
+	access, apiErr := s.resolveSandboxAccess(
+		r.Context(), workspaceID, "", authorization.OperationCreateSandbox,
+	)
 	if apiErr != nil {
 		if access.claims.TenantID != "" {
 			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
@@ -303,7 +307,9 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		))
 		return
 	}
-	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, "")
+	access, apiErr = s.resolveSandboxAccess(
+		r.Context(), workspaceID, "", authorization.OperationCreateSandbox,
+	)
 	if apiErr != nil {
 		err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
 			access: access,
@@ -412,7 +418,9 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	access, apiErr := s.resolveSandboxAccess(
+		r.Context(), workspaceID, name, authorization.OperationDeleteSandbox,
+	)
 	if apiErr != nil {
 		if access.claims.TenantID != "" {
 			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
@@ -482,7 +490,9 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		))
 		return
 	}
-	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	access, apiErr = s.resolveSandboxAccess(
+		r.Context(), workspaceID, name, authorization.OperationDeleteSandbox,
+	)
 	if apiErr != nil {
 		err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
 			access: access,
@@ -535,7 +545,9 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	name := strings.TrimSpace(sandboxName)
-	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	access, apiErr := s.resolveSandboxAccess(
+		r.Context(), workspaceID, name, authorization.OperationUpdateSandbox,
+	)
 	if apiErr != nil {
 		if access.claims.TenantID != "" {
 			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
@@ -653,7 +665,9 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		))
 		return
 	}
-	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, name)
+	access, apiErr = s.resolveSandboxAccess(
+		r.Context(), workspaceID, name, authorization.OperationUpdateSandbox,
+	)
 	if apiErr != nil {
 		err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
 			access: access,
@@ -1124,7 +1138,7 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 	return fields
 }
 
-func (s *Service) validateSandboxDependencies(ctx context.Context, access sandboxAccess, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.FieldError, error) {
+func (s *Service) validateSandboxDependencies(ctx context.Context, access resourceAccess, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.FieldError, error) {
 	fields := []gatewayapi.FieldError{}
 	allows := func(scope agentzv1alpha1.ResourceScope, operation authorization.Operation) bool {
 		workspaceID := ""

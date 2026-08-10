@@ -336,7 +336,11 @@ export function EffectiveAccessFrame({
           </CardTitle>
           <CardDescription>{summary}</CardDescription>
         </CardHeader>
-        <CardContent className="grid min-h-96 min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <CardContent
+          className={`grid min-h-96 min-w-0 gap-4 ${
+            inspector ? "xl:grid-cols-[minmax(0,1fr)_20rem]" : ""
+          }`}
+        >
           <div className="bg-muted/20 min-h-80 min-w-0 overflow-hidden rounded-lg border">
             {canvas}
           </div>

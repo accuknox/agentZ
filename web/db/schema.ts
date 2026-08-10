@@ -94,7 +94,13 @@ export const auditInterface = pgEnum("audit_interface", [
   "controller",
   "system",
 ])
-export const cleanupState = pgEnum("cleanup_state", ["pending", "running", "succeeded", "failed"])
+export const cleanupState = pgEnum("cleanup_state", [
+  "pending",
+  "running",
+  "retrying",
+  "failed",
+  "succeeded",
+])
 export const destructiveOperation = pgEnum("destructive_operation", [
   "membership_disable",
   "membership_remove",
@@ -606,6 +612,25 @@ export const agentShareGrants = pgTable(
   (table) => [primaryKey({ columns: [table.shareId, table.capability] })]
 )
 
+type CleanupImpact = {
+  api_key_count: number
+  owned_agent_count: number
+  owned_agents: { agent_name: string; workspace_id: string }[]
+  revokes_authorization_first: true
+}
+
+export type CleanupJobPayload = CleanupImpact &
+  (
+    | {
+        operation: "membership_disable" | "membership_remove"
+        member_id: string
+        user_id: string
+      }
+    | { operation: "team_delete"; team_id: string }
+    | { operation: "role_reduce"; role_id: string }
+    | { operation: "access_revoke" | "workspace_delete"; workspace_id: string }
+  )
+
 export const cleanupJobs = pgTable(
   "cleanup_jobs",
   {
@@ -618,7 +643,7 @@ export const cleanupJobs = pgTable(
     targetType: destructiveTarget("target_type").notNull(),
     targetId: text("target_id").notNull(),
     state: cleanupState("state").default("pending").notNull(),
-    payload: jsonb("payload").notNull(),
+    payload: jsonb("payload").$type<CleanupJobPayload>().notNull(),
     attempts: integer("attempts").default(0).notNull(),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
     leaseToken: text("lease_token"),

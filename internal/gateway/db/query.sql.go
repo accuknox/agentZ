@@ -288,7 +288,7 @@ WITH next_job AS (
   SELECT id
   FROM cleanup_jobs
   WHERE (
-      state IN ('pending', 'failed')
+      state IN ('pending', 'retrying')
       AND next_attempt_at <= $3
     ) OR (
       state = 'running'
@@ -1411,6 +1411,39 @@ type GatewayDeleteWorkspaceInheritedResourcesParams struct {
 
 func (q *Queries) GatewayDeleteWorkspaceInheritedResources(ctx context.Context, arg GatewayDeleteWorkspaceInheritedResourcesParams) (int64, error) {
 	result, err := q.db.Exec(ctx, gatewayDeleteWorkspaceInheritedResources, arg.WorkspaceID, arg.OrganizationID, arg.Resource)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayFailCleanupJob = `-- name: GatewayFailCleanupJob :execrows
+UPDATE cleanup_jobs
+SET
+  state = 'failed',
+  lease_token = NULL,
+  lease_expires_at = NULL,
+  last_error = $1,
+  updated_at = $2
+WHERE id = $3
+  AND state = 'running'
+  AND lease_token = $4
+`
+
+type GatewayFailCleanupJobParams struct {
+	LastError  pgtype.Text        `json:"last_error"`
+	FailedAt   pgtype.Timestamptz `json:"failed_at"`
+	ID         string             `json:"id"`
+	LeaseToken pgtype.Text        `json:"lease_token"`
+}
+
+func (q *Queries) GatewayFailCleanupJob(ctx context.Context, arg GatewayFailCleanupJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayFailCleanupJob,
+		arg.LastError,
+		arg.FailedAt,
+		arg.ID,
+		arg.LeaseToken,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -5164,7 +5197,7 @@ func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayRe
 const gatewayRetryCleanupJob = `-- name: GatewayRetryCleanupJob :execrows
 UPDATE cleanup_jobs
 SET
-  state = 'failed',
+  state = 'retrying',
   next_attempt_at = $1,
   lease_token = NULL,
   lease_expires_at = NULL,

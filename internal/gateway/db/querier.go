@@ -45,6 +45,7 @@ type Querier interface {
 	GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDeleteSessionTracesParams) (int64, error)
 	GatewayDeleteSocialAdmissionGithubRule(ctx context.Context, arg GatewayDeleteSocialAdmissionGithubRuleParams) (int64, error)
 	GatewayDeleteWorkspaceInheritedResources(ctx context.Context, arg GatewayDeleteWorkspaceInheritedResourcesParams) (int64, error)
+	GatewayFailCleanupJob(ctx context.Context, arg GatewayFailCleanupJobParams) (int64, error)
 	GatewayFinalizeWorkspaceDeletion(ctx context.Context, arg GatewayFinalizeWorkspaceDeletionParams) (Workspace, error)
 	GatewayGetAPIKeyByHash(ctx context.Context, arg GatewayGetAPIKeyByHashParams) (GatewayGetAPIKeyByHashRow, error)
 	GatewayGetAPIKeyScope(ctx context.Context, arg GatewayGetAPIKeyScopeParams) (GatewayGetAPIKeyScopeRow, error)

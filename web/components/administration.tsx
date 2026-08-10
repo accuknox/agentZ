@@ -1,4 +1,5 @@
-import type { ReactNode } from "react"
+import Link from "next/link"
+import type { ComponentProps, ReactNode } from "react"
 import { CircleAlert, Clock3, FolderSearch, LoaderCircle, LockKeyhole, Trash2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -356,7 +357,14 @@ export function EffectiveAccessFrame({
   )
 }
 
-export type ImpactReviewItem = { id: string; label: string; detail?: string }
+export type ImpactReviewItem = {
+  id: string
+  label: string
+  detail?: string
+  group?: string
+  href?: ComponentProps<typeof Link>["href"]
+  severity?: "critical" | "warning" | "info"
+}
 
 export function ImpactReviewFrame({
   actions,
@@ -369,6 +377,12 @@ export function ImpactReviewFrame({
   items: readonly ImpactReviewItem[]
   title: string
 }) {
+  const groups = new Map<string, readonly ImpactReviewItem[]>()
+  for (const item of items) {
+    const group = item.group ?? "Impact"
+    groups.set(group, [...(groups.get(group) ?? []), item])
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -382,19 +396,57 @@ export function ImpactReviewFrame({
       </CardHeader>
       <CardContent>
         {items.length ? (
-          <ul className="flex flex-col gap-3">
-            {items.map((item, index) => (
-              <li key={item.id}>
-                {index ? <Separator className="mb-3" /> : null}
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="font-medium break-words">{item.label}</span>
-                  {item.detail ? (
-                    <span className="text-muted-foreground text-sm break-words">{item.detail}</span>
-                  ) : null}
-                </div>
-              </li>
+          <div className="grid gap-5">
+            {[...groups].map(([group, groupItems]) => (
+              <section aria-labelledby={`impact-${group}`} className="grid gap-2" key={group}>
+                <h3
+                  className="text-muted-foreground text-xs font-medium uppercase"
+                  id={`impact-${group}`}
+                >
+                  {group}
+                </h3>
+                <ul className="flex flex-col gap-3">
+                  {groupItems.map((item, index) => (
+                    <li key={item.id}>
+                      {index ? <Separator className="mb-3" /> : null}
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          {item.href ? (
+                            <Link
+                              className="font-medium break-words underline-offset-4 hover:underline"
+                              href={item.href}
+                            >
+                              {item.label}
+                            </Link>
+                          ) : (
+                            <span className="font-medium break-words">{item.label}</span>
+                          )}
+                          {item.detail ? (
+                            <span className="text-muted-foreground text-sm break-words">
+                              {item.detail}
+                            </span>
+                          ) : null}
+                        </div>
+                        {item.severity ? (
+                          <Badge
+                            variant={
+                              item.severity === "critical"
+                                ? "destructive"
+                                : item.severity === "warning"
+                                  ? "warning"
+                                  : "outline"
+                            }
+                          >
+                            {item.severity}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         ) : (
           <Alert>
             <Clock3 aria-hidden="true" />

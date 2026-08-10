@@ -53,14 +53,17 @@ var (
 	errBadRequest    = errors.New("bad request")
 )
 
-type cleanupPayload struct {
-	OwnedAgents []cleanupAgent `json:"owned_agents"`
+type cleanupJobPayload struct {
+	Operation   gatewaydb.DestructiveOperation `json:"operation"`
+	OwnedAgents []cleanupAgent                 `json:"owned_agents"`
 }
 
 type cleanupAgent struct {
 	AgentName   string `json:"agent_name"`
 	WorkspaceID string `json:"workspace_id"`
 }
+
+const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
@@ -404,27 +407,53 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 		}
 
 		if err := s.processCleanupJob(ctx, job); err != nil {
-			next := time.Now().Add(time.Duration(job.Attempts+1) * 30 * time.Second)
-			_, retryErr := s.queries.GatewayRetryCleanupJob(ctx, gatewaydb.GatewayRetryCleanupJobParams{
+			now = time.Now()
+			if job.Attempts >= cleanupMaxAttempts {
+				updated, failErr := s.queries.GatewayFailCleanupJob(
+					ctx,
+					gatewaydb.GatewayFailCleanupJobParams{
+						FailedAt:   pgtype.Timestamptz{Time: now, Valid: true},
+						LastError:  pgtype.Text{String: err.Error(), Valid: true},
+						ID:         job.ID,
+						LeaseToken: job.LeaseToken,
+					},
+				)
+				if failErr != nil {
+					slog.ErrorContext(
+						ctx, "fail cleanup job",
+						slog.String("job_id", job.ID), slog.Any("err", failErr),
+					)
+				} else if updated == 0 {
+					slog.WarnContext(ctx, "cleanup job lease lost", slog.String("job_id", job.ID))
+				}
+				continue
+			}
+
+			next := now.Add(time.Duration(job.Attempts) * time.Minute)
+			updated, retryErr := s.queries.GatewayRetryCleanupJob(ctx, gatewaydb.GatewayRetryCleanupJobParams{
 				NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},
 				LastError:     pgtype.Text{String: err.Error(), Valid: true},
-				UpdatedAt:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				UpdatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
 				ID:            job.ID,
 				LeaseToken:    job.LeaseToken,
 			})
 			if retryErr != nil {
 				slog.ErrorContext(ctx, "retry cleanup job", slog.String("job_id", job.ID), slog.Any("err", retryErr))
+			} else if updated == 0 {
+				slog.WarnContext(ctx, "cleanup job lease lost", slog.String("job_id", job.ID))
 			}
 			continue
 		}
 
-		_, err = s.queries.GatewayCompleteCleanupJob(ctx, gatewaydb.GatewayCompleteCleanupJobParams{
+		updated, err := s.queries.GatewayCompleteCleanupJob(ctx, gatewaydb.GatewayCompleteCleanupJobParams{
 			CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			ID:          job.ID,
 			LeaseToken:  job.LeaseToken,
 		})
 		if err != nil {
 			slog.ErrorContext(ctx, "complete cleanup job", slog.String("job_id", job.ID), slog.Any("err", err))
+		} else if updated == 0 {
+			slog.WarnContext(ctx, "cleanup job lease lost", slog.String("job_id", job.ID))
 		}
 	}
 }
@@ -435,9 +464,16 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		return fmt.Errorf("unsupported cleanup operation %q", job.Operation)
 	}
 
-	var payload cleanupPayload
+	var payload cleanupJobPayload
 	if err := json.Unmarshal(job.Payload, &payload); err != nil {
 		return fmt.Errorf("decode cleanup payload: %w", err)
+	}
+	if payload.Operation != job.Operation {
+		return fmt.Errorf(
+			"cleanup payload operation %q does not match job operation %q",
+			payload.Operation,
+			job.Operation,
+		)
 	}
 
 	for _, agent := range payload.OwnedAgents {

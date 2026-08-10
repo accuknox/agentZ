@@ -573,6 +573,7 @@ export async function setMemberDisabled(orgSlug: string, memberId: string, disab
         organizationId: actor.organization.id,
         payload: {
           api_key_count: revokedAPIKeys.length,
+          operation: "membership_disable",
           owned_agent_count: ownedAgents.length,
           owned_agents: ownedAgents.map((agent) => ({
             agent_name: agent.agentName,

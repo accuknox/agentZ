@@ -1740,7 +1740,7 @@ WITH next_job AS (
   SELECT id
   FROM cleanup_jobs
   WHERE (
-      state IN ('pending', 'failed')
+      state IN ('pending', 'retrying')
       AND next_attempt_at <= sqlc.arg(now_at)
     ) OR (
       state = 'running'
@@ -1793,12 +1793,24 @@ WHERE id = sqlc.arg(id)
 -- name: GatewayRetryCleanupJob :execrows
 UPDATE cleanup_jobs
 SET
-  state = 'failed',
+  state = 'retrying',
   next_attempt_at = sqlc.arg(next_attempt_at),
   lease_token = NULL,
   lease_expires_at = NULL,
   last_error = sqlc.arg(last_error),
   updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND state = 'running'
+  AND lease_token = sqlc.arg(lease_token);
+
+-- name: GatewayFailCleanupJob :execrows
+UPDATE cleanup_jobs
+SET
+  state = 'failed',
+  lease_token = NULL,
+  lease_expires_at = NULL,
+  last_error = sqlc.arg(last_error),
+  updated_at = sqlc.arg(failed_at)
 WHERE id = sqlc.arg(id)
   AND state = 'running'
   AND lease_token = sqlc.arg(lease_token);

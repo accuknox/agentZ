@@ -5,6 +5,7 @@ import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
+import { retryDestructiveOperation } from "@/data/operations"
 import {
   applyInvitation,
   cancelInvitation,
@@ -107,6 +108,11 @@ const socialAdmissionFormSchema = z
       ctx.addIssue({ code: "custom", message: "Select at least one default Role." })
     }
   })
+
+export async function retryDestructiveOperationAction(orgSlug: string, jobId: string) {
+  const result = await retryDestructiveOperation(orgSlug, jobId)
+  if (!("error" in result)) revalidatePath(`/orgs/${orgSlug}/destructive-operations`)
+}
 
 export type RenameOrganizationFormState = {
   values: {

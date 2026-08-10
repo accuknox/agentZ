@@ -90,6 +90,36 @@ const (
 	OperationUpdateInferencePool Operation = "updateInferencePool"
 	// OperationDeleteInferencePool deletes an Inference Pool resource.
 	OperationDeleteInferencePool Operation = "deleteInferencePool"
+	// OperationListAgents lists Agent resources.
+	OperationListAgents Operation = "listAgents"
+	// OperationWatchAgents watches Agent resources.
+	OperationWatchAgents Operation = "watchAgents"
+	// OperationCreateAgent creates an Agent resource.
+	OperationCreateAgent Operation = "createAgent"
+	// OperationUpdateAgent modifies an Agent resource.
+	OperationUpdateAgent Operation = "updateAgent"
+	// OperationDeleteAgent deletes an Agent resource.
+	OperationDeleteAgent Operation = "deleteAgent"
+	// OperationShareAuthoredAgent shares an Agent owned by the caller.
+	OperationShareAuthoredAgent Operation = "shareAuthoredAgent"
+	// OperationShareNonAuthoredAgent shares an Agent through delegation.
+	OperationShareNonAuthoredAgent Operation = "shareNonAuthoredAgent"
+	// OperationUseSharedAgent uses a shared Agent.
+	OperationUseSharedAgent Operation = "useSharedAgent"
+	// OperationReadSharedSecret reads shared Agent secret metadata.
+	OperationReadSharedSecret Operation = "readSharedSecret"
+	// OperationWriteSharedSecret writes a shared Agent secret.
+	OperationWriteSharedSecret Operation = "writeSharedSecret"
+	// OperationDeleteSharedSecret deletes a shared Agent secret.
+	OperationDeleteSharedSecret Operation = "deleteSharedSecret"
+	// OperationListAPIKeys lists Workspace API key metadata.
+	OperationListAPIKeys Operation = "listAPIKeys"
+	// OperationCreateAPIKey creates a Workspace API key.
+	OperationCreateAPIKey Operation = "createAPIKey"
+	// OperationDeleteAPIKey deletes a Workspace API key.
+	OperationDeleteAPIKey Operation = "deleteAPIKey"
+	// OperationReadObservability reads Workspace observability.
+	OperationReadObservability Operation = "readObservability"
 )
 
 // BearerScope returns the generated bearer scope for the operation.
@@ -186,7 +216,7 @@ func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, err
 
 // Allows reports whether an explicitly mapped operation is allowed in the exact scope.
 func (e Effective) Allows(scope Scope, operation Operation) bool {
-	resource, action, mapped := operationPermission(operation)
+	mapping, mapped := mapOperation(operation)
 	if !mapped || scope.OrganizationID != e.organizationID {
 		return false
 	}
@@ -196,8 +226,8 @@ func (e Effective) Allows(scope Scope, operation Operation) bool {
 
 	_, allowed := e.grants[grantKey{
 		workspaceID: scope.WorkspaceID,
-		resource:    resource,
-		action:      action,
+		resource:    mapping.resource,
+		action:      mapping.action,
 	}]
 	return allowed
 }
@@ -217,9 +247,19 @@ func (e Effective) CanAdminister(scope Scope) bool {
 	return ok
 }
 
-func operationPermission(operation Operation) (gatewaydb.PermissionResource, gatewaydb.PermissionAction, bool) {
-	mapping, ok := mapOperation(operation)
-	return mapping.resource, mapping.action, ok
+// HasWorkspaceAccess reports whether the subject has any active authority in
+// a Workspace. Agent ownership depends on this so an owned Agent cannot keep a
+// user inside a Workspace after all independent access is revoked.
+func (e Effective) HasWorkspaceAccess(scope Scope) bool {
+	if e.CanAdminister(scope) {
+		return true
+	}
+	for grant := range e.grants {
+		if grant.workspaceID == scope.WorkspaceID {
+			return true
+		}
+	}
+	return false
 }
 
 type operationMapping struct {
@@ -277,6 +317,32 @@ func mapOperation(operation Operation) (operationMapping, bool) {
 		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionModify, "inference_pool.modify"}, true
 	case OperationDeleteInferencePool:
 		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionDelete, "inference_pool.delete"}, true
+	case OperationListAgents, OperationWatchAgents:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, "agent.use_shared"}, true
+	case OperationCreateAgent:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionAuthor, "agent.author"}, true
+	case OperationUpdateAgent, OperationDeleteAgent:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, "agent.use_shared"}, true
+	case OperationShareAuthoredAgent:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionShareAuthored, "agent.share_authored"}, true
+	case OperationShareNonAuthoredAgent:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionShareNonAuthored, "agent.share_non_authored"}, true
+	case OperationUseSharedAgent:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, "agent.use_shared"}, true
+	case OperationReadSharedSecret:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionReadSharedSecret, "agent.read_shared_secret"}, true
+	case OperationWriteSharedSecret:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionWriteSharedSecret, "agent.write_shared_secret"}, true
+	case OperationDeleteSharedSecret:
+		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionDeleteSharedSecret, "agent.delete_shared_secret"}, true
+	case OperationListAPIKeys:
+		return operationMapping{gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionRead, "api_key.read"}, true
+	case OperationCreateAPIKey:
+		return operationMapping{gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionCreate, "api_key.create"}, true
+	case OperationDeleteAPIKey:
+		return operationMapping{gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionDelete, "api_key.delete"}, true
+	case OperationReadObservability:
+		return operationMapping{gatewaydb.PermissionResourceObservability, gatewaydb.PermissionActionRead, "observability.read"}, true
 	default:
 		return operationMapping{}, false
 	}

@@ -44,6 +44,14 @@ components:
       required: false
       schema:
         $ref: '#/components/schemas/AgentName'
+    AgentShareIDPath:
+      description: Stable Agent Share ID.
+      in: path
+      name: shareId
+      required: true
+      schema:
+        minLength: 1
+        type: string
     AggregatedQuery:
       description: When true, returns aggregated events with occurrence counts over
         the time range.
@@ -487,6 +495,73 @@ components:
           maxLength: 4096
           type: string
       type: object
+    AgentOwner:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        created_at:
+          format: date-time
+          type: string
+        creator_user_id:
+          type: string
+        owner_user_id:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+      - agent_name
+      - creator_user_id
+      - owner_user_id
+      - created_at
+      - updated_at
+      type: object
+    AgentShare:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        capabilities:
+          items:
+            $ref: '#/components/schemas/AgentShareCapability'
+          type: array
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        id:
+          type: string
+        target_team_id:
+          nullable: true
+          type: string
+        target_user_id:
+          nullable: true
+          type: string
+      required:
+      - id
+      - agent_name
+      - target_user_id
+      - target_team_id
+      - created_by
+      - capabilities
+      - created_at
+      type: object
+    AgentShareCapability:
+      enum:
+      - share_non_authored
+      - use_shared
+      - read_shared_secret
+      - write_shared_secret
+      - delete_shared_secret
+      type: string
+      x-enum-varnames:
+      - AgentShareCapabilityShareNonAuthored
+      - AgentShareCapabilityUseShared
+      - AgentShareCapabilityReadSharedSecret
+      - AgentShareCapabilityWriteSharedSecret
+      - AgentShareCapabilityDeleteSharedSecret
     AgentStatus:
       enum:
       - UNSPECIFIED
@@ -792,6 +867,7 @@ components:
       - mcp_connection
       - inference_provider
       - inference_pool
+      - agent
       type: string
       x-enum-varnames:
       - AuditTargetOrganization
@@ -804,6 +880,7 @@ components:
       - AuditTargetMCPConnection
       - AuditTargetInferenceProvider
       - AuditTargetInferencePool
+      - AuditTargetAgent
     AuditWorkspace:
       additionalProperties: false
       properties:
@@ -2290,6 +2367,16 @@ components:
       - additionalProperties:
           $ref: '#/components/schemas/JSONValue'
         type: object
+    ListAgentSharesResponse:
+      additionalProperties: false
+      properties:
+        shares:
+          items:
+            $ref: '#/components/schemas/AgentShare'
+          type: array
+      required:
+      - shares
+      type: object
     ListAgentsResponse:
       additionalProperties: false
       properties:
@@ -22594,6 +22681,15 @@ components:
       - status_code
       - updated_at
       type: object
+    TransferAgentOwnerRequest:
+      additionalProperties: false
+      properties:
+        owner_user_id:
+          minLength: 1
+          type: string
+      required:
+      - owner_user_id
+      type: object
     UpdateAgentRequest:
       additionalProperties: false
       minProperties: 1
@@ -22734,6 +22830,23 @@ components:
       required:
       - provisioning_attempt
       - state
+      type: object
+    UpsertAgentShareRequest:
+      additionalProperties: false
+      properties:
+        capabilities:
+          items:
+            $ref: '#/components/schemas/AgentShareCapability'
+          minItems: 1
+          type: array
+        target_team_id:
+          minLength: 1
+          type: string
+        target_user_id:
+          minLength: 1
+          type: string
+      required:
+      - capabilities
       type: object
     VertexAIInferenceProviderRead:
       properties:
@@ -23843,6 +23956,142 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       summary: Read agent workspace entry metadata.
+      tags:
+      - agents
+  /api/agent/{agentName}/owner:
+    get:
+      operationId: getAgentOwner
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentOwner'
+          description: Agent ownership metadata.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Read Agent ownership metadata.
+      tags:
+      - agents
+    put:
+      operationId: transferAgentOwner
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferAgentOwnerRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentOwner'
+          description: Agent owner transferred.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Transfer Agent ownership.
+      tags:
+      - agents
+  /api/agent/{agentName}/share:
+    get:
+      operationId: listAgentShares
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAgentSharesResponse'
+          description: Agent Shares for the selected Agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: List Agent Shares.
+      tags:
+      - agents
+    post:
+      description: |
+        Creates or replaces one User or Team Agent Share. UseShared grants full non-secret Agent and workflow control.
+      operationId: upsertAgentShare
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertAgentShareRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentShare'
+          description: Agent Share created or replaced.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Create or replace an Agent Share.
+      tags:
+      - agents
+  /api/agent/{agentName}/share/{shareId}:
+    delete:
+      operationId: deleteAgentShare
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/AgentShareIDPath'
+      responses:
+        "204":
+          description: Agent Share deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      summary: Delete an Agent Share.
       tags:
       - agents
   /api/agent/{agentName}/skill:

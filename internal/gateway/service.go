@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,10 +22,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	nethttpmiddleware "github.com/oapi-codegen/nethttp-middleware"
 	baoapi "github.com/openbao/openbao/api/v2"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
@@ -47,6 +52,15 @@ var (
 	errAgentNotFound = errors.New("agent not found")
 	errBadRequest    = errors.New("bad request")
 )
+
+type cleanupPayload struct {
+	OwnedAgents []cleanupAgent `json:"owned_agents"`
+}
+
+type cleanupAgent struct {
+	AgentName   string `json:"agent_name"`
+	WorkspaceID string `json:"workspace_id"`
+}
 
 // Config describes how to start the gateway.
 type Config struct {
@@ -297,6 +311,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(auditRetentionDone)
 		svc.runAuditRetention(runCtx)
 	}()
+	cleanupDone := make(chan struct{})
+	go func() {
+		defer close(cleanupDone)
+		svc.runCleanupJobs(runCtx)
+	}()
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -344,10 +363,112 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 	}
 	stopRun()
+	<-cleanupDone
 	<-auditRetentionDone
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) runCleanupJobs(ctx context.Context) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		s.drainCleanupJobs(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) drainCleanupJobs(ctx context.Context) {
+	for {
+		now := time.Now()
+		token := fmt.Sprintf("gateway-%d", now.UnixNano())
+		job, err := s.queries.GatewayClaimCleanupJob(ctx, gatewaydb.GatewayClaimCleanupJobParams{
+			LeaseToken:     pgtype.Text{String: token, Valid: true},
+			LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(2 * time.Minute), Valid: true},
+			NowAt:          pgtype.Timestamptz{Time: now, Valid: true},
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return
+		}
+		if err != nil {
+			slog.ErrorContext(ctx, "claim cleanup job", slog.Any("err", err))
+			return
+		}
+
+		if err := s.processCleanupJob(ctx, job); err != nil {
+			next := time.Now().Add(time.Duration(job.Attempts+1) * 30 * time.Second)
+			_, retryErr := s.queries.GatewayRetryCleanupJob(ctx, gatewaydb.GatewayRetryCleanupJobParams{
+				NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},
+				LastError:     pgtype.Text{String: err.Error(), Valid: true},
+				UpdatedAt:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				ID:            job.ID,
+				LeaseToken:    job.LeaseToken,
+			})
+			if retryErr != nil {
+				slog.ErrorContext(ctx, "retry cleanup job", slog.String("job_id", job.ID), slog.Any("err", retryErr))
+			}
+			continue
+		}
+
+		_, err = s.queries.GatewayCompleteCleanupJob(ctx, gatewaydb.GatewayCompleteCleanupJobParams{
+			CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			ID:          job.ID,
+			LeaseToken:  job.LeaseToken,
+		})
+		if err != nil {
+			slog.ErrorContext(ctx, "complete cleanup job", slog.String("job_id", job.ID), slog.Any("err", err))
+		}
+	}
+}
+
+func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJob) error {
+	if job.Operation != gatewaydb.DestructiveOperationMembershipDisable &&
+		job.Operation != gatewaydb.DestructiveOperationMembershipRemove {
+		return fmt.Errorf("unsupported cleanup operation %q", job.Operation)
+	}
+
+	var payload cleanupPayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		return fmt.Errorf("decode cleanup payload: %w", err)
+	}
+
+	for _, agent := range payload.OwnedAgents {
+		workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
+			ID:             agent.WorkspaceID,
+			OrganizationID: job.OrganizationID,
+		})
+		if err != nil {
+			return fmt.Errorf("get workspace %q for cleanup: %w", agent.WorkspaceID, err)
+		}
+
+		err = s.resolver.client.AgentzV1alpha1().Agents(workspace.Namespace).Delete(
+			ctx,
+			agent.AgentName,
+			metav1.DeleteOptions{
+				PropagationPolicy: new(metav1.DeletePropagationBackground),
+			},
+		)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete Agent %q: %w", agent.AgentName, err)
+		}
+		if err := s.deleteAgentSecretResources(ctx, workspace.Namespace, agent.AgentName); err != nil {
+			return fmt.Errorf("delete Agent %q secrets: %w", agent.AgentName, err)
+		}
+		_, err = s.queries.GatewayDeleteAgent(ctx, gatewaydb.GatewayDeleteAgentParams{
+			TenantNamespace: workspace.Namespace,
+			AgentName:       agent.AgentName,
+		})
+		if err != nil {
+			return fmt.Errorf("delete Agent %q row: %w", agent.AgentName, err)
+		}
 	}
 	return nil
 }

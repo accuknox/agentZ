@@ -5,11 +5,13 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import * as z from "zod"
+import { and, eq, isNull } from "drizzle-orm"
 import type { CreateAPIKeyFormState, DeleteAPIKeyFormState } from "@/data/types"
 import type { Agent } from "@/lib/gateway/client"
 import { listAgents, listWorkflowSummaries } from "@/lib/gateway/client"
 import { createAPIKeyFormSchema } from "@/data/api-key.schema"
 import { apiKeysTag } from "@/data/cache"
+import { getDB, schema } from "@/db"
 import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
@@ -23,7 +25,12 @@ const deleteAPIKeyFormSchema = z.object({
   keyID: z.string({ error: "API key ID is required" }).min(1, "API key ID is required"),
 })
 
+export type APIKeyActionScope = {
+  workspaceId?: string
+}
+
 export async function createAPIKeyFormAction(
+  scope: APIKeyActionScope,
   _: CreateAPIKeyFormState,
   formData: FormData
 ): Promise<CreateAPIKeyFormState> {
@@ -42,6 +49,14 @@ export async function createAPIKeyFormAction(
       },
     }
   }
+  if (scope.workspaceId && parsed.data.scopeMode === "all") {
+    return {
+      error: {
+        code: "INVALID_FORM",
+        message: "Workspace API keys must target selected Agents or workflows.",
+      },
+    }
+  }
 
   const session = await auth.api.getSession({
     headers: requestHeaders,
@@ -55,7 +70,9 @@ export async function createAPIKeyFormAction(
   const selectedWorkflowScopes = [...new Set(parsed.data.workflowScopes)].toSorted()
   let agents: Agent[] = []
   if (parsed.data.scopeMode === "selected") {
-    const { data, error } = await listAgents({ client: getGatewayServerClient() })
+    const { data, error } = await listAgents({
+      client: getGatewayServerClient(scope.workspaceId),
+    })
     if (error) {
       return {
         error: {
@@ -118,7 +135,7 @@ export async function createAPIKeyFormAction(
     const workflowResults = await Promise.all(
       [...workflowNamesByAgent.keys()].map(async (agentName) => {
         const { data, error } = await listWorkflowSummaries({
-          client: getGatewayServerClient(),
+          client: getGatewayServerClient(scope.workspaceId),
           path: { agentName },
         })
         return { agentName, data, error }
@@ -181,6 +198,22 @@ export async function createAPIKeyFormAction(
         userId: authContext.userId,
       },
     })
+    if (scope.workspaceId) {
+      try {
+        await getDB().insert(schema.apiKeyScopes).values({
+          apiKeyId: key.id,
+          creatorUserId: authContext.userId,
+          organizationId: authContext.organizationId,
+          workspaceId: scope.workspaceId,
+        })
+      } catch (error) {
+        await auth.api.deleteApiKey({
+          body: { configId, keyId: key.id },
+          headers: requestHeaders,
+        })
+        throw error
+      }
+    }
 
     updateTag(apiKeysTag)
     return {
@@ -205,6 +238,7 @@ export async function createAPIKeyFormAction(
 }
 
 export async function deleteAPIKeyFormAction(
+  scope: APIKeyActionScope,
   _: DeleteAPIKeyFormState,
   formData: FormData
 ): Promise<DeleteAPIKeyFormState> {
@@ -225,6 +259,52 @@ export async function deleteAPIKeyFormAction(
   })
   if (!session) {
     redirect(signInURL({ error: "session_expired" }))
+  }
+  if (scope.workspaceId) {
+    const workspaceId = scope.workspaceId
+    const authContext = await currentGatewayAuthContext()
+    const revoked = await getDB().transaction(async (tx) => {
+      const rows = await tx
+        .update(schema.apiKeyScopes)
+        .set({
+          revokedAt: new Date(),
+          revokedReason: "Revoked from Workspace API key settings.",
+        })
+        .where(
+          and(
+            eq(schema.apiKeyScopes.apiKeyId, parsed.data.keyID),
+            eq(schema.apiKeyScopes.organizationId, authContext.organizationId),
+            eq(schema.apiKeyScopes.workspaceId, workspaceId),
+            isNull(schema.apiKeyScopes.revokedAt)
+          )
+        )
+        .returning({ apiKeyId: schema.apiKeyScopes.apiKeyId })
+      if (rows.length === 0) {
+        return false
+      }
+
+      await tx
+        .update(schema.apikeys)
+        .set({ enabled: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.apikeys.id, parsed.data.keyID),
+            eq(schema.apikeys.referenceId, authContext.organizationId)
+          )
+        )
+      return true
+    })
+    if (!revoked) {
+      return {
+        error: {
+          code: "INVALID_FORM",
+          message: "Invalid API key",
+        },
+      }
+    }
+
+    updateTag(apiKeysTag)
+    return { success: true }
   }
 
   try {

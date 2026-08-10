@@ -42,10 +42,10 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 	t.Parallel()
 
 	queries := &permissionQueries{rows: []gatewaydb.GatewayResolvePermissionsRow{
-		permissionRow("", gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionRead),
-		permissionRow("workspace-a", gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionCreate),
-		permissionRow("workspace-a", gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionModify),
-		permissionRow("workspace-b", gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionDelete),
+		permissionRow("", gatewaydb.PermissionActionRead),
+		permissionRow("workspace-a", gatewaydb.PermissionActionCreate),
+		permissionRow("workspace-a", gatewaydb.PermissionActionModify),
+		permissionRow("workspace-b", gatewaydb.PermissionActionDelete),
 	}}
 	effective, err := authorization.New(queries).Resolve(context.Background(), authorization.Subject{
 		UserID:         "user-a",
@@ -233,12 +233,12 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 	}
 }
 
-func permissionRow(workspaceID string, resource gatewaydb.PermissionResource, action gatewaydb.PermissionAction) gatewaydb.GatewayResolvePermissionsRow {
+func permissionRow(workspaceID string, action gatewaydb.PermissionAction) gatewaydb.GatewayResolvePermissionsRow {
 	return gatewaydb.GatewayResolvePermissionsRow{
 		Active:      true,
 		WorkspaceID: pgtype.Text{String: workspaceID, Valid: workspaceID != ""},
 		Resource: gatewaydb.NullPermissionResource{
-			PermissionResource: resource,
+			PermissionResource: gatewaydb.PermissionResourceSandbox,
 			Valid:              true,
 		},
 		Action: gatewaydb.NullPermissionAction{

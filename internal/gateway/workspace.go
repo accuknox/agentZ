@@ -244,6 +244,10 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			writeInternalError(w, r, err)
 			return
 		}
+		if err := tx.Commit(r.Context()); err != nil {
+			writeInternalError(w, r, fmt.Errorf("commit failed workspace create audit: %w", err))
+			return
+		}
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",

@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
 import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
 import { ArrowLeft, ArrowRight } from "lucide-react"
@@ -38,6 +39,7 @@ export function AgentTable({
   initialNextSandboxPageToken,
   nextPageToken,
   deleteAgentAction,
+  actionScope,
 }: {
   agents: Agent[]
   immutableSkills: Skill[]
@@ -51,6 +53,7 @@ export function AgentTable({
     state: DeleteAgentFormState,
     formData: FormData
   ) => Promise<DeleteAgentFormState>
+  actionScope?: AgentActionScope
 }) {
   "use no memo"
 
@@ -63,7 +66,8 @@ export function AgentTable({
         immutableSkills,
         sandboxes,
         initialHasNextSandboxPage,
-        initialNextSandboxPageToken
+        initialNextSandboxPageToken,
+        actionScope
       ),
     [
       deleteAgentAction,
@@ -71,6 +75,7 @@ export function AgentTable({
       sandboxes,
       initialHasNextSandboxPage,
       initialNextSandboxPageToken,
+      actionScope,
     ]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

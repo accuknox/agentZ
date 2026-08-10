@@ -1079,6 +1079,19 @@ WHERE team_id = sqlc.arg(team_id)
   AND organization_id = sqlc.arg(organization_id)
 ORDER BY role_id;
 
+-- name: GatewayListActiveTeamUserIDs :many
+SELECT team_members.user_id
+FROM team_members
+JOIN members
+  ON members.organization_id = sqlc.arg(organization_id)
+  AND members.user_id = team_members.user_id
+  AND members.disabled_at IS NULL
+JOIN teams
+  ON teams.id = team_members.team_id
+  AND teams.organization_id = members.organization_id
+WHERE team_members.team_id = sqlc.arg(team_id)
+ORDER BY team_members.user_id;
+
 -- name: GatewayUnassignTeamRole :execrows
 DELETE FROM team_roles
 WHERE team_id = sqlc.arg(team_id)
@@ -1260,6 +1273,8 @@ RETURNING
   organization_id,
   workspace_id,
   creator_user_id,
+  revoked_at,
+  revoked_reason,
   created_at;
 
 -- name: GatewayGetAPIKeyScope :one
@@ -1268,6 +1283,8 @@ SELECT
   api_key_scopes.organization_id,
   api_key_scopes.workspace_id,
   api_key_scopes.creator_user_id,
+  api_key_scopes.revoked_at,
+  api_key_scopes.revoked_reason,
   api_key_scopes.created_at
 FROM api_key_scopes
 JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
@@ -1279,12 +1296,32 @@ WHERE api_key_scopes.api_key_id = sqlc.arg(api_key_id)
   AND api_key_scopes.organization_id = sqlc.arg(organization_id)
   AND api_key_scopes.workspace_id = sqlc.arg(workspace_id);
 
+-- name: GatewayGetAPIKeyScopeByKey :one
+SELECT
+  api_key_scopes.api_key_id,
+  api_key_scopes.organization_id,
+  api_key_scopes.workspace_id,
+  api_key_scopes.creator_user_id,
+  api_key_scopes.revoked_at,
+  api_key_scopes.revoked_reason,
+  api_key_scopes.created_at
+FROM api_key_scopes
+JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
+  AND apikeys.reference_id = api_key_scopes.organization_id
+JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
+  AND workspaces.organization_id = api_key_scopes.organization_id
+  AND workspaces.deleted_at IS NULL
+WHERE api_key_scopes.api_key_id = sqlc.arg(api_key_id)
+  AND api_key_scopes.organization_id = sqlc.arg(organization_id);
+
 -- name: GatewayListAPIKeyScopes :many
 SELECT
   api_key_scopes.api_key_id,
   api_key_scopes.organization_id,
   api_key_scopes.workspace_id,
   api_key_scopes.creator_user_id,
+  api_key_scopes.revoked_at,
+  api_key_scopes.revoked_reason,
   api_key_scopes.created_at
 FROM api_key_scopes
 JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
@@ -1295,6 +1332,30 @@ JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
 WHERE api_key_scopes.organization_id = sqlc.arg(organization_id)
   AND api_key_scopes.workspace_id = sqlc.arg(workspace_id)
 ORDER BY api_key_scopes.created_at, api_key_scopes.api_key_id;
+
+-- name: GatewayRevokeScopedAPIKey :one
+UPDATE api_key_scopes
+SET revoked_at = sqlc.arg(revoked_at),
+  revoked_reason = sqlc.arg(revoked_reason)
+WHERE api_key_id = sqlc.arg(api_key_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND revoked_at IS NULL
+RETURNING
+  api_key_id,
+  organization_id,
+  workspace_id,
+  creator_user_id,
+  revoked_at,
+  revoked_reason,
+  created_at;
+
+-- name: GatewayDisableAPIKey :execrows
+UPDATE apikeys
+SET enabled = false,
+  updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(api_key_id)
+  AND reference_id = sqlc.arg(organization_id);
 
 -- name: GatewayDeleteScopedAPIKey :execrows
 DELETE FROM apikeys
@@ -1353,6 +1414,83 @@ FROM agent_owners
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name);
+
+-- name: GatewayLockAgentOwner :one
+SELECT
+  organization_id,
+  workspace_id,
+  agent_name,
+  creator_user_id,
+  owner_user_id,
+  created_at,
+  updated_at
+FROM agent_owners
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+FOR UPDATE;
+
+-- name: GatewayDeleteAgentOwner :execrows
+DELETE FROM agent_owners
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name);
+
+-- name: GatewayAgentShareCapabilityExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM agent_shares
+  JOIN agent_share_grants
+    ON agent_share_grants.share_id = agent_shares.id
+    AND agent_share_grants.capability = sqlc.arg(capability)
+  WHERE agent_shares.organization_id = sqlc.arg(organization_id)
+    AND agent_shares.workspace_id = sqlc.arg(workspace_id)
+    AND agent_shares.agent_name = sqlc.arg(agent_name)
+    AND (
+      agent_shares.target_user_id = sqlc.arg(user_id)
+      OR EXISTS (
+        SELECT 1
+        FROM team_members
+        JOIN teams
+          ON teams.id = team_members.team_id
+          AND teams.organization_id = agent_shares.organization_id
+        WHERE team_members.team_id = agent_shares.target_team_id
+          AND team_members.user_id = sqlc.arg(user_id)
+      )
+    )
+);
+
+-- name: GatewayListAccessibleAgentNames :many
+SELECT DISTINCT agent_owners.agent_name
+FROM agent_owners
+WHERE agent_owners.organization_id = sqlc.arg(organization_id)
+  AND agent_owners.workspace_id = sqlc.arg(workspace_id)
+  AND (
+    agent_owners.owner_user_id = sqlc.arg(user_id)
+    OR EXISTS (
+      SELECT 1
+      FROM agent_shares
+      JOIN agent_share_grants
+        ON agent_share_grants.share_id = agent_shares.id
+        AND agent_share_grants.capability = 'use_shared'
+      WHERE agent_shares.organization_id = agent_owners.organization_id
+        AND agent_shares.workspace_id = agent_owners.workspace_id
+        AND agent_shares.agent_name = agent_owners.agent_name
+        AND (
+          agent_shares.target_user_id = sqlc.arg(user_id)
+          OR EXISTS (
+            SELECT 1
+            FROM team_members
+            JOIN teams
+              ON teams.id = team_members.team_id
+              AND teams.organization_id = agent_shares.organization_id
+            WHERE team_members.team_id = agent_shares.target_team_id
+              AND team_members.user_id = sqlc.arg(user_id)
+          )
+        )
+    )
+  )
+ORDER BY agent_owners.agent_name;
 
 -- name: GatewayTransferAgentOwner :one
 UPDATE agent_owners

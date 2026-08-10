@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
+import Link from "next/link"
+import type { Route } from "next"
+import { ArrowUpDown, MoreHorizontal, Settings, Trash2 } from "lucide-react"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
@@ -22,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
 import { formatTimestamp } from "@/lib/format"
 
@@ -36,7 +39,8 @@ export function createAgentColumns(
   immutableSkills: Skill[],
   sandboxes: Sandbox[],
   initialHasNextSandboxPage: boolean,
-  initialNextSandboxPageToken: string
+  initialNextSandboxPageToken: string,
+  actionScope?: AgentActionScope
 ): ColumnDef<Agent>[] {
   return [
     {
@@ -84,6 +88,7 @@ export function createAgentColumns(
             sandboxes={sandboxes}
             initialHasNextSandboxPage={initialHasNextSandboxPage}
             initialNextSandboxPageToken={initialNextSandboxPageToken}
+            actionScope={actionScope}
           />
         )
       },
@@ -98,6 +103,7 @@ function AgentActions({
   sandboxes,
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
+  actionScope,
 }: {
   agent: Agent
   deleteAgentAction: DeleteAgentAction
@@ -105,6 +111,7 @@ function AgentActions({
   sandboxes: Sandbox[]
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
+  actionScope?: AgentActionScope
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
@@ -119,6 +126,14 @@ function AgentActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {actionScope ? (
+            <DropdownMenuItem asChild>
+              <Link href={`${actionScope.basePath}/${agent.name}` as Route}>
+                <Settings />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault()
@@ -135,6 +150,7 @@ function AgentActions({
       </DropdownMenu>
       <AgentDialog
         mode="update"
+        actionScope={actionScope}
         agentName={agent.name}
         initialSandboxName={agent.sandbox.name}
         initialMemoryEnabled={agent.memory.enabled}

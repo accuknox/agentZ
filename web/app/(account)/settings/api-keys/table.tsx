@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { MoreHorizontal, Trash2 } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { Badge } from "@/components/ui/badge"
 import { formatAge, formatTimestampWithAge } from "@/lib/format"
 import type { DeleteAPIKeyFormState } from "@/data/types"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,10 @@ type APIKeyRow = {
   permissions?: Record<string, string[]> | null
   expiresAt?: Date | string | null
   createdAt: Date | string
+  workspaceScope?: {
+    revokedAt: string | null
+    revokedReason: string | null
+  }
 }
 
 const columnClassName: Record<string, string> = {
@@ -52,6 +57,7 @@ const columnClassName: Record<string, string> = {
   type: "w-20",
   start: "w-36",
   scope: "min-w-56",
+  status: "w-32",
   expiresAt: "w-28",
   age: "w-28",
   actions: "w-14",
@@ -92,6 +98,11 @@ export function APIKeysTable({
         cell: ({ row }) => (
           <APIKeyScope configId={row.original.configId} permissions={row.original.permissions} />
         ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => <APIKeyStatus scope={row.original.workspaceScope} />,
       },
       {
         id: "expiresAt",
@@ -277,6 +288,30 @@ function apiKeyTypeLabel(configId: string) {
     return "Webhook"
   }
   return "Unknown"
+}
+
+function APIKeyStatus({ scope }: { scope?: APIKeyRow["workspaceScope"] }) {
+  if (!scope) {
+    return <Badge variant="outline">Active</Badge>
+  }
+  if (!scope.revokedAt) {
+    return <Badge variant="success">Active</Badge>
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge className="cursor-default" variant="destructive">
+            Revoked
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={6}>
+          {scope.revokedReason ?? "Workspace access was revoked."}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 function DeleteAPIKeyButton({

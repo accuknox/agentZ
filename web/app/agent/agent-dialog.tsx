@@ -30,16 +30,21 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
+import {
+  createAgentFormAction,
+  updateAgentFormAction,
+  type AgentActionScope,
+} from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema } from "@/data/schema"
-import type { Sandbox, Skill } from "@/lib/gateway/client"
+import type { ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
 import type * as z from "zod"
 
 type Mode = "create" | "update"
 
 type AgentDialogProps = {
   mode: Mode
+  actionScope?: AgentActionScope
   sandboxes: Sandbox[]
   immutableSkills: Skill[]
   initialHasNextSandboxPage: boolean
@@ -68,6 +73,7 @@ function SandboxSelect({
   onBlurAction,
   onValueChangeAction,
   value,
+  workspaceId,
 }: {
   "aria-invalid"?: boolean
   disabled?: boolean
@@ -79,6 +85,7 @@ function SandboxSelect({
   onBlurAction: () => void
   onValueChangeAction: (value: string) => void
   value: string
+  workspaceId?: string
 }) {
   const [sandboxes, setSandboxes] = useState(() => {
     return Array.from(new Map(initialSandboxes.map((sandbox) => [sandbox.name, sandbox])).values())
@@ -96,7 +103,7 @@ function SandboxSelect({
     const result = await listSandboxesAction({
       limit: 50,
       page_token: nextPageToken,
-    })
+    }, workspaceId)
     setLoading(false)
 
     if (result.error) {
@@ -179,6 +186,7 @@ function SandboxSelect({
 }
 
 export function AgentDialog({
+  actionScope = { basePath: "/" },
   mode,
   sandboxes,
   immutableSkills,
@@ -199,11 +207,12 @@ export function AgentDialog({
   const hasSandboxes = sandboxes.length > 0
   const formAction =
     mode === "update" && agentName
-      ? updateAgentFormAction.bind(null, agentName)
-      : createAgentFormAction
+      ? updateAgentFormAction.bind(null, actionScope, agentName)
+      : createAgentFormAction.bind(null, actionScope)
   const [state, action, isPending] = useActionState(formAction, {})
   const defaultValues: AgentFormValues = {
     name: agentName ?? "",
+    sandboxScope: "Organisation",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills,
     memoryEnabled: initialMemoryEnabled,
@@ -219,6 +228,13 @@ export function AgentDialog({
     name: "skills",
     defaultValue: skills,
   })
+  const selectedSandboxName = useWatch({
+    control: form.control,
+    name: "sandboxName",
+    defaultValue: defaultValues.sandboxName,
+  })
+  const selectedSandbox = sandboxes.find((sandbox) => sandbox.name === selectedSandboxName)
+  const sandboxScope: ResourceScope = selectedSandbox?.scope ?? defaultValues.sandboxScope
 
   useEffect(() => {
     if (!state.error?.errors) {
@@ -301,6 +317,7 @@ export function AgentDialog({
           </DialogDescription>
         </DialogHeader>
         <form id="agent-form-simple" action={submit} className="space-y-5">
+          <input type="hidden" name="sandboxScope" value={sandboxScope} />
           {selectedSkills.map((skill) => (
             <input key={skill} type="hidden" name="skills" value={skill} />
           ))}
@@ -351,6 +368,7 @@ export function AgentDialog({
                     initialSandboxes={sandboxes}
                     initialHasNextPage={initialHasNextSandboxPage}
                     initialNextPageToken={initialNextSandboxPageToken}
+                    workspaceId={actionScope.workspaceId}
                     onBlurAction={field.onBlur}
                     onValueChangeAction={field.onChange}
                     aria-invalid={fieldState.invalid}

@@ -19,6 +19,7 @@ export const zAuditTargetType = z.enum([
   "mcp_connection",
   "inference_provider",
   "inference_pool",
+  "agent",
 ])
 
 export const zAuditField = z.object({
@@ -436,6 +437,36 @@ export const zPatchWorkflowRunNodeStatusRequest = z.object({
   message: z.string().max(4096).optional(),
 })
 
+export const zAgentOwner = z.object({
+  agent_name: zAgentName,
+  creator_user_id: z.string(),
+  owner_user_id: z.string(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zAgentShareCapability = z.enum([
+  "share_non_authored",
+  "use_shared",
+  "read_shared_secret",
+  "write_shared_secret",
+  "delete_shared_secret",
+])
+
+export const zAgentShare = z.object({
+  id: z.string(),
+  agent_name: zAgentName,
+  target_user_id: z.string().nullable(),
+  target_team_id: z.string().nullable(),
+  created_by: z.string(),
+  capabilities: z.array(zAgentShareCapability),
+  created_at: z.iso.datetime(),
+})
+
+export const zListAgentSharesResponse = z.object({
+  shares: z.array(zAgentShare),
+})
+
 export const zSkill = z.object({
   name: zSkillName,
   scope: zResourceScope,
@@ -707,6 +738,16 @@ export const zWorkflowInputs = z.record(z.string(), zWorkflowInputSchema)
 
 export const zDeleteWorkflowsRequest = z.object({
   workflow_names: z.array(zWorkflowName).min(1),
+})
+
+export const zTransferAgentOwnerRequest = z.object({
+  owner_user_id: z.string().min(1),
+})
+
+export const zUpsertAgentShareRequest = z.object({
+  target_user_id: z.string().min(1).optional(),
+  target_team_id: z.string().min(1).optional(),
+  capabilities: z.array(zAgentShareCapability).min(1),
 })
 
 export const zAgentOpencodeConfig = z.object({
@@ -2248,6 +2289,11 @@ export const zAgentNameQueryOptional = zAgentName
 export const zAgentNamePath = zAgentName
 
 /**
+ * Stable Agent Share ID.
+ */
+export const zAgentShareIdPath = z.string().min(1)
+
+/**
  * Stable inference provider ID.
  */
 export const zInferenceProviderNamePath = zInferenceProviderName
@@ -2472,6 +2518,31 @@ export const zReadAgentFileRawResponse = z.string()
  * File written.
  */
 export const zWriteAgentFileRawResponse = zAgentFileMetadata
+
+/**
+ * Agent ownership metadata.
+ */
+export const zGetAgentOwnerResponse = zAgentOwner
+
+/**
+ * Agent owner transferred.
+ */
+export const zTransferAgentOwnerResponse = zAgentOwner
+
+/**
+ * Agent Shares for the selected Agent.
+ */
+export const zListAgentSharesResponse2 = zListAgentSharesResponse
+
+/**
+ * Agent Share created or replaced.
+ */
+export const zUpsertAgentShareResponse = zAgentShare
+
+/**
+ * Agent Share deleted.
+ */
+export const zDeleteAgentShareResponse = z.void()
 
 /**
  * Directory created.

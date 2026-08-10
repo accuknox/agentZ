@@ -82,6 +82,7 @@ export const auditTarget = pgEnum("audit_target", [
   "role",
   "sandbox",
   "skill",
+  "agent",
   "workspace",
 ])
 export const auditInterface = pgEnum("audit_interface", [
@@ -467,16 +468,24 @@ export const apiKeyScopes = pgTable(
     creatorUserId: text("creator_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedReason: text("revoked_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("api_key_scopes_workspace_idx").on(table.organizationId, table.workspaceId),
     index("api_key_scopes_creator_idx").on(table.organizationId, table.creatorUserId),
+    index("api_key_scopes_revoked_idx").on(table.organizationId, table.workspaceId, table.revokedAt),
     foreignKey({
       columns: [table.workspaceId, table.organizationId],
       foreignColumns: [workspaces.id, workspaces.organizationId],
       name: "api_key_scopes_workspace_organization_fk",
     }).onDelete("restrict"),
+    check(
+      "api_key_scopes_revocation_reason_ck",
+      sql`(${table.revokedAt} IS NULL AND ${table.revokedReason} IS NULL) OR
+        (${table.revokedAt} IS NOT NULL AND NULLIF(BTRIM(${table.revokedReason}), '') IS NOT NULL)`
+    ),
   ]
 )
 

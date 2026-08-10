@@ -21,6 +21,7 @@ export type AuditTargetType =
   | "mcp_connection"
   | "inference_provider"
   | "inference_pool"
+  | "agent"
 
 export type AuditField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
@@ -359,6 +360,10 @@ export type ListAgentsResponse = {
   next_page_token: string
 }
 
+export type ListAgentSharesResponse = {
+  shares: Array<AgentShare>
+}
+
 export type ListSkillsResponse = {
   skills: Array<Skill>
   next_page_token: string
@@ -399,6 +404,31 @@ export type Agent = {
   skills: Array<ResourceReference>
   status: AgentStatus
 }
+
+export type AgentOwner = {
+  agent_name: AgentName
+  creator_user_id: string
+  owner_user_id: string
+  created_at: string
+  updated_at: string
+}
+
+export type AgentShare = {
+  id: string
+  agent_name: AgentName
+  target_user_id: string | null
+  target_team_id: string | null
+  created_by: string
+  capabilities: Array<AgentShareCapability>
+  created_at: string
+}
+
+export type AgentShareCapability =
+  | "share_non_authored"
+  | "use_shared"
+  | "read_shared_secret"
+  | "write_shared_secret"
+  | "delete_shared_secret"
 
 export type Skill = {
   name: SkillName
@@ -705,6 +735,16 @@ export type UpdateAgentRequest = {
   sandbox?: ResourceReference
   skills?: Array<ResourceReference>
   opencode?: AgentOpencodeConfig
+}
+
+export type TransferAgentOwnerRequest = {
+  owner_user_id: string
+}
+
+export type UpsertAgentShareRequest = {
+  target_user_id?: string
+  target_team_id?: string
+  capabilities: Array<AgentShareCapability>
 }
 
 export type AgentOpencodeConfig = {
@@ -1960,6 +2000,11 @@ export type AgentNameQueryOptional = AgentName
 export type AgentNamePath = AgentName
 
 /**
+ * Stable Agent Share ID.
+ */
+export type AgentShareIdPath = string
+
+/**
  * Stable inference provider ID.
  */
 export type InferenceProviderNamePath = InferenceProviderName
@@ -3152,6 +3197,252 @@ export type WriteAgentFileRawResponses = {
 }
 
 export type WriteAgentFileRawResponse = WriteAgentFileRawResponses[keyof WriteAgentFileRawResponses]
+
+export type GetAgentOwnerData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/owner"
+}
+
+export type GetAgentOwnerErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAgentOwnerError = GetAgentOwnerErrors[keyof GetAgentOwnerErrors]
+
+export type GetAgentOwnerResponses = {
+  /**
+   * Agent ownership metadata.
+   */
+  200: AgentOwner
+}
+
+export type GetAgentOwnerResponse = GetAgentOwnerResponses[keyof GetAgentOwnerResponses]
+
+export type TransferAgentOwnerData = {
+  body: TransferAgentOwnerRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/owner"
+}
+
+export type TransferAgentOwnerErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type TransferAgentOwnerError = TransferAgentOwnerErrors[keyof TransferAgentOwnerErrors]
+
+export type TransferAgentOwnerResponses = {
+  /**
+   * Agent owner transferred.
+   */
+  200: AgentOwner
+}
+
+export type TransferAgentOwnerResponse =
+  TransferAgentOwnerResponses[keyof TransferAgentOwnerResponses]
+
+export type ListAgentSharesData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/share"
+}
+
+export type ListAgentSharesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentSharesError = ListAgentSharesErrors[keyof ListAgentSharesErrors]
+
+export type ListAgentSharesResponses = {
+  /**
+   * Agent Shares for the selected Agent.
+   */
+  200: ListAgentSharesResponse
+}
+
+export type ListAgentSharesResponse2 = ListAgentSharesResponses[keyof ListAgentSharesResponses]
+
+export type UpsertAgentShareData = {
+  body: UpsertAgentShareRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/share"
+}
+
+export type UpsertAgentShareErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpsertAgentShareError = UpsertAgentShareErrors[keyof UpsertAgentShareErrors]
+
+export type UpsertAgentShareResponses = {
+  /**
+   * Agent Share created or replaced.
+   */
+  200: AgentShare
+}
+
+export type UpsertAgentShareResponse = UpsertAgentShareResponses[keyof UpsertAgentShareResponses]
+
+export type DeleteAgentShareData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Stable Agent Share ID.
+     */
+    shareId: string
+  }
+  query?: never
+  url: "/api/agent/{agentName}/share/{shareId}"
+}
+
+export type DeleteAgentShareErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteAgentShareError = DeleteAgentShareErrors[keyof DeleteAgentShareErrors]
+
+export type DeleteAgentShareResponses = {
+  /**
+   * Agent Share deleted.
+   */
+  204: void
+}
+
+export type DeleteAgentShareResponse = DeleteAgentShareResponses[keyof DeleteAgentShareResponses]
 
 export type CreateAgentDirectoryData = {
   body: CreateAgentDirectoryRequest

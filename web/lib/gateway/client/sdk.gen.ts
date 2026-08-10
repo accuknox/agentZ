@@ -56,6 +56,9 @@ import type {
   DeleteAgentMutableSkillsErrors,
   DeleteAgentMutableSkillsResponses,
   DeleteAgentResponses,
+  DeleteAgentShareData,
+  DeleteAgentShareErrors,
+  DeleteAgentShareResponses,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
@@ -95,6 +98,9 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetAgentOwnerData,
+  GetAgentOwnerErrors,
+  GetAgentOwnerResponses,
   GetAuditEventData,
   GetAuditEventErrors,
   GetAuditEventResponses,
@@ -145,6 +151,9 @@ import type {
   ListAgentMutableSkillsResponses,
   ListAgentsData,
   ListAgentsErrors,
+  ListAgentSharesData,
+  ListAgentSharesErrors,
+  ListAgentSharesResponses,
   ListAgentsResponses,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
@@ -254,6 +263,9 @@ import type {
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  TransferAgentOwnerData,
+  TransferAgentOwnerErrors,
+  TransferAgentOwnerResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
@@ -275,6 +287,9 @@ import type {
   UpdateWorkspaceLifecycleData,
   UpdateWorkspaceLifecycleErrors,
   UpdateWorkspaceLifecycleResponses,
+  UpsertAgentShareData,
+  UpsertAgentShareErrors,
+  UpsertAgentShareResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
@@ -710,6 +725,85 @@ export const writeAgentFileRaw = <ThrowOnError extends boolean = false>(
       },
     }
   )
+
+/**
+ * Read Agent ownership metadata.
+ */
+export const getAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<GetAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAgentOwnerResponses, GetAgentOwnerErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+  })
+
+/**
+ * Transfer Agent ownership.
+ */
+export const transferAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<TransferAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    TransferAgentOwnerResponses,
+    TransferAgentOwnerErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List Agent Shares.
+ */
+export const listAgentShares = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentSharesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAgentSharesResponses, ListAgentSharesErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+  })
+
+/**
+ * Create or replace an Agent Share.
+ *
+ * Creates or replaces one User or Team Agent Share. UseShared grants full non-secret Agent and workflow control.
+ *
+ */
+export const upsertAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<UpsertAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).post<UpsertAgentShareResponses, UpsertAgentShareErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an Agent Share.
+ */
+export const deleteAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteAgentShareResponses,
+    DeleteAgentShareErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share/{shareId}",
+    ...options,
+  })
 
 /**
  * Create a directory in the agent workspace.

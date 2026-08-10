@@ -13,21 +13,38 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 const mcpGraphAgentNodePrefix = "agent:"
 
-// ListTraceSessions handles GET /api/lens/{agentName}/{sessionID}/trace.
-func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, params gatewayapi.ListTraceSessionsParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
+func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request, agentName string) (string, bool) {
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return "", false
 	}
 
+	scope := authorization.Scope{
+		OrganizationID: access.claims.TenantID,
+		WorkspaceID:    access.workspaceID,
+	}
+	if !access.effective.Allows(scope, authorization.OperationReadObservability) {
+		writeError(w, r, resourceForbidden(errors.New("effective Observability permission is missing")))
+		return "", false
+	}
+	return access.namespace, true
+}
+
+// ListTraceSessions handles GET /api/lens/{agentName}/{sessionID}/trace.
+func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, params gatewayapi.ListTraceSessionsParams) {
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
+		return
+	}
+	ns, ok := s.authorizeObservability(w, r, agentName)
 	if !ok {
 		return
 	}
@@ -120,13 +137,11 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 
 // ListSpans handles GET /api/lens/{agentName}/{sessionID}/trace/{traceID}/span.
 func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, traceID gatewayapi.TraceID, params gatewayapi.ListSpansParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
 		return
 	}
-
-	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	ns, ok := s.authorizeObservability(w, r, agentName)
 	if !ok {
 		return
 	}
@@ -190,13 +205,11 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName ga
 
 // GetSpanDetail handles GET /api/lens/{agentName}/{sessionID}/trace/{traceID}/span/{spanID}.
 func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, sessionID string, traceID gatewayapi.TraceID, spanID gatewayapi.SpanID) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
 		return
 	}
-
-	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	ns, ok := s.authorizeObservability(w, r, agentName)
 	if !ok {
 		return
 	}
@@ -273,13 +286,11 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 
 // GetMCPGraph handles GET /api/lens/{agentName}/mcp/graph.
 func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.GetMCPGraphParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
 		return
 	}
-
-	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	ns, ok := s.authorizeObservability(w, r, agentName)
 	if !ok {
 		return
 	}
@@ -325,7 +336,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 	}
 
 	agentID := mcpGraphAgentNodePrefix + agentName
-	connectionURLs, err := s.mcpConnectionURLsByName(r.Context(), rows)
+	connectionURLs, err := s.mcpConnectionURLsByName(r.Context(), ns, rows)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -395,7 +406,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 
 // mcpConnectionURLsByName returns MCP connection endpoint URLs keyed by
 // resource name for the graph rows currently being rendered.
-func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.GatewayGetMCPGraphRow) (map[string]string, error) {
+func (s *Service) mcpConnectionURLsByName(ctx context.Context, namespace string, rows []gatewaydb.GatewayGetMCPGraphRow) (map[string]string, error) {
 	if len(rows) == 0 {
 		return map[string]string{}, nil
 	}
@@ -405,10 +416,6 @@ func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.
 		names[row.McpConnectionName] = struct{}{}
 	}
 
-	namespace, err := tenantNamespace(ctx)
-	if err != nil {
-		return nil, err
-	}
 	conns, err := s.listMCPConnections(namespace)
 	if err != nil {
 		return nil, err
@@ -426,13 +433,11 @@ func (s *Service) mcpConnectionURLsByName(ctx context.Context, rows []gatewaydb.
 }
 
 func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListProcessObservabilityParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
 		return
 	}
-
-	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	ns, ok := s.authorizeObservability(w, r, agentName)
 	if !ok {
 		return
 	}
@@ -530,13 +535,11 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListFileObservabilityParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
 		return
 	}
-
-	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	ns, ok := s.authorizeObservability(w, r, agentName)
 	if !ok {
 		return
 	}
@@ -634,13 +637,11 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListNetworkObservabilityParams) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
 		return
 	}
-
-	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	ns, ok := s.authorizeObservability(w, r, agentName)
 	if !ok {
 		return
 	}

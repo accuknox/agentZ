@@ -32,6 +32,7 @@ type requestAuth struct {
 	claims          *gatewayClaims
 	apiKeyID        string
 	organizationID  string
+	workspaceID     string
 	tenantName      string
 	tenantNamespace string
 }
@@ -739,6 +740,11 @@ func tenantState(ctx context.Context) (tenantRequest, bool) {
 }
 
 func tenantNamespace(ctx context.Context) (string, error) {
+	auth, ok := requestAuthState(ctx)
+	if ok && strings.TrimSpace(auth.tenantNamespace) != "" {
+		return auth.tenantNamespace, nil
+	}
+
 	req, ok := tenantState(ctx)
 	if !ok || req.tenant == nil {
 		return "", fmt.Errorf("missing tenant context")

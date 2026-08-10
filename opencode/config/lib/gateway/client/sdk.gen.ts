@@ -58,6 +58,9 @@ import type {
   DeleteAgentMutableSkillsErrors,
   DeleteAgentMutableSkillsResponses,
   DeleteAgentResponses,
+  DeleteAgentShareData,
+  DeleteAgentShareErrors,
+  DeleteAgentShareResponses,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
@@ -97,6 +100,9 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetAgentOwnerData,
+  GetAgentOwnerErrors,
+  GetAgentOwnerResponses,
   GetAuditEventData,
   GetAuditEventErrors,
   GetAuditEventResponses,
@@ -147,6 +153,9 @@ import type {
   ListAgentMutableSkillsResponses,
   ListAgentsData,
   ListAgentsErrors,
+  ListAgentSharesData,
+  ListAgentSharesErrors,
+  ListAgentSharesResponses,
   ListAgentsResponses,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
@@ -256,6 +265,9 @@ import type {
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  TransferAgentOwnerData,
+  TransferAgentOwnerErrors,
+  TransferAgentOwnerResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
@@ -277,6 +289,9 @@ import type {
   UpdateWorkspaceLifecycleData,
   UpdateWorkspaceLifecycleErrors,
   UpdateWorkspaceLifecycleResponses,
+  UpsertAgentShareData,
+  UpsertAgentShareErrors,
+  UpsertAgentShareResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
@@ -337,6 +352,7 @@ import {
   zDeleteAgentMutableSkillsBody,
   zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
+  zDeleteAgentSharePath,
   zDeleteImmutableSkillsBody,
   zDeleteImmutableSkillsHeaders,
   zDeleteInferencePoolHeaders,
@@ -359,6 +375,7 @@ import {
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
   zExportImmutableSkillsHeaders,
+  zGetAgentOwnerPath,
   zGetAuditEventHeaders,
   zGetAuditEventPath,
   zGetInferencePoolHeaders,
@@ -390,6 +407,7 @@ import {
   zInvokeWorkflowWebhookQuery,
   zListAgentMutableSkillsPath,
   zListAgentMutableSkillsQuery,
+  zListAgentSharesPath,
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
@@ -459,6 +477,8 @@ import {
   zRetryWorkspacePath,
   zStatAgentFilePath,
   zStatAgentFileQuery,
+  zTransferAgentOwnerBody,
+  zTransferAgentOwnerPath,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateInferencePoolBody,
@@ -477,6 +497,8 @@ import {
   zUpdateWorkflowSchedulePath,
   zUpdateWorkspaceLifecycleBody,
   zUpdateWorkspaceLifecyclePath,
+  zUpsertAgentShareBody,
+  zUpsertAgentSharePath,
   zWatchAgentsBody,
   zWatchInferencePoolsBody,
   zWatchInferencePoolsHeaders,
@@ -1092,6 +1114,125 @@ export const writeAgentFileRaw = <ThrowOnError extends boolean = false>(
       },
     }
   )
+
+/**
+ * Read Agent ownership metadata.
+ */
+export const getAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<GetAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAgentOwnerResponses, GetAgentOwnerErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetAgentOwnerPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+  })
+
+/**
+ * Transfer Agent ownership.
+ */
+export const transferAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<TransferAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    TransferAgentOwnerResponses,
+    TransferAgentOwnerErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTransferAgentOwnerBody,
+          path: zTransferAgentOwnerPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List Agent Shares.
+ */
+export const listAgentShares = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentSharesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAgentSharesResponses, ListAgentSharesErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListAgentSharesPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+  })
+
+/**
+ * Create or replace an Agent Share.
+ *
+ * Creates or replaces one User or Team Agent Share. UseShared grants full non-secret Agent and workflow control.
+ *
+ */
+export const upsertAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<UpsertAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).post<UpsertAgentShareResponses, UpsertAgentShareErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpsertAgentShareBody,
+          path: zUpsertAgentSharePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an Agent Share.
+ */
+export const deleteAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteAgentShareResponses,
+    DeleteAgentShareErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteAgentSharePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share/{shareId}",
+    ...options,
+  })
 
 /**
  * Create a directory in the agent workspace.

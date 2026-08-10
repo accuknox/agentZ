@@ -20,6 +20,7 @@ import {
   deleteAgent,
   deleteAgentEntry,
   deleteAgentMutableSkills,
+  deleteAgentShare,
   deleteImmutableSkills,
   deleteInferencePool,
   deleteInferenceProvider,
@@ -33,6 +34,7 @@ import {
   ensureTenant,
   exportAgentMutableSkills,
   exportImmutableSkills,
+  getAgentOwner,
   getAuditEvent,
   getInferencePool,
   getInferencePoolUsage,
@@ -50,6 +52,7 @@ import {
   invokeWorkflowWebhook,
   listAgentMutableSkills,
   listAgents,
+  listAgentShares,
   listAgentWorkflowSchedules,
   listAuditEvents,
   listFileObservability,
@@ -87,6 +90,7 @@ import {
   resolveWorkspaceSlug,
   retryWorkspace,
   statAgentFile,
+  transferAgentOwner,
   updateAgent,
   updateInferencePool,
   updateInferenceProvider,
@@ -94,6 +98,7 @@ import {
   updateSkill,
   updateWorkflowSchedule,
   updateWorkspaceLifecycle,
+  upsertAgentShare,
   writeAgentFile,
   writeAgentFileRaw,
 } from "../sdk.gen"
@@ -146,6 +151,9 @@ import type {
   DeleteAgentMutableSkillsError,
   DeleteAgentMutableSkillsResponse,
   DeleteAgentResponse,
+  DeleteAgentShareData,
+  DeleteAgentShareError,
+  DeleteAgentShareResponse,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsError,
   DeleteImmutableSkillsResponse,
@@ -185,6 +193,9 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsError,
   ExportImmutableSkillsResponse,
+  GetAgentOwnerData,
+  GetAgentOwnerError,
+  GetAgentOwnerResponse,
   GetAuditEventData,
   GetAuditEventError,
   GetAuditEventResponse,
@@ -235,6 +246,9 @@ import type {
   ListAgentMutableSkillsResponse,
   ListAgentsData,
   ListAgentsError,
+  ListAgentSharesData,
+  ListAgentSharesError,
+  ListAgentSharesResponse2,
   ListAgentsResponse2,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
@@ -344,6 +358,9 @@ import type {
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
+  TransferAgentOwnerData,
+  TransferAgentOwnerError,
+  TransferAgentOwnerResponse,
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
@@ -365,6 +382,9 @@ import type {
   UpdateWorkspaceLifecycleData,
   UpdateWorkspaceLifecycleError,
   UpdateWorkspaceLifecycleResponse,
+  UpsertAgentShareData,
+  UpsertAgentShareError,
+  UpsertAgentShareResponse,
   WriteAgentFileData,
   WriteAgentFileError,
   WriteAgentFileRawData,
@@ -1017,6 +1037,140 @@ export const writeAgentFileRawMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await writeAgentFileRaw({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getAgentOwnerQueryKey = (options: Options<GetAgentOwnerData>) =>
+  createQueryKey("getAgentOwner", options)
+
+/**
+ * Read Agent ownership metadata.
+ */
+export const getAgentOwnerOptions = (options: Options<GetAgentOwnerData>) =>
+  queryOptions<
+    GetAgentOwnerResponse,
+    GetAgentOwnerError,
+    GetAgentOwnerResponse,
+    ReturnType<typeof getAgentOwnerQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAgentOwner({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAgentOwnerQueryKey(options),
+  })
+
+/**
+ * Transfer Agent ownership.
+ */
+export const transferAgentOwnerMutation = (
+  options?: Partial<Options<TransferAgentOwnerData>>
+): UseMutationOptions<
+  TransferAgentOwnerResponse,
+  TransferAgentOwnerError,
+  Options<TransferAgentOwnerData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    TransferAgentOwnerResponse,
+    TransferAgentOwnerError,
+    Options<TransferAgentOwnerData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await transferAgentOwner({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listAgentSharesQueryKey = (options: Options<ListAgentSharesData>) =>
+  createQueryKey("listAgentShares", options)
+
+/**
+ * List Agent Shares.
+ */
+export const listAgentSharesOptions = (options: Options<ListAgentSharesData>) =>
+  queryOptions<
+    ListAgentSharesResponse2,
+    ListAgentSharesError,
+    ListAgentSharesResponse2,
+    ReturnType<typeof listAgentSharesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentShares({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentSharesQueryKey(options),
+  })
+
+/**
+ * Create or replace an Agent Share.
+ *
+ * Creates or replaces one User or Team Agent Share. UseShared grants full non-secret Agent and workflow control.
+ *
+ */
+export const upsertAgentShareMutation = (
+  options?: Partial<Options<UpsertAgentShareData>>
+): UseMutationOptions<
+  UpsertAgentShareResponse,
+  UpsertAgentShareError,
+  Options<UpsertAgentShareData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpsertAgentShareResponse,
+    UpsertAgentShareError,
+    Options<UpsertAgentShareData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await upsertAgentShare({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete an Agent Share.
+ */
+export const deleteAgentShareMutation = (
+  options?: Partial<Options<DeleteAgentShareData>>
+): UseMutationOptions<
+  DeleteAgentShareResponse,
+  DeleteAgentShareError,
+  Options<DeleteAgentShareData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteAgentShareResponse,
+    DeleteAgentShareError,
+    Options<DeleteAgentShareData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteAgentShare({
         ...options,
         ...fnOptions,
         throwOnError: true,

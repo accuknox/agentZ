@@ -50,7 +50,7 @@ async function CreateAPIKeyAction() {
     <CreateAPIKeyButton
       agents={listedAgents.agents}
       workflowsByAgent={workflowsByAgent}
-      createAPIKeyAction={createAPIKeyFormAction}
+      createAPIKeyAction={createAPIKeyFormAction.bind(null, {})}
     />
   )
 }
@@ -58,7 +58,9 @@ async function CreateAPIKeyAction() {
 async function APIKeys() {
   const listedKeys = await listAPIKeysCachedQuery()
 
-  return <APIKeysTable deleteAPIKeyAction={deleteAPIKeyFormAction} keys={listedKeys.apiKeys} />
+  return (
+    <APIKeysTable deleteAPIKeyAction={deleteAPIKeyFormAction.bind(null, {})} keys={listedKeys.apiKeys} />
+  )
 }
 
 function CreateAPIKeyButtonFallback() {

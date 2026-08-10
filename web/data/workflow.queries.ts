@@ -32,16 +32,17 @@ type WorkflowQueryResult =
     }
 
 export async function listWorkflowSummariesCachedQuery(
-  agentName: ListWorkflowSummariesData["path"]["agentName"]
+  agentName: ListWorkflowSummariesData["path"]["agentName"],
+  workspaceId?: string
 ): Promise<WorkflowSummariesQueryResult> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(agentWorkflowsTag(agentName))
+  cacheTag(agentWorkflowsTag(agentName), `${agentWorkflowsTag(agentName)}:${workspaceId ?? "organization"}`)
 
   const { data, error } = await listWorkflowSummaries({
     path: { agentName },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
   })
   if (error) {
     return {

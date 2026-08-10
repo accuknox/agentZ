@@ -1,5 +1,6 @@
 import type { Metadata, Route } from "next"
 import { notFound, permanentRedirect, redirect } from "next/navigation"
+import { Suspense } from "react"
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { ensureTenant } from "@/lib/gateway/client"
@@ -10,7 +11,25 @@ export const metadata: Metadata = {
   title: "Setting up",
 }
 
-export default async function OrganizationProvisioningPage({
+export default function OrganizationProvisioningPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>
+}) {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-svh w-full items-center justify-center">
+          <Shimmer className="text-center">Loading Organisation provisioning…</Shimmer>
+        </main>
+      }
+    >
+      <OrganizationProvisioning params={params} />
+    </Suspense>
+  )
+}
+
+async function OrganizationProvisioning({
   params,
 }: {
   params: Promise<{ orgSlug: string }>

@@ -143,13 +143,12 @@ function CreateAPIKeyDialog({
     React.startTransition(() => router.refresh())
   }, [router, state.key])
 
-  const submit = async (formData: FormData) => {
-    const valid = await form.trigger()
-    if (!valid) {
+  const submit = form.handleSubmit((_, event) => {
+    if (!event) {
       return
     }
-    React.startTransition(() => action(formData))
-  }
+    React.startTransition(() => action(new FormData(event.target as HTMLFormElement)))
+  })
 
   return (
     <DialogContent className="sm:max-w-md">
@@ -191,7 +190,7 @@ function CreateAPIKeyDialog({
         </>
       ) : (
         <>
-          <form id="api-key-form" action={submit} className="space-y-5">
+          <form id="api-key-form" onSubmit={submit} className="space-y-5">
             <FieldGroup>
               <Controller
                 name="type"

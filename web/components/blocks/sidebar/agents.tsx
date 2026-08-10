@@ -200,7 +200,17 @@ function AgentSessionsItem({
     if (sessions.some((session) => session.id === sessionID)) return
 
     void router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
-  }, [agent.name, isOpen, newSessionPath, path, query.isError, query.isPending, router, sessions])
+  }, [
+    agent.name,
+    isOpen,
+    newSessionPath,
+    path,
+    query.isError,
+    query.isPending,
+    router,
+    sessions,
+    workspacePath,
+  ])
 
   return (
     <SidebarMenu>

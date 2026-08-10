@@ -1,6 +1,7 @@
 import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
+import type { UrlObject } from "node:url"
 import { getIp } from "better-auth/api"
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
@@ -152,7 +153,7 @@ export type RoleImpact = {
     label: string
     detail?: string
     group?: string
-    href?: string
+    href?: UrlObject
     severity?: "critical" | "warning" | "info"
   }[]
   reduction: boolean
@@ -838,7 +839,7 @@ async function previewRole(
   const grants = expandPermissionGrants(inputs)
   const next = new Set(grants.map(grantKey))
   const removed = existing.filter((grant) => !next.has(grantKey(grant)))
-  const items = removed.map((grant) => ({
+  const items: RoleImpact["items"] = removed.map((grant) => ({
     id: grantKey(grant),
     label: `${grant.resource.replaceAll("_", " ")} · ${grant.action.replaceAll("_", " ")}`,
     detail: scope.workspace
@@ -892,7 +893,10 @@ async function previewRole(
     ...effects.losses.map((loss) => ({
       detail: `${loss.name} loses their final role-derived access path.`,
       group: "Access loss",
-      href: `/orgs/${scope.actor.organization.slug}/access/${loss.memberId}?scope=${loss.workspaceId}`,
+      href: {
+        pathname: `/orgs/${scope.actor.organization.slug}/access/${loss.memberId}`,
+        query: { scope: loss.workspaceId },
+      },
       id: `workspace-loss:${loss.userId}:${loss.workspaceId}`,
       label: loss.workspace,
       severity: "critical" as const,
@@ -900,7 +904,9 @@ async function previewRole(
     ...effects.agents.map((agent) => ({
       detail: `${agent.workspace}; transfer ownership before saving to preserve this Agent.`,
       group: "Owned Agents",
-      href: `/orgs/${scope.actor.organization.slug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.agentName)}/ownership`,
+      href: {
+        pathname: `/orgs/${scope.actor.organization.slug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.agentName)}/ownership`,
+      },
       id: `agent:${agent.workspaceId}:${agent.agentName}`,
       label: agent.agentName,
       severity: "critical" as const,
@@ -908,7 +914,9 @@ async function previewRole(
     ...effects.keys.map((key) => ({
       detail: `${key.workspace}; access to its creator or selected target is removed.`,
       group: "API keys",
-      href: `/orgs/${scope.actor.organization.slug}/workspaces/${key.workspaceSlug}/api-keys`,
+      href: {
+        pathname: `/orgs/${scope.actor.organization.slug}/workspaces/${key.workspaceSlug}/api-keys`,
+      },
       id: `key:${key.id}`,
       label: key.name,
       severity: "critical" as const,

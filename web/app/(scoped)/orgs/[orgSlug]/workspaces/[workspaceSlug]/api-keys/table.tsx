@@ -236,7 +236,7 @@ function APIKeyStatus({ apiKey }: { apiKey: WorkspaceAPIKey }) {
   if (!apiKey.enabled) {
     return <Badge variant="outline">Disabled</Badge>
   }
-  if (apiKey.expiresAt && apiKey.expiresAt.getTime() <= Date.now()) {
+  if (apiKey.expired) {
     return <Badge variant="outline">Expired</Badge>
   }
   return <Badge variant="success">Active</Badge>

@@ -571,7 +571,7 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		for i := range schedules.Items {
 			if schedules.Items[i].Spec.AgentName == agent.AgentName {
 				return fmt.Errorf(
-					"Agent %q WorkflowSchedule %q cleanup is pending",
+					"agent %q WorkflowSchedule %q cleanup is pending",
 					agent.AgentName,
 					schedules.Items[i].Name,
 				)
@@ -588,7 +588,7 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		for i := range runs.Items {
 			if runs.Items[i].Spec.AgentName == agent.AgentName {
 				return fmt.Errorf(
-					"Agent %q WorkflowRun %q cleanup is pending",
+					"agent %q WorkflowRun %q cleanup is pending",
 					agent.AgentName,
 					runs.Items[i].Name,
 				)
@@ -601,7 +601,7 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			metav1.GetOptions{},
 		)
 		if err == nil {
-			return fmt.Errorf("Agent %q cleanup is pending", agent.AgentName)
+			return fmt.Errorf("agent %q cleanup is pending", agent.AgentName)
 		}
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("confirm Agent %q cleanup: %w", agent.AgentName, err)
@@ -612,7 +612,7 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			return fmt.Errorf("confirm Agent %q secret cleanup: %w", agent.AgentName, err)
 		}
 		if len(secrets) != 0 {
-			return fmt.Errorf("Agent %q secret cleanup is pending", agent.AgentName)
+			return fmt.Errorf("agent %q secret cleanup is pending", agent.AgentName)
 		}
 
 		_, err = s.queries.GatewayDeleteAgent(ctx, gatewaydb.GatewayDeleteAgentParams{
@@ -650,7 +650,7 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 		metav1.GetOptions{},
 	)
 	if err == nil {
-		return fmt.Errorf("Workspace %q cleanup is pending", workspace.Namespace)
+		return fmt.Errorf("workspace %q cleanup is pending", workspace.Namespace)
 	}
 	if !apierrors.IsNotFound(err) {
 		return fmt.Errorf("confirm Workspace %q cleanup: %w", workspace.Namespace, err)

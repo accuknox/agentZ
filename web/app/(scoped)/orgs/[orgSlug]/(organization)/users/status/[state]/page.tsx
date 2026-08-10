@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import UsersPage from "../page"
+import UsersPage from "../../page"
 
 export default function UserStatePage({
   params,

@@ -98,9 +98,9 @@ export const auditInterface = pgEnum("audit_interface", [
 export const cleanupState = pgEnum("cleanup_state", [
   "pending",
   "running",
-  "retrying",
-  "failed",
   "succeeded",
+  "failed",
+  "retrying",
 ])
 export const destructiveOperation = pgEnum("destructive_operation", [
   "membership_disable",

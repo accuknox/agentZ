@@ -880,6 +880,7 @@ export function useOpencodeChat(
     session.data?.directory,
     sessionID,
     streamEpoch,
+    workspaceId,
   ])
 
   const messages = useMemo(() => {

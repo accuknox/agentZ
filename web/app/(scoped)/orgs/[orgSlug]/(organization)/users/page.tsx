@@ -35,9 +35,9 @@ export default async function UsersPage({
   const activeTab = tab === "invited" || tab === "disabled" ? tab : "active"
   const root = `/orgs/${orgSlug}/users`
   const tabs = [
-    { href: `${root}/active` as Route, label: `Active (${data.active.length})` },
-    { href: `${root}/invited` as Route, label: `Invited (${data.invited.length})` },
-    { href: `${root}/disabled` as Route, label: `Disabled (${data.disabled.length})` },
+    { href: `${root}/status/active` as Route, label: `Active (${data.active.length})` },
+    { href: `${root}/status/invited` as Route, label: `Invited (${data.invited.length})` },
+    { href: `${root}/status/disabled` as Route, label: `Disabled (${data.disabled.length})` },
   ] satisfies RouteTab[]
 
   return (

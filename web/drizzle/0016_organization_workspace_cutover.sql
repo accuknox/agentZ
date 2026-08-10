@@ -1,3 +1,5 @@
+ALTER TYPE "public"."audit_target" ADD VALUE 'workspace_access' BEFORE 'workspace';--> statement-breakpoint
+ALTER TYPE "public"."cleanup_state" ADD VALUE 'retrying';--> statement-breakpoint
 CREATE TABLE "tenant_cutovers" (
 	"organization_id" text PRIMARY KEY NOT NULL,
 	"source_namespace" text NOT NULL,

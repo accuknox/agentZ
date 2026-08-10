@@ -924,7 +924,7 @@ function ChatInner({
       }
       applyOptimisticSession(result.data)
     },
-    [activeSessionId, agentName, applyOptimisticSession, directory, isStopping]
+    [activeSessionId, agentName, applyOptimisticSession, directory, isStopping, workspaceId]
   )
 
   // A resendable composer draft (non-synthetic text + file attachments) for a

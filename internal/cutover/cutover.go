@@ -439,7 +439,7 @@ func inventoryTenant(ctx context.Context, cfg Config, clients stores, tenant *ag
 		}
 	}
 	if migrationUserID == "" {
-		return TenantInventory{}, fmt.Errorf("Tenant %q has no active Organisation member", tenant.Name)
+		return TenantInventory{}, fmt.Errorf("tenant %q has no active Organisation member", tenant.Name)
 	}
 	sum := sha256.Sum256([]byte(tenant.Spec.OrganizationID))
 	suffix := hex.EncodeToString(sum[:])
@@ -1063,7 +1063,7 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 			return fmt.Errorf("get Organisation Tenant: %w", err)
 		}
 		if tenant.Spec.OrganizationID != inventory.Organization.ID {
-			return errors.New("Organisation Tenant identity conflicts with the cutover plan")
+			return errors.New("organisation tenant identity conflicts with the cutover plan")
 		}
 		ready := apimeta.FindStatusCondition(
 			tenant.Status.Conditions,
@@ -1103,7 +1103,7 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 			break
 		}
 		if workspace.Status.State == agentzv1alpha1.WorkspaceStateFailed {
-			return errors.New("Default Workspace controller reported a failed state")
+			return errors.New("default workspace controller reported a failed state")
 		}
 		if time.Now().After(deadline) {
 			return errors.New("timed out waiting for Default Workspace readiness")
@@ -1311,10 +1311,10 @@ func verifyExternalStores(ctx context.Context, cfg Config, clients stores, inven
 			return a.Kind == b.Kind && a.Name == b.Name && a.SHA256 == b.SHA256
 		},
 	) {
-		return errors.New("Kubernetes target object inventory does not match the transformed source inventory")
+		return errors.New("kubernetes target object inventory does not match the transformed source inventory")
 	}
 	if !slices.Equal(kubernetes.PVCs, inventory.Kubernetes.PVCs) {
-		return errors.New("Kubernetes target PVC inventory does not match the source inventory")
+		return errors.New("kubernetes target PVC inventory does not match the source inventory")
 	}
 	var policy ciliumv2.CiliumNetworkPolicy
 	if err := clients.k8s.Get(ctx, ctrlclient.ObjectKey{
@@ -1329,7 +1329,7 @@ func verifyExternalStores(ctx context.Context, cfg Config, clients stores, inven
 	}
 	if workspace.Status.State != agentzv1alpha1.WorkspaceStateReady ||
 		workspace.Status.ObservedGeneration != workspace.Generation {
-		return errors.New("Workspace controller has not verified the current generation")
+		return errors.New("workspace controller has not verified the current generation")
 	}
 	return nil
 }

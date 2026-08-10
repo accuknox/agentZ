@@ -1,6 +1,7 @@
 import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
+import type { UrlObject } from "node:url"
 import { getIp } from "better-auth/api"
 import { and, asc, desc, eq, exists, inArray, isNull, ne, or } from "drizzle-orm"
 import { getDB, schema } from "@/db"
@@ -29,7 +30,7 @@ export type DestructiveImpactItem = {
     | "API keys"
     | "Consumers"
     | "External cleanup"
-  href?: string
+  href?: UrlObject
   label: string
   severity: "critical" | "warning" | "info"
 }
@@ -793,48 +794,52 @@ export async function analyzeDestructiveImpact(
       })
     }
     items.push(
-      ...affectedWorkspaces.values().map((workspace) => ({
+      ...affectedWorkspaces.values().map<DestructiveImpactItem>((workspace) => ({
         detail: "All effective Membership access in this Workspace is removed.",
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/workspaces/${workspace.slug}`,
+        href: { pathname: `/orgs/${orgSlug}/workspaces/${workspace.slug}` },
         id: `workspace:${workspace.id}`,
         label: workspace.name,
         severity: "critical" as const,
       })),
-      ...roles.map((role) => ({
+      ...roles.map<DestructiveImpactItem>((role) => ({
         detail: `${role.workspace ?? "Organisation"} scope; the direct Role assignment is removed from the effective permission union.`,
         group: "Access loss" as const,
-        href: role.workspaceSlug
-          ? `/orgs/${orgSlug}/workspaces/${role.workspaceSlug}/roles/${role.id}`
-          : `/orgs/${orgSlug}/roles/${role.id}`,
+        href: {
+          pathname: role.workspaceSlug
+            ? `/orgs/${orgSlug}/workspaces/${role.workspaceSlug}/roles/${role.id}`
+            : `/orgs/${orgSlug}/roles/${role.id}`,
+        },
         id: `role:${role.id}`,
         label: role.name,
         severity: "critical" as const,
       })),
-      ...teams.map((team) => ({
+      ...teams.map<DestructiveImpactItem>((team) => ({
         detail: "Team-derived Roles and Agent Shares stop contributing access.",
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/teams/${team.id}`,
+        href: { pathname: `/orgs/${orgSlug}/teams/${team.id}` },
         id: `team:${team.id}`,
         label: team.name,
         severity: "critical" as const,
       })),
-      ...shares.map((share) => ({
+      ...shares.map<DestructiveImpactItem>((share) => ({
         detail: `Direct Agent Share in ${share.workspace} is revoked.`,
         group: "Access loss" as const,
         id: `share:${share.id}`,
         label: share.name,
         severity: "critical" as const,
       })),
-      ...agents.map((agent) => ({
+      ...agents.map<DestructiveImpactItem>((agent) => ({
         detail: `${agent.workspace}; Kubernetes and secret resources are queued for cleanup.`,
         group: "Owned Agents" as const,
-        href: `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.name)}/ownership`,
+        href: {
+          pathname: `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.name)}/ownership`,
+        },
         id: `agent:${agent.workspaceSlug}:${agent.name}`,
         label: agent.name,
         severity: "critical" as const,
       })),
-      ...agents.map((agent) => ({
+      ...agents.map<DestructiveImpactItem>((agent) => ({
         detail:
           "Workflow schedules and runs, mutable Skills, secrets, shares, sessions, and telemetry are removed with the Agent.",
         group: "Consumers" as const,
@@ -842,10 +847,10 @@ export async function analyzeDestructiveImpact(
         label: `${agent.name} bound resources`,
         severity: "warning" as const,
       })),
-      ...keys.map((key) => ({
+      ...keys.map<DestructiveImpactItem>((key) => ({
         detail: `${key.workspace}; the credential is revoked in the same transaction as access removal.`,
         group: "API keys" as const,
-        href: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys`,
+        href: { pathname: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys` },
         id: `key:${key.id}`,
         label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
@@ -865,68 +870,77 @@ export async function analyzeDestructiveImpact(
     if (!effects) return null
     targetLabel = effects.team.name
     items.push(
-      ...effects.members.map((member) => ({
+      ...effects.members.map<DestructiveImpactItem>((member) => ({
         detail: `${member.email}; every Team-derived permission is removed.`,
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/access/${member.memberId}`,
+        href: { pathname: `/orgs/${orgSlug}/access/${member.memberId}` },
         id: `member:${member.memberId}`,
         label: member.name,
         severity: "critical" as const,
       })),
-      ...effects.losses.map((loss) => ({
+      ...effects.losses.map<DestructiveImpactItem>((loss) => ({
         detail: `${loss.name} loses their final role-derived access path.`,
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/access/${loss.memberId}?scope=${loss.workspaceId}`,
+        href: {
+          pathname: `/orgs/${orgSlug}/access/${loss.memberId}`,
+          query: { scope: loss.workspaceId },
+        },
         id: `workspace-loss:${loss.userId}:${loss.workspaceId}`,
         label: loss.workspace,
         severity: "critical" as const,
       })),
-      ...effects.roles.map((role) => ({
+      ...effects.roles.map<DestructiveImpactItem>((role) => ({
         detail: `${role.workspace ?? "Organisation"} Team Role assignment is detached.`,
         group: "Access loss" as const,
-        href: role.workspaceSlug
-          ? `/orgs/${orgSlug}/workspaces/${role.workspaceSlug}/roles/${role.id}/permissions`
-          : `/orgs/${orgSlug}/roles/${role.id}/permissions`,
+        href: {
+          pathname: role.workspaceSlug
+            ? `/orgs/${orgSlug}/workspaces/${role.workspaceSlug}/roles/${role.id}/permissions`
+            : `/orgs/${orgSlug}/roles/${role.id}/permissions`,
+        },
         id: `role:${role.id}`,
         label: role.name,
         severity: "warning" as const,
       })),
-      ...effects.shares.map((share) => ({
+      ...effects.shares.map<DestructiveImpactItem>((share) => ({
         detail: `Team Agent Share in ${share.workspace} is revoked.`,
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/workspaces/${share.workspaceSlug}/agents/${encodeURIComponent(share.name)}/sharing`,
+        href: {
+          pathname: `/orgs/${orgSlug}/workspaces/${share.workspaceSlug}/agents/${encodeURIComponent(share.name)}/sharing`,
+        },
         id: `share:${share.id}`,
         label: share.name,
         severity: "critical" as const,
       })),
-      ...effects.agents.map((agent) => ({
+      ...effects.agents.map<DestructiveImpactItem>((agent) => ({
         detail: `${agent.workspace}; transfer ownership before confirming to preserve this Agent.`,
         group: "Owned Agents" as const,
-        href: `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.agentName)}/ownership`,
+        href: {
+          pathname: `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.agentName)}/ownership`,
+        },
         id: `agent:${agent.workspaceId}:${agent.agentName}`,
         label: agent.agentName,
         severity: "critical" as const,
       })),
-      ...effects.keys.map((key) => ({
+      ...effects.keys.map<DestructiveImpactItem>((key) => ({
         detail: `${key.workspace}; creator access or a selected Agent target is removed.`,
         group: "API keys" as const,
-        href: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys`,
+        href: { pathname: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys` },
         id: `key:${key.id}`,
         label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
       })),
-      ...effects.invitations.map((invitation) => ({
+      ...effects.invitations.map<DestructiveImpactItem>((invitation) => ({
         detail: `${invitation.email}; the pending Invitation no longer assigns this Team.`,
         group: "Consumers" as const,
-        href: `/orgs/${orgSlug}/users/invited`,
+        href: { pathname: `/orgs/${orgSlug}/users/status/invited` },
         id: `invitation:${invitation.id}`,
         label: invitation.email,
         severity: "warning" as const,
       })),
-      ...effects.socialDefaults.map(() => ({
+      ...effects.socialDefaults.map<DestructiveImpactItem>(() => ({
         detail: "New social admissions no longer receive this Team.",
         group: "Consumers" as const,
-        href: `/orgs/${orgSlug}/social-admission`,
+        href: { pathname: `/orgs/${orgSlug}/social-admission` },
         id: "social-default",
         label: "Social Admission default",
         severity: "warning" as const,
@@ -999,23 +1013,23 @@ export async function analyzeDestructiveImpact(
         .limit(500),
     ])
     items.push(
-      ...members.map((member) => ({
+      ...members.map<DestructiveImpactItem>((member) => ({
         detail: `${member.email}; other direct and Team Roles may preserve access.`,
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/access/${member.id}`,
+        href: { pathname: `/orgs/${orgSlug}/access/${member.id}` },
         id: `member:${member.id}`,
         label: member.name,
         severity: "critical" as const,
       })),
-      ...teams.map((team) => ({
+      ...teams.map<DestructiveImpactItem>((team) => ({
         detail: "Every active Team member loses this Role source.",
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/teams/${team.id}/roles`,
+        href: { pathname: `/orgs/${orgSlug}/teams/${team.id}/roles` },
         id: `team:${team.id}`,
         label: team.name,
         severity: "critical" as const,
       })),
-      ...grants.map((grant) => ({
+      ...grants.map<DestructiveImpactItem>((grant) => ({
         detail: grant.workspace ?? "Organisation",
         group: "Consumers" as const,
         id: `grant:${grant.workspace ?? "org"}:${grant.resource}:${grant.action}`,
@@ -1169,46 +1183,50 @@ export async function analyzeDestructiveImpact(
         ),
     ])
     items.push(
-      ...members.map((member) => ({
+      ...members.map<DestructiveImpactItem>((member) => ({
         detail: `${member.email}; direct Workspace Role access is revoked.`,
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/access/${member.id}`,
+        href: { pathname: `/orgs/${orgSlug}/access/${member.id}` },
         id: `member:${member.id}`,
         label: member.name,
         severity: "critical" as const,
       })),
-      ...teams.map((team) => ({
+      ...teams.map<DestructiveImpactItem>((team) => ({
         detail: "Team-derived Workspace Role access is revoked.",
         group: "Access loss" as const,
-        href: `/orgs/${orgSlug}/teams/${team.id}/roles`,
+        href: { pathname: `/orgs/${orgSlug}/teams/${team.id}/roles` },
         id: `team:${team.id}`,
         label: team.name,
         severity: "critical" as const,
       })),
-      ...roles.map((role) => ({
+      ...roles.map<DestructiveImpactItem>((role) => ({
         detail: role.workspaceId
           ? "The Workspace Role and every assignment are deleted."
           : "Every grant from this Organisation Role into the Workspace is deleted.",
         group: "Roles" as const,
-        href: role.workspaceId
-          ? `/orgs/${orgSlug}/workspaces/${workspace.slug}/roles/${role.id}/permissions`
-          : `/orgs/${orgSlug}/roles/${role.id}/permissions`,
+        href: {
+          pathname: role.workspaceId
+            ? `/orgs/${orgSlug}/workspaces/${workspace.slug}/roles/${role.id}/permissions`
+            : `/orgs/${orgSlug}/roles/${role.id}/permissions`,
+        },
         id: `role:${role.id}`,
         label: role.name,
         severity: "critical" as const,
       })),
-      ...agents.map((agent) => ({
+      ...agents.map<DestructiveImpactItem>((agent) => ({
         detail:
           target.operation === "workspace_delete"
             ? "Queued with the Workspace namespace for external cleanup."
             : "Agent access is revoked.",
         group: "Owned Agents" as const,
-        href: `/orgs/${orgSlug}/workspaces/${workspace.slug}/agents/${encodeURIComponent(agent.name)}`,
+        href: {
+          pathname: `/orgs/${orgSlug}/workspaces/${workspace.slug}/agents/${encodeURIComponent(agent.name)}`,
+        },
         id: `agent:${agent.name}`,
         label: agent.name,
         severity: "critical" as const,
       })),
-      ...agents.map((agent) => ({
+      ...agents.map<DestructiveImpactItem>((agent) => ({
         detail:
           "Workflows, mutable Skills, secrets, sessions, telemetry, and storage are removed with the Workspace.",
         group: "Consumers" as const,
@@ -1216,26 +1234,30 @@ export async function analyzeDestructiveImpact(
         label: `${agent.name} bound resources`,
         severity: "warning" as const,
       })),
-      ...shares.map((share) => ({
+      ...shares.map<DestructiveImpactItem>((share) => ({
         detail: "The User or Team share is removed with its Agent.",
         group: "Agent shares" as const,
-        href: `/orgs/${orgSlug}/workspaces/${workspace.slug}/agents/${encodeURIComponent(share.name)}/sharing`,
+        href: {
+          pathname: `/orgs/${orgSlug}/workspaces/${workspace.slug}/agents/${encodeURIComponent(share.name)}/sharing`,
+        },
         id: `share:${share.id}`,
         label: share.name,
         severity: "critical" as const,
       })),
-      ...keys.map((key) => ({
+      ...keys.map<DestructiveImpactItem>((key) => ({
         detail: "The Workspace credential is revoked transactionally.",
         group: "API keys" as const,
-        href: `/orgs/${orgSlug}/workspaces/${workspace.slug}/api-keys`,
+        href: { pathname: `/orgs/${orgSlug}/workspaces/${workspace.slug}/api-keys` },
         id: `key:${key.id}`,
         label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
       })),
-      ...consumers.map((consumer) => ({
+      ...consumers.map<DestructiveImpactItem>((consumer) => ({
         detail: "The Workspace selection of this Organisation resource is removed.",
         group: "Consumers" as const,
-        href: `/orgs/${orgSlug}/workspaces/${workspace.slug}/settings/inherited`,
+        href: {
+          pathname: `/orgs/${orgSlug}/workspaces/${workspace.slug}/settings/inherited`,
+        },
         id: `consumer:${consumer.resource}:${consumer.name}`,
         label: `${consumer.resource}: ${consumer.name}`,
         severity: "warning" as const,

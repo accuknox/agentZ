@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -321,7 +320,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 	}
 
 	agentID := mcpGraphAgentNodePrefix + agentName
-	connectionURLs, err := s.mcpConnectionURLsByName(r.Context(), ns, rows)
+	connectionURLs, err := s.mcpConnectionURLsByName(ns, rows)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -391,7 +390,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 
 // mcpConnectionURLsByName returns MCP connection endpoint URLs keyed by
 // resource name for the graph rows currently being rendered.
-func (s *Service) mcpConnectionURLsByName(ctx context.Context, namespace string, rows []gatewaydb.GatewayGetMCPGraphRow) (map[string]string, error) {
+func (s *Service) mcpConnectionURLsByName(namespace string, rows []gatewaydb.GatewayGetMCPGraphRow) (map[string]string, error) {
 	if len(rows) == 0 {
 		return map[string]string{}, nil
 	}

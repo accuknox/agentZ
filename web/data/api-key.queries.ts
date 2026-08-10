@@ -1,7 +1,7 @@
 import "server-only"
 
 import { cacheLife, cacheTag } from "next/cache"
-import { and, desc, eq, inArray, isNull } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { apiKeysTag } from "@/data/cache"
 import { getDB, schema } from "@/db"
 import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
@@ -33,6 +33,7 @@ export type WorkspaceAPIKey = {
   creatorName: string
   creatorEmail: string
   enabled: boolean | null
+  expired: boolean
   revokedAt: string | null
   revokedReason: string | null
   targets: WorkspaceAPIKeyTarget[]
@@ -85,6 +86,7 @@ export async function listAPIKeysCachedQuery(workspaceId: string) {
       creatorName: schema.users.name,
       creatorEmail: schema.users.email,
       enabled: schema.apikeys.enabled,
+      expired: sql<boolean>`coalesce(${schema.apikeys.expiresAt} <= now(), false)`,
       revokedAt: schema.apiKeyScopes.revokedAt,
       revokedReason: schema.apiKeyScopes.revokedReason,
       targetType: schema.apiKeyTargets.targetType,
@@ -132,6 +134,7 @@ export async function listAPIKeysCachedQuery(workspaceId: string) {
       creatorName: row.creatorName,
       creatorEmail: row.creatorEmail,
       enabled: row.enabled,
+      expired: row.expired,
       revokedAt: row.revokedAt?.toISOString() ?? null,
       revokedReason: row.revokedReason,
       targets: [target],

@@ -160,11 +160,11 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
         email: schema.users.email,
         createdAt: schema.members.createdAt,
         disabledAt: schema.members.disabledAt,
-        lastActivity: sql<Date | null>`(
+        lastActivity: sql`(
           SELECT max(${schema.sessions.updatedAt})
           FROM ${schema.sessions}
           WHERE ${schema.sessions.userId} = ${schema.members.userId}
-        )`,
+        )`.mapWith(schema.sessions.updatedAt),
         ownedAgents: sql<number>`(
           SELECT count(*)::int
           FROM ${schema.agentOwners}

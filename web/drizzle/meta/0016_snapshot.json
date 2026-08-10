@@ -1,5 +1,5 @@
 {
-  "id": "3282fb17-a1e0-4860-9023-136266ba9b1b",
+  "id": "be97c45a-e56f-4694-ab61-22925eab7f5c",
   "prevId": "3ebc2ace-898a-4177-8595-9cc28eeb02d5",
   "version": "7",
   "dialect": "postgresql",
@@ -2234,6 +2234,151 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.tenant_cutovers": {
+      "name": "tenant_cutovers",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_namespace": {
+          "name": "source_namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_namespace": {
+          "name": "target_namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inventory_hash": {
+          "name": "inventory_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "backup_manifest_hash": {
+          "name": "backup_manifest_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checkpoint": {
+          "name": "checkpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planned'"
+        },
+        "inventory": {
+          "name": "inventory",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "tenant_cutovers_organization_id_organizations_id_fk": {
+          "name": "tenant_cutovers_organization_id_organizations_id_fk",
+          "tableFrom": "tenant_cutovers",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "tenant_cutovers_owner_user_id_users_id_fk": {
+          "name": "tenant_cutovers_owner_user_id_users_id_fk",
+          "tableFrom": "tenant_cutovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "tenant_cutovers_workspace_id_unique": {
+          "name": "tenant_cutovers_workspace_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id"
+          ]
+        },
+        "tenant_cutovers_target_namespace_unique": {
+          "name": "tenant_cutovers_target_namespace_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "target_namespace"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "tenant_cutovers_checkpoint_ck": {
+          "name": "tenant_cutovers_checkpoint_ck",
+          "value": "\"tenant_cutovers\".\"checkpoint\" IN (\n        'planned', 'sql', 'kubernetes', 'openbao', 's3', 'verified', 'activated'\n      )"
+        },
+        "tenant_cutovers_activation_ck": {
+          "name": "tenant_cutovers_activation_ck",
+          "value": "(\"tenant_cutovers\".\"verified_at\" IS NOT NULL) = (\"tenant_cutovers\".\"checkpoint\" IN ('verified', 'sql', 'activated')) AND\n        (\"tenant_cutovers\".\"activated_at\" IS NOT NULL) = (\"tenant_cutovers\".\"checkpoint\" = 'activated')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.user_preferences": {
       "name": "user_preferences",
       "schema": "",
@@ -4070,6 +4215,7 @@
         "skill",
         "agent",
         "api_key",
+        "workspace_access",
         "workspace"
       ]
     },
@@ -4079,9 +4225,9 @@
       "values": [
         "pending",
         "running",
-        "retrying",
+        "succeeded",
         "failed",
-        "succeeded"
+        "retrying"
       ]
     },
     "public.destructive_operation": {

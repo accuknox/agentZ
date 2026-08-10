@@ -2,7 +2,7 @@
 
 import type { Route } from "next"
 import Link from "next/link"
-import { useActionState, useMemo, useState } from "react"
+import { startTransition, useActionState, useMemo, useState } from "react"
 import { CircleAlert, LockKeyhole, ShieldCheck } from "lucide-react"
 import {
   organizationRoleFormAction,
@@ -200,7 +200,14 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
   }))
 
   return (
-    <form action={formAction} className="flex min-w-0 flex-col gap-6">
+    <form
+      className="flex min-w-0 flex-col gap-6"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const submitter = (event.nativeEvent as SubmitEvent).submitter
+        startTransition(() => formAction(new FormData(event.currentTarget, submitter)))
+      }}
+    >
       <input name="grants" type="hidden" value={JSON.stringify(directGrants)} />
       {updatedAt ? <input name="updated_at" type="hidden" value={updatedAt} /> : null}
       <input

@@ -201,6 +201,7 @@ type resourceCapabilitySet struct {
 	sandbox           gatewayapi.ResourceCapabilities
 	inferenceProvider gatewayapi.ResourceCapabilities
 	inferencePool     gatewayapi.ResourceCapabilities
+	apiKey            gatewayapi.ResourceCapabilities
 	observability     gatewayapi.ResourceCapabilities
 }
 
@@ -257,6 +258,11 @@ func resourceCapabilities(effective authorization.Effective, organizationID, wor
 		}
 		capabilities.observability = gatewayapi.ResourceCapabilities{
 			Read: effective.Allows(scope, authorization.OperationReadObservability),
+		}
+		capabilities.apiKey = gatewayapi.ResourceCapabilities{
+			Read:   effective.Allows(scope, authorization.OperationListAPIKeys),
+			Create: effective.Allows(scope, authorization.OperationCreateAPIKey),
+			Delete: effective.Allows(scope, authorization.OperationDeleteAPIKey),
 		}
 	}
 	return capabilities

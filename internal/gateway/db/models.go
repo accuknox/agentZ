@@ -57,6 +57,48 @@ func (ns NullAgentShareCapability) Value() (driver.Value, error) {
 	return string(ns.AgentShareCapability), nil
 }
 
+type ApiKeyTargetType string
+
+const (
+	ApiKeyTargetTypeAgent    ApiKeyTargetType = "agent"
+	ApiKeyTargetTypeWorkflow ApiKeyTargetType = "workflow"
+)
+
+func (e *ApiKeyTargetType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ApiKeyTargetType(s)
+	case string:
+		*e = ApiKeyTargetType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ApiKeyTargetType: %T", src)
+	}
+	return nil
+}
+
+type NullApiKeyTargetType struct {
+	ApiKeyTargetType ApiKeyTargetType `json:"api_key_target_type"`
+	Valid            bool             `json:"valid"` // Valid is true if ApiKeyTargetType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullApiKeyTargetType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ApiKeyTargetType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ApiKeyTargetType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ApiKeyTargetType), nil
+}
+
 type AuditActor string
 
 const (
@@ -201,6 +243,7 @@ const (
 	AuditTargetSandbox                AuditTarget = "sandbox"
 	AuditTargetSkill                  AuditTarget = "skill"
 	AuditTargetAgent                  AuditTarget = "agent"
+	AuditTargetApiKey                 AuditTarget = "api_key"
 	AuditTargetWorkspace              AuditTarget = "workspace"
 )
 
@@ -659,6 +702,13 @@ type ApiKeyScope struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	RevokedReason  pgtype.Text        `json:"revoked_reason"`
+}
+
+type ApiKeyTarget struct {
+	ApiKeyID     string           `json:"api_key_id"`
+	TargetType   ApiKeyTargetType `json:"target_type"`
+	AgentName    string           `json:"agent_name"`
+	WorkflowName string           `json:"workflow_name"`
 }
 
 type Apikey struct {

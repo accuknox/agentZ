@@ -87,7 +87,6 @@ const pageRoutes = new Set([
   "/sandboxes/update/[name]",
   "/secrets",
   "/settings/account",
-  "/settings/api-keys",
   "/settings/preferences",
   "/settings/sessions",
   "/workflows/graphs",

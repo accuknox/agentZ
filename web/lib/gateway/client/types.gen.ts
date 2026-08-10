@@ -157,6 +157,7 @@ export type Workspace = {
   sandbox_capabilities: ResourceCapabilities
   inference_provider_capabilities: ResourceCapabilities
   inference_pool_capabilities: ResourceCapabilities
+  api_key_capabilities: ResourceCapabilities
   observability_capabilities: ResourceCapabilities
   workspace_admin_count: number
   can_administer: boolean

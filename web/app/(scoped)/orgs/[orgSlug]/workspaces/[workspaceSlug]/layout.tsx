@@ -110,8 +110,10 @@ export default async function WorkspaceLayout({
   const tabs: RouteTab[] = [
     { href: root as Route, label: "Overview" },
     { href: `${root}/agents` as Route, label: "Agents" },
-    { href: `${root}/api-keys` as Route, label: "API Keys" },
   ]
+  if (result.workspace.api_key_capabilities.read) {
+    tabs.push({ href: `${root}/api-keys` as Route, label: "API Keys" })
+  }
   if (result.scope.organization.superadmin || result.workspace.can_administer) {
     tabs.push(
       { href: `${root}/roles` as Route, label: "Roles" },
@@ -159,6 +161,7 @@ export default async function WorkspaceLayout({
               canCreateWorkspace: result.directory.can_create,
               canEnterOrganization: result.directory.can_enter_organization,
               kind: "workspace",
+              apiKeyCapabilities: result.workspace.api_key_capabilities,
               mcpConnectionCapabilities: result.workspace.mcp_connection_capabilities,
               inferencePoolCapabilities: result.workspace.inference_pool_capabilities,
               inferenceProviderCapabilities: result.workspace.inference_provider_capabilities,

@@ -6,10 +6,6 @@ const apiKeyTypeSchema = z.enum(["agent", "webhook"], {
 const apiKeyExpirySchema = z.enum(["none", "7", "30", "90", "365"], {
   error: "Select an API key expiry.",
 })
-const apiKeyScopeModeSchema = z.enum(["all", "selected"], {
-  error: "Select an API key scope.",
-})
-
 export const createAPIKeyFormSchema = z
   .object({
     type: apiKeyTypeSchema,
@@ -19,7 +15,6 @@ export const createAPIKeyFormSchema = z
       .min(1, "Name is required")
       .max(32, "Name must be at most 32 characters"),
     expiresInDays: apiKeyExpirySchema,
-    scopeMode: apiKeyScopeModeSchema,
     agentNames: z
       .array(
         z.string({ error: "Agent name is required" }).trim().min(1, "Agent name is required"),
@@ -28,21 +23,29 @@ export const createAPIKeyFormSchema = z
         }
       )
       .max(200, "Select at most 200 agents."),
-    workflowScopes: z
+    workflowAgentNames: z
       .array(
         z
-          .string({ error: "Workflow selection is required" })
+          .string({ error: "Workflow Agent is required" })
           .trim()
-          .min(1, "Workflow selection is required"),
+          .min(1, "Workflow Agent is required"),
         {
-          error: "Selected workflows must be a list.",
+          error: "Workflow Agents must be a list.",
+        }
+      )
+      .max(500, "Select at most 500 workflows."),
+    workflowNames: z
+      .array(
+        z.string({ error: "Workflow name is required" }).trim().min(1, "Workflow name is required"),
+        {
+          error: "Workflow names must be a list.",
         }
       )
       .max(500, "Select at most 500 workflows."),
   })
   .superRefine((value, ctx) => {
     if (value.type === "agent") {
-      if (value.scopeMode !== "selected" || value.agentNames.length > 0) {
+      if (value.agentNames.length > 0) {
         return
       }
 
@@ -54,15 +57,20 @@ export const createAPIKeyFormSchema = z
       return
     }
 
-    if (value.scopeMode !== "selected" || value.workflowScopes.length > 0) {
-      return
+    if (value.workflowNames.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Select at least one workflow.",
+        path: ["workflowNames"],
+      })
     }
-
-    ctx.addIssue({
-      code: "custom",
-      message: "Select at least one workflow.",
-      path: ["workflowScopes"],
-    })
+    if (value.workflowNames.length !== value.workflowAgentNames.length) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Invalid workflow selection.",
+        path: ["workflowNames"],
+      })
+    }
   })
 
 export type CreateAPIKeyFormValues = z.infer<typeof createAPIKeyFormSchema>

@@ -23502,6 +23502,8 @@ components:
     Workspace:
       additionalProperties: false
       properties:
+        api_key_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         can_administer:
           type: boolean
         created_at:
@@ -23558,6 +23560,7 @@ components:
       - sandbox_capabilities
       - inference_provider_capabilities
       - inference_pool_capabilities
+      - api_key_capabilities
       - observability_capabilities
       type: object
     WorkspaceInheritedResource:

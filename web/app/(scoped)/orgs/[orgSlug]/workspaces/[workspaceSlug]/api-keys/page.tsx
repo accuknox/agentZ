@@ -1,8 +1,8 @@
 import { Suspense } from "react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { CreateAPIKeyButton } from "@/app/(account)/settings/api-keys/dialog"
-import { APIKeysTable } from "@/app/(account)/settings/api-keys/table"
+import { CreateAPIKeyButton } from "./dialog"
+import { APIKeysTable } from "./table"
 import { createAPIKeyFormAction, deleteAPIKeyFormAction } from "@/data/api-key.actions"
 import { listAPIKeysCachedQuery } from "@/data/api-key.queries"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -21,18 +21,21 @@ export default async function WorkspaceAPIKeysPage({
   if (scope.kind !== "ready") {
     return <ErrorPanel message="Workspace is unavailable" />
   }
-
-  const includeAll = scope.scope.organization.superadmin || scope.workspace.can_administer
+  if (!scope.workspace.api_key_capabilities.read) {
+    return <ErrorPanel message="You cannot read API keys in this Workspace." />
+  }
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="flex items-center justify-end">
-        <Suspense fallback={<Button disabled>New API key</Button>}>
-          <CreateAPIKeyAction workspaceId={scope.workspace.id} />
-        </Suspense>
-      </div>
+      {scope.workspace.api_key_capabilities.create ? (
+        <div className="flex items-center justify-end">
+          <Suspense fallback={<Button disabled>New API key</Button>}>
+            <CreateAPIKeyAction workspaceId={scope.workspace.id} />
+          </Suspense>
+        </div>
+      ) : null}
       <Suspense fallback={<TableSkeleton />}>
-        <APIKeys workspaceId={scope.workspace.id} includeAll={includeAll} />
+        <APIKeys workspaceId={scope.workspace.id} />
       </Suspense>
     </div>
   )
@@ -41,7 +44,17 @@ export default async function WorkspaceAPIKeysPage({
 async function CreateAPIKeyAction({ workspaceId }: { workspaceId: string }) {
   const listedAgents = await listAgentsCachedQuery(undefined, workspaceId)
   if (listedAgents.error) {
-    return null
+    return <ErrorPanel message="Eligible Agent targets are unavailable." />
+  }
+  if (listedAgents.agents.length === 0) {
+    return (
+      <Alert>
+        <AlertTitle>No eligible targets</AlertTitle>
+        <AlertDescription>
+          API keys require access to at least one Agent or workflow in this Workspace.
+        </AlertDescription>
+      </Alert>
+    )
   }
 
   const workflowsByAgent = await Promise.all(
@@ -63,17 +76,12 @@ async function CreateAPIKeyAction({ workspaceId }: { workspaceId: string }) {
   )
 }
 
-async function APIKeys({
-  includeAll,
-  workspaceId,
-}: {
-  includeAll: boolean
-  workspaceId: string
-}) {
-  const listedKeys = await listAPIKeysCachedQuery(workspaceId, includeAll)
+async function APIKeys({ workspaceId }: { workspaceId: string }) {
+  const listedKeys = await listAPIKeysCachedQuery(workspaceId)
 
   return (
     <APIKeysTable
+      canDelete={listedKeys.access?.capabilities.delete ?? false}
       deleteAPIKeyAction={deleteAPIKeyFormAction.bind(null, { workspaceId })}
       keys={listedKeys.apiKeys}
     />

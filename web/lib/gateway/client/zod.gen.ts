@@ -170,6 +170,7 @@ export const zWorkspace = z.object({
   sandbox_capabilities: zResourceCapabilities,
   inference_provider_capabilities: zResourceCapabilities,
   inference_pool_capabilities: zResourceCapabilities,
+  api_key_capabilities: zResourceCapabilities,
   observability_capabilities: zResourceCapabilities,
   workspace_admin_count: z.coerce
     .bigint()

@@ -881,6 +881,7 @@ func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdmini
 		SandboxCapabilities:           capabilities.sandbox,
 		InferenceProviderCapabilities: capabilities.inferenceProvider,
 		InferencePoolCapabilities:     capabilities.inferencePool,
+		ApiKeyCapabilities:            capabilities.apiKey,
 		ObservabilityCapabilities:     capabilities.observability,
 		CreatedAt:                     row.CreatedAt.Time,
 		Id:                            row.ID,

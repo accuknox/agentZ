@@ -3951,6 +3951,8 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         inference_pool_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
+        api_key_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         observability_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
         workspace_admin_count:
@@ -3981,6 +3983,7 @@ components:
       - sandbox_capabilities
       - inference_provider_capabilities
       - inference_pool_capabilities
+      - api_key_capabilities
       - observability_capabilities
 
     ListWorkspacesResponse:

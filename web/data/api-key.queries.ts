@@ -1,11 +1,13 @@
+import "server-only"
+
 import { cacheLife, cacheTag } from "next/cache"
-import { headers } from "next/headers"
-import { and, eq } from "drizzle-orm"
-import { webhookAPIKeyConfigID } from "@/lib/api-key-config"
-import { getDB, schema } from "@/db"
-import { getAuth } from "@/lib/auth"
+import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import { apiKeysTag } from "@/data/cache"
+import { getDB, schema } from "@/db"
+import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
+import { listWorkspaces, type ResourceCapabilities } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 type APIKeySummaryByID = Record<
   string,
@@ -15,75 +17,130 @@ type APIKeySummaryByID = Record<
   }
 >
 
-export type APIKeyScopeSummary = {
+export type WorkspaceAPIKeyTarget = {
+  targetType: "agent" | "workflow"
+  agentName: string
+  workflowName: string
+}
+
+export type WorkspaceAPIKey = {
+  id: string
+  name: string | null
+  prefix: string | null
+  expiresAt: Date | null
+  createdAt: Date
+  creatorUserId: string
+  creatorName: string
+  creatorEmail: string
+  enabled: boolean | null
   revokedAt: string | null
   revokedReason: string | null
+  targets: WorkspaceAPIKeyTarget[]
 }
 
-async function listAPIKeys(configId?: string) {
-  const requestHeaders = await headers()
-  const auth = getAuth()
-  const authContext = await currentGatewayAuthContext()
-
-  return auth.api.listApiKeys({
-    headers: requestHeaders,
-    query: {
-      configId,
-      organizationId: authContext.organizationId,
-      sortBy: "createdAt",
-      sortDirection: "desc",
-    },
-  })
+export type WorkspaceAPIKeyAccess = {
+  canAdminister: boolean
+  capabilities: ResourceCapabilities
 }
 
-export async function listAPIKeysCachedQuery(workspaceId?: string, includeAll = false) {
+export async function getWorkspaceAPIKeyAccess(
+  workspaceId: string
+): Promise<WorkspaceAPIKeyAccess | undefined> {
+  const result = await listWorkspaces({ client: getGatewayServerClient() })
+  if (result.error) {
+    throw new Error(result.error.message)
+  }
+
+  const workspace = result.data.workspaces.find((candidate) => candidate.id === workspaceId)
+  if (!workspace) {
+    return
+  }
+
+  return {
+    canAdminister: workspace.can_administer,
+    capabilities: workspace.api_key_capabilities,
+  }
+}
+
+export async function listAPIKeysCachedQuery(workspaceId: string) {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(apiKeysTag, `${apiKeysTag}:${workspaceId ?? "account"}`)
+  cacheTag(apiKeysTag, `${apiKeysTag}:${workspaceId}`)
 
-  const listed = await listAPIKeys()
-  if (!workspaceId) {
-    return listed
+  const access = await getWorkspaceAPIKeyAccess(workspaceId)
+  if (!access?.capabilities.read) {
+    return { access, apiKeys: [] satisfies WorkspaceAPIKey[] }
   }
 
-  const authContext = await currentGatewayAuthContext()
+  const auth = await currentGatewayAuthContext()
   const rows = await getDB()
     .select({
-      apiKeyId: schema.apiKeyScopes.apiKeyId,
+      id: schema.apikeys.id,
+      name: schema.apikeys.name,
+      prefix: schema.apikeys.prefix,
+      expiresAt: schema.apikeys.expiresAt,
+      createdAt: schema.apikeys.createdAt,
       creatorUserId: schema.apiKeyScopes.creatorUserId,
+      creatorName: schema.users.name,
+      creatorEmail: schema.users.email,
+      enabled: schema.apikeys.enabled,
       revokedAt: schema.apiKeyScopes.revokedAt,
       revokedReason: schema.apiKeyScopes.revokedReason,
+      targetType: schema.apiKeyTargets.targetType,
+      agentName: schema.apiKeyTargets.agentName,
+      workflowName: schema.apiKeyTargets.workflowName,
     })
     .from(schema.apiKeyScopes)
+    .innerJoin(schema.apikeys, eq(schema.apikeys.id, schema.apiKeyScopes.apiKeyId))
+    .innerJoin(schema.users, eq(schema.users.id, schema.apiKeyScopes.creatorUserId))
+    .innerJoin(
+      schema.apiKeyTargets,
+      eq(schema.apiKeyTargets.apiKeyId, schema.apiKeyScopes.apiKeyId)
+    )
     .where(
       and(
-        eq(schema.apiKeyScopes.organizationId, authContext.organizationId),
-        eq(schema.apiKeyScopes.workspaceId, workspaceId)
+        eq(schema.apiKeyScopes.organizationId, auth.organizationId),
+        eq(schema.apiKeyScopes.workspaceId, workspaceId),
+        inArray(schema.apikeys.configId, [agentAPIKeyConfigID, webhookAPIKeyConfigID]),
+        access.canAdminister ? undefined : eq(schema.apiKeyScopes.creatorUserId, auth.userId)
       )
     )
-  const scopedKeys = new Map(rows.map((row) => [row.apiKeyId, row]))
-  return {
-    ...listed,
-    apiKeys: listed.apiKeys
-      .filter((key) => {
-        const scope = scopedKeys.get(key.id)
-        if (!scope) {
-          return false
-        }
-        return includeAll || scope.creatorUserId === authContext.userId
-      })
-      .map((key) => {
-        const scope = scopedKeys.get(key.id)
-        return {
-          ...key,
-          workspaceScope: {
-            revokedAt: scope?.revokedAt?.toISOString() ?? null,
-            revokedReason: scope?.revokedReason ?? null,
-          } satisfies APIKeyScopeSummary,
-        }
-      }),
+    .orderBy(desc(schema.apikeys.createdAt), desc(schema.apikeys.id))
+
+  const apiKeys: WorkspaceAPIKey[] = []
+  const keysByID = new Map<string, WorkspaceAPIKey>()
+  for (const row of rows) {
+    const target = {
+      targetType: row.targetType,
+      agentName: row.agentName,
+      workflowName: row.workflowName,
+    }
+    const key = keysByID.get(row.id)
+    if (key) {
+      key.targets.push(target)
+      continue
+    }
+
+    const created = {
+      id: row.id,
+      name: row.name,
+      prefix: row.prefix,
+      expiresAt: row.expiresAt,
+      createdAt: row.createdAt,
+      creatorUserId: row.creatorUserId,
+      creatorName: row.creatorName,
+      creatorEmail: row.creatorEmail,
+      enabled: row.enabled,
+      revokedAt: row.revokedAt?.toISOString() ?? null,
+      revokedReason: row.revokedReason,
+      targets: [target],
+    }
+    keysByID.set(row.id, created)
+    apiKeys.push(created)
   }
+
+  return { access, apiKeys }
 }
 
 export async function listWebhookAPIKeyDisplaysCachedQuery(): Promise<APIKeySummaryByID> {
@@ -92,19 +149,34 @@ export async function listWebhookAPIKeyDisplaysCachedQuery(): Promise<APIKeySumm
   cacheLife("minutes")
   cacheTag(apiKeysTag)
 
-  const listedKeys = await listAPIKeys(webhookAPIKeyConfigID)
+  const auth = await currentGatewayAuthContext()
+  const keys = await getDB()
+    .select({
+      id: schema.apikeys.id,
+      name: schema.apikeys.name,
+      prefix: schema.apikeys.prefix,
+    })
+    .from(schema.apiKeyScopes)
+    .innerJoin(schema.apikeys, eq(schema.apikeys.id, schema.apiKeyScopes.apiKeyId))
+    .where(
+      and(
+        eq(schema.apiKeyScopes.organizationId, auth.organizationId),
+        eq(schema.apiKeyScopes.creatorUserId, auth.userId),
+        eq(schema.apikeys.configId, webhookAPIKeyConfigID),
+        eq(schema.apikeys.enabled, true),
+        isNull(schema.apiKeyScopes.revokedAt)
+      )
+    )
 
   const displaysByID: APIKeySummaryByID = {}
-  for (const key of listedKeys.apiKeys) {
-    const start = key.start?.trim()
-    const prefix = key.prefix?.trim()
-    const display = start || prefix
+  for (const key of keys) {
+    const display = key.prefix
     if (!display) {
       continue
     }
     displaysByID[key.id] = {
-      display: `${display}...`,
-      name: key.name?.trim() || undefined,
+      display: `${display}...${key.id.slice(-6)}`,
+      name: key.name || undefined,
     }
   }
 

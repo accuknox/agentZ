@@ -1417,28 +1417,6 @@ func (q *Queries) GatewayDeleteWorkspaceInheritedResources(ctx context.Context, 
 	return result.RowsAffected(), nil
 }
 
-const gatewayDisableAPIKey = `-- name: GatewayDisableAPIKey :execrows
-UPDATE apikeys
-SET enabled = false,
-  updated_at = $1
-WHERE id = $2
-  AND reference_id = $3
-`
-
-type GatewayDisableAPIKeyParams struct {
-	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-	ApiKeyID       string           `json:"api_key_id"`
-	OrganizationID string           `json:"organization_id"`
-}
-
-func (q *Queries) GatewayDisableAPIKey(ctx context.Context, arg GatewayDisableAPIKeyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayDisableAPIKey, arg.UpdatedAt, arg.ApiKeyID, arg.OrganizationID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const gatewayFinalizeWorkspaceDeletion = `-- name: GatewayFinalizeWorkspaceDeletion :one
 UPDATE workspaces
 SET
@@ -1478,7 +1456,7 @@ func (q *Queries) GatewayFinalizeWorkspaceDeletion(ctx context.Context, arg Gate
 }
 
 const gatewayGetAPIKeyByHash = `-- name: GatewayGetAPIKeyByHash :one
-SELECT id, reference_id, name, permissions
+SELECT id, reference_id, name
 FROM apikeys
 WHERE key = $1
   AND config_id = $2
@@ -1499,18 +1477,12 @@ type GatewayGetAPIKeyByHashRow struct {
 	ID          string      `json:"id"`
 	ReferenceID string      `json:"reference_id"`
 	Name        pgtype.Text `json:"name"`
-	Permissions pgtype.Text `json:"permissions"`
 }
 
 func (q *Queries) GatewayGetAPIKeyByHash(ctx context.Context, arg GatewayGetAPIKeyByHashParams) (GatewayGetAPIKeyByHashRow, error) {
 	row := q.db.QueryRow(ctx, gatewayGetAPIKeyByHash, arg.Key, arg.ConfigID, arg.NowAt)
 	var i GatewayGetAPIKeyByHashRow
-	err := row.Scan(
-		&i.ID,
-		&i.ReferenceID,
-		&i.Name,
-		&i.Permissions,
-	)
+	err := row.Scan(&i.ID, &i.ReferenceID, &i.Name)
 	return i, err
 }
 
@@ -2227,6 +2199,39 @@ func (q *Queries) GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAP
 			&i.RevokedReason,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAPIKeyTargets = `-- name: GatewayListAPIKeyTargets :many
+SELECT target_type, agent_name, workflow_name
+FROM api_key_targets
+WHERE api_key_id = $1
+ORDER BY target_type, agent_name, workflow_name
+`
+
+type GatewayListAPIKeyTargetsRow struct {
+	TargetType   ApiKeyTargetType `json:"target_type"`
+	AgentName    string           `json:"agent_name"`
+	WorkflowName string           `json:"workflow_name"`
+}
+
+func (q *Queries) GatewayListAPIKeyTargets(ctx context.Context, apiKeyID string) ([]GatewayListAPIKeyTargetsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListAPIKeyTargets, apiKeyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListAPIKeyTargetsRow{}
+	for rows.Next() {
+		var i GatewayListAPIKeyTargetsRow
+		if err := rows.Scan(&i.TargetType, &i.AgentName, &i.WorkflowName); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -5219,61 +5224,83 @@ func (q *Queries) GatewayRetryWorkspaceProvisioning(ctx context.Context, arg Gat
 	return result.RowsAffected(), nil
 }
 
-const gatewayRevokeScopedAPIKey = `-- name: GatewayRevokeScopedAPIKey :one
-UPDATE api_key_scopes
-SET revoked_at = $1,
-  revoked_reason = $2
-WHERE api_key_id = $3
-  AND organization_id = $4
-  AND workspace_id = $5
-  AND revoked_at IS NULL
-RETURNING
-  api_key_id,
+const gatewayRevokeScopedAPIKey = `-- name: GatewayRevokeScopedAPIKey :execrows
+WITH revoked AS (
+  UPDATE api_key_scopes
+  SET revoked_at = $2,
+    revoked_reason = $3
+  WHERE api_key_scopes.api_key_id = $4
+    AND api_key_scopes.organization_id = $5
+    AND api_key_scopes.workspace_id = $6
+    AND api_key_scopes.revoked_at IS NULL
+  RETURNING
+    api_key_scopes.api_key_id,
+    api_key_scopes.organization_id,
+    api_key_scopes.workspace_id
+), disabled AS (
+  UPDATE apikeys
+  SET enabled = false,
+    updated_at = $7
+  FROM revoked
+  WHERE apikeys.id = revoked.api_key_id
+    AND apikeys.reference_id = revoked.organization_id
+  RETURNING apikeys.id
+)
+INSERT INTO audit_events(
+  id,
   organization_id,
   workspace_id,
-  creator_user_id,
-  revoked_at,
-  revoked_reason,
-  created_at
+  actor_type,
+  target_type,
+  target_id,
+  category,
+  action,
+  result,
+  after,
+  automatic_cascade,
+  interface
+)
+SELECT
+  $1,
+  revoked.organization_id,
+  revoked.workspace_id,
+  'system',
+  'api_key',
+  revoked.api_key_id,
+  'api_key',
+  'api_key.revoke',
+  'succeeded',
+  jsonb_build_array(jsonb_build_object('field', 'state', 'value', 'revoked')),
+  true,
+  'gateway'
+FROM revoked
+JOIN disabled ON disabled.id = revoked.api_key_id
 `
 
 type GatewayRevokeScopedAPIKeyParams struct {
+	AuditID        string             `json:"audit_id"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	RevokedReason  pgtype.Text        `json:"revoked_reason"`
 	ApiKeyID       string             `json:"api_key_id"`
 	OrganizationID string             `json:"organization_id"`
 	WorkspaceID    string             `json:"workspace_id"`
+	UpdatedAt      pgtype.Timestamp   `json:"updated_at"`
 }
 
-type GatewayRevokeScopedAPIKeyRow struct {
-	ApiKeyID       string             `json:"api_key_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	CreatorUserID  string             `json:"creator_user_id"`
-	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
-	RevokedReason  pgtype.Text        `json:"revoked_reason"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (GatewayRevokeScopedAPIKeyRow, error) {
-	row := q.db.QueryRow(ctx, gatewayRevokeScopedAPIKey,
+func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayRevokeScopedAPIKey,
+		arg.AuditID,
 		arg.RevokedAt,
 		arg.RevokedReason,
 		arg.ApiKeyID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.UpdatedAt,
 	)
-	var i GatewayRevokeScopedAPIKeyRow
-	err := row.Scan(
-		&i.ApiKeyID,
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.CreatorUserID,
-		&i.RevokedAt,
-		&i.RevokedReason,
-		&i.CreatedAt,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const gatewaySetMemberDisabledAt = `-- name: GatewaySetMemberDisabledAt :execrows

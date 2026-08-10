@@ -55,6 +55,7 @@ export type SidebarScope =
   | ({ kind: "organization" } & WorkspaceNavigationScope)
   | ({
       kind: "workspace"
+      apiKeyCapabilities: ResourceCapabilities
       workspace: Workspace
       observabilityCapabilities: ResourceCapabilities
     } & WorkspaceNavigationScope)
@@ -96,6 +97,7 @@ export function AppSidebar({
         ) : null}
         {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
           <WorkspaceNavigation
+            apiKeyCapabilities={scope.apiKeyCapabilities}
             mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
             inferencePoolCapabilities={scope.inferencePoolCapabilities}
             inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
@@ -122,6 +124,7 @@ export function AppSidebar({
 }
 
 function WorkspaceNavigation({
+  apiKeyCapabilities,
   mcpConnectionCapabilities,
   inferencePoolCapabilities,
   inferenceProviderCapabilities,
@@ -131,6 +134,7 @@ function WorkspaceNavigation({
   sandboxCapabilities,
   workspace,
 }: {
+  apiKeyCapabilities: ResourceCapabilities
   mcpConnectionCapabilities: ResourceCapabilities
   inferencePoolCapabilities: ResourceCapabilities
   inferenceProviderCapabilities: ResourceCapabilities
@@ -174,16 +178,18 @@ function WorkspaceNavigation({
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="API keys">
-            <Link
-              href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/api-keys` as Route}
-            >
-              <KeyRound aria-hidden="true" />
-              <span>API Keys</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+        {apiKeyCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="API keys">
+              <Link
+                href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/api-keys` as Route}
+              >
+                <KeyRound aria-hidden="true" />
+                <span>API Keys</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
         {skillCapabilities.read ? (
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Skills">

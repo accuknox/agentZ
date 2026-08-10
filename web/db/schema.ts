@@ -70,6 +70,7 @@ export const agentShareCapability = pgEnum("agent_share_capability", [
   "write_shared_secret",
   "delete_shared_secret",
 ])
+export const apiKeyTargetType = pgEnum("api_key_target_type", ["agent", "workflow"])
 export const auditActor = pgEnum("audit_actor", ["user", "api_key", "system"])
 export const auditResult = pgEnum("audit_result", ["succeeded", "denied", "failed"])
 export const auditTarget = pgEnum("audit_target", [
@@ -83,6 +84,7 @@ export const auditTarget = pgEnum("audit_target", [
   "sandbox",
   "skill",
   "agent",
+  "api_key",
   "workspace",
 ])
 export const auditInterface = pgEnum("audit_interface", [
@@ -475,7 +477,11 @@ export const apiKeyScopes = pgTable(
   (table) => [
     index("api_key_scopes_workspace_idx").on(table.organizationId, table.workspaceId),
     index("api_key_scopes_creator_idx").on(table.organizationId, table.creatorUserId),
-    index("api_key_scopes_revoked_idx").on(table.organizationId, table.workspaceId, table.revokedAt),
+    index("api_key_scopes_revoked_idx").on(
+      table.organizationId,
+      table.workspaceId,
+      table.revokedAt
+    ),
     foreignKey({
       columns: [table.workspaceId, table.organizationId],
       foreignColumns: [workspaces.id, workspaces.organizationId],
@@ -485,6 +491,27 @@ export const apiKeyScopes = pgTable(
       "api_key_scopes_revocation_reason_ck",
       sql`(${table.revokedAt} IS NULL AND ${table.revokedReason} IS NULL) OR
         (${table.revokedAt} IS NOT NULL AND NULLIF(BTRIM(${table.revokedReason}), '') IS NOT NULL)`
+    ),
+  ]
+)
+
+export const apiKeyTargets = pgTable(
+  "api_key_targets",
+  {
+    apiKeyId: text("api_key_id")
+      .notNull()
+      .references(() => apiKeyScopes.apiKeyId, { onDelete: "cascade" }),
+    targetType: apiKeyTargetType("target_type").notNull(),
+    agentName: text("agent_name").notNull(),
+    workflowName: text("workflow_name").default("").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.apiKeyId, table.agentName, table.workflowName] }),
+    index("api_key_targets_agent_idx").on(table.agentName),
+    check(
+      "api_key_targets_type_ck",
+      sql`(${table.targetType} = 'agent' AND ${table.workflowName} = '') OR
+        (${table.targetType} = 'workflow' AND ${table.workflowName} <> '')`
     ),
   ]
 )

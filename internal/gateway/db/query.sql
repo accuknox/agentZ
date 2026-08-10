@@ -7,7 +7,7 @@ SELECT EXISTS(
 );
 
 -- name: GatewayGetAPIKeyByHash :one
-SELECT id, reference_id, name, permissions
+SELECT id, reference_id, name
 FROM apikeys
 WHERE key = sqlc.arg(key)
   AND config_id = sqlc.arg(config_id)
@@ -1314,6 +1314,12 @@ JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
 WHERE api_key_scopes.api_key_id = sqlc.arg(api_key_id)
   AND api_key_scopes.organization_id = sqlc.arg(organization_id);
 
+-- name: GatewayListAPIKeyTargets :many
+SELECT target_type, agent_name, workflow_name
+FROM api_key_targets
+WHERE api_key_id = sqlc.arg(api_key_id)
+ORDER BY target_type, agent_name, workflow_name;
+
 -- name: GatewayListAPIKeyScopes :many
 SELECT
   api_key_scopes.api_key_id,
@@ -1333,29 +1339,57 @@ WHERE api_key_scopes.organization_id = sqlc.arg(organization_id)
   AND api_key_scopes.workspace_id = sqlc.arg(workspace_id)
 ORDER BY api_key_scopes.created_at, api_key_scopes.api_key_id;
 
--- name: GatewayRevokeScopedAPIKey :one
-UPDATE api_key_scopes
-SET revoked_at = sqlc.arg(revoked_at),
-  revoked_reason = sqlc.arg(revoked_reason)
-WHERE api_key_id = sqlc.arg(api_key_id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND revoked_at IS NULL
-RETURNING
-  api_key_id,
+-- name: GatewayRevokeScopedAPIKey :execrows
+WITH revoked AS (
+  UPDATE api_key_scopes
+  SET revoked_at = sqlc.arg(revoked_at),
+    revoked_reason = sqlc.arg(revoked_reason)
+  WHERE api_key_scopes.api_key_id = sqlc.arg(api_key_id)
+    AND api_key_scopes.organization_id = sqlc.arg(organization_id)
+    AND api_key_scopes.workspace_id = sqlc.arg(workspace_id)
+    AND api_key_scopes.revoked_at IS NULL
+  RETURNING
+    api_key_scopes.api_key_id,
+    api_key_scopes.organization_id,
+    api_key_scopes.workspace_id
+), disabled AS (
+  UPDATE apikeys
+  SET enabled = false,
+    updated_at = sqlc.arg(updated_at)
+  FROM revoked
+  WHERE apikeys.id = revoked.api_key_id
+    AND apikeys.reference_id = revoked.organization_id
+  RETURNING apikeys.id
+)
+INSERT INTO audit_events(
+  id,
   organization_id,
   workspace_id,
-  creator_user_id,
-  revoked_at,
-  revoked_reason,
-  created_at;
-
--- name: GatewayDisableAPIKey :execrows
-UPDATE apikeys
-SET enabled = false,
-  updated_at = sqlc.arg(updated_at)
-WHERE id = sqlc.arg(api_key_id)
-  AND reference_id = sqlc.arg(organization_id);
+  actor_type,
+  target_type,
+  target_id,
+  category,
+  action,
+  result,
+  after,
+  automatic_cascade,
+  interface
+)
+SELECT
+  sqlc.arg(audit_id),
+  revoked.organization_id,
+  revoked.workspace_id,
+  'system',
+  'api_key',
+  revoked.api_key_id,
+  'api_key',
+  'api_key.revoke',
+  'succeeded',
+  jsonb_build_array(jsonb_build_object('field', 'state', 'value', 'revoked')),
+  true,
+  'gateway'
+FROM revoked
+JOIN disabled ON disabled.id = revoked.api_key_id;
 
 -- name: GatewayDeleteScopedAPIKey :execrows
 DELETE FROM apikeys

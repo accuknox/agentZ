@@ -6,8 +6,6 @@ import { MoreHorizontal, Trash2 } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { formatAge, formatTimestampWithAge } from "@/lib/format"
-import type { DeleteAPIKeyFormState } from "@/data/types"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,8 +18,8 @@ import {
 } from "@/components/ui/dialog"
 import {
   DropdownMenu,
-  DropdownMenuGroup,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -35,47 +33,37 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
-
-type APIKeyRow = {
-  id: string
-  name?: string | null
-  configId: string
-  start?: string | null
-  prefix?: string | null
-  permissions?: Record<string, string[]> | null
-  expiresAt?: Date | string | null
-  createdAt: Date | string
-  workspaceScope?: {
-    revokedAt: string | null
-    revokedReason: string | null
-  }
-}
+import type { WorkspaceAPIKey } from "@/data/api-key.queries"
+import type { DeleteAPIKeyFormState } from "@/data/types"
+import { formatAge, formatTimestampWithAge } from "@/lib/format"
 
 const columnClassName: Record<string, string> = {
-  name: "w-44",
+  name: "w-40",
   type: "w-20",
-  start: "w-36",
-  scope: "min-w-56",
-  status: "w-32",
+  key: "w-36",
+  targets: "min-w-52",
+  creator: "min-w-44",
+  status: "w-28",
   expiresAt: "w-28",
   age: "w-28",
   actions: "w-14",
 }
 
 export function APIKeysTable({
+  canDelete,
   deleteAPIKeyAction,
   keys,
 }: {
+  canDelete: boolean
   deleteAPIKeyAction: (
     state: DeleteAPIKeyFormState,
     formData: FormData
   ) => Promise<DeleteAPIKeyFormState>
-  keys: APIKeyRow[]
+  keys: WorkspaceAPIKey[]
 }) {
   "use no memo"
 
-  const columns = React.useMemo<ColumnDef<APIKeyRow>[]>(
+  const columns = React.useMemo<ColumnDef<WorkspaceAPIKey>[]>(
     () => [
       {
         id: "name",
@@ -85,24 +73,40 @@ export function APIKeysTable({
       {
         id: "type",
         header: "Type",
-        cell: ({ row }) => <span>{apiKeyTypeLabel(row.original.configId)}</span>,
-      },
-      {
-        id: "start",
-        header: "Key",
-        cell: ({ row }) => <code>{row.original.start || row.original.prefix || "-"}...</code>,
-      },
-      {
-        id: "scope",
-        header: "Scope",
         cell: ({ row }) => (
-          <APIKeyScope configId={row.original.configId} permissions={row.original.permissions} />
+          <span>{row.original.targets[0]?.targetType === "workflow" ? "Webhook" : "Agent"}</span>
+        ),
+      },
+      {
+        id: "key",
+        header: "Key",
+        cell: ({ row }) => (
+          <code>
+            {row.original.prefix || "key_"}...{row.original.id.slice(-6)}
+          </code>
+        ),
+      },
+      {
+        id: "targets",
+        header: "Targets",
+        cell: ({ row }) => <APIKeyTargets targets={row.original.targets} />,
+      },
+      {
+        id: "creator",
+        header: "Created by",
+        cell: ({ row }) => (
+          <span className="block min-w-0">
+            <span className="block truncate">{row.original.creatorName}</span>
+            <span className="text-muted-foreground block truncate text-xs">
+              {row.original.creatorEmail}
+            </span>
+          </span>
         ),
       },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => <APIKeyStatus scope={row.original.workspaceScope} />,
+        cell: ({ row }) => <APIKeyStatus apiKey={row.original} />,
       },
       {
         id: "expiresAt",
@@ -116,27 +120,20 @@ export function APIKeysTable({
       },
       {
         id: "actions",
-        cell: ({ row }) => (
-          <DeleteAPIKeyButton
-            configId={row.original.configId}
-            deleteAPIKeyAction={deleteAPIKeyAction}
-            keyID={row.original.id}
-          />
-        ),
+        cell: ({ row }) =>
+          canDelete && !row.original.revokedAt ? (
+            <DeleteAPIKeyButton deleteAPIKeyAction={deleteAPIKeyAction} keyID={row.original.id} />
+          ) : null,
       },
     ],
-    [deleteAPIKeyAction]
+    [canDelete, deleteAPIKeyAction]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({
-    data: keys,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  })
+  const table = useReactTable({ data: keys, columns, getCoreRowModel: getCoreRowModel() })
 
   return (
-    <div className="w-full min-w-0 border-b">
+    <div className="w-full min-w-0 overflow-x-auto border-b">
       <Table className="table-auto">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -171,7 +168,7 @@ export function APIKeysTable({
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">
-                No API keys
+                No API keys in this Workspace
               </TableCell>
             </TableRow>
           )}
@@ -181,145 +178,74 @@ export function APIKeysTable({
   )
 }
 
-function APIKeyScope({
-  configId,
-  permissions,
-}: {
-  configId: string
-  permissions?: Record<string, string[]> | null
-}) {
-  if (configId === webhookAPIKeyConfigID) {
-    const webhook = permissions?.webhook ?? []
-    if (webhook.includes("all")) {
-      return <code>*</code>
+function APIKeyTargets({ targets }: { targets: WorkspaceAPIKey["targets"] }) {
+  const workflowsByAgent = new Map<string, string[]>()
+  const agentNames: string[] = []
+  for (const target of targets) {
+    if (target.targetType === "agent") {
+      agentNames.push(target.agentName)
+      continue
     }
-
-    const workflowsByAgent = new Map<string, string[]>()
-    for (const scope of webhook) {
-      const [kind, agentName, workflowName, extra] = scope.split(":")
-      if (kind !== "workflow" || !agentName || !workflowName || extra) {
-        continue
-      }
-
-      const workflows = workflowsByAgent.get(agentName) ?? []
-      workflows.push(workflowName)
-      workflowsByAgent.set(agentName, workflows)
-    }
-
-    if (workflowsByAgent.size === 0) {
-      return <span>Invalid</span>
-    }
-
-    const grouped = [...workflowsByAgent.entries()]
-      .map(([agentName, workflowNames]) => ({
-        agentName,
-        workflowNames: workflowNames.toSorted(),
-      }))
-      .toSorted((left, right) => left.agentName.localeCompare(right.agentName))
-
-    const summary =
-      grouped.length <= 2
-        ? grouped
-            .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.length}`)
-            .join(", ")
-        : `${grouped
-            .slice(0, 2)
-            .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.length}`)
-            .join(", ")}, +${grouped.length - 2} agents`
-    const details = grouped
-      .map(({ agentName, workflowNames }) => `${agentName}: ${workflowNames.join(", ")}`)
-      .join("\n")
-
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <code className="cursor-default">{summary}</code>
-          </TooltipTrigger>
-          <TooltipContent sideOffset={6} className="whitespace-pre-line">
-            {details}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    )
+    const workflowNames = workflowsByAgent.get(target.agentName) ?? []
+    workflowNames.push(target.workflowName)
+    workflowsByAgent.set(target.agentName, workflowNames)
   }
 
-  const opencode = permissions?.opencode ?? []
-  if (opencode.includes("all")) {
-    return <code>*</code>
-  }
-
-  const agentNames = opencode
-    .flatMap((value) => {
-      if (!value.startsWith("agent:")) {
-        return []
-      }
-      const agentName = value.slice("agent:".length).trim()
-      return agentName ? [agentName] : []
-    })
-    .toSorted()
-
-  if (agentNames.length === 0) {
-    return <span>Invalid</span>
-  }
-
+  const details = [
+    ...agentNames.toSorted(),
+    ...[...workflowsByAgent]
+      .toSorted(([left], [right]) => left.localeCompare(right))
+      .map(([agentName, workflowNames]) => `${agentName}: ${workflowNames.toSorted().join(", ")}`),
+  ]
   const summary =
-    agentNames.length <= 2
-      ? agentNames.join(", ")
-      : `${agentNames.slice(0, 2).join(", ")}, +${agentNames.length - 2}`
+    details.length <= 2
+      ? details.join(", ")
+      : `${details.slice(0, 2).join(", ")}, +${details.length - 2}`
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <code className="cursor-default">{summary}</code>
+          <code className="block max-w-64 cursor-default truncate">{summary}</code>
         </TooltipTrigger>
-        <TooltipContent sideOffset={6}>{agentNames.join(", ")}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
-function apiKeyTypeLabel(configId: string) {
-  if (configId === agentAPIKeyConfigID) {
-    return "Agent"
-  }
-  if (configId === webhookAPIKeyConfigID) {
-    return "Webhook"
-  }
-  return "Unknown"
-}
-
-function APIKeyStatus({ scope }: { scope?: APIKeyRow["workspaceScope"] }) {
-  if (!scope) {
-    return <Badge variant="outline">Active</Badge>
-  }
-  if (!scope.revokedAt) {
-    return <Badge variant="success">Active</Badge>
-  }
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge className="cursor-default" variant="destructive">
-            Revoked
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent sideOffset={6}>
-          {scope.revokedReason ?? "Workspace access was revoked."}
+        <TooltipContent sideOffset={6} className="max-w-96 whitespace-pre-line">
+          {details.join("\n")}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )
 }
 
+function APIKeyStatus({ apiKey }: { apiKey: WorkspaceAPIKey }) {
+  if (apiKey.revokedAt) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge className="cursor-default" variant="destructive">
+              Revoked
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={6}>
+            {apiKey.revokedReason ?? "Workspace access was revoked."}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+  if (!apiKey.enabled) {
+    return <Badge variant="outline">Disabled</Badge>
+  }
+  if (apiKey.expiresAt && apiKey.expiresAt.getTime() <= Date.now()) {
+    return <Badge variant="outline">Expired</Badge>
+  }
+  return <Badge variant="success">Active</Badge>
+}
+
 function DeleteAPIKeyButton({
-  configId,
   deleteAPIKeyAction,
   keyID,
 }: {
-  configId: string
   deleteAPIKeyAction: (
     state: DeleteAPIKeyFormState,
     formData: FormData
@@ -335,9 +261,7 @@ function DeleteAPIKeyButton({
     if (!state.success) {
       return
     }
-    React.startTransition(() => {
-      router.refresh()
-    })
+    React.startTransition(() => router.refresh())
   }, [router, state.success])
 
   return (
@@ -346,7 +270,7 @@ function DeleteAPIKeyButton({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8">
-              <span className="sr-only">Open menu</span>
+              <span className="sr-only">Open API key menu</span>
               <MoreHorizontal />
             </Button>
           </DropdownMenuTrigger>
@@ -371,7 +295,7 @@ function DeleteAPIKeyButton({
           <DialogHeader>
             <DialogTitle>Revoke API key?</DialogTitle>
             <DialogDescription>
-              This immediately breaks every client using this key.
+              This immediately denies every request using this key.
             </DialogDescription>
           </DialogHeader>
           {state.error ? (
@@ -386,7 +310,6 @@ function DeleteAPIKeyButton({
               </Button>
             </DialogClose>
             <form action={action}>
-              <input type="hidden" name="configId" value={configId} />
               <input type="hidden" name="keyID" value={keyID} />
               <Button type="submit" variant="destructive" disabled={pending}>
                 {pending ? <Spinner aria-hidden="true" /> : <Trash2 data-icon="inline-start" />}

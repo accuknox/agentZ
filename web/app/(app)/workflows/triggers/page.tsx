@@ -1,8 +1,6 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { Suspense } from "react"
 import * as z from "zod"
-import { Webhook } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -184,14 +182,7 @@ async function HeaderAction({ searchParams }: { searchParams: ResolvedSearchPara
   const requestedType = searchParams.type
   const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
   if (selectedType === "webhook") {
-    return (
-      <Button asChild>
-        <Link href="/settings/api-keys">
-          <Webhook data-icon="inline-start" />
-          Manage webhook keys
-        </Link>
-      </Button>
-    )
+    return null
   }
 
   const agentsResult = await listAgentsCachedQuery()

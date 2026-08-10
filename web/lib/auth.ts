@@ -40,6 +40,14 @@ const organizationAccessControl = createAccessControl(defaultStatements)
 const superadminRole = organizationAccessControl.newRole(defaultStatements)
 
 const disabledAuthPaths = [
+  // Workspace capabilities and typed targets govern durable credentials.
+  // Native API-key management cannot enforce that scope.
+  "/api-key/create",
+  "/api-key/delete",
+  "/api-key/get",
+  "/api-key/list",
+  "/api-key/update",
+  "/api-key/verify",
   // Gateway JWTs must go through currentGatewayAuthToken(), which verifies the
   // active, enabled Organisation before minting a bearer token.
   "/token",

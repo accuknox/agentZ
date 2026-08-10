@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,22 +11,19 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
 )
 
 const (
 	openCodeAPIKeyConfigID = "opencode"
 	webhookAPIKeyConfigID  = "webhook"
 )
-
-type apiKeyPermissions struct {
-	Opencode []string `json:"opencode"`
-	Webhook  []string `json:"webhook"`
-}
 
 func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error) {
 	username, password, ok := r.BasicAuth()
@@ -43,14 +39,9 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
 
-	var perms apiKeyPermissions
-	if !key.Permissions.Valid {
-		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
-	}
-	if err := json.Unmarshal([]byte(key.Permissions.String), &perms); err != nil {
-		return requestAuth{}, invalidAPIKeyAuthError(err)
-	}
-	scope, err := s.apiKeyScope(r.Context(), key)
+	scope, targets, err := s.resolveAPIKeyTargets(
+		r.Context(), key, gatewaydb.ApiKeyTargetTypeAgent,
+	)
 	if err != nil {
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
@@ -59,15 +50,18 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 	if agentName == "" {
 		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
 	}
-	if !allowOpenCodeAgent(perms.Opencode, agentName) {
+	allowed := false
+	for _, target := range targets {
+		if target.AgentName == agentName {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
 		return requestAuth{}, invalidAPIKeyAuthError(
 			fmt.Errorf("api key %q is not authorized for agent %q", key.ID, agentName),
 		)
 	}
-	if err := s.validateAPIKeyAgentScope(r.Context(), scope, agentName); err != nil {
-		return requestAuth{}, invalidAPIKeyAuthError(err)
-	}
-
 	return requestAuth{
 		apiKeyID:        key.ID,
 		organizationID:  key.ReferenceID,
@@ -87,14 +81,9 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
 
-	var perms apiKeyPermissions
-	if !key.Permissions.Valid {
-		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
-	}
-	if err := json.Unmarshal([]byte(key.Permissions.String), &perms); err != nil {
-		return requestAuth{}, invalidAPIKeyAuthError(err)
-	}
-	scope, err := s.apiKeyScope(r.Context(), key)
+	scope, targets, err := s.resolveAPIKeyTargets(
+		r.Context(), key, gatewaydb.ApiKeyTargetTypeWorkflow,
+	)
 	if err != nil {
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
@@ -104,7 +93,14 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 	if agentName == "" || workflowName == "" {
 		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
 	}
-	if !allowWebhookWorkflow(perms.Webhook, agentName, workflowName) {
+	allowed := false
+	for _, target := range targets {
+		if target.AgentName == agentName && target.WorkflowName == workflowName {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
 		return requestAuth{}, invalidAPIKeyAuthError(
 			fmt.Errorf(
 				"api key %q is not authorized for workflow %q/%q",
@@ -114,10 +110,6 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 			),
 		)
 	}
-	if err := s.validateAPIKeyAgentScope(r.Context(), scope, agentName); err != nil {
-		return requestAuth{}, invalidAPIKeyAuthError(err)
-	}
-
 	return requestAuth{
 		apiKeyID:        key.ID,
 		organizationID:  key.ReferenceID,
@@ -173,22 +165,39 @@ func (s *Service) apiKeyScope(ctx context.Context, key gatewaydb.GatewayGetAPIKe
 	}, nil
 }
 
-func (s *Service) validateAPIKeyAgentScope(ctx context.Context, scope apiKeyScope, agentName string) error {
-	_, err := s.queries.GatewayGetAgentOwner(ctx, gatewaydb.GatewayGetAgentOwnerParams{
-		OrganizationID: scope.OrganizationID,
-		WorkspaceID:    scope.WorkspaceID,
-		AgentName:      agentName,
-	})
+func (s *Service) resolveAPIKeyTargets(ctx context.Context, key gatewaydb.GatewayGetAPIKeyByHashRow, targetType gatewaydb.ApiKeyTargetType) (apiKeyScope, []gatewaydb.GatewayListAPIKeyTargetsRow, error) {
+	scope, err := s.apiKeyScope(ctx, key)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			reason := "Target Agent " + agentName + " no longer exists."
-			if revokeErr := s.revokeAPIKeyScope(ctx, scope, reason); revokeErr != nil {
-				return revokeErr
-			}
-		}
-		return fmt.Errorf("resolve api key agent scope: %w", err)
+		return apiKeyScope{}, nil, err
 	}
+	targets, err := s.queries.GatewayListAPIKeyTargets(ctx, key.ID)
+	if err != nil {
+		return apiKeyScope{}, nil, fmt.Errorf("list api key targets: %w", err)
+	}
+	if len(targets) == 0 {
+		reason := "API key has no targets."
+		if err := s.revokeAPIKeyScope(ctx, scope, reason); err != nil {
+			return apiKeyScope{}, nil, err
+		}
+		return apiKeyScope{}, nil, errors.New(reason)
+	}
+	for _, target := range targets {
+		if target.TargetType == targetType {
+			continue
+		}
+		reason := "API key target type does not match its credential type."
+		if err := s.revokeAPIKeyScope(ctx, scope, reason); err != nil {
+			return apiKeyScope{}, nil, err
+		}
+		return apiKeyScope{}, nil, errors.New(reason)
+	}
+	if err := s.validateAPIKeyTargets(ctx, scope, targets); err != nil {
+		return apiKeyScope{}, nil, err
+	}
+	return scope, targets, nil
+}
 
+func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, targets []gatewaydb.GatewayListAPIKeyTargetsRow) error {
 	claims := gatewayClaims{
 		UserID:      scope.CreatorUserID,
 		TenantID:    scope.OrganizationID,
@@ -201,19 +210,69 @@ func (s *Service) validateAPIKeyAgentScope(ctx context.Context, scope apiKeyScop
 	if err != nil {
 		return fmt.Errorf("resolve api key creator permissions: %w", err)
 	}
-	allowed, err := s.agentOperationAllowed(ctx, claims, effective, authorization.Scope{
+	authScope := authorization.Scope{
 		OrganizationID: scope.OrganizationID,
 		WorkspaceID:    scope.WorkspaceID,
-	}, agentName, authorization.OperationUseSharedAgent)
-	if err != nil {
-		return err
 	}
-	if !allowed {
-		reason := "Creator no longer has access to Agent " + agentName + "."
+	validatedAgents := make(map[string]struct{}, len(targets))
+	workflows := workflowdb.New(s.db)
+	for _, target := range targets {
+		if _, ok := validatedAgents[target.AgentName]; !ok {
+			_, err := s.queries.GatewayGetAgentOwner(ctx, gatewaydb.GatewayGetAgentOwnerParams{
+				OrganizationID: scope.OrganizationID,
+				WorkspaceID:    scope.WorkspaceID,
+				AgentName:      target.AgentName,
+			})
+			if err != nil {
+				if !errors.Is(err, pgx.ErrNoRows) {
+					return fmt.Errorf("resolve api key Agent target: %w", err)
+				}
+				reason := "Target Agent " + target.AgentName + " no longer exists."
+				if err := s.revokeAPIKeyScope(ctx, scope, reason); err != nil {
+					return err
+				}
+				return errors.New(reason)
+			}
+			allowed, err := s.agentOperationAllowed(
+				ctx,
+				claims,
+				effective,
+				authScope,
+				target.AgentName,
+				authorization.OperationUseSharedAgent,
+			)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				reason := "Creator no longer has access to Agent " + target.AgentName + "."
+				if err := s.revokeAPIKeyScope(ctx, scope, reason); err != nil {
+					return err
+				}
+				return errors.New(reason)
+			}
+			validatedAgents[target.AgentName] = struct{}{}
+		}
+
+		if target.TargetType != gatewaydb.ApiKeyTargetTypeWorkflow {
+			continue
+		}
+		_, err := workflows.WorkflowGet(ctx, workflowdb.WorkflowGetParams{
+			TenantNamespace: scope.TenantNamespace,
+			AgentName:       target.AgentName,
+			WorkflowName:    target.WorkflowName,
+		})
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("resolve api key workflow target: %w", err)
+		}
+		reason := "Target Workflow " + target.AgentName + "/" + target.WorkflowName + " no longer exists."
 		if err := s.revokeAPIKeyScope(ctx, scope, reason); err != nil {
 			return err
 		}
-		return fmt.Errorf("api key creator no longer has access to agent %q", agentName)
+		return errors.New(reason)
 	}
 	return nil
 }
@@ -222,21 +281,15 @@ func (s *Service) revokeAPIKeyScope(ctx context.Context, scope apiKeyScope, reas
 	now := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 	_, err := s.queries.GatewayRevokeScopedAPIKey(ctx, gatewaydb.GatewayRevokeScopedAPIKeyParams{
 		ApiKeyID:       scope.ApiKeyID,
+		AuditID:        "audit-" + uuid.NewString(),
 		OrganizationID: scope.OrganizationID,
 		WorkspaceID:    scope.WorkspaceID,
 		RevokedAt:      now,
 		RevokedReason:  pgtype.Text{String: reason, Valid: true},
-	})
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("revoke api key scope: %w", err)
-	}
-	_, err = s.queries.GatewayDisableAPIKey(ctx, gatewaydb.GatewayDisableAPIKeyParams{
-		ApiKeyID:       scope.ApiKeyID,
-		OrganizationID: scope.OrganizationID,
 		UpdatedAt:      pgtype.Timestamp{Time: now.Time, Valid: true},
 	})
 	if err != nil {
-		return fmt.Errorf("disable api key: %w", err)
+		return fmt.Errorf("revoke api key scope: %w", err)
 	}
 	return nil
 }
@@ -248,42 +301,6 @@ func invalidAPIKeyAuthError(err error) *apiError {
 		"missing or invalid credentials",
 		err,
 	)
-}
-
-func allowOpenCodeAgent(scopes []string, agentName string) bool {
-	if len(scopes) == 0 {
-		return false
-	}
-
-	allowed := "agent:" + agentName
-	for _, scope := range scopes {
-		switch scope {
-		case "all":
-			return true
-		case allowed:
-			return true
-		}
-	}
-
-	return false
-}
-
-func allowWebhookWorkflow(scopes []string, agentName string, workflowName string) bool {
-	if len(scopes) == 0 {
-		return false
-	}
-
-	allowed := "workflow:" + agentName + ":" + workflowName
-	for _, scope := range scopes {
-		switch scope {
-		case "all":
-			return true
-		case allowed:
-			return true
-		}
-	}
-
-	return false
 }
 
 func hashAPIKey(key string) string {

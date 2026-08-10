@@ -38,8 +38,9 @@ export default async function OrganizationLayout({
   }
 
   const preferences = await getCurrentUserPreferences()
-  if (result.kind === "forbidden") {
+  if (result.kind === "forbidden" || result.kind === "disabled") {
     const { organizationSession } = result
+    const disabled = result.kind === "disabled"
     return (
       <>
         <ThemeSync theme={preferences.theme} />
@@ -58,7 +59,15 @@ export default async function OrganizationLayout({
           }
         >
           <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
-            <AdministrationState kind="forbidden" />
+            <AdministrationState
+              description={
+                disabled
+                  ? "Your Organisation Membership is disabled. Account, Sessions, Preferences, and other accessible Organisations remain available."
+                  : "Your Organisation access was revoked. Choose another accessible Organisation or use account settings."
+              }
+              kind="forbidden"
+              title={disabled ? "Organisation Membership disabled" : "Access revoked"}
+            />
           </div>
         </AppShell>
       </>
@@ -75,6 +84,36 @@ export default async function OrganizationLayout({
   }
 
   await activateOrganization(result.organization.id)
+  if (!result.organization.hasAccess) {
+    return (
+      <>
+        <ThemeSync theme={preferences.theme} />
+        <AppShell
+          sidebar={
+            <AppSidebar
+              activeOrganizationId={result.organization.id}
+              organizations={result.organizationSession.organizations}
+              scope={{ kind: "no-access", organization: result.organization }}
+              user={{
+                email: result.organizationSession.session.user.email,
+                image: result.organizationSession.session.user.image,
+                name: result.organizationSession.session.user.name,
+              }}
+            />
+          }
+        >
+          <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
+            <AdministrationState
+              description="Your Organisation Membership is active, but no Role or Team currently grants product access. Account, Sessions, Preferences, and Organisation switching remain available."
+              kind="empty"
+              title="Access not assigned"
+            />
+          </div>
+        </AppShell>
+      </>
+    )
+  }
+
   const tenant = await ensureTenant({
     client: getGatewayServerClient(),
     throwOnError: true,
@@ -100,8 +139,12 @@ export default async function OrganizationLayout({
   if (result.organization.superadmin) {
     tabs.push(
       { href: `${root}/workspaces` as Route, label: "Workspaces" },
+      { href: `${root}/users` as Route, label: "Users" },
       { href: `${root}/teams` as Route, label: "Teams" },
       { href: `${root}/roles` as Route, label: "Roles" },
+      { href: `${root}/access` as Route, label: "Access" },
+      { href: `${root}/social-admission` as Route, label: "Social Admission" },
+      { href: `${root}/destructive-operations` as Route, label: "Destructive Ops" },
       { href: `${root}/audit` as Route, label: "Audit" },
       { href: `${root}/general` as Route, label: "General" }
     )

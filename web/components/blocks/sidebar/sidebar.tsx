@@ -3,9 +3,11 @@ import type { Route } from "next"
 import Link from "next/link"
 import {
   Box,
+  Bot,
   Brain,
   Building2,
   Cable,
+  KeyRound,
   Layers3,
   LayoutDashboard,
   ScrollText,
@@ -50,6 +52,7 @@ type WorkspaceNavigationScope = {
 export type SidebarScope =
   | { kind: "legacy" }
   | { kind: "account" }
+  | { kind: "no-access"; organization: OrganizationSummary }
   | ({ kind: "organization" } & WorkspaceNavigationScope)
   | ({ kind: "workspace"; workspace: Workspace } & WorkspaceNavigationScope)
 
@@ -140,6 +143,24 @@ function WorkspaceNavigation({
             <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route}>
               <LayoutDashboard aria-hidden="true" />
               <span>Overview</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip="Agents">
+            <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/agents` as Route}>
+              <Bot aria-hidden="true" />
+              <span>Agents</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip="API keys">
+            <Link
+              href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/api-keys` as Route}
+            >
+              <KeyRound aria-hidden="true" />
+              <span>API Keys</span>
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>

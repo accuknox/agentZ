@@ -31,8 +31,15 @@ export default async function WorkspaceLayout({
   }
 
   const preferences = await getCurrentUserPreferences()
-  if (result.scope.kind === "forbidden") {
+  if (
+    result.scope.kind === "forbidden" ||
+    result.scope.kind === "disabled" ||
+    (result.scope.kind === "ready" && !result.scope.organization.hasAccess)
+  ) {
     const { organizationSession } = result.scope
+    const disabled = result.scope.kind === "disabled"
+    const noAccessOrganization =
+      result.scope.kind === "ready" ? result.scope.organization : undefined
     return (
       <>
         <ThemeSync theme={preferences.theme} />
@@ -41,7 +48,11 @@ export default async function WorkspaceLayout({
             <AppSidebar
               activeOrganizationId={organizationSession.session.session.activeOrganizationId}
               organizations={organizationSession.organizations}
-              scope={{ kind: "account" }}
+              scope={
+                noAccessOrganization
+                  ? { kind: "no-access", organization: noAccessOrganization }
+                  : { kind: "account" }
+              }
               user={{
                 email: organizationSession.session.user.email,
                 image: organizationSession.session.user.image,
@@ -51,7 +62,23 @@ export default async function WorkspaceLayout({
           }
         >
           <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
-            <AdministrationState kind="forbidden" />
+            <AdministrationState
+              description={
+                disabled
+                  ? "Your Organisation Membership is disabled. Product resources remain unavailable."
+                  : noAccessOrganization
+                    ? "Your Organisation Membership is active, but no Role or Team currently grants workspace access."
+                    : "Your Organisation access was revoked. Choose another accessible Organisation."
+              }
+              kind={noAccessOrganization ? "empty" : "forbidden"}
+              title={
+                disabled
+                  ? "Organisation Membership disabled"
+                  : noAccessOrganization
+                    ? "Access not assigned"
+                    : "Access revoked"
+              }
+            />
           </div>
         </AppShell>
       </>
@@ -80,7 +107,11 @@ export default async function WorkspaceLayout({
   )
 
   const root = `/orgs/${result.scope.organization.slug}/workspaces/${result.workspace.slug}`
-  const tabs: RouteTab[] = [{ href: root as Route, label: "Overview" }]
+  const tabs: RouteTab[] = [
+    { href: root as Route, label: "Overview" },
+    { href: `${root}/agents` as Route, label: "Agents" },
+    { href: `${root}/api-keys` as Route, label: "API Keys" },
+  ]
   if (result.scope.organization.superadmin || result.workspace.can_administer) {
     tabs.push(
       { href: `${root}/roles` as Route, label: "Roles" },

@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto"
 import { getIp } from "better-auth/api"
 import type { Route } from "next"
 import { cache } from "react"
-import { and, asc, eq, isNull } from "drizzle-orm"
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm"
 import { headers } from "next/headers"
 import { getDB, schema } from "@/db"
 import { getAuth } from "@/lib/auth"
@@ -14,6 +14,7 @@ export type OrganizationSummary = {
   name: string
   slug: string
   superadmin: boolean
+  hasAccess: boolean
 }
 
 export async function getOrganizationSession() {
@@ -35,8 +36,11 @@ export async function getOrganizationSession() {
     .innerJoin(schema.organizations, eq(schema.organizations.id, schema.members.organizationId))
     .where(and(eq(schema.members.userId, session.user.id), isNull(schema.members.disabledAt)))
     .orderBy(asc(schema.organizations.createdAt), asc(schema.organizations.id))
-  const superadminRows = db
-    .selectDistinct({ organizationId: schema.members.organizationId })
+  const systemRoleRows = db
+    .selectDistinct({
+      organizationId: schema.members.organizationId,
+      systemRole: schema.roleScopes.systemRole,
+    })
     .from(schema.members)
     .innerJoin(
       schema.memberRoles,
@@ -56,13 +60,72 @@ export async function getOrganizationSession() {
       and(
         eq(schema.members.userId, session.user.id),
         isNull(schema.members.disabledAt),
-        eq(schema.roleScopes.systemRole, "superadmin")
+        isNotNull(schema.roleScopes.systemRole)
       )
     )
-  const [rows, superadminOrganizations] = await Promise.all([organizationRows, superadminRows])
-  const superadminIds = new Set(superadminOrganizations.map((row) => row.organizationId))
+  const directGrantRows = db
+    .selectDistinct({ organizationId: schema.members.organizationId })
+    .from(schema.members)
+    .innerJoin(
+      schema.memberRoles,
+      and(
+        eq(schema.memberRoles.memberId, schema.members.id),
+        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.permissionGrants,
+      and(
+        eq(schema.permissionGrants.roleId, schema.memberRoles.roleId),
+        eq(schema.permissionGrants.organizationId, schema.memberRoles.organizationId)
+      )
+    )
+    .where(and(eq(schema.members.userId, session.user.id), isNull(schema.members.disabledAt)))
+  const teamGrantRows = db
+    .selectDistinct({ organizationId: schema.members.organizationId })
+    .from(schema.members)
+    .innerJoin(schema.teamMembers, eq(schema.teamMembers.userId, schema.members.userId))
+    .innerJoin(
+      schema.teams,
+      and(
+        eq(schema.teams.id, schema.teamMembers.teamId),
+        eq(schema.teams.organizationId, schema.members.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.teamRoles,
+      and(
+        eq(schema.teamRoles.teamId, schema.teams.id),
+        eq(schema.teamRoles.organizationId, schema.teams.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.permissionGrants,
+      and(
+        eq(schema.permissionGrants.roleId, schema.teamRoles.roleId),
+        eq(schema.permissionGrants.organizationId, schema.teamRoles.organizationId)
+      )
+    )
+    .where(and(eq(schema.members.userId, session.user.id), isNull(schema.members.disabledAt)))
+  const [rows, systemRoles, directGrants, teamGrants] = await Promise.all([
+    organizationRows,
+    systemRoleRows,
+    directGrantRows,
+    teamGrantRows,
+  ])
+  const superadminIds = new Set(
+    systemRoles
+      .filter(({ systemRole }) => systemRole === "superadmin")
+      .map(({ organizationId }) => organizationId)
+  )
+  const accessibleIds = new Set([
+    ...systemRoles.map(({ organizationId }) => organizationId),
+    ...directGrants.map(({ organizationId }) => organizationId),
+    ...teamGrants.map(({ organizationId }) => organizationId),
+  ])
   const organizations: OrganizationSummary[] = rows.map((organization) => ({
     ...organization,
+    hasAccess: accessibleIds.has(organization.id),
     superadmin: superadminIds.has(organization.id),
   }))
 
@@ -116,6 +179,22 @@ export const resolveOrganizationSlug = cache(async (slug: string) => {
     (candidate) => candidate.id === organization.id
   )
   if (!accessible) {
+    const [membership] = await db
+      .select({ disabledAt: schema.members.disabledAt })
+      .from(schema.members)
+      .where(
+        and(
+          eq(schema.members.organizationId, organization.id),
+          eq(schema.members.userId, organizationSession.session.user.id)
+        )
+      )
+      .limit(1)
+    if (membership?.disabledAt) {
+      return {
+        kind: "disabled" as const,
+        organizationSession,
+      }
+    }
     return {
       kind: "forbidden" as const,
       organizationSession,
@@ -363,13 +442,17 @@ export async function renameOrganization(
 }
 
 function organizationDestination(organization: OrganizationSummary, savedRoute?: string): Route {
-  if (organization.superadmin && savedRoute?.endsWith("/general")) {
-    return `/orgs/${organization.slug}/general` as Route
+  const root = `/orgs/${organization.slug}`
+  if (!organization.hasAccess) {
+    return root as Route
+  }
+  if (savedRoute === root || savedRoute?.startsWith(`${root}/`)) {
+    return savedRoute as Route
   }
 
   if (organization.superadmin) {
-    return `/orgs/${organization.slug}/workspaces` as Route
+    return `${root}/workspaces` as Route
   }
 
-  return `/orgs/${organization.slug}` as Route
+  return root as Route
 }

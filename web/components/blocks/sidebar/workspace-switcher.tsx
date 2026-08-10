@@ -30,6 +30,30 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const [open, setOpen] = useState(false)
 
+  if (scope.kind === "no-access") {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            aria-label="No workspace access"
+            size="lg"
+            tooltip="No workspace access"
+          >
+            <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+              <Building2 aria-hidden="true" />
+            </span>
+            <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium" title={scope.organization.name}>
+                {scope.organization.name}
+              </span>
+              <span className="text-muted-foreground truncate text-xs">No workspace access</span>
+            </span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
+  }
+
   if (scope.kind === "organization" || scope.kind === "workspace") {
     const active = scope.kind === "workspace" ? scope.workspace : undefined
     const root = `/orgs/${scope.organization.slug}`

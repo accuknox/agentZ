@@ -104,6 +104,7 @@ function MembersTable({
               <TableHead className="text-right">Owned Agents</TableHead>
               <TableHead className="text-right">API Keys</TableHead>
               <TableHead>Last Activity</TableHead>
+              <TableHead>Joined</TableHead>
               <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -117,6 +118,9 @@ function MembersTable({
                         {member.name}
                       </span>
                       {member.superadmin ? <Badge variant="secondary">Superadmin</Badge> : null}
+                      <Badge variant={disabled ? "destructive" : "outline"}>
+                        {disabled ? "Disabled" : "Active"}
+                      </Badge>
                     </div>
                     <div className="text-muted-foreground truncate text-xs" title={member.email}>
                       {member.email}
@@ -136,6 +140,11 @@ function MembersTable({
                   ) : (
                     <span className="text-muted-foreground">No session activity</span>
                   )}
+                </TableCell>
+                <TableCell>
+                  <time dateTime={member.createdAt}>
+                    {formatTimestampWithAge(member.createdAt)}
+                  </time>
                 </TableCell>
                 <TableCell className="text-right">
                   <MembershipStateButton

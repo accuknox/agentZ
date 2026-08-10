@@ -1580,6 +1580,31 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND agent_name = sqlc.arg(agent_name)
 ORDER BY target_user_id NULLS LAST, target_team_id NULLS LAST, id;
 
+-- name: GatewayLockAgentShares :many
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  target_user_id,
+  target_team_id,
+  created_by,
+  created_at
+FROM agent_shares
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+ORDER BY target_user_id NULLS LAST, target_team_id NULLS LAST, id
+FOR UPDATE;
+
+-- name: GatewayTeamExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM teams
+  WHERE id = sqlc.arg(team_id)
+    AND organization_id = sqlc.arg(organization_id)
+);
+
 -- name: GatewayDeleteAgentShare :execrows
 DELETE FROM agent_shares
 WHERE id = sqlc.arg(id)

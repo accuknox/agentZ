@@ -133,7 +133,7 @@ export async function getWorkspaceAgentDetail(
       ),
   ])
 
-  if (agents.error || ownerResult.error || sharesResult.error) {
+  if (agents.error || ownerResult.error) {
     return
   }
 
@@ -145,7 +145,8 @@ export async function getWorkspaceAgentDetail(
   }
 
   const userIds = new Set<string>()
-  for (const share of sharesResult.data.shares) {
+  const shares = sharesResult.error ? [] : sharesResult.data.shares
+  for (const share of shares) {
     if (share.target_user_id) {
       userIds.add(share.target_user_id)
     }
@@ -238,7 +239,7 @@ export async function getWorkspaceAgentDetail(
     owner: ownerResult.data,
     ownerLabel: userLabels.get(ownerResult.data.owner_user_id) ?? ownerResult.data.owner_user_id,
     ownerCandidates: knownUsers.filter((user) => eligibleOwnerIDs.has(user.id)),
-    shares: sharesResult.data.shares.map((share) => ({
+    shares: shares.map((share) => ({
       ...share,
       created_by_label: userLabels.get(share.created_by) ?? share.created_by,
       target_label: share.target_user_id

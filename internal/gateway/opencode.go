@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 )
 
@@ -30,15 +31,30 @@ const opencodeSessionDeletePath = "/api/opencode/{agentName}/session/{sessionID}
 
 var opencodeRouteMatcher = newOpenCodeRouteMatcher()
 
+var opencodeRouteOperations = func() map[opencodeRouteKey]authorization.Operation {
+	operations := make(map[opencodeRouteKey]authorization.Operation, len(opencodeRoutes))
+	for _, route := range opencodeRoutes {
+		operations[opencodeRouteKey{method: route.Method, path: route.Path}] = route.Operation
+	}
+	return operations
+}()
+
+type opencodeRouteKey struct {
+	method string
+	path   string
+}
+
 type opencodeRoute struct {
-	Method string
-	Path   string
+	Method    string
+	Path      string
+	Operation authorization.Operation
 }
 
 type opencodeRouteMatch struct {
-	Method string
-	Path   string
-	Params map[string]string
+	Method    string
+	Path      string
+	Operation authorization.Operation
+	Params    map[string]string
 }
 
 type opencodeSessionDeleteTarget struct {
@@ -52,12 +68,6 @@ type sessionTraceStore interface {
 
 // handleOpenCodeProxy resolves and proxies supported OpenCode requests.
 func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
 	agentName, ok := validAgentName(w, r, chi.URLParam(r, "agentName"), "agentName")
 	if !ok {
 		return
@@ -83,6 +93,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, route.Operation)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
+	ns := access.namespace
 	resolved, err := s.resolver.resolveAgent(r.Context(), ns, agentName)
 	if err != nil {
 		writeError(w, r, newAPIError(
@@ -258,9 +274,10 @@ func matchOpenCodeRoute(method string, path string) (*opencodeRouteMatch, bool) 
 	rctx := chi.NewRouteContext()
 	if opencodeRouteMatcher.Match(rctx, method, path) {
 		return &opencodeRouteMatch{
-			Method: method,
-			Path:   rctx.RoutePattern(),
-			Params: routeParams(rctx.URLParams),
+			Method:    method,
+			Path:      rctx.RoutePattern(),
+			Operation: opencodeRouteOperation(method, rctx.RoutePattern()),
+			Params:    routeParams(rctx.URLParams),
 		}, false
 	}
 
@@ -275,6 +292,10 @@ func matchOpenCodeRoute(method string, path string) (*opencodeRouteMatch, bool) 
 	}
 
 	return nil, false
+}
+
+func opencodeRouteOperation(method string, path string) authorization.Operation {
+	return opencodeRouteOperations[opencodeRouteKey{method: method, path: path}]
 }
 
 func routeParams(params chi.RouteParams) map[string]string {

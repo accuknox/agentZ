@@ -12,6 +12,7 @@ import {
 } from "@/data/agent.actions"
 import type { AgentShareRow, AgentShareTarget } from "@/data/agent.queries"
 import type { AgentShareCapability } from "@/lib/gateway/client"
+import { AccessSourceChip } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -256,6 +257,18 @@ export function AgentShareForm({
                   ))}
                 </div>
               </Field>
+              <Field orientation="horizontal">
+                <Checkbox id="acknowledge-use-shared" name="acknowledge_use_shared" />
+                <div className="grid gap-1">
+                  <FieldLabel htmlFor="acknowledge-use-shared">
+                    I understand that Use Shared grants full non-secret control
+                  </FieldLabel>
+                  <FieldDescription>
+                    The recipient may modify and delete the Agent, workflows, files, and mutable
+                    Skills while eligible Workspace access remains.
+                  </FieldDescription>
+                </div>
+              </Field>
             </FieldGroup>
             <div className="flex justify-end">
               <Button type="submit" disabled={pending || !targetId}>
@@ -292,6 +305,7 @@ function AgentSharesTable({
       <TableHeader>
         <TableRow>
           <TableHead>Target</TableHead>
+          <TableHead>Source</TableHead>
           <TableHead>Capabilities</TableHead>
           <TableHead>Created by</TableHead>
           <TableHead className="w-16 text-right">Actions</TableHead>
@@ -301,6 +315,9 @@ function AgentSharesTable({
         {shares.map((share) => (
           <TableRow key={share.id}>
             <TableCell className="break-words">{share.target_label}</TableCell>
+            <TableCell>
+              <AccessSourceChip source={share.target_user_id ? "Direct Share" : "Team Share"} />
+            </TableCell>
             <TableCell>
               <div className="flex flex-wrap gap-1.5">
                 {share.capabilities.map((capability) => (

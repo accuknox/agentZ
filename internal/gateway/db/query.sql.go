@@ -4636,6 +4636,59 @@ func (q *Queries) GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgen
 	return i, err
 }
 
+const gatewayLockAgentShares = `-- name: GatewayLockAgentShares :many
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  target_user_id,
+  target_team_id,
+  created_by,
+  created_at
+FROM agent_shares
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND agent_name = $3
+ORDER BY target_user_id NULLS LAST, target_team_id NULLS LAST, id
+FOR UPDATE
+`
+
+type GatewayLockAgentSharesParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	AgentName      string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayLockAgentShares(ctx context.Context, arg GatewayLockAgentSharesParams) ([]AgentShare, error) {
+	rows, err := q.db.Query(ctx, gatewayLockAgentShares, arg.OrganizationID, arg.WorkspaceID, arg.AgentName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentShare{}
+	for rows.Next() {
+		var i AgentShare
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.TargetUserID,
+			&i.TargetTeamID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayLockOrganization = `-- name: GatewayLockOrganization :one
 SELECT id, name, slug
 FROM organizations
@@ -5242,6 +5295,27 @@ func (q *Queries) GatewaySetMemberDisabledAt(ctx context.Context, arg GatewaySet
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayTeamExists = `-- name: GatewayTeamExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM teams
+  WHERE id = $1
+    AND organization_id = $2
+)
+`
+
+type GatewayTeamExistsParams struct {
+	TeamID         string `json:"team_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayTeamExists, arg.TeamID, arg.OrganizationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const gatewayTransferAgentOwner = `-- name: GatewayTransferAgentOwner :one

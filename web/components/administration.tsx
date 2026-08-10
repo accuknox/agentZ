@@ -129,6 +129,8 @@ export type AccessSource =
   | "Workspace Admin"
   | "Ownership"
   | "Agent Share"
+  | "Direct Share"
+  | "Team Share"
 
 export function AccessSourceChip({ source }: { source: AccessSource }) {
   return <Badge variant="outline">{source}</Badge>

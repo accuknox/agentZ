@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -30,6 +31,9 @@ import (
 
 func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation authorization.Operation) (resourceAccess, *apiError) {
 	access := resourceAccess{operation: operation}
+	if _, ok := operation.BearerScope(); !ok {
+		return access, resourceForbidden(fmt.Errorf("Agent operation %q is unknown", operation))
+	}
 	claims, apiErr := externalWorkspaceClaims(ctx)
 	if apiErr != nil {
 		return access, apiErr
@@ -80,6 +84,37 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	access.owner = owner
 	access.authorized = true
 	return access, nil
+}
+
+func requireAgentBoundAccess(s *Service) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			agentName := chi.URLParam(r, "agentName")
+			if agentName == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			operation := authorization.OperationUseSharedAgent
+			if strings.HasPrefix(r.URL.Path, "/api/secret/") {
+				switch {
+				case strings.HasSuffix(r.URL.Path, "/delete"):
+					operation = authorization.OperationDeleteSharedSecret
+				case r.Method == http.MethodGet || strings.HasSuffix(r.URL.Path, "/watch"):
+					operation = authorization.OperationReadSharedSecret
+				default:
+					operation = authorization.OperationWriteSharedSecret
+				}
+			}
+
+			_, apiErr := s.resolveAgentAccess(r.Context(), agentName, operation)
+			if apiErr != nil {
+				writeError(w, r, apiErr)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (s *Service) agentOperationAllowed(ctx context.Context, claims gatewayClaims, effective authorization.Effective, scope authorization.Scope, name string, operation authorization.Operation) (bool, error) {
@@ -725,13 +760,30 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 }
 
 // ListAgentShares handles GET /api/agent/{agentName}/share.
+type agentShareAuthority uint8
+
+const (
+	agentShareDenied agentShareAuthority = iota
+	agentShareOwn
+	agentShareAll
+)
+
 func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	agentName, access, ok := s.resolveNamedAgent(w, r, agentName, authorization.OperationUseSharedAgent)
 	if !ok {
 		return
 	}
 
-	shares, err := s.agentShares(r.Context(), access, agentName)
+	authority, err := s.resolveAgentShareAuthority(r.Context(), access, agentName)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if authority == agentShareDenied {
+		writeError(w, r, resourceForbidden(errors.New("Agent Share authority is missing")))
+		return
+	}
+	shares, err := s.agentShares(r.Context(), access, agentName, authority == agentShareAll)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -764,14 +816,38 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 		return
 	}
 
-	allowed, err := s.canManageAgentShares(r.Context(), access, agentName)
+	authority, err := s.resolveAgentShareAuthority(r.Context(), access, agentName)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	if !allowed {
+	if authority == agentShareDenied {
 		writeError(w, r, resourceForbidden(errors.New("Agent Share authority is missing")))
 		return
+	}
+	if authority == agentShareOwn {
+		scope := authorization.Scope{
+			OrganizationID: access.claims.TenantID,
+			WorkspaceID:    access.workspaceID,
+		}
+		for _, cap := range req.Capabilities {
+			operation, ok := agentShareOperation(cap)
+			if !ok {
+				writeError(w, r, resourceForbidden(errors.New("requested Agent Share capability is unknown")))
+				return
+			}
+			owned, err := s.agentOperationAllowed(
+				r.Context(), access.claims, access.effective, scope, agentName, operation,
+			)
+			if err != nil {
+				writeInternalError(w, r, fmt.Errorf("resolve delegated Agent Share capability: %w", err))
+				return
+			}
+			if !owned {
+				writeError(w, r, resourceForbidden(errors.New("cannot grant more Agent authority than the caller holds")))
+				return
+			}
+		}
 	}
 	if targetUser.Valid {
 		eligible, err := s.recipientCanUseAgent(
@@ -791,25 +867,28 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 		}
 	}
 	if targetTeam.Valid {
-		eligible, err := s.teamCanUseAgent(
-			r.Context(),
-			access.claims.TenantID,
-			access.workspaceID,
-			targetTeam.String,
-			req.Capabilities,
-		)
+		eligible, err := s.queries.GatewayTeamExists(r.Context(), gatewaydb.GatewayTeamExistsParams{
+			TeamID: targetTeam.String, OrganizationID: access.claims.TenantID,
+		})
 		if err != nil {
-			writeInternalError(w, r, err)
+			writeInternalError(w, r, fmt.Errorf("resolve Agent Share Team: %w", err))
 			return
 		}
 		if !eligible {
-			writeError(w, r, resourceForbidden(errors.New("Team is not eligible for requested Agent Share capabilities")))
+			writeError(w, r, resourceForbidden(errors.New("Agent Share Team does not exist in this Organisation")))
 			return
 		}
 	}
 
-	row, err := s.createAgentShare(r.Context(), r, access, agentName, targetUser, targetTeam, caps)
+	row, err := s.createAgentShare(
+		r.Context(), r, access, agentName, targetUser, targetTeam, caps,
+		authority == agentShareAll,
+	)
 	if err != nil {
+		if errors.Is(err, errAgentShareIssuedByOther) {
+			writeError(w, r, resourceForbidden(err))
+			return
+		}
 		writeError(w, r, mapGatewayStoreError("create Agent Share", err))
 		return
 	}
@@ -837,12 +916,13 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 		writeInternalError(w, r, err)
 		return
 	}
-	allowed, err := s.canDeleteAgentShare(r.Context(), access, agentName, share)
+	authority, err := s.resolveAgentShareAuthority(r.Context(), access, agentName)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	if !allowed {
+	if authority == agentShareDenied ||
+		(authority == agentShareOwn && share.CreatedBy != access.claims.UserID) {
 		writeError(w, r, resourceForbidden(errors.New("Agent Share delete authority is missing")))
 		return
 	}
@@ -1103,57 +1183,32 @@ func (s *Service) recipientCanUseAgent(ctx context.Context, organizationID strin
 	return true, nil
 }
 
-func (s *Service) teamCanUseAgent(ctx context.Context, organizationID string, workspaceID string, teamID string, caps []gatewayapi.AgentShareCapability) (bool, error) {
-	userIDs, err := s.queries.GatewayListActiveTeamUserIDs(ctx, gatewaydb.GatewayListActiveTeamUserIDsParams{
-		OrganizationID: organizationID,
-		TeamID:         teamID,
-	})
-	if err != nil {
-		return false, fmt.Errorf("list active Team users: %w", err)
-	}
-	if len(userIDs) == 0 {
-		return false, nil
-	}
-	for _, userID := range userIDs {
-		eligible, err := s.recipientCanUseAgent(ctx, organizationID, workspaceID, userID, caps)
-		if err != nil || !eligible {
-			return eligible, err
-		}
-	}
-	return true, nil
-}
-
-func (s *Service) canManageAgentShares(ctx context.Context, access resourceAccess, agentName string) (bool, error) {
+func (s *Service) resolveAgentShareAuthority(ctx context.Context, access resourceAccess, agentName string) (agentShareAuthority, error) {
 	scope := authorization.Scope{
 		OrganizationID: access.claims.TenantID,
 		WorkspaceID:    access.workspaceID,
 	}
 	if access.effective.CanAdminister(scope) {
-		return true, nil
+		return agentShareAll, nil
 	}
 	owner, err := s.isAgentOwner(ctx, access.claims, agentName)
 	if err != nil {
-		return false, fmt.Errorf("resolve Agent owner: %w", err)
+		return agentShareDenied, fmt.Errorf("resolve Agent owner: %w", err)
 	}
 	if owner {
-		return access.effective.Allows(scope, authorization.OperationShareAuthoredAgent), nil
+		if access.effective.Allows(scope, authorization.OperationShareAuthoredAgent) {
+			return agentShareAll, nil
+		}
+		return agentShareDenied, nil
 	}
-	return s.agentOperationAllowed(ctx, access.claims, access.effective, scope, agentName, authorization.OperationShareNonAuthoredAgent)
-}
-
-func (s *Service) canDeleteAgentShare(ctx context.Context, access resourceAccess, agentName string, share gatewaydb.AgentShare) (bool, error) {
-	allowed, err := s.canManageAgentShares(ctx, access, agentName)
-	if err != nil || allowed {
-		return allowed, err
+	allowed, err := s.agentOperationAllowed(
+		ctx, access.claims, access.effective, scope, agentName,
+		authorization.OperationShareNonAuthoredAgent,
+	)
+	if err != nil || !allowed {
+		return agentShareDenied, err
 	}
-	if share.CreatedBy != access.claims.UserID {
-		return false, nil
-	}
-	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
-		WorkspaceID:    access.workspaceID,
-	}
-	return s.agentOperationAllowed(ctx, access.claims, access.effective, scope, agentName, authorization.OperationShareNonAuthoredAgent)
+	return agentShareOwn, nil
 }
 
 func validateAgentShareTarget(req gatewayapi.UpsertAgentShareRequest) (pgtype.Text, pgtype.Text, []gatewayapi.FieldError) {
@@ -1184,9 +1239,12 @@ func agentShareCapabilities(caps []gatewayapi.AgentShareCapability) ([]gatewaydb
 		}}
 	}
 
+	pending := append([]gatewayapi.AgentShareCapability{}, caps...)
 	out := make([]gatewaydb.AgentShareCapability, 0, len(caps))
 	seen := map[gatewaydb.AgentShareCapability]struct{}{}
-	for _, cap := range caps {
+	for len(pending) > 0 {
+		cap := pending[0]
+		pending = pending[1:]
 		dbCap, ok := agentShareDBCapability(cap)
 		if !ok {
 			return nil, []gatewayapi.FieldError{{
@@ -1198,6 +1256,15 @@ func agentShareCapabilities(caps []gatewayapi.AgentShareCapability) ([]gatewaydb
 		}
 		seen[dbCap] = struct{}{}
 		out = append(out, dbCap)
+		switch cap {
+		case gatewayapi.AgentShareCapabilityShareNonAuthored,
+			gatewayapi.AgentShareCapabilityReadSharedSecret:
+			pending = append(pending, gatewayapi.AgentShareCapabilityUseShared)
+		case gatewayapi.AgentShareCapabilityWriteSharedSecret:
+			pending = append(pending, gatewayapi.AgentShareCapabilityReadSharedSecret)
+		case gatewayapi.AgentShareCapabilityDeleteSharedSecret:
+			pending = append(pending, gatewayapi.AgentShareCapabilityWriteSharedSecret)
+		}
 	}
 	return out, nil
 }
@@ -1253,7 +1320,9 @@ func agentShareOperation(cap gatewayapi.AgentShareCapability) (authorization.Ope
 	}
 }
 
-func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access resourceAccess, agentName string, targetUser pgtype.Text, targetTeam pgtype.Text, caps []gatewaydb.AgentShareCapability) (gatewayapi.AgentShare, error) {
+var errAgentShareIssuedByOther = errors.New("delegated sharers cannot replace shares issued by another user")
+
+func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access resourceAccess, agentName string, targetUser pgtype.Text, targetTeam pgtype.Text, caps []gatewaydb.AgentShareCapability, manageAll bool) (gatewayapi.AgentShare, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return gatewayapi.AgentShare{}, fmt.Errorf("begin Agent Share transaction: %w", err)
@@ -1261,7 +1330,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 	defer tx.Rollback(ctx)
 
 	q := gatewaydb.New(tx)
-	shares, err := q.GatewayListAgentShares(ctx, gatewaydb.GatewayListAgentSharesParams{
+	shares, err := q.GatewayLockAgentShares(ctx, gatewaydb.GatewayLockAgentSharesParams{
 		OrganizationID: access.claims.TenantID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
@@ -1276,6 +1345,9 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 			targetTeam.String == share.TargetTeamID.String
 		if !sameUser && !sameTeam {
 			continue
+		}
+		if !manageAll && share.CreatedBy != access.claims.UserID {
+			return gatewayapi.AgentShare{}, errAgentShareIssuedByOther
 		}
 		if _, err := q.GatewayDeleteAgentShare(ctx, gatewaydb.GatewayDeleteAgentShareParams{
 			ID: share.ID, OrganizationID: access.claims.TenantID, WorkspaceID: access.workspaceID,
@@ -1314,7 +1386,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 	return s.agentShareResponse(ctx, access, row)
 }
 
-func (s *Service) agentShares(ctx context.Context, access resourceAccess, agentName string) ([]gatewayapi.AgentShare, error) {
+func (s *Service) agentShares(ctx context.Context, access resourceAccess, agentName string, manageAll bool) ([]gatewayapi.AgentShare, error) {
 	rows, err := s.queries.GatewayListAgentShares(ctx, gatewaydb.GatewayListAgentSharesParams{
 		OrganizationID: access.claims.TenantID,
 		WorkspaceID:    access.workspaceID,
@@ -1325,6 +1397,9 @@ func (s *Service) agentShares(ctx context.Context, access resourceAccess, agentN
 	}
 	out := make([]gatewayapi.AgentShare, 0, len(rows))
 	for _, row := range rows {
+		if !manageAll && row.CreatedBy != access.claims.UserID {
+			continue
+		}
 		item, err := s.agentShareResponse(ctx, access, row)
 		if err != nil {
 			return nil, err

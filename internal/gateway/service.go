@@ -512,7 +512,10 @@ func (s *Service) routes() http.Handler {
 	gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
 		BaseRouter:       apiRouter,
 		ErrorHandlerFunc: s.handleRouteError,
-		Middlewares:      []gatewayapi.MiddlewareFunc{requireTenantRequest(s)},
+		Middlewares: []gatewayapi.MiddlewareFunc{
+			requireTenantRequest(s),
+			requireAgentBoundAccess(s),
+		},
 	})
 	r.Mount("/", apiRouter)
 	return r

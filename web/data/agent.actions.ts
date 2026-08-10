@@ -51,15 +51,12 @@ const upsertAgentShareFormSchema = z
     target_kind: z.enum(["user", "team"]),
     target_id: z.string().min(1, "Choose a share target"),
     capabilities: z.array(z.enum(agentShareCapabilities)).min(1, "Choose at least one capability"),
+    acknowledge_use_shared: z.boolean(),
   })
-  .refine(
-    (value) =>
-      value.target_kind === "user" || !value.capabilities.includes("read_shared_secret"),
-    {
-      message: "Team shares cannot read secret metadata",
-      path: ["capabilities"],
-    }
-  )
+  .refine((value) => value.acknowledge_use_shared, {
+    message: "Acknowledge the control granted by Use Shared",
+    path: ["acknowledge_use_shared"],
+  })
 
 const deleteAgentShareFormSchema = z.object({
   share_id: z.string().min(1, "Choose a share"),
@@ -198,6 +195,7 @@ export async function upsertAgentShareFormAction(
   const parsed = upsertAgentShareFormSchema.safeParse({
     ...Object.fromEntries(formData),
     capabilities: formData.getAll("capabilities"),
+    acknowledge_use_shared: formData.has("acknowledge_use_shared"),
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid share" }

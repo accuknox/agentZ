@@ -197,6 +197,7 @@ var cmd = &cli.Command{
 		},
 	},
 	Commands: []*cli.Command{
+		subcommands.CutoverCmd,
 		subcommands.ExtAuthCmd,
 		subcommands.FilesystemCmd,
 		managerCmd,

@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.31.1
 
-package gatewaydb
+package cutoverdb
 
 import (
 	"database/sql/driver"
@@ -1215,6 +1215,61 @@ type Verification struct {
 	ExpiresAt  pgtype.Timestamp `json:"expires_at"`
 	CreatedAt  pgtype.Timestamp `json:"created_at"`
 	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+}
+
+type Workflow struct {
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+	Title           string    `json:"title"`
+	Summary         string    `json:"summary"`
+	InputSchema     []byte    `json:"input_schema"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type WorkflowEdge struct {
+	ID               int64     `json:"id"`
+	TenantNamespace  string    `json:"tenant_namespace"`
+	AgentName        string    `json:"agent_name"`
+	WorkflowName     string    `json:"workflow_name"`
+	SourceNodeName   string    `json:"source_node_name"`
+	TargetNodeName   string    `json:"target_node_name"`
+	Ordinal          int32     `json:"ordinal"`
+	BranchLabel      string    `json:"branch_label"`
+	ConditionSummary string    `json:"condition_summary"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+type WorkflowNode struct {
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+	NodeName        string    `json:"node_name"`
+	Ordinal         int32     `json:"ordinal"`
+	Instructions    string    `json:"instructions"`
+	Goal            string    `json:"goal"`
+	DoneCriteria    string    `json:"done_criteria"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type WorkflowNodePreferredSkill struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	NodeName        string `json:"node_name"`
+	Ordinal         int32  `json:"ordinal"`
+	SkillName       string `json:"skill_name"`
+}
+
+type WorkflowNodePreferredTool struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+	NodeName        string `json:"node_name"`
+	Ordinal         int32  `json:"ordinal"`
+	ToolName        string `json:"tool_name"`
 }
 
 type Workspace struct {

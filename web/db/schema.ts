@@ -225,6 +225,45 @@ export const workspaceSlugHistory = pgTable(
   ]
 )
 
+export const tenantCutovers = pgTable(
+  "tenant_cutovers",
+  {
+    organizationId: text("organization_id")
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    sourceNamespace: text("source_namespace").notNull(),
+    workspaceId: text("workspace_id").notNull().unique(),
+    targetNamespace: text("target_namespace").notNull().unique(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    inventoryHash: text("inventory_hash").notNull(),
+    backupManifestHash: text("backup_manifest_hash").notNull(),
+    checkpoint: text("checkpoint").default("planned").notNull(),
+    inventory: jsonb("inventory").$type<Record<string, unknown>>().notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "tenant_cutovers_checkpoint_ck",
+      sql`${table.checkpoint} IN (
+        'planned', 'sql', 'kubernetes', 'openbao', 's3', 'verified', 'activated'
+      )`
+    ),
+    check(
+      "tenant_cutovers_activation_ck",
+      sql`(${table.verifiedAt} IS NOT NULL) = (${table.checkpoint} IN ('verified', 'sql', 'activated')) AND
+        (${table.activatedAt} IS NOT NULL) = (${table.checkpoint} = 'activated')`
+    ),
+  ]
+)
+
 export const roleScopes = pgTable(
   "role_scopes",
   {

@@ -16,7 +16,7 @@ import {
   type WatchMcpConnectionsEvent,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -112,7 +112,10 @@ export function McpTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "age", desc: true }])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
   const [viewConnectionName, setViewConnectionName] = React.useState<string>()
   const connectionNames = React.useMemo(
     () =>

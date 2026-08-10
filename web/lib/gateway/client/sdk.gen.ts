@@ -164,6 +164,9 @@ import type {
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
+  ListFileObservabilitySummaryData,
+  ListFileObservabilitySummaryErrors,
+  ListFileObservabilitySummaryResponses,
   ListImmutableSkillSummariesData,
   ListImmutableSkillSummariesErrors,
   ListImmutableSkillSummariesResponses,
@@ -188,9 +191,15 @@ import type {
   ListNetworkObservabilityData,
   ListNetworkObservabilityErrors,
   ListNetworkObservabilityResponses,
+  ListNetworkObservabilitySummaryData,
+  ListNetworkObservabilitySummaryErrors,
+  ListNetworkObservabilitySummaryResponses,
   ListProcessObservabilityData,
   ListProcessObservabilityErrors,
   ListProcessObservabilityResponses,
+  ListProcessObservabilitySummaryData,
+  ListProcessObservabilitySummaryErrors,
+  ListProcessObservabilitySummaryResponses,
   ListSandboxesData,
   ListSandboxesErrors,
   ListSandboxesResponses,
@@ -1150,6 +1159,22 @@ export const listProcessObservability = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated process observability summaries.
+ */
+export const listProcessObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListProcessObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListProcessObservabilitySummaryResponses,
+    ListProcessObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/process/summary",
+    ...options,
+  })
+
+/**
  * List paginated file observability events.
  */
 export const listFileObservability = <ThrowOnError extends boolean = false>(
@@ -1166,6 +1191,22 @@ export const listFileObservability = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated file observability summaries.
+ */
+export const listFileObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListFileObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListFileObservabilitySummaryResponses,
+    ListFileObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/file/summary",
+    ...options,
+  })
+
+/**
  * List paginated network observability events.
  */
 export const listNetworkObservability = <ThrowOnError extends boolean = false>(
@@ -1178,6 +1219,22 @@ export const listNetworkObservability = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/observability/network",
+    ...options,
+  })
+
+/**
+ * List paginated network observability summaries.
+ */
+export const listNetworkObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListNetworkObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListNetworkObservabilitySummaryResponses,
+    ListNetworkObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/network/summary",
     ...options,
   })
 

@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
-import { TelemetryChartSkeleton } from "@/app/(app)/lens/runtime-telemetry/telemetry-chart-skeleton"
-import { TelemetryTableSkeleton } from "@/app/(app)/lens/runtime-telemetry/telemetry-table-skeleton"
+import { TelemetryChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-chart-skeleton"
+import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-table-skeleton"
 
 export default function Loading() {
   return (

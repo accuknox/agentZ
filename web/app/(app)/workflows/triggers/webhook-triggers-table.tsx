@@ -2,7 +2,7 @@
 
 import { useRouter } from "@bprogress/next/app"
 import { ArrowLeft, ArrowRight } from "lucide-react"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatAge } from "@/lib/format"
@@ -42,7 +42,10 @@ export function WebhookTriggersTable({
   rows: WebhookTriggerRow[]
 }) {
   const router = useRouter()
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
 
   return (
     <div className="min-w-0 space-y-4">

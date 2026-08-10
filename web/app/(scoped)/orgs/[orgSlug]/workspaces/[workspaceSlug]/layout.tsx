@@ -139,6 +139,9 @@ export default async function WorkspaceLayout({
   if (result.workspace.inference_pool_capabilities.read) {
     tabs.push({ href: `${root}/inference/pools` as Route, label: "Pools" })
   }
+  if (result.workspace.observability_capabilities.read) {
+    tabs.push({ href: `${root}/observability/traces` as Route, label: "Observability" })
+  }
 
   return (
     <>
@@ -160,6 +163,7 @@ export default async function WorkspaceLayout({
               inferencePoolCapabilities: result.workspace.inference_pool_capabilities,
               inferenceProviderCapabilities: result.workspace.inference_provider_capabilities,
               organization: result.scope.organization,
+              observabilityCapabilities: result.workspace.observability_capabilities,
               sandboxCapabilities: result.workspace.sandbox_capabilities,
               skillCapabilities: result.workspace.skill_capabilities,
               workspace: result.workspace,

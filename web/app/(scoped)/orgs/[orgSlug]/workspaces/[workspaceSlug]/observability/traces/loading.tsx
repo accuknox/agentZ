@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
-import { TracesChartSkeleton } from "@/app/(app)/lens/traces/traces-chart-skeleton"
-import { TracesSkeleton } from "@/app/(app)/lens/traces/traces-skeleton"
+import { TracesChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/traces-chart-skeleton"
+import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/traces-skeleton"
 
 export default function Loading() {
   return (

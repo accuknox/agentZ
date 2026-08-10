@@ -1,20 +1,22 @@
 import type { Metadata } from "next"
 import { getFileTelemetryAction } from "@/data/lens.actions"
 import type { FileTelemetryActionData } from "@/data/types"
-import { FileTelemetryTable } from "@/app/(app)/lens/runtime-telemetry/file-telemetry-table"
+import { FileTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/file-telemetry-table"
 import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
   type TelemetrySearchParams,
-} from "@/app/(app)/lens/runtime-telemetry/runtime-telemetry-page"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
   title: "File Telemetry",
 }
 
 export default function FilePage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
   searchParams: Promise<TelemetrySearchParams>
 }) {
   const config: TelemetryPageConfig<FileTelemetryActionData> = {
@@ -24,5 +26,5 @@ export default function FilePage({
     renderTable: (data) => <FileTelemetryTable data={data} />,
   }
 
-  return <RuntimeTelemetryPage searchParams={searchParams} config={config} />
+  return <RuntimeTelemetryPage params={params} searchParams={searchParams} config={config} />
 }

@@ -6,13 +6,13 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export function TelemetryTabs() {
+export function TelemetryTabs({ basePath }: { basePath: string }) {
   const searchParams = useSearchParams()
 
   const href = (tab: "process" | "file" | "network"): Route => {
     const next = new URLSearchParams(searchParams.toString())
     const query = next.toString()
-    const path = `/lens/runtime-telemetry/${tab}`
+    const path = tab === "process" ? basePath : `${basePath}/${tab}`
 
     if (!query) {
       return path as Route

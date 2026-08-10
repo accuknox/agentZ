@@ -27,7 +27,7 @@ type McpFiltersProps = {
 }
 
 /**
- * McpFilters keeps the `/lens/mcp` URL as the single source of truth.
+ * McpFilters keeps the current route URL as the single source of truth.
  */
 export function McpFilters({ agents, selectedAgentName, from, to }: McpFiltersProps) {
   const router = useRouter()

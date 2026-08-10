@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import { createSecretColumns } from "./secret-columns"
 import type { DeleteSecretFormAction } from "@/data/types"
@@ -97,7 +97,10 @@ export function SecretTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
   const query = useQuery(watchSecretsQueryOptions(agentName, secrets))
   const rows = query.data ?? secrets
   const columns = React.useMemo(

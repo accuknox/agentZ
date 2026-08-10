@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
@@ -58,7 +58,10 @@ export function AgentTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
   const columns = React.useMemo(
     () =>
       createAgentColumns(

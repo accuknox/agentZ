@@ -269,21 +269,6 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 	})
 }
 
-// ListProcessObservability handles GET /api/lens/{agentName}/observability/process.
-func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListProcessObservabilityParams) {
-	s.listProcessObservability(w, r, agentName, params)
-}
-
-// ListFileObservability handles GET /api/lens/{agentName}/observability/file.
-func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListFileObservabilityParams) {
-	s.listFileObservability(w, r, agentName, params)
-}
-
-// ListNetworkObservability handles GET /api/lens/{agentName}/observability/network.
-func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListNetworkObservabilityParams) {
-	s.listNetworkObservability(w, r, agentName, params)
-}
-
 // GetMCPGraph handles GET /api/lens/{agentName}/mcp/graph.
 func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.GetMCPGraphParams) {
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
@@ -432,7 +417,8 @@ func (s *Service) mcpConnectionURLsByName(ctx context.Context, namespace string,
 	return urls, nil
 }
 
-func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListProcessObservabilityParams) {
+// ListProcessObservability handles raw process events for one Agent.
+func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListProcessObservabilityParams) {
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -443,55 +429,6 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 	}
 	limit, ok := validLimit(w, r, params.Limit)
 	if !ok {
-		return
-	}
-
-	aggregated := params.Aggregated != nil && *params.Aggregated
-
-	if aggregated {
-		after, before, action, ok := observabilityFilters(w, r, params.EventTimeAfter, params.EventTimeBefore, params.Action)
-		if !ok {
-			return
-		}
-		if params.EventTimeAfter == nil || params.EventTimeBefore == nil {
-			writeError(w, r, newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"event_time_after and event_time_before are required when aggregated=true",
-				errBadRequest,
-			))
-			return
-		}
-
-		cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
-		if !ok {
-			return
-		}
-
-		rows, err := s.queries.GatewayListProcessEventsAggregated(r.Context(), gatewaydb.GatewayListProcessEventsAggregatedParams{
-			TenantNamespace: ns,
-			AgentName:       agentName,
-			EventTimeAfter:  after,
-			EventTimeBefore: before,
-			Action:          action,
-			CursorSet:       cursorSet,
-			CursorEventTime: cursor.LastSeen,
-			PageSize:        int32(limit + 1),
-		})
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
-
-		items, next := aggregatedEventPage(rows, limit, processAggregatedEvent, processAggregatedCursor)
-		events := make([]gatewayapi.ListProcessObservabilityResponse_Events_Item, len(items))
-		for i, item := range items {
-			events[i].FromProcessObservabilityEventAggregated(item)
-		}
-		writeJSON(w, http.StatusOK, gatewayapi.ListProcessObservabilityResponse{
-			Events:        events,
-			NextPageToken: next,
-		})
 		return
 	}
 
@@ -524,17 +461,14 @@ func (s *Service) listProcessObservability(w http.ResponseWriter, r *http.Reques
 	}
 
 	items, next := eventPage(rows, limit, processEvent, processCursor)
-	events := make([]gatewayapi.ListProcessObservabilityResponse_Events_Item, len(items))
-	for i, item := range items {
-		events[i].FromProcessObservabilityEvent(item)
-	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListProcessObservabilityResponse{
-		Events:        events,
+		Events:        items,
 		NextPageToken: next,
 	})
 }
 
-func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListFileObservabilityParams) {
+// ListProcessObservabilitySummary handles aggregated process events for one Agent.
+func (s *Service) ListProcessObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListProcessObservabilitySummaryParams) {
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -547,53 +481,58 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 	if !ok {
 		return
 	}
+	after, before, action, ok := observabilityFilters(
+		w, r, &params.EventTimeAfter, &params.EventTimeBefore, params.Action,
+	)
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
 
-	aggregated := params.Aggregated != nil && *params.Aggregated
+	rows, err := s.queries.GatewayListProcessEventsAggregated(r.Context(), gatewaydb.GatewayListProcessEventsAggregatedParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+		EventTimeAfter:  after,
+		EventTimeBefore: before,
+		Action:          action,
+		CursorSet:       cursorSet,
+		CursorEventTime: cursor.LastSeen,
+		PageSize:        int32(limit + 1),
+	})
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 
-	if aggregated {
-		after, before, action, ok := observabilityFilters(w, r, params.EventTimeAfter, params.EventTimeBefore, params.Action)
-		if !ok {
-			return
-		}
-		if params.EventTimeAfter == nil || params.EventTimeBefore == nil {
-			writeError(w, r, newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"event_time_after and event_time_before are required when aggregated=true",
-				errBadRequest,
-			))
-			return
-		}
+	items, next := aggregatedEventPage(
+		rows,
+		limit,
+		processAggregatedEvent,
+		func(row gatewaydb.GatewayListProcessEventsAggregatedRow) aggregatedEventPageCursor {
+			return aggregatedEventPageCursor{LastSeen: row.LastSeen}
+		},
+	)
+	writeJSON(w, http.StatusOK, gatewayapi.ListProcessObservabilitySummaryResponse{
+		Events:        items,
+		NextPageToken: next,
+	})
+}
 
-		cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
-		if !ok {
-			return
-		}
-
-		rows, err := s.queries.GatewayListFileEventsAggregated(r.Context(), gatewaydb.GatewayListFileEventsAggregatedParams{
-			TenantNamespace: ns,
-			AgentName:       agentName,
-			EventTimeAfter:  after,
-			EventTimeBefore: before,
-			Action:          action,
-			CursorSet:       cursorSet,
-			CursorEventTime: cursor.LastSeen,
-			PageSize:        int32(limit + 1),
-		})
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
-
-		items, next := aggregatedEventPage(rows, limit, fileAggregatedEvent, fileAggregatedCursor)
-		events := make([]gatewayapi.ListFileObservabilityResponse_Events_Item, len(items))
-		for i, item := range items {
-			events[i].FromFileObservabilityEventAggregated(item)
-		}
-		writeJSON(w, http.StatusOK, gatewayapi.ListFileObservabilityResponse{
-			Events:        events,
-			NextPageToken: next,
-		})
+// ListFileObservability handles raw file events for one Agent.
+func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListFileObservabilityParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
+		return
+	}
+	ns, ok := s.authorizeObservability(w, r, agentName)
+	if !ok {
+		return
+	}
+	limit, ok := validLimit(w, r, params.Limit)
+	if !ok {
 		return
 	}
 
@@ -626,17 +565,14 @@ func (s *Service) listFileObservability(w http.ResponseWriter, r *http.Request, 
 	}
 
 	items, next := eventPage(rows, limit, fileEvent, fileCursor)
-	events := make([]gatewayapi.ListFileObservabilityResponse_Events_Item, len(items))
-	for i, item := range items {
-		events[i].FromFileObservabilityEvent(item)
-	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListFileObservabilityResponse{
-		Events:        events,
+		Events:        items,
 		NextPageToken: next,
 	})
 }
 
-func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Request, agentName string, params gatewayapi.ListNetworkObservabilityParams) {
+// ListFileObservabilitySummary handles aggregated file events for one Agent.
+func (s *Service) ListFileObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListFileObservabilitySummaryParams) {
 	agentName, ok := validAgentName(w, r, agentName, "agentName")
 	if !ok {
 		return
@@ -649,53 +585,58 @@ func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	after, before, action, ok := observabilityFilters(
+		w, r, &params.EventTimeAfter, &params.EventTimeBefore, params.Action,
+	)
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
 
-	aggregated := params.Aggregated != nil && *params.Aggregated
+	rows, err := s.queries.GatewayListFileEventsAggregated(r.Context(), gatewaydb.GatewayListFileEventsAggregatedParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+		EventTimeAfter:  after,
+		EventTimeBefore: before,
+		Action:          action,
+		CursorSet:       cursorSet,
+		CursorEventTime: cursor.LastSeen,
+		PageSize:        int32(limit + 1),
+	})
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 
-	if aggregated {
-		after, before, action, ok := observabilityFilters(w, r, params.EventTimeAfter, params.EventTimeBefore, params.Action)
-		if !ok {
-			return
-		}
-		if params.EventTimeAfter == nil || params.EventTimeBefore == nil {
-			writeError(w, r, newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"event_time_after and event_time_before are required when aggregated=true",
-				errBadRequest,
-			))
-			return
-		}
+	items, next := aggregatedEventPage(
+		rows,
+		limit,
+		fileAggregatedEvent,
+		func(row gatewaydb.GatewayListFileEventsAggregatedRow) aggregatedEventPageCursor {
+			return aggregatedEventPageCursor{LastSeen: row.LastSeen}
+		},
+	)
+	writeJSON(w, http.StatusOK, gatewayapi.ListFileObservabilitySummaryResponse{
+		Events:        items,
+		NextPageToken: next,
+	})
+}
 
-		cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
-		if !ok {
-			return
-		}
-
-		rows, err := s.queries.GatewayListNetworkEventsAggregated(r.Context(), gatewaydb.GatewayListNetworkEventsAggregatedParams{
-			TenantNamespace: ns,
-			AgentName:       agentName,
-			EventTimeAfter:  after,
-			EventTimeBefore: before,
-			Action:          action,
-			CursorSet:       cursorSet,
-			CursorEventTime: cursor.LastSeen,
-			PageSize:        int32(limit + 1),
-		})
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
-
-		items, next := aggregatedEventPage(rows, limit, networkAggregatedEvent, networkAggregatedCursor)
-		events := make([]gatewayapi.ListNetworkObservabilityResponse_Events_Item, len(items))
-		for i, item := range items {
-			events[i].FromNetworkObservabilityEventAggregated(item)
-		}
-		writeJSON(w, http.StatusOK, gatewayapi.ListNetworkObservabilityResponse{
-			Events:        events,
-			NextPageToken: next,
-		})
+// ListNetworkObservability handles raw network events for one Agent.
+func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListNetworkObservabilityParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
+		return
+	}
+	ns, ok := s.authorizeObservability(w, r, agentName)
+	if !ok {
+		return
+	}
+	limit, ok := validLimit(w, r, params.Limit)
+	if !ok {
 		return
 	}
 
@@ -728,12 +669,62 @@ func (s *Service) listNetworkObservability(w http.ResponseWriter, r *http.Reques
 	}
 
 	items, next := eventPage(rows, limit, networkEvent, networkCursor)
-	events := make([]gatewayapi.ListNetworkObservabilityResponse_Events_Item, len(items))
-	for i, item := range items {
-		events[i].FromNetworkObservabilityEvent(item)
-	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListNetworkObservabilityResponse{
-		Events:        events,
+		Events:        items,
+		NextPageToken: next,
+	})
+}
+
+// ListNetworkObservabilitySummary handles aggregated network events for one Agent.
+func (s *Service) ListNetworkObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListNetworkObservabilitySummaryParams) {
+	agentName, ok := validAgentName(w, r, agentName, "agentName")
+	if !ok {
+		return
+	}
+	ns, ok := s.authorizeObservability(w, r, agentName)
+	if !ok {
+		return
+	}
+	limit, ok := validLimit(w, r, params.Limit)
+	if !ok {
+		return
+	}
+	after, before, action, ok := observabilityFilters(
+		w, r, &params.EventTimeAfter, &params.EventTimeBefore, params.Action,
+	)
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeAggregatedEventPageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
+
+	rows, err := s.queries.GatewayListNetworkEventsAggregated(r.Context(), gatewaydb.GatewayListNetworkEventsAggregatedParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+		EventTimeAfter:  after,
+		EventTimeBefore: before,
+		Action:          action,
+		CursorSet:       cursorSet,
+		CursorEventTime: cursor.LastSeen,
+		PageSize:        int32(limit + 1),
+	})
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+
+	items, next := aggregatedEventPage(
+		rows,
+		limit,
+		networkAggregatedEvent,
+		func(row gatewaydb.GatewayListNetworkEventsAggregatedRow) aggregatedEventPageCursor {
+			return aggregatedEventPageCursor{LastSeen: row.LastSeen}
+		},
+	)
+	writeJSON(w, http.StatusOK, gatewayapi.ListNetworkObservabilitySummaryResponse{
+		Events:        items,
 		NextPageToken: next,
 	})
 }
@@ -944,18 +935,6 @@ func aggregatedEventPage[T any, E any](rows []T, limit int, convert func(T) E, c
 		items = append(items, convert(row))
 	}
 	return items, next
-}
-
-func processAggregatedCursor(row gatewaydb.GatewayListProcessEventsAggregatedRow) aggregatedEventPageCursor {
-	return aggregatedEventPageCursor{LastSeen: row.LastSeen}
-}
-
-func fileAggregatedCursor(row gatewaydb.GatewayListFileEventsAggregatedRow) aggregatedEventPageCursor {
-	return aggregatedEventPageCursor{LastSeen: row.LastSeen}
-}
-
-func networkAggregatedCursor(row gatewaydb.GatewayListNetworkEventsAggregatedRow) aggregatedEventPageCursor {
-	return aggregatedEventPageCursor{LastSeen: row.LastSeen}
 }
 
 func processAggregatedEvent(row gatewaydb.GatewayListProcessEventsAggregatedRow) gatewayapi.ProcessObservabilityEventAggregated {

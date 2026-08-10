@@ -56,6 +56,7 @@ import {
   listAgentWorkflowSchedules,
   listAuditEvents,
   listFileObservability,
+  listFileObservabilitySummary,
   listImmutableSkillSummaries,
   listImmutableSkillVersions,
   listInferenceModelSuggestions,
@@ -64,7 +65,9 @@ import {
   listInferenceProviders,
   listMcpConnections,
   listNetworkObservability,
+  listNetworkObservabilitySummary,
   listProcessObservability,
+  listProcessObservabilitySummary,
   listSandboxes,
   listSecrets,
   listSkills,
@@ -259,6 +262,9 @@ import type {
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
+  ListFileObservabilitySummaryData,
+  ListFileObservabilitySummaryError,
+  ListFileObservabilitySummaryResponse2,
   ListImmutableSkillSummariesData,
   ListImmutableSkillSummariesError,
   ListImmutableSkillSummariesResponse2,
@@ -283,9 +289,15 @@ import type {
   ListNetworkObservabilityData,
   ListNetworkObservabilityError,
   ListNetworkObservabilityResponse2,
+  ListNetworkObservabilitySummaryData,
+  ListNetworkObservabilitySummaryError,
+  ListNetworkObservabilitySummaryResponse2,
   ListProcessObservabilityData,
   ListProcessObservabilityError,
   ListProcessObservabilityResponse2,
+  ListProcessObservabilitySummaryData,
+  ListProcessObservabilitySummaryError,
+  ListProcessObservabilitySummaryResponse2,
   ListSandboxesData,
   ListSandboxesError,
   ListSandboxesResponse2,
@@ -1720,6 +1732,34 @@ export const listProcessObservabilityOptions = (options: Options<ListProcessObse
     queryKey: listProcessObservabilityQueryKey(options),
   })
 
+export const listProcessObservabilitySummaryQueryKey = (
+  options: Options<ListProcessObservabilitySummaryData>
+) => createQueryKey("listProcessObservabilitySummary", options)
+
+/**
+ * List paginated process observability summaries.
+ */
+export const listProcessObservabilitySummaryOptions = (
+  options: Options<ListProcessObservabilitySummaryData>
+) =>
+  queryOptions<
+    ListProcessObservabilitySummaryResponse2,
+    ListProcessObservabilitySummaryError,
+    ListProcessObservabilitySummaryResponse2,
+    ReturnType<typeof listProcessObservabilitySummaryQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listProcessObservabilitySummary({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listProcessObservabilitySummaryQueryKey(options),
+  })
+
 export const listFileObservabilityQueryKey = (options: Options<ListFileObservabilityData>) =>
   createQueryKey("listFileObservability", options)
 
@@ -1745,6 +1785,34 @@ export const listFileObservabilityOptions = (options: Options<ListFileObservabil
     queryKey: listFileObservabilityQueryKey(options),
   })
 
+export const listFileObservabilitySummaryQueryKey = (
+  options: Options<ListFileObservabilitySummaryData>
+) => createQueryKey("listFileObservabilitySummary", options)
+
+/**
+ * List paginated file observability summaries.
+ */
+export const listFileObservabilitySummaryOptions = (
+  options: Options<ListFileObservabilitySummaryData>
+) =>
+  queryOptions<
+    ListFileObservabilitySummaryResponse2,
+    ListFileObservabilitySummaryError,
+    ListFileObservabilitySummaryResponse2,
+    ReturnType<typeof listFileObservabilitySummaryQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listFileObservabilitySummary({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listFileObservabilitySummaryQueryKey(options),
+  })
+
 export const listNetworkObservabilityQueryKey = (options: Options<ListNetworkObservabilityData>) =>
   createQueryKey("listNetworkObservability", options)
 
@@ -1768,6 +1836,34 @@ export const listNetworkObservabilityOptions = (options: Options<ListNetworkObse
       return data
     },
     queryKey: listNetworkObservabilityQueryKey(options),
+  })
+
+export const listNetworkObservabilitySummaryQueryKey = (
+  options: Options<ListNetworkObservabilitySummaryData>
+) => createQueryKey("listNetworkObservabilitySummary", options)
+
+/**
+ * List paginated network observability summaries.
+ */
+export const listNetworkObservabilitySummaryOptions = (
+  options: Options<ListNetworkObservabilitySummaryData>
+) =>
+  queryOptions<
+    ListNetworkObservabilitySummaryResponse2,
+    ListNetworkObservabilitySummaryError,
+    ListNetworkObservabilitySummaryResponse2,
+    ReturnType<typeof listNetworkObservabilitySummaryQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listNetworkObservabilitySummary({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listNetworkObservabilitySummaryQueryKey(options),
   })
 
 export const getMcpGraphQueryKey = (options: Options<GetMcpGraphData>) =>

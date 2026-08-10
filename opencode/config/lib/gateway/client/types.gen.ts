@@ -157,6 +157,7 @@ export type Workspace = {
   sandbox_capabilities: ResourceCapabilities
   inference_provider_capabilities: ResourceCapabilities
   inference_pool_capabilities: ResourceCapabilities
+  observability_capabilities: ResourceCapabilities
   workspace_admin_count: number
   can_administer: boolean
   created_at: string
@@ -889,7 +890,12 @@ export type SpanDetailResponse = {
 }
 
 export type ListProcessObservabilityResponse = {
-  events: Array<ProcessObservabilityEvent | ProcessObservabilityEventAggregated>
+  events: Array<ProcessObservabilityEvent>
+  next_page_token: string
+}
+
+export type ListProcessObservabilitySummaryResponse = {
+  events: Array<ProcessObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -919,7 +925,12 @@ export type ProcessObservabilityEventAggregated = {
 }
 
 export type ListFileObservabilityResponse = {
-  events: Array<FileObservabilityEvent | FileObservabilityEventAggregated>
+  events: Array<FileObservabilityEvent>
+  next_page_token: string
+}
+
+export type ListFileObservabilitySummaryResponse = {
+  events: Array<FileObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -949,7 +960,12 @@ export type FileObservabilityEventAggregated = {
 }
 
 export type ListNetworkObservabilityResponse = {
-  events: Array<NetworkObservabilityEvent | NetworkObservabilityEventAggregated>
+  events: Array<NetworkObservabilityEvent>
+  next_page_token: string
+}
+
+export type ListNetworkObservabilitySummaryResponse = {
+  events: Array<NetworkObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -2091,14 +2107,19 @@ export type EventTimeAfterQuery = string
 export type EventTimeBeforeQuery = string
 
 /**
+ * Inclusive lower bound for event time.
+ */
+export type EventTimeAfterRequiredQuery = string
+
+/**
+ * Inclusive upper bound for event time.
+ */
+export type EventTimeBeforeRequiredQuery = string
+
+/**
  * Optional observability action filter.
  */
 export type ActionQuery = ObservabilityAction
-
-/**
- * When true, returns aggregated events with occurrence counts over the time range.
- */
-export type AggregatedQuery = boolean
 
 /**
  * Inclusive lower bound for MCP tool activity date.
@@ -4492,10 +4513,6 @@ export type ListProcessObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
   }
   url: "/api/lens/{agentName}/observability/process"
 }
@@ -4529,6 +4546,68 @@ export type ListProcessObservabilityResponses = {
 export type ListProcessObservabilityResponse2 =
   ListProcessObservabilityResponses[keyof ListProcessObservabilityResponses]
 
+export type ListProcessObservabilitySummaryData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+  }
+  url: "/api/lens/{agentName}/observability/process/summary"
+}
+
+export type ListProcessObservabilitySummaryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListProcessObservabilitySummaryError =
+  ListProcessObservabilitySummaryErrors[keyof ListProcessObservabilitySummaryErrors]
+
+export type ListProcessObservabilitySummaryResponses = {
+  /**
+   * Paginated process observability summaries.
+   */
+  200: ListProcessObservabilitySummaryResponse
+}
+
+export type ListProcessObservabilitySummaryResponse2 =
+  ListProcessObservabilitySummaryResponses[keyof ListProcessObservabilitySummaryResponses]
+
 export type ListFileObservabilityData = {
   body?: never
   path: {
@@ -4558,10 +4637,6 @@ export type ListFileObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
   }
   url: "/api/lens/{agentName}/observability/file"
 }
@@ -4595,6 +4670,68 @@ export type ListFileObservabilityResponses = {
 export type ListFileObservabilityResponse2 =
   ListFileObservabilityResponses[keyof ListFileObservabilityResponses]
 
+export type ListFileObservabilitySummaryData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+  }
+  url: "/api/lens/{agentName}/observability/file/summary"
+}
+
+export type ListFileObservabilitySummaryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListFileObservabilitySummaryError =
+  ListFileObservabilitySummaryErrors[keyof ListFileObservabilitySummaryErrors]
+
+export type ListFileObservabilitySummaryResponses = {
+  /**
+   * Paginated file observability summaries.
+   */
+  200: ListFileObservabilitySummaryResponse
+}
+
+export type ListFileObservabilitySummaryResponse2 =
+  ListFileObservabilitySummaryResponses[keyof ListFileObservabilitySummaryResponses]
+
 export type ListNetworkObservabilityData = {
   body?: never
   path: {
@@ -4624,10 +4761,6 @@ export type ListNetworkObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
   }
   url: "/api/lens/{agentName}/observability/network"
 }
@@ -4660,6 +4793,68 @@ export type ListNetworkObservabilityResponses = {
 
 export type ListNetworkObservabilityResponse2 =
   ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
+
+export type ListNetworkObservabilitySummaryData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+  }
+  url: "/api/lens/{agentName}/observability/network/summary"
+}
+
+export type ListNetworkObservabilitySummaryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListNetworkObservabilitySummaryError =
+  ListNetworkObservabilitySummaryErrors[keyof ListNetworkObservabilitySummaryErrors]
+
+export type ListNetworkObservabilitySummaryResponses = {
+  /**
+   * Paginated network observability summaries.
+   */
+  200: ListNetworkObservabilitySummaryResponse
+}
+
+export type ListNetworkObservabilitySummaryResponse2 =
+  ListNetworkObservabilitySummaryResponses[keyof ListNetworkObservabilitySummaryResponses]
 
 export type GetMcpGraphData = {
   body?: never

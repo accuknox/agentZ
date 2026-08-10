@@ -1,26 +1,26 @@
 "use client"
 
-import type { FileTelemetryActionData, FileTelemetryRow } from "@/data/types"
+import type { ProcessTelemetryActionData, ProcessTelemetryRow } from "@/data/types"
 import {
   TelemetryTable,
   ActionBadge,
   TruncateCell,
   type TelemetryTableColumn,
-} from "@/app/(app)/lens/runtime-telemetry/telemetry-table"
-import { useTelemetryPagination } from "@/app/(app)/lens/runtime-telemetry/use-telemetry-pagination"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-table"
+import { useTelemetryPagination } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/use-telemetry-pagination"
 
-const columns: TelemetryTableColumn<FileTelemetryRow>[] = [
-  {
-    key: "filePath",
-    header: "File Path Accessed",
-    className: "min-w-80 max-w-112",
-    render: (row) => <TruncateCell value={row.filePath} />,
-  },
+const columns: TelemetryTableColumn<ProcessTelemetryRow>[] = [
   {
     key: "process",
     header: "Process",
-    className: "min-w-72 max-w-112",
+    className: "min-w-36 max-w-64",
     render: (row) => <TruncateCell value={row.process} />,
+  },
+  {
+    key: "command",
+    header: "Command",
+    className: "min-w-80 max-w-112",
+    render: (row) => <TruncateCell value={row.command} />,
   },
   { key: "action", header: "Action", render: (row) => <ActionBadge action={row.action} /> },
   {
@@ -39,14 +39,14 @@ const columns: TelemetryTableColumn<FileTelemetryRow>[] = [
   },
 ]
 
-export function FileTelemetryTable({ data }: { data: FileTelemetryActionData }) {
+export function ProcessTelemetryTable({ data }: { data: ProcessTelemetryActionData }) {
   const { pending, canGoPrevious, goNext, goPrevious } = useTelemetryPagination()
 
   return (
     <TelemetryTable
       data={data.rows}
       columns={columns}
-      emptyText="No file events found"
+      emptyText="No process events found"
       hasNextPage={data.hasNextPage}
       nextPageToken={data.nextPageToken}
       canGoPrevious={canGoPrevious}

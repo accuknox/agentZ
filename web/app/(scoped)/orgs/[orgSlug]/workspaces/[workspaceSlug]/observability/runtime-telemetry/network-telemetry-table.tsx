@@ -5,8 +5,8 @@ import {
   TelemetryTable,
   ActionBadge,
   type TelemetryTableColumn,
-} from "@/app/(app)/lens/runtime-telemetry/telemetry-table"
-import { useTelemetryPagination } from "@/app/(app)/lens/runtime-telemetry/use-telemetry-pagination"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-table"
+import { useTelemetryPagination } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/use-telemetry-pagination"
 
 const columns: TelemetryTableColumn<NetworkTelemetryRow>[] = [
   {

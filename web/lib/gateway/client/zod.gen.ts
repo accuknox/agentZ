@@ -170,6 +170,7 @@ export const zWorkspace = z.object({
   sandbox_capabilities: zResourceCapabilities,
   inference_provider_capabilities: zResourceCapabilities,
   inference_pool_capabilities: zResourceCapabilities,
+  observability_capabilities: zResourceCapabilities,
   workspace_admin_count: z.coerce
     .bigint()
     .gte(BigInt(0))
@@ -1042,6 +1043,11 @@ export const zProcessObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zListProcessObservabilityResponse = z.object({
+  events: z.array(zProcessObservabilityEvent),
+  next_page_token: z.string(),
+})
+
 export const zProcessObservabilityEventAggregated = z.object({
   agent_name: zAgentName,
   last_seen: z.iso.datetime(),
@@ -1058,8 +1064,8 @@ export const zProcessObservabilityEventAggregated = z.object({
     }),
 })
 
-export const zListProcessObservabilityResponse = z.object({
-  events: z.array(z.union([zProcessObservabilityEvent, zProcessObservabilityEventAggregated])),
+export const zListProcessObservabilitySummaryResponse = z.object({
+  events: z.array(zProcessObservabilityEventAggregated),
   next_page_token: z.string(),
 })
 
@@ -1082,6 +1088,11 @@ export const zFileObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zListFileObservabilityResponse = z.object({
+  events: z.array(zFileObservabilityEvent),
+  next_page_token: z.string(),
+})
+
 export const zFileObservabilityEventAggregated = z.object({
   agent_name: zAgentName,
   last_seen: z.iso.datetime(),
@@ -1098,8 +1109,8 @@ export const zFileObservabilityEventAggregated = z.object({
     }),
 })
 
-export const zListFileObservabilityResponse = z.object({
-  events: z.array(z.union([zFileObservabilityEvent, zFileObservabilityEventAggregated])),
+export const zListFileObservabilitySummaryResponse = z.object({
+  events: z.array(zFileObservabilityEventAggregated),
   next_page_token: z.string(),
 })
 
@@ -1128,6 +1139,11 @@ export const zNetworkObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zListNetworkObservabilityResponse = z.object({
+  events: z.array(zNetworkObservabilityEvent),
+  next_page_token: z.string(),
+})
+
 export const zNetworkObservabilityEventAggregated = z.object({
   agent_name: zAgentName,
   last_seen: z.iso.datetime(),
@@ -1150,8 +1166,8 @@ export const zNetworkObservabilityEventAggregated = z.object({
     }),
 })
 
-export const zListNetworkObservabilityResponse = z.object({
-  events: z.array(z.union([zNetworkObservabilityEvent, zNetworkObservabilityEventAggregated])),
+export const zListNetworkObservabilitySummaryResponse = z.object({
+  events: z.array(zNetworkObservabilityEventAggregated),
   next_page_token: z.string(),
 })
 
@@ -2380,14 +2396,19 @@ export const zEventTimeAfterQuery = z.iso.datetime()
 export const zEventTimeBeforeQuery = z.iso.datetime()
 
 /**
+ * Inclusive lower bound for event time.
+ */
+export const zEventTimeAfterRequiredQuery = z.iso.datetime()
+
+/**
+ * Inclusive upper bound for event time.
+ */
+export const zEventTimeBeforeRequiredQuery = z.iso.datetime()
+
+/**
  * Optional observability action filter.
  */
 export const zActionQuery = zObservabilityAction
-
-/**
- * When true, returns aggregated events with occurrence counts over the time range.
- */
-export const zAggregatedQuery = z.boolean().default(false)
 
 /**
  * Inclusive lower bound for MCP tool activity date.
@@ -2657,14 +2678,29 @@ export const zGetSpanDetailResponse = zSpanDetailResponse
 export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
 
 /**
+ * Paginated process observability summaries.
+ */
+export const zListProcessObservabilitySummaryResponse2 = zListProcessObservabilitySummaryResponse
+
+/**
  * Paginated file observability events.
  */
 export const zListFileObservabilityResponse2 = zListFileObservabilityResponse
 
 /**
+ * Paginated file observability summaries.
+ */
+export const zListFileObservabilitySummaryResponse2 = zListFileObservabilitySummaryResponse
+
+/**
  * Paginated network observability events.
  */
 export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
+
+/**
+ * Paginated network observability summaries.
+ */
+export const zListNetworkObservabilitySummaryResponse2 = zListNetworkObservabilitySummaryResponse
 
 /**
  * Graph-ready MCP observability for an agent.

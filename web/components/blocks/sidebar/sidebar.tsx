@@ -1,4 +1,3 @@
-import { Suspense } from "react"
 import type { Route } from "next"
 import Link from "next/link"
 import {
@@ -11,6 +10,7 @@ import {
   Layers3,
   LayoutDashboard,
   ScrollText,
+  Search,
   Settings2,
 } from "lucide-react"
 import { NavAgents } from "./agents"
@@ -31,7 +31,6 @@ import {
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
-import { NavLens } from "./lens"
 import { NavSecrets } from "./secrets"
 import { NavWorkflows } from "./workflows"
 import type { OrganizationSummary } from "@/data/organizations"
@@ -54,7 +53,11 @@ export type SidebarScope =
   | { kind: "account" }
   | { kind: "no-access"; organization: OrganizationSummary }
   | ({ kind: "organization" } & WorkspaceNavigationScope)
-  | ({ kind: "workspace"; workspace: Workspace } & WorkspaceNavigationScope)
+  | ({
+      kind: "workspace"
+      workspace: Workspace
+      observabilityCapabilities: ResourceCapabilities
+    } & WorkspaceNavigationScope)
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user?: {
@@ -97,6 +100,7 @@ export function AppSidebar({
             inferencePoolCapabilities={scope.inferencePoolCapabilities}
             inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
             organization={scope.organization}
+            observabilityCapabilities={scope.observabilityCapabilities}
             skillCapabilities={scope.skillCapabilities}
             sandboxCapabilities={scope.sandboxCapabilities}
             workspace={scope.workspace}
@@ -122,6 +126,7 @@ function WorkspaceNavigation({
   inferencePoolCapabilities,
   inferenceProviderCapabilities,
   organization,
+  observabilityCapabilities,
   skillCapabilities,
   sandboxCapabilities,
   workspace,
@@ -130,6 +135,7 @@ function WorkspaceNavigation({
   inferencePoolCapabilities: ResourceCapabilities
   inferenceProviderCapabilities: ResourceCapabilities
   organization: OrganizationSummary
+  observabilityCapabilities: ResourceCapabilities
   skillCapabilities: ResourceCapabilities
   sandboxCapabilities: ResourceCapabilities
   workspace: Workspace
@@ -146,6 +152,20 @@ function WorkspaceNavigation({
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
+        {observabilityCapabilities.read ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Observability">
+              <Link
+                href={
+                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/observability/traces` as Route
+                }
+              >
+                <Search aria-hidden="true" />
+                <span>Observability</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
         <SidebarMenuItem>
           <SidebarMenuButton asChild tooltip="Agents">
             <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/agents` as Route}>
@@ -241,9 +261,6 @@ async function LegacyNavigation() {
   return (
     <>
       <SidebarGroup className="gap-y-1 px-2 py-2">
-        <Suspense fallback={null}>
-          <NavLens />
-        </Suspense>
         <NavSecrets />
         <NavWorkflows />
       </SidebarGroup>

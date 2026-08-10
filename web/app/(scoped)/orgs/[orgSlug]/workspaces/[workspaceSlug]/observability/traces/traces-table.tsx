@@ -43,13 +43,13 @@ import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/p
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TelemetryTableSkeleton } from "@/app/(app)/lens/runtime-telemetry/telemetry-table-skeleton"
+import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-table-skeleton"
 import {
   TelemetryTable as SharedTelemetryTable,
   ActionBadge as SharedActionBadge,
   TruncateCell,
   type TelemetryTableColumn,
-} from "@/app/(app)/lens/runtime-telemetry/telemetry-table"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-table"
 import {
   Table,
   TableBody,
@@ -61,7 +61,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { percentOf, shortLensID, useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 
 const columnClassName: Record<string, string> = {
   trace: "min-w-40 w-[20%]",
@@ -80,7 +80,7 @@ const columns: ColumnDef<TraceListItem>[] = [
       return (
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-foreground font-mono text-xs font-medium">
-            {shortLensID(trace.traceId)}
+            {trace.traceId.slice(0, 8)}
           </span>
           <span className="text-muted-foreground text-xs">
             {trace.startedDate} · {trace.startedTime}
@@ -152,7 +152,15 @@ const columns: ColumnDef<TraceListItem>[] = [
   },
 ]
 
-export function TracesTable({ data, error }: { data?: ListTracesActionData; error?: Error }) {
+export function TracesTable({
+  data,
+  error,
+  workspaceId,
+}: {
+  data?: ListTracesActionData
+  error?: Error
+  workspaceId: string
+}) {
   "use no memo"
 
   const [selectedTrace, setSelectedTrace] = React.useState<TraceListItem | undefined>()
@@ -204,12 +212,14 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
             },
             {
               limit: 50,
-            }
+            },
+            workspaceId
           ),
           getRuntimeTelemetryAction({
             agent_name: trace.agentName,
             started_after: trace.startedAt,
             started_before: trace.endedAt,
+            workspace_id: workspaceId,
           }),
         ])
         setSpans(spanResult.data)
@@ -237,6 +247,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
           started_before: selectedTrace.endedAt,
           tab: nextTab,
           page_token: nextPageToken,
+          workspace_id: workspaceId,
         })
         setTelemetryPages((current) =>
           result.data ? { ...current, [nextTab]: result.data } : current
@@ -275,7 +286,8 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
           {
             limit: 50,
             page_token: nextPageToken,
-          }
+          },
+          workspaceId
         )
         setSpans(result.data)
         setSpansError(result.error)
@@ -377,6 +389,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
         </div>
       </div>
       <TraceInspector
+        workspaceId={workspaceId}
         trace={selectedTrace}
         spans={spans}
         telemetry={telemetry}
@@ -411,6 +424,7 @@ export function TracesTable({ data, error }: { data?: ListTracesActionData; erro
 type TraceInspectorTab = "spans" | "telemetry"
 
 function TraceInspector({
+  workspaceId,
   trace,
   spans,
   telemetry,
@@ -431,6 +445,7 @@ function TraceInspector({
   tab,
   onTabChange,
 }: {
+  workspaceId: string
   trace?: TraceListItem
   spans?: ListSpansActionData
   telemetry?: RuntimeTelemetryActionData
@@ -483,6 +498,7 @@ function TraceInspector({
         <div className="lg:min-h-0 lg:overflow-hidden">
           {tab === "spans" ? (
             <SpansInspectorContent
+              workspaceId={workspaceId}
               key={trace?.traceId}
               trace={trace}
               data={spans}
@@ -515,6 +531,7 @@ function TraceInspector({
 }
 
 function SpansInspectorContent({
+  workspaceId,
   trace,
   data,
   error,
@@ -524,6 +541,7 @@ function SpansInspectorContent({
   onNextPage,
   onPreviousPage,
 }: {
+  workspaceId: string
   trace?: TraceListItem
   data?: ListSpansActionData
   error?: Error
@@ -552,12 +570,15 @@ function SpansInspectorContent({
     let cancelled = false
 
     startDetailTransition(async () => {
-      const result = await getSpanDetailAction({
-        agentName: selectedSpan.agentName,
-        sessionID: selectedSpan.sessionId,
-        traceID: selectedSpan.traceId,
-        spanID: selectedSpan.spanId,
-      })
+      const result = await getSpanDetailAction(
+        {
+          agentName: selectedSpan.agentName,
+          sessionID: selectedSpan.sessionId,
+          traceID: selectedSpan.traceId,
+          spanID: selectedSpan.spanId,
+        },
+        workspaceId
+      )
       if (!cancelled) {
         setDetailState({
           spanID: selectedSpan.spanId,
@@ -570,7 +591,7 @@ function SpansInspectorContent({
     return () => {
       cancelled = true
     }
-  }, [selectedSpan, startDetailTransition])
+  }, [selectedSpan, startDetailTransition, workspaceId])
 
   if (pending && !data) {
     return <InspectorSkeleton />
@@ -689,7 +710,7 @@ function SpanTreeRow({
           {span.duration}
         </span>
         {span.totalTokens > 0 ? <span>{formatCompactNumber(span.totalTokens)} tokens</span> : null}
-        <span className="font-mono">{shortLensID(span.spanId)}</span>
+        <span className="font-mono">{span.spanId.slice(0, 8)}</span>
       </div>
       <div className="bg-border mt-1.5 ml-6 h-0.5 rounded-full">
         <div
@@ -729,7 +750,7 @@ function SpanDetailViewer({
   error?: Error
   pending: boolean
 }) {
-  const title = span?.displayName ?? (trace ? shortLensID(trace.traceId) : "Trace")
+  const title = span?.displayName ?? (trace ? trace.traceId.slice(0, 8) : "Trace")
 
   return (
     <div className="flex flex-col lg:h-full">
@@ -876,9 +897,9 @@ function InspectorTokenMeter({ span }: { span: SpanListItem }) {
   }
 
   const uncachedInput = Math.max(span.inputTokens - span.cachedInputTokens, 0)
-  const inputWidth = percentOf(uncachedInput, span.totalTokens)
-  const cachedWidth = percentOf(span.cachedInputTokens, span.totalTokens)
-  const outputWidth = percentOf(span.outputTokens, span.totalTokens)
+  const inputWidth = span.totalTokens === 0 ? 0 : (uncachedInput / span.totalTokens) * 100
+  const cachedWidth = span.totalTokens === 0 ? 0 : (span.cachedInputTokens / span.totalTokens) * 100
+  const outputWidth = span.totalTokens === 0 ? 0 : (span.outputTokens / span.totalTokens) * 100
 
   return (
     <section className="bg-muted/10 mb-5 rounded-md p-4">
@@ -1342,7 +1363,10 @@ function TracePagination({
   hasNextPage: boolean
   nextPageToken: string
 }) {
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
 
   return (
     <Pagination className="mx-0 ml-auto w-fit justify-end" data-pending={pending}>

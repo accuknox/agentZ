@@ -37,7 +37,7 @@ import {
   type WatchWorkflowRunsResponse,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -193,7 +193,10 @@ export function RunsTable({
       staleTime: Infinity,
     })
   )
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
   const router = useRouter()
   const rows = query.data ?? workflowRuns
   const columns = React.useMemo<ColumnDef<WorkflowRunSummary>[]>(

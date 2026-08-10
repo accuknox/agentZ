@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { DeleteSandboxFormState } from "@/data/types"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import type { Route } from "next"
 
@@ -56,7 +56,10 @@ export function SandboxTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
   const router = useRouter()
   const columns = React.useMemo(
     () => createSandboxColumns(basePath, deleteSandboxAction),

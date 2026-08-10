@@ -1428,7 +1428,6 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
-      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated process observability events.
@@ -1436,6 +1435,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListProcessObservabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/lens/{agentName}/observability/process/summary:
+    get:
+      operationId: listProcessObservabilitySummary
+      summary: List paginated process observability summaries.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/EventTimeAfterRequiredQuery'
+      - $ref: '#/components/parameters/EventTimeBeforeRequiredQuery'
+      - $ref: '#/components/parameters/ActionQuery'
+      responses:
+        '200':
+          description: Paginated process observability summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListProcessObservabilitySummaryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1455,7 +1480,6 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
-      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated file observability events.
@@ -1463,6 +1487,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListFileObservabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/lens/{agentName}/observability/file/summary:
+    get:
+      operationId: listFileObservabilitySummary
+      summary: List paginated file observability summaries.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/EventTimeAfterRequiredQuery'
+      - $ref: '#/components/parameters/EventTimeBeforeRequiredQuery'
+      - $ref: '#/components/parameters/ActionQuery'
+      responses:
+        '200':
+          description: Paginated file observability summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListFileObservabilitySummaryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1482,7 +1532,6 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
-      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated network observability events.
@@ -1490,6 +1539,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListNetworkObservabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/lens/{agentName}/observability/network/summary:
+    get:
+      operationId: listNetworkObservabilitySummary
+      summary: List paginated network observability summaries.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/EventTimeAfterRequiredQuery'
+      - $ref: '#/components/parameters/EventTimeBeforeRequiredQuery'
+      - $ref: '#/components/parameters/ActionQuery'
+      responses:
+        '200':
+          description: Paginated network observability summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListNetworkObservabilitySummaryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -3428,6 +3503,24 @@ components:
         type: string
         format: date-time
 
+    EventTimeAfterRequiredQuery:
+      name: event_time_after
+      in: query
+      required: true
+      description: Inclusive lower bound for event time.
+      schema:
+        type: string
+        format: date-time
+
+    EventTimeBeforeRequiredQuery:
+      name: event_time_before
+      in: query
+      required: true
+      description: Inclusive upper bound for event time.
+      schema:
+        type: string
+        format: date-time
+
     ActionQuery:
       name: action
       in: query
@@ -3435,15 +3528,6 @@ components:
       description: Optional observability action filter.
       schema:
         $ref: '#/components/schemas/ObservabilityAction'
-
-    AggregatedQuery:
-      name: aggregated
-      in: query
-      required: false
-      description: When true, returns aggregated events with occurrence counts over the time range.
-      schema:
-        type: boolean
-        default: false
 
     FromDateQuery:
       name: from
@@ -3867,6 +3951,8 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         inference_pool_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
+        observability_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         workspace_admin_count:
           type: integer
           format: int64
@@ -3895,6 +3981,7 @@ components:
       - sandbox_capabilities
       - inference_provider_capabilities
       - inference_pool_capabilities
+      - observability_capabilities
 
     ListWorkspacesResponse:
       type: object
@@ -5853,9 +5940,19 @@ components:
         events:
           type: array
           items:
-            oneOf:
-            - $ref: '#/components/schemas/ProcessObservabilityEvent'
-            - $ref: '#/components/schemas/ProcessObservabilityEventAggregated'
+            $ref: '#/components/schemas/ProcessObservabilityEvent'
+        next_page_token:
+          type: string
+      required: [events, next_page_token]
+
+    ListProcessObservabilitySummaryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -5943,9 +6040,19 @@ components:
         events:
           type: array
           items:
-            oneOf:
-            - $ref: '#/components/schemas/FileObservabilityEvent'
-            - $ref: '#/components/schemas/FileObservabilityEventAggregated'
+            $ref: '#/components/schemas/FileObservabilityEvent'
+        next_page_token:
+          type: string
+      required: [events, next_page_token]
+
+    ListFileObservabilitySummaryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -6033,9 +6140,19 @@ components:
         events:
           type: array
           items:
-            oneOf:
-            - $ref: '#/components/schemas/NetworkObservabilityEvent'
-            - $ref: '#/components/schemas/NetworkObservabilityEventAggregated'
+            $ref: '#/components/schemas/NetworkObservabilityEvent'
+        next_page_token:
+          type: string
+      required: [events, next_page_token]
+
+    ListNetworkObservabilitySummaryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetworkObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]

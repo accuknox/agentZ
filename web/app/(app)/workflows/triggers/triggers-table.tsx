@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
 import { formatAge } from "@/lib/format"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -104,7 +104,10 @@ export function ScheduleTriggersTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at", desc: true }])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
   const router = useRouter()
   const columns = React.useMemo<ColumnDef<WorkflowSchedule>[]>(
     () =>

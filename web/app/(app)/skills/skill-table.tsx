@@ -18,7 +18,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
+import { useTokenPagination } from "@/lib/use-token-pagination"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -79,7 +79,10 @@ export function SkillTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
+  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+    pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
   const columns = React.useMemo(
     () =>
       createSkillColumns({

@@ -307,6 +307,17 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
+	_, err = q.GatewayLockActiveWorkspace(r.Context(), gatewaydb.GatewayLockActiveWorkspaceParams{
+		ID: access.workspaceID, OrganizationID: access.claims.TenantID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, r, resourceForbidden(errors.New("Agent creation requires an active Workspace")))
+		return
+	}
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("lock Agent Workspace: %w", err))
+		return
+	}
 	_, err = q.GatewayLockActiveOrganizationMember(
 		r.Context(),
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
@@ -319,6 +330,20 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("lock Agent creator membership: %w", err))
+		return
+	}
+	effective, err := authorization.New(q).Resolve(r.Context(), authorization.Subject{
+		UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+	})
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("recheck Agent creation authority: %w", err))
+		return
+	}
+	if !effective.Allows(authorization.Scope{
+		OrganizationID: access.claims.TenantID,
+		WorkspaceID:    access.workspaceID,
+	}, authorization.OperationCreateAgent) {
+		writeError(w, r, resourceForbidden(errors.New("Agent creation authority was revoked")))
 		return
 	}
 
@@ -701,6 +726,17 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
+	_, err = q.GatewayLockActiveWorkspace(r.Context(), gatewaydb.GatewayLockActiveWorkspaceParams{
+		ID: access.workspaceID, OrganizationID: access.claims.TenantID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, r, resourceForbidden(errors.New("Agent ownership transfer requires an active Workspace")))
+		return
+	}
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("lock Agent Workspace: %w", err))
+		return
+	}
 	_, err = q.GatewayLockActiveOrganizationMember(
 		r.Context(),
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
@@ -905,10 +941,10 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 
 	row, err := s.createAgentShare(
 		r.Context(), r, access, agentName, targetUser, targetTeam, caps,
-		authority == agentShareAll,
 	)
 	if err != nil {
-		if errors.Is(err, errAgentShareIssuedByOther) {
+		if errors.Is(err, errAgentShareIssuedByOther) ||
+			errors.Is(err, errAgentShareAuthorityRevoked) {
 			writeError(w, r, resourceForbidden(err))
 			return
 		}
@@ -1343,9 +1379,12 @@ func agentShareOperation(cap gatewayapi.AgentShareCapability) (authorization.Ope
 	}
 }
 
-var errAgentShareIssuedByOther = errors.New("delegated sharers cannot replace shares issued by another user")
+var (
+	errAgentShareAuthorityRevoked = errors.New("Agent Share authority was revoked")
+	errAgentShareIssuedByOther    = errors.New("delegated sharers cannot replace shares issued by another user")
+)
 
-func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access resourceAccess, agentName string, targetUser pgtype.Text, targetTeam pgtype.Text, caps []gatewaydb.AgentShareCapability, manageAll bool) (gatewayapi.AgentShare, error) {
+func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access resourceAccess, agentName string, targetUser pgtype.Text, targetTeam pgtype.Text, caps []gatewaydb.AgentShareCapability) (gatewayapi.AgentShare, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return gatewayapi.AgentShare{}, fmt.Errorf("begin Agent Share transaction: %w", err)
@@ -1353,6 +1392,107 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 	defer tx.Rollback(ctx)
 
 	q := gatewaydb.New(tx)
+	_, err = q.GatewayLockActiveWorkspace(ctx, gatewaydb.GatewayLockActiveWorkspaceParams{
+		ID: access.workspaceID, OrganizationID: access.claims.TenantID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
+	}
+	if err != nil {
+		return gatewayapi.AgentShare{}, fmt.Errorf("lock Agent Share Workspace: %w", err)
+	}
+	if targetTeam.Valid {
+		_, err = q.GatewayLockTeam(ctx, gatewaydb.GatewayLockTeamParams{
+			TeamID: targetTeam.String, OrganizationID: access.claims.TenantID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
+		}
+		if err != nil {
+			return gatewayapi.AgentShare{}, fmt.Errorf("lock Agent Share Team: %w", err)
+		}
+	}
+	_, err = q.GatewayLockActiveOrganizationMember(
+		ctx,
+		gatewaydb.GatewayLockActiveOrganizationMemberParams{
+			UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+		},
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
+	}
+	if err != nil {
+		return gatewayapi.AgentShare{}, fmt.Errorf("lock Agent Share actor: %w", err)
+	}
+	owner, err := q.GatewayLockAgentOwner(ctx, gatewaydb.GatewayLockAgentOwnerParams{
+		OrganizationID: access.claims.TenantID,
+		WorkspaceID:    access.workspaceID,
+		AgentName:      agentName,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
+	}
+	if err != nil {
+		return gatewayapi.AgentShare{}, fmt.Errorf("lock Agent Share owner: %w", err)
+	}
+	effective, err := authorization.New(q).Resolve(ctx, authorization.Subject{
+		UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+	})
+	if err != nil {
+		return gatewayapi.AgentShare{}, fmt.Errorf("recheck Agent Share authority: %w", err)
+	}
+	scope := authorization.Scope{
+		OrganizationID: access.claims.TenantID,
+		WorkspaceID:    access.workspaceID,
+	}
+	manageAll := effective.CanAdminister(scope) ||
+		(owner.OwnerUserID == access.claims.UserID &&
+			effective.Allows(scope, authorization.OperationShareAuthoredAgent))
+	if !manageAll {
+		delegated, err := q.GatewayAgentShareCapabilityExists(
+			ctx,
+			gatewaydb.GatewayAgentShareCapabilityExistsParams{
+				Capability:     gatewaydb.AgentShareCapabilityShareNonAuthored,
+				OrganizationID: access.claims.TenantID,
+				WorkspaceID:    access.workspaceID,
+				AgentName:      agentName,
+				UserID: pgtype.Text{
+					String: access.claims.UserID,
+					Valid:  true,
+				},
+			},
+		)
+		if err != nil {
+			return gatewayapi.AgentShare{}, fmt.Errorf("recheck delegated Agent Share: %w", err)
+		}
+		if !delegated || !effective.Allows(scope, authorization.OperationShareNonAuthoredAgent) {
+			return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
+		}
+		for _, cap := range caps {
+			apiCap, ok := agentShareAPICapability(cap)
+			if !ok {
+				return gatewayapi.AgentShare{}, fmt.Errorf("unknown Agent Share capability %q", cap)
+			}
+			operation, ok := agentShareOperation(apiCap)
+			if !ok || !effective.Allows(scope, operation) {
+				return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
+			}
+			allowed, err := q.GatewayAgentShareCapabilityExists(
+				ctx,
+				gatewaydb.GatewayAgentShareCapabilityExistsParams{
+					Capability: cap, OrganizationID: access.claims.TenantID,
+					WorkspaceID: access.workspaceID, AgentName: agentName,
+					UserID: pgtype.Text{String: access.claims.UserID, Valid: true},
+				},
+			)
+			if err != nil {
+				return gatewayapi.AgentShare{}, fmt.Errorf("recheck delegated Agent Share capability: %w", err)
+			}
+			if !allowed {
+				return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
+			}
+		}
+	}
 	shares, err := q.GatewayLockAgentShares(ctx, gatewaydb.GatewayLockAgentSharesParams{
 		OrganizationID: access.claims.TenantID,
 		WorkspaceID:    access.workspaceID,

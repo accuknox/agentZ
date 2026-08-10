@@ -14,7 +14,7 @@ export default async function TeamSummaryPage({
   return (
     <div className="flex flex-col gap-6">
       <TeamForm data={data} orgSlug={orgSlug} />
-      <TeamDelete name={data.team.name} orgSlug={orgSlug} teamId={teamId} />
+      <TeamDelete orgSlug={orgSlug} teamId={teamId} />
     </div>
   )
 }

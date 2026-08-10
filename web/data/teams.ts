@@ -6,6 +6,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
+import { analyzeDestructiveImpact, analyzeTeamDeletionEffects } from "@/data/operations"
 import { getAuth } from "@/lib/auth"
 
 export type TeamMember = { id: string; name: string; email: string }
@@ -63,7 +64,14 @@ async function getTeamActor(orgSlug: string, requireSuperadmin = true) {
   } satisfies TeamActor
 }
 
-function teamAudit(actor: TeamActor, action: string, targetId: string, result: typeof schema.auditEvents.$inferInsert.result, before?: typeof schema.auditEvents.$inferInsert.before, after?: typeof schema.auditEvents.$inferInsert.after) {
+function teamAudit(
+  actor: TeamActor,
+  action: string,
+  targetId: string,
+  result: typeof schema.auditEvents.$inferInsert.result,
+  before?: typeof schema.auditEvents.$inferInsert.before,
+  after?: typeof schema.auditEvents.$inferInsert.after
+) {
   return {
     actorId: actor.userId,
     actorType: "user" as const,
@@ -234,9 +242,7 @@ export async function getTeamEditorData(
       createdAt: schema.teams.createdAt,
     })
     .from(schema.teams)
-    .where(
-      and(eq(schema.teams.id, teamId), eq(schema.teams.organizationId, actor.organizationId))
-    )
+    .where(and(eq(schema.teams.id, teamId), eq(schema.teams.organizationId, actor.organizationId)))
     .limit(1)
   if (!team) return data
 
@@ -274,7 +280,12 @@ export async function getTeamEditorData(
   }
 }
 
-async function accessPreview(db: TeamDatabase, actor: TeamActor, memberIds: string[], roleIds: string[]) {
+async function accessPreview(
+  db: TeamDatabase,
+  actor: TeamActor,
+  memberIds: string[],
+  roleIds: string[]
+) {
   const selectedMembers = [...new Set(memberIds)].sort()
   const selectedRoles = [...new Set(roleIds)].sort()
   if (!selectedMembers.length || !selectedRoles.length) return
@@ -349,13 +360,16 @@ async function accessPreview(db: TeamDatabase, actor: TeamActor, memberIds: stri
     )
     .digest("hex")
   const rows = roles.map((role) => {
-    const permissions = [
-      ...new Set(
-        grants
-          .filter(({ roleId }) => roleId === role.id)
-          .map(({ resource, action }) => `${resource}:${action}`)
-      ),
-    ].sort().join(", ") || "No permissions"
+    const permissions =
+      [
+        ...new Set(
+          grants
+            .filter(({ roleId }) => roleId === role.id)
+            .map(({ resource, action }) => `${resource}:${action}`)
+        ),
+      ]
+        .sort()
+        .join(", ") || "No permissions"
     return {
       id: role.id,
       label: role.name,
@@ -365,12 +379,25 @@ async function accessPreview(db: TeamDatabase, actor: TeamActor, memberIds: stri
   return { fingerprint, rows } satisfies TeamAccessPreview
 }
 
-export async function previewTeamAccess(orgSlug: string, input: { memberIds: string[]; roleIds: string[] }) {
+export async function previewTeamAccess(
+  orgSlug: string,
+  input: { memberIds: string[]; roleIds: string[] }
+) {
   const actor = await getTeamActor(orgSlug)
   return actor ? accessPreview(getDB(), actor, input.memberIds, input.roleIds) : undefined
 }
 
-export async function saveTeam(orgSlug: string, teamId: string | undefined, input: { name: string; memberIds: string[]; roleIds: string[]; updatedAt?: string; previewFingerprint: string }) {
+export async function saveTeam(
+  orgSlug: string,
+  teamId: string | undefined,
+  input: {
+    name: string
+    memberIds: string[]
+    roleIds: string[]
+    updatedAt?: string
+    previewFingerprint: string
+  }
+) {
   const actor = await getTeamActor(orgSlug, false)
   if (!actor) return { error: "forbidden" as const }
 
@@ -381,16 +408,14 @@ export async function saveTeam(orgSlug: string, teamId: string | undefined, inpu
       .where(eq(schema.organizations.id, actor.organizationId))
       .for("update")
     if (!(await isSuperadmin(tx, actor))) {
-      await tx.insert(schema.auditEvents).values(
-        teamAudit(actor, teamId ? "team.update" : "team.create", teamId ?? "new", "denied")
-      )
+      await tx
+        .insert(schema.auditEvents)
+        .values(teamAudit(actor, teamId ? "team.update" : "team.create", teamId ?? "new", "denied"))
       return { error: "forbidden" as const }
     }
     const action = teamId ? "team.update" : "team.create"
     const attempt = (result: "failed" | "denied") =>
-      tx
-        .insert(schema.auditEvents)
-        .values(teamAudit(actor, action, teamId ?? "new", result))
+      tx.insert(schema.auditEvents).values(teamAudit(actor, action, teamId ?? "new", result))
     const preview = await accessPreview(tx, actor, input.memberIds, input.roleIds)
     if (!preview) {
       await attempt("failed")
@@ -506,6 +531,20 @@ export async function saveTeam(orgSlug: string, teamId: string | undefined, inpu
         ])
       : [[], []]
 
+    const affectedMemberIds = [
+      ...new Set([...memberIds, ...currentMembers.map(({ memberId }) => memberId)]),
+    ]
+    await tx
+      .select({ id: schema.members.id })
+      .from(schema.members)
+      .where(
+        and(
+          eq(schema.members.organizationId, actor.organizationId),
+          inArray(schema.members.id, affectedMemberIds)
+        )
+      )
+      .for("update")
+
     if (teamId) {
       await tx
         .update(schema.teams)
@@ -523,12 +562,14 @@ export async function saveTeam(orgSlug: string, teamId: string | undefined, inpu
 
     await tx.delete(schema.teamMembers).where(eq(schema.teamMembers.teamId, team.id))
     await tx.delete(schema.teamRoles).where(eq(schema.teamRoles.teamId, team.id))
-    await tx.insert(schema.teamMembers).values(
-      selectedMembers.map(({ userId }) => ({ id: randomUUID(), teamId: team.id, userId }))
-    )
-    await tx.insert(schema.teamRoles).values(
-      roleIds.map((roleId) => ({ teamId: team.id, roleId, organizationId: actor.organizationId }))
-    )
+    await tx
+      .insert(schema.teamMembers)
+      .values(selectedMembers.map(({ userId }) => ({ id: randomUUID(), teamId: team.id, userId })))
+    await tx
+      .insert(schema.teamRoles)
+      .values(
+        roleIds.map((roleId) => ({ teamId: team.id, roleId, organizationId: actor.organizationId }))
+      )
     await tx.insert(schema.auditEvents).values(
       teamAudit(
         actor,
@@ -538,7 +579,10 @@ export async function saveTeam(orgSlug: string, teamId: string | undefined, inpu
         teamId
           ? [
               { field: "name", value: team.name },
-              ...currentMembers.map(({ userId }) => ({ field: "user_id" as const, value: userId })),
+              ...currentMembers.map(({ userId }) => ({
+                field: "user_id" as const,
+                value: userId,
+              })),
               ...currentRoles.map(({ roleId }) => ({ field: "role" as const, value: roleId })),
             ]
           : undefined,
@@ -552,14 +596,17 @@ export async function saveTeam(orgSlug: string, teamId: string | undefined, inpu
     return {
       organizationId: actor.organizationId,
       teamId: team.id,
-      affectedMemberIds: [
-        ...new Set([...memberIds, ...currentMembers.map(({ memberId }) => memberId)]),
-      ],
+      affectedMemberIds,
     }
   })
 }
 
-export async function deleteTeam(orgSlug: string, teamId: string) {
+export async function deleteTeam(
+  orgSlug: string,
+  teamId: string,
+  confirmation: string,
+  fingerprint: string
+) {
   const actor = await getTeamActor(orgSlug, false)
   if (!actor) return { error: "forbidden" as const }
   return getDB().transaction(async (tx) => {
@@ -581,25 +628,141 @@ export async function deleteTeam(orgSlug: string, teamId: string) {
       await tx.insert(schema.auditEvents).values(teamAudit(actor, "team.delete", team.id, "denied"))
       return { error: "forbidden" as const }
     }
-    const affected = await tx
-      .select({ memberId: schema.members.id })
+    const teamUsers = await tx
+      .select({ userId: schema.teamMembers.userId })
       .from(schema.teamMembers)
-      .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
+      .where(eq(schema.teamMembers.teamId, team.id))
+    if (teamUsers.length) {
+      await tx
+        .select({ id: schema.members.id })
+        .from(schema.members)
+        .where(
+          and(
+            eq(schema.members.organizationId, actor.organizationId),
+            inArray(
+              schema.members.userId,
+              teamUsers.map(({ userId }) => userId)
+            )
+          )
+        )
+        .for("update")
+    }
+    let effects = await analyzeTeamDeletionEffects(tx, actor.organizationId, team.id)
+    if (!effects) return { error: "not-found" as const }
+    if (effects.agents.length) {
+      await tx
+        .select({ agentName: schema.agentOwners.agentName })
+        .from(schema.agentOwners)
+        .where(
+          and(
+            eq(schema.agentOwners.organizationId, actor.organizationId),
+            or(
+              ...effects.agents.map((agent) =>
+                and(
+                  eq(schema.agentOwners.workspaceId, agent.workspaceId),
+                  eq(schema.agentOwners.agentName, agent.agentName)
+                )
+              )
+            )
+          )
+        )
+        .for("update")
+      effects = await analyzeTeamDeletionEffects(tx, actor.organizationId, team.id)
+      if (!effects) return { error: "not-found" as const }
+    }
+    const target = { operation: "team_delete", targetId: team.id, targetType: "team" } as const
+    const impact = await analyzeDestructiveImpact(tx, actor.organizationId, orgSlug, target)
+    if (!impact) return { error: "not-found" as const }
+    if (impact.confirmation !== confirmation || impact.fingerprint !== fingerprint) {
+      return { error: "stale-preview" as const }
+    }
+    const now = new Date()
+    if (effects.keys.length) {
+      const keyIds = effects.keys.map(({ id }) => id)
+      await tx
+        .update(schema.apiKeyScopes)
+        .set({ revokedAt: now, revokedReason: `Team ${team.name} deletion removed access.` })
+        .where(
+          and(
+            eq(schema.apiKeyScopes.organizationId, actor.organizationId),
+            inArray(schema.apiKeyScopes.apiKeyId, keyIds),
+            isNull(schema.apiKeyScopes.revokedAt)
+          )
+        )
+      await tx
+        .update(schema.apikeys)
+        .set({ enabled: false, updatedAt: now })
+        .where(
+          and(
+            eq(schema.apikeys.referenceId, actor.organizationId),
+            inArray(schema.apikeys.id, keyIds)
+          )
+        )
+    }
+    if (effects.agents.length) {
+      await tx
+        .delete(schema.agentOwners)
+        .where(
+          and(
+            eq(schema.agentOwners.organizationId, actor.organizationId),
+            or(
+              ...effects.agents.map((agent) =>
+                and(
+                  eq(schema.agentOwners.workspaceId, agent.workspaceId),
+                  eq(schema.agentOwners.agentName, agent.agentName)
+                )
+              )
+            )
+          )
+        )
+    }
+    await tx
+      .delete(schema.invitationTeams)
       .where(
         and(
-          eq(schema.teamMembers.teamId, team.id),
-          eq(schema.members.organizationId, actor.organizationId)
+          eq(schema.invitationTeams.organizationId, actor.organizationId),
+          eq(schema.invitationTeams.teamId, team.id)
+        )
+      )
+    await tx
+      .delete(schema.socialAdmissionDefaultTeams)
+      .where(
+        and(
+          eq(schema.socialAdmissionDefaultTeams.organizationId, actor.organizationId),
+          eq(schema.socialAdmissionDefaultTeams.teamId, team.id)
         )
       )
     await tx.delete(schema.teams).where(eq(schema.teams.id, team.id))
-    await tx.insert(schema.auditEvents).values(
-      teamAudit(actor, "team.delete", team.id, "succeeded", [
-        { field: "name", value: team.name },
-      ])
-    )
-    return {
+    const cleanupId = `cleanup-${randomUUID()}`
+    await tx.insert(schema.cleanupJobs).values({
+      id: cleanupId,
+      operation: "team_delete",
       organizationId: actor.organizationId,
-      affectedMemberIds: affected.map(({ memberId }) => memberId),
+      payload: {
+        api_key_count: effects.keys.length,
+        operation: "team_delete",
+        owned_agent_count: effects.agents.length,
+        owned_agents: effects.agents.map((agent) => ({
+          agent_name: agent.agentName,
+          workspace_id: agent.workspaceId,
+        })),
+        revokes_authorization_first: true,
+        team_id: team.id,
+      },
+      targetId: team.id,
+      targetType: "team",
+    })
+    await tx.insert(schema.auditEvents).values({
+      ...teamAudit(actor, "team.delete", team.id, "succeeded", [
+        { field: "name", value: team.name },
+      ]),
+      automaticCascade: true,
+      cleanupJobId: cleanupId,
+    })
+    return {
+      cleanupId,
+      organizationId: actor.organizationId,
+      affectedMemberIds: effects.members.map(({ memberId }) => memberId),
     }
   })
 }

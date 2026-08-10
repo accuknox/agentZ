@@ -56,6 +56,7 @@ var (
 type cleanupJobPayload struct {
 	Operation   gatewaydb.DestructiveOperation `json:"operation"`
 	OwnedAgents []cleanupAgent                 `json:"owned_agents"`
+	WorkspaceID string                         `json:"workspace_id"`
 }
 
 type cleanupAgent struct {
@@ -459,11 +460,6 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 }
 
 func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJob) error {
-	if job.Operation != gatewaydb.DestructiveOperationMembershipDisable &&
-		job.Operation != gatewaydb.DestructiveOperationMembershipRemove {
-		return fmt.Errorf("unsupported cleanup operation %q", job.Operation)
-	}
-
 	var payload cleanupJobPayload
 	if err := json.Unmarshal(job.Payload, &payload); err != nil {
 		return fmt.Errorf("decode cleanup payload: %w", err)
@@ -474,6 +470,16 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			payload.Operation,
 			job.Operation,
 		)
+	}
+	if job.Operation == gatewaydb.DestructiveOperationWorkspaceDelete {
+		return s.processWorkspaceCleanup(ctx, job, payload)
+	}
+	if job.Operation != gatewaydb.DestructiveOperationMembershipDisable &&
+		job.Operation != gatewaydb.DestructiveOperationMembershipRemove &&
+		job.Operation != gatewaydb.DestructiveOperationTeamDelete &&
+		job.Operation != gatewaydb.DestructiveOperationRoleReduce &&
+		job.Operation != gatewaydb.DestructiveOperationAccessRevoke {
+		return fmt.Errorf("unsupported cleanup operation %q", job.Operation)
 	}
 
 	for _, agent := range payload.OwnedAgents {
@@ -616,6 +622,42 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		if err != nil {
 			return fmt.Errorf("delete Agent %q row: %w", agent.AgentName, err)
 		}
+	}
+	return nil
+}
+
+func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.CleanupJob, payload cleanupJobPayload) error {
+	if payload.WorkspaceID == "" || payload.WorkspaceID != job.TargetID {
+		return errors.New("workspace cleanup payload does not match its target")
+	}
+	workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
+		ID: payload.WorkspaceID, OrganizationID: job.OrganizationID,
+	})
+	if err != nil {
+		return fmt.Errorf("get Workspace %q for cleanup: %w", payload.WorkspaceID, err)
+	}
+	err = s.agentz.AgentzV1alpha1().Workspaces().Delete(
+		ctx,
+		workspace.Namespace,
+		metav1.DeleteOptions{PropagationPolicy: new(metav1.DeletePropagationForeground)},
+	)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete Workspace %q: %w", workspace.Namespace, err)
+	}
+	_, err = s.agentz.AgentzV1alpha1().Workspaces().Get(
+		ctx,
+		workspace.Namespace,
+		metav1.GetOptions{},
+	)
+	if err == nil {
+		return fmt.Errorf("Workspace %q cleanup is pending", workspace.Namespace)
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("confirm Workspace %q cleanup: %w", workspace.Namespace, err)
+	}
+	_, err = s.queries.GatewayDeleteWorkspaceAgents(ctx, workspace.Namespace)
+	if err != nil {
+		return fmt.Errorf("delete Workspace %q Agent rows: %w", workspace.Namespace, err)
 	}
 	return nil
 }

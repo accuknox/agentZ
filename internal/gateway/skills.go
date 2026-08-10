@@ -1199,6 +1199,20 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 			writeError(w, r, apiErr)
 			return
 		}
+		conflict, err := s.selectedOrganizationResourceConflict(
+			r.Context(), access, agentzv1alpha1.OrganizationResourceKindSkill, name,
+		)
+		if err != nil || conflict != nil {
+			auditErr := s.createSkillAudit(
+				r.Context(), r, access, name, gatewaydb.AuditResultFailed,
+			)
+			if err != nil || auditErr != nil {
+				writeInternalError(w, r, errors.Join(err, auditErr))
+				return
+			}
+			writeError(w, r, conflict)
+			return
+		}
 		item := &agentzv1alpha1.Skill{}
 		key := types.NamespacedName{Namespace: access.namespace, Name: name}
 		if err := s.k8sClient.Get(r.Context(), key, item); err != nil {

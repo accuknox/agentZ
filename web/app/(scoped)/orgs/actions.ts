@@ -5,7 +5,7 @@ import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
-import { retryDestructiveOperation } from "@/data/operations"
+import { deleteWorkspace, retryDestructiveOperation } from "@/data/operations"
 import {
   applyInvitation,
   cancelInvitation,
@@ -23,6 +23,7 @@ import {
   previewWorkspaceRole,
   saveOrganizationRole,
   saveWorkspaceRole,
+  type RoleImpact,
 } from "@/data/roles"
 import { deleteTeam, previewTeamAccess, saveTeam } from "@/data/teams"
 import {
@@ -115,6 +116,31 @@ export async function retryDestructiveOperationAction(orgSlug: string, jobId: st
   if (!("error" in result)) revalidatePath(`/orgs/${orgSlug}/destructive-operations`)
 }
 
+export async function deleteWorkspaceAction(
+  orgSlug: string,
+  workspaceSlug: string,
+  workspaceId: string,
+  formData: FormData
+) {
+  const parsed = z
+    .object({ confirmation: z.string(), fingerprint: z.string().length(64) })
+    .safeParse({
+      confirmation: formData.get("confirmation"),
+      fingerprint: formData.get("fingerprint"),
+    })
+  const root = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/settings/delete`
+  if (!parsed.success) redirect(`${root}?error=invalid` as Route)
+  const result = await deleteWorkspace(
+    orgSlug,
+    workspaceId,
+    parsed.data.confirmation,
+    parsed.data.fingerprint
+  )
+  if ("error" in result) redirect(`${root}?error=${result.error}` as Route)
+  revalidatePath(`/orgs/${orgSlug}/workspaces`)
+  redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
+}
+
 export type RenameOrganizationFormState = {
   values: {
     name: string
@@ -141,7 +167,7 @@ export type RoleFormState = {
   preview?: {
     fingerprint: string
     input: string
-    items: { id: string; label: string; detail?: string }[]
+    items: RoleImpact["items"]
     reduction: boolean
   }
 }
@@ -159,8 +185,6 @@ export type TeamFormState = {
     rows: { id: string; label: string; detail: string }[]
   }
 }
-
-export type DeleteTeamFormState = { error?: string }
 
 export type InviteMemberFormState = { error?: string; link?: string }
 
@@ -503,6 +527,9 @@ export async function organizationRoleFormAction(
   updateTag(`organization:${result.organizationId}:roles`)
   updateTag(`organization:${result.organizationId}:role:${result.roleId}`)
   revalidatePath(`/orgs/${orgSlug}/roles`)
+  if (result.cleanupId) {
+    redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
+  }
   redirect(`/orgs/${orgSlug}/roles/${result.roleId}/permissions` as Route)
 }
 
@@ -645,6 +672,9 @@ export async function workspaceRoleFormAction(
     `organization:${result.organizationId}:workspace:${result.workspaceId}:role:${result.roleId}`
   )
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
+  if (result.cleanupId) {
+    redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
+  }
   redirect(
     `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles/${result.roleId}/permissions` as Route
   )
@@ -766,21 +796,27 @@ export async function teamFormAction(
   redirect(`/orgs/${orgSlug}/teams/${result.teamId}` as Route)
 }
 
-export async function deleteTeamAction(
-  orgSlug: string,
-  teamId: string,
-  _state: DeleteTeamFormState,
-  _formData: FormData
-): Promise<DeleteTeamFormState> {
-  const result = await deleteTeam(orgSlug, teamId)
-  if ("error" in result) {
-    return { error: "The Team could not be deleted." }
-  }
+export async function deleteTeamAction(orgSlug: string, teamId: string, formData: FormData) {
+  const parsed = z
+    .object({ confirmation: z.string(), fingerprint: z.string().length(64) })
+    .safeParse({
+      confirmation: formData.get("confirmation"),
+      fingerprint: formData.get("fingerprint"),
+    })
+  const root = `/orgs/${orgSlug}/teams/${teamId}/delete`
+  if (!parsed.success) redirect(`${root}?error=invalid` as Route)
+  const result = await deleteTeam(
+    orgSlug,
+    teamId,
+    parsed.data.confirmation,
+    parsed.data.fingerprint
+  )
+  if ("error" in result) redirect(`${root}?error=${result.error}` as Route)
 
   updateTag(`organization:${result.organizationId}:teams`)
   for (const memberId of result.affectedMemberIds) {
     updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
   }
   revalidatePath(`/orgs/${orgSlug}/teams`)
-  redirect(`/orgs/${orgSlug}/teams` as Route)
+  redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
 }

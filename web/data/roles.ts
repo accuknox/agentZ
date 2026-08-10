@@ -2,10 +2,16 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import { getIp } from "better-auth/api"
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
+import {
+  analyzeRoleReductionEffects,
+  type AffectedAPIKey,
+  type CascadingAgent,
+  type WorkspaceAccessLoss,
+} from "@/data/operations"
 import { getAuth } from "@/lib/auth"
 
 export type RoleResource = typeof schema.permissionGrants.$inferSelect.resource
@@ -141,7 +147,14 @@ export type RoleDependency = {
 export type RoleImpact = {
   fingerprint: string
   grants: RoleGrant[]
-  items: { id: string; label: string; detail?: string }[]
+  items: {
+    id: string
+    label: string
+    detail?: string
+    group?: string
+    href?: string
+    severity?: "critical" | "warning" | "info"
+  }[]
   reduction: boolean
 }
 
@@ -859,9 +872,68 @@ async function previewRole(
     }
   }
 
+  const remainingWorkspaces = new Set(
+    grants.flatMap(({ workspaceId }) => (workspaceId ? [workspaceId] : []))
+  )
+  const removedWorkspaceIds = [
+    ...new Set(
+      removed.flatMap(({ workspaceId }) =>
+        workspaceId && !remainingWorkspaces.has(workspaceId) ? [workspaceId] : []
+      )
+    ),
+  ]
+  const effects = await analyzeRoleReductionEffects(
+    getDB(),
+    scope.actor.organization.id,
+    roleId,
+    removedWorkspaceIds
+  )
+  items.push(
+    ...effects.losses.map((loss) => ({
+      detail: `${loss.name} loses their final role-derived access path.`,
+      group: "Access loss",
+      href: `/orgs/${scope.actor.organization.slug}/access/${loss.memberId}?scope=${loss.workspaceId}`,
+      id: `workspace-loss:${loss.userId}:${loss.workspaceId}`,
+      label: loss.workspace,
+      severity: "critical" as const,
+    })),
+    ...effects.agents.map((agent) => ({
+      detail: `${agent.workspace}; transfer ownership before saving to preserve this Agent.`,
+      group: "Owned Agents",
+      href: `/orgs/${scope.actor.organization.slug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.agentName)}/ownership`,
+      id: `agent:${agent.workspaceId}:${agent.agentName}`,
+      label: agent.agentName,
+      severity: "critical" as const,
+    })),
+    ...effects.keys.map((key) => ({
+      detail: `${key.workspace}; access to its creator or selected target is removed.`,
+      group: "API keys",
+      href: `/orgs/${scope.actor.organization.slug}/workspaces/${key.workspaceSlug}/api-keys`,
+      id: `key:${key.id}`,
+      label: key.name,
+      severity: "critical" as const,
+    }))
+  )
+
   return {
     fingerprint: createHash("sha256")
-      .update(JSON.stringify({ roleId, updatedAt, name, grants }))
+      .update(
+        JSON.stringify({
+          roleId,
+          updatedAt,
+          name,
+          grants,
+          cascade: {
+            agents: effects.agents.map(({ agentName, workspaceId }) => ({
+              agentName,
+              workspaceId,
+            })),
+            keys: effects.keys.map(({ id }) => id),
+            losses: effects.losses.map(({ userId, workspaceId }) => ({ userId, workspaceId })),
+            memberIds: effects.memberIds,
+          },
+        })
+      )
       .digest("hex"),
     grants,
     items,
@@ -886,6 +958,12 @@ async function saveRole(
   const grants = expandPermissionGrants(input.grants)
 
   return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+
     const [authorized] = await tx
       .select({ systemRole: schema.roleScopes.systemRole })
       .from(schema.members)
@@ -951,11 +1029,6 @@ async function saveRole(
             .for("share")
         : []
       if (locked.length !== workspaceIds.length) return { error: "invalid" as const }
-      await tx
-        .select({ id: schema.organizations.id })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.id, actor.organization.id))
-        .for("update")
     }
 
     const [taken] = await tx
@@ -974,6 +1047,15 @@ async function saveRole(
     let id = roleId
     let before: { name: string; updatedAt: Date } | undefined
     let oldGrants: RoleGrantInput[] = []
+    let reduction = false
+    let cascade:
+      | {
+          agents: CascadingAgent[]
+          keys: AffectedAPIKey[]
+          losses: WorkspaceAccessLoss[]
+          memberIds: string[]
+        }
+      | undefined
     if (id) {
       ;[before] = await tx
         .select({ name: schema.roleScopes.displayName, updatedAt: schema.roleScopes.updatedAt })
@@ -1024,10 +1106,77 @@ async function saveRole(
         .from(schema.permissionGrants)
         .where(and(grantScope(scope), eq(schema.permissionGrants.roleId, id)))
       const next = new Set(grants.map(grantKey))
-      const reduction = oldGrants.some((grant) => !next.has(grantKey(grant)))
+      reduction = oldGrants.some((grant) => !next.has(grantKey(grant)))
+      const remainingWorkspaces = new Set(
+        grants.flatMap(({ workspaceId }) => (workspaceId ? [workspaceId] : []))
+      )
+      const removedWorkspaceIds = [
+        ...new Set(
+          oldGrants.flatMap(({ workspaceId }) =>
+            workspaceId && !remainingWorkspaces.has(workspaceId) ? [workspaceId] : []
+          )
+        ),
+      ]
+      cascade = await analyzeRoleReductionEffects(
+        tx,
+        actor.organization.id,
+        id,
+        removedWorkspaceIds
+      )
+      if (cascade.memberIds.length) {
+        await tx
+          .select({ id: schema.members.id })
+          .from(schema.members)
+          .where(
+            and(
+              eq(schema.members.organizationId, actor.organization.id),
+              inArray(schema.members.id, cascade.memberIds)
+            )
+          )
+          .for("update")
+      }
+      if (cascade.agents.length) {
+        await tx
+          .select({ agentName: schema.agentOwners.agentName })
+          .from(schema.agentOwners)
+          .where(
+            and(
+              eq(schema.agentOwners.organizationId, actor.organization.id),
+              or(
+                ...cascade.agents.map((agent) =>
+                  and(
+                    eq(schema.agentOwners.workspaceId, agent.workspaceId),
+                    eq(schema.agentOwners.agentName, agent.agentName)
+                  )
+                )
+              )
+            )
+          )
+          .for("update")
+      }
+      cascade = await analyzeRoleReductionEffects(
+        tx,
+        actor.organization.id,
+        id,
+        removedWorkspaceIds
+      )
       const fingerprint = createHash("sha256")
         .update(
-          JSON.stringify({ roleId: id, updatedAt: input.updatedAt, name: input.name, grants })
+          JSON.stringify({
+            roleId: id,
+            updatedAt: input.updatedAt,
+            name: input.name,
+            grants,
+            cascade: {
+              agents: cascade.agents.map(({ agentName, workspaceId }) => ({
+                agentName,
+                workspaceId,
+              })),
+              keys: cascade.keys.map(({ id: keyId }) => keyId),
+              losses: cascade.losses.map(({ userId, workspaceId }) => ({ userId, workspaceId })),
+              memberIds: cascade.memberIds,
+            },
+          })
         )
         .digest("hex")
       if (reduction && fingerprint !== input.previewFingerprint) {
@@ -1068,6 +1217,68 @@ async function saveRole(
           grants.map((grant) => ({ ...grant, organizationId: actor.organization.id, roleId: id }))
         )
     }
+    const now = new Date()
+    if (cascade?.keys.length) {
+      const keyIds = cascade.keys.map(({ id: keyId }) => keyId)
+      await tx
+        .update(schema.apiKeyScopes)
+        .set({ revokedAt: now, revokedReason: `Role ${input.name} reduction removed access.` })
+        .where(
+          and(
+            eq(schema.apiKeyScopes.organizationId, actor.organization.id),
+            inArray(schema.apiKeyScopes.apiKeyId, keyIds),
+            isNull(schema.apiKeyScopes.revokedAt)
+          )
+        )
+      await tx
+        .update(schema.apikeys)
+        .set({ enabled: false, updatedAt: now })
+        .where(
+          and(
+            eq(schema.apikeys.referenceId, actor.organization.id),
+            inArray(schema.apikeys.id, keyIds)
+          )
+        )
+    }
+    if (cascade?.agents.length) {
+      await tx
+        .delete(schema.agentOwners)
+        .where(
+          and(
+            eq(schema.agentOwners.organizationId, actor.organization.id),
+            or(
+              ...cascade.agents.map((agent) =>
+                and(
+                  eq(schema.agentOwners.workspaceId, agent.workspaceId),
+                  eq(schema.agentOwners.agentName, agent.agentName)
+                )
+              )
+            )
+          )
+        )
+    }
+    const cleanupId = reduction ? `cleanup-${randomUUID()}` : undefined
+    if (cleanupId && cascade) {
+      await tx.insert(schema.cleanupJobs).values({
+        id: cleanupId,
+        operation: "role_reduce",
+        organizationId: actor.organization.id,
+        payload: {
+          api_key_count: cascade.keys.length,
+          operation: "role_reduce",
+          owned_agent_count: cascade.agents.length,
+          owned_agents: cascade.agents.map((agent) => ({
+            agent_name: agent.agentName,
+            workspace_id: agent.workspaceId,
+          })),
+          revokes_authorization_first: true,
+          role_id: id,
+        },
+        targetId: id,
+        targetType: "role",
+        workspaceId: workspace?.id,
+      })
+    }
     await tx.insert(schema.auditEvents).values({
       actorId: actor.userId,
       actorType: "user",
@@ -1076,7 +1287,7 @@ async function saveRole(
         { field: "name", value: input.name },
         { field: "state", value: `${grants.length} Permission Grants` },
       ],
-      automaticCascade: false,
+      automaticCascade: reduction,
       before: before
         ? [
             { field: "name", value: before.name },
@@ -1084,6 +1295,7 @@ async function saveRole(
           ]
         : null,
       category: "role",
+      cleanupJobId: cleanupId,
       id: `audit-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.requestHeaders, getAuth().options),
@@ -1095,8 +1307,8 @@ async function saveRole(
       workspaceId: workspace?.id,
     })
     return workspace
-      ? { roleId: id, organizationId: actor.organization.id, workspaceId: workspace.id }
-      : { roleId: id, organizationId: actor.organization.id }
+      ? { cleanupId, roleId: id, organizationId: actor.organization.id, workspaceId: workspace.id }
+      : { cleanupId, roleId: id, organizationId: actor.organization.id }
   })
 }
 
@@ -1216,10 +1428,6 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
     if (role.systemRole === "superadmin" && selected.length === 0) {
       return { error: "final-superadmin" as const }
     }
-    if (role.systemRole === "workspace_admin" && selected.length === 0) {
-      return { error: "final-workspace-admin" as const }
-    }
-
     const current = await tx
       .select({ memberId: schema.memberRoles.memberId })
       .from(schema.memberRoles)
@@ -1306,6 +1514,12 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
 async function removeRole(scope: RoleManagement, roleId: string) {
   const { actor, workspace } = scope
   return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+
     const [role] = await tx
       .select({ immutable: schema.roleScopes.immutable, name: schema.roleScopes.displayName })
       .from(schema.roleScopes)
@@ -1398,6 +1612,14 @@ async function removeRole(scope: RoleManagement, roleId: string) {
       return { error: "forbidden" as const }
     }
 
+    await tx
+      .delete(schema.invitationRoles)
+      .where(
+        and(
+          eq(schema.invitationRoles.organizationId, actor.organization.id),
+          eq(schema.invitationRoles.roleId, roleId)
+        )
+      )
     await tx
       .delete(schema.roleScopes)
       .where(and(roleScope(scope), eq(schema.roleScopes.roleId, roleId)))

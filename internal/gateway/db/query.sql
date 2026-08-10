@@ -33,6 +33,10 @@ DELETE FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = $2;
 
+-- name: GatewayDeleteWorkspaceAgents :execrows
+DELETE FROM agents
+WHERE tenant_namespace = $1;
+
 -- name: GatewayDeleteSessionTraces :execrows
 DELETE FROM observer_traces ot
 WHERE ot.tenant_namespace = sqlc.arg(tenant_namespace)
@@ -426,6 +430,14 @@ FROM workspaces
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id);
 
+-- name: GatewayLockActiveWorkspace :one
+SELECT id
+FROM workspaces
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND deleted_at IS NULL
+FOR UPDATE;
+
 -- name: GatewayListWorkspaceInheritedResources :many
 SELECT resource, resource_name
 FROM workspace_inherited_resources
@@ -642,18 +654,6 @@ WHERE id = sqlc.arg(id)
     )
   )
   AND deleted_at IS NULL;
-
--- name: GatewayFinalizeWorkspaceDeletion :one
-UPDATE workspaces
-SET
-  failure_reason = NULL,
-  deleted_at = sqlc.arg(deleted_at),
-  updated_at = sqlc.arg(deleted_at)
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND state = 'deleting'
-  AND deleted_at IS NULL
-RETURNING *;
 
 -- name: GatewayReserveOrganizationSlug :exec
 INSERT INTO organization_slug_history(slug, organization_id)
@@ -1638,6 +1638,13 @@ SELECT EXISTS(
   WHERE id = sqlc.arg(team_id)
     AND organization_id = sqlc.arg(organization_id)
 );
+
+-- name: GatewayLockTeam :one
+SELECT id
+FROM teams
+WHERE id = sqlc.arg(team_id)
+  AND organization_id = sqlc.arg(organization_id)
+FOR SHARE;
 
 -- name: GatewayDeleteAgentShare :execrows
 DELETE FROM agent_shares

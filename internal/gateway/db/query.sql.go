@@ -1396,6 +1396,19 @@ func (q *Queries) GatewayDeleteSocialAdmissionGithubRule(ctx context.Context, ar
 	return result.RowsAffected(), nil
 }
 
+const gatewayDeleteWorkspaceAgents = `-- name: GatewayDeleteWorkspaceAgents :execrows
+DELETE FROM agents
+WHERE tenant_namespace = $1
+`
+
+func (q *Queries) GatewayDeleteWorkspaceAgents(ctx context.Context, tenantNamespace string) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteWorkspaceAgents, tenantNamespace)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayDeleteWorkspaceInheritedResources = `-- name: GatewayDeleteWorkspaceInheritedResources :execrows
 DELETE FROM workspace_inherited_resources
 WHERE workspace_id = $1
@@ -1448,44 +1461,6 @@ func (q *Queries) GatewayFailCleanupJob(ctx context.Context, arg GatewayFailClea
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const gatewayFinalizeWorkspaceDeletion = `-- name: GatewayFinalizeWorkspaceDeletion :one
-UPDATE workspaces
-SET
-  failure_reason = NULL,
-  deleted_at = $1,
-  updated_at = $1
-WHERE id = $2
-  AND organization_id = $3
-  AND state = 'deleting'
-  AND deleted_at IS NULL
-RETURNING id, organization_id, name, slug, namespace, state, failure_reason, deleted_at, created_at, updated_at, provisioning_attempt
-`
-
-type GatewayFinalizeWorkspaceDeletionParams struct {
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-}
-
-func (q *Queries) GatewayFinalizeWorkspaceDeletion(ctx context.Context, arg GatewayFinalizeWorkspaceDeletionParams) (Workspace, error) {
-	row := q.db.QueryRow(ctx, gatewayFinalizeWorkspaceDeletion, arg.DeletedAt, arg.ID, arg.OrganizationID)
-	var i Workspace
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Slug,
-		&i.Namespace,
-		&i.State,
-		&i.FailureReason,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProvisioningAttempt,
-	)
-	return i, err
 }
 
 const gatewayGetAPIKeyByHash = `-- name: GatewayGetAPIKeyByHash :one
@@ -4658,6 +4633,27 @@ func (q *Queries) GatewayLockActiveOrganizationMember(ctx context.Context, arg G
 	return id, err
 }
 
+const gatewayLockActiveWorkspace = `-- name: GatewayLockActiveWorkspace :one
+SELECT id
+FROM workspaces
+WHERE id = $1
+  AND organization_id = $2
+  AND deleted_at IS NULL
+FOR UPDATE
+`
+
+type GatewayLockActiveWorkspaceParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLockActiveWorkspaceParams) (string, error) {
+	row := q.db.QueryRow(ctx, gatewayLockActiveWorkspace, arg.ID, arg.OrganizationID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const gatewayLockAgentOwner = `-- name: GatewayLockAgentOwner :one
 SELECT
   organization_id,
@@ -4766,6 +4762,26 @@ func (q *Queries) GatewayLockOrganization(ctx context.Context, organizationID st
 	var i GatewayLockOrganizationRow
 	err := row.Scan(&i.ID, &i.Name, &i.Slug)
 	return i, err
+}
+
+const gatewayLockTeam = `-- name: GatewayLockTeam :one
+SELECT id
+FROM teams
+WHERE id = $1
+  AND organization_id = $2
+FOR SHARE
+`
+
+type GatewayLockTeamParams struct {
+	TeamID         string `json:"team_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams) (string, error) {
+	row := q.db.QueryRow(ctx, gatewayLockTeam, arg.TeamID, arg.OrganizationID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows

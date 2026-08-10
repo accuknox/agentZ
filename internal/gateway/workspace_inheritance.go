@@ -279,6 +279,12 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := gatewaydb.New(tx)
+	_, err = q.GatewayLockActiveWorkspace(ctx, gatewaydb.GatewayLockActiveWorkspaceParams{
+		ID: workspaceID, OrganizationID: claims.TenantID,
+	})
+	if err != nil {
+		return fmt.Errorf("lock Workspace inheritance: %w", err)
+	}
 	_, resource, mapped := inheritedResourceKind(resourceType)
 	if !mapped {
 		return fmt.Errorf("unknown inherited resource type %q", resourceType)

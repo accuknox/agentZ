@@ -160,6 +160,20 @@ export async function createAPIKeyFormAction(
   try {
     const hash = await defaultKeyHasher(secret)
     await getDB().transaction(async (tx) => {
+      const [workspace] = await tx
+        .select({ id: schema.workspaces.id })
+        .from(schema.workspaces)
+        .where(
+          and(
+            eq(schema.workspaces.id, scope.workspaceId),
+            eq(schema.workspaces.organizationId, authContext.organizationId),
+            isNull(schema.workspaces.deletedAt)
+          )
+        )
+        .for("update")
+        .limit(1)
+      if (!workspace) throw new Error("active Workspace is required")
+
       const [member] = await tx
         .select({ id: schema.members.id })
         .from(schema.members)
@@ -173,6 +187,10 @@ export async function createAPIKeyFormAction(
         .for("update")
         .limit(1)
       if (!member) throw new Error("active Membership is required")
+      const currentAccess = await getWorkspaceAPIKeyAccess(scope.workspaceId)
+      if (!currentAccess?.capabilities.create) {
+        throw new Error("API key creation authority was revoked")
+      }
 
       const targetAgents =
         parsed.data.type === "agent" ? agentNames : [...workflowsByAgent.keys()].toSorted()

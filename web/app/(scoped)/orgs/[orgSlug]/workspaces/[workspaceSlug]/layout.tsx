@@ -121,10 +121,13 @@ export default async function WorkspaceLayout({
     )
   }
   if (result.scope.organization.superadmin) {
-    tabs.push({
-      href: `${root}/settings/inherited` as Route,
-      label: "Inherited Resources",
-    })
+    tabs.push(
+      {
+        href: `${root}/settings/inherited` as Route,
+        label: "Inherited Resources",
+      },
+      { href: `${root}/settings/delete` as Route, label: "Delete Workspace" }
+    )
   }
   if (result.workspace.skill_capabilities.read) {
     tabs.push({ href: `${root}/skills` as Route, label: "Skills" })

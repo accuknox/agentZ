@@ -17,7 +17,7 @@ rules:
     verbs: ["create", "get", "list"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["workspaces"]
-    verbs: ["create", "get", "list", "patch", "update"]
+    verbs: ["create", "delete", "get", "list", "patch", "update"]
   - apiGroups: ["authentication.k8s.io"]
     resources: ["tokenreviews"]
     verbs: ["create"]

@@ -6,6 +6,13 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
 import {
+  applyInvitation,
+  cancelInvitation,
+  inviteMember,
+  saveSocialAdmission,
+  setMemberDisabled,
+} from "@/data/members"
+import {
   assignOrganizationRoleUsers,
   assignWorkspaceRoleUsers,
   deleteOrganizationRole,
@@ -22,6 +29,7 @@ import {
   retryWorkspaceProvisioning,
 } from "@/data/workspaces"
 import { schema } from "@/db"
+import { getEnv } from "@/lib/env"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
 import { zReplaceWorkspaceInheritedResourcesRequest } from "@/lib/gateway/client/zod.gen"
 import type { InheritedResourceType } from "@/lib/gateway/client"
@@ -112,9 +120,114 @@ export type TeamFormState = {
 
 export type DeleteTeamFormState = { error?: string }
 
+export type InviteMemberFormState = { error?: string; link?: string }
+
+export type SocialAdmissionFormState = { error?: string }
+
 export async function switchOrganizationAction(organizationId: string): Promise<never> {
   const destination = await switchOrganization(organizationId)
   redirect(destination ?? "/settings/account")
+}
+
+export async function inviteMemberAction(
+  orgSlug: string,
+  _state: InviteMemberFormState,
+  formData: FormData
+): Promise<InviteMemberFormState> {
+  const parsed = z
+    .object({
+      email: z.string().trim().toLowerCase().pipe(z.email()),
+      roleIds: z.array(z.string().min(1)),
+      teamIds: z.array(z.string().min(1)),
+    })
+    .safeParse({
+      email: formData.get("email"),
+      roleIds: formData.getAll("role_ids"),
+      teamIds: formData.getAll("team_ids"),
+    })
+  if (!parsed.success) {
+    return { error: "Enter a valid email and select at least one Role or Team." }
+  }
+  if (parsed.data.roleIds.length + parsed.data.teamIds.length === 0) {
+    return { error: "Select at least one initial Role or Team." }
+  }
+
+  const result = await inviteMember(orgSlug, parsed.data)
+  if ("error" in result) {
+    return {
+      error:
+        result.error === "already-member"
+          ? "That email already belongs to an active Organisation Member."
+          : "Invitation could not be created.",
+    }
+  }
+
+  revalidatePath(`/orgs/${orgSlug}/users`, "page")
+  return { link: `${getEnv().BETTER_AUTH_URL}/accept-invitation/${result.invitationId}` }
+}
+
+export async function cancelInvitationAction(orgSlug: string, invitationId: string) {
+  await cancelInvitation(orgSlug, invitationId)
+  revalidatePath(`/orgs/${orgSlug}/users`, "page")
+}
+
+export async function setMemberDisabledAction(
+  orgSlug: string,
+  memberId: string,
+  disabled: boolean
+) {
+  const result = await setMemberDisabled(orgSlug, memberId, disabled)
+  if ("error" in result) {
+    throw new Error(
+      result.error === "final-superadmin"
+        ? "The final active Superadmin cannot be disabled."
+        : "Membership state could not be changed."
+    )
+  }
+
+  revalidatePath(`/orgs/${orgSlug}/users`, "page")
+}
+
+export async function socialAdmissionAction(
+  orgSlug: string,
+  _state: SocialAdmissionFormState,
+  formData: FormData
+): Promise<SocialAdmissionFormState> {
+  const githubOrganizations = formData.getAll("github_organization").map(String)
+  const githubTeams = formData.getAll("github_team").map(String)
+  const result = await saveSocialAdmission(orgSlug, {
+    enabled: formData.get("enabled") === "on",
+    githubRules: githubOrganizations.map((organization, index) => ({
+      organization,
+      team: githubTeams[index],
+    })),
+    googleDomains: String(formData.get("google_domains") ?? "")
+      .split(/[\s,]+/)
+      .filter(Boolean),
+    roleIds: formData.getAll("role_ids").map(String),
+    teamIds: formData.getAll("team_ids").map(String),
+  })
+  if ("error" in result) {
+    return {
+      error:
+        result.error === "default-role-required"
+          ? "Enable Social Admission only after selecting at least one default Role."
+          : "Social Admission could not be saved.",
+    }
+  }
+
+  revalidatePath(`/orgs/${orgSlug}/social-admission`, "page")
+  return {}
+}
+
+export async function acceptInvitationAction(invitationId: string): Promise<never> {
+  const result = await applyInvitation(invitationId)
+  if ("error" in result) {
+    redirect(`/accept-invitation/${invitationId}?error=${result.error}` as Route)
+  }
+
+  revalidatePath("/orgs", "layout")
+  redirect(`/orgs/${result.slug}` as Route)
 }
 
 export async function renameOrganizationAction(
@@ -241,9 +354,13 @@ export async function organizationRoleFormAction(
   _state: RoleFormState,
   formData: FormData
 ): Promise<RoleFormState> {
+  const grants = z.string().safeParse(formData.get("grants"))
+  if (!grants.success) {
+    return { error: "The Permission Grant payload is invalid. Refresh and try again." }
+  }
   let rawGrants: unknown
   try {
-    rawGrants = JSON.parse(String(formData.get("grants") ?? "[]"))
+    rawGrants = JSON.parse(grants.data)
   } catch {
     return { error: "The Permission Grant payload is invalid. Refresh and try again." }
   }
@@ -289,11 +406,15 @@ export async function organizationRoleFormAction(
     }
   }
 
+  const previewFingerprint = z.string().safeParse(formData.get("preview_fingerprint"))
+  if (!previewFingerprint.success) {
+    return { error: "Review the access impact before saving this Role." }
+  }
   const result = await saveOrganizationRole(orgSlug, roleId, {
     name: parsed.data.name,
     grants: parsed.data.grants,
     updatedAt: parsed.data.updatedAt,
-    previewFingerprint: String(formData.get("preview_fingerprint") ?? ""),
+    previewFingerprint: previewFingerprint.data,
   })
   if ("error" in result) {
     if (result.error === "name-taken") {
@@ -374,9 +495,13 @@ export async function workspaceRoleFormAction(
   _state: RoleFormState,
   formData: FormData
 ): Promise<RoleFormState> {
+  const grants = z.string().safeParse(formData.get("grants"))
+  if (!grants.success) {
+    return { error: "The Permission Grant payload is invalid. Refresh and try again." }
+  }
   let rawGrants: unknown
   try {
-    rawGrants = JSON.parse(String(formData.get("grants") ?? "[]"))
+    rawGrants = JSON.parse(grants.data)
   } catch {
     return { error: "The Permission Grant payload is invalid. Refresh and try again." }
   }
@@ -421,11 +546,15 @@ export async function workspaceRoleFormAction(
     }
   }
 
+  const previewFingerprint = z.string().safeParse(formData.get("preview_fingerprint"))
+  if (!previewFingerprint.success) {
+    return { error: "Review the access impact before saving this Role." }
+  }
   const result = await saveWorkspaceRole(orgSlug, workspaceSlug, roleId, {
     name: parsed.data.name,
     grants: parsed.data.grants,
     updatedAt: parsed.data.updatedAt,
-    previewFingerprint: String(formData.get("preview_fingerprint") ?? ""),
+    previewFingerprint: previewFingerprint.data,
   })
   if ("error" in result) {
     if (result.error === "name-taken") {
@@ -466,12 +595,7 @@ export async function assignWorkspaceRoleUsersAction(
   }
   const result = await assignWorkspaceRoleUsers(orgSlug, workspaceSlug, roleId, parsed.data)
   if ("error" in result) {
-    return {
-      error:
-        result.error === "final-workspace-admin"
-          ? "At least one active Workspace Admin is required."
-          : "The Workspace Role assignments could not be saved.",
-    }
+    return { error: "The Workspace Role assignments could not be saved." }
   }
 
   updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
@@ -541,9 +665,13 @@ export async function teamFormAction(
     }
   }
 
+  const previewFingerprint = z.string().safeParse(formData.get("preview_fingerprint"))
+  if (!previewFingerprint.success) {
+    return { error: "Review the derived access before saving this Team." }
+  }
   const result = await saveTeam(orgSlug, teamId, {
     ...parsed.data,
-    previewFingerprint: String(formData.get("preview_fingerprint") ?? ""),
+    previewFingerprint: previewFingerprint.data,
   })
   if ("error" in result) {
     if (result.error === "name-taken") {

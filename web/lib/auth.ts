@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
-import { and, asc, desc, eq, gt, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
 import { APIError, BASE_ERROR_CODES } from "@better-auth/core/error"
@@ -35,6 +35,11 @@ const credentialEmailSchema = z.object({
 })
 const directOAuthStateSchema = z.object({
   agentzEnrollment: z.literal("direct"),
+})
+const socialOAuthStateSchema = z.object({
+  agentzEnrollment: z.literal("social"),
+  organizationId: z.string().min(1),
+  provider: z.enum(["github", "google"]),
 })
 const organizationAccessControl = createAccessControl(defaultStatements)
 const superadminRole = organizationAccessControl.newRole(defaultStatements)
@@ -199,10 +204,34 @@ function buildAuth() {
                 return
               }
             } else if (context?.path === "/callback/:id") {
-              const state = directOAuthStateSchema.safeParse(await getOAuthState())
-              if (!state.success) {
+              const state = await getOAuthState()
+              const direct = directOAuthStateSchema.safeParse(state)
+              if (direct.success) {
+                const organization = await getAuth().api.createOrganization({
+                  body: {
+                    name: `${user.name}'s Organisation`,
+                    slug: `org-${randomUUID()}`,
+                    userId: user.id,
+                  },
+                })
+                await getDB()
+                  .update(schema.sessions)
+                  .set({ activeOrganizationId: organization.id })
+                  .where(
+                    and(
+                      eq(schema.sessions.userId, user.id),
+                      isNull(schema.sessions.activeOrganizationId)
+                    )
+                  )
                 return
               }
+
+              const social = socialOAuthStateSchema.safeParse(state)
+              if (!social.success) {
+                return
+              }
+              await createSocialAdmissionMembership(user, social.data)
+              return
             } else {
               return
             }
@@ -279,6 +308,11 @@ function buildAuth() {
         }
 
         const newSession = ctx.context.newSession
+        const state = await getOAuthState()
+        const social = socialOAuthStateSchema.safeParse(state)
+        if (newSession?.user && social.success) {
+          await createSocialAdmissionMembership(newSession.user, social.data)
+        }
         if (!newSession?.user.twoFactorEnabled) {
           return
         }
@@ -478,6 +512,41 @@ function buildAuth() {
               })
               .onConflictDoNothing()
           },
+          afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
+            const roles = await getDB()
+              .select({ roleId: schema.invitationRoles.roleId })
+              .from(schema.invitationRoles)
+              .where(eq(schema.invitationRoles.invitationId, invitation.id))
+
+            await getDB().transaction(async (tx) => {
+              if (roles.length) {
+                await tx
+                  .insert(schema.memberRoles)
+                  .values(
+                    roles.map(({ roleId }) => ({
+                      memberId: member.id,
+                      organizationId: organization.id,
+                      roleId,
+                    }))
+                  )
+                  .onConflictDoNothing()
+              }
+              await tx.insert(schema.auditEvents).values({
+                action: "invitation.accept",
+                actorId: user.id,
+                actorType: "user",
+                after: [{ field: "user_id", value: user.id }],
+                automaticCascade: false,
+                category: "membership",
+                id: `audit-${randomUUID()}`,
+                interface: "auth",
+                organizationId: organization.id,
+                result: "succeeded",
+                targetId: invitation.id,
+                targetType: "organization_membership",
+              })
+            })
+          },
           afterCreateOrganization: async ({ member, organization }) => {
             const roleId = `superadmin:${organization.id}`
 
@@ -649,6 +718,10 @@ function buildAuth() {
             return {
               email: user.email,
               name: user.name,
+              organization_id: session.activeOrganizationId,
+              scope_id: session.activeOrganizationId,
+              scope_type: "organization",
+              selected_workspace_agent_acl: [],
               tenant_id: session.activeOrganizationId,
               user_id: user.id,
             }
@@ -666,6 +739,133 @@ function buildAuth() {
       }),
       nextCookies(), // make sure this is the last plugin in the array
     ],
+  })
+}
+
+async function createSocialAdmissionMembership(
+  user: { id: string; email: string },
+  state: z.infer<typeof socialOAuthStateSchema>
+) {
+  await getDB().transaction(async (tx) => {
+    const [policy] = await tx
+      .select({ enabled: schema.socialAdmissionPolicies.enabled })
+      .from(schema.socialAdmissionPolicies)
+      .where(eq(schema.socialAdmissionPolicies.organizationId, state.organizationId))
+      .limit(1)
+    if (!policy?.enabled) {
+      return
+    }
+
+    let admitted = false
+    if (state.provider === "google") {
+      const domain = user.email.split("@").pop()?.toLowerCase()
+      if (!domain) {
+        return
+      }
+      const [rule] = await tx
+        .select({ domain: schema.socialAdmissionGoogleDomains.domain })
+        .from(schema.socialAdmissionGoogleDomains)
+        .where(
+          and(
+            eq(schema.socialAdmissionGoogleDomains.organizationId, state.organizationId),
+            eq(schema.socialAdmissionGoogleDomains.domain, domain)
+          )
+        )
+        .limit(1)
+      admitted = Boolean(rule)
+    } else {
+      const [rule] = await tx
+        .select({ id: schema.socialAdmissionGithubRules.id })
+        .from(schema.socialAdmissionGithubRules)
+        .where(eq(schema.socialAdmissionGithubRules.organizationId, state.organizationId))
+        .limit(1)
+      admitted = Boolean(rule)
+    }
+    if (!admitted) {
+      return
+    }
+
+    const roles = await tx
+      .select({ roleId: schema.socialAdmissionDefaultRoles.roleId })
+      .from(schema.socialAdmissionDefaultRoles)
+      .where(eq(schema.socialAdmissionDefaultRoles.organizationId, state.organizationId))
+    if (roles.length === 0) {
+      return
+    }
+
+    const [existing] = await tx
+      .select({ id: schema.members.id })
+      .from(schema.members)
+      .where(
+        and(
+          eq(schema.members.organizationId, state.organizationId),
+          eq(schema.members.userId, user.id)
+        )
+      )
+      .limit(1)
+    if (existing) {
+      return
+    }
+
+    const memberId = `member-${randomUUID()}`
+    await tx.insert(schema.members).values({
+      createdAt: new Date(),
+      id: memberId,
+      organizationId: state.organizationId,
+      role: "member",
+      userId: user.id,
+    })
+    await tx.insert(schema.memberRoles).values(
+      roles.map(({ roleId }) => ({
+        memberId,
+        organizationId: state.organizationId,
+        roleId,
+      }))
+    )
+
+    const teams = await tx
+      .select({ teamId: schema.socialAdmissionDefaultTeams.teamId })
+      .from(schema.socialAdmissionDefaultTeams)
+      .where(eq(schema.socialAdmissionDefaultTeams.organizationId, state.organizationId))
+    if (teams.length) {
+      await tx
+        .insert(schema.teamMembers)
+        .values(
+          teams.map(({ teamId }) => ({
+            id: `team-member-${randomUUID()}`,
+            teamId,
+            userId: user.id,
+          }))
+        )
+        .onConflictDoNothing()
+    }
+
+    const transports = await tx
+      .select({ role: schema.organizationRoles.role })
+      .from(schema.organizationRoles)
+      .where(
+        and(
+          eq(schema.organizationRoles.organizationId, state.organizationId),
+          inArray(
+            schema.organizationRoles.id,
+            roles.map(({ roleId }) => roleId)
+          )
+        )
+      )
+    await tx
+      .update(schema.members)
+      .set({
+        role:
+          transports
+            .map(({ role: transport }) => transport)
+            .sort()
+            .join(",") || "member",
+      })
+      .where(eq(schema.members.id, memberId))
+    await tx
+      .update(schema.sessions)
+      .set({ activeOrganizationId: state.organizationId })
+      .where(and(eq(schema.sessions.userId, user.id), isNull(schema.sessions.activeOrganizationId)))
   })
 }
 

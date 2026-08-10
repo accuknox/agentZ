@@ -3,11 +3,11 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 import { getIp } from "better-auth/api"
 import { APIError } from "@better-auth/core/error"
-import { and, asc, count, desc, eq, exists, gt, inArray, isNull, or, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, exists, inArray, isNull, or, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { cache } from "react"
 import { getDB, schema } from "@/db"
-import { getOrganizationSession, resolveOrganizationSlug } from "@/data/organizations"
+import { resolveOrganizationSlug } from "@/data/organizations"
 import { analyzeDestructiveImpact, type DestructiveTarget } from "@/data/operations"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
@@ -460,6 +460,7 @@ export const getMemberAdministration = cache(
       })),
       apiKeys: apiKeys.map(({ createdAt, revokedAt, ...key }) => ({
         ...key,
+        name: key.name ?? "Unnamed API key",
         createdAt: createdAt.toISOString(),
         revokedAt: revokedAt?.toISOString() ?? null,
       })),
@@ -759,7 +760,7 @@ export async function removeMembership(
       )
       .limit(1)
     if (superadmin && !member.disabledAt) {
-      const [{ activeSuperadmins }] = await tx
+      const [superadminCount] = await tx
         .select({ activeSuperadmins: count() })
         .from(schema.members)
         .innerJoin(
@@ -783,6 +784,10 @@ export async function removeMembership(
             eq(schema.roleScopes.systemRole, "superadmin")
           )
         )
+      if (!superadminCount) {
+        throw new Error("active Superadmin count query returned no row")
+      }
+      const { activeSuperadmins } = superadminCount
       if (activeSuperadmins === 1) return { error: "final-superadmin" as const }
     }
 

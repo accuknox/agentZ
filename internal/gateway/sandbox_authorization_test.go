@@ -201,8 +201,8 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 			svc := sandboxTestService(t, queries)
 			ctx := context.Background()
 			ctx = context.WithValue(ctx, authContextKey{}, requestAuth{claims: &gatewayClaims{
-				TenantID: testOrganizationID,
-				UserID:   tt.userID,
+				OrganizationID: testOrganizationID,
+				UserID:         tt.userID,
 			}})
 			ctx = context.WithValue(ctx, tenantContextKey{}, tenantRequest{tenant: &agentzv1alpha1.Tenant{
 				Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},
@@ -263,9 +263,9 @@ func sandboxTestAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		workspaceID := r.Header.Get("X-AgentZ-Workspace-ID")
 		ctx := context.WithValue(r.Context(), authContextKey{}, requestAuth{claims: &gatewayClaims{
-			TenantID:    testOrganizationID,
-			WorkspaceID: workspaceID,
-			UserID:      testUserID,
+			OrganizationID: testOrganizationID,
+			WorkspaceID:    workspaceID,
+			UserID:         testUserID,
 		}})
 		ctx = context.WithValue(ctx, tenantContextKey{}, tenantRequest{tenant: &agentzv1alpha1.Tenant{
 			Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},

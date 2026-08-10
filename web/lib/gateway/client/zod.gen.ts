@@ -138,7 +138,7 @@ export const zResourceCapabilities = z.object({
 })
 
 export const zTenant = z.object({
-  tenant_id: z.string(),
+  organization_id: z.string(),
   namespace: z.string(),
   ready: z.boolean(),
   phase: zTenantPhase,

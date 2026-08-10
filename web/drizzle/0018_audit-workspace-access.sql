@@ -1,0 +1,1 @@
+ALTER TYPE "public"."audit_target" ADD VALUE 'workspace_access' BEFORE 'workspace';

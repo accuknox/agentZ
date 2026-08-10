@@ -1,10 +1,14 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
+import { getWorkspaceScope } from "@/data/workspaces"
 
 type ChatPageParams = Promise<{
-  name: string
+  agentName: string
+  orgSlug: string
   sessionId: string
+  workspaceSlug: string
 }>
 
 type ChatPageProps = {
@@ -12,10 +16,10 @@ type ChatPageProps = {
 }
 
 export async function generateMetadata({ params }: ChatPageProps): Promise<Metadata> {
-  const { name, sessionId } = await params
+  const { agentName, sessionId } = await params
 
   return {
-    title: `Session ${sessionId}: ${name}`,
+    title: `Session ${sessionId}: ${agentName}`,
   }
 }
 
@@ -28,14 +32,23 @@ export default async function ChatPage({ params }: ChatPageProps) {
 }
 
 async function ChatPageContent({ params }: ChatPageProps) {
-  const { name, sessionId } = await params
+  const { agentName, orgSlug, sessionId, workspaceSlug } = await params
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind !== "ready") {
+    notFound()
+  }
 
   return (
     <main
       className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0"
       data-chat-page
     >
-      <ChatShell agentName={name} sessionId={sessionId} />
+      <ChatShell
+        agentName={agentName}
+        sessionId={sessionId}
+        workspaceId={scope.workspace.id}
+        workspacePath={`/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`}
+      />
     </main>
   )
 }

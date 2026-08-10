@@ -9,13 +9,13 @@ import { signInURL } from "@/lib/sign-in-redirect"
 
 type AgentOpencodeClientOptions = {
   directory?: string
-  workspaceId?: string
+  workspaceId: string
 }
 
 // createAgentOpencodeClient builds an OpenCode SDK client for a single agent.
 export async function createAgentOpencodeClient(
   agentName: string,
-  options: AgentOpencodeClientOptions = {}
+  options: AgentOpencodeClientOptions
 ): Promise<OpencodeClient> {
   let gatewayToken: string
   try {

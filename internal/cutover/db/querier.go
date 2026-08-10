@@ -44,6 +44,7 @@ type Querier interface {
 	MoveTraceSpans(ctx context.Context, arg MoveTraceSpansParams) (int64, error)
 	MoveTraces(ctx context.Context, arg MoveTracesParams) (int64, error)
 	SetCheckpoint(ctx context.Context, arg SetCheckpointParams) (int64, error)
+	SetDefaultWorkspaceContexts(ctx context.Context, arg SetDefaultWorkspaceContextsParams) (int64, error)
 	TryLock(ctx context.Context, lockID int64) (bool, error)
 	Unlock(ctx context.Context, lockID int64) (bool, error)
 }

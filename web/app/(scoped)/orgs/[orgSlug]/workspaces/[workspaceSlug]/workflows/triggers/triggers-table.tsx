@@ -65,6 +65,7 @@ const columnClassName: Record<string, string> = {
 
 export function ScheduleTriggersTable({
   agentName,
+  basePath,
   workflows,
   workflowSchedules,
   hasNextPage,
@@ -75,6 +76,7 @@ export function ScheduleTriggersTable({
   updateWorkflowScheduleAction,
 }: {
   agentName: string
+  basePath: string
   workflows: WorkflowSummary[]
   workflowSchedules: WorkflowSchedule[]
   hasNextPage: boolean
@@ -172,7 +174,7 @@ export function ScheduleTriggersTable({
                   tabIndex={0}
                   onClick={() => {
                     router.push(
-                      `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
+                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
                     )
                   }}
                   onKeyDown={(event) => {
@@ -182,7 +184,7 @@ export function ScheduleTriggersTable({
 
                     event.preventDefault()
                     router.push(
-                      `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
+                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
                     )
                   }}
                 >

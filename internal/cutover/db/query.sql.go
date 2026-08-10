@@ -1195,6 +1195,41 @@ func (q *Queries) SetCheckpoint(ctx context.Context, arg SetCheckpointParams) (i
 	return result.RowsAffected(), nil
 }
 
+const setDefaultWorkspaceContexts = `-- name: SetDefaultWorkspaceContexts :execrows
+INSERT INTO last_accessible_contexts(
+  user_id,
+  organization_id,
+  workspace_id,
+  route
+)
+SELECT
+  members.user_id,
+  members.organization_id,
+  $1,
+  $2
+FROM members
+WHERE members.organization_id = $3
+  AND members.disabled_at IS NULL
+ON CONFLICT (user_id, organization_id) DO UPDATE SET
+  workspace_id = EXCLUDED.workspace_id,
+  route = EXCLUDED.route,
+  updated_at = now()
+`
+
+type SetDefaultWorkspaceContextsParams struct {
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	Route          string      `json:"route"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+func (q *Queries) SetDefaultWorkspaceContexts(ctx context.Context, arg SetDefaultWorkspaceContextsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDefaultWorkspaceContexts, arg.WorkspaceID, arg.Route, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const tryLock = `-- name: TryLock :one
 SELECT pg_try_advisory_lock($1)
 `

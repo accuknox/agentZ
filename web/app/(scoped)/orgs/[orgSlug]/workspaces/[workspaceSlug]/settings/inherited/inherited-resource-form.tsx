@@ -122,7 +122,7 @@ export function InheritedResourceForm({
                               let pathname: string
                               switch (consumer.kind) {
                                 case "Agent":
-                                  pathname = `/agents/${encodeURIComponent(consumer.name)}/session/new`
+                                  pathname = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/agents/${encodeURIComponent(consumer.name)}/sessions/new`
                                   break
                                 case "Sandbox":
                                   pathname = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/sandboxes/update/${encodeURIComponent(consumer.name)}`

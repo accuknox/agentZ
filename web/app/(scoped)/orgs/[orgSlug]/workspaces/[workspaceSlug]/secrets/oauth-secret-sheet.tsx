@@ -115,7 +115,7 @@ const oauthDiscoveryQueryOptions = (endpointURL: string) =>
   queryOptions({
     queryKey: ["secret", "oauth-discovery", endpointURL],
     queryFn: async ({ signal }) => {
-      const response = await fetch("/secrets/oauth/discovery", {
+      const response = await fetch(`${window.location.pathname}/oauth/discovery`, {
         method: "POST",
         headers: {
           "content-type": "application/json",

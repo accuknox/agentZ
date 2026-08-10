@@ -24,7 +24,16 @@ export type EffectiveAccessSource =
       resource: "administration"
       role: string
       scope: string
-      source: "Superadmin" | "Workspace Admin"
+      source: "Superadmin"
+      workspaceId: string | null
+    }
+  | {
+      id: string
+      action: "administer"
+      resource: "administration"
+      role: string
+      scope: string
+      source: "Workspace Admin"
       workspaceId: string | null
     }
   | {
@@ -58,8 +67,16 @@ export type EffectiveAccessSource =
       agent: string
       capability: string
       scope: string
-      source: "Direct Share" | "Team Share"
-      team?: string
+      source: "Direct Share"
+      workspaceId: string
+    }
+  | {
+      id: string
+      agent: string
+      capability: string
+      scope: string
+      source: "Team Share"
+      team: string
       workspaceId: string
     }
 

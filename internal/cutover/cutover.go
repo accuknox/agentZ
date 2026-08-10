@@ -42,16 +42,15 @@ import (
 )
 
 const (
-	legacyTenantUserIDAnnotation = "agentz.accuknox.com/user-id"
-	defaultWorkspaceName         = "Default"
-	checkpointPlanned            = "planned"
-	checkpointOpenBao            = "openbao"
-	checkpointS3                 = "s3"
-	checkpointKubernetes         = "kubernetes"
-	checkpointVerified           = "verified"
-	checkpointSQL                = "sql"
-	checkpointActivated          = "activated"
-	cutoverLockID                = int64(0x41475a435554)
+	defaultWorkspaceName = "Default"
+	checkpointPlanned    = "planned"
+	checkpointOpenBao    = "openbao"
+	checkpointS3         = "s3"
+	checkpointKubernetes = "kubernetes"
+	checkpointVerified   = "verified"
+	checkpointSQL        = "sql"
+	checkpointActivated  = "activated"
+	cutoverLockID        = int64(0x41475a435554)
 )
 
 // Config contains the explicit operator inputs for one cutover run.
@@ -106,13 +105,14 @@ type TenantInventory struct {
 	Hash         string                `json:"hash"`
 }
 
-// OrganizationInventory records preserved Better Auth identity and the legacy owner.
+// OrganizationInventory records preserved Better Auth identity and the active
+// member selected to own migrated user-created resources.
 type OrganizationInventory struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Slug        string            `json:"slug"`
-	OwnerUserID string            `json:"owner_user_id"`
-	Members     []MemberInventory `json:"members"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	Slug            string            `json:"slug"`
+	MigrationUserID string            `json:"migration_user_id"`
+	Members         []MemberInventory `json:"members"`
 }
 
 // MemberInventory records preserved identity row counts without secret material.
@@ -423,9 +423,23 @@ func inventoryTenant(ctx context.Context, cfg Config, clients stores, tenant *ag
 	if sourceNamespace == "" {
 		sourceNamespace = tenant.Name
 	}
-	ownerUserID, err := resolveOwner(ctx, clients.k8s, sourceNamespace, members)
-	if err != nil {
-		return TenantInventory{}, fmt.Errorf("resolve Tenant %q owner: %w", tenant.Name, err)
+	migrationUserID := ""
+	for _, member := range members {
+		if !member.DisabledAt.Valid && member.Superadmin {
+			migrationUserID = member.UserID
+			break
+		}
+	}
+	if migrationUserID == "" {
+		for _, member := range members {
+			if !member.DisabledAt.Valid {
+				migrationUserID = member.UserID
+				break
+			}
+		}
+	}
+	if migrationUserID == "" {
+		return TenantInventory{}, fmt.Errorf("Tenant %q has no active Organisation member", tenant.Name)
 	}
 	sum := sha256.Sum256([]byte(tenant.Spec.OrganizationID))
 	suffix := hex.EncodeToString(sum[:])
@@ -463,12 +477,12 @@ func inventoryTenant(ctx context.Context, cfg Config, clients stores, tenant *ag
 		clients.db,
 		tenant.Spec.OrganizationID,
 		sourceNamespace,
-		ownerUserID,
+		migrationUserID,
 	)
 	if err != nil {
 		return TenantInventory{}, err
 	}
-	kubernetes, err := inventoryKubernetes(ctx, cfg, clients.k8s, sourceNamespace, workspace.TargetNamespace, ownerUserID)
+	kubernetes, err := inventoryKubernetes(ctx, cfg, clients.k8s, sourceNamespace, workspace.TargetNamespace, migrationUserID)
 	if err != nil {
 		return TenantInventory{}, err
 	}
@@ -483,7 +497,7 @@ func inventoryTenant(ctx context.Context, cfg Config, clients stores, tenant *ag
 	inventory := TenantInventory{
 		Organization: OrganizationInventory{
 			ID: organization.ID, Name: organization.Name, Slug: organization.Slug,
-			OwnerUserID: ownerUserID, Members: memberInventory,
+			MigrationUserID: migrationUserID, Members: memberInventory,
 		},
 		Workspace:  workspace,
 		PostgreSQL: postgres,
@@ -508,39 +522,6 @@ func inventoryTenant(ctx context.Context, cfg Config, clients stores, tenant *ag
 		return TenantInventory{}, fmt.Errorf("get cutover checkpoint: %w", err)
 	}
 	return inventory, nil
-}
-
-func resolveOwner(ctx context.Context, k8s ctrlclient.Client, namespace string, members []cutoverdb.ListMembersRow) (string, error) {
-	var ns corev1.Namespace
-	if err := k8s.Get(ctx, ctrlclient.ObjectKey{Name: namespace}, &ns); err != nil {
-		return "", fmt.Errorf("get source Namespace: %w", err)
-	}
-	owner := ns.Annotations[legacyTenantUserIDAnnotation]
-	if owner != "" {
-		for _, member := range members {
-			if member.UserID == owner && !member.DisabledAt.Valid {
-				return owner, nil
-			}
-		}
-		return "", errors.New("legacy owner annotation does not identify an active Organisation member")
-	}
-	active := make([]string, 0, len(members))
-	superadmins := []string{}
-	for _, member := range members {
-		if !member.DisabledAt.Valid {
-			active = append(active, member.UserID)
-		}
-		if !member.DisabledAt.Valid && member.Superadmin {
-			superadmins = append(superadmins, member.UserID)
-		}
-	}
-	if len(superadmins) == 1 {
-		return superadmins[0], nil
-	}
-	if len(active) != 1 {
-		return "", errors.New("Tenant without an owner annotation must have exactly one active member")
-	}
-	return active[0], nil
 }
 
 func inventoryPostgreSQL(ctx context.Context, db *cutoverdb.Queries, organizationID, namespace, owner string) (PostgreSQLInventory, error) {
@@ -996,7 +977,7 @@ func createPlan(ctx context.Context, pool *pgxpool.Pool, inventory TenantInvento
 	err = db.EnsureSystemRoles(ctx, cutoverdb.EnsureSystemRolesParams{
 		OrganizationID: inventory.Organization.ID,
 		WorkspaceID:    inventory.Workspace.ID,
-		OwnerUserID:    inventory.Organization.OwnerUserID,
+		OwnerUserID:    inventory.Organization.MigrationUserID,
 	})
 	if err != nil {
 		return fmt.Errorf("assign cutover system roles: %w", err)
@@ -1010,7 +991,7 @@ func createPlan(ctx context.Context, pool *pgxpool.Pool, inventory TenantInvento
 		SourceNamespace:    inventory.Workspace.SourceNamespace,
 		WorkspaceID:        inventory.Workspace.ID,
 		TargetNamespace:    inventory.Workspace.TargetNamespace,
-		OwnerUserID:        inventory.Organization.OwnerUserID,
+		OwnerUserID:        inventory.Organization.MigrationUserID,
 		InventoryHash:      inventory.Hash,
 		BackupManifestHash: backupHash,
 		Inventory:          raw,
@@ -1135,7 +1116,7 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	}
 	source := inventory.Workspace.SourceNamespace
 	target := inventory.Workspace.TargetNamespace
-	owner := inventory.Organization.OwnerUserID
+	owner := inventory.Organization.MigrationUserID
 	create := func(object ctrlclient.Object) error {
 		object.SetNamespace(target)
 		object.SetResourceVersion("")
@@ -1318,7 +1299,7 @@ func verifyExternalStores(ctx context.Context, cfg Config, clients stores, inven
 		clients.k8s,
 		inventory.Workspace.TargetNamespace,
 		inventory.Workspace.TargetNamespace,
-		inventory.Organization.OwnerUserID,
+		inventory.Organization.MigrationUserID,
 	)
 	if err != nil {
 		return err
@@ -1418,16 +1399,28 @@ func activateSQL(ctx context.Context, pool *pgxpool.Pool, inventory TenantInvent
 	if _, err := db.EnsureAgentOwners(ctx, cutoverdb.EnsureAgentOwnersParams{
 		OrganizationID:  inventory.Organization.ID,
 		WorkspaceID:     inventory.Workspace.ID,
-		OwnerUserID:     inventory.Organization.OwnerUserID,
+		OwnerUserID:     inventory.Organization.MigrationUserID,
 		TargetNamespace: inventory.Workspace.TargetNamespace,
 	}); err != nil {
 		return fmt.Errorf("assign Agent owners: %w", err)
+	}
+	_, err = db.SetDefaultWorkspaceContexts(ctx, cutoverdb.SetDefaultWorkspaceContextsParams{
+		OrganizationID: inventory.Organization.ID,
+		WorkspaceID:    pgtype.Text{String: inventory.Workspace.ID, Valid: true},
+		Route: fmt.Sprintf(
+			"/orgs/%s/workspaces/%s",
+			inventory.Organization.Slug,
+			inventory.Workspace.Slug,
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("set Default Workspace navigation contexts: %w", err)
 	}
 	for _, key := range inventory.PostgreSQL.APIKeys {
 		rows, err := db.EnsureAPIKeyScope(ctx, cutoverdb.EnsureAPIKeyScopeParams{
 			OrganizationID: inventory.Organization.ID,
 			WorkspaceID:    inventory.Workspace.ID,
-			OwnerUserID:    inventory.Organization.OwnerUserID,
+			OwnerUserID:    inventory.Organization.MigrationUserID,
 			ApiKeyID:       key.ID,
 		})
 		if err != nil || rows != 1 {
@@ -1453,7 +1446,7 @@ func activateSQL(ctx context.Context, pool *pgxpool.Pool, inventory TenantInvent
 			verification.ReferenceID != inventory.Organization.ID ||
 			!verification.Enabled.Valid || verification.Enabled.Bool != key.Enabled ||
 			verification.WorkspaceID != inventory.Workspace.ID ||
-			verification.CreatorUserID != inventory.Organization.OwnerUserID ||
+			verification.CreatorUserID != inventory.Organization.MigrationUserID ||
 			verification.TargetCount != int32(len(key.Targets)) {
 			return fmt.Errorf("API key %q verification differs from the cutover inventory", key.ID)
 		}

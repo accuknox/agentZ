@@ -13,16 +13,16 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
-export function NavWorkflows() {
+export function NavWorkflows({ workspacePath }: { workspacePath: Route }) {
   const items = [
     {
       title: "Graph",
-      url: "/workflows/graphs",
+      url: `${workspacePath}/workflows/graphs` as Route,
       icon: Frame,
     },
     {
       title: "Triggers",
-      url: "/workflows/triggers",
+      url: `${workspacePath}/workflows/triggers` as Route,
       icon: Zap,
     },
   ] satisfies { title: string; url: Route; icon: typeof Frame }[]

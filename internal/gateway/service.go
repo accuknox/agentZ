@@ -702,6 +702,7 @@ func (s *Service) routes() http.Handler {
 		BaseRouter:       apiRouter,
 		ErrorHandlerFunc: s.handleRouteError,
 		Middlewares: []gatewayapi.MiddlewareFunc{
+			requireExplicitCapability,
 			requireTenantRequest(s),
 			requireAgentBoundAccess(s),
 		},
@@ -756,13 +757,31 @@ func requestLog(next http.Handler) http.Handler {
 	})
 }
 
-// gatewayClaims binds identity to a selected scope. Capabilities and built-in
-// bypass are intentionally resolved from PostgreSQL for every request.
+type gatewayScopeType string
+
+const (
+	gatewayScopeOrganization gatewayScopeType = "organization"
+	gatewayScopeWorkspace    gatewayScopeType = "workspace"
+)
+
+type gatewayAgentAccess struct {
+	AgentName    string                           `json:"agent_name"`
+	Capabilities []gatewaydb.AgentShareCapability `json:"capabilities"`
+	Owner        bool                             `json:"owner"`
+}
+
+// gatewayClaims binds identity and its issuance-time authority snapshot to one
+// selected scope. Handlers still resolve PostgreSQL authority for revocation.
 type gatewayClaims struct {
 	jwt.RegisteredClaims
-	TenantID    string `json:"tenant_id"`
-	WorkspaceID string `json:"workspace_id"`
-	UserID      string `json:"user_id"`
+	OrganizationID       string                `json:"organization_id"`
+	ScopeType            gatewayScopeType      `json:"scope_type"`
+	ScopeID              string                `json:"scope_id"`
+	UserID               string                `json:"user_id"`
+	Capabilities         *[]string             `json:"capabilities"`
+	AdministrativeBypass *bool                 `json:"administrative_bypass"`
+	AgentACL             *[]gatewayAgentAccess `json:"agent_acl"`
+	WorkspaceID          string                `json:"-"`
 }
 
 func newExternalJWTKeyfunc(ctx context.Context, jwksURL string) (jwt.Keyfunc, error) {

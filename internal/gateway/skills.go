@@ -158,7 +158,7 @@ func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess
 	selected, err := s.selectedOrganizationResourceNames(
 		ctx,
 		access.workspaceID,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 		agentzv1alpha1.OrganizationResourceKindSkill,
 	)
 	if err != nil {
@@ -169,7 +169,7 @@ func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess
 	}
 	organizationNamespace := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 	)
 	skills := &agentzv1alpha1.SkillList{}
 	if err := s.k8sClient.List(ctx, skills, ctrlclient.InNamespace(organizationNamespace)); err != nil {
@@ -207,7 +207,7 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request, params gat
 	}
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, "", authorization.OperationCreateSkill)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createSkillAudit(r.Context(), r, access, req.Name, access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
@@ -281,7 +281,7 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 	}
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, skillName, authorization.OperationUpdateSkill)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createSkillAudit(r.Context(), r, access, skillName, access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
@@ -376,7 +376,7 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 	}
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, skillName, authorization.OperationDeleteSkill)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createSkillAudit(r.Context(), r, access, skillName, access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
@@ -470,7 +470,7 @@ func (s *Service) GetSkillReferences(w http.ResponseWriter, r *http.Request, ski
 func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences, access resourceAccess) gatewayapi.Skill {
 	refs = skillReferencesOrEmpty(refs)
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	creator := skill.Spec.CreatorUserID == access.claims.UserID &&
@@ -742,7 +742,7 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request, params ga
 	}
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, "", authorization.OperationCreateSkill)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createSkillAudit(r.Context(), r, access, "import", access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
@@ -1189,7 +1189,7 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 	for _, name := range names {
 		access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, name, authorization.OperationDeleteSkill)
 		if apiErr != nil {
-			if access.claims.TenantID != "" {
+			if access.claims.OrganizationID != "" {
 				err := s.createSkillAudit(r.Context(), r, access, name, access.failureResult())
 				if err != nil {
 					writeInternalError(w, r, err)
@@ -1340,7 +1340,7 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 	}
 	items := make([]gatewayapi.ImmutableSkillSummary, 0, end-start)
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	for _, item := range filtered[start:end] {

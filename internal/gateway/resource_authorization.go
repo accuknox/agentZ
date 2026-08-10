@@ -83,7 +83,7 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 	}
 
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.TenantID,
+		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
 	})
 	if err != nil {
 		return access, newAPIError(
@@ -95,7 +95,7 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 	}
 	access.effective = effective
 	scope := authorization.Scope{
-		OrganizationID: claims.TenantID,
+		OrganizationID: claims.OrganizationID,
 		WorkspaceID:    req.workspaceID,
 	}
 	allowed := effective.Allows(scope, req.operation)
@@ -137,7 +137,7 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 				fmt.Errorf("resolve Organisation %s scope: %w", resource, err),
 			)
 		}
-		if tenant.Spec.OrganizationID != claims.TenantID {
+		if tenant.Spec.OrganizationID != claims.OrganizationID {
 			return "", metav1.OwnerReference{}, resourceForbidden(errors.New("organisation identity does not match bearer claims"))
 		}
 		return tenant.Status.Namespace, *metav1.NewControllerRef(
@@ -147,7 +147,7 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 	}
 
 	row, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-		ID: workspaceID, OrganizationID: claims.TenantID,
+		ID: workspaceID, OrganizationID: claims.OrganizationID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", metav1.OwnerReference{}, workspaceNotFound(workspaceID)
@@ -214,12 +214,12 @@ func resourceScope(workspaceID string) gatewayapi.ResourceScope {
 
 func (s *Service) resolveResourceCapabilities(ctx context.Context, claims gatewayClaims, workspaceID string) (resourceCapabilitySet, error) {
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.TenantID,
+		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
 	})
 	if err != nil {
 		return resourceCapabilitySet{}, fmt.Errorf("resolve resource capabilities: %w", err)
 	}
-	return resourceCapabilities(effective, claims.TenantID, workspaceID), nil
+	return resourceCapabilities(effective, claims.OrganizationID, workspaceID), nil
 }
 
 func resourceCapabilities(effective authorization.Effective, organizationID, workspaceID string) resourceCapabilitySet {
@@ -290,7 +290,7 @@ func (s *Service) createResourceAudit(ctx context.Context, r *http.Request, acce
 	}
 	params := gatewaydb.GatewayCreateAuditEventParams{
 		ID:               "audit-" + uuid.NewString(),
-		OrganizationID:   access.claims.TenantID,
+		OrganizationID:   access.claims.OrganizationID,
 		WorkspaceID:      workspaceID,
 		ActorType:        gatewaydb.AuditActorUser,
 		ActorID:          pgtype.Text{String: access.claims.UserID, Valid: true},

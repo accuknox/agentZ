@@ -40,7 +40,7 @@ export function createAgentColumns(
   sandboxes: Sandbox[],
   initialHasNextSandboxPage: boolean,
   initialNextSandboxPageToken: string,
-  actionScope?: AgentActionScope
+  actionScope: AgentActionScope
 ): ColumnDef<Agent>[] {
   return [
     {
@@ -111,7 +111,7 @@ function AgentActions({
   sandboxes: Sandbox[]
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
-  actionScope?: AgentActionScope
+  actionScope: AgentActionScope
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
@@ -126,14 +126,12 @@ function AgentActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {actionScope ? (
-            <DropdownMenuItem asChild>
-              <Link href={`${actionScope.basePath}/${agent.name}` as Route}>
-                <Settings />
-                Settings
-              </Link>
-            </DropdownMenuItem>
-          ) : null}
+          <DropdownMenuItem asChild>
+            <Link href={`${actionScope.basePath}/${agent.name}` as Route}>
+              <Settings />
+              Settings
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault()

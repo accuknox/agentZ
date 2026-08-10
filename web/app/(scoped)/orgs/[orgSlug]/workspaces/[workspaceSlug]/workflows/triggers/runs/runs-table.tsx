@@ -114,13 +114,16 @@ const runStatusMeta = {
 
 export function RunsTable({
   agentName,
+  basePath,
   workflowName,
   workflowRuns,
   hasNextPage,
   nextPageToken,
   deleteWorkflowRunAction,
+  workspaceId,
 }: {
   agentName: string
+  basePath: string
   workflowName: string
   workflowRuns: WorkflowRunSummary[]
   hasNextPage: boolean
@@ -131,6 +134,7 @@ export function RunsTable({
     state: DeleteWorkflowRunActionState,
     formData: FormData
   ) => Promise<DeleteWorkflowRunActionState>
+  workspaceId: string
 }) {
   "use no memo"
 
@@ -142,7 +146,7 @@ export function RunsTable({
       queryFn: streamedQuery<
         WatchWorkflowRunsResponse,
         WorkflowRunSummary[],
-        readonly ["watchWorkflowRuns", string, string, string[]]
+        readonly ["watchWorkflowRuns", string, string, string, string[]]
       >({
         initialValue: workflowRuns,
         reducer: (rows, event) => {
@@ -174,6 +178,7 @@ export function RunsTable({
             body: {
               run_names: workflowRuns.map((run) => run.name),
             },
+            headers: { "X-AgentZ-Workspace-ID": workspaceId },
             path: {
               agentName,
               workflowName,
@@ -184,7 +189,13 @@ export function RunsTable({
           return result.stream
         },
       }),
-      queryKey: ["watchWorkflowRuns", agentName, workflowName, workflowRuns.map((run) => run.name)],
+      queryKey: [
+        "watchWorkflowRuns",
+        workspaceId,
+        agentName,
+        workflowName,
+        workflowRuns.map((run) => run.name),
+      ],
       refetchOnMount: "always",
       refetchOnReconnect: "always",
       refetchOnWindowFocus: false,
@@ -203,13 +214,24 @@ export function RunsTable({
     () =>
       createColumns({
         agentName,
+        basePath,
         canGoPrevious,
         deleteWorkflowRunAction,
         goPrevious,
         pageRowCount: rows.length,
         workflowName,
+        workspaceId,
       }),
-    [agentName, canGoPrevious, deleteWorkflowRunAction, goPrevious, rows.length, workflowName]
+    [
+      agentName,
+      basePath,
+      canGoPrevious,
+      deleteWorkflowRunAction,
+      goPrevious,
+      rows.length,
+      workflowName,
+      workspaceId,
+    ]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -247,7 +269,7 @@ export function RunsTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => {
-                const graphHref = runGraphHref(agentName, workflowName, row.original.name)
+                const graphHref = runGraphHref(basePath, agentName, workflowName, row.original.name)
 
                 return (
                   <TableRow
@@ -307,13 +329,16 @@ export function RunsTable({
 
 function createColumns({
   agentName,
+  basePath,
   canGoPrevious,
   deleteWorkflowRunAction,
   goPrevious,
   pageRowCount,
   workflowName,
+  workspaceId,
 }: {
   agentName: string
+  basePath: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
@@ -324,6 +349,7 @@ function createColumns({
   goPrevious: () => void
   pageRowCount: number
   workflowName: string
+  workspaceId: string
 }): ColumnDef<WorkflowRunSummary>[] {
   return [
     {
@@ -371,12 +397,14 @@ function createColumns({
       cell: ({ row }) => (
         <RunActions
           agentName={agentName}
+          basePath={basePath}
           canGoPrevious={canGoPrevious}
           deleteWorkflowRunAction={deleteWorkflowRunAction}
           goPrevious={goPrevious}
           isOnlyRow={pageRowCount === 1}
           item={row.original}
           workflowName={workflowName}
+          workspaceId={workspaceId}
         />
       ),
     },
@@ -407,14 +435,17 @@ function RunStatusBadge({ reason, status }: { reason: string; status: WorkflowRu
 
 function RunActions({
   agentName,
+  basePath,
   canGoPrevious,
   deleteWorkflowRunAction,
   goPrevious,
   isOnlyRow,
   item,
   workflowName,
+  workspaceId,
 }: {
   agentName: string
+  basePath: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
     agentName: string,
@@ -426,16 +457,18 @@ function RunActions({
   isOnlyRow: boolean
   item: WorkflowRunSummary
   workflowName: string
+  workspaceId: string
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
   const detailQuery = useQuery(
     queryOptions({
       enabled: menuOpen,
-      queryKey: ["workflowRun", agentName, workflowName, item.name] as const,
+      queryKey: ["workflowRun", workspaceId, agentName, workflowName, item.name] as const,
       queryFn: async (): Promise<WorkflowRunDetail> => {
         const result = await getWorkflowRun({
           baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
           path: {
             agentName,
             workflowName,
@@ -471,11 +504,12 @@ function RunActions({
             <DropdownMenuGroup>
               <OpenSessionMenuItem
                 agentName={agentName}
+                basePath={basePath}
                 detail={detailQuery.data}
                 isFetching={detailQuery.isFetching}
               />
               <DropdownMenuItem asChild>
-                <Link href={runGraphHref(agentName, workflowName, item.name)}>
+                <Link href={runGraphHref(basePath, agentName, workflowName, item.name)}>
                   <GitBranch />
                   View graph
                 </Link>
@@ -503,20 +537,27 @@ function RunActions({
   )
 }
 
-function runGraphHref(agentName: string, workflowName: string, runName: string): Route {
+function runGraphHref(
+  basePath: string,
+  agentName: string,
+  workflowName: string,
+  runName: string
+): Route {
   const params = new URLSearchParams()
   params.set("agent_name", agentName)
   params.set("workflow_name", workflowName)
   params.set("run_name", runName)
-  return `/workflows/triggers/runs/graph?${params.toString()}` as Route
+  return `${basePath}/workflows/triggers/runs/graph?${params.toString()}` as Route
 }
 
 function OpenSessionMenuItem({
   agentName,
+  basePath,
   detail,
   isFetching,
 }: {
   agentName: string
+  basePath: string
   detail?: WorkflowRunDetail
   isFetching: boolean
 }) {
@@ -539,7 +580,7 @@ function OpenSessionMenuItem({
   }
 
   const sessionHref =
-    `/agents/${encodeURIComponent(agentName)}/${encodeURIComponent(detail.session_id)}` as Route
+    `${basePath}/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(detail.session_id)}` as Route
 
   return (
     <DropdownMenuItem asChild>

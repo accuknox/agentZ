@@ -38,6 +38,13 @@ const directOAuthStateSchema = z.object({
 })
 const organizationAccessControl = createAccessControl(defaultStatements)
 const superadminRole = organizationAccessControl.newRole(defaultStatements)
+const memberRole = organizationAccessControl.newRole({
+  organization: [],
+  member: [],
+  invitation: [],
+  team: [],
+  ac: [],
+})
 
 const disabledAuthPaths = [
   // Workspace capabilities and typed targets govern durable credentials.
@@ -457,6 +464,7 @@ function buildAuth() {
           enabled: true,
         },
         roles: {
+          member: memberRole,
           superadmin: superadminRole,
         },
         organizationHooks: {
@@ -482,31 +490,6 @@ function buildAuth() {
               code: "GOVERNED_ORGANIZATION_MUTATION_REQUIRED",
               message: "Organisation updates must use the governed product action.",
             })
-          },
-          afterAddMember: async ({ member, organization }) => {
-            const roles = await getDB()
-              .select({ roleId: schema.organizationRoles.id })
-              .from(schema.organizationRoles)
-              .where(
-                and(
-                  eq(schema.organizationRoles.organizationId, organization.id),
-                  inArray(schema.organizationRoles.role, member.role.split(","))
-                )
-              )
-            if (!roles.length) {
-              return
-            }
-
-            await getDB()
-              .insert(schema.memberRoles)
-              .values(
-                roles.map(({ roleId }) => ({
-                  memberId: member.id,
-                  organizationId: organization.id,
-                  roleId,
-                }))
-              )
-              .onConflictDoNothing()
           },
           afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
             const roles = await getDB()
@@ -535,7 +518,7 @@ function buildAuth() {
                 automaticCascade: false,
                 category: "membership",
                 id: `audit-${randomUUID()}`,
-                interface: "auth",
+                interface: "better_auth",
                 organizationId: organization.id,
                 result: "succeeded",
                 targetId: invitation.id,
@@ -706,22 +689,6 @@ function buildAuth() {
           audience: env.GATEWAY_JWT_AUDIENCE,
           expirationTime: "2m",
           issuer: env.BETTER_AUTH_URL,
-          definePayload: ({ session, user }) => {
-            if (!session.activeOrganizationId) {
-              throw new Error("gateway JWT requires an active organization")
-            }
-
-            return {
-              email: user.email,
-              name: user.name,
-              organization_id: session.activeOrganizationId,
-              scope_id: session.activeOrganizationId,
-              scope_type: "organization",
-              selected_workspace_agent_acl: [],
-              tenant_id: session.activeOrganizationId,
-              user_id: user.id,
-            }
-          },
         },
         schema: {
           jwks: {
@@ -808,8 +775,8 @@ async function createSocialAdmissionMembership(
       .select({ teamId: schema.socialAdmissionDefaultTeams.teamId })
       .from(schema.socialAdmissionDefaultTeams)
       .where(eq(schema.socialAdmissionDefaultTeams.organizationId, state.organizationId))
-    const transports = await tx
-      .select({ role: schema.organizationRoles.role })
+    const governedRoles = await tx
+      .select({ roleId: schema.organizationRoles.id })
       .from(schema.organizationRoles)
       .where(
         and(
@@ -820,11 +787,11 @@ async function createSocialAdmissionMembership(
           )
         )
       )
-    if (transports.length !== roles.length) {
+    if (governedRoles.length !== roles.length) {
       return
     }
     return {
-      roles: transports.map(({ role }) => role),
+      roleIds: governedRoles.map(({ roleId }) => roleId),
       teams: teams.map(({ teamId }) => teamId),
     }
   })
@@ -833,18 +800,19 @@ async function createSocialAdmissionMembership(
   }
 
   const firstTeam = admission.teams[0]
+  let member
   try {
-    await getAuth().api.addMember({
+    member = await getAuth().api.addMember({
       body: firstTeam
         ? {
             organizationId: state.organizationId,
-            role: admission.roles,
+            role: "member",
             teamId: firstTeam,
             userId: user.id,
           }
         : {
             organizationId: state.organizationId,
-            role: admission.roles,
+            role: "member",
             userId: user.id,
           },
     })
@@ -857,6 +825,16 @@ async function createSocialAdmissionMembership(
     }
     throw error
   }
+  await getDB()
+    .insert(schema.memberRoles)
+    .values(
+      admission.roleIds.map((roleId) => ({
+        memberId: member.id,
+        organizationId: state.organizationId,
+        roleId,
+      }))
+    )
+    .onConflictDoNothing()
   const sessionHeaders = new Headers({ authorization: `Bearer ${sessionToken}` })
   await getAuth().api.setActiveOrganization({
     headers: sessionHeaders,
@@ -878,7 +856,7 @@ async function createSocialAdmissionMembership(
       automaticCascade: false,
       category: "membership",
       id: `audit-${randomUUID()}`,
-      interface: "auth",
+      interface: "better_auth",
       organizationId: state.organizationId,
       result: "succeeded",
       targetId: user.id,

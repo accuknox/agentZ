@@ -37,13 +37,13 @@ export type WorkspaceAgentDetail = {
 }
 
 export async function listAgentsCachedQuery(
-  query?: ListAgentsData["query"],
-  workspaceId?: string
+  query: ListAgentsData["query"] | undefined,
+  workspaceId: string
 ): Promise<ListAgentActionResponse> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(agentsTag, `${agentsTag}:${workspaceId ?? "organization"}`)
+  cacheTag(agentsTag, `${agentsTag}:${workspaceId}`)
 
   const { data, error } = await listAgents({
     query,

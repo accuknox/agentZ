@@ -50,7 +50,6 @@ import (
 
 const (
 	agentLabelKey                  = "agentz.accuknox.com/agent"
-	legacyTenantUserIDAnnotation   = "agentz.accuknox.com/user-id"
 	workflowScheduleRunnerLabelKey = "agentz.accuknox.com/workflow-schedule-runner"
 )
 
@@ -291,7 +290,6 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *agentzv1alp
 		if ns.Annotations == nil {
 			ns.Annotations = map[string]string{}
 		}
-		delete(ns.Annotations, legacyTenantUserIDAnnotation)
 		ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] = tenant.Spec.OrganizationID
 		ns.Annotations[agentzv1alpha1.KubeArmorVisibilityAnnotation] = "process"
 		err := controllerutil.SetControllerReference(tenant, ns, r.Scheme)

@@ -53,7 +53,7 @@ export function AgentTable({
     state: DeleteAgentFormState,
     formData: FormData
   ) => Promise<DeleteAgentFormState>
-  actionScope?: AgentActionScope
+  actionScope: AgentActionScope
 }) {
   "use no memo"
 

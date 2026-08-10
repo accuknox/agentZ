@@ -44,7 +44,7 @@ type Mode = "create" | "update"
 
 type AgentDialogProps = {
   mode: Mode
-  actionScope?: AgentActionScope
+  actionScope: AgentActionScope
   sandboxes: Sandbox[]
   immutableSkills: Skill[]
   initialHasNextSandboxPage: boolean
@@ -186,7 +186,7 @@ function SandboxSelect({
 }
 
 export function AgentDialog({
-  actionScope = { basePath: "/" },
+  actionScope,
   mode,
   sandboxes,
   immutableSkills,

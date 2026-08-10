@@ -22496,6 +22496,8 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         namespace:
           type: string
+        organization_id:
+          type: string
         phase:
           $ref: '#/components/schemas/TenantPhase'
         ready:
@@ -22504,10 +22506,8 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         skill_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
-        tenant_id:
-          type: string
       required:
-      - tenant_id
+      - organization_id
       - namespace
       - ready
       - phase
@@ -23667,6 +23667,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List paginated agent summaries.
       tags:
       - agents
@@ -23697,6 +23700,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.author
       summary: Create an Agent resource.
       tags:
       - agents
@@ -23714,6 +23720,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete an Agent resource.
       tags:
       - agents
@@ -23748,6 +23757,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update an Agent resource.
       tags:
       - agents
@@ -23779,6 +23791,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create a directory in the agent workspace.
       tags:
       - agents
@@ -23797,6 +23812,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Recursively delete an entry from the agent workspace.
       tags:
       - agents
@@ -23823,6 +23841,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Read a text file from the agent workspace.
       tags:
       - agents
@@ -23853,6 +23874,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create an empty file in the agent workspace.
       tags:
       - agents
@@ -23891,6 +23915,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Atomically write a text file in the agent workspace.
       tags:
       - agents
@@ -23916,6 +23943,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Stream an agent workspace file without text decoding.
       tags:
       - agents
@@ -23944,6 +23974,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Atomically write an agent workspace file without text encoding.
       tags:
       - agents
@@ -23977,6 +24010,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Rename an entry in the agent workspace.
       tags:
       - agents
@@ -24001,6 +24037,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Read agent workspace entry metadata.
       tags:
       - agents
@@ -24024,6 +24063,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Read Agent ownership metadata.
       tags:
       - agents
@@ -24058,6 +24100,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Transfer Agent ownership.
       tags:
       - agents
@@ -24081,6 +24126,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List Agent Shares.
       tags:
       - agents
@@ -24117,6 +24165,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create or replace an Agent Share.
       tags:
       - agents
@@ -24137,6 +24188,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete an Agent Share.
       tags:
       - agents
@@ -24164,6 +24218,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "502":
           $ref: '#/components/responses/BadGateway'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete mutable skills from an Agent workspace.
       tags:
       - skills
@@ -24186,6 +24243,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "502":
           $ref: '#/components/responses/BadGateway'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List mutable skills stored in an Agent workspace.
       tags:
       - skills
@@ -24222,6 +24282,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "502":
           $ref: '#/components/responses/BadGateway'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Stream mutable Agent skills as a ZIP archive.
       tags:
       - skills
@@ -24251,6 +24314,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Watch agent status changes.
       tags:
       - agents
@@ -24286,6 +24352,9 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List Organisation audit events.
       tags:
       - audit
@@ -24312,6 +24381,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: Get an Organisation audit event.
       tags:
       - audit
@@ -24865,6 +24937,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated per-session trace summaries.
       tags:
       - lens
@@ -24901,6 +24976,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated spans for a trace.
       tags:
       - lens
@@ -24941,6 +25019,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: Get span details and correlated OS observability.
       tags:
       - lens
@@ -24964,6 +25045,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: Get MCP observability graph data for an agent given a date range.
       tags:
       - lens
@@ -24990,6 +25074,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated file observability events.
       tags:
       - lens
@@ -25016,6 +25103,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated file observability summaries.
       tags:
       - lens
@@ -25042,6 +25132,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated network observability events.
       tags:
       - lens
@@ -25068,6 +25161,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated network observability summaries.
       tags:
       - lens
@@ -25094,6 +25190,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated process observability events.
       tags:
       - lens
@@ -25120,6 +25219,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - observability.read
       summary: List paginated process observability summaries.
       tags:
       - lens
@@ -25313,6 +25415,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List agents
       tags:
       - instance
@@ -25382,7 +25487,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List agents
       tags:
       - opencode HttpApi
@@ -25452,7 +25559,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List commands
       tags:
       - commands
@@ -25512,7 +25621,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.delete_shared_secret
       summary: Remove credential
       tags:
       - opencode HttpApi
@@ -25583,7 +25694,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Update credential
       tags:
       - opencode HttpApi
@@ -25620,7 +25733,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Subscribe to events
       tags:
       - events
@@ -25709,7 +25824,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Find files
       tags:
       - filesystem
@@ -25785,7 +25902,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List directory
       tags:
       - filesystem
@@ -25845,7 +25964,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Read file
       tags:
       - filesystem
@@ -25899,7 +26020,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Check server health
       tags:
       - opencode HttpApi
@@ -25969,7 +26092,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.read_shared_secret
       summary: List integrations
       tags:
       - integrations
@@ -26042,7 +26167,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.read_shared_secret
       summary: Get integration
       tags:
       - integrations
@@ -26127,7 +26254,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Connect with key
       tags:
       - integrations
@@ -26221,7 +26350,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Begin OAuth connection
       tags:
       - integrations
@@ -26272,7 +26403,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Cancel OAuth connection
       tags:
       - integrations
@@ -26335,7 +26468,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.read_shared_secret
       summary: Get OAuth attempt status
       tags:
       - integrations
@@ -26416,7 +26551,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Complete OAuth connection
       tags:
       - integrations
@@ -26466,7 +26603,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get location
       tags:
       - opencode HttpApi
@@ -26542,7 +26681,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeServiceUnavailableError'
           description: ServiceUnavailableError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List models
       tags:
       - models
@@ -26612,7 +26753,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List pending permission requests
       tags:
       - permissions
@@ -26671,7 +26814,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List saved permissions
       tags:
       - permissions
@@ -26718,7 +26863,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Remove saved permission
       tags:
       - permissions
@@ -26795,7 +26942,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeServiceUnavailableError'
           description: ServiceUnavailableError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List providers
       tags:
       - providers
@@ -26881,7 +27030,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeServiceUnavailableError'
           description: ServiceUnavailableError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get provider
       tags:
       - providers
@@ -26952,7 +27103,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List PTY sessions
       tags:
       - pty
@@ -27041,7 +27194,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create PTY session
       tags:
       - pty
@@ -27099,7 +27254,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Remove PTY session
       tags:
       - pty
@@ -27169,7 +27326,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get PTY session
       tags:
       - pty
@@ -27273,7 +27432,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update PTY session
       tags:
       - pty
@@ -27345,7 +27506,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Connect to PTY session
       tags:
       - pty
@@ -27442,7 +27605,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create PTY WebSocket token
       tags:
       - pty
@@ -27503,7 +27668,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List pending question requests
       tags:
       - session questions
@@ -27573,7 +27740,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List references
       tags:
       - reference
@@ -27670,7 +27839,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List sessions
       tags:
       - sessions
@@ -27738,7 +27909,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create session
       tags:
       - sessions
@@ -27795,7 +27968,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session
       tags:
       - sessions
@@ -27872,7 +28047,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Switch session agent
       tags:
       - sessions
@@ -27934,7 +28111,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeServiceUnavailableError'
           description: ServiceUnavailableError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Compact session
       tags:
       - sessions
@@ -28000,7 +28179,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnknownError1'
           description: UnknownError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session context
       tags:
       - sessions
@@ -28123,7 +28304,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Subscribe to session events
       tags:
       - sessions
@@ -28194,7 +28377,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session history
       tags:
       - sessions
@@ -28260,7 +28445,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Interrupt session execution
       tags:
       - sessions
@@ -28341,7 +28528,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnknownError1'
           description: UnknownError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session messages
       tags:
       - messages
@@ -28414,7 +28603,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError | MessageNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session message
       tags:
       - sessions
@@ -28491,7 +28682,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Switch session model
       tags:
       - sessions
@@ -28550,7 +28743,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List session permission requests
       tags:
       - permissions
@@ -28656,7 +28851,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create permission request
       tags:
       - permissions
@@ -28720,7 +28917,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError | PermissionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get permission request
       tags:
       - permissions
@@ -28806,7 +29005,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError | PermissionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Reply to pending permission request
       tags:
       - permissions
@@ -28901,7 +29102,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeConflictError'
           description: ConflictError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Send message
       tags:
       - sessions
@@ -28960,7 +29163,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List session question requests
       tags:
       - session questions
@@ -29032,7 +29237,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError | QuestionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Reject pending question request
       tags:
       - session questions
@@ -29101,7 +29308,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError | QuestionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Reply to pending question request
       tags:
       - session questions
@@ -29162,7 +29371,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnknownError1'
           description: UnknownError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Clear staged revert
       tags:
       - sessions
@@ -29217,7 +29428,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
                 - $ref: '#/components/schemas/OpencodeSessionNotFoundError'
           description: SessionNotFoundError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Commit staged revert
       tags:
       - sessions
@@ -29306,7 +29519,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnknownError1'
           description: UnknownError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Stage session revert
       tags:
       - sessions
@@ -29368,7 +29583,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeServiceUnavailableError'
           description: ServiceUnavailableError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Wait for session
       tags:
       - sessions
@@ -29415,7 +29632,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List active sessions
       tags:
       - sessions
@@ -29485,7 +29704,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeUnauthorizedError'
           description: UnauthorizedError
-      security: []
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List skills
       tags:
       - skills
@@ -29533,6 +29754,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.delete_shared_secret
       summary: Remove auth credentials
       tags:
       - control
@@ -29584,6 +29808,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Set auth credentials
       tags:
       - control
@@ -29627,6 +29854,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List commands
       tags:
       - instance
@@ -29676,6 +29906,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get configuration
       tags:
       - config
@@ -29731,6 +29964,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update configuration
       tags:
       - config
@@ -29785,6 +30021,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List config providers
       tags:
       - config
@@ -29828,6 +30067,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeEvent'
           description: Event stream
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Subscribe to events
       tags:
       - event
@@ -29877,6 +30119,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get experimental capabilities
       tags:
       - experimental
@@ -29933,6 +30178,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Opencodeeffect_HttpApiError_InternalServerError'
           description: InternalServerError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get active Console provider metadata
       tags:
       - experimental
@@ -30019,6 +30267,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Opencodeeffect_HttpApiError_InternalServerError'
           description: InternalServerError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List switchable Console orgs
       tags:
       - experimental
@@ -30087,6 +30338,9 @@ paths:
                 description: Switch success
                 type: boolean
           description: Switch success
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Switch active Console org
       tags:
       - experimental
@@ -30142,6 +30396,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeMoveSessionError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: MoveSessionError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Move session
       tags:
       - controlPlane
@@ -30201,6 +30458,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeProjectCopyError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: ProjectCopyError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       tags:
       - projectCopy
       x-codeSamples:
@@ -30273,6 +30533,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeProjectCopyError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: ProjectCopyError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       tags:
       - projectCopy
       x-codeSamples:
@@ -30341,6 +30604,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Generate project copy name
       tags:
       - projectCopy
@@ -30395,6 +30661,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeProjectCopyError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: ProjectCopyError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       tags:
       - projectCopy
       x-codeSamples:
@@ -30438,6 +30707,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get MCP resources
       tags:
       - experimental
@@ -30531,6 +30803,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List sessions
       tags:
       - experimental
@@ -30599,6 +30874,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Background subagents
       tags:
       - experimental
@@ -30652,6 +30930,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List tools
       tags:
       - experimental
@@ -30704,6 +30985,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List tool IDs
       tags:
       - experimental
@@ -30756,6 +31040,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List workspaces
       tags:
       - workspace
@@ -30826,6 +31113,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: WorkspaceCreateError | BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create workspace
       tags:
       - workspace
@@ -30874,6 +31164,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Remove workspace
       tags:
       - workspace
@@ -30938,6 +31231,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List workspace adapters
       tags:
       - workspace
@@ -30990,6 +31286,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Workspace status
       tags:
       - workspace
@@ -31044,6 +31343,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Sync workspace list
       tags:
       - workspace
@@ -31118,6 +31420,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Warp session into workspace
       tags:
       - workspace
@@ -31166,6 +31471,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeWorktreeError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: WorktreeError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Remove worktree
       tags:
       - experimental
@@ -31210,6 +31518,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeWorktreeError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: WorktreeError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List worktrees
       tags:
       - experimental
@@ -31266,6 +31577,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeWorktreeError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: WorktreeError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create worktree
       tags:
       - experimental
@@ -31323,6 +31637,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeWorktreeError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: WorktreeError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Reset worktree
       tags:
       - experimental
@@ -31371,6 +31688,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List files
       tags:
       - file
@@ -31425,6 +31745,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Read file
       tags:
       - file
@@ -31477,6 +31800,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get file status
       tags:
       - file
@@ -31588,6 +31914,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Find text
       tags:
       - file
@@ -31669,6 +31998,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Find files
       tags:
       - file
@@ -31727,6 +32059,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Find symbols
       tags:
       - file
@@ -31779,6 +32114,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get formatter status
       tags:
       - instance
@@ -31819,6 +32157,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get global configuration
       tags:
       - global
@@ -31864,6 +32205,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update global configuration
       tags:
       - global
@@ -31904,6 +32248,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Dispose instance
       tags:
       - global
@@ -31935,6 +32282,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get global events
       tags:
       - global
@@ -31986,6 +32336,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get health
       tags:
       - global
@@ -32070,6 +32423,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Upgrade opencode
       tags:
       - global
@@ -32121,6 +32477,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Dispose instance
       tags:
       - instance
@@ -32200,6 +32559,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Write log
       tags:
       - control
@@ -32243,6 +32605,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get LSP status
       tags:
       - instance
@@ -32295,6 +32660,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get MCP status
       tags:
       - mcp
@@ -32365,6 +32733,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Add MCP server
       tags:
       - mcp
@@ -32425,6 +32796,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeMcpServerNotFoundError'
           description: McpServerNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.delete_shared_secret
       summary: Remove MCP OAuth
       tags:
       - mcp
@@ -32497,6 +32871,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeMcpServerNotFoundError'
           description: McpServerNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Start MCP OAuth
       tags:
       - mcp
@@ -32559,6 +32936,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeMcpServerNotFoundError'
           description: McpServerNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Authenticate MCP OAuth
       tags:
       - mcp
@@ -32633,6 +33013,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeMcpServerNotFoundError'
           description: McpServerNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Complete MCP OAuth
       tags:
       - mcp
@@ -32694,6 +33077,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeMcpServerNotFoundError'
           description: McpServerNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       tags:
       - mcp
       x-codeSamples:
@@ -32754,6 +33140,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeMcpServerNotFoundError'
           description: McpServerNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       tags:
       - mcp
       x-codeSamples:
@@ -32794,6 +33183,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get paths
       tags:
       - instance
@@ -32846,6 +33238,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List pending permissions
       tags:
       - permission
@@ -32936,6 +33331,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePermissionNotFoundError'
           description: PermissionNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Respond to permission request
       tags:
       - permission
@@ -32979,6 +33377,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List all projects
       tags:
       - project
@@ -33063,6 +33464,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeProjectNotFoundError'
           description: ProjectNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update project
       tags:
       - project
@@ -33108,6 +33512,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List project directories
       tags:
       - project
@@ -33158,6 +33565,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get current project
       tags:
       - project
@@ -33217,6 +33627,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Initialize git repository
       tags:
       - project
@@ -33277,6 +33690,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List providers
       tags:
       - provider
@@ -33358,6 +33774,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeProviderAuthError1'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: ProviderAuthError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Start OAuth authorization
       tags:
       - provider
@@ -33429,6 +33848,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeProviderAuthError1'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: ProviderAuthError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Handle OAuth callback
       tags:
       - provider
@@ -33474,6 +33896,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.read_shared_secret
       summary: Get provider auth methods
       tags:
       - provider
@@ -33527,6 +33952,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List PTY sessions
       tags:
       - pty
@@ -33599,6 +34027,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create PTY session
       tags:
       - pty
@@ -33652,6 +34083,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Remove PTY session
       tags:
       - pty
@@ -33704,6 +34138,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get PTY session
       tags:
       - pty
@@ -33790,6 +34227,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update PTY session
       tags:
       - pty
@@ -33850,6 +34290,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: Not found
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Connect to PTY session
       tags:
       - pty
@@ -33926,6 +34369,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodePtyNotFoundError'
           description: PtyNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create PTY WebSocket token
       tags:
       - pty
@@ -33981,6 +34427,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List available shells
       tags:
       - pty
@@ -34033,6 +34482,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List pending questions
       tags:
       - question
@@ -34106,6 +34558,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeQuestionNotFoundError'
           description: QuestionNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Reject question request
       tags:
       - question
@@ -34185,6 +34640,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeQuestionNotFoundError'
           description: QuestionNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Reply to question request
       tags:
       - question
@@ -34265,6 +34723,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List sessions
       tags:
       - session
@@ -34350,6 +34811,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create session
       tags:
       - session
@@ -34406,6 +34870,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete session
       tags:
       - session
@@ -34459,6 +34926,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session
       tags:
       - session
@@ -34541,6 +35011,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update session
       tags:
       - session
@@ -34600,6 +35073,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Abort session
       tags:
       - session
@@ -34658,6 +35134,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session children
       tags:
       - session
@@ -34788,6 +35267,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Send command
       tags:
       - session
@@ -34844,6 +35326,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get message diff
       tags:
       - session
@@ -34927,6 +35412,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Fork session
       tags:
       - session
@@ -35010,6 +35498,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Initialize session
       tags:
       - session
@@ -35091,6 +35582,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session messages
       tags:
       - session
@@ -35208,6 +35702,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Send message
       tags:
       - session
@@ -35276,6 +35773,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeSessionBusyError'
           description: SessionBusyError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete message
       tags:
       - session
@@ -35347,6 +35847,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get message
       tags:
       - session
@@ -35423,6 +35926,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       tags:
       - session
       x-codeSamples:
@@ -35501,6 +36007,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       tags:
       - session
       x-codeSamples:
@@ -35588,6 +36097,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeNotFoundError'
                 - $ref: '#/components/schemas/OpencodePermissionNotFoundError'
           description: NotFoundError | PermissionNotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Respond to permission
       tags:
       - session
@@ -35693,6 +36205,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Send async message
       tags:
       - session
@@ -35778,6 +36293,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeSessionBusyError'
           description: SessionBusyError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Revert message
       tags:
       - session
@@ -35836,6 +36354,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Opencodeeffect_HttpApiError_InternalServerError'
           description: InternalServerError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Unshare session
       tags:
       - session
@@ -35903,6 +36424,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Opencodeeffect_HttpApiError_InternalServerError'
           description: InternalServerError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Share session
       tags:
       - session
@@ -36013,6 +36537,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeSessionBusyError'
           description: SessionBusyError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Run shell command
       tags:
       - session
@@ -36094,6 +36621,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Summarize session
       tags:
       - session
@@ -36152,6 +36682,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session todos
       tags:
       - session
@@ -36230,6 +36763,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeSessionBusyError'
           description: SessionBusyError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Restore reverted messages
       tags:
       - session
@@ -36276,6 +36812,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get session status
       tags:
       - session
@@ -36342,6 +36881,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List skills
       tags:
       - instance
@@ -36436,6 +36978,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List sync events
       tags:
       - sync
@@ -36531,6 +37076,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Replay sync events
       tags:
       - sync
@@ -36582,6 +37130,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Start workspace sync
       tags:
       - sync
@@ -36654,6 +37205,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Steal session into workspace
       tags:
       - sync
@@ -36717,6 +37271,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Append TUI prompt
       tags:
       - tui
@@ -36767,6 +37324,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Clear TUI prompt
       tags:
       - tui
@@ -36816,6 +37376,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get next TUI request
       tags:
       - tui
@@ -36880,6 +37443,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Submit TUI response
       tags:
       - tui
@@ -36943,6 +37509,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Execute TUI command
       tags:
       - tui
@@ -36993,6 +37562,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Open help dialog
       tags:
       - tui
@@ -37043,6 +37615,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Open models dialog
       tags:
       - tui
@@ -37093,6 +37668,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Open sessions dialog
       tags:
       - tui
@@ -37143,6 +37721,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Open themes dialog
       tags:
       - tui
@@ -37204,6 +37785,9 @@ paths:
                 - $ref: '#/components/schemas/Opencodeeffect_HttpApiError_BadRequest'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: BadRequest | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Publish TUI event
       tags:
       - tui
@@ -37275,6 +37859,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeNotFoundError'
           description: NotFoundError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Select session
       tags:
       - tui
@@ -37350,6 +37937,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Show TUI toast
       tags:
       - tui
@@ -37400,6 +37990,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Submit TUI prompt
       tags:
       - tui
@@ -37441,6 +38034,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get VCS info
       tags:
       - instance
@@ -37519,6 +38115,9 @@ paths:
                 - $ref: '#/components/schemas/OpencodeVcsApplyError'
                 - $ref: '#/components/schemas/OpencodeInvalidRequestError'
           description: VcsApplyError | InvalidRequestError
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Apply VCS patch
       tags:
       - instance
@@ -37577,6 +38176,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get VCS diff
       tags:
       - instance
@@ -37626,6 +38228,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get raw VCS diff
       tags:
       - instance
@@ -37678,6 +38283,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpencodeBadRequestError'
           description: Bad request
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get VCS status
       tags:
       - instance
@@ -37861,6 +38469,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.read_shared_secret
       summary: List secret keys for an agent.
       tags:
       - secrets
@@ -37894,6 +38505,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.write_shared_secret
       summary: Create a secret for an agent.
       tags:
       - secrets
@@ -37923,6 +38537,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.delete_shared_secret
       summary: Delete secrets for an agent.
       tags:
       - secrets
@@ -37956,6 +38573,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.read_shared_secret
       summary: Watch secret status changes for an agent.
       tags:
       - secrets
@@ -38320,6 +38940,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.member
       summary: Get the current tenant bootstrap state.
       tags:
       - tenants
@@ -38338,6 +38961,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.member
       summary: Create the current tenant resource when missing.
       tags:
       - tenants
@@ -38367,6 +38993,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete workflow definitions.
       tags:
       - workflows
@@ -38389,6 +39018,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List workflow summaries.
       tags:
       - workflows
@@ -38423,6 +39055,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create a workflow definition.
       tags:
       - workflows
@@ -38452,6 +39087,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get a workflow definition.
       tags:
       - workflows
@@ -38509,6 +39147,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List workflow runs for a workflow.
       tags:
       - workflow-runs
@@ -38540,6 +39181,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete a workflow run.
       tags:
       - workflow-runs
@@ -38574,6 +39218,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Get a workflow run.
       tags:
       - workflow-runs
@@ -38623,6 +39270,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - workflow_run.report
       summary: Set a WorkflowRun node status.
       tags:
       - workflow-runs
@@ -38666,6 +39316,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - workflow_run.report
       summary: Set a WorkflowRun terminal status.
       tags:
       - workflow-runs
@@ -38705,6 +39358,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Watch workflow runs for a workflow.
       tags:
       - workflow-runs
@@ -38734,6 +39390,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List workflow schedules.
       tags:
       - workflow-schedules
@@ -38774,6 +39433,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Create a workflow schedule.
       tags:
       - workflow-schedules
@@ -38805,6 +39467,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Delete a workflow schedule.
       tags:
       - workflow-schedules
@@ -38851,6 +39516,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Update a workflow schedule.
       tags:
       - workflow-schedules
@@ -38888,6 +39556,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: Trigger a workflow run from a workflow schedule.
       tags:
       - workflow-schedules
@@ -38943,7 +39614,8 @@ paths:
         "500":
           $ref: '#/components/responses/InternalError'
       security:
-      - GatewayAPIKey: []
+      - GatewayAPIKey:
+        - api_key.workflow_invoke
       summary: Trigger a workflow run through a webhook API key.
       tags:
       - workflow-webhooks
@@ -38967,6 +39639,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List workflow schedules for an agent.
       tags:
       - workflow-schedules
@@ -38990,6 +39665,9 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
       summary: List webhook trigger rows for an agent.
       tags:
       - workflow-webhooks
@@ -39009,6 +39687,9 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.member
       summary: List accessible Workspaces.
       tags:
       - workspaces
@@ -39041,6 +39722,9 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
       summary: Create a Workspace.
       tags:
       - workspaces
@@ -39062,6 +39746,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.member
       summary: Get an accessible Workspace.
       tags:
       - workspaces
@@ -39087,6 +39774,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
       summary: List Organisation resources available for Workspace inheritance.
       tags:
       - workspaces
@@ -39121,6 +39811,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
       summary: Replace one type of explicitly inherited Organisation resource.
       tags:
       - workspaces
@@ -39150,6 +39843,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
       summary: Record observed Workspace lifecycle state.
       tags:
       - workspaces
@@ -39176,6 +39872,9 @@ paths:
           $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
       summary: Retry failed Workspace provisioning.
       tags:
       - workspaces
@@ -39197,6 +39896,9 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
       summary: List eligible initial Workspace Admins.
       tags:
       - workspaces
@@ -39220,6 +39922,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.member
       summary: Resolve an accessible Workspace slug.
       tags:
       - workspaces

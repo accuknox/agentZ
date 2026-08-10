@@ -105,6 +105,7 @@ type FilesWorkspaceProps = {
   agentName: string
   onPreviewerOpenChange: (open: boolean) => void
   sessionId?: string
+  workspaceId: string
 }
 
 type Draft = {
@@ -138,6 +139,7 @@ type DirectoryTreeProps = {
   onMove: (path: string, directory: string) => void
   path: string
   root: string
+  workspaceId: string
 }
 
 type MoveOperation = {
@@ -175,10 +177,10 @@ async function downloadAgentFile(agentName: string, path: string, filename: stri
   }
 }
 
-function agentFilesQueryOptions(agentName: string, root: string, path: string) {
+function agentFilesQueryOptions(agentName: string, workspaceId: string, root: string, path: string) {
   return queryOptions({
     queryFn: async ({ signal }) => {
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const { data } = await client.file.list(
         { directory: root, path },
         { signal, throwOnError: true }
@@ -190,7 +192,7 @@ function agentFilesQueryOptions(agentName: string, root: string, path: string) {
         return a.name.localeCompare(b.name)
       })
     },
-    queryKey: ["opencode-files", agentName, root, path],
+    queryKey: ["opencode-files", workspaceId, agentName, root, path],
     staleTime: 60_000,
   })
 }
@@ -199,6 +201,7 @@ export function FilesWorkspace({
   agentName,
   onPreviewerOpenChange,
   sessionId,
+  workspaceId,
 }: FilesWorkspaceProps): React.JSX.Element {
   const { openAgent } = useFileWorkspace()
   const filesOpen = openAgent === agentName
@@ -211,13 +214,19 @@ export function FilesWorkspace({
           key={agentName}
           onPreviewerOpenChange={onPreviewerOpenChange}
           sessionId={sessionId}
+          workspaceId={workspaceId}
         />
       ) : null}
     </AnimatePresence>
   )
 }
 
-function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: FilesWorkspaceProps) {
+function OpenFilesWorkspace({
+  agentName,
+  onPreviewerOpenChange,
+  sessionId,
+  workspaceId,
+}: FilesWorkspaceProps) {
   const [explorerWidth, setExplorerWidth] = React.useState(290)
   const [workspaceWidth, setWorkspaceWidth] = React.useState(760)
   const [expandedWidth, setExpandedWidth] = React.useState(760)
@@ -267,7 +276,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
   const rootQuery = useQuery(
     queryOptions({
       queryFn: async ({ signal }) => {
-        const client = await createAgentOpencodeClient(agentName)
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
         if (sessionId) {
           const { data } = await client.session.get(
             { sessionID: sessionId },
@@ -279,7 +288,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
         const { data } = await client.path.get({}, { signal, throwOnError: true })
         return data.directory
       },
-      queryKey: ["agent-workspace-root", agentName, sessionId ?? "new"],
+      queryKey: ["agent-workspace-root", workspaceId, agentName, sessionId ?? "new"],
       retry: 2,
       staleTime: 60_000,
     })
@@ -390,6 +399,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
             root={rootQuery.data}
             setExplorerWidth={setExplorerWidth}
             workspaceWidth={renderedWidth}
+            workspaceId={workspaceId}
           />
         )}
       </div>
@@ -408,6 +418,7 @@ function WorkspaceBody({
   root,
   setExplorerWidth,
   workspaceWidth,
+  workspaceId,
 }: {
   agentName: string
   editorOpen: boolean
@@ -419,11 +430,12 @@ function WorkspaceBody({
   root: string
   setExplorerWidth: React.Dispatch<React.SetStateAction<number>>
   workspaceWidth: number
+  workspaceId: string
 }) {
   const queryClient = useQueryClient()
   const workspaceKey = `${agentName}:${root}`
   const editorWidth = workspaceWidth - explorerWidth - 4
-  const filesQueryKey = agentFilesQueryOptions(agentName, root, ".").queryKey.slice(0, 3)
+  const filesQueryKey = agentFilesQueryOptions(agentName, workspaceId, root, ".").queryKey.slice(0, 3)
   const filesFetching =
     useIsFetching({
       queryKey: filesQueryKey,
@@ -502,10 +514,10 @@ function WorkspaceBody({
 
       await Promise.allSettled([
         queryClient.invalidateQueries({
-          queryKey: agentFilesQueryOptions(agentName, root, sourceDirectory).queryKey,
+          queryKey: agentFilesQueryOptions(agentName, workspaceId, root, sourceDirectory).queryKey,
         }),
         queryClient.invalidateQueries({
-          queryKey: agentFilesQueryOptions(agentName, root, targetDirectory).queryKey,
+          queryKey: agentFilesQueryOptions(agentName, workspaceId, root, targetDirectory).queryKey,
         }),
       ])
       moveDrafts(path, target)
@@ -1014,6 +1026,7 @@ function WorkspaceBody({
               onMove={moveFile}
               path="."
               root={root}
+              workspaceId={workspaceId}
             />
           </FileTree>
         </div>
@@ -1050,6 +1063,7 @@ function WorkspaceBody({
           }}
           onOpen={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
           root={root}
+          workspaceId={workspaceId}
         />
       ) : null}
       <Dialog open={confirmation !== null} onOpenChange={(open) => !open && setConfirmation(null)}>
@@ -1086,9 +1100,10 @@ function DirectoryTree({
   onMove,
   path,
   root,
+  workspaceId,
 }: DirectoryTreeProps) {
   const [dropPath, setDropPath] = React.useState<string | null>(null)
-  const directoryQuery = useQuery(agentFilesQueryOptions(agentName, root, path))
+  const directoryQuery = useQuery(agentFilesQueryOptions(agentName, workspaceId, root, path))
 
   if (directoryQuery.isPending) {
     return (
@@ -1220,6 +1235,7 @@ function DirectoryTree({
                   onMove={onMove}
                   path={entry.path}
                   root={root}
+                  workspaceId={workspaceId}
                 />
               </FileTreeFolder>
             </ContextMenuTrigger>
@@ -1818,6 +1834,7 @@ function EntryDialog({
   onOpen,
   onRename,
   root,
+  workspaceId,
 }: {
   action: EntryAction
   agentName: string
@@ -1826,6 +1843,7 @@ function EntryDialog({
   onOpen: (path: string) => void
   onRename: (path: string, target: string) => void
   root: string
+  workspaceId: string
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = React.useState("entry" in action ? action.entry.name : "")
@@ -1896,12 +1914,16 @@ function EntryDialog({
                 const directoryPath = action.parent === "." ? "." : `${action.parent}/`
                 const mutation = action.kind === "file" ? createFile : createDirectory
                 mutation.mutate(
-                  { body: { path }, path: { agentName } },
+                  {
+                    body: { path },
+                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                    path: { agentName },
+                  },
                   {
                     onError: (error) => toast.error(label, { description: error.message }),
                     onSuccess: () => {
                       void queryClient.invalidateQueries({
-                        queryKey: agentFilesQueryOptions(agentName, root, directoryPath).queryKey,
+                        queryKey: agentFilesQueryOptions(agentName, workspaceId, root, directoryPath).queryKey,
                       })
                       if (action.kind === "file") {
                         onOpen(path)
@@ -1920,6 +1942,7 @@ function EntryDialog({
                 rename.mutate(
                   {
                     body: { path: action.entry.path, target },
+                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
                     path: { agentName },
                   },
                   {
@@ -1928,6 +1951,7 @@ function EntryDialog({
                       void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
+                          workspaceId,
                           root,
                           slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
                         ).queryKey,
@@ -1942,13 +1966,18 @@ function EntryDialog({
 
               const slash = action.entry.path.lastIndexOf("/")
               remove.mutate(
-                { path: { agentName }, query: { path: action.entry.path } },
+                {
+                  headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                  path: { agentName },
+                  query: { path: action.entry.path },
+                },
                 {
                   onError: (error) => toast.error(label, { description: error.message }),
                   onSuccess: () => {
                     void queryClient.invalidateQueries({
                       queryKey: agentFilesQueryOptions(
                         agentName,
+                        workspaceId,
                         root,
                         slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
                       ).queryKey,

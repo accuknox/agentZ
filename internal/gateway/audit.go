@@ -51,7 +51,7 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 	}
 	retainedAfter := time.Now().Add(-auditRetention)
 	query := gatewaydb.GatewayListAuditEventsParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		RetainedAfter: pgtype.Timestamptz{
 			Time:  retainedAfter,
 			Valid: true,
@@ -160,7 +160,7 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 
 	filters, err := s.auditFilters(
 		r.Context(),
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 		query.WorkspaceID,
 		retainedAfter,
 	)
@@ -191,7 +191,7 @@ func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID 
 	rows, err := s.queries.GatewayListAuditEvents(
 		r.Context(),
 		gatewaydb.GatewayListAuditEventsParams{
-			OrganizationID: access.claims.TenantID,
+			OrganizationID: access.claims.OrganizationID,
 			WorkspaceID:    access.workspaceID,
 			RetainedAfter: pgtype.Timestamptz{
 				Time:  time.Now().Add(-auditRetention),
@@ -246,7 +246,7 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 		ctx,
 		authorization.Subject{
 			UserID:         auth.claims.UserID,
-			OrganizationID: auth.claims.TenantID,
+			OrganizationID: auth.claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -258,7 +258,7 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 		)
 	}
 	allowed := effective.CanAdminister(authorization.Scope{
-		OrganizationID: auth.claims.TenantID,
+		OrganizationID: auth.claims.OrganizationID,
 		WorkspaceID:    workspaceID,
 	})
 	if !allowed {
@@ -274,7 +274,7 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 			ctx,
 			gatewaydb.GatewayGetWorkspaceParams{
 				ID:             workspaceID,
-				OrganizationID: auth.claims.TenantID,
+				OrganizationID: auth.claims.OrganizationID,
 			},
 		)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && workspace.DeletedAt.Valid) {

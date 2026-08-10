@@ -33,16 +33,17 @@ type WorkflowQueryResult =
 
 export async function listWorkflowSummariesCachedQuery(
   agentName: ListWorkflowSummariesData["path"]["agentName"],
-  workspaceId?: string
+  workspaceId: string
 ): Promise<WorkflowSummariesQueryResult> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(agentWorkflowsTag(agentName), `${agentWorkflowsTag(agentName)}:${workspaceId ?? "organization"}`)
+  cacheTag(agentWorkflowsTag(agentName), `${agentWorkflowsTag(agentName)}:${workspaceId}`)
 
   const { data, error } = await listWorkflowSummaries({
     path: { agentName },
     client: getGatewayServerClient(workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
   })
   if (error) {
     return {
@@ -59,16 +60,18 @@ export async function listWorkflowSummariesCachedQuery(
 
 export async function getWorkflowCachedQuery(
   agentName: GetWorkflowData["path"]["agentName"],
-  workflowName: GetWorkflowData["path"]["workflowName"]
+  workflowName: GetWorkflowData["path"]["workflowName"],
+  workspaceId: string
 ): Promise<WorkflowQueryResult> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(agentWorkflowsTag(agentName))
+  cacheTag(`${agentWorkflowsTag(agentName)}:${workspaceId}`)
   cacheTag(workflowTag(agentName, workflowName))
 
   const { data, error } = await getWorkflow({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: {
       agentName,
       workflowName,

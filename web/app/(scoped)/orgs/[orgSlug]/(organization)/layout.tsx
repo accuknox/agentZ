@@ -122,7 +122,7 @@ export default async function OrganizationLayout({
     throw new Error("gateway returned no tenant bootstrap state")
   }
   if (!tenant.data.ready) {
-    redirect("/setting-up")
+    redirect(`/orgs/${result.organization.slug}/setting-up` as Route)
   }
 
   const workspaceResult = await getWorkspaceDirectory(result.organization.slug)

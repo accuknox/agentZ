@@ -98,7 +98,7 @@ func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, acces
 	selected, err := s.selectedOrganizationResourceNames(
 		ctx,
 		access.workspaceID,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 		agentzv1alpha1.OrganizationResourceKindMCPConnection,
 	)
 	if err != nil {
@@ -111,7 +111,7 @@ func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, acces
 	organizationAccess.workspaceID = ""
 	organizationAccess.namespace = agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 	)
 	items, err := s.listMCPConnectionSummaries(organizationAccess, nil)
 	if err != nil {
@@ -339,7 +339,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 	}
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationCreateMCPConnection)
 	if apiErr != nil {
-		if access.claims.TenantID != "" && access.claims.UserID != "" {
+		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
 			if err := s.createMCPAudit(r.Context(), r, access, "unknown", access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -484,7 +484,7 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	}
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationDeleteMCPConnection)
 	if apiErr != nil {
-		if access.claims.TenantID != "" && access.claims.UserID != "" {
+		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
 			if err := s.createMCPAudit(r.Context(), r, access, name, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -722,7 +722,7 @@ func (s *Service) mcpConnectionDetail(access resourceAccess, scope gatewayapi.Re
 
 func mcpCanDelete(access resourceAccess, conn agentzv1alpha1.MCPConnection) bool {
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	if access.effective.Allows(scope, authorization.OperationDeleteMCPConnection) {

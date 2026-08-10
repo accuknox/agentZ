@@ -108,7 +108,7 @@ func (s *Service) listInheritedSandboxes(ctx context.Context, access resourceAcc
 	selected, err := s.selectedOrganizationResourceNames(
 		ctx,
 		access.workspaceID,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 		agentzv1alpha1.OrganizationResourceKindSandbox,
 	)
 	if err != nil {
@@ -119,7 +119,7 @@ func (s *Service) listInheritedSandboxes(ctx context.Context, access resourceAcc
 	}
 	organizationNamespace := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 	)
 	var sandboxes agentzv1alpha1.SandboxList
 	if err := s.k8sClient.List(ctx, &sandboxes, ctrlclient.InNamespace(organizationNamespace)); err != nil {
@@ -156,7 +156,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		r.Context(), workspaceID, "", authorization.OperationCreateSandbox,
 	)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
 				access: access,
 				name:   name,
@@ -422,7 +422,7 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		r.Context(), workspaceID, name, authorization.OperationDeleteSandbox,
 	)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
 				access: access,
 				name:   name,
@@ -549,7 +549,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		r.Context(), workspaceID, name, authorization.OperationUpdateSandbox,
 	)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createSandboxAudit(r.Context(), r, sandboxAudit{
 				access: access,
 				name:   name,
@@ -827,7 +827,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceA
 		Inference:         sandboxInferenceToAPI(sb.Spec.Inference),
 	}
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	creator := sb.Spec.CreatorUserID == access.claims.UserID &&
@@ -1146,7 +1146,7 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 			workspaceID = access.workspaceID
 		}
 		return access.effective.Allows(authorization.Scope{
-			OrganizationID: access.claims.TenantID,
+			OrganizationID: access.claims.OrganizationID,
 			WorkspaceID:    workspaceID,
 		}, operation)
 	}

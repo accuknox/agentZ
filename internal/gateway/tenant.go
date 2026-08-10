@@ -98,7 +98,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 
 	tenantName := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,
-		auth.claims.TenantID,
+		auth.claims.OrganizationID,
 	)
 	created := agentzv1alpha1.Tenant{
 		ObjectMeta: metav1.ObjectMeta{
@@ -108,7 +108,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Spec: agentzv1alpha1.TenantSpec{
-			OrganizationID: auth.claims.TenantID,
+			OrganizationID: auth.claims.OrganizationID,
 		},
 	}
 	err = s.k8sClient.Create(r.Context(), &created)
@@ -128,7 +128,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if created.Spec.OrganizationID != auth.claims.TenantID {
+	if created.Spec.OrganizationID != auth.claims.OrganizationID {
 		writeError(w, r, newAPIError(
 			http.StatusConflict,
 			"conflict",
@@ -186,7 +186,7 @@ func (s *Service) tenantView(ctx context.Context, claims gatewayClaims, tenant *
 		Namespace:                     tenant.Status.Namespace,
 		Phase:                         phase,
 		Ready:                         ready,
-		TenantId:                      tenant.Spec.OrganizationID,
+		OrganizationId:                tenant.Spec.OrganizationID,
 	}, nil
 }
 
@@ -217,6 +217,26 @@ func requireGatewayAuth(s *Service) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func requireExplicitCapability(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bearer, bearerMapped := r.Context().Value(gatewayapi.GatewayBearerScopes).([]string)
+		apiKey, apiKeyMapped := r.Context().Value(gatewayapi.GatewayAPIKeyScopes).([]string)
+		bearerValid := bearerMapped && len(bearer) == 1 && bearer[0] != ""
+		apiKeyValid := apiKeyMapped && len(apiKey) == 1 && apiKey[0] != ""
+		if bearerValid != apiKeyValid {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		writeError(w, r, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"operation has no unambiguous capability mapping",
+			fmt.Errorf("generated operation capability mapping is missing or ambiguous"),
+		))
+	})
 }
 
 func requireTenantRequest(s *Service) func(http.Handler) http.Handler {
@@ -255,7 +275,7 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 				if cleanupNamespace == "" && auth.claims != nil {
 					cleanupNamespace = agentzv1alpha1.ScopeNamespace(
 						agentzv1alpha1.ResourceScopeOrganisation,
-						auth.claims.TenantID,
+						auth.claims.OrganizationID,
 					)
 				}
 				if cleanupNamespace != "" {
@@ -439,11 +459,37 @@ func (s *Service) parseGatewayClaims(token string) (gatewayClaims, error) {
 	if err != nil {
 		return gatewayClaims{}, fmt.Errorf("verify external bearer: %w", err)
 	}
-	if strings.TrimSpace(claims.TenantID) == "" {
-		return gatewayClaims{}, fmt.Errorf("missing tenant_id claim")
+	if strings.TrimSpace(claims.OrganizationID) == "" {
+		return gatewayClaims{}, fmt.Errorf("missing organization_id claim")
 	}
 	if strings.TrimSpace(claims.UserID) == "" {
 		return gatewayClaims{}, fmt.Errorf("missing user_id claim")
+	}
+	if strings.TrimSpace(claims.ScopeID) == "" {
+		return gatewayClaims{}, fmt.Errorf("missing scope_id claim")
+	}
+	if claims.Capabilities == nil {
+		return gatewayClaims{}, fmt.Errorf("missing capabilities claim")
+	}
+	if claims.AdministrativeBypass == nil {
+		return gatewayClaims{}, fmt.Errorf("missing administrative_bypass claim")
+	}
+	if claims.AgentACL == nil {
+		return gatewayClaims{}, fmt.Errorf("missing agent_acl claim")
+	}
+
+	switch claims.ScopeType {
+	case gatewayScopeOrganization:
+		if claims.ScopeID != claims.OrganizationID {
+			return gatewayClaims{}, fmt.Errorf("organization scope does not match organization_id")
+		}
+		if len(*claims.AgentACL) != 0 {
+			return gatewayClaims{}, fmt.Errorf("organization scope cannot contain an Agent ACL")
+		}
+	case gatewayScopeWorkspace:
+		claims.WorkspaceID = claims.ScopeID
+	default:
+		return gatewayClaims{}, fmt.Errorf("invalid scope_type claim")
 	}
 	return claims, nil
 }
@@ -783,7 +829,7 @@ func tenantReady(tenant *agentzv1alpha1.Tenant) bool {
 func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1alpha1.Tenant, error) {
 	organizationID := auth.organizationID
 	if auth.claims != nil {
-		organizationID = auth.claims.TenantID
+		organizationID = auth.claims.OrganizationID
 	}
 	if organizationID != "" {
 		list := &agentzv1alpha1.TenantList{}

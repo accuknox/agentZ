@@ -198,7 +198,7 @@ func (s *Service) listInheritedInferenceProviders(ctx context.Context, access re
 	selected, err := s.selectedOrganizationResourceNames(
 		ctx,
 		access.workspaceID,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 		agentzv1alpha1.OrganizationResourceKindInferenceProvider,
 	)
 	if err != nil {
@@ -211,7 +211,7 @@ func (s *Service) listInheritedInferenceProviders(ctx context.Context, access re
 	organizationAccess.workspaceID = ""
 	organizationNamespace := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,
-		access.claims.TenantID,
+		access.claims.OrganizationID,
 	)
 	items, err := s.listInferenceProviderItems(ctx, organizationNamespace, selected, organizationAccess)
 	if err != nil {
@@ -427,7 +427,7 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		r.Context(), workspaceID, "", authorization.OperationCreateInferenceProviderOAuthTicket,
 	)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderAudit(
 				r.Context(), r, access, "oauth-ticket", access.failureResult(),
 			)
@@ -564,7 +564,7 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 	expiresAt := time.Now().UTC().Add(oauthTicketLifetime)
 	ticket := inferenceOAuthTicketRecord{
 		SecretHash: base64.RawURLEncoding.EncodeToString(digest[:]),
-		TenantID:   auth.claims.TenantID, UserID: auth.claims.UserID,
+		TenantID:   auth.claims.OrganizationID, UserID: auth.claims.UserID,
 		ExpiresAt: expiresAt, Models: models, Subscription: record,
 	}
 	data, err := inferenceOAuthTicketData(ticket)
@@ -635,7 +635,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		r.Context(), workspaceID, "", authorization.OperationCreateInferenceProvider,
 	)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderAudit(
 				r.Context(), r, access, name, access.failureResult(),
 			)
@@ -927,7 +927,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		authorization.OperationUpdateInferenceProvider,
 	)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderAudit(
 				r.Context(), r, access, providerName, access.failureResult(),
 			)
@@ -1111,7 +1111,7 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		authorization.OperationDeleteInferenceProvider,
 	)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderAudit(
 				r.Context(), r, access, providerName, access.failureResult(),
 			)
@@ -1628,7 +1628,7 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 		}
 	}
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	creator := provider.Spec.CreatorUserID == access.claims.UserID &&
@@ -1879,7 +1879,7 @@ func (s *Service) consumeInferenceOAuthTicket(ctx context.Context, namespace, ra
 	}
 	secretMismatch := subtle.ConstantTimeCompare(digest[:], wantDigest) != 1
 	expired := time.Now().UTC().After(ticket.ExpiresAt)
-	identityMismatch := ticket.TenantID != auth.claims.TenantID || ticket.UserID != auth.claims.UserID
+	identityMismatch := ticket.TenantID != auth.claims.OrganizationID || ticket.UserID != auth.claims.UserID
 	kindMismatch := ticket.Subscription.Kind != provider.Spec.Kind
 	if secretMismatch || expired || identityMismatch || kindMismatch {
 		return inference.SubscriptionRecord{}, "", &inference.InputError{

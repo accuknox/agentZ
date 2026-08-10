@@ -3887,9 +3887,9 @@ components:
 
     Tenant:
       type: object
-      required: [tenant_id, namespace, ready, phase, conditions, skill_capabilities, mcp_connection_capabilities, sandbox_capabilities, inference_provider_capabilities, inference_pool_capabilities]
+      required: [organization_id, namespace, ready, phase, conditions, skill_capabilities, mcp_connection_capabilities, sandbox_capabilities, inference_provider_capabilities, inference_pool_capabilities]
       properties:
-        tenant_id:
+        organization_id:
           type: string
         namespace:
           type: string

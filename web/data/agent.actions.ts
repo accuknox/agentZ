@@ -21,7 +21,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type AgentActionScope = {
   basePath: string
-  workspaceId?: string
+  workspaceId: string
 }
 
 export type AgentOwnerFormState = {
@@ -244,10 +244,8 @@ export async function deleteAgentShareFormAction(
 
 function refreshAgentRoutes(scope: AgentActionScope, agentName: string) {
   updateTag(agentsTag)
-  if (scope.workspaceId) {
-    updateTag(`${agentsTag}:${scope.workspaceId}`)
-    updateTag(`${agentsTag}:${scope.workspaceId}:${agentName}`)
-  }
+  updateTag(`${agentsTag}:${scope.workspaceId}`)
+  updateTag(`${agentsTag}:${scope.workspaceId}:${agentName}`)
   revalidatePath(scope.basePath as Route)
   revalidatePath(`${scope.basePath}/${agentName}` as Route)
 }

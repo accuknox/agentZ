@@ -34,6 +34,124 @@ type routeSpec struct {
 	Operation string `json:"operation"`
 }
 
+type operationCapability struct {
+	Scheme string
+	Scope  string
+}
+
+var baseOperationCapabilities = map[string][]string{
+	"agent.author": {
+		"createAgent",
+	},
+	"agent.delete_shared_secret": {
+		"deleteSecret",
+	},
+	"agent.read_shared_secret": {
+		"listSecrets", "watchSecrets",
+	},
+	"agent.use_shared": {
+		"createAgentDirectory", "createAgentFile", "createWorkflow",
+		"createWorkflowRun", "createWorkflowSchedule", "deleteAgent",
+		"deleteAgentEntry", "deleteAgentMutableSkills", "deleteAgentShare",
+		"deleteWorkflowRun", "deleteWorkflows", "deleteWorkflowSchedule",
+		"exportAgentMutableSkills",
+		"getAgentOwner", "getWorkflow", "getWorkflowRun", "listAgents",
+		"listAgentMutableSkills", "listAgentShares", "listAgentWorkflowSchedules",
+		"listWorkflowRuns", "listWorkflowSchedules", "listWorkflowSummaries",
+		"listWorkflowWebhookTriggers", "readAgentFile", "readAgentFileRaw",
+		"renameAgentEntry", "statAgentFile", "transferAgentOwner", "updateAgent",
+		"updateWorkflowSchedule", "upsertAgentShare", "watchAgents",
+		"watchWorkflowRuns", "writeAgentFile", "writeAgentFileRaw",
+	},
+	"agent.write_shared_secret": {
+		"putSecret",
+	},
+	"api_key.workflow_invoke": {
+		"invokeWorkflowWebhook",
+	},
+	"inference_pool.create": {
+		"createInferencePool",
+	},
+	"inference_pool.delete": {
+		"deleteInferencePool",
+	},
+	"inference_pool.modify": {
+		"updateInferencePool",
+	},
+	"inference_pool.read": {
+		"getInferencePool", "getInferencePoolUsage", "listInferencePools",
+		"watchInferencePools",
+	},
+	"inference_provider.create": {
+		"createInferenceProvider", "createInferenceProviderOAuthTicket",
+	},
+	"inference_provider.delete": {
+		"deleteInferenceProvider",
+	},
+	"inference_provider.modify": {
+		"updateInferenceProvider",
+	},
+	"inference_provider.read": {
+		"getInferenceProvider", "getInferenceProviderUsage",
+		"listInferenceModelSuggestions", "listInferenceProviderCatalog",
+		"listInferenceProviders", "refreshInferenceProviderModels",
+		"watchInferenceProviders",
+	},
+	"mcp_connection.create": {
+		"createMCPConnection",
+	},
+	"mcp_connection.delete": {
+		"deleteMCPConnection",
+	},
+	"mcp_connection.read": {
+		"getMCPConnection", "listMCPConnections", "watchMCPConnections",
+	},
+	"observability.read": {
+		"getAuditEvent", "getMCPGraph", "getSpanDetail", "listAuditEvents",
+		"listFileObservability", "listFileObservabilitySummary",
+		"listNetworkObservability", "listNetworkObservabilitySummary",
+		"listProcessObservability", "listProcessObservabilitySummary", "listSpans",
+		"listTraceSessions",
+	},
+	"organization.administer": {
+		"createWorkspace", "listWorkspaceInheritedResources",
+		"listWorkspaceMemberCandidates", "replaceWorkspaceInheritedResources",
+		"retryWorkspace", "updateWorkspaceLifecycle",
+	},
+	"organization.member": {
+		"ensureTenant", "getTenant", "getWorkspace", "listWorkspaces",
+		"resolveWorkspaceSlug",
+	},
+	"sandbox.create": {
+		"createSandbox",
+	},
+	"sandbox.delete": {
+		"deleteSandbox",
+	},
+	"sandbox.modify": {
+		"updateSandbox",
+	},
+	"sandbox.read": {
+		"listSandboxes",
+	},
+	"skill.create": {
+		"createSkill", "importSkills",
+	},
+	"skill.delete": {
+		"deleteImmutableSkills", "deleteSkill",
+	},
+	"skill.modify": {
+		"updateSkill",
+	},
+	"skill.read": {
+		"exportImmutableSkills", "getSkillReferences", "listImmutableSkillSummaries",
+		"listImmutableSkillVersions", "listSkills", "previewSkillImport",
+	},
+	"workflow_run.report": {
+		"patchWorkflowRunNodeStatus", "patchWorkflowRunStatus",
+	},
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "generate opencode gateway spec: %v\n", err)
@@ -44,6 +162,9 @@ func main() {
 func run() error {
 	base, err := readYAML(baseSpecPath)
 	if err != nil {
+		return err
+	}
+	if err := applyBaseCapabilities(base); err != nil {
 		return err
 	}
 
@@ -132,10 +253,13 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 		for _, method := range pathMethods(filteredItem) {
 			op, _ := filteredItem[method].(map[string]any)
 			operationID, _ := op["operationId"].(string)
-			operation, err := opencodeOperation(operationID)
+			operation, capability, err := opencodeOperation(operationID)
 			if err != nil {
 				return nil, routeManifest{}, fmt.Errorf("map %s %s: %w", method, path, err)
 			}
+			op["security"] = []any{map[string]any{
+				"GatewayBearer": []any{capability},
+			}}
 			manifest.Routes = append(manifest.Routes, routeSpec{
 				Method:    strings.ToUpper(method),
 				Path:      gatewayPath,
@@ -169,13 +293,56 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 	}, manifest, nil
 }
 
-func opencodeOperation(operationID string) (string, error) {
+func applyBaseCapabilities(doc map[string]any) error {
+	capabilities := make(map[string]operationCapability)
+	for scope, operations := range baseOperationCapabilities {
+		scheme := "GatewayBearer"
+		if strings.HasPrefix(scope, "api_key.") {
+			scheme = "GatewayAPIKey"
+		}
+		for _, operation := range operations {
+			if _, exists := capabilities[operation]; exists {
+				return fmt.Errorf("base operation %q has multiple capability mappings", operation)
+			}
+			capabilities[operation] = operationCapability{Scheme: scheme, Scope: scope}
+		}
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("base spec has no paths")
+	}
+	seen := make(map[string]struct{})
+	for path, itemAny := range paths {
+		item, _ := itemAny.(map[string]any)
+		for _, method := range pathMethods(item) {
+			op, _ := item[method].(map[string]any)
+			operation, _ := op["operationId"].(string)
+			capability, mapped := capabilities[operation]
+			if !mapped {
+				return fmt.Errorf("base operation %s %s (%q) has no capability mapping", method, path, operation)
+			}
+			op["security"] = []any{map[string]any{
+				capability.Scheme: []any{capability.Scope},
+			}}
+			seen[operation] = struct{}{}
+		}
+	}
+	for operation := range capabilities {
+		if _, ok := seen[operation]; !ok {
+			return fmt.Errorf("capability mapping references missing base operation %q", operation)
+		}
+	}
+	return nil
+}
+
+func opencodeOperation(operationID string) (string, string, error) {
 	switch operationID {
 	case "provider.auth",
 		"v2.integration.list",
 		"v2.integration.get",
 		"v2.integration.attempt.status":
-		return "readSharedSecret", nil
+		return "readSharedSecret", "agent.read_shared_secret", nil
 	case "auth.set",
 		"mcp.add",
 		"mcp.auth.start",
@@ -188,14 +355,14 @@ func opencodeOperation(operationID string) (string, error) {
 		"v2.integration.attempt.cancel",
 		"v2.integration.attempt.complete",
 		"v2.credential.update":
-		return "writeSharedSecret", nil
+		return "writeSharedSecret", "agent.write_shared_secret", nil
 	case "auth.remove", "mcp.auth.remove", "v2.credential.remove":
-		return "deleteSharedSecret", nil
+		return "deleteSharedSecret", "agent.delete_shared_secret", nil
 	default:
 		if strings.TrimSpace(operationID) == "" {
-			return "", fmt.Errorf("upstream operationId is missing")
+			return "", "", fmt.Errorf("upstream operationId is missing")
 		}
-		return "useSharedAgent", nil
+		return "useSharedAgent", "agent.use_shared", nil
 	}
 }
 

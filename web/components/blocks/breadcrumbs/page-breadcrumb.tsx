@@ -65,8 +65,6 @@ const labels = new Map<string, string>([
 
 const pageRoutes = new Set([
   "/",
-  "/agents/[name]/[sessionId]",
-  "/agents/[name]/session/new",
   "/orgs/[orgSlug]",
   "/orgs/[orgSlug]/audit",
   "/orgs/[orgSlug]/general",
@@ -75,6 +73,15 @@ const pageRoutes = new Set([
   "/orgs/[orgSlug]/workspaces",
   "/orgs/[orgSlug]/workspaces/new",
   "/orgs/[orgSlug]/workspaces/[workspaceSlug]",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/sessions/[sessionId]",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/sessions/new",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/secrets",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/graphs",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs/graph",
   "/orgs/[orgSlug]/workspaces/[workspaceSlug]/mcps",
   "/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/mcp",
   "/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry",
@@ -82,17 +89,9 @@ const pageRoutes = new Set([
   "/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/network",
   "/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces",
   "/orgs/[orgSlug]/workspaces/[workspaceSlug]/skills",
-  "/sandboxes",
-  "/sandboxes/new",
-  "/sandboxes/update/[name]",
-  "/secrets",
   "/settings/account",
   "/settings/preferences",
   "/settings/sessions",
-  "/workflows/graphs",
-  "/workflows/triggers",
-  "/workflows/triggers/runs",
-  "/workflows/triggers/runs/graph",
 ])
 
 export function PageBreadcrumb({
@@ -103,7 +102,7 @@ export function PageBreadcrumb({
   const pathname = usePathname()
   const segments = pathname.split("/").filter(Boolean)
   const pathKey = pathname
-  const agent = segments[0] === "agents" ? segments[1] : undefined
+  const agent = segments[4] === "agents" ? segments[5] : undefined
   const { dirtyAgent, openAgent, toggleAgent } = useFileWorkspace()
   const filesOpen = agent === openAgent
   const filesDirty = agent === dirtyAgent
@@ -273,28 +272,21 @@ function BreadcrumbCrumbs({
 }
 
 function routePattern(segments: string[]): string {
-  if (segments[0] === "agents" && segments[1] && segments[2] === "session") {
-    if (segments[3] !== "new") {
-      return `/${segments.join("/")}`
-    }
-
-    return "/agents/[name]/session/new"
-  }
-
-  if (segments[0] === "agents" && segments[1] && segments[2]) {
-    return "/agents/[name]/[sessionId]"
-  }
-
-  if (segments[0] === "sandboxes" && segments[1] === "update" && segments[2]) {
-    return "/sandboxes/update/[name]"
-  }
-
   if (segments[0] === "orgs" && segments[1]) {
-    if (segments[2] === "workspaces" && segments[3] && segments[3] !== "new") {
-      return "/orgs/[orgSlug]/workspaces/[workspaceSlug]"
+    const pattern = [...segments]
+    pattern[1] = "[orgSlug]"
+
+    if (pattern[2] === "workspaces" && pattern[3] && pattern[3] !== "new") {
+      pattern[3] = "[workspaceSlug]"
+    }
+    if (pattern[4] === "agents" && pattern[5]) {
+      pattern[5] = "[agentName]"
+    }
+    if (pattern[6] === "sessions" && pattern[7] && pattern[7] !== "new") {
+      pattern[7] = "[sessionId]"
     }
 
-    return `/orgs/[orgSlug]${segments.length > 2 ? `/${segments.slice(2).join("/")}` : ""}`
+    return `/${pattern.join("/")}`
   }
 
   return `/${segments.join("/")}`

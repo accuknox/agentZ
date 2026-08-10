@@ -56,7 +56,7 @@ export type CleanupRow = {
   completedAt: string | null
 }
 
-type ImpactDatabase = Pick<ReturnType<typeof getDB>, "select">
+type ImpactDatabase = Pick<ReturnType<typeof getDB>, "select" | "selectDistinct">
 
 export type WorkspaceAccessLoss = {
   memberId: string
@@ -292,7 +292,7 @@ export async function findAffectedAPIKeys(
     ) {
       continue
     }
-    keys.set(row.id, row)
+    keys.set(row.id, { ...row, name: row.name ?? "Unnamed API key" })
   }
   return [...keys.values()]
 }
@@ -847,7 +847,7 @@ export async function analyzeDestructiveImpact(
         group: "API keys" as const,
         href: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys`,
         id: `key:${key.id}`,
-        label: key.name,
+        label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
       }))
     )
@@ -912,7 +912,7 @@ export async function analyzeDestructiveImpact(
         group: "API keys" as const,
         href: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys`,
         id: `key:${key.id}`,
-        label: key.name,
+        label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
       })),
       ...effects.invitations.map((invitation) => ({
@@ -1229,7 +1229,7 @@ export async function analyzeDestructiveImpact(
         group: "API keys" as const,
         href: `/orgs/${orgSlug}/workspaces/${workspace.slug}/api-keys`,
         id: `key:${key.id}`,
-        label: key.name,
+        label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
       })),
       ...consumers.map((consumer) => ({

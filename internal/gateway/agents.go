@@ -45,7 +45,7 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	access.workspaceID = claims.WorkspaceID
 
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.TenantID,
+		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
 	})
 	if err != nil {
 		return access, newAPIError(
@@ -58,7 +58,7 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	access.effective = effective
 
 	scope := authorization.Scope{
-		OrganizationID: claims.TenantID,
+		OrganizationID: claims.OrganizationID,
 		WorkspaceID:    claims.WorkspaceID,
 	}
 	allowed, err := s.agentOperationAllowed(ctx, claims, effective, scope, name, operation)
@@ -145,7 +145,7 @@ func (s *Service) agentOperationAllowed(ctx context.Context, claims gatewayClaim
 
 func (s *Service) isAgentOwner(ctx context.Context, claims gatewayClaims, name string) (bool, error) {
 	row, err := s.queries.GatewayGetAgentOwner(ctx, gatewaydb.GatewayGetAgentOwnerParams{
-		OrganizationID: claims.TenantID,
+		OrganizationID: claims.OrganizationID,
 		WorkspaceID:    claims.WorkspaceID,
 		AgentName:      name,
 	})
@@ -161,7 +161,7 @@ func (s *Service) isAgentOwner(ctx context.Context, claims gatewayClaims, name s
 func (s *Service) agentShareCapabilityExists(ctx context.Context, claims gatewayClaims, name string, capability gatewaydb.AgentShareCapability) (bool, error) {
 	return s.queries.GatewayAgentShareCapabilityExists(ctx, gatewaydb.GatewayAgentShareCapabilityExistsParams{
 		Capability:     capability,
-		OrganizationID: claims.TenantID,
+		OrganizationID: claims.OrganizationID,
 		WorkspaceID:    claims.WorkspaceID,
 		AgentName:      name,
 		UserID: pgtype.Text{
@@ -308,7 +308,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockActiveWorkspace(r.Context(), gatewaydb.GatewayLockActiveWorkspaceParams{
-		ID: access.workspaceID, OrganizationID: access.claims.TenantID,
+		ID: access.workspaceID, OrganizationID: access.claims.OrganizationID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, r, resourceForbidden(errors.New("Agent creation requires an active Workspace")))
@@ -321,7 +321,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	_, err = q.GatewayLockActiveOrganizationMember(
 		r.Context(),
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
-			UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+			UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -333,14 +333,14 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	effective, err := authorization.New(q).Resolve(r.Context(), authorization.Subject{
-		UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+		UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
 	})
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("recheck Agent creation authority: %w", err))
 		return
 	}
 	if !effective.Allows(authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}, authorization.OperationCreateAgent) {
 		writeError(w, r, resourceForbidden(errors.New("Agent creation authority was revoked")))
@@ -361,7 +361,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		CreatorUserID:  access.claims.UserID,
 		OwnerUserID:    access.claims.UserID,
 		WorkspaceID:    access.workspaceID,
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 	})
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("create agent owner", err))
@@ -580,7 +580,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	owner, err := q.GatewayLockAgentOwner(r.Context(), gatewaydb.GatewayLockAgentOwnerParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -610,7 +610,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 
 	ownerRows, err := q.GatewayDeleteAgentOwner(r.Context(), gatewaydb.GatewayDeleteAgentOwnerParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -668,7 +668,7 @@ func (s *Service) GetAgentOwner(w http.ResponseWriter, r *http.Request, agentNam
 	}
 
 	row, err := s.queries.GatewayGetAgentOwner(r.Context(), gatewaydb.GatewayGetAgentOwnerParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -706,7 +706,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	}
 
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	owner, err := s.isAgentOwner(r.Context(), access.claims, agentName)
@@ -727,7 +727,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockActiveWorkspace(r.Context(), gatewaydb.GatewayLockActiveWorkspaceParams{
-		ID: access.workspaceID, OrganizationID: access.claims.TenantID,
+		ID: access.workspaceID, OrganizationID: access.claims.OrganizationID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, r, resourceForbidden(errors.New("Agent ownership transfer requires an active Workspace")))
@@ -740,7 +740,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	_, err = q.GatewayLockActiveOrganizationMember(
 		r.Context(),
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
-			UserID: req.OwnerUserId, OrganizationID: access.claims.TenantID,
+			UserID: req.OwnerUserId, OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -753,7 +753,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	}
 
 	effective, err := authorization.New(q).Resolve(r.Context(), authorization.Subject{
-		UserID: req.OwnerUserId, OrganizationID: access.claims.TenantID,
+		UserID: req.OwnerUserId, OrganizationID: access.claims.OrganizationID,
 	})
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("resolve new Agent owner permissions: %w", err))
@@ -766,7 +766,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	}
 
 	previous, err := q.GatewayLockAgentOwner(r.Context(), gatewaydb.GatewayLockAgentOwnerParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -786,7 +786,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	row, err := q.GatewayTransferAgentOwner(r.Context(), gatewaydb.GatewayTransferAgentOwnerParams{
 		UpdatedAt:   pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
 		WorkspaceID: access.workspaceID, AgentName: agentName,
-		OrganizationID: access.claims.TenantID, OwnerUserID: req.OwnerUserId,
+		OrganizationID: access.claims.OrganizationID, OwnerUserID: req.OwnerUserId,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, r, agentNotFound(agentName))
@@ -886,7 +886,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	}
 	if authority == agentShareOwn {
 		scope := authorization.Scope{
-			OrganizationID: access.claims.TenantID,
+			OrganizationID: access.claims.OrganizationID,
 			WorkspaceID:    access.workspaceID,
 		}
 		for _, cap := range req.Capabilities {
@@ -911,7 +911,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	if targetUser.Valid {
 		eligible, err := s.recipientCanUseAgent(
 			r.Context(),
-			access.claims.TenantID,
+			access.claims.OrganizationID,
 			access.workspaceID,
 			targetUser.String,
 			req.Capabilities,
@@ -927,7 +927,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	}
 	if targetTeam.Valid {
 		eligible, err := s.queries.GatewayTeamExists(r.Context(), gatewaydb.GatewayTeamExistsParams{
-			TeamID: targetTeam.String, OrganizationID: access.claims.TenantID,
+			TeamID: targetTeam.String, OrganizationID: access.claims.OrganizationID,
 		})
 		if err != nil {
 			writeInternalError(w, r, fmt.Errorf("resolve Agent Share Team: %w", err))
@@ -995,7 +995,7 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 
 	q := gatewaydb.New(tx)
 	rows, err := q.GatewayDeleteAgentShare(r.Context(), gatewaydb.GatewayDeleteAgentShareParams{
-		ID: shareID, OrganizationID: access.claims.TenantID, WorkspaceID: access.workspaceID,
+		ID: shareID, OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
 	})
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("delete Agent Share: %w", err))
@@ -1174,7 +1174,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) visibleAgentNames(ctx context.Context, access resourceAccess, requested []string) ([]string, bool, error) {
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	if access.effective.CanAdminister(scope) {
@@ -1182,7 +1182,7 @@ func (s *Service) visibleAgentNames(ctx context.Context, access resourceAccess, 
 	}
 
 	names, err := s.queries.GatewayListAccessibleAgentNames(ctx, gatewaydb.GatewayListAccessibleAgentNamesParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		UserID:         access.claims.UserID,
 	})
@@ -1244,7 +1244,7 @@ func (s *Service) recipientCanUseAgent(ctx context.Context, organizationID strin
 
 func (s *Service) resolveAgentShareAuthority(ctx context.Context, access resourceAccess, agentName string) (agentShareAuthority, error) {
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	if access.effective.CanAdminister(scope) {
@@ -1393,7 +1393,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockActiveWorkspace(ctx, gatewaydb.GatewayLockActiveWorkspaceParams{
-		ID: access.workspaceID, OrganizationID: access.claims.TenantID,
+		ID: access.workspaceID, OrganizationID: access.claims.OrganizationID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
@@ -1403,7 +1403,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 	}
 	if targetTeam.Valid {
 		_, err = q.GatewayLockTeam(ctx, gatewaydb.GatewayLockTeamParams{
-			TeamID: targetTeam.String, OrganizationID: access.claims.TenantID,
+			TeamID: targetTeam.String, OrganizationID: access.claims.OrganizationID,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gatewayapi.AgentShare{}, errAgentShareAuthorityRevoked
@@ -1415,7 +1415,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 	_, err = q.GatewayLockActiveOrganizationMember(
 		ctx,
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
-			UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+			UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1425,7 +1425,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 		return gatewayapi.AgentShare{}, fmt.Errorf("lock Agent Share actor: %w", err)
 	}
 	owner, err := q.GatewayLockAgentOwner(ctx, gatewaydb.GatewayLockAgentOwnerParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -1436,13 +1436,13 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 		return gatewayapi.AgentShare{}, fmt.Errorf("lock Agent Share owner: %w", err)
 	}
 	effective, err := authorization.New(q).Resolve(ctx, authorization.Subject{
-		UserID: access.claims.UserID, OrganizationID: access.claims.TenantID,
+		UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
 	})
 	if err != nil {
 		return gatewayapi.AgentShare{}, fmt.Errorf("recheck Agent Share authority: %w", err)
 	}
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	manageAll := effective.CanAdminister(scope) ||
@@ -1453,7 +1453,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 			ctx,
 			gatewaydb.GatewayAgentShareCapabilityExistsParams{
 				Capability:     gatewaydb.AgentShareCapabilityShareNonAuthored,
-				OrganizationID: access.claims.TenantID,
+				OrganizationID: access.claims.OrganizationID,
 				WorkspaceID:    access.workspaceID,
 				AgentName:      agentName,
 				UserID: pgtype.Text{
@@ -1480,7 +1480,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 			allowed, err := q.GatewayAgentShareCapabilityExists(
 				ctx,
 				gatewaydb.GatewayAgentShareCapabilityExistsParams{
-					Capability: cap, OrganizationID: access.claims.TenantID,
+					Capability: cap, OrganizationID: access.claims.OrganizationID,
 					WorkspaceID: access.workspaceID, AgentName: agentName,
 					UserID: pgtype.Text{String: access.claims.UserID, Valid: true},
 				},
@@ -1494,7 +1494,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 		}
 	}
 	shares, err := q.GatewayLockAgentShares(ctx, gatewaydb.GatewayLockAgentSharesParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -1513,7 +1513,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 			return gatewayapi.AgentShare{}, errAgentShareIssuedByOther
 		}
 		if _, err := q.GatewayDeleteAgentShare(ctx, gatewaydb.GatewayDeleteAgentShareParams{
-			ID: share.ID, OrganizationID: access.claims.TenantID, WorkspaceID: access.workspaceID,
+			ID: share.ID, OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
 		}); err != nil {
 			return gatewayapi.AgentShare{}, fmt.Errorf("replace Agent Share: %w", err)
 		}
@@ -1522,7 +1522,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 	row, err := q.GatewayCreateAgentShare(ctx, gatewaydb.GatewayCreateAgentShareParams{
 		ID: "agent-share-" + uuid.NewString(), CreatedBy: access.claims.UserID,
 		TargetUserID: targetUser, TargetTeamID: targetTeam,
-		OrganizationID: access.claims.TenantID, WorkspaceID: access.workspaceID,
+		OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
 		AgentName: agentName,
 	})
 	if err != nil {
@@ -1531,7 +1531,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 	for _, cap := range caps {
 		if _, err := q.GatewayAddAgentShareGrant(ctx, gatewaydb.GatewayAddAgentShareGrantParams{
 			Capability: cap, ShareID: row.ID,
-			OrganizationID: access.claims.TenantID, WorkspaceID: access.workspaceID,
+			OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
 		}); err != nil {
 			return gatewayapi.AgentShare{}, fmt.Errorf("add Agent Share grant: %w", err)
 		}
@@ -1551,7 +1551,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 
 func (s *Service) agentShares(ctx context.Context, access resourceAccess, agentName string, manageAll bool) ([]gatewayapi.AgentShare, error) {
 	rows, err := s.queries.GatewayListAgentShares(ctx, gatewaydb.GatewayListAgentSharesParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -1574,7 +1574,7 @@ func (s *Service) agentShares(ctx context.Context, access resourceAccess, agentN
 
 func (s *Service) agentShareByID(ctx context.Context, access resourceAccess, agentName string, shareID string) (gatewaydb.AgentShare, error) {
 	rows, err := s.queries.GatewayListAgentShares(ctx, gatewaydb.GatewayListAgentSharesParams{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
 	})
@@ -1591,7 +1591,7 @@ func (s *Service) agentShareByID(ctx context.Context, access resourceAccess, age
 
 func (s *Service) agentShareResponse(ctx context.Context, access resourceAccess, row gatewaydb.AgentShare) (gatewayapi.AgentShare, error) {
 	grants, err := s.queries.GatewayListAgentShareGrants(ctx, gatewaydb.GatewayListAgentShareGrantsParams{
-		ShareID: row.ID, OrganizationID: access.claims.TenantID, WorkspaceID: access.workspaceID,
+		ShareID: row.ID, OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
 	})
 	if err != nil {
 		return gatewayapi.AgentShare{}, fmt.Errorf("list Agent Share grants: %w", err)
@@ -1634,7 +1634,7 @@ func createAgentAudit(ctx context.Context, r *http.Request, q gatewaydb.Querier,
 	}
 	params := gatewaydb.GatewayCreateAuditEventParams{
 		ID:               "audit-" + uuid.NewString(),
-		OrganizationID:   access.claims.TenantID,
+		OrganizationID:   access.claims.OrganizationID,
 		WorkspaceID:      pgtype.Text{String: access.workspaceID, Valid: access.workspaceID != ""},
 		ActorType:        gatewaydb.AuditActorUser,
 		ActorID:          pgtype.Text{String: access.claims.UserID, Valid: true},

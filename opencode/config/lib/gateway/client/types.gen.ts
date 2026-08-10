@@ -130,7 +130,7 @@ export type ResourceCapabilities = {
 }
 
 export type Tenant = {
-  tenant_id: string
+  organization_id: string
   namespace: string
   ready: boolean
   phase: TenantPhase

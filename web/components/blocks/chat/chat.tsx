@@ -157,6 +157,8 @@ type ChatProps = {
   greetingIndex?: number
   promptMobile?: boolean
   sessionId?: string
+  workspaceId: string
+  workspacePath: string
 }
 
 type AuthSession = typeof authClient.$Infer.Session
@@ -586,10 +588,12 @@ function ChatInner({
   greetingIndex,
   promptMobile = false,
   sessionId,
+  workspaceId,
+  workspacePath,
 }: ChatProps) {
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
-  const agentReadiness = useAgentReadiness(agentName)
+  const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
   const { data: authSession } = authClient.useSession()
 
@@ -612,7 +616,7 @@ function ChatInner({
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, activeSessionId)
+  } = useOpencodeChat(agentName, workspaceId, activeSessionId)
 
   useEffect(() => {
     const id = `chat:${agentName}:${activeSessionId ?? "new"}:history-error`
@@ -683,9 +687,9 @@ function ChatInner({
 
   const modelCatalog = useQuery(
     queryOptions({
-      queryKey: ["opencode", "modelCatalog", agentName],
+      queryKey: ["opencode", "modelCatalog", workspaceId, agentName],
       queryFn: async () => {
-        const client = await createAgentOpencodeClient(agentName)
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
         const [providersResult, configResult, agentsResult] = await Promise.all([
           client.config.providers(),
           client.config.get(),
@@ -827,6 +831,8 @@ function ChatInner({
   const contextUsage = getAssistantUsage(contextMessages, models)
   const { abortMessage, canSubmit, isStopping, sendMessage, sendState } = useOpencodeSend(
     agentName,
+    workspaceId,
+    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions`,
     activeSessionId,
     directory,
     isBusy || isPending || blocked || agentReadiness.isGettingReady,
@@ -847,7 +853,7 @@ function ChatInner({
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.question.reply({
         answers,
         requestID: questionRequest.id,
@@ -868,7 +874,7 @@ function ChatInner({
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.question.reject({
         requestID: questionRequest.id,
       })
@@ -888,7 +894,7 @@ function ChatInner({
       if (!permissionRequest) {
         throw new Error("No permission request is active")
       }
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.permission.reply({
         requestID: permissionRequest.id,
         reply,
@@ -909,7 +915,7 @@ function ChatInner({
   const applyRevert = useCallback(
     async (messageID?: string) => {
       if (!activeSessionId || isStopping) return
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = messageID
         ? await client.session.revert({ directory, messageID, sessionID: activeSessionId })
         : await client.session.unrevert({ directory, sessionID: activeSessionId })
@@ -1098,6 +1104,7 @@ function ChatInner({
                     revertDisabled={isBusy || isStopping || revertPending}
                     row={row}
                     user={authSession?.user}
+                    workspacePath={workspacePath}
                   />
                 ))}
                 <AgentWorkingIndicator isWorking={isBusy} />
@@ -1451,6 +1458,7 @@ function TimelineRowView({
   revertDisabled,
   row,
   user,
+  workspacePath,
 }: {
   agentName: string
   isBusy: boolean
@@ -1459,6 +1467,7 @@ function TimelineRowView({
   revertDisabled: boolean
   row: TimelineRow
   user?: AuthUser
+  workspacePath: string
 }) {
   const { previewFile } = useFileWorkspace()
   const openAgentFile = useCallback(
@@ -1573,7 +1582,12 @@ function TimelineRowView({
                           const toolEntry = entry.toolEntries[0]
                           if (!toolEntry) return null
                           return (
-                            <ToolEntries agentName={agentName} entry={toolEntry} key={entry.key} />
+                            <ToolEntries
+                              agentName={agentName}
+                              entry={toolEntry}
+                              key={entry.key}
+                              workspacePath={workspacePath}
+                            />
                           )
                         })}
                       </div>

@@ -143,7 +143,9 @@ export async function listAPIKeysCachedQuery(workspaceId: string) {
   return { access, apiKeys }
 }
 
-export async function listWebhookAPIKeyDisplaysCachedQuery(): Promise<APIKeySummaryByID> {
+export async function listWebhookAPIKeyDisplaysCachedQuery(
+  workspaceId: string
+): Promise<APIKeySummaryByID> {
   "use cache: private"
 
   cacheLife("minutes")
@@ -161,6 +163,7 @@ export async function listWebhookAPIKeyDisplaysCachedQuery(): Promise<APIKeySumm
     .where(
       and(
         eq(schema.apiKeyScopes.organizationId, auth.organizationId),
+        eq(schema.apiKeyScopes.workspaceId, workspaceId),
         eq(schema.apiKeyScopes.creatorUserId, auth.userId),
         eq(schema.apikeys.configId, webhookAPIKeyConfigID),
         eq(schema.apikeys.enabled, true),

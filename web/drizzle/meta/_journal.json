@@ -127,6 +127,13 @@
       "when": 1786360025226,
       "tag": "0017_tiny_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786363323017,
+      "tag": "0018_audit-workspace-access",
+      "breakpoints": true
     }
   ]
 }

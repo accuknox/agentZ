@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import * as z from "zod"
 import { Plus } from "lucide-react"
@@ -10,6 +11,8 @@ import {
   startOAuthSecretFormAction,
 } from "@/data/secret.actions"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
+import type { DeleteSecretFormAction, PutSecretFormAction } from "@/data/types"
+import { getWorkspaceScope } from "@/data/workspaces"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
 import { SecretTable } from "./secret-table"
@@ -32,11 +35,22 @@ type SearchParams = {
 type ResolvedSearchParams = z.output<typeof secretsSearchParamsSchema>
 
 export default async function SecretsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
   searchParams: Promise<SearchParams>
 }) {
-  const params = secretsSearchParamsSchema.parse(await searchParams)
+  const [{ orgSlug, workspaceSlug }, search] = await Promise.all([params, searchParams])
+  const workspace = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (workspace.kind !== "ready") {
+    notFound()
+  }
+  const parsed = secretsSearchParamsSchema.parse(search)
+  const actionScope = {
+    basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
+    workspaceId: workspace.workspace.id,
+  }
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -53,17 +67,22 @@ export default async function SecretsPage({
           }
         >
           <NewSecretButtonShell
-            searchParams={params}
-            putSecretAction={putSecretFormAction}
-            startOAuthAction={startOAuthSecretFormAction}
+            searchParams={parsed}
+            putSecretAction={putSecretFormAction.bind(null, actionScope)}
+            startOAuthAction={startOAuthSecretFormAction.bind(null, actionScope)}
+            workspaceId={workspace.workspace.id}
           />
         </Suspense>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={params} />
+        <Filters searchParams={parsed} workspaceId={workspace.workspace.id} />
       </Suspense>
       <Suspense fallback={<TableSkeleton />}>
-        <Secrets searchParams={params} deleteSecretAction={deleteSecretFormAction} />
+        <Secrets
+          searchParams={parsed}
+          deleteSecretAction={deleteSecretFormAction.bind(null, actionScope)}
+          workspaceId={workspace.workspace.id}
+        />
       </Suspense>
     </main>
   )
@@ -73,12 +92,14 @@ async function NewSecretButtonShell({
   searchParams,
   putSecretAction,
   startOAuthAction,
+  workspaceId,
 }: {
   searchParams: ResolvedSearchParams
-  putSecretAction: typeof putSecretFormAction
-  startOAuthAction: typeof startOAuthSecretFormAction
+  putSecretAction: PutSecretFormAction
+  startOAuthAction: PutSecretFormAction
+  workspaceId: string
 }) {
-  const agents = listAgentsCachedQuery()
+  const agents = listAgentsCachedQuery(undefined, workspaceId)
   const agentName = searchParams.agent_name
   const result = await agents
   if (result.error || !result.agents || result.agents.length === 0) {
@@ -112,8 +133,14 @@ async function NewSecretButtonShell({
   )
 }
 
-async function Filters({ searchParams }: { searchParams: ResolvedSearchParams }) {
-  const agents = listAgentsCachedQuery()
+async function Filters({
+  searchParams,
+  workspaceId,
+}: {
+  searchParams: ResolvedSearchParams
+  workspaceId: string
+}) {
+  const agents = listAgentsCachedQuery(undefined, workspaceId)
   const agentName = searchParams.agent_name
   const result = await agents
   if (result.error) {
@@ -128,11 +155,13 @@ async function Filters({ searchParams }: { searchParams: ResolvedSearchParams })
 async function Secrets({
   searchParams,
   deleteSecretAction,
+  workspaceId,
 }: {
   searchParams: ResolvedSearchParams
-  deleteSecretAction: typeof deleteSecretFormAction
+  deleteSecretAction: DeleteSecretFormAction
+  workspaceId: string
 }) {
-  const agents = listAgentsCachedQuery()
+  const agents = listAgentsCachedQuery(undefined, workspaceId)
   const agentName = searchParams.agent_name
   const pageToken = searchParams.page_token
   const agentsResult = await agents
@@ -146,7 +175,7 @@ async function Secrets({
     return <EmptyState message="No agents available" />
   }
 
-  const result = await listSecretsCachedQuery(selectedAgent.name, {
+  const result = await listSecretsCachedQuery(selectedAgent.name, workspaceId, {
     limit: 50,
     page_token: pageToken,
   })

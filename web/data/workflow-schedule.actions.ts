@@ -1,5 +1,6 @@
 "use server"
 
+import type { Route } from "next"
 import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
 import * as z from "zod"
@@ -26,6 +27,7 @@ import type {
   WorkflowInputContractResult,
 } from "@/data/types"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import type { WorkflowActionScope } from "@/data/workflow.actions"
 
 type ParsedScheduleForm = {
   data: CreateWorkflowScheduleFormValues
@@ -49,17 +51,19 @@ const scheduleFormDataSchema = z.object({
 })
 
 export async function createWorkflowScheduleFormAction(
+  scope: WorkflowActionScope,
   agentName: string,
   _: CreateWorkflowScheduleFormState,
   formData: FormData
 ): Promise<CreateWorkflowScheduleFormState> {
-  const parsed = await parseScheduleForm(agentName, formData)
+  const parsed = await parseScheduleForm(scope, agentName, formData)
   if ("error" in parsed) {
     return parsed
   }
 
   const result = await createWorkflowSchedule({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: {
       agentName,
       workflowName: parsed.data.workflow_name,
@@ -78,15 +82,17 @@ export async function createWorkflowScheduleFormAction(
     return { error: result.error }
   }
 
-  finishWorkflowScheduleMutation(agentName)
+  finishWorkflowScheduleMutation(scope, agentName)
 }
 
 export async function getWorkflowInputContractAction(
+  scope: WorkflowActionScope,
   agentName: string,
   workflowName: string
 ): Promise<WorkflowInputContractResult> {
   const result = await getWorkflow({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: {
       agentName,
       workflowName,
@@ -107,6 +113,7 @@ export async function getWorkflowInputContractAction(
 }
 
 export async function updateWorkflowScheduleFormAction(
+  scope: WorkflowActionScope,
   agentName: string,
   _: UpdateWorkflowScheduleFormState,
   formData: FormData
@@ -118,13 +125,14 @@ export async function updateWorkflowScheduleFormAction(
     return invalidFormState("Schedule configuration is invalid", nameResult.error.issues)
   }
 
-  const parsed = await parseScheduleForm(agentName, formData)
+  const parsed = await parseScheduleForm(scope, agentName, formData)
   if ("error" in parsed) {
     return parsed
   }
 
   const result = await updateWorkflowSchedule({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: {
       agentName,
       workflowName: parsed.data.workflow_name,
@@ -143,10 +151,11 @@ export async function updateWorkflowScheduleFormAction(
     return { error: result.error }
   }
 
-  finishWorkflowScheduleMutation(agentName)
+  finishWorkflowScheduleMutation(scope, agentName)
 }
 
 export async function deleteWorkflowScheduleFormAction(
+  scope: WorkflowActionScope,
   agentName: string,
   _: DeleteWorkflowScheduleFormState,
   formData: FormData
@@ -159,7 +168,8 @@ export async function deleteWorkflowScheduleFormAction(
   }
 
   const result = await deleteWorkflowSchedule({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: {
       agentName,
       workflowName: parsed.data.workflow_name,
@@ -170,10 +180,14 @@ export async function deleteWorkflowScheduleFormAction(
     return { error: result.error }
   }
 
-  finishWorkflowScheduleMutation(agentName)
+  finishWorkflowScheduleMutation(scope, agentName)
 }
 
-async function parseScheduleForm(agentName: string, formData: FormData) {
+async function parseScheduleForm(
+  scope: WorkflowActionScope,
+  agentName: string,
+  formData: FormData
+) {
   const scalarValues = scheduleFormDataSchema.safeParse(Object.fromEntries(formData))
   if (!scalarValues.success) {
     return invalidFormState("Schedule configuration is invalid", scalarValues.error.issues)
@@ -188,7 +202,8 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
   }
 
   const workflowResult = await getWorkflow({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: {
       agentName,
       workflowName: values.workflow_name,
@@ -240,10 +255,12 @@ async function parseScheduleForm(agentName: string, formData: FormData) {
   } satisfies ParsedScheduleForm
 }
 
-function finishWorkflowScheduleMutation(agentName: string): never {
+function finishWorkflowScheduleMutation(scope: WorkflowActionScope, agentName: string): never {
   updateTag(workflowsTag)
   updateTag(agentWorkflowsTag(agentName))
-  redirect(`/workflows/triggers?agent_name=${encodeURIComponent(agentName)}&type=schedule`)
+  redirect(
+    `${scope.basePath}/workflows/triggers?agent_name=${encodeURIComponent(agentName)}&type=schedule` as Route
+  )
 }
 
 function invalidFormState(message: string, issues: z.ZodIssue[]) {

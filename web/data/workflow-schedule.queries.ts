@@ -20,15 +20,17 @@ export type ListWorkflowSchedulesQueryResult =
 
 export async function listWorkflowSchedulesCachedQuery(
   agentName: ListAgentWorkflowSchedulesData["path"]["agentName"],
+  workspaceId: string,
   query?: ListAgentWorkflowSchedulesData["query"]
 ): Promise<ListWorkflowSchedulesQueryResult> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(workflowsTag, agentWorkflowsTag(agentName))
+  cacheTag(workflowsTag, `${agentWorkflowsTag(agentName)}:${workspaceId}`)
 
   const { data, error } = await listAgentWorkflowSchedules({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: { agentName },
     query,
   })

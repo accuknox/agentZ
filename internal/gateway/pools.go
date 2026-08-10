@@ -200,7 +200,7 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 	name := "ipl-" + strings.ReplaceAll(uuid.NewString()[:13], "-", "")
 	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationCreateInferencePool)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			if err := s.createInferencePoolAudit(r.Context(), r, access, name, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -269,7 +269,7 @@ func (s *Service) GetInferencePool(w http.ResponseWriter, r *http.Request, poolN
 func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath, params gatewayapi.UpdateInferencePoolParams) {
 	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, poolName, authorization.OperationUpdateInferencePool)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			if err := s.createInferencePoolAudit(r.Context(), r, access, poolName, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -354,7 +354,7 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath, params gatewayapi.DeleteInferencePoolParams) {
 	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, poolName, authorization.OperationDeleteInferencePool)
 	if apiErr != nil {
-		if access.claims.TenantID != "" {
+		if access.claims.OrganizationID != "" {
 			if err := s.createInferencePoolAudit(r.Context(), r, access, poolName, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -473,7 +473,7 @@ func validateInferencePoolDependencies(access resourceAccess, pool *agentzv1alph
 			workspaceID = access.workspaceID
 		}
 		allowed := access.effective.Allows(authorization.Scope{
-			OrganizationID: access.claims.TenantID,
+			OrganizationID: access.claims.OrganizationID,
 			WorkspaceID:    workspaceID,
 		}, authorization.OperationGetInferenceProvider)
 		if allowed {
@@ -540,7 +540,7 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int, access resourceAcc
 		CreatedAt: pool.CreationTimestamp.Time, UpdatedAt: updatedAt,
 	}
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	creator := pool.Spec.CreatorUserID == access.claims.UserID &&

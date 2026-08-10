@@ -44,6 +44,7 @@ type PendingCreateOperation = {
 type PendingSecretOperation = {
   kind: "secret"
   form: ParsedMcpForm
+  workspaceId: string
   secret: {
     agentName: string
     key: string
@@ -158,6 +159,7 @@ const pendingOAuthOperationSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("secret"),
     form: parsedMcpFormSchema,
+    workspaceId: z.string().min(1),
     secret: z.object({
       agentName: z.string().min(1),
       key: z.string().min(1),

@@ -49,7 +49,6 @@ type WorkspaceNavigationScope = {
 }
 
 export type SidebarScope =
-  | { kind: "legacy" }
   | { kind: "account" }
   | { kind: "no-access"; organization: OrganizationSummary }
   | ({ kind: "organization" } & WorkspaceNavigationScope)
@@ -84,7 +83,6 @@ export function AppSidebar({
         <WorkspaceSwitcher scope={scope} />
       </SidebarHeader>
       <SidebarContent className="gap-0">
-        {scope.kind === "legacy" ? <LegacyNavigation /> : null}
         {scope.kind === "organization" ? (
           <OrganizationNavigation
             canEnterOrganization={scope.canEnterOrganization}
@@ -96,17 +94,23 @@ export function AppSidebar({
           />
         ) : null}
         {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
-          <WorkspaceNavigation
-            apiKeyCapabilities={scope.apiKeyCapabilities}
-            mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
-            inferencePoolCapabilities={scope.inferencePoolCapabilities}
-            inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
-            organization={scope.organization}
-            observabilityCapabilities={scope.observabilityCapabilities}
-            skillCapabilities={scope.skillCapabilities}
-            sandboxCapabilities={scope.sandboxCapabilities}
-            workspace={scope.workspace}
-          />
+          <>
+            <WorkspaceNavigation
+              apiKeyCapabilities={scope.apiKeyCapabilities}
+              mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
+              inferencePoolCapabilities={scope.inferencePoolCapabilities}
+              inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
+              organization={scope.organization}
+              observabilityCapabilities={scope.observabilityCapabilities}
+              skillCapabilities={scope.skillCapabilities}
+              sandboxCapabilities={scope.sandboxCapabilities}
+              workspace={scope.workspace}
+            />
+            <WorkspaceRuntimeNavigation
+              organization={scope.organization}
+              workspace={scope.workspace}
+            />
+          </>
         ) : null}
       </SidebarContent>
       {user ? (
@@ -257,22 +261,36 @@ function WorkspaceNavigation({
   )
 }
 
-async function LegacyNavigation() {
+async function WorkspaceRuntimeNavigation({
+  organization,
+  workspace,
+}: {
+  organization: OrganizationSummary
+  workspace: Workspace
+}) {
   const [agents, sandboxes, skills] = await Promise.all([
-    listAgentsCachedQuery(),
-    listSandboxesCachedQuery({ limit: 50 }),
-    listImmutableSkillsCachedQuery(),
+    listAgentsCachedQuery(undefined, workspace.id),
+    listSandboxesCachedQuery({ limit: 50 }, workspace.id),
+    listImmutableSkillsCachedQuery(workspace.id),
   ])
+  const workspacePath =
+    `/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route
 
   return (
     <>
       <SidebarGroup className="gap-y-1 px-2 py-2">
-        <NavSecrets />
-        <NavWorkflows />
+        <NavSecrets workspacePath={workspacePath} />
+        <NavWorkflows workspacePath={workspacePath} />
       </SidebarGroup>
       <SidebarGroup className="px-2 py-2">
         <SidebarGroupLabel>Agents</SidebarGroupLabel>
-        <NavAgents agents={agents} immutableSkills={skills.skills ?? []} sandboxes={sandboxes} />
+        <NavAgents
+          agents={agents}
+          immutableSkills={skills.skills ?? []}
+          sandboxes={sandboxes}
+          workspaceId={workspace.id}
+          workspacePath={workspacePath}
+        />
       </SidebarGroup>
     </>
   )

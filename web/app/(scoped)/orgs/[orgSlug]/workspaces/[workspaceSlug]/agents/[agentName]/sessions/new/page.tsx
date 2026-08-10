@@ -1,11 +1,15 @@
 import { randomInt } from "node:crypto"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
+import { notFound } from "next/navigation"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
+import { getWorkspaceScope } from "@/data/workspaces"
 import { getAuth } from "@/lib/auth"
 
 type NewSessionPageParams = Promise<{
-  name: string
+  agentName: string
+  orgSlug: string
+  workspaceSlug: string
 }>
 
 type NewSessionSearchParams = Promise<{
@@ -21,10 +25,10 @@ type NewSessionPageProps = {
 export async function generateMetadata({
   params,
 }: Pick<NewSessionPageProps, "params">): Promise<Metadata> {
-  const { name } = await params
+  const { agentName } = await params
 
   return {
-    title: `New Session: ${name}`,
+    title: `New Session: ${agentName}`,
   }
 }
 
@@ -38,7 +42,11 @@ export default async function ChatPage({ params, searchParams }: NewSessionPageP
       headers: requestHeaders,
     }),
   ])
-  const { name } = routeParams
+  const { agentName, orgSlug, workspaceSlug } = routeParams
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind !== "ready") {
+    notFound()
+  }
   const draft =
     typeof resolvedSearchParams.draft === "string" ? resolvedSearchParams.draft : undefined
   const firstName =
@@ -53,10 +61,12 @@ export default async function ChatPage({ params, searchParams }: NewSessionPageP
       data-chat-page
     >
       <ChatShell
-        agentName={name}
+        agentName={agentName}
         draftKey={draft}
         firstName={firstName}
         greetingIndex={greetingIndex}
+        workspaceId={scope.workspace.id}
+        workspacePath={`/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`}
       />
     </main>
   )

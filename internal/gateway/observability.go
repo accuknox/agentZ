@@ -28,7 +28,7 @@ func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request,
 	}
 
 	scope := authorization.Scope{
-		OrganizationID: access.claims.TenantID,
+		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
 	if !access.effective.Allows(scope, authorization.OperationReadObservability) {

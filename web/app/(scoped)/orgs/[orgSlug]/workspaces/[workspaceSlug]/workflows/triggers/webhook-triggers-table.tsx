@@ -32,11 +32,13 @@ const columnClassName: Record<string, string> = {
 
 export function WebhookTriggersTable({
   agentName,
+  basePath,
   hasNextPage,
   nextPageToken,
   rows,
 }: {
   agentName: string
+  basePath: string
   hasNextPage: boolean
   nextPageToken: string
   rows: WebhookTriggerRow[]
@@ -72,7 +74,7 @@ export function WebhookTriggersTable({
                   tabIndex={0}
                   onClick={() => {
                     router.push(
-                      `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=webhook&workflow_name=${encodeURIComponent(row.workflowName)}&webhook_api_key_id=${encodeURIComponent(row.apiKeyID)}`
+                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=webhook&workflow_name=${encodeURIComponent(row.workflowName)}&webhook_api_key_id=${encodeURIComponent(row.apiKeyID)}`
                     )
                   }}
                   onKeyDown={(event) => {
@@ -82,7 +84,7 @@ export function WebhookTriggersTable({
 
                     event.preventDefault()
                     router.push(
-                      `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=webhook&workflow_name=${encodeURIComponent(row.workflowName)}&webhook_api_key_id=${encodeURIComponent(row.apiKeyID)}`
+                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=webhook&workflow_name=${encodeURIComponent(row.workflowName)}&webhook_api_key_id=${encodeURIComponent(row.apiKeyID)}`
                     )
                   }}
                 >

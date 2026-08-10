@@ -1,11 +1,16 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { selectWorkflowRunGraphFiltersAction } from "@/data/workflow.actions"
+import {
+  selectWorkflowRunGraphFiltersAction,
+  type WorkflowActionScope,
+} from "@/data/workflow.actions"
 import { getWorkflowCachedQuery, listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
 import { getWorkflowRunCachedQuery, listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
+import { getWorkspaceScope } from "@/data/workspaces"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { WorkflowRunGraphFilters } from "./workflow-run-graph-filters"
 import { WorkflowRunGraph } from "./workflow-run-graph"
@@ -29,11 +34,22 @@ type SearchParams = {
 type ResolvedSearchParams = z.output<typeof workflowRunGraphSearchParamsSchema>
 
 export default async function WorkflowRunGraphPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
   searchParams: Promise<SearchParams>
 }) {
-  const params = workflowRunGraphSearchParamsSchema.parse(await searchParams)
+  const [route, search] = await Promise.all([params, searchParams])
+  const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (workspace.kind !== "ready") {
+    notFound()
+  }
+  const parsed = workflowRunGraphSearchParamsSchema.parse(search)
+  const actionScope: WorkflowActionScope = {
+    basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
+    workspaceId: workspace.workspace.id,
+  }
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -43,14 +59,20 @@ export default async function WorkflowRunGraphPage({
         </div>
       </div>
       <Suspense fallback={<GraphSkeleton />}>
-        <WorkflowRunGraphContent searchParams={params} />
+        <WorkflowRunGraphContent actionScope={actionScope} searchParams={parsed} />
       </Suspense>
     </main>
   )
 }
 
-async function WorkflowRunGraphContent({ searchParams }: { searchParams: ResolvedSearchParams }) {
-  const agentsResult = await listAgentsCachedQuery()
+async function WorkflowRunGraphContent({
+  actionScope,
+  searchParams,
+}: {
+  actionScope: WorkflowActionScope
+  searchParams: ResolvedSearchParams
+}) {
+  const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />
   }
@@ -62,7 +84,7 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
     return (
       <>
         <WorkflowRunGraphFilters
-          action={selectWorkflowRunGraphFiltersAction}
+          action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
           agents={agentsResult.agents}
           workflowRuns={[]}
           workflows={[]}
@@ -72,7 +94,10 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
     )
   }
 
-  const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name)
+  const workflowsResult = await listWorkflowSummariesCachedQuery(
+    selectedAgent.name,
+    actionScope.workspaceId
+  )
   if (workflowsResult.error) {
     return <ErrorPanel message={workflowsResult.error.message} />
   }
@@ -85,7 +110,7 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
     return (
       <>
         <WorkflowRunGraphFilters
-          action={selectWorkflowRunGraphFiltersAction}
+          action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
           agents={agentsResult.agents}
           selectedAgentName={selectedAgent.name}
           workflowRuns={[]}
@@ -99,6 +124,7 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
   const runsResult = await listWorkflowRunsCachedQuery(
     selectedAgent.name,
     selectedWorkflow.workflow_name,
+    actionScope.workspaceId,
     {
       limit: 200,
     }
@@ -114,7 +140,7 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
     return (
       <>
         <WorkflowRunGraphFilters
-          action={selectWorkflowRunGraphFiltersAction}
+          action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
           agents={agentsResult.agents}
           selectedAgentName={selectedAgent.name}
           selectedWorkflowName={selectedWorkflow.workflow_name}
@@ -127,8 +153,17 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
   }
 
   const [workflowResult, runResult] = await Promise.all([
-    getWorkflowCachedQuery(selectedAgent.name, selectedWorkflow.workflow_name),
-    getWorkflowRunCachedQuery(selectedAgent.name, selectedWorkflow.workflow_name, selectedRun.name),
+    getWorkflowCachedQuery(
+      selectedAgent.name,
+      selectedWorkflow.workflow_name,
+      actionScope.workspaceId
+    ),
+    getWorkflowRunCachedQuery(
+      selectedAgent.name,
+      selectedWorkflow.workflow_name,
+      selectedRun.name,
+      actionScope.workspaceId
+    ),
   ])
   if (workflowResult.error) {
     return <ErrorPanel message={workflowResult.error.message} />
@@ -143,7 +178,7 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
   return (
     <>
       <WorkflowRunGraphFilters
-        action={selectWorkflowRunGraphFiltersAction}
+        action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
         agents={agentsResult.agents}
         selectedAgentName={selectedAgent.name}
         selectedRunName={selectedRun.name}
@@ -156,6 +191,7 @@ async function WorkflowRunGraphContent({ searchParams }: { searchParams: Resolve
         agentName={selectedAgent.name}
         workflow={workflowResult.workflow}
         workflowRun={runResult.workflowRun}
+        workspaceId={actionScope.workspaceId}
       />
     </>
   )

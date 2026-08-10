@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
@@ -6,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
 import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
+import { getWorkspaceScope } from "@/data/workspaces"
 import { WorkflowsFilters } from "./workflows-filters"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
@@ -26,11 +28,22 @@ type SearchParams = {
 type ResolvedSearchParams = z.output<typeof workflowsSearchParamsSchema>
 
 export default async function WorkflowsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
   searchParams: Promise<SearchParams>
 }) {
-  const params = workflowsSearchParamsSchema.parse(await searchParams)
+  const [route, search] = await Promise.all([params, searchParams])
+  const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (workspace.kind !== "ready") {
+    notFound()
+  }
+  const parsed = workflowsSearchParamsSchema.parse(search)
+  const actionScope = {
+    basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
+    workspaceId: workspace.workspace.id,
+  }
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
@@ -40,17 +53,23 @@ export default async function WorkflowsPage({
         </div>
       </div>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={params} />
+        <Filters actionScope={actionScope} searchParams={parsed} />
       </Suspense>
       <Suspense fallback={<CanvasSkeleton />}>
-        <WorkflowContent searchParams={params} />
+        <WorkflowContent searchParams={parsed} workspaceId={workspace.workspace.id} />
       </Suspense>
     </main>
   )
 }
 
-async function Filters({ searchParams }: { searchParams: ResolvedSearchParams }) {
-  const agents = listAgentsCachedQuery()
+async function Filters({
+  actionScope,
+  searchParams,
+}: {
+  actionScope: { basePath: string; workspaceId: string }
+  searchParams: ResolvedSearchParams
+}) {
+  const agents = listAgentsCachedQuery(undefined, actionScope.workspaceId)
   const selectedAgentName = searchParams.agent_name
   const selectedWorkflowName = searchParams.workflow_name
   const agentsResult = await agents
@@ -63,7 +82,7 @@ async function Filters({ searchParams }: { searchParams: ResolvedSearchParams })
   if (!selectedAgent) {
     return (
       <WorkflowsFilters
-        action={selectWorkflowFiltersAction}
+        action={selectWorkflowFiltersAction.bind(null, actionScope)}
         agents={agentsResult.agents}
         selectedAgentName={undefined}
         workflows={[]}
@@ -72,7 +91,10 @@ async function Filters({ searchParams }: { searchParams: ResolvedSearchParams })
     )
   }
 
-  const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name)
+  const workflowsResult = await listWorkflowSummariesCachedQuery(
+    selectedAgent.name,
+    actionScope.workspaceId
+  )
   const workflows = workflowsResult.summaries ?? []
   const selectedWorkflow =
     workflows.find((workflow) => workflow.workflow_name === selectedWorkflowName) ?? workflows[0]
@@ -80,7 +102,7 @@ async function Filters({ searchParams }: { searchParams: ResolvedSearchParams })
   return (
     <WorkflowsFilters
       key={`${selectedAgent.name}:${selectedWorkflow?.workflow_name ?? ""}`}
-      action={selectWorkflowFiltersAction}
+      action={selectWorkflowFiltersAction.bind(null, actionScope)}
       agents={agentsResult.agents}
       selectedAgentName={selectedAgent.name}
       workflows={workflows}
@@ -89,8 +111,14 @@ async function Filters({ searchParams }: { searchParams: ResolvedSearchParams })
   )
 }
 
-async function WorkflowContent({ searchParams }: { searchParams: ResolvedSearchParams }) {
-  const agents = listAgentsCachedQuery()
+async function WorkflowContent({
+  searchParams,
+  workspaceId,
+}: {
+  searchParams: ResolvedSearchParams
+  workspaceId: string
+}) {
+  const agents = listAgentsCachedQuery(undefined, workspaceId)
   const selectedAgentName = searchParams.agent_name
   const selectedWorkflowName = searchParams.workflow_name
   const agentsResult = await agents
@@ -105,7 +133,7 @@ async function WorkflowContent({ searchParams }: { searchParams: ResolvedSearchP
     return <EmptyState message="No agents available" />
   }
 
-  const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name)
+  const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name, workspaceId)
   if (workflowsResult.error) {
     return <ErrorPanel message={workflowsResult.error.message} />
   }
@@ -120,7 +148,8 @@ async function WorkflowContent({ searchParams }: { searchParams: ResolvedSearchP
 
   const workflowResult = await getWorkflowCachedQuery(
     selectedAgent.name,
-    selectedWorkflow.workflow_name
+    selectedWorkflow.workflow_name,
+    workspaceId
   )
   if (workflowResult.error) {
     return <ErrorPanel message={workflowResult.error.message} />

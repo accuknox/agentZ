@@ -113,7 +113,7 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 		return
 	}
 
-	previous, err := s.workspaceResourceSelection(r.Context(), workspaceID, claims.TenantID)
+	previous, err := s.workspaceResourceSelection(r.Context(), workspaceID, claims.OrganizationID)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -158,7 +158,7 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 	allowed, err := s.queries.GatewayIsActiveSuperadmin(
 		r.Context(),
 		gatewaydb.GatewayIsActiveSuperadminParams{
-			UserID: claims.UserID, OrganizationID: claims.TenantID,
+			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -168,13 +168,13 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 	workspace, getErr := s.queries.GatewayGetWorkspace(
 		r.Context(),
 		gatewaydb.GatewayGetWorkspaceParams{
-			ID: workspaceID, OrganizationID: claims.TenantID,
+			ID: workspaceID, OrganizationID: claims.OrganizationID,
 		},
 	)
 	if !allowed || getErr != nil {
 		if action == "modify" {
 			_ = createWorkspaceAudit(r.Context(), s.queries, workspaceAudit{
-				request: r, organizationID: claims.TenantID, workspaceID: workspaceID,
+				request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
 				actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
 				action: "workspace.inheritance.modify", result: gatewaydb.AuditResultDenied,
 				interfaceName: gatewaydb.AuditInterfaceGateway,
@@ -280,7 +280,7 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockActiveWorkspace(ctx, gatewaydb.GatewayLockActiveWorkspaceParams{
-		ID: workspaceID, OrganizationID: claims.TenantID,
+		ID: workspaceID, OrganizationID: claims.OrganizationID,
 	})
 	if err != nil {
 		return fmt.Errorf("lock Workspace inheritance: %w", err)
@@ -292,7 +292,7 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 	_, err = q.GatewayDeleteWorkspaceInheritedResources(
 		ctx,
 		gatewaydb.GatewayDeleteWorkspaceInheritedResourcesParams{
-			WorkspaceID: workspaceID, OrganizationID: claims.TenantID,
+			WorkspaceID: workspaceID, OrganizationID: claims.OrganizationID,
 			Resource: resource,
 		},
 	)
@@ -300,7 +300,7 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 		_, err = q.GatewayInsertWorkspaceInheritedResources(
 			ctx,
 			gatewaydb.GatewayInsertWorkspaceInheritedResourcesParams{
-				WorkspaceID: workspaceID, OrganizationID: claims.TenantID,
+				WorkspaceID: workspaceID, OrganizationID: claims.OrganizationID,
 				Resource: resource, ResourceNames: names,
 			},
 		)
@@ -309,7 +309,7 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 		return fmt.Errorf("replace Workspace inheritance: %w", err)
 	}
 	err = createWorkspaceAudit(ctx, q, workspaceAudit{
-		request: r, organizationID: claims.TenantID, workspaceID: workspaceID,
+		request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
 		actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
 		action: "workspace.inheritance.modify", result: gatewaydb.AuditResultSucceeded,
 		interfaceName: gatewaydb.AuditInterfaceGateway,
@@ -326,7 +326,7 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 
 func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gatewayClaims, workspaceID string, resourceType gatewayapi.InheritedResourceType) {
 	err := createWorkspaceAudit(context.WithoutCancel(r.Context()), s.queries, workspaceAudit{
-		request: r, organizationID: claims.TenantID, workspaceID: workspaceID,
+		request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
 		actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
 		action: "workspace.inheritance.modify", result: gatewaydb.AuditResultFailed,
 		interfaceName: gatewaydb.AuditInterfaceGateway,
@@ -442,7 +442,7 @@ func (s *Service) selectedOrganizationResourceConflict(ctx context.Context, acce
 	rows, err := s.queries.GatewayListWorkspacesSelectingOrganizationResource(
 		ctx,
 		gatewaydb.GatewayListWorkspacesSelectingOrganizationResourceParams{
-			OrganizationID: access.claims.TenantID,
+			OrganizationID: access.claims.OrganizationID,
 			Resource:       resource, ResourceName: name,
 		},
 	)

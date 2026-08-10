@@ -83,19 +83,23 @@ export function NavAgents({
   agents,
   immutableSkills,
   sandboxes,
+  workspaceId,
+  workspacePath,
 }: {
   agents: ListAgentActionResponse
   immutableSkills: Skill[]
   sandboxes: ListSandboxActionResponse
+  workspaceId: string
+  workspacePath: string
 }) {
   const initialAgents = agents.agents ?? []
   const path = usePathname()
-  const currentAgentName = agentNameFromPath(path)
+  const currentAgentName = agentNameFromPath(path, workspacePath)
   const [manualOpenAgentName, setManualOpenAgentName] = useState<string | null>(null)
   const openAgentName = currentAgentName ?? manualOpenAgentName
 
   const query = useQuery({
-    ...watchAgentsQueryOptions(initialAgents),
+    ...watchAgentsQueryOptions(workspaceId, initialAgents),
     enabled: agents.agents !== undefined,
   })
 
@@ -115,6 +119,7 @@ export function NavAgents({
       <SidebarMenu>
         <SidebarMenuItem>
           <AgentDialog
+            actionScope={{ basePath: workspacePath, workspaceId }}
             mode="create"
             immutableSkills={immutableSkills}
             sandboxes={sandboxes.error ? [] : sandboxes.sandboxes}
@@ -144,6 +149,8 @@ export function NavAgents({
           isOpen={openAgentName === agent.name}
           path={path}
           setOpenAgentName={setManualOpenAgentName}
+          workspaceId={workspaceId}
+          workspacePath={workspacePath}
         />
       ))}
     </>
@@ -155,13 +162,17 @@ function AgentSessionsItem({
   isOpen,
   path,
   setOpenAgentName,
+  workspaceId,
+  workspacePath,
 }: {
   agent: Agent
   isOpen: boolean
   path: string
   setOpenAgentName: React.Dispatch<React.SetStateAction<string | null>>
+  workspaceId: string
+  workspacePath: string
 }) {
-  const query = useQuery(agentSessionsQueryOptions(agent.name, isOpen))
+  const query = useQuery(agentSessionsQueryOptions(agent.name, workspaceId, isOpen))
   const sessions = useMemo(() => {
     return query.data?.sessions ?? []
   }, [query.data?.sessions])
@@ -170,7 +181,8 @@ function AgentSessionsItem({
     return sessions.filter((session) => !session.parentID)
   }, [sessions])
   const router = useRouter()
-  const newSessionPath = `/agents/${agent.name}/session/new` as Route
+  const newSessionPath =
+    `${workspacePath}/agents/${encodeURIComponent(agent.name)}/sessions/new` as Route
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setOpenAgentName(open ? agent.name : null)
@@ -181,7 +193,7 @@ function AgentSessionsItem({
   useEffect(() => {
     if (!isOpen) return
 
-    const sessionID = sessionIDFromPath(path, agent.name)
+    const sessionID = sessionIDFromPath(path, workspacePath, agent.name)
     if (!sessionID) return
     if (query.isPending) return
     if (query.isError) return
@@ -246,6 +258,8 @@ function AgentSessionsItem({
                   path={path}
                   session={session}
                   status={statuses[session.id]}
+                  workspaceId={workspaceId}
+                  workspacePath={workspacePath}
                 />
               ))}
             </SidebarMenuSub>
@@ -261,6 +275,8 @@ function AnimatedSessionItem(props: {
   path: string
   session: AgentSessionListItem
   status?: SessionStatus
+  workspaceId: string
+  workspacePath: string
 }) {
   return (
     <MotionSidebarMenuSubItem
@@ -280,22 +296,28 @@ function SessionItem({
   path,
   session,
   status,
+  workspaceId,
+  workspacePath,
 }: {
   agentName: string
   path: string
   session: AgentSessionListItem
   status?: SessionStatus
+  workspaceId: string
+  workspacePath: string
 }) {
-  const href = `/agents/${agentName}/${session.id}` as Route
+  const href =
+    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(session.id)}` as Route
   const [open, setOpen] = useState(false)
   const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
-    deleteAgentSessionAction.bind(null, agentName),
+    deleteAgentSessionAction.bind(null, agentName, workspaceId),
     { success: false }
   )
   const [isTransitionPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
   const router = useRouter()
-  const newSessionPath = `/agents/${agentName}/session/new` as Route
+  const newSessionPath =
+    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/new` as Route
   const isBusy = isPending || isTransitionPending
 
   useEffect(() => {
@@ -305,7 +327,7 @@ function SessionItem({
       setOpen(false)
 
       void queryClient.invalidateQueries({
-        queryKey: agentSessionsQueryOptions(agentName, true).queryKey,
+        queryKey: agentSessionsQueryOptions(agentName, workspaceId, true).queryKey,
       })
 
       if (path !== href) return
@@ -313,7 +335,17 @@ function SessionItem({
       router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
       router.refresh()
     })
-  }, [agentName, href, isPending, newSessionPath, path, pendingState.success, queryClient, router])
+  }, [
+    agentName,
+    href,
+    isPending,
+    newSessionPath,
+    path,
+    pendingState.success,
+    queryClient,
+    router,
+    workspaceId,
+  ])
 
   return (
     <>
@@ -376,10 +408,14 @@ function SessionItem({
   )
 }
 
-function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
+function agentSessionsQueryOptions(agentName: string, workspaceId: string, enabled: boolean) {
   return queryOptions({
     enabled,
-    queryFn: streamedQuery<AgentSessionsStreamChunk, AgentSessionsState, ["agentSessions", string]>(
+    queryFn: streamedQuery<
+      AgentSessionsStreamChunk,
+      AgentSessionsState,
+      ["agentSessions", string, string]
+    >(
       {
         initialValue: { sessions: [], statuses: {} },
         reducer: (state, chunk) => {
@@ -433,7 +469,7 @@ function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
           }
         },
         streamFn: async function* ({ signal }) {
-          const client = await createAgentOpencodeClient(agentName)
+          const client = await createAgentOpencodeClient(agentName, workspaceId)
           const [listResult, statusResult] = await Promise.all([
             client.session.list(),
             client.session.status(),
@@ -476,7 +512,7 @@ function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
         refetchMode: "reset",
       }
     ),
-    queryKey: ["agentSessions", agentName],
+    queryKey: ["agentSessions", workspaceId, agentName],
     refetchOnMount: "always",
     refetchOnReconnect: "always",
     retry: true,
@@ -511,24 +547,22 @@ function SidebarSessionSpinner() {
   )
 }
 
-function agentNameFromPath(path: string) {
-  const match = path.match(/^\/agents\/([^/]+)(?:\/.*)?$/)
-  if (!match) return null
-
-  const [, encodedAgentName] = match
+function agentNameFromPath(path: string, workspacePath: string) {
+  const prefix = `${workspacePath}/agents/`
+  if (!path.startsWith(prefix)) return null
+  const [encodedAgentName] = path.slice(prefix.length).split("/")
   if (!encodedAgentName) return null
 
   return decodeURIComponent(encodedAgentName)
 }
 
-function sessionIDFromPath(path: string, agentName: string) {
-  const match = path.match(/^\/agents\/([^/]+)\/([^/]+)$/)
-  if (!match) return
-
-  const [, encodedAgentName, encodedSessionID] = match
+function sessionIDFromPath(path: string, workspacePath: string, agentName: string) {
+  const prefix = `${workspacePath}/agents/`
+  if (!path.startsWith(prefix)) return
+  const [encodedAgentName, sessions, encodedSessionID] = path.slice(prefix.length).split("/")
   if (!encodedAgentName || !encodedSessionID) return
   if (decodeURIComponent(encodedAgentName) !== agentName) return
-  if (encodedSessionID === "session") return
+  if (sessions !== "sessions" || encodedSessionID === "new") return
 
   return decodeURIComponent(encodedSessionID)
 }

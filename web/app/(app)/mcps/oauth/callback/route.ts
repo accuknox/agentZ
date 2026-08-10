@@ -151,7 +151,8 @@ export async function GET(request: Request) {
             },
           },
         } satisfies CreateSecretRequest,
-        client: getGatewayServerClient(),
+        client: getGatewayServerClient(pending.operation.workspaceId),
+        headers: { "X-AgentZ-Workspace-ID": pending.operation.workspaceId },
         path: { agentName: pending.operation.secret.agentName },
         query: {
           update_sandbox: preferences.updateSandbox,

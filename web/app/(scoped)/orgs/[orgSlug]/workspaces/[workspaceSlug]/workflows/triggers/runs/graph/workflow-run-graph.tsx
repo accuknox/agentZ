@@ -18,16 +18,17 @@ type WorkflowRunGraphProps = {
   agentName: string
   workflow: WorkflowDefinition
   workflowRun: WorkflowRunDetail
+  workspaceId: string
 }
 
-export function WorkflowRunGraph({ agentName, workflow, workflowRun }: WorkflowRunGraphProps) {
+export function WorkflowRunGraph({ agentName, workflow, workflowRun, workspaceId }: WorkflowRunGraphProps) {
   const query = useQuery(
     queryOptions({
       placeholderData: workflowRun,
       queryFn: streamedQuery<
         WatchWorkflowRunsResponse,
         WorkflowRunDetail,
-        readonly ["watchWorkflowRunGraph", string, string, string]
+        readonly ["watchWorkflowRunGraph", string, string, string, string]
       >({
         initialValue: workflowRun,
         reducer: (current, event) => {
@@ -40,6 +41,7 @@ export function WorkflowRunGraph({ agentName, workflow, workflowRun }: WorkflowR
             body: {
               run_names: [workflowRun.name],
             },
+            headers: { "X-AgentZ-Workspace-ID": workspaceId },
             path: {
               agentName,
               workflowName: workflow.workflow_name,
@@ -50,7 +52,13 @@ export function WorkflowRunGraph({ agentName, workflow, workflowRun }: WorkflowR
           return result.stream
         },
       }),
-      queryKey: ["watchWorkflowRunGraph", agentName, workflow.workflow_name, workflowRun.name],
+      queryKey: [
+        "watchWorkflowRunGraph",
+        workspaceId,
+        agentName,
+        workflow.workflow_name,
+        workflowRun.name,
+      ],
       refetchOnMount: "always",
       refetchOnReconnect: "always",
       refetchOnWindowFocus: false,

@@ -244,6 +244,7 @@ const (
 	AuditTargetSkill                  AuditTarget = "skill"
 	AuditTargetAgent                  AuditTarget = "agent"
 	AuditTargetApiKey                 AuditTarget = "api_key"
+	AuditTargetWorkspaceAccess        AuditTarget = "workspace_access"
 	AuditTargetWorkspace              AuditTarget = "workspace"
 )
 

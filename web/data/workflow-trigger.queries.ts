@@ -24,15 +24,17 @@ export type ListWorkflowWebhookTriggersQueryResult =
 
 export async function listWorkflowWebhookTriggersCachedQuery(
   agentName: ListWorkflowWebhookTriggersData["path"]["agentName"],
+  workspaceId: string,
   query?: ListWorkflowWebhookTriggersData["query"]
 ): Promise<ListWorkflowWebhookTriggersQueryResult> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(workflowRunsTag)
+  cacheTag(workflowRunsTag, `${workflowRunsTag}:${workspaceId}`)
 
   const { data, error } = await listWorkflowWebhookTriggers({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: { agentName },
     query,
   })

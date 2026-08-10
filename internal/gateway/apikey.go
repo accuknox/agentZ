@@ -199,9 +199,11 @@ func (s *Service) resolveAPIKeyTargets(ctx context.Context, key gatewaydb.Gatewa
 
 func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, targets []gatewaydb.GatewayListAPIKeyTargetsRow) error {
 	claims := gatewayClaims{
-		UserID:      scope.CreatorUserID,
-		TenantID:    scope.OrganizationID,
-		WorkspaceID: scope.WorkspaceID,
+		OrganizationID: scope.OrganizationID,
+		ScopeType:      gatewayScopeWorkspace,
+		ScopeID:        scope.WorkspaceID,
+		UserID:         scope.CreatorUserID,
+		WorkspaceID:    scope.WorkspaceID,
 	}
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
 		UserID:         scope.CreatorUserID,

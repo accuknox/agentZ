@@ -429,6 +429,26 @@ FROM agents
 WHERE agents.tenant_namespace = sqlc.arg(target_namespace)
 ON CONFLICT DO NOTHING;
 
+-- name: SetDefaultWorkspaceContexts :execrows
+INSERT INTO last_accessible_contexts(
+  user_id,
+  organization_id,
+  workspace_id,
+  route
+)
+SELECT
+  members.user_id,
+  members.organization_id,
+  sqlc.arg(workspace_id),
+  sqlc.arg(route)
+FROM members
+WHERE members.organization_id = sqlc.arg(organization_id)
+  AND members.disabled_at IS NULL
+ON CONFLICT (user_id, organization_id) DO UPDATE SET
+  workspace_id = EXCLUDED.workspace_id,
+  route = EXCLUDED.route,
+  updated_at = now();
+
 -- name: EnsureAPIKeyScope :execrows
 INSERT INTO api_key_scopes(
   api_key_id,

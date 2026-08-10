@@ -55,14 +55,14 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 	}
 	workspaces := make([]gatewayapi.Workspace, 0, len(rows))
 	effective, err := authorization.New(s.queries).Resolve(r.Context(), authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.TenantID,
+		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
 	})
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("resolve workspace capabilities: %w", err))
 		return
 	}
 	for _, row := range rows {
-		capabilities := resourceCapabilities(effective, claims.TenantID, row.Workspace.ID)
+		capabilities := resourceCapabilities(effective, claims.OrganizationID, row.Workspace.ID)
 		workspaces = append(workspaces, workspaceView(
 			row.Workspace,
 			row.WorkspaceAdminCount,
@@ -90,7 +90,7 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		r.Context(),
 		gatewaydb.GatewayIsActiveSuperadminParams{
 			UserID:         claims.UserID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 	rows, err := s.queries.GatewayListWorkspaceAdminCandidates(
 		r.Context(),
 		gatewaydb.GatewayListWorkspaceAdminCandidatesParams{
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 			ActorUserID:    claims.UserID,
 		},
 	)
@@ -174,7 +174,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
 	q := gatewaydb.New(tx)
-	_, err = q.GatewayLockOrganization(r.Context(), claims.TenantID)
+	_, err = q.GatewayLockOrganization(r.Context(), claims.OrganizationID)
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("create workspace", err))
 		return
@@ -183,7 +183,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		gatewaydb.GatewayIsActiveSuperadminParams{
 			UserID:         claims.UserID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -193,7 +193,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if !allowed {
 		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
 			request:        r,
-			organizationID: claims.TenantID,
+			organizationID: claims.OrganizationID,
 			workspaceID:    id,
 			actorType:      gatewaydb.AuditActorUser,
 			actorID:        claims.UserID,
@@ -227,7 +227,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		InferenceProviders: slices.Clone(req.SelectedOrganizationResources.InferenceProviders),
 	}
 	fields, err := s.validateOrganizationResourceSelection(
-		r.Context(), claims.TenantID, selected,
+		r.Context(), claims.OrganizationID, selected,
 	)
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -235,7 +235,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(fields) > 0 {
 		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
-			request: r, organizationID: claims.TenantID, workspaceID: id,
+			request: r, organizationID: claims.OrganizationID, workspaceID: id,
 			actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
 			action: "workspace.create", result: gatewaydb.AuditResultFailed,
 			interfaceName: gatewaydb.AuditInterfaceGateway,
@@ -260,7 +260,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	err = q.GatewayCreateWorkspace(r.Context(), gatewaydb.GatewayCreateWorkspaceParams{
 		ID:             id,
-		OrganizationID: claims.TenantID,
+		OrganizationID: claims.OrganizationID,
 		Name:           req.Name,
 		Slug:           workspaceSlug,
 		Namespace:      namespace,
@@ -270,7 +270,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := insertWorkspaceResourceSelection(
-		r.Context(), q, id, claims.TenantID, selected,
+		r.Context(), q, id, claims.OrganizationID, selected,
 	); err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -279,7 +279,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		gatewaydb.GatewayCreateWorkspaceAdminRoleParams{
 			WorkspaceID:    id,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -291,7 +291,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		gatewaydb.GatewayAssignWorkspaceAdminsParams{
 			RoleID:         role.RoleID,
 			MemberIds:      req.AdminMemberIds,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 			WorkspaceID:    pgtype.Text{String: id, Valid: true},
 		},
 	)
@@ -303,7 +303,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		_ = tx.Rollback(r.Context())
 		err = createWorkspaceAudit(r.Context(), s.queries, workspaceAudit{
 			request:        r,
-			organizationID: claims.TenantID,
+			organizationID: claims.OrganizationID,
 			workspaceID:    id,
 			actorType:      gatewaydb.AuditActorUser,
 			actorID:        claims.UserID,
@@ -334,7 +334,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		gatewaydb.GatewayProjectMemberRoleTransportsParams{
 			MemberIds:      req.AdminMemberIds,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -347,7 +347,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
 		request:        r,
-		organizationID: claims.TenantID,
+		organizationID: claims.OrganizationID,
 		workspaceID:    id,
 		actorType:      gatewaydb.AuditActorUser,
 		actorID:        claims.UserID,
@@ -372,7 +372,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	row, err := s.queries.GatewayGetWorkspace(
 		r.Context(),
-		gatewaydb.GatewayGetWorkspaceParams{ID: id, OrganizationID: claims.TenantID},
+		gatewaydb.GatewayGetWorkspaceParams{ID: id, OrganizationID: claims.OrganizationID},
 	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("read created workspace: %w", err))
@@ -440,7 +440,7 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 	resolved, err := s.queries.GatewayResolveWorkspaceSlug(
 		r.Context(),
 		gatewaydb.GatewayResolveWorkspaceSlugParams{
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 			Slug:           workspaceSlug,
 			UserID:         claims.UserID,
 		},
@@ -491,7 +491,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
 	q := gatewaydb.New(tx)
-	_, err = q.GatewayLockOrganization(r.Context(), claims.TenantID)
+	_, err = q.GatewayLockOrganization(r.Context(), claims.OrganizationID)
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("retry workspace", err))
 		return
@@ -500,7 +500,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		r.Context(),
 		gatewaydb.GatewayIsActiveSuperadminParams{
 			UserID:         claims.UserID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -511,13 +511,13 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		r.Context(),
 		gatewaydb.GatewayGetWorkspaceParams{
 			ID:             workspaceID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if !allowed || getErr != nil || current.State != gatewaydb.WorkspaceStateFailed {
 		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
 			request:        r,
-			organizationID: claims.TenantID,
+			organizationID: claims.OrganizationID,
 			workspaceID:    workspaceID,
 			actorType:      gatewaydb.AuditActorUser,
 			actorID:        claims.UserID,
@@ -562,7 +562,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		gatewaydb.GatewayRetryWorkspaceProvisioningParams{
 			UpdatedAt:      updatedAt,
 			ID:             workspaceID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -580,7 +580,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 	}
 	err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
 		request:        r,
-		organizationID: claims.TenantID,
+		organizationID: claims.OrganizationID,
 		workspaceID:    workspaceID,
 		actorType:      gatewaydb.AuditActorUser,
 		actorID:        claims.UserID,
@@ -614,7 +614,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		r.Context(),
 		gatewaydb.GatewayGetWorkspaceParams{
 			ID:             workspaceID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -844,7 +844,7 @@ func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]
 		ctx,
 		gatewaydb.GatewayIsActiveOrganizationMemberParams{
 			UserID:         claims.UserID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -854,7 +854,7 @@ func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]
 		ctx,
 		gatewaydb.GatewayIsActiveSuperadminParams{
 			UserID:         claims.UserID,
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -863,7 +863,7 @@ func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]
 	rows, err := s.queries.GatewayListAccessibleWorkspaces(
 		ctx,
 		gatewaydb.GatewayListAccessibleWorkspacesParams{
-			OrganizationID: claims.TenantID,
+			OrganizationID: claims.OrganizationID,
 			UserID:         claims.UserID,
 		},
 	)

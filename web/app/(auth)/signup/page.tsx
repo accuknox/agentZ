@@ -40,11 +40,8 @@ export default function SignUpPage({ searchParams }: { searchParams: Promise<Aut
 
 async function SignUpGate({ searchParams }: { searchParams: Promise<AuthSearchParams> }) {
   const requestHeaders = await headers()
-  if (!getEnv().ENABLE_EMAIL_PASSWORD_AUTH) {
-    redirect("/signin")
-  }
-
   const auth = getAuth()
+  const showPasswordAuth = getEnv().ENABLE_EMAIL_PASSWORD_AUTH
   const params = authSearchParamsSchema.parse(await searchParams)
   const returnTo = signInReturnTo(params.returnTo)
   const session = await auth.api.getSession({
@@ -62,6 +59,7 @@ async function SignUpGate({ searchParams }: { searchParams: Promise<AuthSearchPa
       routeError={params.error}
       routeProvider={params.provider}
       returnTo={returnTo}
+      showPasswordAuth={showPasswordAuth}
     />
   )
 }

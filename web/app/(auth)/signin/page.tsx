@@ -61,17 +61,18 @@ async function SignInGate({ searchParams }: { searchParams: Promise<AuthSearchPa
   }
 
   const showPasswordAuth = getEnv().ENABLE_EMAIL_PASSWORD_AUTH
+  const providers = socialProviders()
 
   return (
     <SignInForm
       key={`${params.error ?? ""}:${params.provider ?? ""}:${returnTo ?? ""}`}
       actions={providerActions}
-      providers={socialProviders()}
+      providers={providers}
       routeError={params.error}
       routeProvider={params.provider}
       returnTo={returnTo}
       showPasswordAuth={showPasswordAuth}
-      showSignUpLink={showPasswordAuth}
+      showSignUpLink={showPasswordAuth || providers.length > 0}
     />
   )
 }

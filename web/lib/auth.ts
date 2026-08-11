@@ -436,7 +436,6 @@ function buildAuth() {
             github: {
               clientId: env.GITHUB_CLIENT_ID,
               clientSecret: env.GITHUB_CLIENT_SECRET,
-              disableImplicitSignUp: true,
               scope: ["user:email", "read:org"],
               getUserInfo: getGithubUserInfo,
             },
@@ -447,7 +446,6 @@ function buildAuth() {
             google: {
               clientId: env.GOOGLE_CLIENT_ID,
               clientSecret: env.GOOGLE_CLIENT_SECRET,
-              disableImplicitSignUp: true,
               accessType: "offline",
               prompt: "select_account",
               getUserInfo: getGoogleUserInfo,

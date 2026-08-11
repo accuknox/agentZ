@@ -43,6 +43,7 @@ type SignUpFormProps = {
   returnTo?: string
   routeError?: AuthError
   routeProvider?: SocialProvider
+  showPasswordAuth?: boolean
 }
 
 const genericSignUpError = "Sign-up could not be completed. Try again."
@@ -56,6 +57,7 @@ export function SignUpForm({
   returnTo,
   routeError,
   routeProvider,
+  showPasswordAuth = true,
 }: SignUpFormProps) {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState<"password" | SocialProvider>()
@@ -167,114 +169,116 @@ export function SignUpForm({
         <Image src="/emblem.svg" alt="AccuKnox emblem" width={40} height={40} className="size-10" />
         <span className="text-foreground text-3xl font-semibold tracking-tight">AccuKnox</span>
       </div>
-      <form className="flex flex-col gap-5" onSubmit={handleSubmit(submit)} noValidate>
-        <FieldGroup>
-          <Controller
-            name="name"
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="signup-name" required>
-                  Name
-                </FieldLabel>
-                <Input
-                  {...field}
-                  id="signup-name"
-                  autoComplete="name"
-                  aria-invalid={fieldState.invalid}
-                  disabled={locked}
-                />
-                <FieldError errors={[fieldState.error]} />
-              </Field>
-            )}
-          />
-          <Controller
-            name="email"
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="signup-email" required>
-                  Email
-                </FieldLabel>
-                <Input
-                  {...field}
-                  id="signup-email"
-                  type="email"
-                  autoComplete="email"
-                  suppressHydrationWarning
-                  aria-invalid={fieldState.invalid}
-                  disabled={locked}
-                  onBlur={() => {
-                    if (fieldState.error?.type === "server") {
-                      clearErrors("email")
-                    }
-                    field.onBlur()
-                  }}
-                />
-                <FieldError errors={[fieldState.error]} />
-              </Field>
-            )}
-          />
-          <Controller
-            name="password"
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="signup-password" required>
-                  Password
-                </FieldLabel>
-                <Input
-                  {...field}
-                  id="signup-password"
-                  type="password"
-                  autoComplete="new-password"
-                  suppressHydrationWarning
-                  aria-invalid={fieldState.invalid}
-                  disabled={locked}
-                />
-                <FieldDescription>{passwordFieldDescription}</FieldDescription>
-                <FieldError errors={[fieldState.error]} />
-              </Field>
-            )}
-          />
-          <Controller
-            name="confirmPassword"
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="signup-confirm-password" required>
-                  Confirm password
-                </FieldLabel>
-                <Input
-                  {...field}
-                  id="signup-confirm-password"
-                  type="password"
-                  autoComplete="new-password"
-                  suppressHydrationWarning
-                  aria-invalid={fieldState.invalid}
-                  disabled={locked}
-                />
-                <FieldError errors={[fieldState.error]} />
-              </Field>
-            )}
-          />
-        </FieldGroup>
-        <div className="flex flex-col gap-3">
-          <Button
-            type="submit"
-            size="lg"
-            aria-invalid={passwordActionError ? "true" : undefined}
-            disabled={locked}
-          >
-            {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
-            Sign up
-          </Button>
-          {passwordActionError ? <FieldError>{passwordActionError}</FieldError> : null}
-        </div>
-      </form>
+      {showPasswordAuth ? (
+        <form className="flex flex-col gap-5" onSubmit={handleSubmit(submit)} noValidate>
+          <FieldGroup>
+            <Controller
+              name="name"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="signup-name" required>
+                    Name
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="signup-name"
+                    autoComplete="name"
+                    aria-invalid={fieldState.invalid}
+                    disabled={locked}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+            <Controller
+              name="email"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="signup-email" required>
+                    Email
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="signup-email"
+                    type="email"
+                    autoComplete="email"
+                    suppressHydrationWarning
+                    aria-invalid={fieldState.invalid}
+                    disabled={locked}
+                    onBlur={() => {
+                      if (fieldState.error?.type === "server") {
+                        clearErrors("email")
+                      }
+                      field.onBlur()
+                    }}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+            <Controller
+              name="password"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="signup-password" required>
+                    Password
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="signup-password"
+                    type="password"
+                    autoComplete="new-password"
+                    suppressHydrationWarning
+                    aria-invalid={fieldState.invalid}
+                    disabled={locked}
+                  />
+                  <FieldDescription>{passwordFieldDescription}</FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+            <Controller
+              name="confirmPassword"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="signup-confirm-password" required>
+                    Confirm password
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="signup-confirm-password"
+                    type="password"
+                    autoComplete="new-password"
+                    suppressHydrationWarning
+                    aria-invalid={fieldState.invalid}
+                    disabled={locked}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+          </FieldGroup>
+          <div className="flex flex-col gap-3">
+            <Button
+              type="submit"
+              size="lg"
+              aria-invalid={passwordActionError ? "true" : undefined}
+              disabled={locked}
+            >
+              {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
+              Sign up
+            </Button>
+            {passwordActionError ? <FieldError>{passwordActionError}</FieldError> : null}
+          </div>
+        </form>
+      ) : null}
       {providers.length > 0 ? (
-        <div className="flex flex-col gap-5">
-          <FieldSeparator>or</FieldSeparator>
+        <div className={showPasswordAuth ? "flex flex-col gap-5" : "flex flex-col gap-3"}>
+          {showPasswordAuth ? <FieldSeparator>or</FieldSeparator> : null}
           <SocialAuthButtons
             actions={actions}
             authPath="/signup"

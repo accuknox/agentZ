@@ -1490,6 +1490,29 @@ export async function retryDestructiveOperation(orgSlug: string, jobId: string) 
   }
 
   return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, result.organization.id))
+      .for("update")
+    const [authority] = await tx
+      .select({ id: schema.members.id })
+      .from(schema.members)
+      .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
+      .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
+      .where(
+        and(
+          eq(schema.members.organizationId, result.organization.id),
+          eq(schema.members.userId, result.organizationSession.session.user.id),
+          isNull(schema.members.disabledAt),
+          eq(schema.memberRoles.organizationId, result.organization.id),
+          eq(schema.roleScopes.organizationId, result.organization.id),
+          eq(schema.roleScopes.systemRole, "superadmin")
+        )
+      )
+      .limit(1)
+    if (!authority) return { error: "forbidden" as const }
+
     const [job] = await tx
       .select({
         id: schema.cleanupJobs.id,

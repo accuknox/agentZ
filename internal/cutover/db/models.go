@@ -701,9 +701,9 @@ type ApiKeyScope struct {
 	OrganizationID string             `json:"organization_id"`
 	WorkspaceID    string             `json:"workspace_id"`
 	CreatorUserID  string             `json:"creator_user_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	RevokedReason  pgtype.Text        `json:"revoked_reason"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type ApiKeyTarget struct {
@@ -746,17 +746,17 @@ type AuditEvent struct {
 	ActorID          pgtype.Text        `json:"actor_id"`
 	TargetType       AuditTarget        `json:"target_type"`
 	TargetID         string             `json:"target_id"`
+	Category         string             `json:"category"`
 	Action           string             `json:"action"`
 	Result           AuditResult        `json:"result"`
 	Before           []byte             `json:"before"`
 	After            []byte             `json:"after"`
 	AutomaticCascade bool               `json:"automatic_cascade"`
 	CleanupJobID     pgtype.Text        `json:"cleanup_job_id"`
+	Interface        AuditInterface     `json:"interface"`
 	IpAddress        pgtype.Text        `json:"ip_address"`
 	UserAgent        pgtype.Text        `json:"user_agent"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	Category         string             `json:"category"`
-	Interface        AuditInterface     `json:"interface"`
 }
 
 type CleanupJob struct {
@@ -1280,11 +1280,11 @@ type Workspace struct {
 	Slug                string             `json:"slug"`
 	Namespace           string             `json:"namespace"`
 	State               WorkspaceState     `json:"state"`
+	ProvisioningAttempt int64              `json:"provisioning_attempt"`
 	FailureReason       pgtype.Text        `json:"failure_reason"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-	ProvisioningAttempt int64              `json:"provisioning_attempt"`
 }
 
 type WorkspaceInheritedResource struct {

@@ -424,24 +424,14 @@ type GatewayCreateAPIKeyScopeParams struct {
 	ApiKeyID       string `json:"api_key_id"`
 }
 
-type GatewayCreateAPIKeyScopeRow struct {
-	ApiKeyID       string             `json:"api_key_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	CreatorUserID  string             `json:"creator_user_id"`
-	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
-	RevokedReason  pgtype.Text        `json:"revoked_reason"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayCreateAPIKeyScope(ctx context.Context, arg GatewayCreateAPIKeyScopeParams) (GatewayCreateAPIKeyScopeRow, error) {
+func (q *Queries) GatewayCreateAPIKeyScope(ctx context.Context, arg GatewayCreateAPIKeyScopeParams) (ApiKeyScope, error) {
 	row := q.db.QueryRow(ctx, gatewayCreateAPIKeyScope,
 		arg.WorkspaceID,
 		arg.OrganizationID,
 		arg.CreatorUserID,
 		arg.ApiKeyID,
 	)
-	var i GatewayCreateAPIKeyScopeRow
+	var i ApiKeyScope
 	err := row.Scan(
 		&i.ApiKeyID,
 		&i.OrganizationID,
@@ -705,28 +695,7 @@ type GatewayCreateAuditEventParams struct {
 	UserAgent        pgtype.Text    `json:"user_agent"`
 }
 
-type GatewayCreateAuditEventRow struct {
-	ID               string             `json:"id"`
-	OrganizationID   string             `json:"organization_id"`
-	WorkspaceID      pgtype.Text        `json:"workspace_id"`
-	ActorType        AuditActor         `json:"actor_type"`
-	ActorID          pgtype.Text        `json:"actor_id"`
-	TargetType       AuditTarget        `json:"target_type"`
-	TargetID         string             `json:"target_id"`
-	Category         string             `json:"category"`
-	Action           string             `json:"action"`
-	Result           AuditResult        `json:"result"`
-	Before           []byte             `json:"before"`
-	After            []byte             `json:"after"`
-	AutomaticCascade bool               `json:"automatic_cascade"`
-	CleanupJobID     pgtype.Text        `json:"cleanup_job_id"`
-	Interface        AuditInterface     `json:"interface"`
-	IpAddress        pgtype.Text        `json:"ip_address"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreateAuditEventParams) (GatewayCreateAuditEventRow, error) {
+func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreateAuditEventParams) (AuditEvent, error) {
 	row := q.db.QueryRow(ctx, gatewayCreateAuditEvent,
 		arg.ID,
 		arg.OrganizationID,
@@ -746,7 +715,7 @@ func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreate
 		arg.IpAddress,
 		arg.UserAgent,
 	)
-	var i GatewayCreateAuditEventRow
+	var i AuditEvent
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
@@ -1116,7 +1085,7 @@ WITH created AS (
     'provisioning',
     1
   )
-  RETURNING id, organization_id, name, slug, namespace, state, failure_reason, deleted_at, created_at, updated_at, provisioning_attempt
+  RETURNING id, organization_id, name, slug, namespace, state, provisioning_attempt, failure_reason, deleted_at, created_at, updated_at
 )
 INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
 SELECT organization_id, id, slug
@@ -1520,19 +1489,9 @@ type GatewayGetAPIKeyScopeParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 }
 
-type GatewayGetAPIKeyScopeRow struct {
-	ApiKeyID       string             `json:"api_key_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	CreatorUserID  string             `json:"creator_user_id"`
-	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
-	RevokedReason  pgtype.Text        `json:"revoked_reason"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayGetAPIKeyScope(ctx context.Context, arg GatewayGetAPIKeyScopeParams) (GatewayGetAPIKeyScopeRow, error) {
+func (q *Queries) GatewayGetAPIKeyScope(ctx context.Context, arg GatewayGetAPIKeyScopeParams) (ApiKeyScope, error) {
 	row := q.db.QueryRow(ctx, gatewayGetAPIKeyScope, arg.ApiKeyID, arg.OrganizationID, arg.WorkspaceID)
-	var i GatewayGetAPIKeyScopeRow
+	var i ApiKeyScope
 	err := row.Scan(
 		&i.ApiKeyID,
 		&i.OrganizationID,
@@ -1569,19 +1528,9 @@ type GatewayGetAPIKeyScopeByKeyParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-type GatewayGetAPIKeyScopeByKeyRow struct {
-	ApiKeyID       string             `json:"api_key_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	CreatorUserID  string             `json:"creator_user_id"`
-	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
-	RevokedReason  pgtype.Text        `json:"revoked_reason"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (GatewayGetAPIKeyScopeByKeyRow, error) {
+func (q *Queries) GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (ApiKeyScope, error) {
 	row := q.db.QueryRow(ctx, gatewayGetAPIKeyScopeByKey, arg.ApiKeyID, arg.OrganizationID)
-	var i GatewayGetAPIKeyScopeByKeyRow
+	var i ApiKeyScope
 	err := row.Scan(
 		&i.ApiKeyID,
 		&i.OrganizationID,
@@ -2036,7 +1985,7 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 }
 
 const gatewayGetWorkspace = `-- name: GatewayGetWorkspace :one
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspaces
 WHERE id = $1
   AND organization_id = $2
@@ -2057,11 +2006,11 @@ func (q *Queries) GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspa
 		&i.Slug,
 		&i.Namespace,
 		&i.State,
+		&i.ProvisioningAttempt,
 		&i.FailureReason,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ProvisioningAttempt,
 	)
 	return i, err
 }
@@ -2179,25 +2128,15 @@ type GatewayListAPIKeyScopesParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 }
 
-type GatewayListAPIKeyScopesRow struct {
-	ApiKeyID       string             `json:"api_key_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	CreatorUserID  string             `json:"creator_user_id"`
-	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
-	RevokedReason  pgtype.Text        `json:"revoked_reason"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAPIKeyScopesParams) ([]GatewayListAPIKeyScopesRow, error) {
+func (q *Queries) GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAPIKeyScopesParams) ([]ApiKeyScope, error) {
 	rows, err := q.db.Query(ctx, gatewayListAPIKeyScopes, arg.OrganizationID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GatewayListAPIKeyScopesRow{}
+	items := []ApiKeyScope{}
 	for rows.Next() {
-		var i GatewayListAPIKeyScopesRow
+		var i ApiKeyScope
 		if err := rows.Scan(
 			&i.ApiKeyID,
 			&i.OrganizationID,
@@ -2352,7 +2291,7 @@ WITH role_assignments AS (
     AND role_scopes.organization_id = role_assignments.organization_id
 )
 SELECT
-  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt,
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at,
   (
     SELECT COUNT(DISTINCT workspace_admins.member_id)
     FROM role_scopes AS workspace_admin_role
@@ -2434,11 +2373,11 @@ func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg Gatew
 			&i.Workspace.Slug,
 			&i.Workspace.Namespace,
 			&i.Workspace.State,
+			&i.Workspace.ProvisioningAttempt,
 			&i.Workspace.FailureReason,
 			&i.Workspace.DeletedAt,
 			&i.Workspace.CreatedAt,
 			&i.Workspace.UpdatedAt,
-			&i.Workspace.ProvisioningAttempt,
 			&i.WorkspaceAdminCount,
 			&i.CanAdminister,
 		); err != nil {
@@ -3829,7 +3768,7 @@ func (q *Queries) GatewayListProcessEventsAggregated(ctx context.Context, arg Ga
 }
 
 const gatewayListProvisioningWorkspaces = `-- name: GatewayListProvisioningWorkspaces :many
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspaces
 WHERE state = 'provisioning'
   AND deleted_at IS NULL
@@ -3852,11 +3791,11 @@ func (q *Queries) GatewayListProvisioningWorkspaces(ctx context.Context) ([]Work
 			&i.Slug,
 			&i.Namespace,
 			&i.State,
+			&i.ProvisioningAttempt,
 			&i.FailureReason,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ProvisioningAttempt,
 		); err != nil {
 			return nil, err
 		}
@@ -4562,7 +4501,7 @@ func (q *Queries) GatewayListWorkspaceInheritedResources(ctx context.Context, ar
 }
 
 const gatewayListWorkspacesSelectingOrganizationResource = `-- name: GatewayListWorkspacesSelectingOrganizationResource :many
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspace_inherited_resources
 JOIN workspaces
   ON workspaces.id = workspace_inherited_resources.workspace_id
@@ -4596,11 +4535,11 @@ func (q *Queries) GatewayListWorkspacesSelectingOrganizationResource(ctx context
 			&i.Slug,
 			&i.Namespace,
 			&i.State,
+			&i.ProvisioningAttempt,
 			&i.FailureReason,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ProvisioningAttempt,
 		); err != nil {
 			return nil, err
 		}
@@ -4913,7 +4852,7 @@ UPDATE workspaces
 SET slug = $1, updated_at = $2
 FROM reserved
 WHERE workspaces.id = reserved.workspace_id
-RETURNING workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
+RETURNING workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 `
 
 type GatewayRenameWorkspaceParams struct {
@@ -4938,11 +4877,11 @@ func (q *Queries) GatewayRenameWorkspace(ctx context.Context, arg GatewayRenameW
 		&i.Slug,
 		&i.Namespace,
 		&i.State,
+		&i.ProvisioningAttempt,
 		&i.FailureReason,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ProvisioningAttempt,
 	)
 	return i, err
 }
@@ -5171,7 +5110,7 @@ WITH role_assignments AS (
     AND role_scopes.organization_id = role_assignments.organization_id
 )
 SELECT
-  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.provisioning_attempt
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspace_slug_history
 JOIN workspaces
   ON workspaces.id = workspace_slug_history.workspace_id
@@ -5222,11 +5161,11 @@ func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayRe
 		&i.Workspace.Slug,
 		&i.Workspace.Namespace,
 		&i.Workspace.State,
+		&i.Workspace.ProvisioningAttempt,
 		&i.Workspace.FailureReason,
 		&i.Workspace.DeletedAt,
 		&i.Workspace.CreatedAt,
 		&i.Workspace.UpdatedAt,
-		&i.Workspace.ProvisioningAttempt,
 	)
 	return i, err
 }
@@ -5668,28 +5607,14 @@ type GatewayUpdateWorkspaceNameParams struct {
 	OrganizationID string             `json:"organization_id"`
 }
 
-type GatewayUpdateWorkspaceNameRow struct {
-	ID                  string             `json:"id"`
-	OrganizationID      string             `json:"organization_id"`
-	Name                string             `json:"name"`
-	Slug                string             `json:"slug"`
-	Namespace           string             `json:"namespace"`
-	State               WorkspaceState     `json:"state"`
-	ProvisioningAttempt int64              `json:"provisioning_attempt"`
-	FailureReason       pgtype.Text        `json:"failure_reason"`
-	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt           pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpdateWorkspaceNameParams) (GatewayUpdateWorkspaceNameRow, error) {
+func (q *Queries) GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpdateWorkspaceNameParams) (Workspace, error) {
 	row := q.db.QueryRow(ctx, gatewayUpdateWorkspaceName,
 		arg.Name,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.OrganizationID,
 	)
-	var i GatewayUpdateWorkspaceNameRow
+	var i Workspace
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,

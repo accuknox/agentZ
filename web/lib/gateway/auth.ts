@@ -112,7 +112,10 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
         eq(schema.members.organizationId, state.organizationId),
         isNull(schema.members.disabledAt),
         workspaceId
-          ? or(isNull(schema.roleScopes.workspaceId), eq(schema.roleScopes.workspaceId, workspaceId))
+          ? or(
+              isNull(schema.roleScopes.workspaceId),
+              eq(schema.roleScopes.workspaceId, workspaceId)
+            )
           : isNull(schema.roleScopes.workspaceId)
       )
     )
@@ -158,7 +161,10 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
         eq(schema.members.organizationId, state.organizationId),
         isNull(schema.members.disabledAt),
         workspaceId
-          ? or(isNull(schema.roleScopes.workspaceId), eq(schema.roleScopes.workspaceId, workspaceId))
+          ? or(
+              isNull(schema.roleScopes.workspaceId),
+              eq(schema.roleScopes.workspaceId, workspaceId)
+            )
           : isNull(schema.roleScopes.workspaceId)
       )
     )
@@ -216,7 +222,10 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
           schema.agentShareGrants,
           eq(schema.agentShareGrants.shareId, schema.agentShares.id)
         )
-        .innerJoin(schema.teamMembers, eq(schema.teamMembers.teamId, schema.agentShares.targetTeamId))
+        .innerJoin(
+          schema.teamMembers,
+          eq(schema.teamMembers.teamId, schema.agentShares.targetTeamId)
+        )
         .innerJoin(
           schema.teams,
           and(

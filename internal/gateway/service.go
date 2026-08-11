@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -715,16 +714,6 @@ func requestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		debug := slog.Default().Enabled(r.Context(), slog.LevelDebug)
-		logBody := debug && (r.Method == http.MethodPost || r.Method == http.MethodPut)
-		var body []byte
-		if logBody {
-			var err error
-			body, err = io.ReadAll(r.Body)
-			if err != nil {
-				slog.ErrorContext(r.Context(), "read gateway request body", slog.Any("err", err))
-			}
-			r.Body = io.NopCloser(bytes.NewReader(body))
-		}
 
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
@@ -735,9 +724,6 @@ func requestLog(next http.Handler) http.Handler {
 			slog.Int("status", rec.status),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("request_id", requestID(r)),
-		}
-		if logBody {
-			attrs = append(attrs, slog.String("request.body", string(body)))
 		}
 		if rec.apiCode != "" {
 			attrs = append(attrs, slog.String("code", rec.apiCode))

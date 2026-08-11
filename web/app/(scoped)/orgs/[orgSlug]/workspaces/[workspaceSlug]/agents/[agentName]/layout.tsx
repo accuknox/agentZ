@@ -46,9 +46,7 @@ export default async function WorkspaceAgentLayout({
           <h2 className="truncate text-xl font-semibold" title={detail.agent.name}>
             {detail.agent.name}
           </h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Owned by {detail.ownerLabel}
-          </p>
+          <p className="text-muted-foreground mt-1 text-sm">Owned by {detail.ownerLabel}</p>
         </div>
         <RouteTabs label="Agent settings" tabs={tabs} />
       </header>

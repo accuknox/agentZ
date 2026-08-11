@@ -177,7 +177,12 @@ async function downloadAgentFile(agentName: string, path: string, filename: stri
   }
 }
 
-function agentFilesQueryOptions(agentName: string, workspaceId: string, root: string, path: string) {
+function agentFilesQueryOptions(
+  agentName: string,
+  workspaceId: string,
+  root: string,
+  path: string
+) {
   return queryOptions({
     queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
@@ -435,7 +440,10 @@ function WorkspaceBody({
   const queryClient = useQueryClient()
   const workspaceKey = `${agentName}:${root}`
   const editorWidth = workspaceWidth - explorerWidth - 4
-  const filesQueryKey = agentFilesQueryOptions(agentName, workspaceId, root, ".").queryKey.slice(0, 3)
+  const filesQueryKey = agentFilesQueryOptions(agentName, workspaceId, root, ".").queryKey.slice(
+    0,
+    3
+  )
   const filesFetching =
     useIsFetching({
       queryKey: filesQueryKey,
@@ -1923,7 +1931,12 @@ function EntryDialog({
                     onError: (error) => toast.error(label, { description: error.message }),
                     onSuccess: () => {
                       void queryClient.invalidateQueries({
-                        queryKey: agentFilesQueryOptions(agentName, workspaceId, root, directoryPath).queryKey,
+                        queryKey: agentFilesQueryOptions(
+                          agentName,
+                          workspaceId,
+                          root,
+                          directoryPath
+                        ).queryKey,
                       })
                       if (action.kind === "file") {
                         onOpen(path)

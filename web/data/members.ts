@@ -1081,6 +1081,16 @@ export async function saveSocialAdmission(
     .filter((rule) => rule.organization)
 
   return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    if (!authorized) {
+      return { error: "forbidden" as const }
+    }
+
     const teamIds = [...new Set(input.teamIds)]
     const [roles, teams] = await Promise.all([
       roleIds.length

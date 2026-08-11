@@ -27,6 +27,7 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 		organizationID,
 	)
 	allowed := workspaceForExtAuth("workspace-a", organizationID)
+	allowed.Spec.SelectedOrganizationResources.MCPConnections = []string{"mcp-a"}
 	foreign := workspaceForExtAuth("workspace-b", "organization-b")
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 		Name: org,
@@ -76,7 +77,7 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	}
 
 	workspaceRole := &rbacv1.Role{}
-	key := client.ObjectKey{Namespace: allowed.Name, Name: mcp.ExtAuthServiceName}
+	key := client.ObjectKey{Namespace: allowed.Name, Name: mcp.ExtAuthOpenBaoName(org)}
 	if err := c.Get(context.Background(), key, workspaceRole); err != nil {
 		t.Fatalf("get allowed workspace Role: %v", err)
 	}

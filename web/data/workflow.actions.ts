@@ -58,7 +58,10 @@ export async function selectWorkflowFiltersAction(scope: WorkflowActionScope, fo
   )
 }
 
-export async function selectWorkflowTriggerFiltersAction(scope: WorkflowActionScope, formData: FormData) {
+export async function selectWorkflowTriggerFiltersAction(
+  scope: WorkflowActionScope,
+  formData: FormData
+) {
   const agentsResult = await listAgentsCachedQuery(undefined, scope.workspaceId)
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
     redirect(workflowTriggersPath(scope))
@@ -84,7 +87,10 @@ export async function selectWorkflowTriggerFiltersAction(scope: WorkflowActionSc
   )
 }
 
-export async function selectWorkflowRunsFiltersAction(scope: WorkflowActionScope, formData: FormData) {
+export async function selectWorkflowRunsFiltersAction(
+  scope: WorkflowActionScope,
+  formData: FormData
+) {
   const agentsResult = await listAgentsCachedQuery(undefined, scope.workspaceId)
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
     redirect(workflowRunsPath(scope))
@@ -159,7 +165,10 @@ export async function selectWorkflowRunsFiltersAction(scope: WorkflowActionScope
   )
 }
 
-export async function selectWorkflowRunGraphFiltersAction(scope: WorkflowActionScope, formData: FormData) {
+export async function selectWorkflowRunGraphFiltersAction(
+  scope: WorkflowActionScope,
+  formData: FormData
+) {
   const agentsResult = await listAgentsCachedQuery(undefined, scope.workspaceId)
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
     redirect(workflowRunGraphPath(scope))
@@ -293,7 +302,11 @@ function workflowRunsPath(
 
 function workflowRunGraphPath(
   scope: WorkflowActionScope,
-  { agentName, workflowName, runName }: {
+  {
+    agentName,
+    workflowName,
+    runName,
+  }: {
     agentName?: string
     workflowName?: string
     runName?: string

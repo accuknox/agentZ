@@ -267,8 +267,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	healthpb.RegisterHealthServer(srv, healthSrv)
 	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	mcpServer := &http.Server{
-		Addr:    mcpAddr,
-		Handler: newMCPHandler(),
+		Addr:              mcpAddr,
+		Handler:           newMCPHandler(),
+		ReadHeaderTimeout: httpClientTimeout,
 	}
 
 	var bg sync.WaitGroup
@@ -385,6 +386,7 @@ func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.
 
 	logAttrs := []slog.Attr{
 		slog.String("namespace", attrs.namespace),
+		slog.String("sandbox_namespace", attrs.sandboxNamespace),
 		slog.String("sandbox", attrs.sandbox),
 		slog.String("connection", attrs.connection),
 		slog.String("agent", attrs.agent),
@@ -410,6 +412,7 @@ func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.
 
 type requestAttrs struct {
 	namespace           string
+	sandboxNamespace    string
 	sandbox             string
 	connection          string
 	connectionNamespace string

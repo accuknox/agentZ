@@ -22,5 +22,10 @@
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.9",
+    "js-yaml": "4.3.1",
+    "pdfjs-dist": "6.2.108"
   }
 }

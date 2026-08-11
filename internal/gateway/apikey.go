@@ -133,7 +133,7 @@ func (s *Service) getAPIKeyByHash(ctx context.Context, rawKey string, configID s
 }
 
 type apiKeyScope struct {
-	gatewaydb.GatewayGetAPIKeyScopeByKeyRow
+	gatewaydb.ApiKeyScope
 	TenantNamespace string
 }
 
@@ -160,8 +160,8 @@ func (s *Service) apiKeyScope(ctx context.Context, key gatewaydb.GatewayGetAPIKe
 		return apiKeyScope{}, fmt.Errorf("api key scope revoked: %s", reason)
 	}
 	return apiKeyScope{
-		GatewayGetAPIKeyScopeByKeyRow: scope,
-		TenantNamespace:               workspace.Namespace,
+		ApiKeyScope:     scope,
+		TenantNamespace: workspace.Namespace,
 	}, nil
 }
 

@@ -100,10 +100,13 @@ function SandboxSelect({
 
     setLoading(true)
     setError(undefined)
-    const result = await listSandboxesAction({
-      limit: 50,
-      page_token: nextPageToken,
-    }, workspaceId)
+    const result = await listSandboxesAction(
+      {
+        limit: 50,
+        page_token: nextPageToken,
+      },
+      workspaceId
+    )
     setLoading(false)
 
     if (result.error) {

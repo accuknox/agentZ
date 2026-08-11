@@ -40,7 +40,10 @@ const organizationAccessControl = createAccessControl(defaultStatements)
 const superadminRole = organizationAccessControl.newRole(defaultStatements)
 const memberRole = organizationAccessControl.newRole({
   organization: [],
-  member: [],
+  // Native mutation routes are disabled. This permission is used only by the
+  // authenticated admission callback to add the new member to every governed
+  // default Team through Better Auth's idempotent add-team-member endpoint.
+  member: ["update"],
   invitation: [],
   team: [],
   ac: [],
@@ -758,7 +761,7 @@ async function createSocialAdmissionMembership(
     }
 
     const [existing] = await tx
-      .select({ id: schema.members.id })
+      .select({ disabledAt: schema.members.disabledAt, id: schema.members.id })
       .from(schema.members)
       .where(
         and(
@@ -767,7 +770,7 @@ async function createSocialAdmissionMembership(
         )
       )
       .limit(1)
-    if (existing) {
+    if (existing?.disabledAt) {
       return
     }
 
@@ -791,6 +794,7 @@ async function createSocialAdmissionMembership(
       return
     }
     return {
+      memberId: existing?.id,
       roleIds: governedRoles.map(({ roleId }) => roleId),
       teams: teams.map(({ teamId }) => teamId),
     }
@@ -799,56 +803,66 @@ async function createSocialAdmissionMembership(
     return
   }
 
-  const firstTeam = admission.teams[0]
-  let member
-  try {
-    member = await getAuth().api.addMember({
-      body: firstTeam
-        ? {
-            organizationId: state.organizationId,
-            role: "member",
-            teamId: firstTeam,
-            userId: user.id,
-          }
-        : {
-            organizationId: state.organizationId,
-            role: "member",
-            userId: user.id,
-          },
-    })
-  } catch (error) {
-    if (
-      error instanceof APIError &&
-      error.body?.code === "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION"
-    ) {
-      return
-    }
-    throw error
-  }
-  await getDB()
-    .insert(schema.memberRoles)
-    .values(
-      admission.roleIds.map((roleId) => ({
-        memberId: member.id,
-        organizationId: state.organizationId,
-        roleId,
-      }))
-    )
-    .onConflictDoNothing()
   const sessionHeaders = new Headers({ authorization: `Bearer ${sessionToken}` })
-  await getAuth().api.setActiveOrganization({
-    headers: sessionHeaders,
-    body: { organizationId: state.organizationId },
-  })
-  for (const teamId of admission.teams.slice(1)) {
+  let memberId = admission.memberId
+  if (!memberId) {
+    try {
+      const member = await getAuth().api.addMember({
+        body: {
+          organizationId: state.organizationId,
+          role: "member",
+          userId: user.id,
+        },
+      })
+      memberId = member.id
+    } catch (error) {
+      if (
+        !(error instanceof APIError) ||
+        error.body?.code !== "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION"
+      ) {
+        throw error
+      }
+      const [member] = await getDB()
+        .select({ id: schema.members.id })
+        .from(schema.members)
+        .where(
+          and(
+            eq(schema.members.organizationId, state.organizationId),
+            eq(schema.members.userId, user.id),
+            isNull(schema.members.disabledAt)
+          )
+        )
+        .limit(1)
+      if (!member) {
+        throw error
+      }
+      memberId = member.id
+    }
+  }
+
+  for (const teamId of admission.teams) {
     await getAuth().api.addTeamMember({
       headers: sessionHeaders,
       body: { organizationId: state.organizationId, teamId, userId: user.id },
     })
   }
-  await getDB()
-    .insert(schema.auditEvents)
-    .values({
+
+  await getDB().transaction(async (tx) => {
+    const assignments = await tx
+      .insert(schema.memberRoles)
+      .values(
+        admission.roleIds.map((roleId) => ({
+          memberId,
+          organizationId: state.organizationId,
+          roleId,
+        }))
+      )
+      .onConflictDoNothing()
+      .returning({ roleId: schema.memberRoles.roleId })
+    if (assignments.length === 0) {
+      return
+    }
+    await tx.insert(schema.auditEvents).values({
       action: "social_admission.accept",
       actorId: user.id,
       actorType: "user",
@@ -862,6 +876,11 @@ async function createSocialAdmissionMembership(
       targetId: user.id,
       targetType: "organization_membership",
     })
+  })
+  await getAuth().api.setActiveOrganization({
+    headers: sessionHeaders,
+    body: { organizationId: state.organizationId },
+  })
 }
 
 export type Auth = ReturnType<typeof buildAuth>

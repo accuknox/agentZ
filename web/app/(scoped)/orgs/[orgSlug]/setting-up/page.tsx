@@ -29,11 +29,7 @@ export default function OrganizationProvisioningPage({
   )
 }
 
-async function OrganizationProvisioning({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}) {
+async function OrganizationProvisioning({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind === "unauthorized") {

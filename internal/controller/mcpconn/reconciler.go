@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"reflect"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayclientset "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned"
 	baoapi "github.com/openbao/openbao/api/v2"
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -207,6 +209,24 @@ func (r *MCPConnectionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.MCPConnection{}).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.mcpConnectionsForSandbox)).
+		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			if obj.GetName() != mcp.ExtAuthServiceName {
+				return nil
+			}
+			connections := &agentzv1alpha1.MCPConnectionList{}
+			err := r.List(ctx, connections, client.InNamespace(obj.GetNamespace()))
+			if err != nil {
+				slog.ErrorContext(ctx, "list MCP connections for ext auth deployment", slog.Any("err", err))
+				return nil
+			}
+			requests := make([]reconcile.Request, 0, len(connections.Items))
+			for i := range connections.Items {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: client.ObjectKeyFromObject(&connections.Items[i]),
+				})
+			}
+			return requests
+		})).
 		Named("mcpconnection").
 		Complete(r)
 }

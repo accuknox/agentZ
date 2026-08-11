@@ -20,6 +20,8 @@ const (
 	SandboxLabel = "agentz.accuknox.com/inference-sandbox"
 	// SandboxHeader carries controller-owned route identity to extAuth.
 	SandboxHeader = "x-agentz-inference-sandbox"
+	// SandboxNamespaceHeader binds the route to its source Workspace.
+	SandboxNamespaceHeader = "x-agentz-inference-sandbox-namespace"
 )
 
 // Gateway returns the isolated namespace-local inference Gateway.
@@ -136,10 +138,16 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 			[]gwv1.HTTPRouteFilter{{
 				Type: gwv1.HTTPRouteFilterRequestHeaderModifier,
 				RequestHeaderModifier: &gwv1.HTTPHeaderFilter{
-					Set: []gwv1.HTTPHeader{{
-						Name:  gwv1.HTTPHeaderName(SandboxHeader),
-						Value: sandboxName,
-					}},
+					Set: []gwv1.HTTPHeader{
+						{
+							Name:  gwv1.HTTPHeaderName(SandboxHeader),
+							Value: sandboxName,
+						},
+						{
+							Name:  gwv1.HTTPHeaderName(SandboxNamespaceHeader),
+							Value: namespace,
+						},
+					},
 				},
 			}},
 			route.Spec.Rules[0].Filters...,

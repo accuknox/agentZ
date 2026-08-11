@@ -143,6 +143,13 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 			}
 		})
 	}
+
+	if effective.HasWorkspaceAccess(authorization.Scope{
+		OrganizationID: "organization-b",
+		WorkspaceID:    "workspace-a",
+	}) {
+		t.Error("HasWorkspaceAccess() allowed a Workspace in another Organisation")
+	}
 }
 
 func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
@@ -154,6 +161,7 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 		queryErr     error
 		organization string
 		operation    authorization.Operation
+		wantActive   bool
 		wantAllowed  bool
 		wantErr      bool
 	}{
@@ -176,6 +184,7 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 			}},
 			organization: "organization-a",
 			operation:    authorization.OperationListSandboxes,
+			wantActive:   true,
 		},
 		{
 			name: "Immutable Superadmin bypass",
@@ -185,6 +194,7 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 			}},
 			organization: "organization-a",
 			operation:    authorization.OperationDeleteSandbox,
+			wantActive:   true,
 			wantAllowed:  true,
 		},
 		{
@@ -195,6 +205,7 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 			}},
 			organization: "organization-a",
 			operation:    "unmappedOperation",
+			wantActive:   true,
 		},
 		{
 			name:         "Store failure",
@@ -220,6 +231,9 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 			}
 			if err != nil {
 				return
+			}
+			if effective.Active() != tt.wantActive {
+				t.Errorf("Active() = %t, want %t", effective.Active(), tt.wantActive)
 			}
 
 			allowed := effective.Allows(authorization.Scope{

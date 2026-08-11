@@ -21,7 +21,12 @@ type WorkflowRunGraphProps = {
   workspaceId: string
 }
 
-export function WorkflowRunGraph({ agentName, workflow, workflowRun, workspaceId }: WorkflowRunGraphProps) {
+export function WorkflowRunGraph({
+  agentName,
+  workflow,
+  workflowRun,
+  workspaceId,
+}: WorkflowRunGraphProps) {
   const query = useQuery(
     queryOptions({
       placeholderData: workflowRun,

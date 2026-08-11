@@ -15,6 +15,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
+import type { AuditField } from "@/lib/gateway/client/types.gen"
 import {
   apikeys,
   invitations,
@@ -26,11 +27,6 @@ import {
 } from "./auth-schema"
 
 export * from "./auth-schema"
-
-type AuditField = {
-  field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
-  value: string
-}
 
 export const themePreference = pgEnum("theme_preference", ["system", "light", "dark"])
 export const workspaceState = pgEnum("workspace_state", [

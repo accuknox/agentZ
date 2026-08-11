@@ -42,6 +42,9 @@ func URLTarget(raw string) (Target, error) {
 	if err != nil {
 		return Target{}, err
 	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return Target{}, errors.New("url scheme must be http or https")
+	}
 	if u.Hostname() == "" {
 		return Target{}, errors.New("url has no hostname")
 	}
@@ -53,6 +56,9 @@ func URLTarget(raw string) (Target, error) {
 		value, err := strconv.ParseInt(u.Port(), 10, 32)
 		if err != nil {
 			return Target{}, err
+		}
+		if value < 1 || value > 65535 {
+			return Target{}, errors.New("url port must be between 1 and 65535")
 		}
 		port = int32(value)
 	}

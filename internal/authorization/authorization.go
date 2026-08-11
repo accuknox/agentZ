@@ -158,6 +158,7 @@ func New(queries Queries) *Resolver {
 // Effective is an immutable snapshot of one Subject's effective permissions.
 type Effective struct {
 	organizationID  string
+	active          bool
 	superadmin      bool
 	workspaceAdmins map[string]struct{}
 	grants          map[grantKey]struct{}
@@ -192,6 +193,7 @@ func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, err
 		return effective, nil
 	}
 
+	effective.active = true
 	effective.superadmin = rows[0].Superadmin
 	if effective.superadmin {
 		return effective, nil
@@ -212,6 +214,12 @@ func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, err
 	}
 
 	return effective, nil
+}
+
+// Active reports whether the subject has an enabled Membership in the
+// Organisation. A grant-free active Membership remains active.
+func (e Effective) Active() bool {
+	return e.active
 }
 
 // Allows reports whether an explicitly mapped operation is allowed in the exact scope.
@@ -251,6 +259,9 @@ func (e Effective) CanAdminister(scope Scope) bool {
 // a Workspace. Agent ownership depends on this so an owned Agent cannot keep a
 // user inside a Workspace after all independent access is revoked.
 func (e Effective) HasWorkspaceAccess(scope Scope) bool {
+	if scope.OrganizationID != e.organizationID {
+		return false
+	}
 	if e.CanAdminister(scope) {
 		return true
 	}

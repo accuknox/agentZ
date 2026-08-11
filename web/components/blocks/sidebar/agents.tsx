@@ -425,103 +425,101 @@ function agentSessionsQueryOptions(agentName: string, workspaceId: string, enabl
       AgentSessionsStreamChunk,
       AgentSessionsState,
       ["agentSessions", string, string]
-    >(
-      {
-        initialValue: { sessions: [], statuses: {} },
-        reducer: (state, chunk) => {
-          if (chunk.type === "snapshot") {
-            return chunk.state
-          }
+    >({
+      initialValue: { sessions: [], statuses: {} },
+      reducer: (state, chunk) => {
+        if (chunk.type === "snapshot") {
+          return chunk.state
+        }
 
-          switch (chunk.event.type) {
-            case "session.created":
-            case "session.updated":
-            case "session.deleted": {
-              const sessions = new Map(state.sessions.map((session) => [session.id, session]))
-              const statuses = { ...state.statuses }
-              const session = {
-                id: chunk.event.properties.info.id,
-                parentID: chunk.event.properties.info.parentID,
-                title: chunk.event.properties.info.title,
-                updatedAt: chunk.event.properties.info.time.updated,
-              } satisfies AgentSessionListItem
+        switch (chunk.event.type) {
+          case "session.created":
+          case "session.updated":
+          case "session.deleted": {
+            const sessions = new Map(state.sessions.map((session) => [session.id, session]))
+            const statuses = { ...state.statuses }
+            const session = {
+              id: chunk.event.properties.info.id,
+              parentID: chunk.event.properties.info.parentID,
+              title: chunk.event.properties.info.title,
+              updatedAt: chunk.event.properties.info.time.updated,
+            } satisfies AgentSessionListItem
 
-              if (chunk.event.type === "session.deleted") {
-                sessions.delete(session.id)
-                delete statuses[session.id]
-              } else {
-                sessions.set(session.id, session)
-              }
-
-              return {
-                sessions: sortSessions(Array.from(sessions.values())),
-                statuses,
-              }
+            if (chunk.event.type === "session.deleted") {
+              sessions.delete(session.id)
+              delete statuses[session.id]
+            } else {
+              sessions.set(session.id, session)
             }
-            case "session.status":
-              return {
-                sessions: state.sessions,
-                statuses: {
-                  ...state.statuses,
-                  [chunk.event.properties.sessionID]: chunk.event.properties.status,
-                },
-              }
-            case "session.idle":
-              return {
-                sessions: state.sessions,
-                statuses: {
-                  ...state.statuses,
-                  [chunk.event.properties.sessionID]: { type: "idle" },
-                },
-              }
-            default:
-              return state
-          }
-        },
-        streamFn: async function* ({ signal }) {
-          const client = await createAgentOpencodeClient(agentName, workspaceId)
-          const [listResult, statusResult] = await Promise.all([
-            client.session.list(),
-            client.session.status(),
-          ])
-          if (!listResult.data || !statusResult.data) {
-            throw new Error("Failed to load sessions")
-          }
 
-          const sessions = sortSessions(
-            listResult.data.map((session: OpencodeSession) => ({
-              id: session.id,
-              parentID: session.parentID,
-              title: session.title,
-              updatedAt: session.time.updated,
-            }))
-          )
-          const visibleSessionIDs = new Set(sessions.map((session) => session.id))
+            return {
+              sessions: sortSessions(Array.from(sessions.values())),
+              statuses,
+            }
+          }
+          case "session.status":
+            return {
+              sessions: state.sessions,
+              statuses: {
+                ...state.statuses,
+                [chunk.event.properties.sessionID]: chunk.event.properties.status,
+              },
+            }
+          case "session.idle":
+            return {
+              sessions: state.sessions,
+              statuses: {
+                ...state.statuses,
+                [chunk.event.properties.sessionID]: { type: "idle" },
+              },
+            }
+          default:
+            return state
+        }
+      },
+      streamFn: async function* ({ signal }) {
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
+        const [listResult, statusResult] = await Promise.all([
+          client.session.list(),
+          client.session.status(),
+        ])
+        if (!listResult.data || !statusResult.data) {
+          throw new Error("Failed to load sessions")
+        }
 
+        const sessions = sortSessions(
+          listResult.data.map((session: OpencodeSession) => ({
+            id: session.id,
+            parentID: session.parentID,
+            title: session.title,
+            updatedAt: session.time.updated,
+          }))
+        )
+        const visibleSessionIDs = new Set(sessions.map((session) => session.id))
+
+        yield {
+          type: "snapshot",
+          state: {
+            sessions,
+            statuses: Object.fromEntries(
+              Object.entries(statusResult.data).filter(([sessionID]) => {
+                return visibleSessionIDs.has(sessionID)
+              })
+            ),
+          },
+        }
+
+        const subscription = await client.event.subscribe(undefined, { signal })
+
+        for await (const event of subscription.stream) {
           yield {
-            type: "snapshot",
-            state: {
-              sessions,
-              statuses: Object.fromEntries(
-                Object.entries(statusResult.data).filter(([sessionID]) => {
-                  return visibleSessionIDs.has(sessionID)
-                })
-              ),
-            },
+            type: "event",
+            event,
           }
-
-          const subscription = await client.event.subscribe(undefined, { signal })
-
-          for await (const event of subscription.stream) {
-            yield {
-              type: "event",
-              event,
-            }
-          }
-        },
-        refetchMode: "reset",
-      }
-    ),
+        }
+      },
+      refetchMode: "reset",
+    }),
     queryKey: ["agentSessions", workspaceId, agentName],
     refetchOnMount: "always",
     refetchOnReconnect: "always",

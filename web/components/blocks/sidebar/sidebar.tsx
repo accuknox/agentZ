@@ -273,8 +273,7 @@ async function WorkspaceRuntimeNavigation({
     listSandboxesCachedQuery({ limit: 50 }, workspace.id),
     listImmutableSkillsCachedQuery(workspace.id),
   ])
-  const workspacePath =
-    `/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route
+  const workspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route
 
   return (
     <>

@@ -61,64 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1785926288113,
+      "when": 1786427901203,
       "tag": "0008_organization_workspace_contracts",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1785939867556,
-      "tag": "0009_audit-events",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1785942163008,
-      "tag": "0010_workspace-provisioning",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1785953423960,
-      "tag": "0011_yielding_lethal_legion",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1785958841500,
-      "tag": "0012_slim_calypso",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1785960062502,
-      "tag": "0013_tearful_pixie",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1785961213330,
-      "tag": "0014_premium_lake",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1786352317187,
-      "tag": "0015_workspace_api_keys",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1786364924341,
-      "tag": "0016_organization_workspace_cutover",
       "breakpoints": true
     }
   ]

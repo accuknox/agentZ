@@ -1,4 +1,3 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -68,18 +67,15 @@ spec:
                   type: string
                 type: array
               creatorUserID:
-                description: CreatorUserID is the immutable Better Auth User ID that
-                  created the Sandbox.
+                description: CreatorUserID is the immutable Better Auth User ID that created the Sandbox.
                 maxLength: 128
                 minLength: 1
                 type: string
               inference:
-                description: Inference defines the model policy inherited by referencing
-                  Agents.
+                description: Inference defines the model policy inherited by referencing Agents.
                 properties:
                   attachmentModel:
-                    description: AttachmentModel is the optional model used to inspect
-                      visual files.
+                    description: AttachmentModel is the optional model used to inspect visual files.
                     properties:
                       model:
                         description: Model is the exact upstream model identifier.
@@ -87,15 +83,13 @@ spec:
                         minLength: 1
                         type: string
                       provider:
-                        description: Provider is the immutable InferenceProvider metadata
-                          name.
+                        description: Provider is the immutable InferenceProvider metadata name.
                         maxLength: 63
                         minLength: 1
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
                       scope:
-                        description: Scope selects the current Organisation or Workspace
-                          namespace.
+                        description: Scope selects the current Organisation or Workspace namespace.
                         enum:
                         - Organisation
                         - Workspace
@@ -114,15 +108,13 @@ spec:
                         minLength: 1
                         type: string
                       provider:
-                        description: Provider is the immutable InferenceProvider metadata
-                          name.
+                        description: Provider is the immutable InferenceProvider metadata name.
                         maxLength: 63
                         minLength: 1
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
                       scope:
-                        description: Scope selects the current Organisation or Workspace
-                          namespace.
+                        description: Scope selects the current Organisation or Workspace namespace.
                         enum:
                         - Organisation
                         - Workspace
@@ -135,8 +127,7 @@ spec:
                   models:
                     description: Models is the hard provider/model allowlist.
                     items:
-                      description: InferenceModelRef identifies one enabled model
-                        on one provider instance.
+                      description: InferenceModelRef identifies one enabled model on one provider instance.
                       properties:
                         model:
                           description: Model is the exact upstream model identifier.
@@ -144,15 +135,13 @@ spec:
                           minLength: 1
                           type: string
                         provider:
-                          description: Provider is the immutable InferenceProvider
-                            metadata name.
+                          description: Provider is the immutable InferenceProvider metadata name.
                           maxLength: 63
                           minLength: 1
                           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                           type: string
                         scope:
-                          description: Scope selects the current Organisation or Workspace
-                            namespace.
+                          description: Scope selects the current Organisation or Workspace namespace.
                           enum:
                           - Organisation
                           - Workspace
@@ -171,8 +160,7 @@ spec:
                     - model
                     x-kubernetes-list-type: map
                   smallModel:
-                    description: SmallModel is the optional OpenCode background-task
-                      model.
+                    description: SmallModel is the optional OpenCode background-task model.
                     properties:
                       model:
                         description: Model is the exact upstream model identifier.
@@ -180,15 +168,13 @@ spec:
                         minLength: 1
                         type: string
                       provider:
-                        description: Provider is the immutable InferenceProvider metadata
-                          name.
+                        description: Provider is the immutable InferenceProvider metadata name.
                         maxLength: 63
                         minLength: 1
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
                       scope:
-                        description: Scope selects the current Organisation or Workspace
-                          namespace.
+                        description: Scope selects the current Organisation or Workspace namespace.
                         enum:
                         - Organisation
                         - Workspace
@@ -204,34 +190,26 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: default model must belong to the allowlist
-                  rule: self.models.exists(m, m.scope == self.defaultModel.scope &&
-                    m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)
+                  rule: self.models.exists(m, m.scope == self.defaultModel.scope && m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)
                 - message: small model must belong to the allowlist
-                  rule: '!has(self.smallModel) || self.models.exists(m, m.scope ==
-                    self.smallModel.scope && m.provider == self.smallModel.provider
-                    && m.model == self.smallModel.model)'
+                  rule: '!has(self.smallModel) || self.models.exists(m, m.scope == self.smallModel.scope && m.provider == self.smallModel.provider && m.model == self.smallModel.model)'
                 - message: attachment model must belong to the allowlist
-                  rule: '!has(self.attachmentModel) || self.models.exists(m, m.scope
-                    == self.attachmentModel.scope && m.provider == self.attachmentModel.provider
-                    && m.model == self.attachmentModel.model)'
+                  rule: '!has(self.attachmentModel) || self.models.exists(m, m.scope == self.attachmentModel.scope && m.provider == self.attachmentModel.provider && m.model == self.attachmentModel.model)'
               mcpConnectionRefs:
                 description: |-
                   MCPConnectionRefs lists external MCP connections exposed in this
                   sandbox in order.
                 items:
-                  description: MCPConnectionRef references one MCPConnection and its
-                    exposed tools.
+                  description: MCPConnectionRef references one MCPConnection and its exposed tools.
                   properties:
                     name:
-                      description: Name is the immutable Kubernetes metadata name
-                        of the resource.
+                      description: Name is the immutable Kubernetes metadata name of the resource.
                       maxLength: 63
                       minLength: 1
                       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                       type: string
                     scope:
-                      description: Scope selects the current Organisation or Workspace
-                        namespace.
+                      description: Scope selects the current Organisation or Workspace namespace.
                       enum:
                       - Organisation
                       - Workspace
@@ -246,8 +224,7 @@ spec:
                           sandbox.
                         properties:
                           name:
-                            description: Name is the upstream MCP tool name exposed
-                              through this sandbox.
+                            description: Name is the upstream MCP tool name exposed through this sandbox.
                             type: string
                           requireConsent:
                             description: |-
@@ -274,22 +251,18 @@ spec:
                   type: string
                 type: array
               skills:
-                description: Skills lists immutable Skill names exposed through this
-                  sandbox.
+                description: Skills lists immutable Skill names exposed through this sandbox.
                 items:
-                  description: ResourceReference identifies a resource by scope and
-                    metadata name.
+                  description: ResourceReference identifies a resource by scope and metadata name.
                   properties:
                     name:
-                      description: Name is the immutable Kubernetes metadata name
-                        of the resource.
+                      description: Name is the immutable Kubernetes metadata name of the resource.
                       maxLength: 63
                       minLength: 1
                       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                       type: string
                     scope:
-                      description: Scope selects the current Organisation or Workspace
-                        namespace.
+                      description: Scope selects the current Organisation or Workspace namespace.
                       enum:
                       - Organisation
                       - Workspace
@@ -311,8 +284,7 @@ spec:
             - message: skill names must not exceed 32 characters
               rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 32)'
             - message: creatorUserID is immutable
-              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
-                == oldSelf.creatorUserID)'
+              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)'
           status:
             description: status defines the observed state of Sandbox
             properties:
@@ -331,8 +303,7 @@ spec:
 
                   The status of each condition is one of True, False, or Unknown.
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: Condition contains details for one aspect of the current state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -389,12 +360,10 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               inferenceReady:
-                description: InferenceReady reports whether referenced providers and
-                  models are ready.
+                description: InferenceReady reports whether referenced providers and models are ready.
                 type: boolean
               mcpRefCount:
-                description: MCPRefCount is the number of MCP connection references
-                  configured.
+                description: MCPRefCount is the number of MCP connection references configured.
                 type: integer
               modelCount:
                 description: ModelCount is the number of allowed inference models.

@@ -306,7 +306,11 @@ export async function deleteAPIKeyFormAction(
     if (!key) {
       return "not-found" as const
     }
-    if (!access.canAdminister && key.creatorUserId !== authContext.userId) {
+    const currentAccess = await getWorkspaceAPIKeyAccess(scope.workspaceId)
+    if (!currentAccess?.capabilities.delete) {
+      return "forbidden" as const
+    }
+    if (!currentAccess.canAdminister && key.creatorUserId !== authContext.userId) {
       return "forbidden" as const
     }
     if (key.revokedAt) {

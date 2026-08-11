@@ -251,8 +251,14 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 		filteredPaths[gatewayPath] = filteredItem
 
 		for _, method := range pathMethods(filteredItem) {
-			op, _ := filteredItem[method].(map[string]any)
-			operationID, _ := op["operationId"].(string)
+			op, ok := filteredItem[method].(map[string]any)
+			if !ok {
+				return nil, routeManifest{}, fmt.Errorf("%s %s is not an operation", method, path)
+			}
+			operationID, ok := op["operationId"].(string)
+			if !ok {
+				return nil, routeManifest{}, fmt.Errorf("%s %s has no operationId", method, path)
+			}
 			operation, capability, err := opencodeOperation(operationID)
 			if err != nil {
 				return nil, routeManifest{}, fmt.Errorf("map %s %s: %w", method, path, err)
@@ -314,10 +320,19 @@ func applyBaseCapabilities(doc map[string]any) error {
 	}
 	seen := make(map[string]struct{})
 	for path, itemAny := range paths {
-		item, _ := itemAny.(map[string]any)
+		item, ok := itemAny.(map[string]any)
+		if !ok {
+			return fmt.Errorf("base path %s is not a path item", path)
+		}
 		for _, method := range pathMethods(item) {
-			op, _ := item[method].(map[string]any)
-			operation, _ := op["operationId"].(string)
+			op, ok := item[method].(map[string]any)
+			if !ok {
+				return fmt.Errorf("base operation %s %s is invalid", method, path)
+			}
+			operation, ok := op["operationId"].(string)
+			if !ok || strings.TrimSpace(operation) == "" {
+				return fmt.Errorf("base operation %s %s has no operationId", method, path)
+			}
 			capability, mapped := capabilities[operation]
 			if !mapped {
 				return fmt.Errorf("base operation %s %s (%q) has no capability mapping", method, path, operation)

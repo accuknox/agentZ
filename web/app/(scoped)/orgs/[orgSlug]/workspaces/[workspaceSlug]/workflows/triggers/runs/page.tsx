@@ -5,10 +5,7 @@ import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listWebhookAPIKeyDisplaysCachedQuery } from "@/data/api-key.queries"
-import {
-  selectWorkflowRunsFiltersAction,
-  type WorkflowActionScope,
-} from "@/data/workflow.actions"
+import { selectWorkflowRunsFiltersAction, type WorkflowActionScope } from "@/data/workflow.actions"
 import { deleteWorkflowRunAction } from "@/data/workflow-run.actions"
 import { listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
 import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"

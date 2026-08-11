@@ -985,6 +985,9 @@ func (s *Service) putMCPConnectionSecret(ctx context.Context, ref agentzv1alpha1
 
 func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1alpha1.MCPConnectionSpec, req gatewayapi.MCPConnectionCredentials) *apiError {
 	if spec.Auth == nil {
+		if req.Bearer == nil && req.Oauth == nil {
+			return nil
+		}
 		return newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",

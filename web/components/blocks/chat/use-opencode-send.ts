@@ -168,7 +168,11 @@ export function useOpencodeSend(
         optimisticID = pendingID
         optimisticSessionID = activeSessionID
         optimisticStatus = pendingStatus
-        const sessionStatusOptions = sessionStatusQueryOptions(agentName, workspaceId, sessionDirectory ?? "")
+        const sessionStatusOptions = sessionStatusQueryOptions(
+          agentName,
+          workspaceId,
+          sessionDirectory ?? ""
+        )
         queryClient.setQueryData<SessionStatusResponse>(
           sessionStatusOptions.queryKey,
           (current) => ({

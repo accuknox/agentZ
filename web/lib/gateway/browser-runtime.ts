@@ -98,10 +98,7 @@ export async function gatewayAuthenticatedFetch(
 ): Promise<Response> {
   const requestHeaders = input instanceof Request ? input.headers : init?.headers
   const workspaceId = new Headers(requestHeaders).get("X-AgentZ-Workspace-ID") ?? undefined
-  const [token, baseUrl] = await Promise.all([
-    getGatewayToken(workspaceId),
-    getGatewayBaseURL(),
-  ])
+  const [token, baseUrl] = await Promise.all([getGatewayToken(workspaceId), getGatewayBaseURL()])
 
   if (input instanceof Request) {
     const headers = new Headers(input.headers)

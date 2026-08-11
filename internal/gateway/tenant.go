@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -426,6 +427,28 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 
 	claims, err := s.parseGatewayClaims(token)
 	if err == nil {
+		effective, resolveErr := authorization.New(s.queries).Resolve(
+			r.Context(),
+			authorization.Subject{
+				UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+			},
+		)
+		if resolveErr != nil {
+			return requestAuth{}, newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"unexpected server error",
+				fmt.Errorf("resolve bearer Membership: %w", resolveErr),
+			)
+		}
+		if !effective.Active() {
+			return requestAuth{}, newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"Organisation Membership is not active",
+				errors.New("bearer subject has no active Organisation Membership"),
+			)
+		}
 		return requestAuth{claims: &claims}, nil
 	}
 

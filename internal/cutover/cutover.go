@@ -301,6 +301,9 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 		}
 		report.Tenants = append(report.Tenants, inventory)
 	}
+	slices.SortFunc(report.Tenants, func(a, b TenantInventory) int {
+		return strings.Compare(a.Organization.ID, b.Organization.ID)
+	})
 	return report, nil
 }
 
@@ -411,6 +414,23 @@ func openStores(ctx context.Context, cfg Config) (stores, error) {
 }
 
 func inventoryTenant(ctx context.Context, cfg Config, clients stores, tenant *agentzv1alpha1.Tenant) (TenantInventory, error) {
+	state, err := clients.db.GetState(ctx, tenant.Spec.OrganizationID)
+	if err == nil && (state.Checkpoint == checkpointSQL || state.Checkpoint == checkpointActivated) {
+		var inventory TenantInventory
+		if err := json.Unmarshal(state.Inventory, &inventory); err != nil {
+			return TenantInventory{}, fmt.Errorf("decode durable cutover inventory: %w", err)
+		}
+		inventory.Checkpoint = state.Checkpoint
+		return inventory, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return TenantInventory{}, fmt.Errorf("get cutover checkpoint: %w", err)
+	}
+	checkpoint := ""
+	if err == nil {
+		checkpoint = state.Checkpoint
+	}
+
 	organization, err := clients.db.GetOrganization(ctx, tenant.Spec.OrganizationID)
 	if err != nil {
 		return TenantInventory{}, fmt.Errorf("get Organisation %q: %w", tenant.Spec.OrganizationID, err)
@@ -510,16 +530,8 @@ func inventoryTenant(ctx context.Context, cfg Config, clients stores, tenant *ag
 	if err != nil {
 		return TenantInventory{}, err
 	}
-	state, err := clients.db.GetState(ctx, tenant.Spec.OrganizationID)
-	if err == nil {
-		if state.Checkpoint == checkpointSQL || state.Checkpoint == checkpointActivated {
-			if err := json.Unmarshal(state.Inventory, &inventory); err != nil {
-				return TenantInventory{}, fmt.Errorf("decode durable cutover inventory: %w", err)
-			}
-		}
-		inventory.Checkpoint = state.Checkpoint
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return TenantInventory{}, fmt.Errorf("get cutover checkpoint: %w", err)
+	if checkpoint != "" {
+		inventory.Checkpoint = checkpoint
 	}
 	return inventory, nil
 }
@@ -1519,6 +1531,10 @@ func deleteLegacyExternalState(ctx context.Context, cfg Config, clients stores, 
 	for _, object := range inventory.OpenBao {
 		path := inventory.Workspace.SourceNamespace + "/" + object.Path
 		if err := clients.bao.DeleteMetadata(ctx, path); err != nil {
+			var responseErr *baoapi.ResponseError
+			if errors.As(err, &responseErr) && responseErr.StatusCode == 404 {
+				continue
+			}
 			return fmt.Errorf("delete source OpenBao path %q: %w", path, err)
 		}
 	}

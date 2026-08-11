@@ -1416,15 +1416,10 @@ function MetricBadge({
   variant?: React.ComponentProps<typeof Badge>["variant"]
 }) {
   return (
-    <span
-      className={cn(
-        "text-muted-foreground inline-flex items-center gap-1.5 text-xs",
-        variant === "destructive" && "text-destructive"
-      )}
-    >
+    <Badge variant={variant}>
       <Icon data-icon="inline-start" />
       {formatCompactNumber(value)} {value === 1 ? singular : `${singular}s`}
-    </span>
+    </Badge>
   )
 }
 

@@ -92,7 +92,7 @@ export function WebhookTriggersTable({
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{row.apiKeyName || "Deleted key"}</span>
-                        {row.deleted ? <Badge variant="destructivePlain">Deleted</Badge> : null}
+                        {row.deleted ? <Badge variant="outline">Deleted</Badge> : null}
                       </div>
                       <code className="text-muted-foreground text-xs">{row.apiKeyDisplay}</code>
                     </div>

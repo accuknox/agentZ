@@ -162,10 +162,10 @@ export function ActionBadge({ action }: { action: string }) {
   return (
     <span
       className={cn(
-        "inline-flex w-fit text-xs font-medium",
-        action === "Blocked" && "text-destructive",
-        action === "Allowed" && "text-primary",
-        action !== "Allowed" && action !== "Blocked" && "text-muted-foreground"
+        "inline-flex w-fit rounded-full px-2 py-1 text-xs font-medium",
+        action === "Blocked" && "bg-destructive/12 text-destructive",
+        action === "Allowed" && "bg-primary/12 text-primary",
+        action !== "Allowed" && action !== "Blocked" && "bg-muted text-muted-foreground"
       )}
     >
       {action}

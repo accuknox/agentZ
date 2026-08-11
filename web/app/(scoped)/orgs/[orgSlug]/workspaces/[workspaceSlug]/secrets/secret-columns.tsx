@@ -2,7 +2,14 @@
 
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  CircleDashed,
+  MoreHorizontal,
+  Trash2,
+  XCircle,
+} from "lucide-react"
 import type { SecretListItem, SecretState } from "@/lib/gateway/client"
 import { formatAge } from "@/lib/format"
 import { Badge } from "@/components/ui/badge"
@@ -28,20 +35,24 @@ import type { DeleteSecretFormAction } from "@/data/types"
 
 const secretStatusMeta = {
   accepted: {
+    icon: CircleDashed,
     label: "Accepted",
-    variant: "plain",
+    variant: "pending",
   },
   ready: {
+    icon: CheckCircle2,
     label: "Ready",
-    variant: "successPlain",
+    variant: "success",
   },
   degraded: {
+    icon: XCircle,
     label: "Degraded",
-    variant: "destructivePlain",
+    variant: "destructive",
   },
 } satisfies Record<
   SecretState,
   {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
     label: string
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
@@ -131,7 +142,12 @@ export function createSecretColumns(
 function SecretStatusBadge({ secret }: { secret: SecretListItem }) {
   const meta = secretStatusMeta[secret.status]
   const message = secret.message.trim()
-  const badge = <Badge variant={meta.variant}>{meta.label}</Badge>
+  const badge = (
+    <Badge variant={meta.variant}>
+      <meta.icon data-icon="inline-start" />
+      {meta.label}
+    </Badge>
+  )
 
   if (!message) {
     return badge

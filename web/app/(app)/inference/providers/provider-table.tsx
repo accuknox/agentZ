@@ -18,10 +18,13 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpDown,
+  CheckCircle2,
   CircleAlert,
+  CircleDashed,
   MoreHorizontal,
   Pencil,
   Trash2,
+  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -79,17 +82,21 @@ const columnClassName: Record<string, string> = {
 
 const providerStateMeta = {
   Accepted: {
-    variant: "plain",
+    icon: CircleDashed,
+    variant: "pending",
   },
   Ready: {
-    variant: "successPlain",
+    icon: CheckCircle2,
+    variant: "success",
   },
   Degraded: {
-    variant: "destructivePlain",
+    icon: XCircle,
+    variant: "destructive",
   },
 } satisfies Record<
   InferenceProvider["state"],
   {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
 >
@@ -337,7 +344,12 @@ function ProviderStatusBadge({ provider }: { provider: InferenceProvider }) {
       ? (provider.conditions.find((condition) => condition.status === "False")?.message.trim() ??
         "")
       : ""
-  const badge = <Badge variant={meta.variant}>{provider.state}</Badge>
+  const badge = (
+    <Badge variant={meta.variant}>
+      <meta.icon data-icon="inline-start" />
+      {provider.state}
+    </Badge>
+  )
 
   if (!message) {
     return badge

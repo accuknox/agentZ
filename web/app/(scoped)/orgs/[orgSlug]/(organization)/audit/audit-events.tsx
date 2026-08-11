@@ -90,12 +90,12 @@ export function AuditEvents({
             {audit.events.length ? (
               audit.events.map((event) => (
                 <TableRow key={event.id}>
-                  <TableCell className="min-w-36 align-top">
+                  <TableCell className="min-w-36">
                     <time className="text-muted-foreground text-xs" dateTime={event.created_at}>
                       {formatAge(event.created_at)}
                     </time>
                   </TableCell>
-                  <TableCell className="hidden max-w-56 align-top md:table-cell">
+                  <TableCell className="hidden max-w-56 md:table-cell">
                     <span
                       className="block truncate"
                       title={event.actor.name ?? event.actor.email ?? event.actor.id}
@@ -104,7 +104,7 @@ export function AuditEvents({
                     </span>
                     <span className="text-muted-foreground text-xs">{event.actor.type}</span>
                   </TableCell>
-                  <TableCell className="min-w-48 align-top">
+                  <TableCell className="min-w-48">
                     <Link
                       aria-label={`View audit event: ${event.action}`}
                       className="font-mono text-sm font-medium underline-offset-4 hover:underline"
@@ -118,14 +118,14 @@ export function AuditEvents({
                       {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
                     </span>
                   </TableCell>
-                  <TableCell className="max-w-56 align-top">
+                  <TableCell className="max-w-56">
                     <span className="block truncate" title={event.target.name ?? event.target.id}>
                       {event.target.name ?? event.target.id}
                     </span>
                     <span className="text-muted-foreground text-xs">{event.target.type}</span>
                   </TableCell>
                   {!workspace ? (
-                    <TableCell className="hidden max-w-56 align-top lg:table-cell">
+                    <TableCell className="hidden max-w-56 lg:table-cell">
                       <span
                         className="block truncate"
                         title={event.workspace?.name ?? event.workspace?.id}
@@ -134,7 +134,7 @@ export function AuditEvents({
                       </span>
                     </TableCell>
                   ) : null}
-                  <TableCell className="align-top">
+                  <TableCell>
                     <ResultBadge result={event.result} />
                   </TableCell>
                 </TableRow>

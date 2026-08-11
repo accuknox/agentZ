@@ -21,13 +21,16 @@ import {
   ArrowRight,
   ArrowUpDown,
   ArrowUpRight,
+  CheckCircle2,
   CircleAlert,
+  CircleDashed,
   Eye,
   Layers3,
   MoreHorizontal,
   Pencil,
   Trash2,
   TriangleAlert,
+  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -94,13 +97,14 @@ const columnClassName: Record<string, string> = {
 }
 
 const stateMeta = {
-  Accepted: { variant: "plain" },
-  Ready: { variant: "successPlain" },
-  PartiallyDegraded: { variant: "warningPlain" },
-  Degraded: { variant: "destructivePlain" },
+  Accepted: { icon: CircleDashed, variant: "pending" },
+  Ready: { icon: CheckCircle2, variant: "success" },
+  PartiallyDegraded: { icon: TriangleAlert, variant: "warning" },
+  Degraded: { icon: XCircle, variant: "destructive" },
 } satisfies Record<
   InferencePool["state"],
   {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
 >
@@ -221,9 +225,9 @@ export function InferencePoolTable({
                     {provider?.display_name ?? primary.provider} / {primary.model}
                   </span>
                   {row.original.members.length > 1 ? (
-                    <span className="text-muted-foreground shrink-0 text-xs">
+                    <Badge variant="secondary" className="shrink-0">
                       +{row.original.members.length - 1}
-                    </span>
+                    </Badge>
                   ) : null}
                 </div>
               </TooltipTrigger>
@@ -424,7 +428,7 @@ function PoolStatusBadge({ pool }: { pool: InferencePool }) {
         : ""
   const badge = (
     <Badge variant={meta.variant}>
-      {pool.state === "PartiallyDegraded" ? "Partial" : pool.state}
+      <meta.icon /> {pool.state === "PartiallyDegraded" ? "Partial" : pool.state}
     </Badge>
   )
   if (!message) return badge
@@ -725,7 +729,7 @@ function PoolViewSheet({
                       ) : null}
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant={status?.ready ? "successPlain" : "destructivePlain"}>
+                          <Badge variant={status?.ready ? "success" : "destructive"}>
                             {status?.ready ? "Ready" : status?.reason || "Pending"}
                           </Badge>
                         </TooltipTrigger>

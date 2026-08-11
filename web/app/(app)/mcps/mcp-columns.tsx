@@ -3,7 +3,15 @@
 import * as React from "react"
 import { formatAge } from "@/lib/format"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, Eye, MoreHorizontal, Trash2 } from "lucide-react"
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  CircleDashed,
+  Eye,
+  MoreHorizontal,
+  Trash2,
+  XCircle,
+} from "lucide-react"
 import type { McpConnectionLifecycle, McpConnectionSummary } from "@/lib/gateway/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,20 +38,24 @@ import { renderMcpServerIcon } from "./catalog"
 
 const mcpStatusMeta = {
   Accepted: {
+    icon: CircleDashed,
     label: "Accepted",
-    variant: "plain",
+    variant: "pending",
   },
   Ready: {
+    icon: CheckCircle2,
     label: "Ready",
-    variant: "successPlain",
+    variant: "success",
   },
   Error: {
+    icon: XCircle,
     label: "Error",
-    variant: "destructivePlain",
+    variant: "destructive",
   },
 } satisfies Record<
   McpConnectionLifecycle,
   {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
     label: string
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
@@ -141,7 +153,12 @@ function McpStatusBadge({ connection }: { connection: McpConnectionSummary }) {
   const state = connection.status
   const meta = mcpStatusMeta[state]
   const message = connection.message.trim()
-  const badge = <Badge variant={meta.variant}>{meta.label}</Badge>
+  const badge = (
+    <Badge variant={meta.variant}>
+      <meta.icon data-icon="inline-start" />
+      {meta.label}
+    </Badge>
+  )
 
   if (!message) {
     return badge

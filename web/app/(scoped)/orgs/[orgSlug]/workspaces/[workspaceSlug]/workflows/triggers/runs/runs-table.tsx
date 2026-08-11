@@ -17,7 +17,16 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import { ExternalLink, GitBranch, MoreHorizontal, Trash2 } from "lucide-react"
+import {
+  CheckCircle2,
+  CircleAlert,
+  CircleDashed,
+  ExternalLink,
+  GitBranch,
+  MoreHorizontal,
+  Trash2,
+  XCircle,
+} from "lucide-react"
 import { formatAge, formatDurationSeconds } from "@/lib/format"
 import {
   getWorkflowRun,
@@ -70,28 +79,34 @@ const columnClassName: Record<string, string> = {
 
 const runStatusMeta = {
   Pending: {
+    icon: CircleDashed,
     label: "Pending",
-    variant: "plain",
+    variant: "pending",
   },
   Running: {
+    icon: Spinner,
     label: "Running",
-    variant: "plain",
+    variant: "running",
   },
   Succeeded: {
+    icon: CheckCircle2,
     label: "Succeeded",
-    variant: "successPlain",
+    variant: "success",
   },
   Failed: {
+    icon: XCircle,
     label: "Failed",
-    variant: "destructivePlain",
+    variant: "destructive",
   },
   Unacked: {
+    icon: CircleAlert,
     label: "Unacked",
-    variant: "warningPlain",
+    variant: "warning",
   },
 } satisfies Record<
   WorkflowRunStatus,
   {
+    icon: React.ComponentType<React.ComponentProps<"svg">>
     label: string
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
@@ -405,9 +420,10 @@ function createColumns({
 
 function RunStatusBadge({ reason, status }: { reason: string; status: WorkflowRunStatus }) {
   const meta = runStatusMeta[status]
+  const icon = <meta.icon data-icon="inline-start" />
   const badge = (
     <Badge variant={meta.variant}>
-      {status === "Running" ? <Spinner data-icon="inline-start" /> : null}
+      {icon}
       {meta.label}
     </Badge>
   )

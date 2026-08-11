@@ -512,6 +512,13 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 			Operator: slimv1.LabelSelectorOpExists,
 		}}},
 	)
+	systemServices := ciliumpolicyapi.NewESFromLabels(
+		ciliumlabels.NewLabel(
+			"io.kubernetes.pod.namespace",
+			"agentz-system",
+			ciliumlabels.LabelSourceK8s,
+		),
+	)
 	packageRule := (&ciliumpolicyapi.Rule{
 		Description:      "Restrict package jobs to the configured Nix and Skill stores.",
 		EndpointSelector: packageJobs,
@@ -529,15 +536,27 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 			Spec: &ciliumpolicyapi.Rule{
 				Description:      "Isolate the Workspace while allowing local traffic and DNS.",
 				EndpointSelector: nonPackageJobs,
-				Ingress: []ciliumpolicyapi.IngressRule{{
-					IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-						FromEndpoints: []ciliumpolicyapi.EndpointSelector{nonPackageJobs},
+				Ingress: []ciliumpolicyapi.IngressRule{
+					{
+						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+							FromEndpoints: []ciliumpolicyapi.EndpointSelector{nonPackageJobs},
+						},
 					},
-				}},
+					{
+						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+							FromEndpoints: []ciliumpolicyapi.EndpointSelector{systemServices},
+						},
+					},
+				},
 				Egress: []ciliumpolicyapi.EgressRule{
 					{
 						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
 							ToEndpoints: []ciliumpolicyapi.EndpointSelector{nonPackageJobs},
+						},
+					},
+					{
+						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
+							ToEndpoints: []ciliumpolicyapi.EndpointSelector{systemServices},
 						},
 					},
 					{

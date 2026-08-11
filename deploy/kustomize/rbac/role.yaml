@@ -101,21 +101,12 @@ rules:
   - inferencepools
   - inferenceproviders
   - mcpconnections
+  - sandboxes
   - secrets
   verbs:
   - get
   - list
   - patch
-  - watch
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
-  - sandboxes
-  verbs:
-  - get
-  - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - agentz.accuknox.com

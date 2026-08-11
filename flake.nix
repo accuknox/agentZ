@@ -18,7 +18,7 @@
             src = ./.;
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-mtv/e1zmmUbXeyhxPgPtOrzMuhiKxa4kD1gzp7UTOP4=";
+            vendorHash = "sha256-qvHB85yBHgwhjHq6FbNpaq4UPHNnOz1Pw1bwDDzwV80=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";
@@ -48,7 +48,7 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-xHfE7QkLBUDfrcymEA+2zz89H1Sjolp/d2k81B0z48U=";
+            outputHash = "sha256-fsyllNL05rlVAVzTV+BrnM/jOJJoQ4XJW6Y60ujr7Rk=";
           };
           cfg = pkgs.runCommand "opencode-config" { } ''
             mkdir -p \

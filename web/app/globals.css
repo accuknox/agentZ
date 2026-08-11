@@ -165,6 +165,40 @@
 }
 
 @layer components {
+  .administration-surface [data-slot="card"] {
+    gap: 0;
+    overflow: visible;
+    border-block: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+    padding-block: 0;
+    box-shadow: none;
+  }
+
+  .administration-surface [data-slot="card-header"] {
+    border-radius: 0;
+    padding: 1rem 0;
+  }
+
+  .administration-surface [data-slot="card-content"] {
+    padding-inline: 0;
+  }
+
+  .administration-surface [data-slot="card-footer"] {
+    border-radius: 0;
+    background: transparent;
+    padding-inline: 0;
+  }
+
+  .administration-surface [data-slot="badge"] {
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+
   .trace-waterfall-progress [data-slot="progress-indicator"] {
     animation: trace-waterfall 700ms ease-out var(--waterfall-delay, 0ms) both;
   }

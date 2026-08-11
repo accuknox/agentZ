@@ -1,9 +1,12 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { AdministrationState, StatusBadge } from "@/components/administration"
+import {
+  AdministrationPageHeader,
+  AdministrationState,
+  StatusBadge,
+} from "@/components/administration"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -30,7 +33,29 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
   }
   if (result.directory.workspaces.length === 0) {
     return (
-      <AdministrationState
+      <div className="flex flex-col gap-6">
+        <AdministrationPageHeader title="Workspaces" />
+        <AdministrationState
+          actions={
+            result.directory.can_create ? (
+              <Button asChild>
+                <Link href={`${root}/workspaces/new` as Route}>
+                  <Plus />
+                  Create Workspace
+                </Link>
+              </Button>
+            ) : undefined
+          }
+          kind="empty"
+          title="No Workspaces yet"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <AdministrationPageHeader
         actions={
           result.directory.can_create ? (
             <Button asChild>
@@ -41,64 +66,45 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
             </Button>
           ) : undefined
         }
-        description="Create a Workspace to organise access and infrastructure inside this Organisation."
-        kind="empty"
-        title="No Workspaces yet"
+        title="Workspaces"
       />
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      {result.directory.can_create ? (
-        <div className="flex justify-end">
-          <Button asChild>
-            <Link href={`${root}/workspaces/new` as Route}>
-              <Plus />
-              Create Workspace
-            </Link>
-          </Button>
-        </div>
-      ) : null}
-      <Card>
-        <CardContent className="px-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Administrators</TableHead>
-                <TableHead>Updated</TableHead>
+      <div className="border-y">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Administrators</TableHead>
+              <TableHead>Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {result.directory.workspaces.map((workspace) => (
+              <TableRow key={workspace.id}>
+                <TableCell>
+                  <Link
+                    className="font-medium hover:underline"
+                    href={`${root}/workspaces/${workspace.slug}` as Route}
+                  >
+                    {workspace.name}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={workspace.state} />
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {workspace.workspace_admin_count}
+                </TableCell>
+                <TableCell>
+                  <time dateTime={workspace.updated_at}>
+                    {formatTimestampWithAge(workspace.updated_at)}
+                  </time>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.directory.workspaces.map((workspace) => (
-                <TableRow key={workspace.id}>
-                  <TableCell>
-                    <Link
-                      className="font-medium hover:underline"
-                      href={`${root}/workspaces/${workspace.slug}` as Route}
-                    >
-                      {workspace.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={workspace.state} />
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {workspace.workspace_admin_count}
-                  </TableCell>
-                  <TableCell>
-                    <time dateTime={workspace.updated_at}>
-                      {formatTimestampWithAge(workspace.updated_at)}
-                    </time>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

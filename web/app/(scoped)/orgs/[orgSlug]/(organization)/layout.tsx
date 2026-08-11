@@ -4,7 +4,6 @@ import { notFound, permanentRedirect, redirect } from "next/navigation"
 import { AdministrationLayout, AdministrationState } from "@/components/administration"
 import { AppShell } from "@/components/blocks/app-shell"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
-import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { ThemeSync } from "@/components/theme-sync"
 import {
   activateOrganization,
@@ -135,32 +134,6 @@ export default async function OrganizationLayout({
     ? `${root}/audit`
     : requestedURL.pathname
   await rememberOrganizationRoute(result.organization.id, rememberedPath, null)
-  const tabs: RouteTab[] = []
-  if (result.organization.superadmin) {
-    tabs.push(
-      { href: `${root}/workspaces` as Route, label: "Workspaces" },
-      { href: `${root}/users` as Route, label: "Users" },
-      { href: `${root}/teams` as Route, label: "Teams" },
-      { href: `${root}/roles` as Route, label: "Roles" },
-      { href: `${root}/access` as Route, label: "Access" },
-      { href: `${root}/social-admission` as Route, label: "Social Admission" },
-      { href: `${root}/destructive-operations` as Route, label: "Destructive Ops" },
-      { href: `${root}/audit` as Route, label: "Audit" },
-      { href: `${root}/general` as Route, label: "General" }
-    )
-  }
-  if (tenant.data.skill_capabilities.read) {
-    tabs.push({ href: `${root}/skills` as Route, label: "Skills" })
-  }
-  if (tenant.data.mcp_connection_capabilities.read) {
-    tabs.push({ href: `${root}/mcps` as Route, label: "MCP" })
-  }
-  if (tenant.data.sandbox_capabilities.read) {
-    tabs.push({ href: `${root}/sandboxes` as Route, label: "Sandboxes" })
-  }
-  if (tenant.data.inference_provider_capabilities.read) {
-    tabs.push({ href: `${root}/inference/providers` as Route, label: "Providers" })
-  }
 
   return (
     <>
@@ -191,18 +164,7 @@ export default async function OrganizationLayout({
           />
         }
       >
-        <AdministrationLayout
-          description="Manage this Organisation's workspaces and settings."
-          navigation={
-            tabs.length > 0 ? (
-              <RouteTabs label="Organisation administration" tabs={tabs} />
-            ) : undefined
-          }
-          scope={{ kind: "Organisation", name: result.organization.name }}
-          status="ready"
-        >
-          {children}
-        </AdministrationLayout>
+        <AdministrationLayout>{children}</AdministrationLayout>
         {auditEvent}
       </AppShell>
     </>

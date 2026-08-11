@@ -9,14 +9,7 @@ import {
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -81,10 +74,6 @@ export function RoleAssignments({
           <CardTitle>
             <h3>User assignments</h3>
           </CardTitle>
-          <CardDescription>
-            Assign {name} directly to active {workspaceSlug ? "Workspace" : "Organisation"} Members.
-            Permissions never attach directly to a User.
-          </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto px-0">
           <Table aria-label={`Users assigned to ${name}`}>

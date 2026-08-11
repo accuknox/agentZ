@@ -1,9 +1,8 @@
 import type { Route } from "next"
 import Link from "next/link"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
   Table,
@@ -42,16 +41,10 @@ export default async function UsersPage({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Users</h2>
-          <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-            Manage active, invited, and disabled Organisation Memberships. Disabled users keep
-            account access but lose product authorization immediately.
-          </p>
-        </div>
-        <InviteMemberDialog orgSlug={orgSlug} roles={data.roles} teams={data.teams} />
-      </div>
+      <AdministrationPageHeader
+        actions={<InviteMemberDialog orgSlug={orgSlug} roles={data.roles} teams={data.teams} />}
+        title="Users"
+      />
       <RouteTabs label="User states" tabs={tabs} />
       {activeTab === "invited" ? (
         <InvitationsTable
@@ -95,75 +88,64 @@ function MembersTable({
   }
 
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label={disabled ? "Disabled Users" : "Active Users"}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Assignments</TableHead>
-              <TableHead className="text-right">Owned Agents</TableHead>
-              <TableHead className="text-right">API Keys</TableHead>
-              <TableHead>Last Activity</TableHead>
-              <TableHead>Joined</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {members.map((member) => (
-              <TableRow key={member.id}>
-                <TableCell className="max-w-72">
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Link
-                        className="truncate font-medium underline-offset-4 hover:underline"
-                        href={`/orgs/${orgSlug}/users/${member.id}` as Route}
-                        title={member.name}
-                      >
-                        {member.name}
-                      </Link>
-                      {member.superadmin ? <Badge variant="secondary">Superadmin</Badge> : null}
-                      <Badge variant={disabled ? "destructive" : "outline"}>
-                        {disabled ? "Disabled" : "Active"}
-                      </Badge>
-                    </div>
-                    <div className="text-muted-foreground truncate text-xs" title={member.email}>
-                      {member.email}
-                    </div>
+    <div className="border-y">
+      <Table aria-label={disabled ? "Disabled Users" : "Active Users"}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>User</TableHead>
+            <TableHead>Assignments</TableHead>
+            <TableHead className="text-right">Owned Agents</TableHead>
+            <TableHead className="text-right">API Keys</TableHead>
+            <TableHead>Last Activity</TableHead>
+            <TableHead>Joined</TableHead>
+            <TableHead className="text-right">Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {members.map((member) => (
+            <TableRow key={member.id}>
+              <TableCell className="max-w-72">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Link
+                      className="truncate font-medium underline-offset-4 hover:underline"
+                      href={`/orgs/${orgSlug}/users/${member.id}` as Route}
+                      title={member.name}
+                    >
+                      {member.name}
+                    </Link>
+                    {member.superadmin ? <Badge variant="plain">Superadmin</Badge> : null}
                   </div>
-                </TableCell>
-                <TableCell>
-                  <AssignmentSummary roles={member.roles} teams={member.teams} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{member.ownedAgents}</TableCell>
-                <TableCell className="text-right tabular-nums">{member.apiKeys}</TableCell>
-                <TableCell>
-                  {member.lastActivity ? (
-                    <time dateTime={member.lastActivity}>
-                      {formatTimestampWithAge(member.lastActivity)}
-                    </time>
-                  ) : (
-                    <span className="text-muted-foreground">No session activity</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <time dateTime={member.createdAt}>
-                    {formatTimestampWithAge(member.createdAt)}
+                  <div className="text-muted-foreground truncate text-xs" title={member.email}>
+                    {member.email}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <AssignmentSummary roles={member.roles} teams={member.teams} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{member.ownedAgents}</TableCell>
+              <TableCell className="text-right tabular-nums">{member.apiKeys}</TableCell>
+              <TableCell>
+                {member.lastActivity ? (
+                  <time dateTime={member.lastActivity}>
+                    {formatTimestampWithAge(member.lastActivity)}
                   </time>
-                </TableCell>
-                <TableCell className="text-right">
-                  <MembershipStateButton
-                    disabled={disabled}
-                    memberId={member.id}
-                    orgSlug={orgSlug}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+                ) : (
+                  <span className="text-muted-foreground">No session activity</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <time dateTime={member.createdAt}>{formatTimestampWithAge(member.createdAt)}</time>
+              </TableCell>
+              <TableCell className="text-right">
+                <MembershipStateButton disabled={disabled} memberId={member.id} orgSlug={orgSlug} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
 
@@ -189,59 +171,57 @@ function InvitationsTable({
   }
 
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label="Pending Invitations">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Initial Access</TableHead>
-              <TableHead>Inviter</TableHead>
-              <TableHead>Expiry</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+    <div className="border-y">
+      <Table aria-label="Pending Invitations">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Email</TableHead>
+            <TableHead>Initial Access</TableHead>
+            <TableHead>Inviter</TableHead>
+            <TableHead>Expiry</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invitations.map((invitation) => (
+            <TableRow key={invitation.id}>
+              <TableCell className="max-w-72">
+                <span className="truncate font-medium" title={invitation.email}>
+                  {invitation.email}
+                </span>
+              </TableCell>
+              <TableCell>
+                <AssignmentSummary roles={invitation.roles} teams={invitation.teams} />
+              </TableCell>
+              <TableCell className="max-w-56 truncate" title={invitation.inviter}>
+                {invitation.inviter}
+              </TableCell>
+              <TableCell>
+                <time dateTime={invitation.expiresAt}>
+                  {formatTimestampWithAge(invitation.expiresAt)}
+                </time>
+                {invitation.expired ? <Badge variant="destructivePlain">Expired</Badge> : null}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-1">
+                  <CopyButton content={invitation.link} />
+                  <Button asChild size="sm" variant="ghost">
+                    <a href={invitation.link}>Open</a>
+                  </Button>
+                  <InviteMemberDialog
+                    invitation={invitation}
+                    orgSlug={orgSlug}
+                    roles={roles}
+                    teams={teams}
+                  />
+                  <CancelInvitationButton invitationId={invitation.id} orgSlug={orgSlug} />
+                </div>
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invitations.map((invitation) => (
-              <TableRow key={invitation.id}>
-                <TableCell className="max-w-72">
-                  <span className="truncate font-medium" title={invitation.email}>
-                    {invitation.email}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <AssignmentSummary roles={invitation.roles} teams={invitation.teams} />
-                </TableCell>
-                <TableCell className="max-w-56 truncate" title={invitation.inviter}>
-                  {invitation.inviter}
-                </TableCell>
-                <TableCell>
-                  <time dateTime={invitation.expiresAt}>
-                    {formatTimestampWithAge(invitation.expiresAt)}
-                  </time>
-                  {invitation.expired ? <Badge variant="destructive">Expired</Badge> : null}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <CopyButton content={invitation.link} />
-                    <Button asChild size="sm" variant="ghost">
-                      <a href={invitation.link}>Open</a>
-                    </Button>
-                    <InviteMemberDialog
-                      invitation={invitation}
-                      orgSlug={orgSlug}
-                      roles={roles}
-                      teams={teams}
-                    />
-                    <CancelInvitationButton invitationId={invitation.id} orgSlug={orgSlug} />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
 
@@ -255,13 +235,14 @@ function AssignmentSummary({ roles, teams }: { roles: string[]; teams: string[] 
   }
 
   return (
-    <div className="flex max-w-lg flex-wrap gap-1">
-      {items.slice(0, 4).map((item) => (
-        <Badge key={`${item.kind}:${item.label}`} variant="outline">
-          {item.kind}: {item.label}
-        </Badge>
-      ))}
-      {items.length > 4 ? <Badge variant="secondary">+{items.length - 4}</Badge> : null}
-    </div>
+    <span className="text-sm">
+      {items
+        .slice(0, 4)
+        .map((item) => `${item.kind}: ${item.label}`)
+        .join(" · ")}
+      {items.length > 4 ? (
+        <span className="text-muted-foreground"> · +{items.length - 4} more</span>
+      ) : null}
+    </span>
   )
 }

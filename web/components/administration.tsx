@@ -38,69 +38,48 @@ export type AdministrationScope =
 
 export type AdministrationStatus = "ready" | "provisioning" | "deleting" | "failed"
 
-export function AdministrationLayout({
+export function AdministrationLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="@container flex min-w-0 flex-1 flex-col" data-administration>
+      <div className="administration-surface flex w-full max-w-7xl min-w-0 flex-1 flex-col self-center px-4 py-6 md:px-8 md:py-10">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export function AdministrationPageHeader({
   actions,
-  children,
-  description,
-  navigation,
-  scope,
-  status,
+  title,
 }: {
   actions?: ReactNode
-  children: ReactNode
-  description?: string
-  navigation?: ReactNode
-  scope: AdministrationScope
-  status?: AdministrationStatus
+  title: string
 }) {
   return (
-    <div className="@container flex min-w-0 flex-1 flex-col">
-      <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
-        <div className="flex min-w-0 flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between">
-          <div className="flex min-w-0 flex-col gap-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <ScopeBadge scope={scope.kind} />
-              {status ? <StatusBadge status={status} /> : null}
-              {scope.kind === "Workspace" ? (
-                <span className="text-muted-foreground max-w-full truncate text-sm">
-                  {scope.organisationName}
-                </span>
-              ) : null}
-            </div>
-            <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold tracking-normal" title={scope.name}>
-                {scope.name}
-              </h1>
-              {description ? (
-                <p className="text-muted-foreground mt-1 max-w-3xl text-sm text-pretty">
-                  {description}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          {actions ? (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
-          ) : null}
-        </div>
-        {navigation}
-      </header>
-      <div className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-6">{children}</div>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   )
 }
 
 export function ScopeBadge({ scope }: { scope: AdministrationScope["kind"] }) {
-  return <Badge variant={scope === "Organisation" ? "secondary" : "outline"}>{scope}</Badge>
+  return <Badge variant="plain">{scope}</Badge>
 }
 
 export function StatusBadge({ status }: { status: AdministrationStatus }) {
   if (status === "ready") {
-    return <Badge variant="success">Ready</Badge>
+    return (
+      <Badge variant="successPlain">
+        <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+        Ready
+      </Badge>
+    )
   }
 
   if (status === "provisioning") {
     return (
-      <Badge variant="pending">
+      <Badge variant="plain">
         <LoaderCircle
           aria-hidden="true"
           className="motion-safe:animate-spin"
@@ -113,14 +92,19 @@ export function StatusBadge({ status }: { status: AdministrationStatus }) {
 
   if (status === "deleting") {
     return (
-      <Badge variant="warning">
+      <Badge variant="warningPlain">
         <Trash2 aria-hidden="true" data-icon="inline-start" />
         Deleting
       </Badge>
     )
   }
 
-  return <Badge variant="destructive">Failed</Badge>
+  return (
+    <Badge variant="destructivePlain">
+      <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+      Failed
+    </Badge>
+  )
 }
 
 export type AccessSource =
@@ -134,7 +118,7 @@ export type AccessSource =
   | "Team Share"
 
 export function AccessSourceChip({ source }: { source: AccessSource }) {
-  return <Badge variant="outline">{source}</Badge>
+  return <Badge variant="plain">{source}</Badge>
 }
 
 export type AdministrationStateKind =
@@ -212,11 +196,11 @@ export function AdministrationState({
   return (
     <Empty
       aria-live={pending ? "polite" : urgent ? "assertive" : undefined}
-      className="min-h-72 border"
+      className="min-h-64 rounded-none border-x-0 border-y border-solid"
       role={pending ? "status" : urgent ? "alert" : undefined}
     >
       <EmptyHeader>
-        <EmptyMedia variant="icon">{content.icon}</EmptyMedia>
+        <EmptyMedia>{content.icon}</EmptyMedia>
         <EmptyTitle>
           <h2>{title ?? content.title}</h2>
         </EmptyTitle>
@@ -235,20 +219,8 @@ export function AdministrationLoadingState() {
       role="status"
     >
       <span className="sr-only">Loading…</span>
-      <div className="flex flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-5 w-16" />
-        </div>
-        <Skeleton className="h-8 w-64 max-w-full" />
-        <Skeleton className="h-4 w-lg max-w-full" />
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-8 w-24" />
-        </div>
-      </div>
-      <div className="flex flex-col gap-3 px-4 py-6 md:px-6">
+      <div className="flex flex-col gap-3 px-4 py-6 md:px-8 md:py-10">
+        <Skeleton className="mb-3 h-7 w-48 max-w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-14 w-full" />
         <Skeleton className="h-14 w-full" />
@@ -282,7 +254,7 @@ export function PermissionMatrixFrame({
         <CardTitle>
           <h2>{title}</h2>
         </CardTitle>
-        <CardDescription>{caption}</CardDescription>
+        <CardDescription className="sr-only">{caption}</CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto px-0">
         <Table className="min-w-2xl">
@@ -391,7 +363,9 @@ export function ImpactReviewFrame({
         </CardTitle>
         <CardDescription>{description}</CardDescription>
         <CardAction>
-          <Badge variant="outline">{items.length} affected</Badge>
+          <span className="text-muted-foreground text-sm tabular-nums">
+            {items.length} affected
+          </span>
         </CardAction>
       </CardHeader>
       <CardContent>
@@ -431,10 +405,10 @@ export function ImpactReviewFrame({
                           <Badge
                             variant={
                               item.severity === "critical"
-                                ? "destructive"
+                                ? "destructivePlain"
                                 : item.severity === "warning"
-                                  ? "warning"
-                                  : "outline"
+                                  ? "warningPlain"
+                                  : "plain"
                             }
                           >
                             {item.severity}

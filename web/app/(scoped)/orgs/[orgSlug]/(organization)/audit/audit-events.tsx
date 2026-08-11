@@ -1,10 +1,7 @@
 import type { Route } from "next"
 import Link from "next/link"
-import { ShieldCheck } from "lucide-react"
 import { z } from "zod"
-import { AdministrationState } from "@/components/administration"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import {
   Table,
   TableBody,
@@ -57,16 +54,8 @@ export function AuditEvents({
   workspace?: { id: string; name: string }
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <Alert role="note">
-        <ShieldCheck aria-hidden="true" />
-        <AlertTitle>Rolling 30-day audit history</AlertTitle>
-        <AlertDescription>
-          {workspace
-            ? `Only events recorded in ${workspace.name} are shown.`
-            : "Organisation events remain available for 30 days, including after a Workspace is deleted."}
-        </AlertDescription>
-      </Alert>
+    <div className="flex min-w-0 flex-col gap-6">
+      <AdministrationPageHeader title="Audit" />
       <AuditFiltersBar
         filters={audit.filters}
         hideWorkspace={Boolean(workspace)}
@@ -82,84 +71,80 @@ export function AuditEvents({
         }}
       />
       {audit.events.length ? (
-        <Card>
-          <CardContent className="px-0">
-            <Table
-              aria-label={
-                workspace ? `${workspace.name} audit events` : "Organisation audit events"
-              }
-            >
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead className="hidden md:table-cell">Actor</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Target</TableHead>
+        <div className="border-y">
+          <Table
+            aria-label={workspace ? `${workspace.name} audit events` : "Organisation audit events"}
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead>Time</TableHead>
+                <TableHead className="hidden md:table-cell">Actor</TableHead>
+                <TableHead>Event</TableHead>
+                <TableHead>Target</TableHead>
+                {!workspace ? (
+                  <TableHead className="hidden lg:table-cell">Workspace</TableHead>
+                ) : null}
+                <TableHead>Result</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {audit.events.map((event) => (
+                <TableRow key={event.id}>
+                  <TableCell className="min-w-36 align-top">
+                    <time className="text-muted-foreground text-xs" dateTime={event.created_at}>
+                      {formatTimestampWithAge(event.created_at)}
+                    </time>
+                  </TableCell>
+                  <TableCell className="hidden max-w-56 align-top md:table-cell">
+                    <span
+                      className="block truncate"
+                      title={event.actor.name ?? event.actor.email ?? event.actor.id}
+                    >
+                      {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
+                    </span>
+                    <span className="text-muted-foreground text-xs">{event.actor.type}</span>
+                  </TableCell>
+                  <TableCell className="min-w-48 align-top">
+                    <Link
+                      aria-label={`View audit event: ${event.action}`}
+                      className="font-mono text-sm font-medium underline-offset-4 hover:underline"
+                      data-audit-event-id={event.id}
+                      href={`${basePath}/${event.id}` as Route}
+                      scroll={false}
+                    >
+                      {event.action}
+                    </Link>
+                    <span className="text-muted-foreground mt-1 block text-xs md:hidden">
+                      {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="max-w-56 align-top">
+                    <span className="block truncate" title={event.target.name ?? event.target.id}>
+                      {event.target.name ?? event.target.id}
+                    </span>
+                    <span className="text-muted-foreground text-xs">{event.target.type}</span>
+                  </TableCell>
                   {!workspace ? (
-                    <TableHead className="hidden lg:table-cell">Workspace</TableHead>
-                  ) : null}
-                  <TableHead>Result</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {audit.events.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="min-w-36 align-top">
-                      <time className="text-muted-foreground text-xs" dateTime={event.created_at}>
-                        {formatTimestampWithAge(event.created_at)}
-                      </time>
-                    </TableCell>
-                    <TableCell className="hidden max-w-56 align-top md:table-cell">
+                    <TableCell className="hidden max-w-56 align-top lg:table-cell">
                       <span
                         className="block truncate"
-                        title={event.actor.name ?? event.actor.email ?? event.actor.id}
+                        title={event.workspace?.name ?? event.workspace?.id}
                       >
-                        {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
-                      </span>
-                      <span className="text-muted-foreground text-xs">{event.actor.type}</span>
-                    </TableCell>
-                    <TableCell className="min-w-48 align-top">
-                      <Link
-                        aria-label={`View audit event: ${event.action}`}
-                        className="font-mono text-sm font-medium underline-offset-4 hover:underline"
-                        data-audit-event-id={event.id}
-                        href={`${basePath}/${event.id}` as Route}
-                        scroll={false}
-                      >
-                        {event.action}
-                      </Link>
-                      <span className="text-muted-foreground mt-1 block text-xs md:hidden">
-                        {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
+                        {event.workspace?.name ?? event.workspace?.id ?? "Organisation"}
                       </span>
                     </TableCell>
-                    <TableCell className="max-w-56 align-top">
-                      <span className="block truncate" title={event.target.name ?? event.target.id}>
-                        {event.target.name ?? event.target.id}
-                      </span>
-                      <span className="text-muted-foreground text-xs">{event.target.type}</span>
-                    </TableCell>
-                    {!workspace ? (
-                      <TableCell className="hidden max-w-56 align-top lg:table-cell">
-                        <span
-                          className="block truncate"
-                          title={event.workspace?.name ?? event.workspace?.id}
-                        >
-                          {event.workspace?.name ?? event.workspace?.id ?? "Organisation"}
-                        </span>
-                      </TableCell>
-                    ) : null}
-                    <TableCell className="align-top">
-                      <ResultBadge result={event.result} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-          <CardFooter className="border-t py-3">
+                  ) : null}
+                  <TableCell className="align-top">
+                    <ResultBadge result={event.result} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="border-t py-3">
             <AuditPagination nextPageToken={audit.next_page_token} />
-          </CardFooter>
-        </Card>
+          </div>
+        </div>
       ) : (
         <AdministrationState
           description="No events match this period and filter set."

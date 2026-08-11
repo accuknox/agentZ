@@ -54,10 +54,10 @@ export default async function UserDetailPage({
               <h2 className="truncate text-xl font-semibold" title={data.member.name}>
                 {data.member.name}
               </h2>
-              <Badge variant={data.member.disabledAt ? "destructive" : "success"}>
+              <Badge variant={data.member.disabledAt ? "destructivePlain" : "successPlain"}>
                 {data.member.disabledAt ? "Disabled" : "Active"}
               </Badge>
-              {data.member.superadmin ? <Badge variant="secondary">Superadmin</Badge> : null}
+              {data.member.superadmin ? <Badge variant="plain">Superadmin</Badge> : null}
             </div>
             <p className="text-muted-foreground mt-1 truncate text-sm" title={data.member.email}>
               {data.member.email}
@@ -135,9 +135,7 @@ function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: strin
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2">
-          {data.self ? (
-            <p className="text-muted-foreground text-sm">Current administrator membership</p>
-          ) : data.member.disabledAt ? null : (
+          {data.self || data.member.disabledAt ? null : (
             <Button asChild variant="outline">
               <Link
                 href={

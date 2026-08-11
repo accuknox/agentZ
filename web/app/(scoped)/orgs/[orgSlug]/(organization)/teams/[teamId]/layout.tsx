@@ -1,6 +1,5 @@
 import type { Route } from "next"
 import { notFound } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getTeamDetail } from "@/data/teams"
 
@@ -27,9 +26,6 @@ export default async function TeamLayout({
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex min-w-0 flex-col gap-4 border-b pb-1">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <Badge variant="secondary">Team</Badge>
-          </div>
           <h2 className="truncate text-xl font-semibold" title={team.name}>
             {team.name}
           </h2>

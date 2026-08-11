@@ -3,7 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { startTransition, useActionState, useMemo, useState } from "react"
-import { CircleAlert, LockKeyhole, ShieldCheck } from "lucide-react"
+import { CircleAlert, ShieldCheck } from "lucide-react"
 import {
   organizationRoleFormAction,
   type RoleFormState,
@@ -18,7 +18,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -228,11 +228,6 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
           <CardTitle>
             <h2>{role ? role.name : `Create ${workspace ? "Workspace" : "Organisation"} Role`}</h2>
           </CardTitle>
-          <CardDescription>
-            {role
-              ? `${role.users} User and ${role.teams} Team assignments`
-              : "Choose a reusable name and its scoped Permission Grants."}
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <Field data-invalid={Boolean(state.errors?.name)}>
@@ -341,11 +336,6 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
               title="Agent capabilities"
             />
           ) : null}
-          <p className="text-muted-foreground flex items-start gap-2 text-sm">
-            <LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            Selected disabled grants are required by a stronger selected action or capability.
-            Dependencies are stored explicitly with the Role.
-          </p>
         </div>
       </div>
 

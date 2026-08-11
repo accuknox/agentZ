@@ -1,19 +1,27 @@
 import type { Route } from "next"
-import Link from "next/link"
 import {
+  Activity,
   Box,
   Bot,
   Brain,
   Building2,
   Cable,
+  CircleUserRound,
   KeyRound,
   Layers3,
   LayoutDashboard,
+  Network,
   ScrollText,
   Search,
   Settings2,
+  Share2,
+  ShieldCheck,
+  Trash2,
+  UserRoundCheck,
+  UsersRound,
 } from "lucide-react"
 import { NavAgents } from "./agents"
+import { SidebarNavigationLink } from "./navigation-link"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
 import {
@@ -25,7 +33,6 @@ import {
   SidebarRail,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -148,116 +155,172 @@ function WorkspaceNavigation({
   sandboxCapabilities: ResourceCapabilities
   workspace: Workspace
 }) {
+  const hasResources =
+    observabilityCapabilities.read ||
+    skillCapabilities.read ||
+    mcpConnectionCapabilities.read ||
+    sandboxCapabilities.read ||
+    inferenceProviderCapabilities.read ||
+    inferencePoolCapabilities.read
+
   return (
-    <SidebarGroup className="px-2 py-2">
-      <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="Overview">
-            <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route}>
+    <>
+      <SidebarGroup className="px-2 py-2">
+        <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarNavigationLink
+              exact
+              href={`/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route}
+              label="Overview"
+            >
               <LayoutDashboard aria-hidden="true" />
-              <span>Overview</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-        {observabilityCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Observability">
-              <Link
-                href={
-                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/observability/traces` as Route
-                }
-              >
-                <Search aria-hidden="true" />
-                <span>Observability</span>
-              </Link>
-            </SidebarMenuButton>
+            </SidebarNavigationLink>
           </SidebarMenuItem>
-        ) : null}
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="Agents">
-            <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/agents` as Route}>
-              <Bot aria-hidden="true" />
-              <span>Agents</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-        {apiKeyCapabilities.read ? (
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="API keys">
-              <Link
+            <SidebarNavigationLink
+              href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/agents` as Route}
+              label="Agents"
+            >
+              <Bot aria-hidden="true" />
+            </SidebarNavigationLink>
+          </SidebarMenuItem>
+          {apiKeyCapabilities.read ? (
+            <SidebarMenuItem>
+              <SidebarNavigationLink
                 href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/api-keys` as Route}
+                label="API Keys"
               >
                 <KeyRound aria-hidden="true" />
-                <span>API Keys</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {skillCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Skills">
-              <Link
-                href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/skills` as Route}
-              >
-                <ScrollText aria-hidden="true" />
-                <span>Skills</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {mcpConnectionCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="MCP">
-              <Link href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/mcps` as Route}>
-                <Cable aria-hidden="true" />
-                <span>MCP</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {sandboxCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Sandboxes">
-              <Link
-                href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/sandboxes` as Route}
-              >
-                <Box aria-hidden="true" />
-                <span>Sandboxes</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {inferenceProviderCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Inference providers">
-              <Link
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+          ) : null}
+          {organization.superadmin || workspace.can_administer ? (
+            <>
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/roles` as Route}
+                  label="Roles"
+                >
+                  <ShieldCheck aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/audit` as Route}
+                  label="Audit"
+                >
+                  <Activity aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            </>
+          ) : null}
+        </SidebarMenu>
+      </SidebarGroup>
+      {hasResources ? (
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Resources</SidebarGroupLabel>
+          <SidebarMenu>
+            {observabilityCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  label="Observability"
+                  match={`/orgs/${organization.slug}/workspaces/${workspace.slug}/observability`}
+                  href={
+                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/observability/traces` as Route
+                  }
+                >
+                  <Search aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {skillCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/skills` as Route}
+                  label="Skills"
+                >
+                  <ScrollText aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {mcpConnectionCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/mcps` as Route}
+                  label="MCP"
+                >
+                  <Cable aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {sandboxCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={
+                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/sandboxes` as Route
+                  }
+                  label="Sandboxes"
+                >
+                  <Box aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {inferenceProviderCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={
+                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/providers` as Route
+                  }
+                  label="Providers"
+                >
+                  <Brain aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {inferencePoolCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={
+                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/pools` as Route
+                  }
+                  label="Pools"
+                >
+                  <Layers3 aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+          </SidebarMenu>
+        </SidebarGroup>
+      ) : null}
+      {organization.superadmin ? (
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarNavigationLink
                 href={
-                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/providers` as Route
+                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/settings/inherited` as Route
                 }
+                label="Inherited Resources"
               >
-                <Brain aria-hidden="true" />
-                <span>Providers</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {inferencePoolCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Inference pools">
-              <Link
+                <Share2 aria-hidden="true" />
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarNavigationLink
                 href={
-                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/pools` as Route
+                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/settings/delete` as Route
                 }
+                label="Delete Workspace"
               >
-                <Layers3 aria-hidden="true" />
-                <span>Pools</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-      </SidebarMenu>
-    </SidebarGroup>
+                <Trash2 aria-hidden="true" />
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      ) : null}
+    </>
   )
 }
 
@@ -311,82 +374,123 @@ function OrganizationNavigation({
   sandboxCapabilities: ResourceCapabilities
 }) {
   const root = `/orgs/${organization.slug}`
+  const hasResources =
+    skillCapabilities.read ||
+    mcpConnectionCapabilities.read ||
+    sandboxCapabilities.read ||
+    inferenceProviderCapabilities.read
 
   return (
-    <SidebarGroup className="px-2 py-2">
-      <SidebarGroupLabel>Organisation</SidebarGroupLabel>
-      <SidebarMenu>
-        {canEnterOrganization ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Workspaces">
-              <Link href={`${root}/workspaces` as Route}>
-                <Building2 aria-hidden="true" />
-                <span>Workspaces</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {skillCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Skills">
-              <Link href={`${root}/skills` as Route}>
-                <ScrollText aria-hidden="true" />
-                <span>Skills</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {mcpConnectionCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="MCP">
-              <Link href={`${root}/mcps` as Route}>
-                <Cable aria-hidden="true" />
-                <span>MCP</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {sandboxCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Sandboxes">
-              <Link href={`${root}/sandboxes` as Route}>
-                <Box aria-hidden="true" />
-                <span>Sandboxes</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {inferenceProviderCapabilities.read ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Inference providers">
-              <Link href={`${root}/inference/providers` as Route}>
-                <Brain aria-hidden="true" />
-                <span>Providers</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {organization.superadmin ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Audit">
-              <Link href={`${root}/audit` as Route}>
-                <ScrollText aria-hidden="true" />
-                <span>Audit</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-        {organization.superadmin ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="General">
-              <Link href={`${root}/general` as Route}>
+    <>
+      {canEnterOrganization || organization.superadmin ? (
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Organisation</SidebarGroupLabel>
+          <SidebarMenu>
+            {canEnterOrganization ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink href={`${root}/workspaces` as Route} label="Workspaces">
+                  <Building2 aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {organization.superadmin ? (
+              <>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink href={`${root}/users` as Route} label="Users">
+                    <CircleUserRound aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink href={`${root}/teams` as Route} label="Teams">
+                    <UsersRound aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink href={`${root}/roles` as Route} label="Roles">
+                    <ShieldCheck aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink href={`${root}/access` as Route} label="Access">
+                    <Network aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+              </>
+            ) : null}
+          </SidebarMenu>
+        </SidebarGroup>
+      ) : null}
+      {hasResources ? (
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Resources</SidebarGroupLabel>
+          <SidebarMenu>
+            {skillCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink href={`${root}/skills` as Route} label="Skills">
+                  <ScrollText aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {mcpConnectionCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink href={`${root}/mcps` as Route} label="MCP">
+                  <Cable aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {sandboxCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink href={`${root}/sandboxes` as Route} label="Sandboxes">
+                  <Box aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {inferenceProviderCapabilities.read ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={`${root}/inference/providers` as Route}
+                  label="Providers"
+                >
+                  <Brain aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+          </SidebarMenu>
+        </SidebarGroup>
+      ) : null}
+      {organization.superadmin ? (
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Administration</SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarNavigationLink
+                href={`${root}/social-admission` as Route}
+                label="Social Admission"
+              >
+                <UserRoundCheck aria-hidden="true" />
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarNavigationLink href={`${root}/audit` as Route} label="Audit">
+                <Activity aria-hidden="true" />
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarNavigationLink
+                href={`${root}/destructive-operations` as Route}
+                label="Operations"
+              >
+                <Trash2 aria-hidden="true" />
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarNavigationLink href={`${root}/general` as Route} label="General">
                 <Settings2 aria-hidden="true" />
-                <span>General</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-      </SidebarMenu>
-    </SidebarGroup>
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      ) : null}
+    </>
   )
 }

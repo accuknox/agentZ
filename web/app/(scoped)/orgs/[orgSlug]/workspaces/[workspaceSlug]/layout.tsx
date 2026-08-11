@@ -4,7 +4,6 @@ import { notFound, permanentRedirect, redirect } from "next/navigation"
 import { AdministrationLayout, AdministrationState } from "@/components/administration"
 import { AppShell } from "@/components/blocks/app-shell"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
-import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { ThemeSync } from "@/components/theme-sync"
 import { rememberOrganizationRoute } from "@/data/organizations"
 import { getCurrentUserPreferences } from "@/data/user-preferences"
@@ -106,48 +105,6 @@ export default async function WorkspaceLayout({
     result.workspace.id
   )
 
-  const root = `/orgs/${result.scope.organization.slug}/workspaces/${result.workspace.slug}`
-  const tabs: RouteTab[] = [
-    { href: root as Route, label: "Overview" },
-    { href: `${root}/agents` as Route, label: "Agents" },
-  ]
-  if (result.workspace.api_key_capabilities.read) {
-    tabs.push({ href: `${root}/api-keys` as Route, label: "API Keys" })
-  }
-  if (result.scope.organization.superadmin || result.workspace.can_administer) {
-    tabs.push(
-      { href: `${root}/roles` as Route, label: "Roles" },
-      { href: `${root}/audit` as Route, label: "Audit" }
-    )
-  }
-  if (result.scope.organization.superadmin) {
-    tabs.push(
-      {
-        href: `${root}/settings/inherited` as Route,
-        label: "Inherited Resources",
-      },
-      { href: `${root}/settings/delete` as Route, label: "Delete Workspace" }
-    )
-  }
-  if (result.workspace.skill_capabilities.read) {
-    tabs.push({ href: `${root}/skills` as Route, label: "Skills" })
-  }
-  if (result.workspace.mcp_connection_capabilities.read) {
-    tabs.push({ href: `${root}/mcps` as Route, label: "MCP" })
-  }
-  if (result.workspace.sandbox_capabilities.read) {
-    tabs.push({ href: `${root}/sandboxes` as Route, label: "Sandboxes" })
-  }
-  if (result.workspace.inference_provider_capabilities.read) {
-    tabs.push({ href: `${root}/inference/providers` as Route, label: "Providers" })
-  }
-  if (result.workspace.inference_pool_capabilities.read) {
-    tabs.push({ href: `${root}/inference/pools` as Route, label: "Pools" })
-  }
-  if (result.workspace.observability_capabilities.read) {
-    tabs.push({ href: `${root}/observability/traces` as Route, label: "Observability" })
-  }
-
   return (
     <>
       <ThemeSync theme={preferences.theme} />
@@ -183,16 +140,7 @@ export default async function WorkspaceLayout({
           />
         }
       >
-        <AdministrationLayout
-          description="Manage resources and access within this Workspace."
-          navigation={<RouteTabs label="Workspace navigation" tabs={tabs} />}
-          scope={{
-            kind: "Workspace",
-            name: result.workspace.name,
-            organisationName: result.scope.organization.name,
-          }}
-          status={result.workspace.state}
-        >
+        <AdministrationLayout>
           {result.workspace.state === "ready" ? (
             children
           ) : (

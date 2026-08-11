@@ -1,6 +1,7 @@
 import type { Route } from "next"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { AgentTable } from "@/app/agent-table"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { deleteAgentFormAction, type AgentActionScope } from "@/data/agent.actions"
@@ -49,17 +50,20 @@ export default async function WorkspaceAgentsPage({
   const actionScope: AgentActionScope = { basePath, workspaceId }
 
   return (
-    <div className="min-w-0 space-y-4">
-      <div className="flex items-center justify-end">
-        <AgentDialog
-          mode="create"
-          actionScope={actionScope}
-          immutableSkills={skills.skills}
-          sandboxes={sandboxes.sandboxes}
-          initialHasNextSandboxPage={sandboxes.hasNextPage}
-          initialNextSandboxPageToken={sandboxes.nextPageToken}
-        />
-      </div>
+    <div className="flex min-w-0 flex-col gap-4">
+      <AdministrationPageHeader
+        actions={
+          <AgentDialog
+            mode="create"
+            actionScope={actionScope}
+            immutableSkills={skills.skills}
+            sandboxes={sandboxes.sandboxes}
+            initialHasNextSandboxPage={sandboxes.hasNextPage}
+            initialNextSandboxPageToken={sandboxes.nextPageToken}
+          />
+        }
+        title="Agents"
+      />
       <AgentTable
         actionScope={actionScope}
         agents={agents.agents}

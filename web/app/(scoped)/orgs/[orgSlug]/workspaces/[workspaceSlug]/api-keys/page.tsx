@@ -27,7 +27,7 @@ export default async function WorkspaceAPIKeysPage({
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
         actions={
           scope.workspace.api_key_capabilities.create ? (
@@ -36,7 +36,7 @@ export default async function WorkspaceAPIKeysPage({
             </Suspense>
           ) : undefined
         }
-        title="API Keys"
+        title="API keys"
       />
       <Suspense fallback={<TableSkeleton />}>
         <APIKeys workspaceId={scope.workspace.id} />

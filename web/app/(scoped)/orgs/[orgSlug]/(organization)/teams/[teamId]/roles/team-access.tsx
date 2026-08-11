@@ -13,7 +13,6 @@ import {
 import { Canvas } from "@/components/ai-elements/canvas"
 import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Select,
@@ -132,7 +131,7 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
                 ))}
               </SelectContent>
             </Select>
-            <Badge variant="outline">{sources.length} paths</Badge>
+            <span className="text-muted-foreground text-sm">{sources.length} paths</span>
           </div>
           <div className="bg-sidebar min-h-0 flex-1">
             <Canvas

@@ -21,16 +21,13 @@ import {
   ArrowRight,
   ArrowUpDown,
   ArrowUpRight,
-  CheckCircle2,
   CircleAlert,
-  CircleDashed,
   Eye,
   Layers3,
   MoreHorizontal,
   Pencil,
   Trash2,
   TriangleAlert,
-  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -87,7 +84,7 @@ import { PoolSheet } from "./pool-sheet"
 const pageSize = 25
 
 const columnClassName: Record<string, string> = {
-  display_name: "min-w-0 w-0",
+  display_name: "w-56",
   state: "w-44",
   members: "w-64 max-w-64",
   automatic_failover: "w-40",
@@ -97,14 +94,13 @@ const columnClassName: Record<string, string> = {
 }
 
 const stateMeta = {
-  Accepted: { icon: CircleDashed, variant: "pending" },
-  Ready: { icon: CheckCircle2, variant: "success" },
-  PartiallyDegraded: { icon: TriangleAlert, variant: "warning" },
-  Degraded: { icon: XCircle, variant: "destructive" },
+  Accepted: { variant: "plain" },
+  Ready: { variant: "successPlain" },
+  PartiallyDegraded: { variant: "warningPlain" },
+  Degraded: { variant: "destructivePlain" },
 } satisfies Record<
   InferencePool["state"],
   {
-    icon: React.ComponentType<React.ComponentProps<"svg">>
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
 >
@@ -225,9 +221,9 @@ export function InferencePoolTable({
                     {provider?.display_name ?? primary.provider} / {primary.model}
                   </span>
                   {row.original.members.length > 1 ? (
-                    <Badge variant="secondary" className="shrink-0">
+                    <span className="text-muted-foreground shrink-0 text-xs">
                       +{row.original.members.length - 1}
-                    </Badge>
+                    </span>
                   ) : null}
                 </div>
               </TooltipTrigger>
@@ -321,9 +317,9 @@ export function InferencePoolTable({
 
   return (
     <TooltipProvider>
-      <div className="min-w-0 space-y-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <div className="w-full min-w-0 border-b">
-          <Table className="table-auto">
+          <Table className="w-full table-fixed">
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id}>
@@ -375,24 +371,28 @@ export function InferencePoolTable({
             </TableBody>
           </Table>
         </div>
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={currentPage === 0}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            <ArrowLeft /> Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={currentPage + 1 === pageCount}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            Next <ArrowRight />
-          </Button>
-        </div>
+        {pageCount > 1 ? (
+          <div className="flex items-center justify-end gap-2 px-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={currentPage === 0}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              <ArrowLeft data-icon="inline-start" />
+              Previous
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={currentPage + 1 === pageCount}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Next
+              <ArrowRight data-icon="inline-end" />
+            </Button>
+          </div>
+        ) : null}
         <PoolViewSheet
           pool={viewing}
           providers={providers}
@@ -424,7 +424,7 @@ function PoolStatusBadge({ pool }: { pool: InferencePool }) {
         : ""
   const badge = (
     <Badge variant={meta.variant}>
-      <meta.icon /> {pool.state === "PartiallyDegraded" ? "Partial" : pool.state}
+      {pool.state === "PartiallyDegraded" ? "Partial" : pool.state}
     </Badge>
   )
   if (!message) return badge
@@ -725,7 +725,7 @@ function PoolViewSheet({
                       ) : null}
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant={status?.ready ? "success" : "destructive"}>
+                          <Badge variant={status?.ready ? "successPlain" : "destructivePlain"}>
                             {status?.ready ? "Ready" : status?.reason || "Pending"}
                           </Badge>
                         </TooltipTrigger>

@@ -26,7 +26,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
-  created_at: "w-44",
+  created_at: "w-32",
   actions: "w-14",
 }
 
@@ -94,9 +94,9 @@ export function AgentTable({
   })
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -137,21 +137,28 @@ export function AgentTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => goNext(nextPageToken)}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      {canGoPrevious || hasNextPage ? (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goPrevious}
+            disabled={!canGoPrevious || pending}
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => goNext(nextPageToken)}
+            disabled={!hasNextPage || pending}
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

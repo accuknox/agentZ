@@ -121,7 +121,7 @@ export function SecretTable({
   })
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
         <Table>
           <TableHeader>
@@ -164,21 +164,28 @@ export function SecretTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => goNext(nextPageToken)}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      {canGoPrevious || hasNextPage ? (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goPrevious}
+            disabled={!canGoPrevious || pending}
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => goNext(nextPageToken)}
+            disabled={!hasNextPage || pending}
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

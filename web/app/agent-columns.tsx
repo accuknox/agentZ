@@ -4,7 +4,7 @@ import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import Link from "next/link"
 import type { Route } from "next"
-import { ArrowUpDown, MoreHorizontal, Settings, Trash2 } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
@@ -26,7 +26,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
-import { formatTimestamp } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 
 type DeleteAgentAction = (
   agentName: string,
@@ -73,7 +73,7 @@ export function createAgentColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatTimestamp(row.getValue("created_at")),
+      cell: ({ row }) => formatAge(row.getValue("created_at")),
     },
     {
       id: "actions",
@@ -138,6 +138,7 @@ function AgentActions({
               setEditOpen(true)
             }}
           >
+            <Pencil />
             Edit
           </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>

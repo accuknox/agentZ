@@ -143,7 +143,7 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">{visibleSources.length} paths</Badge>
+              <span className="text-muted-foreground text-sm">{visibleSources.length} paths</span>
               <Button
                 onClick={() => setExpanded((value) => !value)}
                 size="sm"
@@ -196,10 +196,10 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
           <Badge
             variant={
               detail.member.status === "active"
-                ? "success"
+                ? "successPlain"
                 : detail.member.status === "disabled"
-                  ? "destructive"
-                  : "warning"
+                  ? "destructivePlain"
+                  : "warningPlain"
             }
           >
             {detail.member.status}
@@ -448,7 +448,7 @@ function AccessSourceTable({ sources }: { sources: EffectiveAccessSource[] }) {
               <TableHead>Source</TableHead>
               <TableHead>Scope</TableHead>
               <TableHead>Path</TableHead>
-              <TableHead>Effective Grant</TableHead>
+              <TableHead>Effective grant</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

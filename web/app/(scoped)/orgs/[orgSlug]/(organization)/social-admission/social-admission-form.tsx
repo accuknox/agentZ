@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState, useEffect, useState } from "react"
-import { GitFork, Plus, Save, X } from "lucide-react"
+import { Plus, Save, X } from "lucide-react"
 import { socialAdmissionAction, type SocialAdmissionFormState } from "@/app/(scoped)/orgs/actions"
 import type { SocialAdmission } from "@/data/members"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -45,7 +45,6 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       onChange={() => setDirty(true)}
     >
       <section className="grid gap-5">
-        <h3 className="text-base font-semibold">Social sign-up</h3>
         <Field orientation="horizontal">
           <Switch defaultChecked={data.enabled} name="enabled" />
           <div className="grid gap-1">
@@ -116,10 +115,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
           </div>
         </Field>
         <div className="grid gap-3">
-          <div className="flex items-center gap-2">
-            <GitFork className="size-4" />
-            <h3 className="text-sm font-medium">GitHub rules</h3>
-          </div>
+          <h3 className="text-sm font-medium">GitHub rules</h3>
           {rules.map((rule, index) => (
             <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]" key={rule.id}>
               <Input

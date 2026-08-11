@@ -113,7 +113,7 @@ export function APIKeysTable({
 
   return (
     <div className="w-full min-w-0 overflow-x-auto border-b">
-      <Table className="table-auto">
+      <Table className="w-full table-fixed">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>

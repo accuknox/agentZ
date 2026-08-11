@@ -25,7 +25,7 @@ export default async function RolesPage({ params }: { params: Promise<{ orgSlug:
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
         actions={
           <Button asChild>
@@ -38,16 +38,16 @@ export default async function RolesPage({ params }: { params: Promise<{ orgSlug:
         title="Roles"
       />
       <div className="w-full min-w-0 border-b">
-        <Table aria-label="Organisation Roles" className="min-w-4xl">
+        <Table aria-label="Organisation Roles" className="w-full min-w-4xl table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Users</TableHead>
-              <TableHead className="text-right">Teams</TableHead>
-              <TableHead className="text-right">Permissions</TableHead>
+              <TableHead className="w-64">Name</TableHead>
+              <TableHead className="w-28">Type</TableHead>
+              <TableHead className="w-20 text-right">Users</TableHead>
+              <TableHead className="w-20 text-right">Teams</TableHead>
+              <TableHead className="w-28 text-right">Permissions</TableHead>
               <TableHead>Dependencies</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead className="w-32">Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

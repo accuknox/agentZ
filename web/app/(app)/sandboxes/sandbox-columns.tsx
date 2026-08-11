@@ -4,7 +4,7 @@ import Link from "next/link"
 import type { Route } from "next"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import type { Sandbox } from "@/lib/gateway/client"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import type { DeleteSandboxFormState } from "@/data/types"
-import { formatTimestamp } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 
 type DeleteSandboxAction = (
   name: string,
@@ -52,14 +52,7 @@ export function createSandboxColumns(
       cell: ({ row }) => {
         const sandbox = row.original
 
-        return (
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{sandbox.name}</span>
-            <span className="text-muted-foreground shrink-0 text-xs">
-              {sandbox.scope === "Organisation" ? `Organisation / ${sandbox.name}` : "Local"}
-            </span>
-          </span>
-        )
+        return <span className="block truncate font-medium">{sandbox.name}</span>
       },
     },
     {
@@ -115,7 +108,7 @@ export function createSandboxColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatTimestamp(row.getValue("created_at")),
+      cell: ({ row }) => formatAge(row.getValue("created_at")),
     },
     {
       id: "actions",
@@ -163,7 +156,10 @@ function SandboxActions({
           <DropdownMenuContent align="end">
             {sandbox.can_modify ? (
               <DropdownMenuItem asChild>
-                <Link href={`${basePath}/update/${sandbox.name}` as Route}>Edit</Link>
+                <Link href={`${basePath}/update/${sandbox.name}` as Route}>
+                  <Pencil />
+                  Edit
+                </Link>
               </DropdownMenuItem>
             ) : null}
             {sandbox.can_delete ? (

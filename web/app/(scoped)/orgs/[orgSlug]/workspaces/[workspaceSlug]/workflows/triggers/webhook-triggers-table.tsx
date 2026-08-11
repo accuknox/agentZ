@@ -50,7 +50,7 @@ export function WebhookTriggersTable({
   })
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
         <Table className="table-auto">
           <TableHeader>
@@ -92,7 +92,7 @@ export function WebhookTriggersTable({
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{row.apiKeyName || "Deleted key"}</span>
-                        {row.deleted ? <Badge variant="outline">Deleted</Badge> : null}
+                        {row.deleted ? <Badge variant="destructivePlain">Deleted</Badge> : null}
                       </div>
                       <code className="text-muted-foreground text-xs">{row.apiKeyDisplay}</code>
                     </div>
@@ -115,21 +115,28 @@ export function WebhookTriggersTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => goNext(nextPageToken)}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      {canGoPrevious || hasNextPage ? (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goPrevious}
+            disabled={!canGoPrevious || pending}
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => goNext(nextPageToken)}
+            disabled={!hasNextPage || pending}
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

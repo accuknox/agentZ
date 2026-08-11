@@ -50,7 +50,7 @@ export default async function WorkspaceAgentsPage({
   const actionScope: AgentActionScope = { basePath, workspaceId }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
         actions={
           <AgentDialog

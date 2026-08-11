@@ -40,7 +40,7 @@ export default async function UsersPage({
   ] satisfies RouteTab[]
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
         actions={<InviteMemberDialog orgSlug={orgSlug} roles={data.roles} teams={data.teams} />}
         title="Users"
@@ -106,7 +106,6 @@ function MembersTable({
                       >
                         {member.name}
                       </Link>
-                      {member.superadmin ? <Badge variant="plain">Superadmin</Badge> : null}
                     </div>
                     <div className="text-muted-foreground truncate text-xs" title={member.email}>
                       {member.email}
@@ -161,14 +160,14 @@ function InvitationsTable({
 }) {
   return (
     <div className="w-full min-w-0 border-b">
-      <Table aria-label="Pending Invitations">
+      <Table aria-label="Pending Invitations" className="w-full min-w-3xl table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Email</TableHead>
+            <TableHead className="w-64">Email</TableHead>
             <TableHead>Initial Access</TableHead>
-            <TableHead>Inviter</TableHead>
-            <TableHead>Expiry</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="w-56">Inviter</TableHead>
+            <TableHead className="w-32">Expiry</TableHead>
+            <TableHead className="w-40 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

@@ -57,6 +57,7 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
   const canGoPreviousClient = page > 0
   const canGoNextClient = page + 1 < totalPages
   const hasRows = data.length > 0
+  const showPagination = isServerPaginated ? Boolean(canGoPrevious || hasNextPage) : totalPages > 1
 
   return (
     <section className="flex w-full flex-1 flex-col">
@@ -95,66 +96,64 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
           </TableBody>
         </Table>
       </div>
-      <div className="bg-muted/10 flex w-full flex-col gap-2 border-t px-6 py-3 pt-3 md:flex-row md:items-center md:justify-between">
-        <span className="text-muted-foreground text-xs">
-          {isServerPaginated
-            ? hasRows
+      {showPagination ? (
+        <div className="bg-muted/10 flex w-full flex-col gap-2 px-6 py-3 md:flex-row md:items-center md:justify-between">
+          <span className="text-muted-foreground text-xs">
+            {isServerPaginated
               ? `${data.length} rows`
-              : "0 rows"
-            : hasRows
-              ? `${start + 1}-${Math.min(end, data.length)} of ${data.length}`
-              : "0-0 of 0"}
-        </span>
-        <div className="flex gap-2">
-          {isServerPaginated ? (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!canGoPrevious || pending}
-                onClick={onPreviousPage}
-              >
-                <ArrowLeft data-icon="inline-start" />
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!hasNextPage || pending}
-                onClick={() => nextPageToken && onNextPage?.(nextPageToken)}
-              >
-                Next
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!canGoPreviousClient}
-                onClick={() => setPage((p) => Math.max(p - 1, 0))}
-              >
-                <ArrowLeft data-icon="inline-start" />
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!canGoNextClient}
-                onClick={() => setPage((p) => (canGoNextClient ? p + 1 : p))}
-              >
-                Next
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </>
-          )}
+              : `${start + 1}-${Math.min(end, data.length)} of ${data.length}`}
+          </span>
+          <div className="flex gap-2">
+            {isServerPaginated ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canGoPrevious || pending}
+                  onClick={onPreviousPage}
+                >
+                  <ArrowLeft data-icon="inline-start" />
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!hasNextPage || pending}
+                  onClick={() => nextPageToken && onNextPage?.(nextPageToken)}
+                >
+                  Next
+                  <ArrowRight data-icon="inline-end" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canGoPreviousClient}
+                  onClick={() => setPage((p) => Math.max(p - 1, 0))}
+                >
+                  <ArrowLeft data-icon="inline-start" />
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canGoNextClient}
+                  onClick={() => setPage((p) => (canGoNextClient ? p + 1 : p))}
+                >
+                  Next
+                  <ArrowRight data-icon="inline-end" />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   )
 }
@@ -163,10 +162,10 @@ export function ActionBadge({ action }: { action: string }) {
   return (
     <span
       className={cn(
-        "inline-flex w-fit rounded-full px-2 py-1 text-xs font-medium",
-        action === "Blocked" && "bg-destructive/12 text-destructive",
-        action === "Allowed" && "bg-primary/12 text-primary",
-        action !== "Allowed" && action !== "Blocked" && "bg-muted text-muted-foreground"
+        "inline-flex w-fit text-xs font-medium",
+        action === "Blocked" && "text-destructive",
+        action === "Allowed" && "text-primary",
+        action !== "Allowed" && action !== "Blocked" && "text-muted-foreground"
       )}
     >
       {action}

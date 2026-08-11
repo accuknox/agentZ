@@ -3,8 +3,9 @@
 import * as React from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Download, MoreHorizontal, Pencil, Trash2, TriangleAlert, Upload } from "lucide-react"
+import { ChevronDown, Download, Pencil, Trash2, TriangleAlert, Upload } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -172,38 +173,42 @@ export function SkillsClient({
 
   return (
     <>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold">Immutable Skills</h2>
-        </div>
-        <SkillsActions
-          canCreate={canCreate}
-          canDelete={canDeleteSelected}
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader
+          actions={
+            canCreate || selected.size > 0 ? (
+              <SkillsActions
+                canCreate={canCreate}
+                canDelete={canDeleteSelected}
+                exporting={exporting}
+                selectedCount={selected.size}
+                onDelete={() => setDeleteNames([...selected])}
+                onExport={() => void exportSkills([...selected])}
+                onImport={() => setImportOpen(true)}
+              />
+            ) : undefined
+          }
+          title="Skills"
+        />
+        {error ? (
+          <div className="border-destructive/30 bg-destructive/5 text-destructive mx-4 rounded-lg border px-4 py-3 text-sm md:mx-6">
+            {error}
+          </div>
+        ) : null}
+        <SkillTable
+          data={skills}
+          error={query.error}
           exporting={exporting}
-          selectedCount={selected.size}
-          onDelete={() => setDeleteNames([...selected])}
-          onExport={() => void exportSkills([...selected])}
-          onImport={() => setImportOpen(true)}
+          hasNextPage={query.data?.hasNextPage ?? false}
+          loading={query.isPending}
+          nextPageToken={query.data?.nextPageToken ?? ""}
+          selected={selected}
+          setDeleteNames={setDeleteNames}
+          setSelected={setSelected}
+          onEdit={setEditingSkill}
+          onExport={(name) => void exportSkills([name])}
         />
       </div>
-      {error ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-sm">
-          {error}
-        </div>
-      ) : null}
-      <SkillTable
-        data={skills}
-        error={query.error}
-        exporting={exporting}
-        hasNextPage={query.data?.hasNextPage ?? false}
-        loading={query.isPending}
-        nextPageToken={query.data?.nextPageToken ?? ""}
-        selected={selected}
-        setDeleteNames={setDeleteNames}
-        setSelected={setSelected}
-        onEdit={setEditingSkill}
-        onExport={(name) => void exportSkills([name])}
-      />
       <SkillImportDialog
         open={importOpen}
         setOpen={setImportOpen}
@@ -255,43 +260,38 @@ function SkillsActions({
   onImport: () => void
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <span className="sr-only">Open skills menu</span>
-          <MoreHorizontal />
+    <div className="flex items-center gap-2">
+      {selectedCount > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              {selectedCount} selected
+              <ChevronDown data-icon="inline-end" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={exporting} onSelect={onExport}>
+                {exporting ? <Spinner /> : <Download />}
+                Export
+              </DropdownMenuItem>
+              {canDelete ? (
+                <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                  <Trash2 />
+                  Delete
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      {canCreate ? (
+        <Button onClick={onImport}>
+          <Upload data-icon="inline-start" />
+          Import skill
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuGroup>
-          {canCreate ? (
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault()
-                onImport()
-              }}
-            >
-              <Upload />
-              Import
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem disabled={selectedCount === 0 || exporting} onSelect={onExport}>
-            {exporting ? <Spinner /> : <Download />}
-            Export
-          </DropdownMenuItem>
-          {canDelete ? (
-            <DropdownMenuItem
-              variant="destructive"
-              disabled={selectedCount === 0}
-              onSelect={onDelete}
-            >
-              <Trash2 />
-              Delete
-            </DropdownMenuItem>
-          ) : null}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      ) : null}
+    </div>
   )
 }
 

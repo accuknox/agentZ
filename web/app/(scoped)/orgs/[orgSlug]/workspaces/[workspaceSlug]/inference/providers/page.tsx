@@ -15,7 +15,6 @@ export default async function WorkspaceInferenceProvidersPage({
     <InferenceProvidersPage
       capabilities={scope.workspace.inference_provider_capabilities}
       scope={{ workspaceId: scope.workspace.id }}
-      scopeLabel="Local"
     />
   )
 }

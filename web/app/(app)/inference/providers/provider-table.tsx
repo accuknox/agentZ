@@ -18,13 +18,10 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpDown,
-  CheckCircle2,
   CircleAlert,
-  CircleDashed,
   MoreHorizontal,
   Pencil,
   Trash2,
-  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -71,7 +68,7 @@ import { ProviderIcon, providerKindLabels } from "./provider-shared"
 const pageSize = 25
 
 const columnClassName: Record<string, string> = {
-  display_name: "min-w-0 w-0",
+  display_name: "w-64",
   kind: "w-44",
   state: "w-36",
   model_count: "w-28",
@@ -82,21 +79,17 @@ const columnClassName: Record<string, string> = {
 
 const providerStateMeta = {
   Accepted: {
-    icon: CircleDashed,
-    variant: "pending",
+    variant: "plain",
   },
   Ready: {
-    icon: CheckCircle2,
-    variant: "success",
+    variant: "successPlain",
   },
   Degraded: {
-    icon: XCircle,
-    variant: "destructive",
+    variant: "destructivePlain",
   },
 } satisfies Record<
   InferenceProvider["state"],
   {
-    icon: React.ComponentType<React.ComponentProps<"svg">>
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
 >
@@ -173,11 +166,6 @@ export function InferenceProviderTable({
           <div className="flex min-w-0 items-center gap-2">
             <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
             <span className="min-w-0 truncate font-medium">{row.original.display_name}</span>
-            <span className="text-muted-foreground shrink-0 text-xs">
-              {row.original.scope === "Organisation"
-                ? `Organisation / ${row.original.id}`
-                : "Local"}
-            </span>
           </div>
         ),
       },
@@ -241,9 +229,9 @@ export function InferenceProviderTable({
     .rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize)
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -300,26 +288,28 @@ export function InferenceProviderTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={currentPage === 0}
-          onClick={() => setPage(currentPage - 1)}
-        >
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={currentPage + 1 === pageCount}
-          onClick={() => setPage(currentPage + 1)}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      {pageCount > 1 ? (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={currentPage + 1 === pageCount}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      ) : null}
 
       <ProviderSheet
         key={editing?.id ?? "closed"}
@@ -347,12 +337,7 @@ function ProviderStatusBadge({ provider }: { provider: InferenceProvider }) {
       ? (provider.conditions.find((condition) => condition.status === "False")?.message.trim() ??
         "")
       : ""
-  const badge = (
-    <Badge variant={meta.variant}>
-      <meta.icon data-icon="inline-start" />
-      {provider.state}
-    </Badge>
-  )
+  const badge = <Badge variant={meta.variant}>{provider.state}</Badge>
 
   if (!message) {
     return badge

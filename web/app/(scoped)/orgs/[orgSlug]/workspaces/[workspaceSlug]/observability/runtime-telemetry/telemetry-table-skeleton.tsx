@@ -82,7 +82,7 @@ export function TelemetryTableSkeleton({
         </Table>
       </div>
       {showFooter ? (
-        <div className="bg-muted/10 flex w-full flex-col gap-2 border-t px-6 py-3 md:flex-row md:items-center md:justify-between">
+        <div className="bg-muted/10 flex w-full flex-col gap-2 px-6 py-3 md:flex-row md:items-center md:justify-between">
           <Skeleton className="h-4 w-24" />
           <div className="flex gap-2">
             <Skeleton className="h-8 w-20" />

@@ -11,6 +11,10 @@ export function AuditPagination({ nextPageToken }: { nextPageToken: string }) {
     tokenStackKey: "token_stack",
   })
 
+  if (!canGoPrevious && !nextPageToken) {
+    return null
+  }
+
   return (
     <Pagination className="justify-end" data-pending={pending}>
       <PaginationContent>

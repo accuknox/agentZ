@@ -34,14 +34,14 @@ export default async function TeamsPage({ params }: { params: Promise<{ orgSlug:
         title="Teams"
       />
       <div className="w-full min-w-0 border-b">
-        <Table aria-label="Teams">
+        <Table aria-label="Teams" className="w-full table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead className="text-right">Members</TableHead>
-              <TableHead className="text-right">Roles</TableHead>
-              <TableHead className="text-right">Workspaces</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead className="w-28 text-right">Members</TableHead>
+              <TableHead className="w-24 text-right">Roles</TableHead>
+              <TableHead className="w-32 text-right">Workspaces</TableHead>
+              <TableHead className="w-32">Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

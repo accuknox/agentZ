@@ -18,7 +18,6 @@ export default async function WorkspaceSandboxesPage({
     <SandboxesPage
       basePath={basePath}
       capabilities={scope.workspace.sandbox_capabilities}
-      scopeLabel="Local"
       searchParams={searchParams}
       workspaceId={scope.workspace.id}
     />

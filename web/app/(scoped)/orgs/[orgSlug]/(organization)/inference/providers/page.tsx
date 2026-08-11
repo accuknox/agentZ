@@ -17,10 +17,6 @@ export default async function OrganizationInferenceProvidersPage({
   if (!tenant.data?.inference_provider_capabilities.read)
     return <AdministrationState kind="forbidden" />
   return (
-    <InferenceProvidersPage
-      capabilities={tenant.data.inference_provider_capabilities}
-      scope={{}}
-      scopeLabel="Organisation"
-    />
+    <InferenceProvidersPage capabilities={tenant.data.inference_provider_capabilities} scope={{}} />
   )
 }

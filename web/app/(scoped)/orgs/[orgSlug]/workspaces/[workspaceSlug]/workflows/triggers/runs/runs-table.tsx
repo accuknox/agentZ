@@ -17,16 +17,7 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import {
-  CheckCircle2,
-  CircleAlert,
-  CircleDashed,
-  ExternalLink,
-  GitBranch,
-  MoreHorizontal,
-  Trash2,
-  XCircle,
-} from "lucide-react"
+import { ExternalLink, GitBranch, MoreHorizontal, Trash2 } from "lucide-react"
 import { formatAge, formatDurationSeconds } from "@/lib/format"
 import {
   getWorkflowRun,
@@ -79,34 +70,28 @@ const columnClassName: Record<string, string> = {
 
 const runStatusMeta = {
   Pending: {
-    icon: CircleDashed,
     label: "Pending",
-    variant: "pending",
+    variant: "plain",
   },
   Running: {
-    icon: Spinner,
     label: "Running",
-    variant: "running",
+    variant: "plain",
   },
   Succeeded: {
-    icon: CheckCircle2,
     label: "Succeeded",
-    variant: "success",
+    variant: "successPlain",
   },
   Failed: {
-    icon: XCircle,
     label: "Failed",
-    variant: "destructive",
+    variant: "destructivePlain",
   },
   Unacked: {
-    icon: CircleAlert,
     label: "Unacked",
-    variant: "warning",
+    variant: "warningPlain",
   },
 } satisfies Record<
   WorkflowRunStatus,
   {
-    icon: React.ComponentType<React.ComponentProps<"svg">>
     label: string
     variant: React.ComponentProps<typeof Badge>["variant"]
   }
@@ -247,7 +232,7 @@ export function RunsTable({
   })
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
         <Table className="table-auto">
           <TableHeader>
@@ -310,19 +295,26 @@ export function RunsTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => goNext(nextPageToken)}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-        </Button>
-      </div>
+      {canGoPrevious || hasNextPage ? (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goPrevious}
+            disabled={!canGoPrevious || pending}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => goNext(nextPageToken)}
+            disabled={!hasNextPage || pending}
+          >
+            Next
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -413,10 +405,9 @@ function createColumns({
 
 function RunStatusBadge({ reason, status }: { reason: string; status: WorkflowRunStatus }) {
   const meta = runStatusMeta[status]
-  const icon = <meta.icon data-icon="inline-start" />
   const badge = (
     <Badge variant={meta.variant}>
-      {icon}
+      {status === "Running" ? <Spinner data-icon="inline-start" /> : null}
       {meta.label}
     </Badge>
   )

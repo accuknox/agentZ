@@ -6,11 +6,11 @@ import { Plus } from "lucide-react"
 import type { Route } from "next"
 import { deleteSandboxFormAction } from "@/data/sandbox.actions"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { SandboxTable } from "./sandbox-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
-import { Badge } from "@/components/ui/badge"
 
 export const metadata: Metadata = {
   title: "Sandboxes",
@@ -27,38 +27,29 @@ type SandboxesSearchParams = {
 export default async function SandboxesPage({
   basePath,
   capabilities,
-  scopeLabel,
   searchParams,
   workspaceId,
 }: {
   basePath: string
   capabilities: ResourceCapabilities
-  scopeLabel: "Local" | "Organisation"
   searchParams: Promise<SandboxesSearchParams>
   workspaceId?: string
 }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-normal">Sandboxes</h1>
-            <Badge variant="outline">{scopeLabel}</Badge>
-          </div>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Sandbox access includes locked read dependencies for its MCP connections, skills, and
-            inference resources.
-          </p>
-        </div>
-        {capabilities.create ? (
-          <Button asChild>
-            <Link href={`${basePath}/new` as Route}>
-              <Plus />
-              New sandbox
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+      <AdministrationPageHeader
+        actions={
+          capabilities.create ? (
+            <Button asChild>
+              <Link href={`${basePath}/new` as Route}>
+                <Plus />
+                New sandbox
+              </Link>
+            </Button>
+          ) : undefined
+        }
+        title="Sandboxes"
+      />
       <Suspense fallback={<SandboxesSkeleton />}>
         <Sandboxes basePath={basePath} searchParams={searchParams} workspaceId={workspaceId} />
       </Suspense>

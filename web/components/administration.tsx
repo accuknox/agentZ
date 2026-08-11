@@ -30,7 +30,7 @@ export type AdministrationStatus = "ready" | "provisioning" | "deleting" | "fail
 export function AdministrationLayout({ children }: { children: ReactNode }) {
   return (
     <div
-      className="@container flex min-w-0 flex-1 flex-col [&_[data-slot=table-cell]]:h-11 [&_[data-slot=table-cell]]:px-4 [&_[data-slot=table-cell]]:py-1.5 [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4"
+      className="@container flex min-w-0 flex-1 flex-col [&_[data-slot=table-cell]]:h-11 [&_[data-slot=table-cell]]:px-4 [&_[data-slot=table-cell]]:py-1.5 [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&_[data-slot=table]]:w-full"
       data-administration
     >
       {children}
@@ -289,7 +289,7 @@ export function EffectiveAccessFrame({
     <div className="flex min-w-0 flex-col gap-6">
       <section className="min-w-0 space-y-3">
         <div className="px-4 md:px-6">
-          <h2 className="text-lg font-medium">Effective Access</h2>
+          <h2 className="text-lg font-medium">Effective access</h2>
           <p className="text-muted-foreground text-sm">{summary}</p>
         </div>
         <div

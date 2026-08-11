@@ -149,7 +149,7 @@ export function AuditEvents({
           </TableBody>
         </Table>
         {audit.events.length ? (
-          <div className="border-t py-3">
+          <div className="py-3">
             <AuditPagination nextPageToken={audit.next_page_token} />
           </div>
         ) : null}

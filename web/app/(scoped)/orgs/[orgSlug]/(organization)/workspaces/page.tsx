@@ -47,13 +47,13 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
         title="Workspaces"
       />
       <div className="w-full min-w-0 border-b">
-        <Table>
+        <Table aria-label="Workspaces" className="w-full table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Administrators</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead className="w-36">Status</TableHead>
+              <TableHead className="w-36 text-right">Administrators</TableHead>
+              <TableHead className="w-32">Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

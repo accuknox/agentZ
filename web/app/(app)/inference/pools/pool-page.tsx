@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { CircleAlert } from "lucide-react"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
@@ -9,7 +10,6 @@ import { NewInferencePoolButton } from "./pool-sheet"
 import { InferencePoolTable } from "./pool-table"
 import type { InferencePoolActionScope } from "@/data/inference-pool.actions"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
-import { Badge } from "@/components/ui/badge"
 
 export const metadata: Metadata = { title: "Pools" }
 
@@ -43,7 +43,7 @@ async function Pools({
   if (pools.error) {
     return (
       <>
-        <PageHeader scopeLabel="Local" />
+        <PageHeader />
         <Alert variant="destructive" className="mx-4 w-auto md:mx-6">
           <CircleAlert />
           <AlertTitle>Could not load inference Pools</AlertTitle>
@@ -55,7 +55,7 @@ async function Pools({
   if (providers.error) {
     return (
       <>
-        <PageHeader scopeLabel="Local" />
+        <PageHeader />
         <Alert variant="destructive" className="mx-4 w-auto md:mx-6">
           <CircleAlert />
           <AlertTitle>Could not load inference providers</AlertTitle>
@@ -67,7 +67,6 @@ async function Pools({
   return (
     <>
       <PageHeader
-        scopeLabel="Local"
         action={
           capabilities.create ? (
             <NewInferencePoolButton providers={providers.providers} scope={scope} />
@@ -79,27 +78,14 @@ async function Pools({
   )
 }
 
-function PageHeader({ action, scopeLabel }: { action?: React.ReactNode; scopeLabel?: "Local" }) {
-  return (
-    <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-      <div className="min-w-0 space-y-1">
-        <div className="flex items-center gap-2">
-          <h1 className="flex items-center text-2xl font-semibold tracking-normal">Pools</h1>
-          {scopeLabel ? <Badge variant="outline">{scopeLabel}</Badge> : null}
-        </div>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Pool access includes locked read access to every selected provider.
-        </p>
-      </div>
-      {action}
-    </div>
-  )
+function PageHeader({ action }: { action?: React.ReactNode }) {
+  return <AdministrationPageHeader actions={action} title="Pools" />
 }
 
 function PoolPageSkeleton() {
   return (
     <>
-      <PageHeader scopeLabel="Local" />
+      <PageHeader />
       <div className="flex flex-1 flex-col">
         <span role="status" className="sr-only">
           Loading Pools…

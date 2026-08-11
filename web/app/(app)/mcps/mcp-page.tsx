@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import * as z from "zod"
 import { Plus } from "lucide-react"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { deleteScopedMcpFormAction, submitScopedMcpFormAction } from "@/data/mcp.actions"
@@ -28,21 +29,23 @@ export async function McpPage({
   const scope = { basePath, organizationId, workspaceId }
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <h2 className="text-xl font-semibold">MCP Connections</h2>
-        {canCreate ? (
-          <Suspense
-            fallback={
-              <Button disabled>
-                <Plus />
-                Connect
-              </Button>
-            }
-          >
-            <NewMcpButton submitMcpAction={submitScopedMcpFormAction.bind(null, scope)} />
-          </Suspense>
-        ) : null}
-      </div>
+      <AdministrationPageHeader
+        actions={
+          canCreate ? (
+            <Suspense
+              fallback={
+                <Button disabled>
+                  <Plus />
+                  Connect
+                </Button>
+              }
+            >
+              <NewMcpButton submitMcpAction={submitScopedMcpFormAction.bind(null, scope)} />
+            </Suspense>
+          ) : undefined
+        }
+        title="MCP connections"
+      />
       <Suspense fallback={<TableSkeleton />}>
         <Connections
           basePath={basePath}

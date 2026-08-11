@@ -47,17 +47,20 @@ export default async function WorkspaceRolesPage({
         title="Roles"
       />
       <div className="w-full min-w-0 border-b">
-        <Table aria-label={`${result.workspace.name} Roles`} className="min-w-4xl">
+        <Table
+          aria-label={`${result.workspace.name} Roles`}
+          className="w-full min-w-4xl table-fixed"
+        >
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Scope</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Users</TableHead>
-              <TableHead className="text-right">Teams</TableHead>
-              <TableHead className="text-right">Permissions</TableHead>
+              <TableHead className="w-56">Name</TableHead>
+              <TableHead className="w-28">Scope</TableHead>
+              <TableHead className="w-24">Type</TableHead>
+              <TableHead className="w-20 text-right">Users</TableHead>
+              <TableHead className="w-20 text-right">Teams</TableHead>
+              <TableHead className="w-28 text-right">Permissions</TableHead>
               <TableHead>Dependencies</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead className="w-32">Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

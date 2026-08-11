@@ -615,28 +615,30 @@ function SpansInspectorContent({
         <aside className="bg-background min-h-0 border-b lg:border-r lg:border-b-0">
           <div className="bg-muted/10 flex h-10 items-center justify-between px-4 lg:px-5">
             <div className="text-sm font-medium">Spans ({data.spans.length})</div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!canGoPrevious || pagePending}
-                onClick={onPreviousPage}
-              >
-                <ArrowLeft data-icon="inline-start" />
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!data.hasNextPage || pagePending}
-                onClick={onNextPage}
-              >
-                Next
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </div>
+            {canGoPrevious || data.hasNextPage ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canGoPrevious || pagePending}
+                  onClick={onPreviousPage}
+                >
+                  <ArrowLeft data-icon="inline-start" />
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!data.hasNextPage || pagePending}
+                  onClick={onNextPage}
+                >
+                  Next
+                  <ArrowRight data-icon="inline-end" />
+                </Button>
+              </div>
+            ) : null}
           </div>
           <div className="max-h-72 overflow-auto py-2 pb-5 lg:h-[calc(100vh-134px)] lg:max-h-none lg:pb-8">
             {data.spans.length > 0 ? (
@@ -1368,6 +1370,10 @@ function TracePagination({
     tokenStackKey: "token_stack",
   })
 
+  if (!canGoPrevious && !hasNextPage) {
+    return null
+  }
+
   return (
     <Pagination className="mx-0 ml-auto w-fit justify-end" data-pending={pending}>
       <PaginationContent>
@@ -1410,10 +1416,15 @@ function MetricBadge({
   variant?: React.ComponentProps<typeof Badge>["variant"]
 }) {
   return (
-    <Badge variant={variant}>
+    <span
+      className={cn(
+        "text-muted-foreground inline-flex items-center gap-1.5 text-xs",
+        variant === "destructive" && "text-destructive"
+      )}
+    >
       <Icon data-icon="inline-start" />
       {formatCompactNumber(value)} {value === 1 ? singular : `${singular}s`}
-    </Badge>
+    </span>
   )
 }
 

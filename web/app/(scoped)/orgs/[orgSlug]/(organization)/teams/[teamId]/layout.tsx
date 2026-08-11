@@ -17,8 +17,8 @@ export default async function TeamLayout({
   const tabs = [
     { href: root as Route, label: "Summary" },
     { href: `${root}/members` as Route, label: "Members" },
-    { href: `${root}/roles` as Route, label: "Roles and Access" },
-    { href: `${root}/shared-agents` as Route, label: "Shared Agents" },
+    { href: `${root}/roles` as Route, label: "Roles and access" },
+    { href: `${root}/shared-agents` as Route, label: "Shared agents" },
     { href: `${root}/activity` as Route, label: "Activity" },
   ] as const satisfies readonly RouteTab[]
 

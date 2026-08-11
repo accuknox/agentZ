@@ -117,9 +117,9 @@ export function SkillTable({
   }
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -169,26 +169,28 @@ export function SkillTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearSelectionAndGoPrevious}
-          disabled={!canGoPrevious || pending}
-        >
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearSelectionAndGoNext}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      {canGoPrevious || hasNextPage ? (
+        <div className="flex items-center justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearSelectionAndGoPrevious}
+            disabled={!canGoPrevious || pending}
+          >
+            <ArrowLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearSelectionAndGoNext}
+            disabled={!hasNextPage || pending}
+          >
+            Next
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -257,15 +259,8 @@ function createSkillColumns({
       accessorKey: "name",
       header: ({ column }) => <SortButton column={column} label="Name" />,
       cell: ({ row }) => (
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate font-medium" title={row.original.name}>
-            {row.original.name}
-          </span>
-          <span className="text-muted-foreground shrink-0 text-xs">
-            {row.original.scope === "Organisation"
-              ? `Organisation / ${row.original.name}`
-              : "Local"}
-          </span>
+        <span className="block truncate font-medium" title={row.original.name}>
+          {row.original.name}
         </span>
       ),
     },

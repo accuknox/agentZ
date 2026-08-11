@@ -14,11 +14,10 @@ import type { AgentShareRow, AgentShareTarget } from "@/data/agent.queries"
 import type { AgentShareCapability } from "@/lib/gateway/client"
 import { AccessSourceChip } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   Select,
   SelectContent,
@@ -41,32 +40,26 @@ const capabilities = [
   {
     value: "use_shared",
     label: "Use shared Agent",
-    description: "Full non-secret Agent and workflow control.",
   },
   {
     value: "share_non_authored",
     label: "Delegate sharing",
-    description: "May share this Agent within delegated authority.",
   },
   {
     value: "read_shared_secret",
     label: "Read secret metadata",
-    description: "Names, kinds, hosts, OAuth metadata, and status only.",
   },
   {
     value: "write_shared_secret",
     label: "Write secrets",
-    description: "Create or update credential material without later reveal.",
   },
   {
     value: "delete_shared_secret",
     label: "Delete secrets",
-    description: "Remove credential metadata and stored material.",
   },
 ] as const satisfies readonly {
   value: AgentShareCapability
   label: string
-  description: string
 }[]
 
 export function AgentOwnerForm({
@@ -90,10 +83,6 @@ export function AgentOwnerForm({
         <CardTitle>
           <h3>Transfer ownership</h3>
         </CardTitle>
-        <CardDescription>
-          The recipient must be an active Organisation member with independent Workspace access and
-          current Agent Author permission.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-5">
@@ -125,10 +114,6 @@ export function AgentOwnerForm({
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <FieldDescription>
-                Only active members with independent Workspace access and Agent Author are listed.
-                Ownership alone does not preserve access after a Role or membership change.
-              </FieldDescription>
             </Field>
           </FieldGroup>
           <div className="flex justify-end">
@@ -163,18 +148,14 @@ export function AgentShareForm({
   const targets = targetKind === "user" ? users : teams
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
+    <div className="flex min-w-0 flex-col gap-6">
       <Card>
         <CardHeader>
           <CardTitle>
             <h3>Current shares</h3>
           </CardTitle>
-          <CardDescription>
-            Direct and Team shares are intersected with current recipient Workspace eligibility on
-            every request.
-          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0">
           <AgentSharesTable actionScope={actionScope} agentName={agentName} shares={shares} />
         </CardContent>
       </Card>
@@ -183,10 +164,6 @@ export function AgentShareForm({
           <CardTitle>
             <h3>Add or replace share</h3>
           </CardTitle>
-          <CardDescription>
-            UseShared grants full non-secret Agent and workflow control. Secret values are never
-            readable through shared access.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="space-y-5">
@@ -243,16 +220,11 @@ export function AgentShareForm({
                 <div className="grid gap-3">
                   {capabilities.map((capability) => (
                     <label
-                      className="hover:bg-muted/40 flex items-start gap-3 rounded-md border p-3"
+                      className="hover:bg-muted/40 flex items-start gap-3 py-2"
                       key={capability.value}
                     >
                       <Checkbox name="capabilities" value={capability.value} />
-                      <span className="grid gap-1">
-                        <span className="font-medium">{capability.label}</span>
-                        <span className="text-muted-foreground text-sm">
-                          {capability.description}
-                        </span>
-                      </span>
+                      <span className="font-medium">{capability.label}</span>
                     </label>
                   ))}
                 </div>
@@ -263,10 +235,6 @@ export function AgentShareForm({
                   <FieldLabel htmlFor="acknowledge-use-shared">
                     I understand that Use Shared grants full non-secret control
                   </FieldLabel>
-                  <FieldDescription>
-                    The recipient may modify and delete the Agent, workflows, files, and mutable
-                    Skills while eligible Workspace access remains.
-                  </FieldDescription>
                 </div>
               </Field>
             </FieldGroup>
@@ -294,7 +262,7 @@ function AgentSharesTable({
 }) {
   if (shares.length === 0) {
     return (
-      <div className="text-muted-foreground flex min-h-40 items-center justify-center rounded-md border text-sm">
+      <div className="text-muted-foreground flex min-h-24 items-center justify-center text-sm">
         No shares
       </div>
     )
@@ -319,13 +287,7 @@ function AgentSharesTable({
               <AccessSourceChip source={share.target_user_id ? "Direct Share" : "Team Share"} />
             </TableCell>
             <TableCell>
-              <div className="flex flex-wrap gap-1.5">
-                {share.capabilities.map((capability) => (
-                  <Badge key={capability} variant="outline">
-                    {capability.replaceAll("_", " ")}
-                  </Badge>
-                ))}
-              </div>
+              {share.capabilities.map((capability) => capability.replaceAll("_", " ")).join(", ")}
             </TableCell>
             <TableCell className="break-words">{share.created_by_label}</TableCell>
             <TableCell className="text-right">

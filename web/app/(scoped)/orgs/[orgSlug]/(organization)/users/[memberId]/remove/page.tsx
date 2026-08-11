@@ -31,7 +31,7 @@ export default async function RemoveMembershipPage({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {search.error ? (
-        <Alert variant="destructive">
+        <Alert className="mx-4 md:mx-6" variant="destructive">
           <AlertTitle>Membership was not changed</AlertTitle>
           <AlertDescription>
             {search.error === "stale-preview"
@@ -51,7 +51,7 @@ export default async function RemoveMembershipPage({
         items={impact.items}
         title={`${operation === "membership_remove" ? "Remove" : "Disable"} ${impact.targetLabel}`}
       />
-      <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,24rem)] sm:items-end sm:justify-between">
+      <div className="grid gap-3 px-4 pb-6 sm:grid-cols-[auto_minmax(0,24rem)] sm:items-end sm:justify-between md:px-6">
         <Button asChild variant="outline">
           <Link href={root as Route}>Cancel</Link>
         </Button>

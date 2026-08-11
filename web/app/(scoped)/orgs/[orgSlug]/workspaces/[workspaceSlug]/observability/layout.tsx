@@ -13,14 +13,16 @@ export default async function ObservabilityLayout({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <RouteTabs
-        label="Observability navigation"
-        tabs={[
-          { href: `${root}/traces` as Route, label: "Traces" },
-          { href: `${root}/runtime-telemetry` as Route, label: "Runtime Telemetry" },
-          { href: `${root}/mcp` as Route, label: "MCP" },
-        ]}
-      />
+      <div className="border-b px-4 py-2 md:px-6">
+        <RouteTabs
+          label="Observability navigation"
+          tabs={[
+            { href: `${root}/traces` as Route, label: "Traces" },
+            { href: `${root}/runtime-telemetry` as Route, label: "Runtime telemetry" },
+            { href: `${root}/mcp` as Route, label: "MCP" },
+          ]}
+        />
+      </div>
       {children}
     </div>
   )

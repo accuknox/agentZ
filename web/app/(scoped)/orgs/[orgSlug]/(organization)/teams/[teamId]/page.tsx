@@ -13,7 +13,7 @@ export default async function TeamSummaryPage({
   if (!data?.team) notFound()
   return (
     <div className="flex flex-col gap-6">
-      <TeamForm data={data} orgSlug={orgSlug} />
+      <TeamForm data={data} embedded orgSlug={orgSlug} />
       <TeamDelete orgSlug={orgSlug} teamId={teamId} />
     </div>
   )

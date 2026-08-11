@@ -47,12 +47,12 @@ export function InviteMemberDialog({
       <DialogTrigger asChild>
         <Button>
           <Send />
-          {invitation ? "Edit" : "Invite User"}
+          {invitation ? "Edit" : "Invite user"}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Invite User</DialogTitle>
+          <DialogTitle>Invite user</DialogTitle>
           <DialogDescription>
             Creates a 48-hour bearer link. Anyone with the link can try to accept it, so share it
             only with the invited email owner.
@@ -83,14 +83,14 @@ export function InviteMemberDialog({
           />
           {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
           {state.link ? (
-            <div className="bg-muted/40 flex min-w-0 items-center gap-2 rounded-lg border p-2">
+            <div className="bg-muted/40 flex min-w-0 items-center gap-2 p-2">
               <code className="min-w-0 flex-1 truncate text-xs">{state.link}</code>
               <CopyButton content={state.link} label="Copy" />
             </div>
           ) : null}
           <Button disabled={pending} type="submit">
             {pending ? <Spinner /> : <Send />}
-            Create Invitation
+            Create invitation
           </Button>
         </form>
       </DialogContent>
@@ -167,10 +167,7 @@ function AssignmentChecks({
       <legend className="text-sm font-medium">{label}</legend>
       <div className="grid gap-2 sm:grid-cols-2">
         {options.map((option) => (
-          <label
-            className="hover:bg-muted/40 flex items-center gap-2 rounded-md border p-2 text-sm"
-            key={option.id}
-          >
+          <label className="hover:bg-muted/40 flex items-center gap-2 py-2 text-sm" key={option.id}>
             <Checkbox defaultChecked={selected.includes(option.id)} name={name} value={option.id} />
             <span className="truncate" title={option.name}>
               {option.name}

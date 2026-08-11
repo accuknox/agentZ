@@ -8,9 +8,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CopyButton } from "@/components/ui/copy-button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 
@@ -40,7 +39,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
   }
 
   return (
-    <form action={action} className="flex min-w-0 flex-col gap-8" onChange={() => setDirty(true)}>
+    <form
+      action={action}
+      className="flex max-w-4xl min-w-0 flex-col gap-8 px-4 pb-6 md:px-6"
+      onChange={() => setDirty(true)}
+    >
       <section className="grid gap-5">
         <h3 className="text-base font-semibold">Social sign-up</h3>
         <Field orientation="horizontal">
@@ -57,27 +60,23 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         ) : null}
       </section>
 
-      <Separator />
-
       <section className="grid gap-4">
         <h3 className="text-base font-semibold">Default access</h3>
         <div className="grid gap-6 md:grid-cols-2">
           <CheckList
             defaults={data.defaultRoleIds}
-            label="Default Roles"
+            label="Default roles"
             name="role_ids"
             options={data.roles}
           />
           <CheckList
             defaults={data.defaultTeamIds}
-            label="Default Teams"
+            label="Default teams"
             name="team_ids"
             options={data.teams}
           />
         </div>
       </section>
-
-      <Separator />
 
       <section className="grid gap-5">
         <h3 className="text-base font-semibold">External rules</h3>
@@ -95,7 +94,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
               Add
             </Button>
           </div>
-          <div className="divide-y border-y">
+          <div className="grid gap-1">
             {domains.map((value) => (
               <div className="flex items-center gap-2 py-2" key={value}>
                 <span className="min-w-0 flex-1 truncate text-sm">{value}</span>
@@ -115,7 +114,6 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
               </div>
             ))}
           </div>
-          <FieldDescription>Domains are exact, lowercase matches.</FieldDescription>
         </Field>
         <div className="grid gap-3">
           <div className="flex items-center gap-2">
@@ -181,8 +179,6 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         </div>
       </section>
 
-      <Separator />
-
       <section className="grid gap-3">
         <h3 className="text-base font-semibold">Join links</h3>
         <JoinLink label="Google" link={data.joinLinks.google} />
@@ -192,7 +188,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       <div className="flex justify-end">
         <Button disabled={pending} type="submit">
           {pending ? <Spinner /> : <Save />}
-          Save Social Admission
+          Save social admission
         </Button>
       </div>
     </form>
@@ -214,9 +210,9 @@ function CheckList({
     <fieldset className="grid gap-2">
       <legend className="text-sm font-medium">{label}</legend>
       {options.length === 0 ? (
-        <p className="text-muted-foreground rounded-md border p-3 text-sm">No options available.</p>
+        <p className="text-muted-foreground py-3 text-sm">No options available</p>
       ) : (
-        <div className="divide-y border-y">
+        <div className="grid gap-1">
           {options.map((option) => (
             <label className="flex items-center gap-2 py-3 text-sm" key={option.id}>
               <Checkbox
@@ -235,7 +231,7 @@ function CheckList({
 
 function JoinLink({ label, link }: { label: string; link: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 border-b py-3 last:border-b-0">
+    <div className="flex min-w-0 items-center gap-3 py-2">
       <span className="w-16 shrink-0 text-sm font-medium">{label}</span>
       <code className="min-w-0 flex-1 truncate text-xs">{link}</code>
       <CopyButton content={link} />

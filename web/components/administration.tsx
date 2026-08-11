@@ -2,16 +2,6 @@ import Link from "next/link"
 import type { ComponentProps, ReactNode } from "react"
 import { CircleAlert, Clock3, FolderSearch, LoaderCircle, LockKeyhole, Trash2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import {
   Empty,
   EmptyContent,
@@ -20,7 +10,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -40,10 +29,11 @@ export type AdministrationStatus = "ready" | "provisioning" | "deleting" | "fail
 
 export function AdministrationLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="@container flex min-w-0 flex-1 flex-col" data-administration>
-      <div className="administration-surface flex w-full max-w-7xl min-w-0 flex-1 flex-col self-center px-4 py-6 md:px-8 md:py-10">
-        {children}
-      </div>
+    <div
+      className="@container flex min-w-0 flex-1 flex-col [&_[data-slot=table-cell]]:h-11 [&_[data-slot=table-cell]]:px-4 [&_[data-slot=table-cell]]:py-1.5 [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4"
+      data-administration
+    >
+      {children}
     </div>
   )
 }
@@ -56,54 +46,56 @@ export function AdministrationPageHeader({
   title: string
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+    <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-normal">{title}</h1>
+      </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   )
 }
 
 export function ScopeBadge({ scope }: { scope: AdministrationScope["kind"] }) {
-  return <Badge variant="plain">{scope}</Badge>
+  return <span className="text-muted-foreground">{scope}</span>
 }
 
 export function StatusBadge({ status }: { status: AdministrationStatus }) {
   if (status === "ready") {
     return (
-      <Badge variant="successPlain">
+      <span className="text-primary inline-flex items-center gap-1.5 text-sm">
         <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
         Ready
-      </Badge>
+      </span>
     )
   }
 
   if (status === "provisioning") {
     return (
-      <Badge variant="plain">
+      <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
         <LoaderCircle
           aria-hidden="true"
           className="motion-safe:animate-spin"
           data-icon="inline-start"
         />
         Provisioning
-      </Badge>
+      </span>
     )
   }
 
   if (status === "deleting") {
     return (
-      <Badge variant="warningPlain">
+      <span className="text-warning inline-flex items-center gap-1.5 text-sm">
         <Trash2 aria-hidden="true" data-icon="inline-start" />
         Deleting
-      </Badge>
+      </span>
     )
   }
 
   return (
-    <Badge variant="destructivePlain">
+    <span className="text-destructive inline-flex items-center gap-1.5 text-sm">
       <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
       Failed
-    </Badge>
+    </span>
   )
 }
 
@@ -118,7 +110,7 @@ export type AccessSource =
   | "Team Share"
 
 export function AccessSourceChip({ source }: { source: AccessSource }) {
-  return <Badge variant="plain">{source}</Badge>
+  return <span className="text-muted-foreground">{source}</span>
 }
 
 export type AdministrationStateKind =
@@ -145,46 +137,42 @@ export function AdministrationState({
   switch (kind) {
     case "provisioning":
       content = {
-        description: "Infrastructure is being prepared. This page updates when the scope is ready.",
+        description: "Preparing resources.",
         icon: <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />,
         title: "Provisioning in progress",
       }
       break
     case "deleting":
       content = {
-        description:
-          "Cleanup is still running. Access remains unavailable until deletion completes.",
+        description: "Cleanup in progress.",
         icon: <Trash2 aria-hidden="true" />,
         title: "Deletion in progress",
       }
       break
     case "failed":
       content = {
-        description:
-          "The operation failed. Review the error and retry when the underlying issue is resolved.",
+        description: "Try again.",
         icon: <CircleAlert aria-hidden="true" />,
         title: "Something went wrong",
       }
       break
     case "forbidden":
       content = {
-        description:
-          "Your current access does not include this page. Choose another available scope.",
+        description: "You do not have access to this page.",
         icon: <LockKeyhole aria-hidden="true" />,
         title: "Access unavailable",
       }
       break
     case "not-found":
       content = {
-        description:
-          "This page or scope no longer exists. Check the address or choose another scope.",
+        description: "This page does not exist.",
         icon: <FolderSearch aria-hidden="true" />,
         title: "Page not found",
       }
       break
     default:
       content = {
-        description: "Create the first item or adjust the current filters to continue.",
+        description: "No results.",
         icon: <FolderSearch aria-hidden="true" />,
         title: "Nothing here yet",
       }
@@ -196,7 +184,7 @@ export function AdministrationState({
   return (
     <Empty
       aria-live={pending ? "polite" : urgent ? "assertive" : undefined}
-      className="min-h-64 rounded-none border-x-0 border-y border-solid"
+      className="min-h-48 rounded-none border-0"
       role={pending ? "status" : urgent ? "alert" : undefined}
     >
       <EmptyHeader>
@@ -219,7 +207,7 @@ export function AdministrationLoadingState() {
       role="status"
     >
       <span className="sr-only">Loading…</span>
-      <div className="flex flex-col gap-3 px-4 py-6 md:px-8 md:py-10">
+      <div className="flex flex-col gap-3 px-4 py-6 md:px-6">
         <Skeleton className="mb-3 h-7 w-48 max-w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-14 w-full" />
@@ -249,21 +237,18 @@ export function PermissionMatrixFrame({
   title?: string
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2>{title}</h2>
-        </CardTitle>
-        <CardDescription className="sr-only">{caption}</CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto px-0">
+    <section className="min-w-0 space-y-3">
+      <h2 className="px-4 text-lg font-medium md:px-6">{title}</h2>
+      <div className="w-full min-w-0 overflow-x-auto border-b">
         <Table className="min-w-2xl">
           <TableCaption className="sr-only">{caption}</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="bg-muted/95 sticky left-0 z-10 min-w-48">Resource</TableHead>
+              <TableHead className="bg-muted/95 sticky left-0 z-10 h-8 min-w-48 px-4">
+                Resource
+              </TableHead>
               {columns.map((column) => (
-                <TableHead className="text-center" key={column.id} scope="col">
+                <TableHead className="h-8 px-4 text-center" key={column.id} scope="col">
                   {column.label}
                 </TableHead>
               ))}
@@ -272,11 +257,11 @@ export function PermissionMatrixFrame({
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.id}>
-                <TableHead className="bg-background sticky left-0 z-10" scope="row">
+                <TableHead className="bg-background sticky left-0 z-10 h-11 px-4" scope="row">
                   {row.label}
                 </TableHead>
                 {columns.map((column) => (
-                  <TableCell className="text-center" key={column.id}>
+                  <TableCell className="h-11 px-4 py-1.5 text-center" key={column.id}>
                     {row.values[column.id]}
                   </TableCell>
                 ))}
@@ -284,8 +269,8 @@ export function PermissionMatrixFrame({
             ))}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }
 
@@ -302,28 +287,24 @@ export function EffectiveAccessFrame({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h2>Effective Access</h2>
-          </CardTitle>
-          <CardDescription>{summary}</CardDescription>
-        </CardHeader>
-        <CardContent
-          className={`grid min-h-96 min-w-0 gap-4 ${
+      <section className="min-w-0 space-y-3">
+        <div className="px-4 md:px-6">
+          <h2 className="text-lg font-medium">Effective Access</h2>
+          <p className="text-muted-foreground text-sm">{summary}</p>
+        </div>
+        <div
+          className={`grid min-h-96 min-w-0 gap-4 px-4 md:px-6 ${
             inspector ? "xl:grid-cols-[minmax(0,1fr)_20rem]" : ""
           }`}
         >
-          <div className="bg-muted/20 min-h-80 min-w-0 overflow-hidden rounded-lg border">
-            {canvas}
-          </div>
+          <div className="bg-muted/20 min-h-80 min-w-0 overflow-hidden">{canvas}</div>
           {inspector ? (
-            <aside aria-label="Access details" className="min-w-0 rounded-lg border p-4">
+            <aside aria-label="Access details" className="min-w-0">
               {inspector}
             </aside>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
       {table}
     </div>
   )
@@ -356,19 +337,17 @@ export function ImpactReviewFrame({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2>{title}</h2>
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-        <CardAction>
-          <span className="text-muted-foreground text-sm tabular-nums">
-            {items.length} affected
-          </span>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
+    <section className="space-y-4">
+      <div className="flex items-start justify-between gap-4 px-4 md:px-6">
+        <div>
+          <h2 className="text-lg font-medium">{title}</h2>
+          <p className="text-muted-foreground text-sm">{description}</p>
+        </div>
+        <span className="text-muted-foreground shrink-0 text-sm tabular-nums">
+          {items.length} affected
+        </span>
+      </div>
+      <div className="px-4 md:px-6">
         {items.length ? (
           <div className="grid gap-5">
             {[...groups].map(([group, groupItems]) => (
@@ -380,9 +359,8 @@ export function ImpactReviewFrame({
                   {group}
                 </h3>
                 <ul className="flex flex-col gap-3">
-                  {groupItems.map((item, index) => (
+                  {groupItems.map((item) => (
                     <li key={item.id}>
-                      {index ? <Separator className="mb-3" /> : null}
                       <div className="flex min-w-0 items-start justify-between gap-3">
                         <div className="flex min-w-0 flex-col gap-1">
                           {item.href ? (
@@ -402,17 +380,17 @@ export function ImpactReviewFrame({
                           ) : null}
                         </div>
                         {item.severity ? (
-                          <Badge
-                            variant={
+                          <span
+                            className={
                               item.severity === "critical"
-                                ? "destructivePlain"
+                                ? "text-destructive text-sm"
                                 : item.severity === "warning"
-                                  ? "warningPlain"
-                                  : "plain"
+                                  ? "text-warning text-sm"
+                                  : "text-muted-foreground text-sm"
                             }
                           >
                             {item.severity}
-                          </Badge>
+                          </span>
                         ) : null}
                       </div>
                     </li>
@@ -428,8 +406,8 @@ export function ImpactReviewFrame({
             <AlertDescription>The requested action has no additional impact.</AlertDescription>
           </Alert>
         )}
-      </CardContent>
-      {actions ? <CardFooter className="justify-end gap-2">{actions}</CardFooter> : null}
-    </Card>
+      </div>
+      {actions ? <div className="flex justify-end gap-2 px-4 md:px-6">{actions}</div> : null}
+    </section>
   )
 }

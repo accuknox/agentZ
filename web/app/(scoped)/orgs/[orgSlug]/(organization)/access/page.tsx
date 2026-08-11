@@ -2,7 +2,6 @@ import Link from "next/link"
 import type { Route } from "next"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -35,12 +34,8 @@ function AccessTable({
   orgSlug: string
   rows: NonNullable<Awaited<ReturnType<typeof listEffectiveAccess>>>["rows"]
 }) {
-  if (rows.length === 0) {
-    return <AdministrationState kind="empty" title="No Organisation Members" />
-  }
-
   return (
-    <div className="border-y">
+    <div className="w-full min-w-0 border-b">
       <Table aria-label="Effective Access">
         <TableHeader>
           <TableRow>
@@ -50,46 +45,50 @@ function AccessTable({
             <TableHead className="text-right">Team Roles</TableHead>
             <TableHead className="text-right">Owned</TableHead>
             <TableHead className="text-right">Shared</TableHead>
-            <TableHead>Explanation</TableHead>
-            <TableHead className="text-right">Details</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.memberId}>
-              <TableCell className="max-w-64">
-                <div className="truncate font-medium" title={row.user}>
-                  {row.user}
-                </div>
-                <div className="text-muted-foreground truncate text-xs" title={row.email}>
-                  {row.email}
-                </div>
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={
-                    row.status === "active"
-                      ? "successPlain"
-                      : row.status === "disabled"
-                        ? "destructivePlain"
-                        : "warningPlain"
-                  }
-                >
-                  {row.status}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{row.directRoles}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.teamRoles}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.ownedAgents}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.sharedAgents}</TableCell>
-              <TableCell className="max-w-md text-sm">{row.explanation}</TableCell>
-              <TableCell className="text-right">
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/orgs/${orgSlug}/access/${row.memberId}` as Route}>View</Link>
-                </Button>
+          {rows.length ? (
+            rows.map((row) => (
+              <TableRow key={row.memberId}>
+                <TableCell className="max-w-64">
+                  <Link
+                    className="block truncate font-medium hover:underline"
+                    href={`/orgs/${orgSlug}/access/${row.memberId}` as Route}
+                    title={row.user}
+                  >
+                    {row.user}
+                  </Link>
+                  <div className="text-muted-foreground truncate text-xs" title={row.email}>
+                    {row.email}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={
+                      row.status === "active"
+                        ? "successPlain"
+                        : row.status === "disabled"
+                          ? "destructivePlain"
+                          : "warningPlain"
+                    }
+                  >
+                    {row.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{row.directRoles}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.teamRoles}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.ownedAgents}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.sharedAgents}</TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell className="h-24 text-center" colSpan={6}>
+                No organization members
               </TableCell>
             </TableRow>
-          ))}
+          )}
         </TableBody>
       </Table>
     </div>

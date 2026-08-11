@@ -1,6 +1,4 @@
 import { notFound } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -11,7 +9,7 @@ import {
 } from "@/components/ui/table"
 import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { formatTimestamp } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 
 export default async function WorkspaceAgentPage({
   params,
@@ -34,39 +32,29 @@ export default async function WorkspaceAgentPage({
   }
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Runtime configuration</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="flex min-w-0 flex-col gap-6">
+      <section className="min-w-0 space-y-3">
+        <h2 className="px-4 text-lg font-medium md:px-6">Runtime configuration</h2>
+        <div className="w-full min-w-0 border-b">
           <Table aria-label={`${detail.agent.name} configuration`}>
             <TableBody>
               <SummaryRow label="Sandbox">
-                <Badge variant="outline">{detail.agent.sandbox.scope}</Badge>
+                <span className="text-muted-foreground">{detail.agent.sandbox.scope}</span>
                 <span>{detail.agent.sandbox.name}</span>
               </SummaryRow>
               <SummaryRow label="Memory">
                 {detail.agent.memory.enabled ? "Enabled" : "Disabled"}
               </SummaryRow>
-              <SummaryRow label="Created">{formatTimestamp(detail.agent.created_at)}</SummaryRow>
-              <SummaryRow label="Modified">{formatTimestamp(detail.agent.modified_at)}</SummaryRow>
-              <SummaryRow label="Last activity">
-                {formatTimestamp(detail.agent.last_activity)}
-              </SummaryRow>
+              <SummaryRow label="Created">{formatAge(detail.agent.created_at)}</SummaryRow>
+              <SummaryRow label="Modified">{formatAge(detail.agent.modified_at)}</SummaryRow>
+              <SummaryRow label="Last activity">{formatAge(detail.agent.last_activity)}</SummaryRow>
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Access summary</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </section>
+      <section className="min-w-0 space-y-3">
+        <h2 className="px-4 text-lg font-medium md:px-6">Access</h2>
+        <div className="w-full min-w-0 border-b">
           <Table aria-label={`${detail.agent.name} access summary`}>
             <TableHeader>
               <TableRow>
@@ -89,8 +77,8 @@ export default async function WorkspaceAgentPage({
               </TableRow>
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }

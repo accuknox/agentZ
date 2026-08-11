@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState, useState } from "react"
-import { CircleAlert, CircleCheck } from "lucide-react"
+import { CircleAlert } from "lucide-react"
 import {
   assignOrganizationRoleUsersAction,
   assignWorkspaceRoleUsersAction,
@@ -9,7 +9,6 @@ import {
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -60,32 +59,19 @@ export function RoleAssignments({
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       ) : null}
-      {state.saved && !changed ? (
-        <Alert>
-          <CircleCheck aria-hidden="true" />
-          <AlertTitle>Assignments saved</AlertTitle>
-          <AlertDescription>
-            Effective access is recalculated as the allow-only union of every direct Role.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>User assignments</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto px-0">
-          <Table aria-label={`Users assigned to ${name}`}>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-20 text-center">Assigned</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Email</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
+      <h2 className="px-4 text-lg font-medium md:px-6">User assignments</h2>
+      <div className="w-full min-w-0 border-b">
+        <Table aria-label={`Users assigned to ${name}`}>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-20 text-center">Assigned</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Email</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.length ? (
+              users.map((user) => (
                 <TableRow key={user.memberId}>
                   <TableCell className="text-center">
                     <Checkbox
@@ -104,17 +90,23 @@ export function RoleAssignments({
                   <TableCell className="font-medium">{user.name || "Unnamed User"}</TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-        <CardFooter className="justify-end border-t">
-          <Button disabled={immutable || pending || !changed} type="submit">
-            {pending ? <Spinner /> : null}
-            {pending ? "Saving…" : "Save assignments"}
-          </Button>
-        </CardFooter>
-      </Card>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell className="h-24 text-center" colSpan={3}>
+                  No users
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex justify-end px-4 pb-6 md:px-6">
+        <Button disabled={immutable || pending || !changed} type="submit">
+          {pending ? <Spinner /> : null}
+          {pending ? "Saving…" : "Save assignments"}
+        </Button>
+      </div>
     </form>
   )
 }

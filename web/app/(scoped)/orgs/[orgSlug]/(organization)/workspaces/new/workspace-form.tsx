@@ -47,11 +47,13 @@ export function WorkspaceForm({
   const errors = clientErrors ?? state.errors
 
   return (
-    <div className="flex w-full max-w-2xl flex-col gap-6">
-      <h2 className="text-xl font-semibold tracking-tight">
-        {stage === "details" ? "Create a Workspace" : "Review Workspace"}
-      </h2>
-      <form action={formAction} className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
+      <div className="px-4 pt-4 md:px-6 md:pt-6">
+        <h1 className="text-2xl font-semibold tracking-normal">
+          {stage === "details" ? "Create Workspace" : "Review Workspace"}
+        </h1>
+      </div>
+      <form action={formAction} className="flex max-w-2xl flex-col gap-6 px-4 pb-6 md:px-6">
         <input name="name" type="hidden" value={name} />
         {admins.map((memberId) => (
           <input key={memberId} name="admin_member_ids" type="hidden" value={memberId} />
@@ -108,7 +110,7 @@ export function WorkspaceForm({
               <FieldError>{errors?.admin_member_ids?.[0]}</FieldError>
             </Field>
 
-            <div className="grid gap-4 border-t pt-5">
+            <div className="grid gap-4 pt-2">
               <h3 className="font-medium">Inherited Organisation resources</h3>
               {inheritanceCategories.map(({ key, label }) => (
                 <Field key={key}>
@@ -128,12 +130,12 @@ export function WorkspaceForm({
             </div>
           </FieldGroup>
         ) : (
-          <dl className="divide-border border-y">
-            <div className="grid gap-1 p-4 sm:grid-cols-[10rem_1fr]">
+          <dl className="grid gap-4">
+            <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
               <dt className="text-muted-foreground">Name</dt>
               <dd className="font-medium">{name}</dd>
             </div>
-            <div className="grid gap-1 border-t p-4 sm:grid-cols-[10rem_1fr]">
+            <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
               <dt className="text-muted-foreground">Administrators</dt>
               <dd>
                 {admins.length === 0
@@ -144,7 +146,7 @@ export function WorkspaceForm({
                       .join(", ")}
               </dd>
             </div>
-            <div className="grid gap-1 border-t p-4 sm:grid-cols-[10rem_1fr]">
+            <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
               <dt className="text-muted-foreground">Inherited resources</dt>
               <dd>
                 {Object.values(inherited).reduce((count, names) => count + names.length, 0)}{" "}

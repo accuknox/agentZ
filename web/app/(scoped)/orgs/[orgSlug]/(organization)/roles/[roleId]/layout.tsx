@@ -24,20 +24,20 @@ export default async function RoleLayout({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <header className="flex min-w-0 flex-col gap-4 border-b pb-1">
+      <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex min-w-0 items-baseline gap-3">
-              <h2 className="truncate text-xl font-semibold" title={data.role.name}>
+              <h1
+                className="truncate text-2xl font-semibold tracking-normal"
+                title={data.role.name}
+              >
                 {data.role.name}
-              </h2>
+              </h1>
               <span className="text-muted-foreground shrink-0 text-sm">
                 {data.role.immutable ? "System · Read-only" : "Custom"}
               </span>
             </div>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {data.role.users} User and {data.role.teams} Team assignments
-            </p>
           </div>
         </div>
         <RouteTabs label="Role details" tabs={tabs} />

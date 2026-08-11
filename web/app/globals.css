@@ -165,38 +165,25 @@
 }
 
 @layer components {
-  .administration-surface [data-slot="card"] {
-    gap: 0;
-    overflow: visible;
-    border-block: 1px solid var(--border);
+  [data-administration] [data-slot="card"] {
+    gap: 1rem;
+    border: 0;
     border-radius: 0;
     background: transparent;
     padding-block: 0;
     box-shadow: none;
   }
 
-  .administration-surface [data-slot="card-header"] {
-    border-radius: 0;
-    padding: 1rem 0;
+  [data-administration] [data-slot="card-header"],
+  [data-administration] [data-slot="card-footer"] {
+    padding-inline: 1rem;
   }
 
-  .administration-surface [data-slot="card-content"] {
-    padding-inline: 0;
-  }
-
-  .administration-surface [data-slot="card-footer"] {
-    border-radius: 0;
-    background: transparent;
-    padding-inline: 0;
-  }
-
-  .administration-surface [data-slot="badge"] {
-    height: auto;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    padding: 0;
-    box-shadow: none;
+  @media (min-width: 48rem) {
+    [data-administration] [data-slot="card-header"],
+    [data-administration] [data-slot="card-footer"] {
+      padding-inline: 1.5rem;
+    }
   }
 
   .trace-waterfall-progress [data-slot="progress-indicator"] {

@@ -4,9 +4,8 @@ import { notFound } from "next/navigation"
 import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { getOrganizationAuditEvent, getWorkspaceAuditEvent } from "@/data/audit"
-import { formatTimestampWithAge } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 import type { AuditField, AuditResult } from "@/lib/gateway/client"
 
 export async function AuditEventDetail({
@@ -43,14 +42,16 @@ export async function AuditEventDetail({
   return (
     <article className="flex min-w-0 flex-col gap-4">
       <header className="flex min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
           <ResultBadge result={event.result} />
-          <Badge variant="outline">{event.category}</Badge>
-          <Badge variant="secondary">{event.interface}</Badge>
+          <span>·</span>
+          <span>{event.category}</span>
+          <span>·</span>
+          <span>{event.interface}</span>
         </div>
         <h2 className="font-mono text-xl font-semibold break-all">{event.action}</h2>
         <time className="text-muted-foreground text-sm" dateTime={event.created_at}>
-          {formatTimestampWithAge(event.created_at)}
+          {formatAge(event.created_at)}
         </time>
       </header>
 
@@ -125,10 +126,7 @@ export async function AuditEventDetail({
               <DetailTerm label="Cleanup job" value={event.cleanup.id} mono />
             ) : null}
             {event.cleanup?.completed_at ? (
-              <DetailTerm
-                label="Cleanup completed"
-                value={formatTimestampWithAge(event.cleanup.completed_at)}
-              />
+              <DetailTerm label="Cleanup completed" value={formatAge(event.cleanup.completed_at)} />
             ) : null}
           </dl>
         </CardContent>
@@ -148,7 +146,6 @@ function AuditFields({ title, fields }: { title: string; fields: AuditField[] })
           <dl className="grid gap-3">
             {fields.map((field, index) => (
               <div key={`${field.field}-${index}`}>
-                {index ? <Separator className="mb-3" /> : null}
                 <dt className="text-muted-foreground font-mono text-xs">{field.field}</dt>
                 <dd className="mt-1 break-words">{field.value}</dd>
               </div>

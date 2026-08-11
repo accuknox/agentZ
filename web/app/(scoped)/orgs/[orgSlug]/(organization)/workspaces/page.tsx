@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getWorkspaceDirectory } from "@/data/workspaces"
-import { formatTimestampWithAge } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 
 export const unstable_instant = false
 
@@ -31,28 +31,6 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
   if (!result.directory.can_enter_organization) {
     return <AdministrationState kind="forbidden" />
   }
-  if (result.directory.workspaces.length === 0) {
-    return (
-      <div className="flex flex-col gap-6">
-        <AdministrationPageHeader title="Workspaces" />
-        <AdministrationState
-          actions={
-            result.directory.can_create ? (
-              <Button asChild>
-                <Link href={`${root}/workspaces/new` as Route}>
-                  <Plus />
-                  Create Workspace
-                </Link>
-              </Button>
-            ) : undefined
-          }
-          kind="empty"
-          title="No Workspaces yet"
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <AdministrationPageHeader
@@ -61,14 +39,14 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
             <Button asChild>
               <Link href={`${root}/workspaces/new` as Route}>
                 <Plus />
-                Create Workspace
+                Create workspace
               </Link>
             </Button>
           ) : undefined
         }
         title="Workspaces"
       />
-      <div className="border-y">
+      <div className="w-full min-w-0 border-b">
         <Table>
           <TableHeader>
             <TableRow>
@@ -79,29 +57,35 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
             </TableRow>
           </TableHeader>
           <TableBody>
-            {result.directory.workspaces.map((workspace) => (
-              <TableRow key={workspace.id}>
-                <TableCell>
-                  <Link
-                    className="font-medium hover:underline"
-                    href={`${root}/workspaces/${workspace.slug}` as Route}
-                  >
-                    {workspace.name}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <StatusBadge status={workspace.state} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {workspace.workspace_admin_count}
-                </TableCell>
-                <TableCell>
-                  <time dateTime={workspace.updated_at}>
-                    {formatTimestampWithAge(workspace.updated_at)}
-                  </time>
+            {result.directory.workspaces.length ? (
+              result.directory.workspaces.map((workspace) => (
+                <TableRow key={workspace.id}>
+                  <TableCell>
+                    <Link
+                      className="font-medium hover:underline"
+                      href={`${root}/workspaces/${workspace.slug}` as Route}
+                    >
+                      {workspace.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={workspace.state} />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {workspace.workspace_admin_count}
+                  </TableCell>
+                  <TableCell>
+                    <time dateTime={workspace.updated_at}>{formatAge(workspace.updated_at)}</time>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell className="h-24 text-center" colSpan={4}>
+                  No workspaces
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </div>

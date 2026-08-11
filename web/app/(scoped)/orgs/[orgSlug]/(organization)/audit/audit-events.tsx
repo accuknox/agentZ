@@ -1,7 +1,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { z } from "zod"
-import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader } from "@/components/administration"
 import {
   Table,
   TableBody,
@@ -22,7 +22,7 @@ import {
   zAuditWorkspaceIdQuery,
   zPageTokenQuery,
 } from "@/lib/gateway/client/zod.gen"
-import { formatTimestampWithAge } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 import { AuditFiltersBar } from "./audit-filters"
 import { ResultBadge } from "./audit-event"
 import { AuditPagination } from "./audit-pagination"
@@ -70,29 +70,29 @@ export function AuditEvents({
           createdBefore: query.created_before,
         }}
       />
-      {audit.events.length ? (
-        <div className="border-y">
-          <Table
-            aria-label={workspace ? `${workspace.name} audit events` : "Organisation audit events"}
-          >
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead className="hidden md:table-cell">Actor</TableHead>
-                <TableHead>Event</TableHead>
-                <TableHead>Target</TableHead>
-                {!workspace ? (
-                  <TableHead className="hidden lg:table-cell">Workspace</TableHead>
-                ) : null}
-                <TableHead>Result</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {audit.events.map((event) => (
+      <div className="w-full min-w-0 border-b">
+        <Table
+          aria-label={workspace ? `${workspace.name} audit events` : "Organisation audit events"}
+        >
+          <TableHeader>
+            <TableRow>
+              <TableHead>Time</TableHead>
+              <TableHead className="hidden md:table-cell">Actor</TableHead>
+              <TableHead>Event</TableHead>
+              <TableHead>Target</TableHead>
+              {!workspace ? (
+                <TableHead className="hidden lg:table-cell">Workspace</TableHead>
+              ) : null}
+              <TableHead>Result</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {audit.events.length ? (
+              audit.events.map((event) => (
                 <TableRow key={event.id}>
                   <TableCell className="min-w-36 align-top">
                     <time className="text-muted-foreground text-xs" dateTime={event.created_at}>
-                      {formatTimestampWithAge(event.created_at)}
+                      {formatAge(event.created_at)}
                     </time>
                   </TableCell>
                   <TableCell className="hidden max-w-56 align-top md:table-cell">
@@ -138,20 +138,22 @@ export function AuditEvents({
                     <ResultBadge result={event.result} />
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell className="h-24 text-center" colSpan={workspace ? 5 : 6}>
+                  No audit events
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        {audit.events.length ? (
           <div className="border-t py-3">
             <AuditPagination nextPageToken={audit.next_page_token} />
           </div>
-        </div>
-      ) : (
-        <AdministrationState
-          description="No events match this period and filter set."
-          kind="empty"
-          title="No audit events"
-        />
-      )}
+        ) : null}
+      </div>
     </div>
   )
 }

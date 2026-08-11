@@ -66,7 +66,7 @@ export function AuditFiltersBar({
     <form
       aria-busy={pending}
       aria-label="Audit filters"
-      className="bg-card grid gap-3 rounded-xl border p-3 opacity-100 transition-opacity aria-busy:opacity-65 md:grid-cols-2 xl:grid-cols-4"
+      className="bg-background grid gap-3 border-b px-4 py-3 opacity-100 transition-opacity aria-busy:opacity-65 sm:grid-cols-2 md:px-6 xl:grid-cols-4"
       onSubmit={(event) => event.preventDefault()}
       role="search"
     >

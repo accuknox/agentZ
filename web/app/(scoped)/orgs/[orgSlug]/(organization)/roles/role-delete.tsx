@@ -9,7 +9,6 @@ import {
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogClose,
@@ -39,22 +38,14 @@ export function RoleDelete({
   const [state, formAction, pending] = useActionState<DeleteRoleFormState, FormData>(action, {})
 
   return (
-    <Card className="border-destructive/30">
-      <CardHeader>
-        <CardTitle>
-          <h3>Delete Role</h3>
-        </CardTitle>
-        <CardDescription>
-          Deletion is blocked while Users, Teams, pending Invitations, or Social Admission defaults
-          reference this Role.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <section className="grid gap-3 px-4 pb-6 md:px-6">
+      <h2 className="text-lg font-medium">Delete role</h2>
+      <div>
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="destructive">
               <Trash2 />
-              Delete Role
+              Delete role
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -86,13 +77,13 @@ export function RoleDelete({
                 </DialogClose>
                 <Button data-dialog-submit disabled={pending} type="submit" variant="destructive">
                   {pending ? <Spinner /> : <Trash2 />}
-                  {pending ? "Deleting…" : "Delete Role"}
+                  {pending ? "Deleting…" : "Delete role"}
                 </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

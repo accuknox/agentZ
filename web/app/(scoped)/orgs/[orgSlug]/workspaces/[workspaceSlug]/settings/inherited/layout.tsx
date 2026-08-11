@@ -18,14 +18,13 @@ export default async function InheritedResourcesLayout({
   ]
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div>
-        <h2 className="text-lg font-semibold">Inherited Organisation resources</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Select individual Organisation resources for live, read-only use in this Workspace.
-        </p>
+    <div className="flex min-w-0 flex-col gap-6">
+      <div className="px-4 pt-4 md:px-6 md:pt-6">
+        <h1 className="text-2xl font-semibold tracking-normal">Inherited resources</h1>
       </div>
-      <RouteTabs label="Inherited resource types" tabs={tabs} />
+      <div className="px-4 md:px-6">
+        <RouteTabs label="Inherited resource types" tabs={tabs} />
+      </div>
       {children}
     </div>
   )

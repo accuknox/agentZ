@@ -35,7 +35,7 @@ export default async function DeleteWorkspacePage({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {error ? (
-        <Alert variant="destructive">
+        <Alert className="mx-4 md:mx-6" variant="destructive">
           <AlertTitle>Workspace was not deleted</AlertTitle>
           <AlertDescription>
             {error === "stale-preview"
@@ -49,7 +49,7 @@ export default async function DeleteWorkspacePage({
         items={impact.items}
         title={`Delete ${impact.targetLabel}`}
       />
-      <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,24rem)] sm:items-end sm:justify-between">
+      <div className="grid gap-3 px-4 pb-6 sm:grid-cols-[auto_minmax(0,24rem)] sm:items-end sm:justify-between md:px-6">
         <Button asChild variant="outline">
           <Link href={root as Route}>Cancel</Link>
         </Button>

@@ -61,8 +61,8 @@ export default async function OrganizationLayout({
             <AdministrationState
               description={
                 disabled
-                  ? "Your Organisation Membership is disabled. Account, Sessions, Preferences, and other accessible Organisations remain available."
-                  : "Your Organisation access was revoked. Choose another accessible Organisation or use account settings."
+                  ? "Your organization membership is disabled."
+                  : "Your organization access was revoked."
               }
               kind="forbidden"
               title={disabled ? "Organisation Membership disabled" : "Access revoked"}
@@ -103,7 +103,7 @@ export default async function OrganizationLayout({
         >
           <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
             <AdministrationState
-              description="Your Organisation Membership is active, but no Role or Team currently grants product access. Account, Sessions, Preferences, and Organisation switching remain available."
+              description="No role or team grants product access."
               kind="empty"
               title="Access not assigned"
             />

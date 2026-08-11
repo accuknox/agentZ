@@ -18,7 +18,15 @@ export type TeamFormData = {
   roles: { id: string; name: string; scope: string }[]
 }
 
-export function TeamForm({ data, orgSlug }: { data: TeamFormData; orgSlug: string }) {
+export function TeamForm({
+  data,
+  embedded = false,
+  orgSlug,
+}: {
+  data: TeamFormData
+  embedded?: boolean
+  orgSlug: string
+}) {
   const [stage, setStage] = useState<"details" | "review">("details")
   const [name, setName] = useState(data.team?.name ?? "")
   const [memberIds, setMemberIds] = useState<string[]>(data.team?.memberIds ?? [])
@@ -43,11 +51,15 @@ export function TeamForm({ data, orgSlug }: { data: TeamFormData; orgSlug: strin
   const reviewing = stage === "review" && state.preview?.input === input
 
   return (
-    <div className="flex w-full max-w-3xl flex-col gap-6">
-      <h2 className="text-xl font-semibold tracking-tight">
-        {!reviewing ? `${data.team ? "Edit" : "Create"} Team` : "Review Team access"}
-      </h2>
-      <form action={formAction} className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
+      {!embedded ? (
+        <div className="px-4 pt-4 md:px-6 md:pt-6">
+          <h1 className="text-2xl font-semibold tracking-normal">
+            {!reviewing ? `${data.team ? "Edit" : "Create"} Team` : "Review Team access"}
+          </h1>
+        </div>
+      ) : null}
+      <form action={formAction} className="flex max-w-3xl flex-col gap-6 px-4 pb-6 md:px-6">
         <input name="name" type="hidden" value={name} />
         {data.team ? <input name="updated_at" type="hidden" value={data.team.updatedAt} /> : null}
         {memberIds.map((id) => (
@@ -118,18 +130,18 @@ export function TeamForm({ data, orgSlug }: { data: TeamFormData; orgSlug: strin
           </FieldGroup>
         ) : (
           <div className="flex flex-col gap-4">
-            <dl className="divide-border border-y">
-              <div className="grid gap-1 p-4 sm:grid-cols-[10rem_1fr]">
+            <dl className="grid gap-4">
+              <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">Name</dt>
                 <dd className="font-medium break-words">{name}</dd>
               </div>
-              <div className="grid gap-1 border-t p-4 sm:grid-cols-[10rem_1fr]">
+              <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">Members</dt>
                 <dd>
                   {memberIds.length} active member{memberIds.length === 1 ? "" : "s"}
                 </dd>
               </div>
-              <div className="grid gap-1 border-t p-4 sm:grid-cols-[10rem_1fr]">
+              <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">Roles</dt>
                 <dd>
                   {data.roles
@@ -139,16 +151,9 @@ export function TeamForm({ data, orgSlug }: { data: TeamFormData; orgSlug: strin
                 </dd>
               </div>
             </dl>
-            <Alert>
-              <AlertTitle>Derived access review</AlertTitle>
-              <AlertDescription>
-                Every selected member receives the complete union of these Team Roles in their
-                listed scopes, in addition to direct access.
-              </AlertDescription>
-            </Alert>
-            <dl className="divide-border border-y">
+            <dl className="grid gap-4">
               {state.preview?.rows.map((row) => (
-                <div className="grid gap-1 p-4 sm:grid-cols-[12rem_1fr]" key={row.id}>
+                <div className="grid gap-1 sm:grid-cols-[12rem_1fr]" key={row.id}>
                   <dt className="font-medium">{row.label}</dt>
                   <dd className="text-muted-foreground break-words">{row.detail}</dd>
                 </div>

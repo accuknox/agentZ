@@ -35,14 +35,12 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { WorkspaceAPIKey } from "@/data/api-key.queries"
 import type { DeleteAPIKeyFormState } from "@/data/types"
-import { formatAge, formatTimestampWithAge } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 
 const columnClassName: Record<string, string> = {
   name: "w-40",
-  type: "w-20",
   key: "w-36",
   targets: "min-w-52",
-  creator: "min-w-44",
   status: "w-28",
   expiresAt: "w-28",
   age: "w-28",
@@ -71,13 +69,6 @@ export function APIKeysTable({
         cell: ({ row }) => <span>{row.original.name || "-"}</span>,
       },
       {
-        id: "type",
-        header: "Type",
-        cell: ({ row }) => (
-          <span>{row.original.targets[0]?.targetType === "workflow" ? "Webhook" : "Agent"}</span>
-        ),
-      },
-      {
         id: "key",
         header: "Key",
         cell: ({ row }) => (
@@ -92,18 +83,6 @@ export function APIKeysTable({
         cell: ({ row }) => <APIKeyTargets targets={row.original.targets} />,
       },
       {
-        id: "creator",
-        header: "Created by",
-        cell: ({ row }) => (
-          <span className="block min-w-0">
-            <span className="block truncate">{row.original.creatorName}</span>
-            <span className="text-muted-foreground block truncate text-xs">
-              {row.original.creatorEmail}
-            </span>
-          </span>
-        ),
-      },
-      {
         id: "status",
         header: "Status",
         cell: ({ row }) => <APIKeyStatus apiKey={row.original} />,
@@ -111,7 +90,7 @@ export function APIKeysTable({
       {
         id: "expiresAt",
         header: "Expires",
-        cell: ({ row }) => <span>{formatTimestampWithAge(row.original.expiresAt)}</span>,
+        cell: ({ row }) => <span>{formatAge(row.original.expiresAt)}</span>,
       },
       {
         id: "age",
@@ -222,7 +201,7 @@ function APIKeyStatus({ apiKey }: { apiKey: WorkspaceAPIKey }) {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge className="cursor-default" variant="destructive">
+            <Badge className="cursor-default" variant="destructivePlain">
               Revoked
             </Badge>
           </TooltipTrigger>
@@ -234,12 +213,12 @@ function APIKeyStatus({ apiKey }: { apiKey: WorkspaceAPIKey }) {
     )
   }
   if (!apiKey.enabled) {
-    return <Badge variant="outline">Disabled</Badge>
+    return <Badge variant="plain">Disabled</Badge>
   }
   if (apiKey.expired) {
-    return <Badge variant="outline">Expired</Badge>
+    return <Badge variant="plain">Expired</Badge>
   }
-  return <Badge variant="success">Active</Badge>
+  return <Badge variant="successPlain">Active</Badge>
 }
 
 function DeleteAPIKeyButton({

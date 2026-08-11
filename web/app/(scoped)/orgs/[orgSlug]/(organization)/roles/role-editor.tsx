@@ -10,15 +10,13 @@ import {
   workspaceRoleFormAction,
 } from "@/app/(scoped)/orgs/actions"
 import {
+  AdministrationPageHeader,
   ImpactReviewFrame,
   PermissionMatrixFrame,
-  ScopeBadge,
   type PermissionMatrixRow,
 } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -216,38 +214,29 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
         value={previewValid ? state.preview?.fingerprint : ""}
       />
 
-      <Card>
-        <CardHeader>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <ScopeBadge scope={workspace ? "Workspace" : "Organisation"} />
-            <Badge variant={immutable ? "secondary" : "outline"}>
-              {immutable ? "System" : "Custom"}
-            </Badge>
-            {immutable ? <Badge variant="outline">Immutable</Badge> : null}
-          </div>
-          <CardTitle>
-            <h2>{role ? role.name : `Create ${workspace ? "Workspace" : "Organisation"} Role`}</h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Field data-invalid={Boolean(state.errors?.name)}>
-            <FieldLabel htmlFor="role-name" required>
-              Role name
-            </FieldLabel>
-            <Input
-              aria-invalid={Boolean(state.errors?.name)}
-              disabled={immutable}
-              id="role-name"
-              maxLength={80}
-              name="name"
-              onChange={(event) => setName(event.target.value)}
-              required
-              value={name}
-            />
-            <FieldError>{state.errors?.name?.[0]}</FieldError>
-          </Field>
-        </CardContent>
-      </Card>
+      {!role ? (
+        <AdministrationPageHeader
+          title={`Create ${workspace ? "workspace" : "organization"} role`}
+        />
+      ) : null}
+      <div className="max-w-2xl px-4 md:px-6">
+        <Field data-invalid={Boolean(state.errors?.name)}>
+          <FieldLabel htmlFor="role-name" required>
+            Role name
+          </FieldLabel>
+          <Input
+            aria-invalid={Boolean(state.errors?.name)}
+            disabled={immutable}
+            id="role-name"
+            maxLength={80}
+            name="name"
+            onChange={(event) => setName(event.target.value)}
+            required
+            value={name}
+          />
+          <FieldError>{state.errors?.name?.[0]}</FieldError>
+        </Field>
+      </div>
 
       {!workspace && role?.systemRole === "superadmin" ? (
         <Alert>
@@ -279,11 +268,11 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
       <div className={cn("grid min-w-0 gap-5", !workspace && "lg:grid-cols-[15rem_minmax(0,1fr)]")}>
         {!workspace ? (
           <aside aria-label="Permission scopes" className="hidden lg:block">
-            <div className="sticky top-4 overflow-hidden rounded-lg border">
+            <div className="sticky top-4 grid gap-1">
               {scopes.map((scope) => (
                 <button
                   className={cn(
-                    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-2 border-b px-3 py-3 text-left text-sm outline-none last:border-b-0 focus-visible:ring-2",
+                    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm outline-none focus-visible:ring-2",
                     activeScope === scope.id && "bg-muted"
                   )}
                   key={scope.id}
@@ -295,9 +284,10 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                     <span className="text-muted-foreground text-xs">{scope.detail}</span>
                   </span>
                   {dirtyScopes.has(scope.id) ? (
-                    <Badge aria-label="Unsaved changes" variant="pending">
-                      Dirty
-                    </Badge>
+                    <span
+                      aria-label="Unsaved changes"
+                      className="bg-primary mt-1.5 size-1.5 rounded-full"
+                    />
                   ) : null}
                 </button>
               ))}
@@ -351,7 +341,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
         />
       ) : null}
 
-      <footer className="bg-background/95 sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center justify-end gap-2 border-t px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
+      <footer className="bg-background/95 sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 px-4 py-3 backdrop-blur md:px-6">
         <span className="text-muted-foreground mr-auto text-sm tabular-nums">
           {immutable ? "Read-only built-in Role" : `${changed} unsaved changes`}
         </span>

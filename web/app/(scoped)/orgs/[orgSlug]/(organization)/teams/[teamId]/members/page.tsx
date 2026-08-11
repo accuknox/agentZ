@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -20,18 +19,18 @@ export default async function TeamMembersPage({
   const team = await getTeamDetail(orgSlug, teamId)
   if (!team) notFound()
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label={`${team.name} members`}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Member</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {team.members.map((member) => (
+    <div className="w-full min-w-0 border-b">
+      <Table aria-label={`${team.name} members`}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {team.members.length ? (
+            team.members.map((member) => (
               <TableRow key={member.id}>
                 <TableCell>
                   <span className="flex min-w-0 items-center gap-3">
@@ -50,10 +49,16 @@ export default async function TeamMembersPage({
                 </TableCell>
                 <TableCell>Active</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell className="h-24 text-center" colSpan={3}>
+                No members
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

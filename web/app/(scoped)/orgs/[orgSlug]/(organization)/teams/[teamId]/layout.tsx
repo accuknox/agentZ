@@ -24,14 +24,11 @@ export default async function TeamLayout({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <header className="flex min-w-0 flex-col gap-4 border-b pb-1">
+      <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
         <div className="min-w-0">
-          <h2 className="truncate text-xl font-semibold" title={team.name}>
+          <h1 className="truncate text-2xl font-semibold tracking-normal" title={team.name}>
             {team.name}
-          </h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {team.memberCount} Members · {team.roleCount} Roles
-          </p>
+          </h1>
         </div>
         <RouteTabs label="Team details" tabs={tabs} />
       </header>

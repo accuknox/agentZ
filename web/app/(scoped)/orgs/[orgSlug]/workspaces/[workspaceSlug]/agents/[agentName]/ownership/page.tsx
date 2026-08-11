@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation"
 import { AccessSourceChip } from "@/components/administration"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -12,7 +11,7 @@ import {
 import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import type { AgentActionScope } from "@/data/agent.actions"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { formatTimestamp } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 import { AgentOwnerForm } from "../agent-access-forms"
 
 export default async function AgentOwnershipPage({
@@ -41,20 +40,16 @@ export default async function AgentOwnershipPage({
   }
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="flex min-w-0 flex-col gap-6">
       <AgentOwnerForm
         actionScope={actionScope}
         agentName={agentName}
         ownerUserId={detail.owner.owner_user_id}
         users={detail.ownerCandidates}
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Ownership authority</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="min-w-0 space-y-3">
+        <h2 className="px-4 text-lg font-medium md:px-6">Ownership</h2>
+        <div className="w-full min-w-0 border-b">
           <Table aria-label={`${agentName} ownership authority`}>
             <TableHeader>
               <TableRow>
@@ -79,12 +74,12 @@ export default async function AgentOwnershipPage({
               </TableRow>
               <TableRow>
                 <TableCell>Last transfer</TableCell>
-                <TableCell>{formatTimestamp(detail.owner.updated_at)}</TableCell>
+                <TableCell>{formatAge(detail.owner.updated_at)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }

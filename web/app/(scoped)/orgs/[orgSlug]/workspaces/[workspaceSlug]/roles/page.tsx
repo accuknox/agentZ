@@ -1,10 +1,13 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { AdministrationState, ScopeBadge } from "@/components/administration"
+import {
+  AdministrationPageHeader,
+  AdministrationState,
+  ScopeBadge,
+} from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -14,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { listWorkspaceRoles } from "@/data/roles"
-import { formatTimestampWithAge } from "@/lib/format"
+import { formatAge } from "@/lib/format"
 
 export const unstable_instant = false
 
@@ -31,38 +34,35 @@ export default async function WorkspaceRolesPage({
 
   const root = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Workspace Roles</h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Delegate access inside {result.workspace.name} without granting Organisation control.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href={`${root}/new` as Route}>
-            <Plus />
-            Create Role
-          </Link>
-        </Button>
-      </div>
-      <Card>
-        <CardContent className="overflow-x-auto px-0">
-          <Table aria-label={`${result.workspace.name} Roles`} className="min-w-4xl">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Users</TableHead>
-                <TableHead className="text-right">Teams</TableHead>
-                <TableHead className="text-right">Permissions</TableHead>
-                <TableHead>Dependencies</TableHead>
-                <TableHead>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.roles.map((role) => (
+    <div className="flex min-w-0 flex-col gap-6">
+      <AdministrationPageHeader
+        actions={
+          <Button asChild>
+            <Link href={`${root}/new` as Route}>
+              <Plus />
+              Create role
+            </Link>
+          </Button>
+        }
+        title="Roles"
+      />
+      <div className="w-full min-w-0 border-b">
+        <Table aria-label={`${result.workspace.name} Roles`} className="min-w-4xl">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Scope</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead className="text-right">Users</TableHead>
+              <TableHead className="text-right">Teams</TableHead>
+              <TableHead className="text-right">Permissions</TableHead>
+              <TableHead>Dependencies</TableHead>
+              <TableHead>Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {result.roles.length ? (
+              result.roles.map((role) => (
                 <TableRow key={role.id}>
                   <TableCell>
                     <Link
@@ -76,9 +76,7 @@ export default async function WorkspaceRolesPage({
                     <ScopeBadge scope="Workspace" />
                   </TableCell>
                   <TableCell>
-                    <Badge variant={role.immutable ? "secondary" : "outline"}>
-                      {role.immutable ? "System" : "Custom"}
-                    </Badge>
+                    <Badge variant="plain">{role.immutable ? "System" : "Custom"}</Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{role.users}</TableCell>
                   <TableCell className="text-right tabular-nums">{role.teams}</TableCell>
@@ -87,20 +85,26 @@ export default async function WorkspaceRolesPage({
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={role.dependencyState === "Needs repair" ? "warning" : "outline"}
+                      variant={role.dependencyState === "Needs repair" ? "warningPlain" : "plain"}
                     >
                       {role.dependencyState}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <time dateTime={role.updatedAt}>{formatTimestampWithAge(role.updatedAt)}</time>
+                    <time dateTime={role.updatedAt}>{formatAge(role.updatedAt)}</time>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell className="h-24 text-center" colSpan={8}>
+                  No roles
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

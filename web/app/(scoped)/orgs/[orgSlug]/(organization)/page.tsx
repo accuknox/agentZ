@@ -27,7 +27,7 @@ export default async function OrganizationPage({
 
   return (
     <AdministrationState
-      description="No Workspace access is assigned to your account in this Organisation."
+      description="No workspace access is assigned to your account."
       kind="empty"
       title="No Workspace access"
     />

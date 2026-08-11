@@ -15,7 +15,7 @@ export default async function SocialAdmissionPage({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <AdministrationPageHeader title="Social Admission" />
+      <AdministrationPageHeader title="Social admission" />
       <SocialAdmissionForm data={data} orgSlug={orgSlug} />
     </div>
   )

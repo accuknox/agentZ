@@ -64,10 +64,10 @@ export default async function WorkspaceLayout({
             <AdministrationState
               description={
                 disabled
-                  ? "Your Organisation Membership is disabled. Product resources remain unavailable."
+                  ? "Your organization membership is disabled."
                   : noAccessOrganization
-                    ? "Your Organisation Membership is active, but no Role or Team currently grants workspace access."
-                    : "Your Organisation access was revoked. Choose another accessible Organisation."
+                    ? "No role or team grants workspace access."
+                    : "Your organization access was revoked."
               }
               kind={noAccessOrganization ? "empty" : "forbidden"}
               title={

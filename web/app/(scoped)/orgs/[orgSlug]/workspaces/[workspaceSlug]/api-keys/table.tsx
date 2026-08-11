@@ -201,7 +201,7 @@ function APIKeyStatus({ apiKey }: { apiKey: WorkspaceAPIKey }) {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge className="cursor-default" variant="destructivePlain">
+            <Badge className="cursor-default" variant="destructive">
               Revoked
             </Badge>
           </TooltipTrigger>
@@ -213,12 +213,12 @@ function APIKeyStatus({ apiKey }: { apiKey: WorkspaceAPIKey }) {
     )
   }
   if (!apiKey.enabled) {
-    return <Badge variant="plain">Disabled</Badge>
+    return <Badge variant="pending">Disabled</Badge>
   }
   if (apiKey.expired) {
-    return <Badge variant="plain">Expired</Badge>
+    return <Badge variant="pending">Expired</Badge>
   }
-  return <Badge variant="successPlain">Active</Badge>
+  return <Badge variant="success">Active</Badge>
 }
 
 function DeleteAPIKeyButton({

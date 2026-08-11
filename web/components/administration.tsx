@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ComponentProps, ReactNode } from "react"
 import { CircleAlert, Clock3, FolderSearch, LoaderCircle, LockKeyhole, Trash2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import {
   Empty,
   EmptyContent,
@@ -61,42 +62,28 @@ export function ScopeBadge({ scope }: { scope: AdministrationScope["kind"] }) {
 
 export function StatusBadge({ status }: { status: AdministrationStatus }) {
   if (status === "ready") {
-    return (
-      <span className="text-primary inline-flex items-center gap-1.5 text-sm">
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-        Ready
-      </span>
-    )
+    return <Badge variant="success">Ready</Badge>
   }
 
   if (status === "provisioning") {
     return (
-      <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
-        <LoaderCircle
-          aria-hidden="true"
-          className="motion-safe:animate-spin"
-          data-icon="inline-start"
-        />
+      <Badge variant="pending">
+        <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />
         Provisioning
-      </span>
+      </Badge>
     )
   }
 
   if (status === "deleting") {
     return (
-      <span className="text-warning inline-flex items-center gap-1.5 text-sm">
-        <Trash2 aria-hidden="true" data-icon="inline-start" />
+      <Badge variant="warning">
+        <Trash2 aria-hidden="true" />
         Deleting
-      </span>
+      </Badge>
     )
   }
 
-  return (
-    <span className="text-destructive inline-flex items-center gap-1.5 text-sm">
-      <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-      Failed
-    </span>
-  )
+  return <Badge variant="destructive">Failed</Badge>
 }
 
 export type AccessSource =

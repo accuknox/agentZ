@@ -67,10 +67,10 @@ function AccessTable({
                   <Badge
                     variant={
                       row.status === "active"
-                        ? "successPlain"
+                        ? "success"
                         : row.status === "disabled"
-                          ? "destructivePlain"
-                          : "warningPlain"
+                          ? "destructive"
+                          : "warning"
                     }
                   >
                     {row.status}

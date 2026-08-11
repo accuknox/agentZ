@@ -67,10 +67,10 @@ export default async function DestructiveOperationsPage({
                     <Badge
                       variant={
                         row.state === "succeeded"
-                          ? "successPlain"
+                          ? "success"
                           : row.state === "failed"
-                            ? "destructivePlain"
-                            : "warningPlain"
+                            ? "destructive"
+                            : "warning"
                       }
                     >
                       {row.state}

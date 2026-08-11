@@ -237,7 +237,7 @@ function APIKeys({ data }: { data: MemberAdministration }) {
                   <TableCell className="font-medium">{key.name}</TableCell>
                   <TableCell>{key.workspace}</TableCell>
                   <TableCell>
-                    <Badge variant={key.revokedAt ? "destructivePlain" : "successPlain"}>
+                    <Badge variant={key.revokedAt ? "destructive" : "success"}>
                       {key.revokedAt ? "Revoked" : "Active"}
                     </Badge>
                   </TableCell>

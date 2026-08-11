@@ -168,6 +168,7 @@ export function WorkspaceForm({
                   const parsed = zCreateWorkspaceRequest.safeParse({
                     admin_member_ids: admins,
                     name,
+                    selected_organization_resources: inherited,
                   })
                   if (!parsed.success) {
                     setClientErrors(parsed.error.flatten().fieldErrors)

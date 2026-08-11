@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -47,7 +48,9 @@ export default async function TeamMembersPage({
                 <TableCell className="max-w-72 truncate" title={member.email}>
                   {member.email}
                 </TableCell>
-                <TableCell>Active</TableCell>
+                <TableCell>
+                  <Badge variant="success">Active</Badge>
+                </TableCell>
               </TableRow>
             ))
           ) : (

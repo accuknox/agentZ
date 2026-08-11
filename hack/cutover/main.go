@@ -14,22 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package subcommands
+package main
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/urfave/cli/v3"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/accuknox/agentz/internal/cutover"
 )
 
-// CutoverCmd inventories and migrates legacy Tenants into Default Workspaces.
-var CutoverCmd = &cli.Command{
+var cmd = &cli.Command{
 	Name:  "cutover",
 	Usage: "Migrate legacy Tenants into Default Workspaces",
 	Flags: []cli.Flag{
@@ -105,7 +103,7 @@ var CutoverCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		report, err := cutover.Run(ctx, cutover.Config{
+		report, err := Run(ctx, Config{
 			PostgresDSN:      c.String("postgres-dsn"),
 			Kubeconfig:       c.String("kubeconfig"),
 			OpenBaoAddress:   c.String("openbao-address"),
@@ -128,4 +126,12 @@ var CutoverCmd = &cli.Command{
 		enc.SetIndent("", "  ")
 		return enc.Encode(report)
 	},
+}
+
+func main() {
+	err := cmd.Run(context.Background(), os.Args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

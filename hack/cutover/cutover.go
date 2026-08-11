@@ -1,5 +1,4 @@
-// Package cutover migrates legacy Tenant state into Default Workspaces.
-package cutover
+package main
 
 import (
 	"context"
@@ -35,7 +34,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	cutoverdb "github.com/accuknox/agentz/internal/cutover/db"
+	cutoverdb "github.com/accuknox/agentz/hack/cutover/db"
 	internalmcp "github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"

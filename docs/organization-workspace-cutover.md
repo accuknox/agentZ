@@ -6,8 +6,9 @@ contracted application routes and authorization model.
 
 ## Preconditions
 
-1. Deploy the release containing the `agentz cutover` command and database
-   schema, but do not deploy the contracted gateway, manager, or web processes.
+1. Check out the release revision containing the cutover tool and database
+   schema, and enter its Go development environment. Deploy the schema, but do
+   not deploy the contracted gateway, manager, or web processes.
 2. Confirm the Kubernetes context, PostgreSQL database, OpenBao mount, and S3
    bucket all identify the same environment.
 3. Schedule maintenance and stop every AgentZ writer: web, gateway, manager,
@@ -31,11 +32,12 @@ Store the manifest outside the affected services. Do not put credentials in it.
 ## Dry run
 
 Export the `AGENTZ_CUTOVER_*` variables shown by
-`agentz cutover --help`, including `AGENTZ_CUTOVER_MAINTENANCE_MODE=true` and
+`go run ./hack/cutover --help`, including
+`AGENTZ_CUTOVER_MAINTENANCE_MODE=true` and
 the verified backup manifest path. Then run without `--commit`:
 
 ```sh
-agentz cutover | tee /tmp/agentz-cutover-dry-run.json
+go run ./hack/cutover | tee /tmp/agentz-cutover-dry-run.json
 ```
 
 The command must exit successfully. Review every Tenant's Organisation,
@@ -46,10 +48,11 @@ manifest if any writer ran after the backup was taken.
 
 ## Commit
 
-Run the same binary and environment with the same verified manifest:
+Run from the same repository revision and environment with the same verified
+manifest:
 
 ```sh
-agentz cutover --commit | tee /tmp/agentz-cutover-commit.json
+go run ./hack/cutover --commit | tee /tmp/agentz-cutover-commit.json
 ```
 
 The command serializes cutovers with a PostgreSQL advisory lock and records a
@@ -80,7 +83,8 @@ Verify before ending maintenance:
 - Tenant and Workspace resources are Ready and use deterministic namespaces;
 - migrated Agents, Workflows, Secrets, Skills, API keys, telemetry, OpenBao
   data, and S3 objects are available only in the Default Workspace;
-- a second `agentz cutover --commit` returns the same activated inventory;
+- a second `go run ./hack/cutover --commit` returns the same activated
+  inventory;
 - legacy scope-less URLs and JWTs are rejected;
 - gateway authorization reflects Role or Team revocation immediately.
 

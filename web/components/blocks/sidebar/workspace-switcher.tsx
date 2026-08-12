@@ -4,7 +4,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Boxes, Building2, Check, ChevronsUpDown, Plus } from "lucide-react"
+import { Boxes, Building2, ChevronsUpDown, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -136,9 +136,6 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                             {workspace.state}
                           </span>
                         </span>
-                        {workspace.id === active?.id ? (
-                          <Check aria-label="Current Workspace" className="text-primary size-4" />
-                        ) : null}
                       </CommandItem>
                     ))}
                   </CommandGroup>

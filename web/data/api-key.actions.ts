@@ -57,9 +57,9 @@ export async function createAPIKeyFormAction(
   }
 
   const access = await getWorkspaceAPIKeyAccess(scope.workspaceId)
-  if (!access?.capabilities.create) {
+  if (!access) {
     return {
-      error: { code: "FORBIDDEN", message: "You cannot create API keys in this Workspace." },
+      error: { code: "FORBIDDEN", message: "You cannot access this Workspace." },
     }
   }
 
@@ -188,8 +188,8 @@ export async function createAPIKeyFormAction(
         .limit(1)
       if (!member) throw new Error("active Membership is required")
       const currentAccess = await getWorkspaceAPIKeyAccess(scope.workspaceId)
-      if (!currentAccess?.capabilities.create) {
-        throw new Error("API key creation authority was revoked")
+      if (!currentAccess) {
+        throw new Error("Workspace access was revoked")
       }
 
       const targetAgents =
@@ -277,13 +277,6 @@ export async function deleteAPIKeyFormAction(
     redirect(signInURL({ error: "session_expired" }))
   }
 
-  const access = await getWorkspaceAPIKeyAccess(scope.workspaceId)
-  if (!access?.capabilities.delete) {
-    return {
-      error: { code: "FORBIDDEN", message: "You cannot revoke API keys in this Workspace." },
-    }
-  }
-
   const authContext = await currentGatewayAuthContext()
   const result = await getDB().transaction(async (tx) => {
     const [key] = await tx
@@ -306,11 +299,7 @@ export async function deleteAPIKeyFormAction(
     if (!key) {
       return "not-found" as const
     }
-    const currentAccess = await getWorkspaceAPIKeyAccess(scope.workspaceId)
-    if (!currentAccess?.capabilities.delete) {
-      return "forbidden" as const
-    }
-    if (!currentAccess.canAdminister && key.creatorUserId !== authContext.userId) {
+    if (key.creatorUserId !== authContext.userId) {
       return "forbidden" as const
     }
     if (key.revokedAt) {
@@ -322,7 +311,7 @@ export async function deleteAPIKeyFormAction(
       .update(schema.apiKeyScopes)
       .set({
         revokedAt: now,
-        revokedReason: "Revoked from Workspace API key settings.",
+        revokedReason: "Revoked from personal API key settings.",
       })
       .where(eq(schema.apiKeyScopes.apiKeyId, parsed.data.keyID))
     await tx
@@ -365,4 +354,28 @@ export async function deleteAPIKeyFormAction(
 
   updateTag(apiKeysTag)
   return { success: true }
+}
+
+export async function deleteUserAPIKeyFormAction(
+  state: DeleteAPIKeyFormState,
+  formData: FormData
+): Promise<DeleteAPIKeyFormState> {
+  const parsed = deleteAPIKeyFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) return { error: { code: "INVALID_FORM", message: "Invalid API key." } }
+
+  const auth = await currentGatewayAuthContext()
+  const [scope] = await getDB()
+    .select({ workspaceId: schema.apiKeyScopes.workspaceId })
+    .from(schema.apiKeyScopes)
+    .where(
+      and(
+        eq(schema.apiKeyScopes.apiKeyId, parsed.data.keyID),
+        eq(schema.apiKeyScopes.organizationId, auth.organizationId),
+        eq(schema.apiKeyScopes.creatorUserId, auth.userId)
+      )
+    )
+    .limit(1)
+  if (!scope) return { error: { code: "INVALID_FORM", message: "Invalid API key." } }
+
+  return deleteAPIKeyFormAction({ workspaceId: scope.workspaceId }, state, formData)
 }

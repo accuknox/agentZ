@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 
 const settingsTabs = [
   { href: "/settings/account", label: "Account" },
+  { href: "/settings/api-keys", label: "API Keys" },
   { href: "/settings/sessions", label: "Sessions" },
   { href: "/settings/preferences", label: "Preferences" },
 ] as const satisfies readonly RouteTab[]

@@ -4,7 +4,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Boxes, Building2, ChevronsUpDown, Plus } from "lucide-react"
+import { Boxes, Building2, Check, ChevronsUpDown, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -93,16 +93,30 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
             </PopoverTrigger>
             <PopoverContent
               align="start"
-              className="w-80 max-w-[calc(100vw-2rem)] p-0"
+              className="w-88 max-w-[calc(100vw-2rem)] overflow-hidden p-0"
               sideOffset={8}
             >
+              <div className="border-b px-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
+                    <Building2 aria-hidden="true" className="size-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium" title={scope.organization.name}>
+                      {scope.organization.name}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">Organisation</span>
+                  </span>
+                </div>
+              </div>
               <Command>
                 <CommandInput placeholder="Search Workspaces…" />
-                <CommandList>
+                <CommandList className="max-h-72">
                   <CommandEmpty>No matching Workspaces.</CommandEmpty>
-                  <CommandGroup heading="Workspaces">
+                  <CommandGroup heading="Switch Workspace">
                     {scope.workspaces.map((workspace) => (
                       <CommandItem
+                        className="h-auto cursor-pointer gap-3 rounded-md px-2 py-2.5"
                         key={workspace.id}
                         data-checked={workspace.id === active?.id}
                         value={`${workspace.name} ${workspace.slug}`}
@@ -111,30 +125,48 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                           router.push(`${root}/workspaces/${workspace.slug}` as Route)
                         }}
                       >
-                        <Boxes aria-hidden="true" />
-                        <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
-                        <span className="text-muted-foreground text-xs capitalize">
-                          {workspace.state}
+                        <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
+                          <Boxes aria-hidden="true" className="size-4" />
                         </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium" title={workspace.name}>
+                            {workspace.name}
+                          </span>
+                          <span className="text-muted-foreground block text-xs capitalize">
+                            {workspace.state}
+                          </span>
+                        </span>
+                        {workspace.id === active?.id ? (
+                          <Check aria-label="Current Workspace" className="text-primary size-4" />
+                        ) : null}
                       </CommandItem>
                     ))}
                   </CommandGroup>
                 </CommandList>
               </Command>
               {scope.canEnterOrganization || scope.canCreateWorkspace ? <Separator /> : null}
-              <div className="flex flex-col gap-1 p-1">
+              <div className="flex flex-col gap-1 p-1.5">
                 {scope.canEnterOrganization ? (
-                  <Button asChild className="justify-start" variant="ghost">
+                  <Button asChild className="h-auto justify-start gap-3 px-2 py-2" variant="ghost">
                     <Link href={`${root}/workspaces` as Route} onClick={close}>
-                      <Building2 />
-                      Organisation Workspaces
+                      <span className="bg-muted flex size-8 items-center justify-center rounded-md">
+                        <Building2 aria-hidden="true" className="size-4" />
+                      </span>
+                      <span className="text-left">
+                        <span className="block">Manage Workspaces</span>
+                        <span className="text-muted-foreground block text-xs font-normal">
+                          Organisation administration
+                        </span>
+                      </span>
                     </Link>
                   </Button>
                 ) : null}
                 {scope.canCreateWorkspace ? (
-                  <Button asChild className="justify-start" variant="ghost">
+                  <Button asChild className="h-auto justify-start gap-3 px-2 py-2" variant="ghost">
                     <Link href={`${root}/workspaces/new` as Route} onClick={close}>
-                      <Plus />
+                      <span className="bg-muted flex size-8 items-center justify-center rounded-md">
+                        <Plus aria-hidden="true" className="size-4" />
+                      </span>
                       Create Workspace
                     </Link>
                   </Button>

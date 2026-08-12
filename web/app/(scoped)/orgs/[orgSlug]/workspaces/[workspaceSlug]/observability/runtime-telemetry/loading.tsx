@@ -12,7 +12,7 @@ export default function Loading() {
       <div className="bg-muted/20 h-15 border-b" />
       <Tabs value="process" className="flex flex-1 flex-col">
         <div className="border-b px-4 sm:px-6">
-          <TabsList variant="line" className="h-10 gap-4">
+          <TabsList className="h-8 gap-1">
             <div className="flex h-6 items-center gap-4">
               <Skeleton className="h-6 w-20" />
               <Skeleton className="h-6 w-16" />

@@ -6,15 +6,11 @@ import {
   Building2,
   Cable,
   CircleUserRound,
-  KeyRound,
-  LayoutDashboard,
-  Network,
+  CloudCog,
   ScrollText,
   Search,
   Settings2,
-  Share2,
   ShieldCheck,
-  Trash2,
   UserRoundCheck,
   UsersRound,
 } from "lucide-react"
@@ -60,7 +56,6 @@ export type SidebarScope =
   | ({ kind: "organization" } & WorkspaceNavigationScope)
   | ({
       kind: "workspace"
-      apiKeyCapabilities: ResourceCapabilities
       workspace: Workspace
       observabilityCapabilities: ResourceCapabilities
     } & WorkspaceNavigationScope)
@@ -102,7 +97,6 @@ export function AppSidebar({
         {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
           <>
             <WorkspaceNavigation
-              apiKeyCapabilities={scope.apiKeyCapabilities}
               mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
               inferencePoolCapabilities={scope.inferencePoolCapabilities}
               inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
@@ -134,7 +128,6 @@ export function AppSidebar({
 }
 
 function WorkspaceNavigation({
-  apiKeyCapabilities,
   mcpConnectionCapabilities,
   inferencePoolCapabilities,
   inferenceProviderCapabilities,
@@ -144,7 +137,6 @@ function WorkspaceNavigation({
   sandboxCapabilities,
   workspace,
 }: {
-  apiKeyCapabilities: ResourceCapabilities
   mcpConnectionCapabilities: ResourceCapabilities
   inferencePoolCapabilities: ResourceCapabilities
   inferenceProviderCapabilities: ResourceCapabilities
@@ -169,31 +161,12 @@ function WorkspaceNavigation({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarNavigationLink
-              exact
-              href={`/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route}
-              label="Overview"
-            >
-              <LayoutDashboard aria-hidden="true" />
-            </SidebarNavigationLink>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarNavigationLink
               href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/agents` as Route}
               label="Agents"
             >
               <Bot aria-hidden="true" />
             </SidebarNavigationLink>
           </SidebarMenuItem>
-          {apiKeyCapabilities.read ? (
-            <SidebarMenuItem>
-              <SidebarNavigationLink
-                href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/api-keys` as Route}
-                label="API Keys"
-              >
-                <KeyRound aria-hidden="true" />
-              </SidebarNavigationLink>
-            </SidebarMenuItem>
-          ) : null}
           {organization.superadmin || workspace.can_administer ? (
             <>
               <SidebarMenuItem>
@@ -223,7 +196,7 @@ function WorkspaceNavigation({
             {observabilityCapabilities.read ? (
               <SidebarMenuItem>
                 <SidebarNavigationLink
-                  label="Observability"
+                  label="Lens"
                   match={`/orgs/${organization.slug}/workspaces/${workspace.slug}/observability`}
                   href={
                     `/orgs/${organization.slug}/workspaces/${workspace.slug}/observability/traces` as Route
@@ -272,33 +245,6 @@ function WorkspaceNavigation({
                 showProviders={inferenceProviderCapabilities.read}
               />
             ) : null}
-          </SidebarMenu>
-        </SidebarGroup>
-      ) : null}
-      {organization.superadmin ? (
-        <SidebarGroup className="px-2 py-2">
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarNavigationLink
-                href={
-                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/settings/inherited` as Route
-                }
-                label="Inherited Resources"
-              >
-                <Share2 aria-hidden="true" />
-              </SidebarNavigationLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarNavigationLink
-                href={
-                  `/orgs/${organization.slug}/workspaces/${workspace.slug}/settings/delete` as Route
-                }
-                label="Delete Workspace"
-              >
-                <Trash2 aria-hidden="true" />
-              </SidebarNavigationLink>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
       ) : null}
@@ -392,11 +338,6 @@ function OrganizationNavigation({
                     <ShieldCheck aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarNavigationLink href={`${root}/access` as Route} label="Access">
-                    <Network aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
               </>
             ) : null}
           </SidebarMenu>
@@ -428,7 +369,14 @@ function OrganizationNavigation({
               </SidebarMenuItem>
             ) : null}
             {inferenceProviderCapabilities.read ? (
-              <NavInference rootPath={root} showPools={false} showProviders />
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={`${root}/inference/providers` as Route}
+                  label="Inference Providers"
+                >
+                  <CloudCog aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
             ) : null}
           </SidebarMenu>
         </SidebarGroup>
@@ -448,14 +396,6 @@ function OrganizationNavigation({
             <SidebarMenuItem>
               <SidebarNavigationLink href={`${root}/audit` as Route} label="Audit">
                 <Activity aria-hidden="true" />
-              </SidebarNavigationLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarNavigationLink
-                href={`${root}/destructive-operations` as Route}
-                label="Operations"
-              >
-                <Trash2 aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>
             <SidebarMenuItem>

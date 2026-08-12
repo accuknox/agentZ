@@ -33,7 +33,6 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/accuknox/agentz/internal/inference"
-	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -97,13 +96,13 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg san
 		agt.Spec.Telemetry.TraceEndpoint,
 	)...)
 	if envCfg.MCPURL != "" {
-		egress = append(egress, gatewayEgressRule(envCfg.SandboxNamespace, mcp.GatewayName))
+		egress = append(egress, serviceEgressRules(envCfg.MCPURL)...)
 	}
-	inferenceNamespace := agt.Namespace
 	if envCfg.InferenceURL != "" {
-		inferenceNamespace = envCfg.SandboxNamespace
+		egress = append(egress, serviceEgressRules(envCfg.InferenceURL)...)
+	} else {
+		egress = append(egress, gatewayEgressRule(agt.Namespace, inference.GatewayName))
 	}
-	egress = append(egress, gatewayEgressRule(inferenceNamespace, inference.GatewayName))
 	egress = append(egress, sinjectorEgressRule(agt))
 
 	return &ciliumapi.Rule{
@@ -377,20 +376,12 @@ func serviceEgressRules(endpoints ...string) []ciliumapi.EgressRule {
 		seen[target] = struct{}{}
 		rules = append(rules, ciliumapi.EgressRule{
 			EgressCommonRule: ciliumapi.EgressCommonRule{
-				ToEndpoints: []ciliumapi.EndpointSelector{
-					ciliumapi.NewESFromLabels(
-						ciliumlabels.NewLabel(
-							"io.kubernetes.pod.namespace",
-							target.namespace,
-							ciliumlabels.LabelSourceK8s,
-						),
-						ciliumlabels.NewLabel(
-							"app.kubernetes.io/name",
-							target.name,
-							ciliumlabels.LabelSourceK8s,
-						),
-					),
-				},
+				ToServices: []ciliumapi.Service{{
+					K8sService: &ciliumapi.K8sServiceNamespace{
+						ServiceName: target.name,
+						Namespace:   target.namespace,
+					},
+				}},
 			},
 			ToPorts: ciliumapi.PortRules{{
 				Ports: []ciliumapi.PortProtocol{{

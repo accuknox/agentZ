@@ -119,8 +119,19 @@ func TestReconcileDeletionFindsOrganisationSandboxAgentAcrossWorkspaces(t *testi
 		).
 		Build()
 	r := &Reconciler{Client: k8sClient, Scheme: scheme}
+	referencing, err := r.referencingAgents(context.Background(), sandbox)
+	if err != nil {
+		t.Fatalf("referencingAgents() error = %v", err)
+	}
+	if len(referencing) != 1 || referencing[0].Namespace != workspaceNamespace {
+		t.Fatalf(
+			"referencingAgents() = %#v, want the Organisation Agent in %q",
+			referencing,
+			workspaceNamespace,
+		)
+	}
 
-	_, err := r.Reconcile(context.Background(), ctrl.Request{
+	_, err = r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: client.ObjectKeyFromObject(sandbox),
 	})
 	if err == nil || !strings.Contains(err.Error(), `agent "organisation-agent"`) {

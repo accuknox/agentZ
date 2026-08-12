@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Plus } from "lucide-react"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Button } from "@/components/ui/button"
+import { RoutedTableRow } from "@/components/routed-table-row"
 import {
   Table,
   TableBody,
@@ -47,15 +48,15 @@ export default async function TeamsPage({ params }: { params: Promise<{ orgSlug:
           <TableBody>
             {data.teams.length ? (
               data.teams.map((team) => (
-                <TableRow key={team.id}>
+                <RoutedTableRow
+                  aria-label={`Open ${team.name}`}
+                  href={`${root}/${team.id}` as Route}
+                  key={team.id}
+                >
                   <TableCell className="max-w-72">
-                    <Link
-                      className="block truncate font-medium hover:underline"
-                      href={`${root}/${team.id}` as Route}
-                      title={team.name}
-                    >
+                    <span className="block truncate font-medium" title={team.name}>
                       {team.name}
-                    </Link>
+                    </span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{team.memberCount}</TableCell>
                   <TableCell className="text-right tabular-nums">{team.roleCount}</TableCell>
@@ -65,7 +66,7 @@ export default async function TeamsPage({ params }: { params: Promise<{ orgSlug:
                   <TableCell>
                     <time dateTime={team.updatedAt}>{formatAge(team.updatedAt)}</time>
                   </TableCell>
-                </TableRow>
+                </RoutedTableRow>
               ))
             ) : (
               <TableRow>

@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 
@@ -283,7 +283,8 @@ export async function getEffectiveAccessDetail(orgSlug: string, memberId: string
         .where(
           and(
             eq(schema.memberRoles.organizationId, org.id),
-            eq(schema.memberRoles.memberId, member.id)
+            eq(schema.memberRoles.memberId, member.id),
+            ne(schema.permissionGrants.resource, "api_key")
           )
         )
         .orderBy(asc(schema.roleScopes.displayName), asc(schema.permissionGrants.resource))
@@ -322,7 +323,11 @@ export async function getEffectiveAccessDetail(orgSlug: string, memberId: string
           )
         )
         .where(
-          and(eq(schema.teams.organizationId, org.id), eq(schema.teamMembers.userId, member.userId))
+          and(
+            eq(schema.teams.organizationId, org.id),
+            eq(schema.teamMembers.userId, member.userId),
+            ne(schema.permissionGrants.resource, "api_key")
+          )
         )
         .orderBy(asc(schema.teams.name), asc(schema.roleScopes.displayName))
         .limit(2000),
@@ -645,7 +650,13 @@ export async function getTeamEffectiveAccessDetail(orgSlug: string, teamId: stri
           eq(schema.permissionGrants.organizationId, schema.teamRoles.organizationId)
         )
       )
-      .where(and(eq(schema.teamRoles.teamId, team.id), eq(schema.teamRoles.organizationId, org.id)))
+      .where(
+        and(
+          eq(schema.teamRoles.teamId, team.id),
+          eq(schema.teamRoles.organizationId, org.id),
+          ne(schema.permissionGrants.resource, "api_key")
+        )
+      )
       .orderBy(asc(schema.roleScopes.displayName), asc(schema.permissionGrants.resource))
       .limit(2000),
   ])

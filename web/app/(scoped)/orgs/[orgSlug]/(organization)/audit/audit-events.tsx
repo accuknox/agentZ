@@ -1,7 +1,7 @@
 import type { Route } from "next"
-import Link from "next/link"
 import { z } from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
+import { RoutedTableRow } from "@/components/routed-table-row"
 import {
   Table,
   TableBody,
@@ -89,7 +89,12 @@ export function AuditEvents({
           <TableBody>
             {audit.events.length ? (
               audit.events.map((event) => (
-                <TableRow key={event.id}>
+                <RoutedTableRow
+                  aria-label={`View audit event: ${event.action}`}
+                  data-audit-event-id={event.id}
+                  href={`${basePath}/${event.id}` as Route}
+                  key={event.id}
+                >
                   <TableCell className="min-w-36">
                     <time className="text-muted-foreground text-xs" dateTime={event.created_at}>
                       {formatAge(event.created_at)}
@@ -105,15 +110,9 @@ export function AuditEvents({
                     <span className="text-muted-foreground text-xs">{event.actor.type}</span>
                   </TableCell>
                   <TableCell className="min-w-48">
-                    <Link
-                      aria-label={`View audit event: ${event.action}`}
-                      className="font-mono text-sm font-medium underline-offset-4 hover:underline"
-                      data-audit-event-id={event.id}
-                      href={`${basePath}/${event.id}` as Route}
-                      scroll={false}
-                    >
+                    <span className="font-mono text-sm font-medium">
                       {event.action}
-                    </Link>
+                    </span>
                     <span className="text-muted-foreground mt-1 block text-xs md:hidden">
                       {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
                     </span>
@@ -137,7 +136,7 @@ export function AuditEvents({
                   <TableCell>
                     <ResultBadge result={event.result} />
                   </TableCell>
-                </TableRow>
+                </RoutedTableRow>
               ))
             ) : (
               <TableRow>

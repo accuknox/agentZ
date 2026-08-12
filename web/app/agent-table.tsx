@@ -1,5 +1,6 @@
 "use client"
 
+import type { Route } from "next"
 import * as React from "react"
 import {
   flexRender,
@@ -11,6 +12,7 @@ import {
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
 import { Button } from "@/components/ui/button"
+import { RoutedTableRow } from "@/components/routed-table-row"
 import {
   Table,
   TableBody,
@@ -116,7 +118,12 @@ export function AgentTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <RoutedTableRow
+                  aria-label={`Open ${row.original.name} settings`}
+                  data-state={row.getIsSelected() && "selected"}
+                  href={`${actionScope.basePath}/${encodeURIComponent(row.original.name)}` as Route}
+                  key={row.id}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -125,7 +132,7 @@ export function AgentTable({
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
-                </TableRow>
+                </RoutedTableRow>
               ))
             ) : (
               <TableRow>

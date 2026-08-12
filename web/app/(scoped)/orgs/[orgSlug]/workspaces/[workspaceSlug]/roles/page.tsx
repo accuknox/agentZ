@@ -8,6 +8,7 @@ import {
 } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { RoutedTableRow } from "@/components/routed-table-row"
 import {
   Table,
   TableBody,
@@ -66,14 +67,13 @@ export default async function WorkspaceRolesPage({
           <TableBody>
             {result.roles.length ? (
               result.roles.map((role) => (
-                <TableRow key={role.id}>
+                <RoutedTableRow
+                  aria-label={`Open ${role.name}`}
+                  href={`${root}/${role.id}/permissions` as Route}
+                  key={role.id}
+                >
                   <TableCell>
-                    <Link
-                      className="font-medium underline-offset-4 hover:underline"
-                      href={`${root}/${role.id}/permissions` as Route}
-                    >
-                      {role.name}
-                    </Link>
+                    <span className="font-medium">{role.name}</span>
                   </TableCell>
                   <TableCell>
                     <ScopeBadge scope="Workspace" />
@@ -96,7 +96,7 @@ export default async function WorkspaceRolesPage({
                   <TableCell>
                     <time dateTime={role.updatedAt}>{formatAge(role.updatedAt)}</time>
                   </TableCell>
-                </TableRow>
+                </RoutedTableRow>
               ))
             ) : (
               <TableRow>

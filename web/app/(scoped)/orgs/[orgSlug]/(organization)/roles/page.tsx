@@ -4,6 +4,7 @@ import { Plus } from "lucide-react"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { RoutedTableRow } from "@/components/routed-table-row"
 import {
   Table,
   TableBody,
@@ -53,14 +54,13 @@ export default async function RolesPage({ params }: { params: Promise<{ orgSlug:
           <TableBody>
             {result.roles.length ? (
               result.roles.map((role) => (
-                <TableRow key={role.id}>
+                <RoutedTableRow
+                  aria-label={`Open ${role.name}`}
+                  href={`/orgs/${orgSlug}/roles/${role.id}/permissions` as Route}
+                  key={role.id}
+                >
                   <TableCell>
-                    <Link
-                      className="font-medium underline-offset-4 hover:underline"
-                      href={`/orgs/${orgSlug}/roles/${role.id}/permissions` as Route}
-                    >
-                      {role.name}
-                    </Link>
+                    <span className="font-medium">{role.name}</span>
                   </TableCell>
                   <TableCell>
                     <Badge variant="plain">{role.immutable ? "System" : "Custom"}</Badge>
@@ -80,7 +80,7 @@ export default async function RolesPage({ params }: { params: Promise<{ orgSlug:
                   <TableCell>
                     <time dateTime={role.updatedAt}>{formatAge(role.updatedAt)}</time>
                   </TableCell>
-                </TableRow>
+                </RoutedTableRow>
               ))
             ) : (
               <TableRow>

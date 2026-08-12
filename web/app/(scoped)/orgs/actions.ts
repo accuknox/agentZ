@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } from "@/data/cache"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
-import { deleteWorkspace, retryDestructiveOperation } from "@/data/operations"
+import { deleteWorkspace } from "@/data/operations"
 import {
   applyInvitation,
   cancelInvitation,
@@ -31,6 +31,7 @@ import {
   provisionWorkspace,
   replaceWorkspaceInheritedResourceSelection,
   retryWorkspaceProvisioning,
+  updateWorkspaceName,
 } from "@/data/workspaces"
 import { schema } from "@/db"
 import { getEnv } from "@/lib/env"
@@ -121,11 +122,6 @@ const socialAdmissionFormSchema = z
     }
   })
 
-export async function retryDestructiveOperationAction(orgSlug: string, jobId: string) {
-  const result = await retryDestructiveOperation(orgSlug, jobId)
-  if (!("error" in result)) revalidatePath(`/orgs/${orgSlug}/destructive-operations`)
-}
-
 export async function deleteWorkspaceAction(
   orgSlug: string,
   workspaceSlug: string,
@@ -138,7 +134,7 @@ export async function deleteWorkspaceAction(
       confirmation: formData.get("confirmation"),
       fingerprint: formData.get("fingerprint"),
     })
-  const root = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/settings/delete`
+  const root = `/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/delete`
   if (!parsed.success) redirect(`${root}?error=invalid` as Route)
   const result = await deleteWorkspace(
     orgSlug,
@@ -148,7 +144,7 @@ export async function deleteWorkspaceAction(
   )
   if ("error" in result) redirect(`${root}?error=${result.error}` as Route)
   revalidatePath(`/orgs/${orgSlug}/workspaces`)
-  redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
+  redirect(`/orgs/${orgSlug}/workspaces` as Route)
 }
 
 export type RenameOrganizationFormState = {
@@ -169,6 +165,40 @@ export type CreateWorkspaceFormState = {
     admin_member_ids?: string[]
     name?: string[]
   }
+}
+
+export type UpdateWorkspaceFormState = {
+  error?: string
+  saved?: boolean
+}
+
+export async function updateWorkspaceAction(
+  orgSlug: string,
+  workspaceId: string,
+  _state: UpdateWorkspaceFormState,
+  formData: FormData
+): Promise<UpdateWorkspaceFormState> {
+  const parsed = z
+    .string()
+    .trim()
+    .min(1, "Enter a Workspace name.")
+    .max(100, "Use 100 characters or fewer.")
+    .safeParse(formData.get("name"))
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message }
+
+  const result = await updateWorkspaceName(orgSlug, workspaceId, parsed.data)
+  if ("error" in result) {
+    return {
+      error:
+        result.error === "not-found"
+          ? "This Workspace no longer exists."
+          : "You cannot edit this Workspace.",
+    }
+  }
+  revalidatePath(`/orgs/${orgSlug}/workspaces`)
+  revalidatePath(`/orgs/${orgSlug}/workspaces/manage`, "layout")
+  revalidatePath(`/orgs/${orgSlug}/workspaces`, "layout")
+  return { saved: true }
 }
 
 export type RoleFormState = {
@@ -279,7 +309,7 @@ export async function removeMembershipAction(
     parsed.data.fingerprint
   )
   if ("error" in result) redirect(`${root}&error=${result.error}` as Route)
-  redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
+  redirect(`/orgs/${orgSlug}/users` as Route)
 }
 
 export async function socialAdmissionAction(
@@ -441,7 +471,7 @@ export async function replaceWorkspaceInheritanceAction(
     skill: skillsTag,
   }
   updateTag(resourceTag[resourceType])
-  revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/settings/inherited`, "layout")
+  revalidatePath(`/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/inherited`, "layout")
   return { saved: true }
 }
 
@@ -545,9 +575,6 @@ export async function organizationRoleFormAction(
   updateTag(`organization:${result.organizationId}:role:${result.roleId}`)
   updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/roles`)
-  if (result.cleanupId) {
-    redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
-  }
   redirect(`/orgs/${orgSlug}/roles/${result.roleId}/permissions` as Route)
 }
 
@@ -693,9 +720,6 @@ export async function workspaceRoleFormAction(
   )
   updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
-  if (result.cleanupId) {
-    redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
-  }
   redirect(
     `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles/${result.roleId}/permissions` as Route
   )
@@ -843,5 +867,5 @@ export async function deleteTeamAction(orgSlug: string, teamId: string, formData
     updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
   }
   revalidatePath(`/orgs/${orgSlug}/teams`)
-  redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
+  redirect(`/orgs/${orgSlug}/teams` as Route)
 }

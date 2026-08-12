@@ -344,6 +344,7 @@ async function accessPreview(
       .where(
         and(
           eq(schema.permissionGrants.organizationId, actor.organizationId),
+          ne(schema.permissionGrants.resource, "api_key"),
           inArray(schema.permissionGrants.roleId, selectedRoles)
         )
       ),

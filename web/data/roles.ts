@@ -3,7 +3,7 @@ import "server-only"
 import { createHash, randomUUID } from "node:crypto"
 import type { UrlObject } from "node:url"
 import { getIp } from "better-auth/api"
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
@@ -77,13 +77,6 @@ export const roleResourceCatalog: RoleResourceDefinition[] = [
     organisation: false,
     workspace: true,
     actions: ["read"],
-  },
-  {
-    resource: "api_key",
-    label: "API Keys",
-    organisation: false,
-    workspace: true,
-    actions: ["read", "create", "delete"],
   },
 ]
 
@@ -710,6 +703,7 @@ async function listRoles(scope: RoleManagement) {
         .where(
           and(
             grantScope(scope),
+            ne(schema.permissionGrants.resource, "api_key"),
             inArray(
               schema.permissionGrants.roleId,
               rows.map(({ id }) => id)
@@ -802,7 +796,13 @@ async function loadRoleEditor(scope: RoleManagement, roleId?: string): Promise<R
       locked: schema.permissionGrants.locked,
     })
     .from(schema.permissionGrants)
-    .where(and(grantScope(scope), eq(schema.permissionGrants.roleId, role.id)))
+    .where(
+      and(
+        grantScope(scope),
+        eq(schema.permissionGrants.roleId, role.id),
+        ne(schema.permissionGrants.resource, "api_key")
+      )
+    )
 
   return { ...base, role: { ...role, grants, updatedAt: role.updatedAt.toISOString() } }
 }
@@ -845,8 +845,14 @@ async function previewRole(
       resource: schema.permissionGrants.resource,
       action: schema.permissionGrants.action,
     })
-    .from(schema.permissionGrants)
-    .where(and(grantScope(scope), eq(schema.permissionGrants.roleId, roleId)))
+      .from(schema.permissionGrants)
+      .where(
+        and(
+          grantScope(scope),
+          eq(schema.permissionGrants.roleId, roleId),
+          ne(schema.permissionGrants.resource, "api_key")
+        )
+      )
   const grants = expandPermissionGrants(inputs)
   const next = new Set(grants.map(grantKey))
   const removed = existing.filter((grant) => !next.has(grantKey(grant)))
@@ -926,7 +932,7 @@ async function previewRole(
       detail: `${key.workspace}; access to its creator or selected target is removed.`,
       group: "API keys",
       href: {
-        pathname: `/orgs/${scope.actor.organization.slug}/workspaces/${key.workspaceSlug}/api-keys`,
+        pathname: "/settings/api-keys",
       },
       id: `key:${key.id}`,
       label: key.name,

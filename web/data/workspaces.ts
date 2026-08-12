@@ -1,6 +1,9 @@
 import "server-only"
 
+import { randomUUID } from "node:crypto"
+import { getIp } from "better-auth/api"
 import { cache } from "react"
+import { and, eq, isNull } from "drizzle-orm"
 import {
   createWorkspace,
   listMcpConnections,
@@ -15,7 +18,13 @@ import {
   type InheritedResourceType,
 } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
-import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
+import {
+  activateOrganization,
+  getOrganizationSession,
+  resolveOrganizationSlug,
+} from "@/data/organizations"
+import { getDB, schema } from "@/db"
+import { getAuth } from "@/lib/auth"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 
@@ -199,5 +208,94 @@ export async function retryWorkspaceProvisioning(orgSlug: string, workspaceId: s
   return retryWorkspace({
     client: getGatewayServerClient(),
     path: { workspaceId },
+  })
+}
+
+export async function updateWorkspaceName(orgSlug: string, workspaceId: string, name: string) {
+  const organizationSession = await getOrganizationSession()
+  if (!organizationSession) return { error: "forbidden" as const }
+
+  return getDB().transaction(async (tx) => {
+    const [workspace] = await tx
+      .select({
+        id: schema.workspaces.id,
+        name: schema.workspaces.name,
+        organizationId: schema.workspaces.organizationId,
+      })
+      .from(schema.workspaces)
+      .innerJoin(
+        schema.organizations,
+        eq(schema.organizations.id, schema.workspaces.organizationId)
+      )
+      .where(
+        and(
+          eq(schema.organizations.slug, orgSlug),
+          eq(schema.workspaces.id, workspaceId),
+          isNull(schema.workspaces.deletedAt)
+        )
+      )
+      .for("update")
+      .limit(1)
+    if (!workspace) return { error: "not-found" as const }
+
+    const [superadmin] = await tx
+      .select({ memberId: schema.members.id })
+      .from(schema.members)
+      .innerJoin(
+        schema.memberRoles,
+        and(
+          eq(schema.memberRoles.memberId, schema.members.id),
+          eq(schema.memberRoles.organizationId, schema.members.organizationId)
+        )
+      )
+      .innerJoin(
+        schema.roleScopes,
+        and(
+          eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
+          eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+        )
+      )
+      .where(
+        and(
+          eq(schema.members.userId, organizationSession.session.user.id),
+          eq(schema.members.organizationId, workspace.organizationId),
+          isNull(schema.members.disabledAt),
+          eq(schema.roleScopes.systemRole, "superadmin"),
+          eq(schema.roleScopes.immutable, true)
+        )
+      )
+      .limit(1)
+
+    const audit = {
+      action: "workspace.modify",
+      actorId: organizationSession.session.user.id,
+      actorType: "user" as const,
+      after: [{ field: "name", value: name }],
+      automaticCascade: false,
+      before: [{ field: "name", value: workspace.name }],
+      category: "workspace" as const,
+      id: `audit-${randomUUID()}`,
+      interface: "web" as const,
+      ipAddress: getIp(organizationSession.requestHeaders, getAuth().options),
+      organizationId: workspace.organizationId,
+      result: superadmin ? ("succeeded" as const) : ("denied" as const),
+      targetId: workspace.id,
+      targetType: "workspace",
+      userAgent: organizationSession.requestHeaders.get("user-agent"),
+      workspaceId: workspace.id,
+    } satisfies typeof schema.auditEvents.$inferInsert
+
+    if (!superadmin) {
+      await tx.insert(schema.auditEvents).values(audit)
+      return { error: "forbidden" as const }
+    }
+    if (workspace.name !== name) {
+      await tx
+        .update(schema.workspaces)
+        .set({ name, updatedAt: new Date() })
+        .where(eq(schema.workspaces.id, workspace.id))
+    }
+    await tx.insert(schema.auditEvents).values(audit)
+    return { organizationId: workspace.organizationId, workspaceId: workspace.id }
   })
 }

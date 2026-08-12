@@ -7,6 +7,7 @@ import {
   StatusBadge,
 } from "@/components/administration"
 import { Button } from "@/components/ui/button"
+import { RoutedTableRow } from "@/components/routed-table-row"
 import {
   Table,
   TableBody,
@@ -59,14 +60,13 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
           <TableBody>
             {result.directory.workspaces.length ? (
               result.directory.workspaces.map((workspace) => (
-                <TableRow key={workspace.id}>
+                <RoutedTableRow
+                  aria-label={`Manage ${workspace.name}`}
+                  href={`${root}/workspaces/manage/${workspace.slug}` as Route}
+                  key={workspace.id}
+                >
                   <TableCell>
-                    <Link
-                      className="font-medium hover:underline"
-                      href={`${root}/workspaces/${workspace.slug}` as Route}
-                    >
-                      {workspace.name}
-                    </Link>
+                    <span className="font-medium">{workspace.name}</span>
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={workspace.state} />
@@ -77,7 +77,7 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
                   <TableCell>
                     <time dateTime={workspace.updated_at}>{formatAge(workspace.updated_at)}</time>
                   </TableCell>
-                </TableRow>
+                </RoutedTableRow>
               ))
             ) : (
               <TableRow>

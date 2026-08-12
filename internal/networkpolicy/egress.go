@@ -65,9 +65,9 @@ func URLTarget(raw string) (Target, error) {
 	return Target{Host: u.Hostname(), Port: port}, nil
 }
 
-// ServiceEgress permits one Kubernetes Service and TCP port.
-func ServiceEgress(namespace, name string, port int32) ciliumapi.EgressRule {
-	return ciliumapi.EgressRule{
+// ServiceEgress permits DNS resolution and one Kubernetes Service TCP port.
+func ServiceEgress(namespace, name string, port int32) []ciliumapi.EgressRule {
+	service := ciliumapi.EgressRule{
 		EgressCommonRule: ciliumapi.EgressCommonRule{
 			ToServices: []ciliumapi.Service{{
 				K8sService: &ciliumapi.K8sServiceNamespace{
@@ -83,6 +83,18 @@ func ServiceEgress(namespace, name string, port int32) ciliumapi.EgressRule {
 			}},
 		}},
 	}
+	dns := ciliumapi.EgressRule{
+		EgressCommonRule: ciliumapi.EgressCommonRule{
+			ToEndpoints: []ciliumapi.EndpointSelector{dnsEndpointSelector()},
+		},
+		ToPorts: ciliumapi.PortRules{{
+			Ports: dnsPorts(),
+			Rules: &ciliumapi.L7Rules{DNS: ciliumapi.PortRulesDNS{{
+				MatchName: name + "." + namespace + ".svc.cluster.local",
+			}}},
+		}},
+	}
+	return []ciliumapi.EgressRule{service, dns}
 }
 
 // ExternalEgress permits only the supplied FQDN or IP destinations and their ports.
@@ -126,19 +138,27 @@ func ExternalEgress(targets []Target) []ciliumapi.EgressRule {
 	}
 	return append(rules, ciliumapi.EgressRule{
 		EgressCommonRule: ciliumapi.EgressCommonRule{
-			ToEndpoints: []ciliumapi.EndpointSelector{{
-				LabelSelector: &slimv1.LabelSelector{MatchLabels: map[string]string{
-					"k8s:io.kubernetes.pod.namespace": "kube-system",
-					"k8s:k8s-app":                     "kube-dns",
-				}},
-			}},
+			ToEndpoints: []ciliumapi.EndpointSelector{dnsEndpointSelector()},
 		},
 		ToPorts: ciliumapi.PortRules{{
-			Ports: []ciliumapi.PortProtocol{
-				{Port: "53", Protocol: ciliumapi.ProtoUDP},
-				{Port: "53", Protocol: ciliumapi.ProtoTCP},
-			},
+			Ports: dnsPorts(),
 			Rules: &ciliumapi.L7Rules{DNS: dns},
 		}},
 	})
+}
+
+func dnsEndpointSelector() ciliumapi.EndpointSelector {
+	return ciliumapi.EndpointSelector{
+		LabelSelector: &slimv1.LabelSelector{MatchLabels: map[string]string{
+			"k8s:io.kubernetes.pod.namespace": "kube-system",
+			"k8s:k8s-app":                     "kube-dns",
+		}},
+	}
+}
+
+func dnsPorts() []ciliumapi.PortProtocol {
+	return []ciliumapi.PortProtocol{
+		{Port: "53", Protocol: ciliumapi.ProtoUDP},
+		{Port: "53", Protocol: ciliumapi.ProtoTCP},
+	}
 }

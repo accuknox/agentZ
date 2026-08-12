@@ -353,6 +353,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		} else {
 			target.LLM.Host = "api.openai.com"
 			target.LLM.Port = 443
+			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
 	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		target.LLM.Anthropic = &agentgatewayv1alpha1.AnthropicConfig{Model: modelRef}
@@ -367,6 +368,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		} else {
 			target.LLM.Host = "api.anthropic.com"
 			target.LLM.Port = 443
+			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
 	case agentzv1alpha1.InferenceProviderKindGemini:
 		target.LLM.Gemini = &agentgatewayv1alpha1.GeminiConfig{Model: modelRef}
@@ -381,6 +383,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		} else {
 			target.LLM.Host = "generativelanguage.googleapis.com"
 			target.LLM.Port = 443
+			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
 	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
@@ -418,6 +421,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 				"-aiplatform.googleapis.com"
 		}
 		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		target.AdditionalHosts = []string{"discoveryengine.googleapis.com"}
 		aliases := make(map[string]string)
 		for _, model := range provider.Spec.Models {
@@ -442,6 +446,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		target.LLM.Host = "bedrock-runtime." + provider.Spec.Bedrock.Region +
 			".amazonaws.com"
 		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		target.AdditionalHosts = []string{
 			"bedrock-agent-runtime." + provider.Spec.Bedrock.Region +
 				".amazonaws.com",
@@ -467,6 +472,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			target.LLM.Host = azure.ResourceName + ".services.ai.azure.com"
 		}
 		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if azure.Project != "" {
 			value := azure.Project
 			target.LLM.Azure.ProjectName = &value

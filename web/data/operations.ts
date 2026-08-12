@@ -3,7 +3,7 @@ import "server-only"
 import { createHash, randomUUID } from "node:crypto"
 import type { UrlObject } from "node:url"
 import { getIp } from "better-auth/api"
-import { and, asc, desc, eq, exists, inArray, isNull, ne, or } from "drizzle-orm"
+import { and, asc, eq, exists, inArray, isNull, ne, or } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 import { getAuth } from "@/lib/auth"
@@ -41,20 +41,6 @@ export type DestructiveImpact = {
   items: DestructiveImpactItem[]
   target: DestructiveTarget
   targetLabel: string
-}
-
-export type CleanupRow = {
-  id: string
-  operation: string
-  targetType: string
-  targetId: string
-  state: "pending" | "running" | "retrying" | "failed" | "succeeded"
-  impact: string[]
-  attempts: number
-  scheduledAt: string | null
-  lastError: string | null
-  createdAt: string
-  completedAt: string | null
 }
 
 type ImpactDatabase = Pick<ReturnType<typeof getDB>, "select" | "selectDistinct">
@@ -850,7 +836,7 @@ export async function analyzeDestructiveImpact(
       ...keys.map<DestructiveImpactItem>((key) => ({
         detail: `${key.workspace}; the credential is revoked in the same transaction as access removal.`,
         group: "API keys" as const,
-        href: { pathname: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys` },
+        href: { pathname: "/settings/api-keys" },
         id: `key:${key.id}`,
         label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
@@ -924,7 +910,7 @@ export async function analyzeDestructiveImpact(
       ...effects.keys.map<DestructiveImpactItem>((key) => ({
         detail: `${key.workspace}; creator access or a selected Agent target is removed.`,
         group: "API keys" as const,
-        href: { pathname: `/orgs/${orgSlug}/workspaces/${key.workspaceSlug}/api-keys` },
+        href: { pathname: "/settings/api-keys" },
         id: `key:${key.id}`,
         label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
@@ -1247,7 +1233,7 @@ export async function analyzeDestructiveImpact(
       ...keys.map<DestructiveImpactItem>((key) => ({
         detail: "The Workspace credential is revoked transactionally.",
         group: "API keys" as const,
-        href: { pathname: `/orgs/${orgSlug}/workspaces/${workspace.slug}/api-keys` },
+        href: { pathname: "/settings/api-keys" },
         id: `key:${key.id}`,
         label: key.name ?? "Unnamed API key",
         severity: "critical" as const,
@@ -1256,7 +1242,7 @@ export async function analyzeDestructiveImpact(
         detail: "The Workspace selection of this Organisation resource is removed.",
         group: "Consumers" as const,
         href: {
-          pathname: `/orgs/${orgSlug}/workspaces/${workspace.slug}/settings/inherited`,
+          pathname: `/orgs/${orgSlug}/workspaces/manage/${workspace.slug}/inherited`,
         },
         id: `consumer:${consumer.resource}:${consumer.name}`,
         label: `${consumer.resource}: ${consumer.name}`,
@@ -1481,140 +1467,4 @@ export async function deleteWorkspace(
     })
     return { cleanupId }
   })
-}
-
-export async function retryDestructiveOperation(orgSlug: string, jobId: string) {
-  const result = await resolveOrganizationSlug(orgSlug)
-  if (result.kind !== "ready" || !result.organization.superadmin) {
-    return { error: "forbidden" as const }
-  }
-
-  return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, result.organization.id))
-      .for("update")
-    const [authority] = await tx
-      .select({ id: schema.members.id })
-      .from(schema.members)
-      .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
-      .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
-      .where(
-        and(
-          eq(schema.members.organizationId, result.organization.id),
-          eq(schema.members.userId, result.organizationSession.session.user.id),
-          isNull(schema.members.disabledAt),
-          eq(schema.memberRoles.organizationId, result.organization.id),
-          eq(schema.roleScopes.organizationId, result.organization.id),
-          eq(schema.roleScopes.systemRole, "superadmin")
-        )
-      )
-      .limit(1)
-    if (!authority) return { error: "forbidden" as const }
-
-    const [job] = await tx
-      .select({
-        id: schema.cleanupJobs.id,
-        operation: schema.cleanupJobs.operation,
-        targetId: schema.cleanupJobs.targetId,
-        targetType: schema.cleanupJobs.targetType,
-        workspaceId: schema.cleanupJobs.workspaceId,
-      })
-      .from(schema.cleanupJobs)
-      .where(
-        and(
-          eq(schema.cleanupJobs.id, jobId),
-          eq(schema.cleanupJobs.organizationId, result.organization.id),
-          eq(schema.cleanupJobs.state, "failed")
-        )
-      )
-      .for("update")
-      .limit(1)
-    if (!job) return { error: "not-found" as const }
-
-    const now = new Date()
-    await tx
-      .update(schema.cleanupJobs)
-      .set({
-        completedAt: null,
-        lastError: null,
-        nextAttemptAt: now,
-        state: "retrying",
-        updatedAt: now,
-      })
-      .where(eq(schema.cleanupJobs.id, job.id))
-    await tx.insert(schema.auditEvents).values({
-      action: "cleanup.retry",
-      actorId: result.organizationSession.session.user.id,
-      actorType: "user",
-      after: [{ field: "state", value: "retrying" }],
-      automaticCascade: true,
-      category: "cleanup",
-      cleanupJobId: job.id,
-      id: `audit-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(result.organizationSession.requestHeaders, getAuth().options),
-      organizationId: result.organization.id,
-      result: "succeeded",
-      targetId: job.targetId,
-      targetType: job.targetType,
-      userAgent: result.organizationSession.requestHeaders.get("user-agent"),
-      workspaceId: job.workspaceId,
-    })
-    return { operation: job.operation }
-  })
-}
-
-export async function listDestructiveOperations(orgSlug: string) {
-  const result = await resolveOrganizationSlug(orgSlug)
-  if (result.kind !== "ready" || !result.organization.superadmin) return
-
-  const rows = await getDB()
-    .select({
-      attempts: schema.cleanupJobs.attempts,
-      completedAt: schema.cleanupJobs.completedAt,
-      createdAt: schema.cleanupJobs.createdAt,
-      id: schema.cleanupJobs.id,
-      lastError: schema.cleanupJobs.lastError,
-      leaseExpiresAt: schema.cleanupJobs.leaseExpiresAt,
-      nextAttemptAt: schema.cleanupJobs.nextAttemptAt,
-      operation: schema.cleanupJobs.operation,
-      payload: schema.cleanupJobs.payload,
-      state: schema.cleanupJobs.state,
-      targetId: schema.cleanupJobs.targetId,
-      targetType: schema.cleanupJobs.targetType,
-    })
-    .from(schema.cleanupJobs)
-    .where(eq(schema.cleanupJobs.organizationId, result.organization.id))
-    .orderBy(desc(schema.cleanupJobs.createdAt), desc(schema.cleanupJobs.id))
-    .limit(200)
-
-  return {
-    organization: result.organization,
-    rows: rows.map(
-      (row): CleanupRow => ({
-        ...row,
-        completedAt: row.completedAt?.toISOString() ?? null,
-        createdAt: row.createdAt.toISOString(),
-        impact: [
-          row.payload.revokes_authorization_first
-            ? "Authorization revoked before cleanup"
-            : undefined,
-          row.payload.api_key_count > 0
-            ? `${row.payload.api_key_count} API keys revoked`
-            : undefined,
-          row.payload.owned_agent_count > 0
-            ? `${row.payload.owned_agent_count} owned Agents queued`
-            : undefined,
-        ].filter((item): item is string => Boolean(item)),
-        scheduledAt:
-          row.state === "running"
-            ? (row.leaseExpiresAt?.toISOString() ?? null)
-            : row.state === "pending" || row.state === "retrying"
-              ? row.nextAttemptAt.toISOString()
-              : null,
-      })
-    ),
-  }
 }

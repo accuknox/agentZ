@@ -486,7 +486,7 @@ function TraceInspector({
           }}
           className="bg-muted/50 py-2"
         >
-          <TabsList variant="line" className="gap-2">
+          <TabsList className="gap-2">
             <TabsTrigger value="spans" className="gap-2">
               <Route /> Spans
             </TabsTrigger>
@@ -1005,7 +1005,7 @@ function RuntimeTelemetryContent({
       }}
       className="mt-4 flex h-full min-h-0 flex-col"
     >
-      <TabsList variant="line" className="overflow-auto overflow-y-hidden px-2">
+      <TabsList className="overflow-auto overflow-y-hidden px-2">
         <TabsTrigger value="process" className="gap-2 px-4">
           <Cpu /> Process ({processCount})
         </TabsTrigger>
@@ -1083,7 +1083,7 @@ function RuntimeTelemetrySkeleton({
   return (
     <div className="mt-4 flex h-full min-h-0 flex-col">
       <Tabs value={telemetryTab} className="flex h-full min-h-0 flex-col">
-        <TabsList variant="line" className="overflow-x-auto px-2">
+        <TabsList className="overflow-x-auto px-2">
           <TabsTrigger value="process" className="gap-2 px-4" disabled>
             <Cpu /> Process ({processCount})
           </TabsTrigger>

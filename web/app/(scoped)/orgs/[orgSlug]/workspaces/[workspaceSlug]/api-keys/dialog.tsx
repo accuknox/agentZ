@@ -69,17 +69,24 @@ const apiKeyExpiryOptions = [
 
 export function CreateAPIKeyButton({
   agents,
-  workflowsByAgent,
   createAPIKeyAction,
+  openInitially = false,
+  showTrigger = true,
+  workflowsByAgent,
+  workspaceName,
 }: {
   agents: Agent[]
-  workflowsByAgent: WorkflowGroup[]
   createAPIKeyAction: (
     state: CreateAPIKeyFormState,
     formData: FormData
   ) => Promise<CreateAPIKeyFormState>
+  openInitially?: boolean
+  showTrigger?: boolean
+  workflowsByAgent: WorkflowGroup[]
+  workspaceName?: string
 }) {
-  const [open, setOpen] = React.useState(false)
+  const router = useRouter()
+  const [open, setOpen] = React.useState(openInitially)
   const [dialogKey, setDialogKey] = React.useState(0)
 
   return (
@@ -89,20 +96,24 @@ export function CreateAPIKeyButton({
         setOpen(nextOpen)
         if (!nextOpen) {
           setDialogKey((value) => value + 1)
+          if (openInitially) router.replace("/settings/api-keys")
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button>
-          <KeyRound data-icon="inline-start" />
-          New API key
-        </Button>
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button>
+            <KeyRound data-icon="inline-start" />
+            New API key
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <CreateAPIKeyDialog
         key={dialogKey}
         agents={agents}
         workflowsByAgent={workflowsByAgent}
         createAPIKeyAction={createAPIKeyAction}
+        workspaceName={workspaceName}
       />
     </Dialog>
   )
@@ -112,6 +123,7 @@ function CreateAPIKeyDialog({
   agents,
   workflowsByAgent,
   createAPIKeyAction,
+  workspaceName,
 }: {
   agents: Agent[]
   workflowsByAgent: WorkflowGroup[]
@@ -119,6 +131,7 @@ function CreateAPIKeyDialog({
     state: CreateAPIKeyFormState,
     formData: FormData
   ) => Promise<CreateAPIKeyFormState>
+  workspaceName?: string
 }) {
   const router = useRouter()
   const [state, action, pending] = React.useActionState(createAPIKeyAction, {})
@@ -158,8 +171,8 @@ function CreateAPIKeyDialog({
           {state.key
             ? "This secret is shown once. Store it now."
             : apiKeyType === "webhook"
-              ? "Authorize selected workflow webhook calls."
-              : "Authorize OpenCode access to selected Agents."}
+              ? `Authorize selected workflow webhook calls${workspaceName ? ` in ${workspaceName}` : ""}.`
+              : `Authorize OpenCode access to selected Agents${workspaceName ? ` in ${workspaceName}` : ""}.`}
         </DialogDescription>
       </DialogHeader>
       {state.key ? (

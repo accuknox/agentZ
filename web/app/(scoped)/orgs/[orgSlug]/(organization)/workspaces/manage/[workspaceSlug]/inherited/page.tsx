@@ -1,11 +1,11 @@
 import type { Route } from "next"
 import { redirect } from "next/navigation"
 
-export default async function WorkspacePage({
+export default async function WorkspaceInheritancePage({
   params,
 }: {
   params: Promise<{ orgSlug: string; workspaceSlug: string }>
 }) {
   const { orgSlug, workspaceSlug } = await params
-  redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/agents` as Route)
+  redirect(`/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/inherited/skills` as Route)
 }

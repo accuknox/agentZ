@@ -3,7 +3,15 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Building2, ChevronsUpDown, LogOut, Monitor, SlidersHorizontal, User2 } from "lucide-react"
+import {
+  Building2,
+  ChevronsUpDown,
+  KeyRound,
+  LogOut,
+  Monitor,
+  SlidersHorizontal,
+  User2,
+} from "lucide-react"
 import { useState, useTransition } from "react"
 import { switchOrganizationAction } from "@/app/(scoped)/orgs/actions"
 import { authClient } from "@/lib/auth-client"
@@ -133,6 +141,7 @@ export function NavUser({
                       aria-label={`${organization.name} (${organization.slug})`}
                       data-organization-id={organization.id}
                       disabled={isSwitching}
+                      className="cursor-pointer"
                       key={organization.id}
                       textValue={`${organization.name} ${organization.slug}`}
                       value={organization.id}
@@ -168,6 +177,12 @@ export function NavUser({
                 <Link href="/settings/sessions">
                   <Monitor />
                   Sessions
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings/api-keys">
+                  <KeyRound />
+                  API Keys
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

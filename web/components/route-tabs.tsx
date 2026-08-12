@@ -2,7 +2,7 @@
 
 import type { Route } from "next"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { tabsListVariants } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
@@ -14,12 +14,18 @@ export type RouteTab = {
 
 export function RouteTabs({ label, tabs }: { label: string; tabs: readonly RouteTab[] }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const current = searchParams.size ? `${pathname}?${searchParams}` : pathname
   const active = tabs.reduce<Route | undefined>((selected, tab) => {
-    if (pathname !== tab.href && !pathname.startsWith(`${tab.href}/`)) {
+    const href = String(tab.href)
+    const matches = href.includes("?")
+      ? current === href
+      : current === href || (!searchParams.size && pathname.startsWith(`${href}/`))
+    if (!matches) {
       return selected
     }
 
-    if (!selected || tab.href.length > selected.length) {
+    if (!selected || href.length > String(selected).length) {
       return tab.href
     }
 
@@ -27,9 +33,12 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
   }, undefined)
 
   return (
-    <nav aria-label={label} className="min-w-0 overflow-x-auto overscroll-x-contain">
+    <nav
+      aria-label={label}
+      className="no-scrollbar min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+    >
       <div className="group/tabs flex gap-2 data-horizontal:flex-col" data-orientation="horizontal">
-        <div className={cn(tabsListVariants({ variant: "line" }), "min-w-max")} data-variant="line">
+        <div className={cn(tabsListVariants(), "min-w-max")} data-variant="default">
           {tabs.map((tab) =>
             tab.disabled ? (
               <span
@@ -58,8 +67,6 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
 }
 
 const routeTabClassName = cn(
-  "text-foreground/60 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:text-muted-foreground dark:hover:text-foreground relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1",
-  "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
-  "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground",
-  "after:bg-foreground after:absolute after:inset-x-0 after:-bottom-1.25 after:h-0.5 after:opacity-0 after:transition-opacity group-data-[variant=line]/tabs-list:data-active:after:opacity-100"
+  "text-foreground/60 hover:bg-background/70 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 py-0.5 text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1",
+  "data-active:bg-background data-active:text-foreground data-active:shadow-sm dark:data-active:border-input dark:data-active:bg-input/50 dark:data-active:text-foreground"
 )

@@ -186,6 +186,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // referencingAgentNames resolves explicit scope because Sandbox names are only
 // unique within their target namespace, while the Agent index is cluster-wide.
 func (r *Reconciler) referencingAgentNames(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) ([]string, error) {
+	agents, err := r.referencingAgents(ctx, sandbox)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(agents))
+	for i := range agents {
+		names = append(names, agents[i].Name)
+	}
+	slices.Sort(names)
+	return names, nil
+}
+
+func (r *Reconciler) referencingAgents(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) ([]agentzv1alpha1.Agent, error) {
 	agents := &agentzv1alpha1.AgentList{}
 	err := r.List(
 		ctx,
@@ -196,7 +209,7 @@ func (r *Reconciler) referencingAgentNames(ctx context.Context, sandbox *agentzv
 		return nil, err
 	}
 
-	names := make([]string, 0, len(agents.Items))
+	matched := make([]agentzv1alpha1.Agent, 0, len(agents.Items))
 	for i := range agents.Items {
 		agt := &agents.Items[i]
 		namespace, err := scoperesolver.SelectedNamespace(
@@ -211,11 +224,16 @@ func (r *Reconciler) referencingAgentNames(ctx context.Context, sandbox *agentzv
 			return nil, fmt.Errorf("resolve Agent Sandbox scope: %w", err)
 		}
 		if namespace == sandbox.Namespace {
-			names = append(names, agt.Name)
+			matched = append(matched, *agt)
 		}
 	}
-	slices.Sort(names)
-	return names, nil
+	slices.SortFunc(matched, func(a, b agentzv1alpha1.Agent) int {
+		if order := strings.Compare(a.Namespace, b.Namespace); order != 0 {
+			return order
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+	return matched, nil
 }
 
 // updateStatus computes spec-derived counters and persists them to status.
@@ -1184,7 +1202,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 }
 
 func gatewayNetworkPolicySpec(namespace, gatewayName string) *ciliumapi.Rule {
-	return &ciliumapi.Rule{
+	rule := &ciliumapi.Rule{
 		EndpointSelector: ciliumapi.NewESFromLabels(
 			ciliumlabels.NewLabel(
 				"io.kubernetes.pod.namespace",
@@ -1207,24 +1225,23 @@ func gatewayNetworkPolicySpec(namespace, gatewayName string) *ciliumapi.Rule {
 				ciliumlabels.LabelSourceK8s,
 			),
 		),
-		Egress: []ciliumapi.EgressRule{
-			{
-				EgressCommonRule: ciliumapi.EgressCommonRule{
-					ToEndpoints: []ciliumapi.EndpointSelector{
-						ciliumapi.NewESFromK8sLabelSelector(
-							ciliumlabels.LabelSourceK8sKeyPrefix,
-							&slimv1.LabelSelector{},
-						),
-					},
+		Egress: []ciliumapi.EgressRule{{
+			EgressCommonRule: ciliumapi.EgressCommonRule{
+				ToEndpoints: []ciliumapi.EndpointSelector{
+					ciliumapi.NewESFromK8sLabelSelector(
+						ciliumlabels.LabelSourceK8sKeyPrefix,
+						&slimv1.LabelSelector{},
+					),
 				},
 			},
-			networkpolicy.ServiceEgress(
-				agentGatewayControlPlaneNamespace,
-				agentGatewayControlPlaneName,
-				agentGatewayControlPlanePort,
-			),
-		},
+		}},
 	}
+	rule.Egress = append(rule.Egress, networkpolicy.ServiceEgress(
+		agentGatewayControlPlaneNamespace,
+		agentGatewayControlPlaneName,
+		agentGatewayControlPlanePort,
+	)...)
+	return rule
 }
 
 func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace, name string) error {

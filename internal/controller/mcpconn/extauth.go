@@ -696,7 +696,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, n
 		if len(parts) >= 4 && parts[2] == "svc" {
 			policy.Spec.Egress = append(
 				policy.Spec.Egress,
-				networkpolicy.ServiceEgress(parts[1], parts[0], openBao.Port),
+				networkpolicy.ServiceEgress(parts[1], parts[0], openBao.Port)...,
 			)
 		} else {
 			policy.Spec.Egress = append(

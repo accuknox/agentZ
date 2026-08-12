@@ -297,6 +297,9 @@ func TestRenderProviderTargetUsesConcreteDefaultEndpoint(t *testing.T) {
 			target.LLM.Port,
 		)
 	}
+	if target.Policies.TLS == nil {
+		t.Fatal("RenderProviderTarget() did not enable TLS for the default endpoint")
+	}
 }
 
 func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {

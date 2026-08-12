@@ -23,7 +23,6 @@ import (
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/networkpolicy"
-	"github.com/accuknox/agentz/internal/sandboxutil"
 	"github.com/accuknox/agentz/internal/scoperesolver"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -405,23 +404,19 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
 		ingress := make([]ciliumapi.IngressRule, 0, len(owners))
 		for i := range owners {
-			agentNames, err := sandboxutil.ReferencingAgentNames(
-				ctx,
-				r.Client,
-				namespace,
-				owners[i].Name,
-			)
+			agents, err := r.referencingAgents(ctx, &owners[i])
 			if err != nil {
 				return fmt.Errorf("find inference sandbox agents: %w", err)
 			}
-			for _, agentName := range agentNames {
+			for j := range agents {
+				agt := &agents[j]
 				ingress = append(ingress, ciliumapi.IngressRule{
 					IngressCommonRule: ciliumapi.IngressCommonRule{
 						FromEndpoints: []ciliumapi.EndpointSelector{
 							ciliumapi.NewESFromLabels(
 								ciliumlabels.NewLabel(
 									"io.kubernetes.pod.namespace",
-									namespace,
+									agt.Namespace,
 									ciliumlabels.LabelSourceK8s,
 								),
 								ciliumlabels.NewLabel(
@@ -431,12 +426,12 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 								),
 								ciliumlabels.NewLabel(
 									"app.kubernetes.io/instance",
-									agentName,
+									agt.Name,
 									ciliumlabels.LabelSourceK8s,
 								),
 								ciliumlabels.NewLabel(
 									"agentz.accuknox.com/agent",
-									agentName,
+									agt.Name,
 									ciliumlabels.LabelSourceK8s,
 								),
 								ciliumlabels.NewLabel(
@@ -485,7 +480,7 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 					r.TraceBackend.ServiceNamespace,
 					r.TraceBackend.ServiceName,
 					r.TraceBackend.ServicePort,
-				),
+				)...,
 			)
 		}
 		return nil

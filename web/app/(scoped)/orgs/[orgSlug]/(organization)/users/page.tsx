@@ -1,5 +1,4 @@
 import type { Route } from "next"
-import Link from "next/link"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,6 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
+import { RoutedTableRow } from "@/components/routed-table-row"
+import { listEffectiveAccess } from "@/data/access"
 import { getMemberDirectory, type ActiveMember, type InvitationRow } from "@/data/members"
 import { formatAge } from "@/lib/format"
 import { CancelInvitationButton, InviteMemberDialog, MembershipStateButton } from "./member-actions"
@@ -26,8 +27,11 @@ export default async function UsersPage({
 }) {
   const { orgSlug } = await params
   const { tab } = await searchParams
-  const data = await getMemberDirectory(orgSlug)
-  if (!data) {
+  const [data, access] = await Promise.all([
+    getMemberDirectory(orgSlug),
+    listEffectiveAccess(orgSlug),
+  ])
+  if (!data || !access) {
     return <AdministrationState kind="forbidden" />
   }
 
@@ -60,6 +64,7 @@ export default async function UsersPage({
           disabled={activeTab === "disabled"}
           members={activeTab === "disabled" ? data.disabled : data.active}
           orgSlug={orgSlug}
+          sharedAgents={new Map(access.rows.map((row) => [row.memberId, row.sharedAgents]))}
         />
       )}
     </div>
@@ -70,10 +75,12 @@ function MembersTable({
   disabled,
   members,
   orgSlug,
+  sharedAgents,
 }: {
   disabled: boolean
   members: ActiveMember[]
   orgSlug: string
+  sharedAgents: Map<string, number>
 }) {
   return (
     <div className="w-full min-w-0 border-b">
@@ -86,6 +93,7 @@ function MembersTable({
             <TableHead className="w-64">User</TableHead>
             <TableHead>Assignments</TableHead>
             <TableHead className="w-28 text-right">Agents</TableHead>
+            <TableHead className="w-24 text-right">Shared</TableHead>
             <TableHead className="w-24 text-right">API keys</TableHead>
             <TableHead className="w-32">Last active</TableHead>
             <TableHead className="w-32">Joined</TableHead>
@@ -95,17 +103,17 @@ function MembersTable({
         <TableBody>
           {members.length ? (
             members.map((member) => (
-              <TableRow key={member.id}>
+              <RoutedTableRow
+                aria-label={`Open ${member.name}`}
+                href={`/orgs/${orgSlug}/users/${member.id}` as Route}
+                key={member.id}
+              >
                 <TableCell className="max-w-72">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
-                      <Link
-                        className="truncate font-medium underline-offset-4 hover:underline"
-                        href={`/orgs/${orgSlug}/users/${member.id}` as Route}
-                        title={member.name}
-                      >
+                      <span className="truncate font-medium" title={member.name}>
                         {member.name}
-                      </Link>
+                      </span>
                     </div>
                     <div className="text-muted-foreground truncate text-xs" title={member.email}>
                       {member.email}
@@ -116,6 +124,9 @@ function MembersTable({
                   <AssignmentSummary roles={member.roles} teams={member.teams} />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{member.ownedAgents}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {sharedAgents.get(member.id) ?? 0}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">{member.apiKeys}</TableCell>
                 <TableCell>
                   {member.lastActivity ? (
@@ -132,11 +143,11 @@ function MembersTable({
                     <MembershipStateButton disabled memberId={member.id} orgSlug={orgSlug} />
                   </TableCell>
                 ) : null}
-              </TableRow>
+              </RoutedTableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell className="h-24 text-center" colSpan={disabled ? 7 : 6}>
+              <TableCell className="h-24 text-center" colSpan={disabled ? 8 : 7}>
                 {disabled ? "No disabled users" : "No active users"}
               </TableCell>
             </TableRow>

@@ -33,12 +33,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import type { WorkspaceAPIKey } from "@/data/api-key.queries"
+import type { UserAPIKey } from "@/data/api-key.queries"
 import type { DeleteAPIKeyFormState } from "@/data/types"
 import { formatAge } from "@/lib/format"
 
 const columnClassName: Record<string, string> = {
   name: "w-40",
+  workspace: "w-44",
   key: "w-36",
   targets: "min-w-52",
   status: "w-28",
@@ -57,16 +58,29 @@ export function APIKeysTable({
     state: DeleteAPIKeyFormState,
     formData: FormData
   ) => Promise<DeleteAPIKeyFormState>
-  keys: WorkspaceAPIKey[]
+  keys: UserAPIKey[]
 }) {
   "use no memo"
 
-  const columns = React.useMemo<ColumnDef<WorkspaceAPIKey>[]>(
+  const columns = React.useMemo<ColumnDef<UserAPIKey>[]>(
     () => [
       {
         id: "name",
         header: "Name",
-        cell: ({ row }) => <span>{row.original.name || "-"}</span>,
+        cell: ({ row }) => (
+          <span className="block truncate" title={row.original.name || undefined}>
+            {row.original.name || "-"}
+          </span>
+        ),
+      },
+      {
+        id: "workspace",
+        header: "Workspace",
+        cell: ({ row }) => (
+          <span className="block truncate" title={row.original.workspaceName}>
+            {row.original.workspaceName}
+          </span>
+        ),
       },
       {
         id: "key",
@@ -147,7 +161,7 @@ export function APIKeysTable({
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">
-                No API keys in this Workspace
+                No API keys
               </TableCell>
             </TableRow>
           )}
@@ -157,7 +171,7 @@ export function APIKeysTable({
   )
 }
 
-function APIKeyTargets({ targets }: { targets: WorkspaceAPIKey["targets"] }) {
+function APIKeyTargets({ targets }: { targets: UserAPIKey["targets"] }) {
   const workflowsByAgent = new Map<string, string[]>()
   const agentNames: string[] = []
   for (const target of targets) {
@@ -195,7 +209,7 @@ function APIKeyTargets({ targets }: { targets: WorkspaceAPIKey["targets"] }) {
   )
 }
 
-function APIKeyStatus({ apiKey }: { apiKey: WorkspaceAPIKey }) {
+function APIKeyStatus({ apiKey }: { apiKey: UserAPIKey }) {
   if (apiKey.revokedAt) {
     return (
       <TooltipProvider>

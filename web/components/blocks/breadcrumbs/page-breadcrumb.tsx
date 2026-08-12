@@ -38,7 +38,7 @@ const labels = new Map<string, string>([
   ["file", "File Telemetry"],
   ["graph", "Graph"],
   ["graphs", "Graphs"],
-  ["observability", "Observability"],
+  ["observability", "Lens"],
   ["mcp", "MCP"],
   ["mcps", "MCP"],
   ["network", "Network Telemetry"],

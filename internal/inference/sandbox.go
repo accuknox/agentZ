@@ -90,7 +90,6 @@ func SandboxPoolPath(sandboxName, poolName string) string {
 // RenderSandboxTarget creates a route and fail-closed logical model policy.
 func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) SandboxTargetRuntime {
 	name := SandboxProviderRuntimeName(sandboxName, target.Name)
-	root := "/"
 	pathType := gwv1.PathMatchPathPrefix
 	group := gwv1.Group("agentgateway.dev")
 	kind := gwv1.Kind("AgentgatewayBackend")
@@ -109,15 +108,6 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 			Rules: []gwv1.HTTPRouteRule{{
 				Matches: []gwv1.HTTPRouteMatch{{
 					Path: &gwv1.HTTPPathMatch{Type: &pathType, Value: &target.Path},
-				}},
-				Filters: []gwv1.HTTPRouteFilter{{
-					Type: gwv1.HTTPRouteFilterURLRewrite,
-					URLRewrite: &gwv1.HTTPURLRewriteFilter{
-						Path: &gwv1.HTTPPathModifier{
-							Type:               gwv1.PrefixMatchHTTPPathModifier,
-							ReplacePrefixMatch: &root,
-						},
-					},
 				}},
 				BackendRefs: []gwv1.HTTPBackendRef{{
 					BackendRef: gwv1.BackendRef{

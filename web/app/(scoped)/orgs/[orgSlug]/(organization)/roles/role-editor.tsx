@@ -248,7 +248,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
         </Alert>
       ) : null}
       {workspace && role?.systemRole === "workspace_admin" ? (
-        <Alert>
+        <Alert className="rounded-none border-x-0">
           <ShieldCheck aria-hidden="true" />
           <AlertTitle>Full Workspace authorization</AlertTitle>
           <AlertDescription>

@@ -350,6 +350,9 @@ func TestRenderSandboxPoolTarget(t *testing.T) {
 	if match == nil || match.Value == nil || *match.Value != "/sandboxes/sandbox/pools/pool" {
 		t.Fatalf("route path = %#v", match)
 	}
+	if len(runtime.Route.Spec.Rules[0].Filters) != 0 {
+		t.Fatalf("route filters = %#v, want none", runtime.Route.Spec.Rules[0].Filters)
+	}
 	expressions := runtime.Policy.Spec.Traffic.Authorization.Policy.MatchExpressions
 	if len(expressions) != 1 {
 		t.Fatalf("authorization expressions = %#v", expressions)

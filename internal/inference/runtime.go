@@ -355,6 +355,9 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			target.LLM.Port = 443
 			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
+		if target.LLM.PathPrefix == "" {
+			target.LLM.PathPrefix = "/v1"
+		}
 	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		target.LLM.Anthropic = &agentgatewayv1alpha1.AnthropicConfig{Model: modelRef}
 		target.secretKeys[secretAuthorization] = credentialAPIKey
@@ -370,6 +373,9 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			target.LLM.Port = 443
 			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
+		if target.LLM.PathPrefix == "" {
+			target.LLM.PathPrefix = "/v1"
+		}
 	case agentzv1alpha1.InferenceProviderKindGemini:
 		target.LLM.Gemini = &agentgatewayv1alpha1.GeminiConfig{Model: modelRef}
 		target.secretKeys[secretAuthorization] = credentialAPIKey
@@ -384,6 +390,9 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			target.LLM.Host = "generativelanguage.googleapis.com"
 			target.LLM.Port = 443
 			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
+		}
+		if target.LLM.PathPrefix == "" {
+			target.LLM.PathPrefix = "/"
 		}
 	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
@@ -410,6 +419,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			ProjectId: provider.Spec.VertexAI.Project,
 			Region:    provider.Spec.VertexAI.Region,
 		}
+		target.LLM.PathPrefix = "/"
 		switch provider.Spec.VertexAI.Region {
 		case "", "global":
 			target.LLM.Host = "aiplatform.googleapis.com"
@@ -443,6 +453,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			Region: provider.Spec.Bedrock.Region,
 			Model:  modelRef,
 		}
+		target.LLM.PathPrefix = "/"
 		target.LLM.Host = "bedrock-runtime." + provider.Spec.Bedrock.Region +
 			".amazonaws.com"
 		target.LLM.Port = 443
@@ -467,6 +478,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			ResourceName: azure.ResourceName,
 			ResourceType: agentgatewayv1alpha1.AzureResourceType(azure.ResourceType),
 		}
+		target.LLM.PathPrefix = "/"
 		target.LLM.Host = azure.ResourceName + ".openai.azure.com"
 		if azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry {
 			target.LLM.Host = azure.ResourceName + ".services.ai.azure.com"

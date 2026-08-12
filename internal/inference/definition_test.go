@@ -297,6 +297,9 @@ func TestRenderProviderTargetUsesConcreteDefaultEndpoint(t *testing.T) {
 			target.LLM.Port,
 		)
 	}
+	if target.LLM.PathPrefix != "/v1" {
+		t.Fatalf("RenderProviderTarget() path prefix = %q, want /v1", target.LLM.PathPrefix)
+	}
 	if target.Policies.TLS == nil {
 		t.Fatal("RenderProviderTarget() did not enable TLS for the default endpoint")
 	}

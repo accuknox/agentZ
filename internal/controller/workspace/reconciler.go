@@ -625,14 +625,6 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 }
 
 func (r *Reconciler) markPending(ctx context.Context, workspace *agentzv1alpha1.Workspace, attempt int64, terminalReported bool, reason, message string, cause error) error {
-	logf.FromContext(ctx).Error(
-		cause,
-		"workspace infrastructure reconcile pending",
-		"workspace",
-		workspace.Name,
-		"component",
-		reason,
-	)
 	if terminalReported {
 		return nil
 	}

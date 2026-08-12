@@ -263,13 +263,11 @@ export function PermissionMatrixFrame({
 
 export function EffectiveAccessFrame({
   canvas,
-  inspector,
   summary,
   table,
 }: {
   canvas: ReactNode
-  inspector?: ReactNode
-  summary: string
+  summary?: string
   table: ReactNode
 }) {
   return (
@@ -277,19 +275,10 @@ export function EffectiveAccessFrame({
       <section className="min-w-0 space-y-3">
         <div className="px-4 md:px-6">
           <h2 className="text-lg font-medium">Effective access</h2>
-          <p className="text-muted-foreground text-sm">{summary}</p>
+          {summary ? <p className="text-muted-foreground text-sm">{summary}</p> : null}
         </div>
-        <div
-          className={`grid min-h-96 min-w-0 gap-4 px-4 md:px-6 ${
-            inspector ? "xl:grid-cols-[minmax(0,1fr)_20rem]" : ""
-          }`}
-        >
+        <div className="grid min-h-96 min-w-0">
           <div className="bg-muted/20 min-h-80 min-w-0 overflow-hidden">{canvas}</div>
-          {inspector ? (
-            <aside aria-label="Access details" className="min-w-0">
-              {inspector}
-            </aside>
-          ) : null}
         </div>
       </section>
       {table}

@@ -14,7 +14,6 @@ import {
 import { Canvas } from "@/components/ai-elements/canvas"
 import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -53,7 +52,6 @@ const nodeHeight = 94
 
 export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) {
   const [scope, setScope] = React.useState("all")
-  const [expanded, setExpanded] = React.useState(false)
   const [selected, setSelected] = React.useState<string>()
   const visibleSources = React.useMemo(
     () =>
@@ -65,8 +63,8 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
     [detail.sources, scope]
   )
   const graph = React.useMemo(
-    () => accessGraph(detail, visibleSources, scope === "all" && !expanded),
-    [detail, expanded, scope, visibleSources]
+    () => accessGraph(detail, visibleSources, scope === "all"),
+    [detail, scope, visibleSources]
   )
   const highlighted = React.useMemo(() => {
     if (!selected || !graph.nodes.some((node) => node.id === selected)) return
@@ -120,7 +118,7 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
     <EffectiveAccessFrame
       canvas={
         <div className="flex h-full min-h-[34rem] min-w-0 flex-col">
-          <div className="bg-background/95 flex flex-wrap items-center justify-between gap-2 border-b p-3">
+          <div className="bg-background/95 flex items-center justify-between gap-3 border-b p-3">
             <Select
               onValueChange={(value) => {
                 setScope(value)
@@ -141,29 +139,17 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-sm">{visibleSources.length} paths</span>
-              <Button
-                onClick={() => setExpanded((value) => !value)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <KeyRoundIcon aria-hidden="true" />
-                {expanded ? "Collapse permissions" : "Expand permissions"}
-              </Button>
-              <Button
-                aria-label="Reset graph selection"
-                disabled={!selected}
-                onClick={() => setSelected(undefined)}
-                size="icon-sm"
-                title="Reset graph selection"
-                type="button"
-                variant="outline"
-              >
-                <RotateCcwIcon aria-hidden="true" />
-              </Button>
-            </div>
+            <Button
+              aria-label="Reset graph selection"
+              disabled={!selected}
+              onClick={() => setSelected(undefined)}
+              size="icon-sm"
+              title="Reset graph selection"
+              type="button"
+              variant="outline"
+            >
+              <RotateCcwIcon aria-hidden="true" />
+            </Button>
           </div>
           <div className="bg-sidebar relative min-h-0 flex-1 overflow-hidden">
             <Canvas
@@ -184,38 +170,6 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
           </div>
         </div>
       }
-      inspector={
-        <div className="grid gap-4 text-sm">
-          <div>
-            <div className="font-medium">{selectedNode?.data.label ?? detail.member.name}</div>
-            <div className="text-muted-foreground truncate">
-              {selectedNode?.data.detail ?? detail.member.email}
-            </div>
-          </div>
-          <Badge
-            variant={
-              detail.member.status === "active"
-                ? "successPlain"
-                : detail.member.status === "disabled"
-                  ? "destructivePlain"
-                  : "warningPlain"
-            }
-          >
-            {detail.member.status}
-          </Badge>
-          <div className="grid gap-2">
-            {[...new Set(tableSources.map((source) => source.source))].map((source) => (
-              <AccessSourceChip key={source} source={source} />
-            ))}
-          </div>
-          <div className="text-muted-foreground">
-            {selectedNode
-              ? `${tableSources.length} contributing paths`
-              : `${visibleSources.length} effective paths`}
-          </div>
-        </div>
-      }
-      summary="Effective grants reconstructed from direct Roles, Team Roles, administrative assignments, ownership, and Agent Shares."
       table={<AccessSourceTable sources={tableSources} />}
     />
   )
@@ -224,7 +178,7 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
 function accessGraph(
   detail: EffectiveAccessDetail,
   sources: EffectiveAccessSource[],
-  collapsed: boolean
+  combinePermissions: boolean
 ) {
   const userNode = `user:${detail.member.id}`
   const nodes = new Map<string, AccessNode>()
@@ -263,7 +217,7 @@ function accessGraph(
         sourceIds: [source.id],
       })
       const permissionNode = addNode(
-        collapsed
+        combinePermissions
           ? `permission:${source.workspaceId ?? "org"}:administration:administer`
           : `permission:${source.id}`,
         {
@@ -299,7 +253,7 @@ function accessGraph(
         sourceIds: [source.id],
       })
       const permissionNode = addNode(
-        collapsed
+        combinePermissions
           ? `permission:${source.workspaceId ?? "org"}:${source.resource}:${source.action}`
           : `permission:${source.id}`,
         {
@@ -368,7 +322,7 @@ function accessGraph(
 function layout(nodes: AccessNode[], edges: AccessEdge[]) {
   const graph = new dagre.graphlib.Graph<DagreGraphLabel, DagreNodeLabel>()
   graph.setDefaultEdgeLabel(() => ({}))
-  graph.setGraph({ marginx: 24, marginy: 24, nodesep: 42, rankdir: "LR", ranksep: 86 })
+  graph.setGraph({ marginx: 24, marginy: 24, nodesep: 42, rankdir: "LR", ranksep: 136 })
   for (const node of nodes) {
     graph.setNode(node.id, {
       height: node.measured?.height ?? nodeHeight,
@@ -405,7 +359,7 @@ function AccessGraphNode({ data }: FlowNodeProps<AccessNode>) {
     <div
       aria-label={`${data.kind}: ${data.label}`}
       className={cn(
-        "bg-card text-card-foreground relative grid min-h-20 w-[220px] gap-1 rounded-md border p-3 text-left shadow-sm transition-opacity motion-reduce:transition-none",
+        "bg-card text-card-foreground relative grid min-h-20 w-[220px] gap-1 rounded-xl border p-3 text-left shadow-sm transition-opacity motion-reduce:transition-none",
         data.kind === "permission" && "border-primary/30",
         data.selected && "ring-primary ring-2",
         data.muted && "opacity-25"

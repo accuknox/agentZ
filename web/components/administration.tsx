@@ -1,6 +1,7 @@
 import Link from "next/link"
 import type { ComponentProps, ReactNode } from "react"
-import { CircleAlert, Clock3, FolderSearch, LoaderCircle, LockKeyhole, Trash2 } from "lucide-react"
+import { Clock3, FolderSearch, LoaderCircle, LockKeyhole, Trash2 } from "lucide-react"
+import { BotIcon } from "@/components/bot-icon"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -138,8 +139,8 @@ export function AdministrationState({
       break
     case "failed":
       content = {
-        description: "Try again.",
-        icon: <CircleAlert aria-hidden="true" />,
+        description: "Refresh the page.",
+        icon: <BotIcon aria-hidden="true" className="text-primary" size={80} />,
         title: "Something went wrong",
       }
       break
@@ -167,21 +168,24 @@ export function AdministrationState({
 
   const pending = kind === "provisioning" || kind === "deleting"
   const urgent = kind === "failed" || kind === "forbidden"
+  const stateDescription = description ?? content.description
 
   return (
     <Empty
       aria-live={pending ? "polite" : urgent ? "assertive" : undefined}
-      className="min-h-48 rounded-none border-0"
+      className={
+        kind === "failed"
+          ? "min-h-80 gap-5 rounded-none border-0 py-10"
+          : "min-h-48 rounded-none border-0"
+      }
       role={pending ? "status" : urgent ? "alert" : undefined}
     >
-      <EmptyHeader>
-        <EmptyMedia>{content.icon}</EmptyMedia>
-        <EmptyTitle>
+      <EmptyHeader className={kind === "failed" ? "gap-3" : undefined}>
+        <EmptyMedia className={kind === "failed" ? "mb-1" : undefined}>{content.icon}</EmptyMedia>
+        <EmptyTitle className={kind === "failed" ? "text-base font-semibold" : undefined}>
           <h2>{title ?? content.title}</h2>
         </EmptyTitle>
-        {description !== "" ? (
-          <EmptyDescription>{description ?? content.description}</EmptyDescription>
-        ) : null}
+        {stateDescription !== "" ? <EmptyDescription>{stateDescription}</EmptyDescription> : null}
       </EmptyHeader>
       {actions ? <EmptyContent>{actions}</EmptyContent> : null}
     </Empty>

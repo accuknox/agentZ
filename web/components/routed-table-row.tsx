@@ -23,12 +23,16 @@ export function RoutedTableRow({
 }: RoutedTableRowProps) {
   const router = useRouter()
 
-  function isNestedControl(target: EventTarget | null) {
-    return target instanceof Element && Boolean(target.closest("a,button,input,select,textarea"))
+  function blocksRowNavigation(target: EventTarget | null, row: HTMLTableRowElement) {
+    return (
+      !(target instanceof Node) ||
+      !row.contains(target) ||
+      (target instanceof Element && Boolean(target.closest("a,button,input,select,textarea")))
+    )
   }
 
   function open(event: MouseEvent<HTMLTableRowElement>) {
-    if (isNestedControl(event.target)) return
+    if (blocksRowNavigation(event.target, event.currentTarget)) return
     if (event.metaKey || event.ctrlKey) {
       window.open(String(href), "_blank", "noopener,noreferrer")
       return
@@ -41,16 +45,20 @@ export function RoutedTableRow({
       {...props}
       aria-label={ariaLabel}
       className={cn(
-        "cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        "focus-visible:ring-ring cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-inset",
         className
       )}
       onAuxClick={(event) => {
-        if (event.button !== 1 || isNestedControl(event.target)) return
+        if (event.button !== 1 || blocksRowNavigation(event.target, event.currentTarget)) return
         window.open(String(href), "_blank", "noopener,noreferrer")
       }}
       onClick={open}
       onKeyDown={(event) => {
-        if (isNestedControl(event.target) || (event.key !== "Enter" && event.key !== " ")) return
+        if (
+          blocksRowNavigation(event.target, event.currentTarget) ||
+          (event.key !== "Enter" && event.key !== " ")
+        )
+          return
         event.preventDefault()
         router.push(href)
       }}

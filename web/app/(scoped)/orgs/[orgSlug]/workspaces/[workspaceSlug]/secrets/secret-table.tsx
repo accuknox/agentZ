@@ -35,15 +35,24 @@ const columnClassName: Record<string, string> = {
   actions: "w-14",
 }
 
-const watchSecretsQueryOptions = (agentName: string, secrets: SecretListItem[]) =>
+const watchSecretsQueryOptions = (
+  agentName: string,
+  workspaceId: string,
+  secrets: SecretListItem[]
+) =>
   queryOptions({
-    queryKey: ["watchSecrets", agentName, secrets.map((secret) => secret.key)] as const,
+    queryKey: [
+      "watchSecrets",
+      workspaceId,
+      agentName,
+      secrets.map((secret) => secret.key),
+    ] as const,
     enabled: secrets.length > 0,
     placeholderData: secrets,
     queryFn: streamedQuery<
       WatchSecretsEvent,
       SecretListItem[],
-      readonly ["watchSecrets", string, string[]]
+      readonly ["watchSecrets", string, string, string[]]
     >({
       initialValue: secrets,
       reducer: (rows, event) => {
@@ -62,6 +71,9 @@ const watchSecretsQueryOptions = (agentName: string, secrets: SecretListItem[]) 
       streamFn: async ({ signal }) => {
         const result = await watchSecrets({
           baseUrl: await getGatewayBaseURL(),
+          headers: {
+            "X-AgentZ-Workspace-ID": workspaceId,
+          },
           path: {
             agentName,
           },
@@ -87,12 +99,14 @@ export function SecretTable({
   hasNextPage,
   nextPageToken,
   deleteSecretAction,
+  workspaceId,
 }: {
   agentName: string
   secrets: SecretListItem[]
   hasNextPage: boolean
   nextPageToken: string
   deleteSecretAction: DeleteSecretFormAction
+  workspaceId: string
 }) {
   "use no memo"
 
@@ -101,7 +115,7 @@ export function SecretTable({
     pageTokenKey: "page_token",
     tokenStackKey: "token_stack",
   })
-  const query = useQuery(watchSecretsQueryOptions(agentName, secrets))
+  const query = useQuery(watchSecretsQueryOptions(agentName, workspaceId, secrets))
   const rows = query.data ?? secrets
   const columns = React.useMemo(
     () => createSecretColumns(agentName, deleteSecretAction),

@@ -28,6 +28,7 @@ export function DestructiveConfirmation({
           Type <span className="font-mono">{confirmation}</span> to confirm
         </Label>
         <Input
+          aria-label={`Type ${confirmation} to confirm`}
           autoComplete="off"
           id={id}
           name="confirmation"

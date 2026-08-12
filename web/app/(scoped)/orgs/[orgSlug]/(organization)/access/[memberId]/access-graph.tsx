@@ -16,7 +16,6 @@ import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -440,56 +439,54 @@ function AccessSourceTable({ sources }: { sources: EffectiveAccessSource[] }) {
     )
   }
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label="Authoritative effective access source paths">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Source</TableHead>
-              <TableHead>Scope</TableHead>
-              <TableHead>Path</TableHead>
-              <TableHead>Effective grant</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sources.map((source) => {
-              let path: string
-              let grant: string
-              if (source.source === "Superadmin" || source.source === "Workspace Admin") {
-                path = `User -> ${source.role}`
-                grant = `${source.resource}.${source.action}`
-              } else if (source.source === "Direct Role") {
-                path = `User -> ${source.role}`
-                grant = `${source.resource}.${source.action}`
-              } else if (source.source === "Team Role") {
-                path = `User -> ${source.team} -> ${source.role}`
-                grant = `${source.resource}.${source.action}`
-              } else if (source.source === "Ownership") {
-                path = `User -> Owner -> ${source.agent}`
-                grant = "Agent ownership"
-              } else if (source.source === "Team Share") {
-                path = `User -> ${source.team} -> ${source.agent}`
-                grant = source.capability
-              } else {
-                path = `User -> Direct Share -> ${source.agent}`
-                grant = source.capability
-              }
-              return (
-                <TableRow key={source.id}>
-                  <TableCell>
-                    <AccessSourceChip source={source.source} />
-                  </TableCell>
-                  <TableCell className="max-w-56 truncate" title={source.scope}>
-                    {source.scope}
-                  </TableCell>
-                  <TableCell className="max-w-md text-sm">{path}</TableCell>
-                  <TableCell className="max-w-md text-sm font-medium">{grant}</TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <div className="w-full min-w-0 border-b">
+      <Table aria-label="Authoritative effective access source paths">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Source</TableHead>
+            <TableHead>Scope</TableHead>
+            <TableHead>Path</TableHead>
+            <TableHead>Effective grant</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sources.map((source) => {
+            let path: string
+            let grant: string
+            if (source.source === "Superadmin" || source.source === "Workspace Admin") {
+              path = `User -> ${source.role}`
+              grant = `${source.resource}.${source.action}`
+            } else if (source.source === "Direct Role") {
+              path = `User -> ${source.role}`
+              grant = `${source.resource}.${source.action}`
+            } else if (source.source === "Team Role") {
+              path = `User -> ${source.team} -> ${source.role}`
+              grant = `${source.resource}.${source.action}`
+            } else if (source.source === "Ownership") {
+              path = `User -> Owner -> ${source.agent}`
+              grant = "Agent ownership"
+            } else if (source.source === "Team Share") {
+              path = `User -> ${source.team} -> ${source.agent}`
+              grant = source.capability
+            } else {
+              path = `User -> Direct Share -> ${source.agent}`
+              grant = source.capability
+            }
+            return (
+              <TableRow key={source.id}>
+                <TableCell>
+                  <AccessSourceChip source={source.source} />
+                </TableCell>
+                <TableCell className="max-w-56 truncate" title={source.scope}>
+                  {source.scope}
+                </TableCell>
+                <TableCell className="max-w-md text-sm">{path}</TableCell>
+                <TableCell className="max-w-md text-sm font-medium">{grant}</TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

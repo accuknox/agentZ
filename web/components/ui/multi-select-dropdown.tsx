@@ -47,6 +47,7 @@ function MultiSelectDropdown({
   searchPlaceholder?: string
   value: string[]
 }) {
+  const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const selectedValues = new Set(value)
   const customValue = search.trim()
@@ -65,7 +66,7 @@ function MultiSelectDropdown({
         : `${value.length} selected`
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           id={id}
@@ -103,6 +104,7 @@ function MultiSelectDropdown({
                   onSelect={() => {
                     onValueChangeAction([...value, customValue].toSorted())
                     setSearch("")
+                    setOpen(false)
                   }}
                 >
                   <PlusIcon />
@@ -127,6 +129,7 @@ function MultiSelectDropdown({
                         return
                       }
                       onValueChangeAction(nextValue)
+                      setOpen(false)
                     }}
                   >
                     <Checkbox className="pointer-events-none" checked={checked} />

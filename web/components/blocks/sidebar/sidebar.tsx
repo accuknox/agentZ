@@ -3,12 +3,10 @@ import {
   Activity,
   Box,
   Bot,
-  Brain,
   Building2,
   Cable,
   CircleUserRound,
   KeyRound,
-  Layers3,
   LayoutDashboard,
   Network,
   ScrollText,
@@ -21,6 +19,7 @@ import {
   UsersRound,
 } from "lucide-react"
 import { NavAgents } from "./agents"
+import { NavInference } from "./inference"
 import { SidebarNavigationLink } from "./navigation-link"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
@@ -266,29 +265,12 @@ function WorkspaceNavigation({
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}
-            {inferenceProviderCapabilities.read ? (
-              <SidebarMenuItem>
-                <SidebarNavigationLink
-                  href={
-                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/providers` as Route
-                  }
-                  label="Providers"
-                >
-                  <Brain aria-hidden="true" />
-                </SidebarNavigationLink>
-              </SidebarMenuItem>
-            ) : null}
-            {inferencePoolCapabilities.read ? (
-              <SidebarMenuItem>
-                <SidebarNavigationLink
-                  href={
-                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/inference/pools` as Route
-                  }
-                  label="Pools"
-                >
-                  <Layers3 aria-hidden="true" />
-                </SidebarNavigationLink>
-              </SidebarMenuItem>
+            {inferenceProviderCapabilities.read || inferencePoolCapabilities.read ? (
+              <NavInference
+                rootPath={`/orgs/${organization.slug}/workspaces/${workspace.slug}`}
+                showPools={inferencePoolCapabilities.read}
+                showProviders={inferenceProviderCapabilities.read}
+              />
             ) : null}
           </SidebarMenu>
         </SidebarGroup>
@@ -446,14 +428,7 @@ function OrganizationNavigation({
               </SidebarMenuItem>
             ) : null}
             {inferenceProviderCapabilities.read ? (
-              <SidebarMenuItem>
-                <SidebarNavigationLink
-                  href={`${root}/inference/providers` as Route}
-                  label="Providers"
-                >
-                  <Brain aria-hidden="true" />
-                </SidebarNavigationLink>
-              </SidebarMenuItem>
+              <NavInference rootPath={root} showPools={false} showProviders />
             ) : null}
           </SidebarMenu>
         </SidebarGroup>

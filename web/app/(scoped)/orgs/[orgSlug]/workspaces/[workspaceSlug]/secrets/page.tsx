@@ -191,6 +191,7 @@ async function Secrets({
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}
       deleteSecretAction={deleteSecretAction}
+      workspaceId={workspaceId}
     />
   )
 }

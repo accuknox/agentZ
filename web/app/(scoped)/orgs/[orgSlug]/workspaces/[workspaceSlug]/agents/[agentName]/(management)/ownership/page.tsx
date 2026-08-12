@@ -12,7 +12,7 @@ import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import type { AgentActionScope } from "@/data/agent.actions"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { formatAge } from "@/lib/format"
-import { AgentOwnerForm } from "../agent-access-forms"
+import { AgentOwnerForm } from "../../agent-access-forms"
 
 export default async function AgentOwnershipPage({
   params,

@@ -5354,6 +5354,32 @@ func (q *Queries) GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsPa
 	return exists, err
 }
 
+const gatewayTouchAgent = `-- name: GatewayTouchAgent :one
+UPDATE agents
+SET updated_at = $1
+WHERE tenant_namespace = $2
+  AND agent_name = $3
+RETURNING tenant_namespace, agent_name, created_at, updated_at
+`
+
+type GatewayTouchAgentParams struct {
+	UpdatedAt       time.Time `json:"updated_at"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+}
+
+func (q *Queries) GatewayTouchAgent(ctx context.Context, arg GatewayTouchAgentParams) (Agent, error) {
+	row := q.db.QueryRow(ctx, gatewayTouchAgent, arg.UpdatedAt, arg.TenantNamespace, arg.AgentName)
+	var i Agent
+	err := row.Scan(
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const gatewayTransferAgentOwner = `-- name: GatewayTransferAgentOwner :one
 UPDATE agent_owners
 SET

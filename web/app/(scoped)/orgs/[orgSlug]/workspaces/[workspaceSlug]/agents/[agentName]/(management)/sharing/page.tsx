@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import type { AgentActionScope } from "@/data/agent.actions"
 import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { AgentShareForm } from "../agent-access-forms"
+import { AgentShareForm } from "../../agent-access-forms"
 
 export default async function AgentSharingPage({
   params,

@@ -53,7 +53,10 @@ export function SecretsFilters({
           onValueChange={updateAgentName}
           disabled={agents.length === 0}
         >
-          <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52">
+          <SelectTrigger
+            aria-label="Agent"
+            className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52"
+          >
             <SelectValue placeholder="Agent" />
           </SelectTrigger>
           <SelectContent>

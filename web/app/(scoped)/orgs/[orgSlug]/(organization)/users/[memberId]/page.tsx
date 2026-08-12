@@ -5,7 +5,6 @@ import { notFound } from "next/navigation"
 import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -86,14 +85,10 @@ export default async function UserDetailPage({
 
 function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: string }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Membership</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <section className="min-w-0 space-y-3">
+        <h2 className="px-4 text-lg font-medium md:px-6">Membership</h2>
+        <div className="w-full min-w-0 border-b">
           <Table aria-label={`${data.member.name} membership summary`}>
             <TableBody>
               <TableRow>
@@ -124,15 +119,11 @@ function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: strin
               </TableRow>
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Membership actions</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
+        </div>
+      </section>
+      <section className="space-y-3 px-4 md:px-6 lg:pl-0">
+        <h2 className="text-lg font-medium">Membership actions</h2>
+        <div className="grid gap-2">
           {data.self || data.member.disabledAt ? null : (
             <Button asChild variant="outline">
               <Link
@@ -155,8 +146,8 @@ function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: strin
               </Link>
             </Button>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }
@@ -170,137 +161,131 @@ async function UserAccess({ memberId, orgSlug }: { memberId: string; orgSlug: st
 
 function OwnedAgents({ data, orgSlug }: { data: MemberAdministration; orgSlug: string }) {
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label={`${data.member.name} owned Agents`}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Agent</TableHead>
-              <TableHead>Workspace</TableHead>
-              <TableHead>Updated</TableHead>
-              <TableHead className="text-right">Ownership</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.agents.length ? (
-              data.agents.map((agent) => (
-                <TableRow key={`${agent.workspaceSlug}:${agent.name}`}>
-                  <TableCell className="font-medium">{agent.name}</TableCell>
-                  <TableCell>{agent.workspace}</TableCell>
-                  <TableCell>
-                    <time dateTime={agent.updatedAt}>{formatAge(agent.updatedAt)}</time>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild size="sm" variant="outline">
-                      <Link
-                        href={
-                          `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.name)}/ownership` as Route
-                        }
-                      >
-                        Transfer
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={4}>
-                  No owned agents
+    <div className="w-full min-w-0 border-b">
+      <Table aria-label={`${data.member.name} owned Agents`}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Agent</TableHead>
+            <TableHead>Workspace</TableHead>
+            <TableHead>Updated</TableHead>
+            <TableHead className="text-right">Ownership</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.agents.length ? (
+            data.agents.map((agent) => (
+              <TableRow key={`${agent.workspaceSlug}:${agent.name}`}>
+                <TableCell className="font-medium">{agent.name}</TableCell>
+                <TableCell>{agent.workspace}</TableCell>
+                <TableCell>
+                  <time dateTime={agent.updatedAt}>{formatAge(agent.updatedAt)}</time>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href={
+                        `/orgs/${orgSlug}/workspaces/${agent.workspaceSlug}/agents/${encodeURIComponent(agent.name)}/ownership` as Route
+                      }
+                    >
+                      Transfer
+                    </Link>
+                  </Button>
                 </TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell className="h-24 text-center" colSpan={4}>
+                No owned agents
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
 
 function APIKeys({ data }: { data: MemberAdministration }) {
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label={`${data.member.name} API Keys`}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Key</TableHead>
-              <TableHead>Workspace</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.apiKeys.length ? (
-              data.apiKeys.map((key) => (
-                <TableRow key={key.id}>
-                  <TableCell className="font-medium">{key.name}</TableCell>
-                  <TableCell>{key.workspace}</TableCell>
-                  <TableCell>
-                    <Badge variant={key.revokedAt ? "destructive" : "success"}>
-                      {key.revokedAt ? "Revoked" : "Active"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <time dateTime={key.createdAt}>{formatAge(key.createdAt)}</time>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={4}>
-                  No API keys
+    <div className="w-full min-w-0 border-b">
+      <Table aria-label={`${data.member.name} API Keys`}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Key</TableHead>
+            <TableHead>Workspace</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Created</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.apiKeys.length ? (
+            data.apiKeys.map((key) => (
+              <TableRow key={key.id}>
+                <TableCell className="font-medium">{key.name}</TableCell>
+                <TableCell>{key.workspace}</TableCell>
+                <TableCell>
+                  <Badge variant={key.revokedAt ? "destructive" : "success"}>
+                    {key.revokedAt ? "Revoked" : "Active"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <time dateTime={key.createdAt}>{formatAge(key.createdAt)}</time>
                 </TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell className="h-24 text-center" colSpan={4}>
+                No API keys
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
 
 function Activity({ data }: { data: MemberAdministration }) {
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label={`${data.member.name} Membership activity`}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Actor</TableHead>
-              <TableHead>Event</TableHead>
-              <TableHead>Result</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.activity.length ? (
-              data.activity.map((event) => (
-                <TableRow key={event.id}>
-                  <TableCell>
-                    <time dateTime={event.createdAt}>{formatAge(event.createdAt)}</time>
-                  </TableCell>
-                  <TableCell>{event.actor}</TableCell>
-                  <TableCell className="font-mono text-sm">{event.action}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={event.result === "succeeded" ? "successPlain" : "destructivePlain"}
-                    >
-                      {event.result}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={4}>
-                  No activity
+    <div className="w-full min-w-0 border-b">
+      <Table aria-label={`${data.member.name} Membership activity`}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Time</TableHead>
+            <TableHead>Actor</TableHead>
+            <TableHead>Event</TableHead>
+            <TableHead>Result</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.activity.length ? (
+            data.activity.map((event) => (
+              <TableRow key={event.id}>
+                <TableCell>
+                  <time dateTime={event.createdAt}>{formatAge(event.createdAt)}</time>
+                </TableCell>
+                <TableCell>{event.actor}</TableCell>
+                <TableCell className="font-mono text-sm">{event.action}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant={event.result === "succeeded" ? "successPlain" : "destructivePlain"}
+                  >
+                    {event.result}
+                  </Badge>
                 </TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell className="h-24 text-center" colSpan={4}>
+                No activity
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

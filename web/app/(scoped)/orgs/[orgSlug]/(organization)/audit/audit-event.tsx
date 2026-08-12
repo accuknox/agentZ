@@ -3,16 +3,17 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getOrganizationAuditEvent, getWorkspaceAuditEvent } from "@/data/audit"
 import { formatAge } from "@/lib/format"
 import type { AuditField, AuditResult } from "@/lib/gateway/client"
 
 export async function AuditEventDetail({
+  compact,
   eventId,
   orgSlug,
   workspaceSlug,
 }: {
+  compact?: boolean
   eventId: string
   orgSlug: string
   workspaceSlug?: string
@@ -38,6 +39,7 @@ export async function AuditEventDetail({
     event.target.type === "organization" && event.target.slug
       ? (`/orgs/${event.target.slug}/general` as Route)
       : undefined
+  const Heading = compact ? "h2" : "h1"
 
   return (
     <article className="flex min-w-0 flex-col gap-4">
@@ -49,49 +51,45 @@ export async function AuditEventDetail({
           <span>·</span>
           <span>{event.interface}</span>
         </div>
-        <h2 className="font-mono text-xl font-semibold break-all">{event.action}</h2>
+        <Heading className="font-mono text-xl font-semibold break-all">{event.action}</Heading>
         <time className="text-muted-foreground text-sm" dateTime={event.created_at}>
           {formatAge(event.created_at)}
         </time>
       </header>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            <DetailTerm
-              label="Actor"
-              value={event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
-            />
-            <DetailTerm label="Actor type" value={event.actor.type} />
-            <DetailTerm label="Target">
-              {target ? (
-                <Link
-                  className="text-primary break-words underline-offset-4 hover:underline"
-                  href={target}
-                >
-                  {event.target.name ?? event.target.id}
-                </Link>
-              ) : (
-                <span className="break-words">{event.target.name ?? event.target.id}</span>
-              )}
-            </DetailTerm>
-            <DetailTerm label="Resource type" value={event.target.type} />
-            <DetailTerm
-              label="Workspace"
-              value={
-                event.workspace?.name ??
-                event.workspace?.slug ??
-                event.workspace?.id ??
-                "Organisation"
-              }
-            />
-            <DetailTerm label="Event ID" value={event.id} mono />
-          </dl>
-        </CardContent>
-      </Card>
+      <section className="space-y-3 border-b pb-4">
+        <h3 className="font-medium">Overview</h3>
+        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+          <DetailTerm
+            label="Actor"
+            value={event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
+          />
+          <DetailTerm label="Actor type" value={event.actor.type} />
+          <DetailTerm label="Target">
+            {target ? (
+              <Link
+                className="text-primary break-words underline-offset-4 hover:underline"
+                href={target}
+              >
+                {event.target.name ?? event.target.id}
+              </Link>
+            ) : (
+              <span className="break-words">{event.target.name ?? event.target.id}</span>
+            )}
+          </DetailTerm>
+          <DetailTerm label="Resource type" value={event.target.type} />
+          <DetailTerm
+            label="Workspace"
+            value={
+              event.workspace?.name ??
+              event.workspace?.slug ??
+              event.workspace?.id ??
+              "Organisation"
+            }
+          />
+          <DetailTerm label="Event ID" value={event.id} mono />
+        </dl>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <AuditFields title="Before" fields={event.before} />
@@ -99,63 +97,49 @@ export async function AuditEventDetail({
       </div>
 
       {(event.ip_address || event.user_agent) && (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Request</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-              {event.ip_address ? (
-                <DetailTerm label="IP address" value={event.ip_address} mono />
-              ) : null}
-              {event.user_agent ? <DetailTerm label="User agent" value={event.user_agent} /> : null}
-            </dl>
-          </CardContent>
-        </Card>
+        <section className="space-y-3 border-b pb-4">
+          <h3 className="font-medium">Request</h3>
+          <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            {event.ip_address ? (
+              <DetailTerm label="IP address" value={event.ip_address} mono />
+            ) : null}
+            {event.user_agent ? <DetailTerm label="User agent" value={event.user_agent} /> : null}
+          </dl>
+        </section>
       )}
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Cascade and cleanup</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            <DetailTerm label="Automatic cascade" value={event.automatic_cascade ? "Yes" : "No"} />
-            <DetailTerm label="Cleanup status" value={event.cleanup?.state ?? "Not applicable"} />
-            {event.cleanup ? (
-              <DetailTerm label="Cleanup job" value={event.cleanup.id} mono />
-            ) : null}
-            {event.cleanup?.completed_at ? (
-              <DetailTerm label="Cleanup completed" value={formatAge(event.cleanup.completed_at)} />
-            ) : null}
-          </dl>
-        </CardContent>
-      </Card>
+      <section className="space-y-3 border-b pb-4">
+        <h3 className="font-medium">Cascade and cleanup</h3>
+        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+          <DetailTerm label="Automatic cascade" value={event.automatic_cascade ? "Yes" : "No"} />
+          <DetailTerm label="Cleanup status" value={event.cleanup?.state ?? "Not applicable"} />
+          {event.cleanup ? <DetailTerm label="Cleanup job" value={event.cleanup.id} mono /> : null}
+          {event.cleanup?.completed_at ? (
+            <DetailTerm label="Cleanup completed" value={formatAge(event.cleanup.completed_at)} />
+          ) : null}
+        </dl>
+      </section>
     </article>
   )
 }
 
 function AuditFields({ title, fields }: { title: string; fields: AuditField[] }) {
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {fields.length ? (
-          <dl className="grid gap-3">
-            {fields.map((field, index) => (
-              <div key={`${field.field}-${index}`}>
-                <dt className="text-muted-foreground font-mono text-xs">{field.field}</dt>
-                <dd className="mt-1 break-words">{field.value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <p className="text-muted-foreground">No recorded fields.</p>
-        )}
-      </CardContent>
-    </Card>
+    <section className="space-y-3 border-b pb-4">
+      <h3 className="font-medium">{title}</h3>
+      {fields.length ? (
+        <dl className="grid gap-3">
+          {fields.map((field, index) => (
+            <div key={`${field.field}-${index}`}>
+              <dt className="text-muted-foreground font-mono text-xs">{field.field}</dt>
+              <dd className="mt-1 break-words">{field.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="text-muted-foreground">No recorded fields.</p>
+      )}
+    </section>
   )
 }
 

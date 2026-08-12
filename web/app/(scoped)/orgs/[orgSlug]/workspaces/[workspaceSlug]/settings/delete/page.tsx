@@ -34,6 +34,9 @@ export default async function DeleteWorkspacePage({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
+      <header className="px-4 pt-4 md:px-6 md:pt-6">
+        <h1 className="text-2xl font-semibold tracking-normal">Delete {impact.targetLabel}</h1>
+      </header>
       {error ? (
         <Alert className="mx-4 md:mx-6" variant="destructive">
           <AlertTitle>Workspace was not deleted</AlertTitle>
@@ -47,7 +50,7 @@ export default async function DeleteWorkspacePage({
       <ImpactReviewFrame
         description="Access is revoked transactionally. Kubernetes, OpenBao, persistent Agent data, workflow state, telemetry, and scoped credentials are then reconciled durably."
         items={impact.items}
-        title={`Delete ${impact.targetLabel}`}
+        title="Deletion impact"
       />
       <div className="grid gap-3 px-4 pb-6 sm:grid-cols-[auto_minmax(0,24rem)] sm:items-end sm:justify-between md:px-6">
         <Button asChild variant="outline">

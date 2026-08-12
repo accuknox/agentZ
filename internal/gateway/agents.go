@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"slices"
@@ -114,12 +115,21 @@ func requireAgentBoundAccess(s *Service) func(http.Handler) http.Handler {
 				}
 			}
 
-			_, apiErr := s.resolveAgentAccess(r.Context(), agentName, operation)
+			access, apiErr := s.resolveAgentAccess(r.Context(), agentName, operation)
 			if apiErr != nil {
 				writeError(w, r, apiErr)
 				return
 			}
-			next.ServeHTTP(w, r)
+
+			auth, ok := requestAuthState(r.Context())
+			if !ok {
+				writeInternalError(w, r, errors.New("missing request authentication"))
+				return
+			}
+			auth.workspaceID = access.workspaceID
+			auth.tenantNamespace = access.namespace
+			ctx := context.WithValue(r.Context(), authContextKey{}, auth)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -515,7 +525,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	var updated *agentzv1alpha1.Agent
+	var before, updated *agentzv1alpha1.Agent
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		agt, getErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(
 			r.Context(),
@@ -525,6 +535,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		if getErr != nil {
 			return getErr
 		}
+		before = agt.DeepCopy()
 		applyUpdateAgentRequest(agt, req)
 		updated, getErr = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(
 			r.Context(),
@@ -535,6 +546,41 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	})
 	if err != nil {
 		writeError(w, r, mapKubeHTTPError("update agent", err))
+		return
+	}
+
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		s.rollbackAgentUpdate(r.Context(), ns, before)
+		writeInternalError(w, r, fmt.Errorf("begin Agent update: %w", err))
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	q := gatewaydb.New(tx)
+	row, err = q.GatewayTouchAgent(r.Context(), gatewaydb.GatewayTouchAgentParams{
+		TenantNamespace: ns,
+		AgentName:       name,
+		UpdatedAt:       time.Now().UTC(),
+	})
+	if err != nil {
+		s.rollbackAgentUpdate(r.Context(), ns, before)
+		writeError(w, r, mapGatewayStoreError("update agent", err))
+		return
+	}
+	err = createAgentAudit(
+		r.Context(), r, q, access, name, "agent.modify",
+		agentConfigurationAuditFields(name, before),
+		agentConfigurationAuditFields(name, updated),
+	)
+	if err != nil {
+		s.rollbackAgentUpdate(r.Context(), ns, before)
+		writeInternalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		s.rollbackAgentUpdate(r.Context(), ns, before)
+		writeInternalError(w, r, fmt.Errorf("commit Agent update: %w", err))
 		return
 	}
 
@@ -554,6 +600,30 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		Status:       status,
 		Skills:       resourceReferencesFromCRD(updated.Spec.Skills),
 	})
+}
+
+func (s *Service) rollbackAgentUpdate(ctx context.Context, namespace string, before *agentzv1alpha1.Agent) {
+	if before == nil {
+		return
+	}
+	current, err := s.resolver.client.AgentzV1alpha1().Agents(namespace).Get(
+		ctx,
+		before.Name,
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to read Agent for update rollback", "agent", before.Name, "err", err)
+		return
+	}
+	before.ResourceVersion = current.ResourceVersion
+	_, err = s.resolver.client.AgentzV1alpha1().Agents(namespace).Update(
+		ctx,
+		before,
+		metav1.UpdateOptions{},
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to roll back Agent update", "agent", before.Name, "err", err)
+	}
 }
 
 // DeleteAgent handles DELETE /api/agent/{agentName}.
@@ -1662,6 +1732,29 @@ func createAgentAudit(ctx context.Context, r *http.Request, q gatewaydb.Querier,
 		return fmt.Errorf("create Agent audit event: %w", err)
 	}
 	return nil
+}
+
+func agentConfigurationAuditFields(agentName string, agent *agentzv1alpha1.Agent) []gatewayapi.AuditField {
+	if agent == nil {
+		return []gatewayapi.AuditField{{Field: gatewayapi.AuditFieldName, Value: agentName}}
+	}
+
+	skills := make([]string, 0, len(agent.Spec.Skills))
+	for _, skill := range agent.Spec.Skills {
+		skills = append(skills, string(skill.Scope)+"/"+skill.Name)
+	}
+	slices.Sort(skills)
+	state := fmt.Sprintf(
+		"sandbox=%s/%s; memory=%t; skills=%s",
+		agent.Spec.SandboxRef.Scope,
+		agent.Spec.SandboxRef.Name,
+		agent.Spec.Memory.Enabled,
+		strings.Join(skills, ","),
+	)
+	return []gatewayapi.AuditField{
+		{Field: gatewayapi.AuditFieldName, Value: agentName},
+		{Field: gatewayapi.AuditFieldState, Value: state},
+	}
 }
 
 func agentShareAuditFields(agentName string, share gatewaydb.AgentShare) []gatewayapi.AuditField {

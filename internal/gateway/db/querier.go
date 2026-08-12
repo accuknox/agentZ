@@ -121,6 +121,7 @@ type Querier interface {
 	GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error)
 	GatewaySetMemberDisabledAt(ctx context.Context, arg GatewaySetMemberDisabledAtParams) (int64, error)
 	GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsParams) (bool, error)
+	GatewayTouchAgent(ctx context.Context, arg GatewayTouchAgentParams) (Agent, error)
 	GatewayTransferAgentOwner(ctx context.Context, arg GatewayTransferAgentOwnerParams) (AgentOwner, error)
 	GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error)
 	GatewayUnassignInvitationRole(ctx context.Context, arg GatewayUnassignInvitationRoleParams) (int64, error)

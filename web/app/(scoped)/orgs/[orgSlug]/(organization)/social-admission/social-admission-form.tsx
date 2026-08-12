@@ -87,6 +87,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       <section className="grid gap-5">
         <Field orientation="horizontal">
           <Switch
+            aria-label="Enable guarded Social sign-up"
             id="social-admission-enabled"
             checked={enabled}
             name="enabled"
@@ -133,7 +134,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             value={teamIds}
           />
         </div>
-        <div className="bg-muted/35 grid gap-3 rounded-lg border p-4">
+        <div className="grid gap-3 border-y py-4">
           <div>
             <h4 className="text-sm font-medium">Derived Workspace access</h4>
             <p className="text-muted-foreground text-sm">
@@ -354,6 +355,7 @@ function CheckList({
           {options.map((option) => (
             <label className="flex items-center gap-2 py-3 text-sm" key={option.id}>
               <Checkbox
+                aria-label={`${label}: ${option.name}`}
                 checked={value.includes(option.id)}
                 name={name}
                 onCheckedChange={(checked) =>

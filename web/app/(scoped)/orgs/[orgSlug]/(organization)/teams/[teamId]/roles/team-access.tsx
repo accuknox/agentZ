@@ -13,7 +13,6 @@ import {
 import { Canvas } from "@/components/ai-elements/canvas"
 import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -193,33 +192,31 @@ function TeamAccessTable({
     return <AdministrationState kind="empty" title="No Team Role grants in this scope" />
   }
   return (
-    <Card>
-      <CardContent className="px-0">
-        <Table aria-label={`${detail.team.name} authoritative access paths`}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Source</TableHead>
-              <TableHead>Scope</TableHead>
-              <TableHead>Path</TableHead>
-              <TableHead>Effective Grant</TableHead>
+    <div className="w-full min-w-0 border-b">
+      <Table aria-label={`${detail.team.name} authoritative access paths`}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Source</TableHead>
+            <TableHead>Scope</TableHead>
+            <TableHead>Path</TableHead>
+            <TableHead>Effective Grant</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sources.map((source) => (
+            <TableRow key={source.id}>
+              <TableCell>
+                <AccessSourceChip source="Team Role" />
+              </TableCell>
+              <TableCell>{source.scope}</TableCell>
+              <TableCell>{`User -> ${detail.team.name} -> ${source.role}`}</TableCell>
+              <TableCell className="font-medium">
+                {source.resource}.{source.action}
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sources.map((source) => (
-              <TableRow key={source.id}>
-                <TableCell>
-                  <AccessSourceChip source="Team Role" />
-                </TableCell>
-                <TableCell>{source.scope}</TableCell>
-                <TableCell>{`User -> ${detail.team.name} -> ${source.role}`}</TableCell>
-                <TableCell className="font-medium">
-                  {source.resource}.{source.action}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

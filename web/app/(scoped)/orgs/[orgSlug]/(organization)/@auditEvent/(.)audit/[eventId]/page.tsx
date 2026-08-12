@@ -13,7 +13,7 @@ export default async function InterceptedAuditEventPage({
   const { eventId, orgSlug } = await params
   return (
     <AuditDrawer>
-      <AuditEventDetail eventId={eventId} orgSlug={orgSlug} />
+      <AuditEventDetail compact eventId={eventId} orgSlug={orgSlug} />
     </AuditDrawer>
   )
 }

@@ -15,7 +15,6 @@ import type { AgentShareCapability } from "@/lib/gateway/client"
 import { AccessSourceChip } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
@@ -78,13 +77,9 @@ export function AgentOwnerForm({
   const [owner, setOwner] = useState(ownerUserId)
 
   return (
-    <Card className="max-w-3xl">
-      <CardHeader>
-        <CardTitle>
-          <h3>Transfer ownership</h3>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+    <section className="max-w-3xl min-w-0 space-y-3">
+      <h2 className="px-4 text-lg font-medium md:px-6">Transfer ownership</h2>
+      <div className="border-b px-4 pb-6 md:px-6">
         <form action={formAction} className="space-y-5">
           {state.error ? (
             <FormError title="Ownership was not transferred" message={state.error} />
@@ -123,8 +118,8 @@ export function AgentOwnerForm({
             </Button>
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }
 
@@ -149,23 +144,15 @@ export function AgentShareForm({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Current shares</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-0">
+      <section className="min-w-0 space-y-3">
+        <h2 className="px-4 text-lg font-medium md:px-6">Current shares</h2>
+        <div className="w-full min-w-0 border-b">
           <AgentSharesTable actionScope={actionScope} agentName={agentName} shares={shares} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Add or replace share</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </section>
+      <section className="max-w-3xl min-w-0 space-y-3">
+        <h2 className="px-4 text-lg font-medium md:px-6">Add or replace share</h2>
+        <div className="border-b px-4 pb-6 md:px-6">
           <form action={formAction} className="space-y-5">
             {state.error ? <FormError title="Share was not saved" message={state.error} /> : null}
             {state.success ? (
@@ -217,23 +204,35 @@ export function AgentShareForm({
               </Field>
               <Field>
                 <FieldLabel required>Capabilities</FieldLabel>
+                <p className="text-muted-foreground text-sm">
+                  Every share grants Use Shared. Secret and delegation capabilities add to that
+                  baseline and require matching Workspace permissions for the recipient.
+                </p>
                 <div className="grid gap-3">
                   {capabilities.map((capability) => (
                     <label
                       className="hover:bg-muted/40 flex items-start gap-3 py-2"
                       key={capability.value}
                     >
-                      <Checkbox name="capabilities" value={capability.value} />
+                      <Checkbox
+                        aria-label={capability.label}
+                        name="capabilities"
+                        value={capability.value}
+                      />
                       <span className="font-medium">{capability.label}</span>
                     </label>
                   ))}
                 </div>
               </Field>
               <Field orientation="horizontal">
-                <Checkbox id="acknowledge-use-shared" name="acknowledge_use_shared" />
+                <Checkbox
+                  aria-label="Acknowledge full non-secret control"
+                  id="acknowledge-use-shared"
+                  name="acknowledge_use_shared"
+                />
                 <div className="grid gap-1">
                   <FieldLabel htmlFor="acknowledge-use-shared">
-                    I understand that Use Shared grants full non-secret control
+                    I understand that every share grants full non-secret Agent control
                   </FieldLabel>
                 </div>
               </Field>
@@ -245,8 +244,8 @@ export function AgentShareForm({
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }

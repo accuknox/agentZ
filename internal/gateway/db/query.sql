@@ -28,6 +28,13 @@ FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = $2;
 
+-- name: GatewayTouchAgent :one
+UPDATE agents
+SET updated_at = sqlc.arg(updated_at)
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
+RETURNING tenant_namespace, agent_name, created_at, updated_at;
+
 -- name: GatewayDeleteAgent :execrows
 DELETE FROM agents
 WHERE tenant_namespace = $1

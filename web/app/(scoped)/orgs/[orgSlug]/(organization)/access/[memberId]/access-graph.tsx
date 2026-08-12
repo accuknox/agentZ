@@ -3,7 +3,7 @@
 import * as React from "react"
 import dagre from "@dagrejs/dagre"
 import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
-import { BotIcon, KeyRoundIcon, RotateCcwIcon, ShieldCheckIcon, UsersIcon } from "lucide-react"
+import { BotIcon, KeyRoundIcon, ShieldCheckIcon, UsersIcon } from "lucide-react"
 import type { EdgeTypes, NodeTypes, NodeProps as FlowNodeProps } from "@xyflow/react"
 import { Handle, Position, type Edge as FlowEdge, type Node as FlowNode } from "@xyflow/react"
 import {
@@ -14,7 +14,6 @@ import {
 import { Canvas } from "@/components/ai-elements/canvas"
 import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
-import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -118,7 +117,7 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
     <EffectiveAccessFrame
       canvas={
         <div className="flex h-full min-h-[34rem] min-w-0 flex-col">
-          <div className="bg-background/95 flex items-center justify-between gap-3 border-b p-3">
+          <div className="bg-background/95 flex items-center gap-3 border-b p-3">
             <Select
               onValueChange={(value) => {
                 setScope(value)
@@ -139,17 +138,6 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              aria-label="Reset graph selection"
-              disabled={!selected}
-              onClick={() => setSelected(undefined)}
-              size="icon-sm"
-              title="Reset graph selection"
-              type="button"
-              variant="outline"
-            >
-              <RotateCcwIcon aria-hidden="true" />
-            </Button>
           </div>
           <div className="bg-sidebar relative min-h-0 flex-1 overflow-hidden">
             <Canvas

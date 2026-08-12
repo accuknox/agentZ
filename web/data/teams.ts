@@ -1,6 +1,6 @@
 import "server-only"
 
-import { createHash, randomUUID } from "node:crypto"
+import { randomUUID } from "node:crypto"
 import { getIp } from "better-auth/api"
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
@@ -30,10 +30,6 @@ export type TeamEditorData = {
   }
   members: TeamMember[]
   roles: TeamRole[]
-}
-export type TeamAccessPreview = {
-  fingerprint: string
-  rows: { id: string; label: string; detail: string }[]
 }
 export type TeamDetail = TeamSummary & {
   members: TeamMember[]
@@ -281,7 +277,7 @@ export async function getTeamEditorData(
   }
 }
 
-async function accessPreview(
+async function validTeamAccess(
   db: TeamDatabase,
   actor: TeamActor,
   memberIds: string[],
@@ -291,7 +287,7 @@ async function accessPreview(
   const selectedRoles = [...new Set(roleIds)].sort()
   if (!selectedMembers.length || !selectedRoles.length) return
 
-  const [members, roles, grants] = await Promise.all([
+  const [members, roles] = await Promise.all([
     db
       .select({ id: schema.members.id })
       .from(schema.members)
@@ -303,12 +299,7 @@ async function accessPreview(
         )
       ),
     db
-      .select({
-        id: schema.roleScopes.roleId,
-        name: schema.roleScopes.displayName,
-        workspace: schema.workspaces.name,
-        updatedAt: schema.roleScopes.updatedAt,
-      })
+      .select({ id: schema.roleScopes.roleId })
       .from(schema.roleScopes)
       .leftJoin(
         schema.workspaces,
@@ -326,67 +317,8 @@ async function accessPreview(
           or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
         )
       ),
-    db
-      .select({
-        roleId: schema.permissionGrants.roleId,
-        resource: schema.permissionGrants.resource,
-        action: schema.permissionGrants.action,
-        workspace: schema.workspaces.name,
-      })
-      .from(schema.permissionGrants)
-      .leftJoin(
-        schema.workspaces,
-        and(
-          eq(schema.workspaces.id, schema.permissionGrants.workspaceId),
-          eq(schema.workspaces.organizationId, schema.permissionGrants.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.permissionGrants.organizationId, actor.organizationId),
-          ne(schema.permissionGrants.resource, "api_key"),
-          inArray(schema.permissionGrants.roleId, selectedRoles)
-        )
-      ),
   ])
-  if (members.length !== selectedMembers.length || roles.length !== selectedRoles.length) return
-
-  const fingerprint = createHash("sha256")
-    .update(
-      JSON.stringify({
-        memberIds: selectedMembers,
-        roles: roles
-          .map(({ id, updatedAt }) => ({ id, updatedAt: updatedAt.toISOString() }))
-          .sort((left, right) => left.id.localeCompare(right.id)),
-      })
-    )
-    .digest("hex")
-  const rows = roles.map((role) => {
-    const permissions =
-      [
-        ...new Set(
-          grants
-            .filter(({ roleId }) => roleId === role.id)
-            .map(({ resource, action }) => `${resource}:${action}`)
-        ),
-      ]
-        .sort()
-        .join(", ") || "No permissions"
-    return {
-      id: role.id,
-      label: role.name,
-      detail: `${role.workspace ?? "Organisation"} · ${permissions}`,
-    }
-  })
-  return { fingerprint, rows } satisfies TeamAccessPreview
-}
-
-export async function previewTeamAccess(
-  orgSlug: string,
-  input: { memberIds: string[]; roleIds: string[] }
-) {
-  const actor = await getTeamActor(orgSlug)
-  return actor ? accessPreview(getDB(), actor, input.memberIds, input.roleIds) : undefined
+  return members.length === selectedMembers.length && roles.length === selectedRoles.length
 }
 
 export async function saveTeam(
@@ -397,7 +329,6 @@ export async function saveTeam(
     memberIds: string[]
     roleIds: string[]
     updatedAt?: string
-    previewFingerprint: string
   }
 ) {
   const actor = await getTeamActor(orgSlug, false)
@@ -418,14 +349,10 @@ export async function saveTeam(
     const action = teamId ? "team.update" : "team.create"
     const attempt = (result: "failed" | "denied") =>
       tx.insert(schema.auditEvents).values(teamAudit(actor, action, teamId ?? "new", result))
-    const preview = await accessPreview(tx, actor, input.memberIds, input.roleIds)
-    if (!preview) {
+    const valid = await validTeamAccess(tx, actor, input.memberIds, input.roleIds)
+    if (!valid) {
       await attempt("failed")
       return { error: "invalid" as const }
-    }
-    if (preview.fingerprint !== input.previewFingerprint) {
-      await attempt("failed")
-      return { error: "preview-required" as const }
     }
 
     const [taken] = await tx

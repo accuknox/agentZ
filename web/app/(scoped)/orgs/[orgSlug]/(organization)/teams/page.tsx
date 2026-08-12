@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table"
 import { listTeams } from "@/data/teams"
 import { formatAge } from "@/lib/format"
+import { TeamTableActions } from "./team-table-actions"
 
 export default async function TeamsPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
@@ -43,6 +44,9 @@ export default async function TeamsPage({ params }: { params: Promise<{ orgSlug:
               <TableHead className="w-24 text-right">Roles</TableHead>
               <TableHead className="w-32 text-right">Workspaces</TableHead>
               <TableHead className="w-32">Updated</TableHead>
+              <TableHead className="w-14">
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,11 +70,14 @@ export default async function TeamsPage({ params }: { params: Promise<{ orgSlug:
                   <TableCell>
                     <time dateTime={team.updatedAt}>{formatAge(team.updatedAt)}</time>
                   </TableCell>
+                  <TableCell>
+                    <TeamTableActions name={team.name} orgSlug={orgSlug} teamId={team.id} />
+                  </TableCell>
                 </RoutedTableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell className="h-24 text-center" colSpan={5}>
+                <TableCell className="h-24 text-center" colSpan={6}>
                   No teams
                 </TableCell>
               </TableRow>

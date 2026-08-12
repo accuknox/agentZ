@@ -29,12 +29,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { TeamEffectiveAccessDetail } from "@/data/access"
+import { cn } from "@/lib/utils"
 
 type TeamNode = FlowNode<
   {
     detail: string
     kind: "member" | "team" | "role" | "permission"
     label: string
+    muted: boolean
+    selected: boolean
+    sourceIds: string[]
   },
   "team-access"
 >
@@ -42,9 +46,12 @@ type TeamEdge = FlowEdge<Record<string, never>, "static">
 
 const edgeTypes = { static: Edge.Static } satisfies EdgeTypes
 const nodeTypes = { "team-access": TeamAccessNode } satisfies NodeTypes
+const nodeWidth = 220
+const nodeHeight = 94
 
 export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }) {
   const [scope, setScope] = React.useState("all")
+  const [selected, setSelected] = React.useState<string>()
   const sources = React.useMemo(
     () =>
       detail.sources.filter((source) => {
@@ -57,9 +64,17 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
   const graph = React.useMemo(() => {
     const nodes = new Map<string, TeamNode>()
     const edges = new Map<string, TeamEdge>()
-    const addNode = (id: string, data: TeamNode["data"]) => {
-      if (!nodes.has(id)) {
-        nodes.set(id, { data, id, position: { x: 0, y: 0 }, type: "team-access" })
+    const addNode = (id: string, data: Omit<TeamNode["data"], "muted" | "selected">) => {
+      const node = nodes.get(id)
+      if (node) {
+        node.data.sourceIds = [...new Set([...node.data.sourceIds, ...data.sourceIds])]
+      } else {
+        nodes.set(id, {
+          data: { ...data, muted: false, selected: false },
+          id,
+          position: { x: 0, y: 0 },
+          type: "team-access",
+        })
       }
       return id
     }
@@ -71,12 +86,14 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
       detail: `${detail.members.length} members`,
       kind: "team",
       label: detail.team.name,
+      sourceIds: sources.map((source) => source.id),
     })
     for (const member of detail.members) {
       const memberNode = addNode(`member:${member.id}`, {
         detail: member.email,
         kind: "member",
         label: member.name,
+        sourceIds: sources.map((source) => source.id),
       })
       addEdge(memberNode, teamNode)
     }
@@ -85,12 +102,18 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
         detail: source.scope,
         kind: "role",
         label: source.role,
+        sourceIds: [source.id],
       })
       const permissionNode = addNode(
         scope === "all"
           ? `permission:${source.workspaceId ?? "org"}:${source.resource}:${source.action}`
           : `permission:${source.id}`,
-        { detail: source.scope, kind: "permission", label: `${source.resource}.${source.action}` }
+        {
+          detail: source.scope,
+          kind: "permission",
+          label: `${source.resource}.${source.action}`,
+          sourceIds: [source.id],
+        }
       )
       addEdge(teamNode, roleNode)
       addEdge(roleNode, permissionNode)
@@ -98,26 +121,83 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
     const flowEdges = [...edges.values()]
     const layout = new dagre.graphlib.Graph()
     layout.setDefaultEdgeLabel(() => ({}))
-    layout.setGraph({ marginx: 24, marginy: 24, nodesep: 36, rankdir: "LR", ranksep: 80 })
-    for (const node of nodes.values()) layout.setNode(node.id, { height: 82, width: 210 })
+    layout.setGraph({ marginx: 24, marginy: 24, nodesep: 42, rankdir: "LR", ranksep: 136 })
+    for (const node of nodes.values())
+      layout.setNode(node.id, { height: nodeHeight, width: nodeWidth })
     for (const edge of flowEdges) layout.setEdge(edge.source, edge.target)
     dagre.layout(layout)
     return {
       edges: flowEdges,
       nodes: [...nodes.values()].map((node) => {
         const position = layout.node(node.id)
-        return { ...node, position: { x: position.x - 105, y: position.y - 41 } }
+        return {
+          ...node,
+          position: { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 },
+        }
       }),
     }
   }, [detail, scope, sources])
+  const highlighted = React.useMemo(() => {
+    if (!selected || !graph.nodes.some((node) => node.id === selected)) return
+    const ids = new Set([selected])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const edge of graph.edges) {
+        if (ids.has(edge.target) && !ids.has(edge.source)) {
+          ids.add(edge.source)
+          changed = true
+        }
+      }
+    }
+    const descendants = new Set([selected])
+    changed = true
+    while (changed) {
+      changed = false
+      for (const edge of graph.edges) {
+        if (descendants.has(edge.source) && !descendants.has(edge.target)) {
+          descendants.add(edge.target)
+          changed = true
+        }
+      }
+    }
+    for (const id of descendants) ids.add(id)
+    return ids
+  }, [graph, selected])
+  const nodes = graph.nodes.map((node) => ({
+    ...node,
+    data: {
+      ...node.data,
+      muted: Boolean(highlighted && !highlighted.has(node.id)),
+      selected: node.id === selected,
+    },
+  }))
+  const edges = graph.edges.map((edge) => ({
+    ...edge,
+    className: cn(
+      highlighted &&
+        (!highlighted.has(edge.source) || !highlighted.has(edge.target)) &&
+        "opacity-15"
+    ),
+  }))
+  const selectedNode = nodes.find((node) => node.id === selected)
+  const tableSources = selectedNode
+    ? sources.filter((source) => selectedNode.data.sourceIds.includes(source.id))
+    : sources
 
   return (
     <EffectiveAccessFrame
       canvas={
-        <div className="flex h-full min-h-[32rem] min-w-0 flex-col">
-          <div className="bg-background flex items-center justify-between gap-3 border-b p-3">
-            <Select onValueChange={setScope} value={scope}>
-              <SelectTrigger aria-label="Team access scope" className="max-w-64">
+        <div className="flex h-full min-h-[34rem] min-w-0 flex-col">
+          <div className="bg-background/95 flex items-center gap-3 border-b p-3">
+            <Select
+              onValueChange={(value) => {
+                setScope(value)
+                setSelected(undefined)
+              }}
+              value={scope}
+            >
+              <SelectTrigger aria-label="Access scope" className="max-w-64">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -130,26 +210,27 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-muted-foreground text-sm">{sources.length} paths</span>
           </div>
-          <div className="bg-sidebar min-h-0 flex-1">
+          <div className="bg-sidebar relative min-h-0 flex-1 overflow-hidden">
             <Canvas
-              edges={graph.edges}
+              className="bg-transparent"
+              edges={edges}
               edgeTypes={edgeTypes}
-              fitViewOptions={{ padding: 0.18 }}
+              fitViewOptions={{ padding: 0.16 }}
               maxZoom={1.35}
               minZoom={0.25}
-              nodes={graph.nodes}
+              nodes={nodes}
               nodesDraggable={false}
               nodeTypes={nodeTypes}
+              onNodeClick={(_, node) => setSelected(node.id)}
+              onPaneClick={() => setSelected(undefined)}
             >
               <Controls position="bottom-left" showInteractive={false} />
             </Canvas>
           </div>
         </div>
       }
-      summary="Active Team members inherit the additive union of the Team's Role grants."
-      table={<TeamAccessTable detail={detail} sources={sources} />}
+      table={<TeamAccessTable detail={detail} sources={tableSources} />}
     />
   )
 }
@@ -164,10 +245,19 @@ function TeamAccessNode({ data }: FlowNodeProps<TeamNode>) {
       <KeyRoundIcon aria-hidden="true" className="size-4" />
     )
   return (
-    <div className="bg-card text-card-foreground relative grid min-h-20 w-[210px] gap-1 rounded-md border p-3 shadow-sm">
+    <div
+      aria-label={`${data.kind}: ${data.label}`}
+      className={cn(
+        "bg-card text-card-foreground relative grid min-h-20 w-[220px] gap-1 rounded-xl border p-3 text-left shadow-sm transition-opacity motion-reduce:transition-none",
+        data.kind === "permission" && "border-primary/30",
+        data.selected && "ring-primary ring-2",
+        data.muted && "opacity-25"
+      )}
+      role="group"
+    >
       <Handle position={Position.Left} type="target" />
       <Handle position={Position.Right} type="source" />
-      <div className="text-muted-foreground flex items-center gap-2 text-xs font-medium uppercase">
+      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal uppercase">
         {icon}
         {data.kind}
       </div>
@@ -189,7 +279,13 @@ function TeamAccessTable({
   sources: TeamEffectiveAccessDetail["sources"]
 }) {
   if (sources.length === 0) {
-    return <AdministrationState kind="empty" title="No Team Role grants in this scope" />
+    return (
+      <AdministrationState
+        description="No effective grants exist in this scope or selected path."
+        kind="empty"
+        title="No effective access"
+      />
+    )
   }
   return (
     <div className="w-full min-w-0 border-b">
@@ -199,7 +295,7 @@ function TeamAccessTable({
             <TableHead>Source</TableHead>
             <TableHead>Scope</TableHead>
             <TableHead>Path</TableHead>
-            <TableHead>Effective Grant</TableHead>
+            <TableHead>Effective grant</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

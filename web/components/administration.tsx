@@ -179,7 +179,9 @@ export function AdministrationState({
         <EmptyTitle>
           <h2>{title ?? content.title}</h2>
         </EmptyTitle>
-        <EmptyDescription>{description ?? content.description}</EmptyDescription>
+        {description !== "" ? (
+          <EmptyDescription>{description ?? content.description}</EmptyDescription>
+        ) : null}
       </EmptyHeader>
       {actions ? <EmptyContent>{actions}</EmptyContent> : null}
     </Empty>

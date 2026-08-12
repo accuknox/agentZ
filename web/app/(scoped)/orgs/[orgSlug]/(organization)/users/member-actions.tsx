@@ -23,8 +23,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -52,74 +54,106 @@ export function InviteMemberDialog({
   onOpenChange?: (open: boolean) => void
   showTrigger?: boolean
 }) {
-  const [stage, setStage] = useState<"details" | "review">("details")
+  const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [email, setEmail] = useState(invitation?.email ?? "")
   const [roleIds, setRoleIds] = useState(invitation?.roleIds ?? [])
   const [teamIds, setTeamIds] = useState(invitation?.teamIds ?? [])
   const [state, action, pending] = useActionState<InviteMemberFormState, FormData>(
-    inviteMemberAction.bind(null, orgSlug),
+    async (previousState, formData) => {
+      const result = await inviteMemberAction(orgSlug, previousState, formData)
+      setConfirmationOpen(false)
+      return result
+    },
     {}
   )
   const selectedRoles = roles.filter((role) => roleIds.includes(role.id))
   const selectedTeams = teams.filter((team) => teamIds.includes(team.id))
   const ready = email.trim() !== "" && roleIds.length + teamIds.length > 0
+  const formId = `invitation-form-${invitation?.id ?? "new"}`
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      {showTrigger ? (
-        <DialogTrigger asChild>
-          <Button>
-            <Send />
-            {invitation ? "Edit" : "Invite user"}
-          </Button>
-        </DialogTrigger>
-      ) : null}
-      <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-x-hidden overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Invite user</DialogTitle>
-          <DialogDescription>
-            Creates a 48-hour bearer link. Anyone with the link can try to accept it, so share it
-            only with the invited email owner.
-          </DialogDescription>
-        </DialogHeader>
-        <form action={action} className="flex min-w-0 flex-col gap-5">
-          <input name="email" type="hidden" value={email} />
-          {roleIds.map((id) => (
-            <input key={id} name="role_ids" type="hidden" value={id} />
-          ))}
-          {teamIds.map((id) => (
-            <input key={id} name="team_ids" type="hidden" value={id} />
-          ))}
-          {stage === "details" ? (
-            <>
-              <Field>
-                <FieldLabel htmlFor={`invite-email-${invitation?.id ?? "new"}`}>Email</FieldLabel>
-                <Input
-                  id={`invite-email-${invitation?.id ?? "new"}`}
-                  onChange={(event) => setEmail(event.target.value)}
-                  type="email"
-                  value={email}
-                  required
-                />
-              </Field>
-              <AssignmentChecks
-                label="Initial Roles"
-                onChange={setRoleIds}
-                options={roles}
-                selected={roleIds}
+    <>
+      <Dialog onOpenChange={onOpenChange} open={open}>
+        {showTrigger ? (
+          <DialogTrigger asChild>
+            <Button>
+              <Send />
+              {invitation ? "Edit" : "Invite user"}
+            </Button>
+          </DialogTrigger>
+        ) : null}
+        <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-x-hidden overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Invite user</DialogTitle>
+            <DialogDescription>
+              Creates a 48-hour bearer link. Anyone with the link can try to accept it, so share it
+              only with the invited email owner.
+            </DialogDescription>
+          </DialogHeader>
+          <form action={action} className="flex min-w-0 flex-col gap-5" id={formId}>
+            <input name="email" type="hidden" value={email} />
+            {roleIds.map((id) => (
+              <input key={id} name="role_ids" type="hidden" value={id} />
+            ))}
+            {teamIds.map((id) => (
+              <input key={id} name="team_ids" type="hidden" value={id} />
+            ))}
+            <Field>
+              <FieldLabel htmlFor={`invite-email-${invitation?.id ?? "new"}`}>Email</FieldLabel>
+              <Input
+                id={`invite-email-${invitation?.id ?? "new"}`}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                type="email"
+                value={email}
               />
-              {teams.length ? (
-                <AssignmentChecks
-                  label="Initial Teams"
-                  onChange={setTeamIds}
-                  options={teams}
-                  selected={teamIds}
+            </Field>
+            <AssignmentChecks
+              label="Initial Roles"
+              onChange={setRoleIds}
+              options={roles}
+              selected={roleIds}
+            />
+            {teams.length ? (
+              <AssignmentChecks
+                label="Initial Teams"
+                onChange={setTeamIds}
+                options={teams}
+                selected={teamIds}
+              />
+            ) : null}
+            {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
+            {state.link ? (
+              <InputGroup className="h-10">
+                <InputGroupInput
+                  aria-label="Invitation link"
+                  className="font-mono text-xs"
+                  readOnly
+                  value={state.link}
                 />
-              ) : null}
-            </>
-          ) : (
-            <section aria-label="Invitation access review" className="grid min-w-0 gap-4">
-              <h3 className="font-medium">Review initial access</h3>
+                <InputGroupAddon align="inline-end">
+                  <CopyButton content={state.link} label="Copy" />
+                </InputGroupAddon>
+              </InputGroup>
+            ) : null}
+            <div className="flex min-w-0 flex-wrap justify-end gap-2">
+              <Button disabled={!ready} onClick={() => setConfirmationOpen(true)} type="button">
+                {invitation ? "Replace invitation" : "Create invitation"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog onOpenChange={setConfirmationOpen} open={confirmationOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirm invitation</DialogTitle>
+            <DialogDescription>
+              Confirm the recipient and their initial access before creating the invitation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[min(60dvh,36rem)] overflow-y-auto py-2">
+            <section aria-label="Invitation access confirmation" className="grid min-w-0 gap-4">
               <dl className="grid min-w-0 gap-3 text-sm">
                 <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-muted-foreground">Email</dt>
@@ -153,41 +187,21 @@ export function InviteMemberDialog({
                 </div>
               </dl>
             </section>
-          )}
-          {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
-          {state.link ? (
-            <InputGroup className="h-10">
-              <InputGroupInput
-                aria-label="Invitation link"
-                className="font-mono text-xs"
-                readOnly
-                value={state.link}
-              />
-              <InputGroupAddon align="inline-end">
-                <CopyButton content={state.link} label="Copy" />
-              </InputGroupAddon>
-            </InputGroup>
-          ) : null}
-          <div className="flex min-w-0 flex-wrap justify-end gap-2">
-            {stage === "review" ? (
-              <Button onClick={() => setStage("details")} type="button" variant="outline">
-                Back
-              </Button>
-            ) : null}
-            {stage === "details" ? (
-              <Button disabled={!ready} onClick={() => setStage("review")} type="button">
-                Review access
-              </Button>
-            ) : (
-              <Button disabled={pending} type="submit">
-                {pending ? <Spinner /> : <Send />}
-                {invitation ? "Replace invitation" : "Create invitation"}
-              </Button>
-            )}
           </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button disabled={pending} type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button data-dialog-submit disabled={pending} form={formId} type="submit">
+              {pending ? <Spinner /> : <Send />}
+              {pending ? "Saving…" : invitation ? "Confirm replacement" : "Confirm invitation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

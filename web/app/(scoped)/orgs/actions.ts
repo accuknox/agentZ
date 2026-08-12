@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } from "@/data/cache"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
-import { deleteWorkspace } from "@/data/operations"
+import { deleteWorkspace, getDestructiveImpact } from "@/data/operations"
 import {
   applyInvitation,
   cancelInvitation,
@@ -26,7 +26,7 @@ import {
   saveWorkspaceRole,
   type RoleImpact,
 } from "@/data/roles"
-import { deleteTeam, previewTeamAccess, saveTeam } from "@/data/teams"
+import { deleteTeam, saveTeam } from "@/data/teams"
 import {
   provisionWorkspace,
   replaceWorkspaceInheritedResourceSelection,
@@ -219,11 +219,6 @@ export type DeleteRoleFormState = { error?: string; references?: string[] }
 export type TeamFormState = {
   error?: string
   errors?: { name?: string[]; memberIds?: string[]; roleIds?: string[] }
-  preview?: {
-    fingerprint: string
-    input: string
-    rows: { id: string; label: string; detail: string }[]
-  }
 }
 
 export type InviteMemberFormState = { error?: string; link?: string }
@@ -797,39 +792,16 @@ export async function teamFormAction(
     }
   }
 
-  if (formData.get("intent") === "preview") {
-    const preview = await previewTeamAccess(orgSlug, parsed.data)
-    if (!preview) {
-      return { error: "The access review is unavailable. Refresh and try again." }
-    }
-    return {
-      preview: {
-        ...preview,
-        input: JSON.stringify(parsed.data),
-      },
-    }
-  }
-
-  const previewFingerprint = z.string().safeParse(formData.get("preview_fingerprint"))
-  if (!previewFingerprint.success) {
-    return { error: "Review the derived access before saving this Team." }
-  }
-  const result = await saveTeam(orgSlug, teamId, {
-    ...parsed.data,
-    previewFingerprint: previewFingerprint.data,
-  })
+  const result = await saveTeam(orgSlug, teamId, parsed.data)
   if ("error" in result) {
     if (result.error === "name-taken") {
       return { errors: { name: ["A Team with this name already exists."] } }
-    }
-    if (result.error === "preview-required") {
-      return { error: "Review the derived access before saving this Team." }
     }
     if (result.error === "stale") {
       return { error: "This Team changed while you were editing. Refresh and try again." }
     }
     if (result.error === "invalid") {
-      return { error: "Choose active Members and current custom Roles, then review again." }
+      return { error: "Choose active Members and current custom Roles, then try again." }
     }
     return { error: "You no longer have permission to save this Team." }
   }
@@ -844,22 +816,39 @@ export async function teamFormAction(
   redirect(`/orgs/${orgSlug}/teams/${result.teamId}` as Route)
 }
 
-export async function deleteTeamAction(orgSlug: string, teamId: string, formData: FormData) {
+export async function deleteTeamAction(
+  orgSlug: string,
+  teamId: string,
+  _state: { error?: string; fingerprint?: string },
+  formData: FormData
+) {
   const parsed = z
     .object({ confirmation: z.string(), fingerprint: z.string().length(64) })
     .safeParse({
       confirmation: formData.get("confirmation"),
       fingerprint: formData.get("fingerprint"),
     })
-  const root = `/orgs/${orgSlug}/teams/${teamId}/delete`
-  if (!parsed.success) redirect(`${root}?error=invalid` as Route)
+  if (!parsed.success) return { error: "Enter the Team name exactly as shown." }
   const result = await deleteTeam(
     orgSlug,
     teamId,
     parsed.data.confirmation,
     parsed.data.fingerprint
   )
-  if ("error" in result) redirect(`${root}?error=${result.error}` as Route)
+  if ("error" in result) {
+    if (result.error === "stale-preview") {
+      const impact = await getDestructiveImpact(orgSlug, {
+        operation: "team_delete",
+        targetId: teamId,
+        targetType: "team",
+      })
+      return {
+        error: "The Team changed. Confirm the deletion again.",
+        fingerprint: impact?.fingerprint,
+      }
+    }
+    return { error: "The Team no longer meets the deletion requirements." }
+  }
 
   updateTag(`organization:${result.organizationId}:teams`)
   updateTag(agentsTag)
@@ -868,4 +857,18 @@ export async function deleteTeamAction(orgSlug: string, teamId: string, formData
   }
   revalidatePath(`/orgs/${orgSlug}/teams`)
   redirect(`/orgs/${orgSlug}/teams` as Route)
+}
+
+export async function prepareTeamDeleteAction(orgSlug: string, teamId: string) {
+  const impact = await getDestructiveImpact(orgSlug, {
+    operation: "team_delete",
+    targetId: teamId,
+    targetType: "team",
+  })
+  if (!impact) return { error: "Team deletion is unavailable." }
+  return {
+    confirmation: impact.confirmation,
+    fingerprint: impact.fingerprint,
+    name: impact.targetLabel,
+  }
 }

@@ -1,20 +1,29 @@
-import Link from "next/link"
-import type { Route } from "next"
-import { Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { deleteTeamAction } from "@/app/(scoped)/orgs/actions"
+import { DestructiveConfirmationDialog } from "@/components/destructive-confirmation-dialog"
 
-export function TeamDelete({ orgSlug, teamId }: { orgSlug: string; teamId: string }) {
+export function TeamDelete({
+  confirmation,
+  fingerprint,
+  orgSlug,
+  teamId,
+  teamName,
+}: {
+  confirmation: string
+  fingerprint: string
+  orgSlug: string
+  teamId: string
+  teamName: string
+}) {
   return (
-    <section className="grid gap-3 px-4 pb-6 md:px-6">
-      <h2 className="text-lg font-medium">Delete team</h2>
-      <div>
-        <Button asChild variant="destructive">
-          <Link href={`/orgs/${orgSlug}/teams/${teamId}/delete` as Route}>
-            <Trash2 />
-            Review deletion
-          </Link>
-        </Button>
-      </div>
+    <section className="flex max-w-3xl flex-row items-center justify-between gap-3 px-4 pb-6 md:px-6">
+      <h2 className="text-lg font-medium">Destructive</h2>
+      <DestructiveConfirmationDialog
+        action={deleteTeamAction.bind(null, orgSlug, teamId)}
+        confirmation={confirmation}
+        fingerprint={fingerprint}
+        submitLabel="Delete Team"
+        title={`Delete ${teamName}?`}
+      />
     </section>
   )
 }

@@ -1,6 +1,9 @@
 import type { NextConfig } from "next"
 
+const authURL = process.env.BETTER_AUTH_URL
+
 const nextConfig: NextConfig = {
+  ...(authURL ? { allowedDevOrigins: [new URL(authURL).hostname] } : {}),
   cacheComponents: true,
   output: "standalone",
   reactCompiler: true,

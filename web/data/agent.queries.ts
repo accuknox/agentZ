@@ -83,7 +83,7 @@ export async function getWorkspaceAgentDetail(
   const client = getGatewayServerClient(workspaceId)
   const db = getDB()
   const [agents, ownerResult, sharesResult, members, teams, eligibleRoles] = await Promise.all([
-    listAgents({ query: { limit: 500 }, client }),
+    listAgents({ query: { agent_name: [agentName], limit: 1 }, client }),
     getAgentOwner({ path: { agentName }, client }),
     listAgentShares({ path: { agentName }, client }),
     db

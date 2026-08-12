@@ -4,6 +4,7 @@ import type { Route } from "next"
 import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
+import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } from "@/data/cache"
 import { renameOrganization, switchOrganization } from "@/data/organizations"
 import { deleteWorkspace, retryDestructiveOperation } from "@/data/operations"
 import {
@@ -106,6 +107,15 @@ const socialAdmissionFormSchema = z
     if (data.githubOrganizations.length !== data.githubTeams.length) {
       ctx.addIssue({ code: "custom", message: "GitHub rules are incomplete." })
     }
+    data.githubOrganizations.forEach((organization, index) => {
+      if (!organization) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter an Organisation for every GitHub rule.",
+          path: ["githubOrganizations", index],
+        })
+      }
+    })
     if (data.enabled && data.roleIds.length === 0) {
       ctx.addIssue({ code: "custom", message: "Select at least one default Role." })
     }
@@ -188,7 +198,7 @@ export type TeamFormState = {
 
 export type InviteMemberFormState = { error?: string; link?: string }
 
-export type SocialAdmissionFormState = { error?: string }
+export type SocialAdmissionFormState = { error?: string; saved?: boolean }
 
 export async function switchOrganizationAction(organizationId: string): Promise<never> {
   const destination = await switchOrganization(organizationId)
@@ -309,7 +319,7 @@ export async function socialAdmissionAction(
   }
 
   revalidatePath(`/orgs/${orgSlug}/social-admission`, "page")
-  return {}
+  return { saved: true }
 }
 
 export async function acceptInvitationAction(invitationId: string): Promise<never> {
@@ -397,7 +407,7 @@ export async function createWorkspaceAction(
   redirect(`/orgs/${orgSlug}/workspaces/${result.data.slug}` as Route)
 }
 
-export type WorkspaceInheritanceFormState = { error?: string }
+export type WorkspaceInheritanceFormState = { error?: string; saved?: boolean }
 
 export async function replaceWorkspaceInheritanceAction(
   orgSlug: string,
@@ -424,8 +434,15 @@ export async function replaceWorkspaceInheritanceAction(
   if (result.error) {
     return { error: result.error.message }
   }
+  const resourceTag: Record<InheritedResourceType, string> = {
+    inference_provider: inferenceProvidersTag,
+    mcp_connection: mcpsTag,
+    sandbox: sandboxesTag,
+    skill: skillsTag,
+  }
+  updateTag(resourceTag[resourceType])
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/settings/inherited`, "layout")
-  return {}
+  return { saved: true }
 }
 
 export async function retryWorkspaceAction(orgSlug: string, workspaceId: string): Promise<void> {
@@ -526,6 +543,7 @@ export async function organizationRoleFormAction(
 
   updateTag(`organization:${result.organizationId}:roles`)
   updateTag(`organization:${result.organizationId}:role:${result.roleId}`)
+  updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/roles`)
   if (result.cleanupId) {
     redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
@@ -555,6 +573,7 @@ export async function assignOrganizationRoleUsersAction(
 
   updateTag(`organization:${result.organizationId}:roles`)
   updateTag(`organization:${result.organizationId}:role:${roleId}`)
+  updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/roles`)
   return { saved: true }
 }
@@ -579,6 +598,7 @@ export async function deleteOrganizationRoleAction(
   }
 
   updateTag(`organization:${result.organizationId}:roles`)
+  updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/roles`)
   redirect(`/orgs/${orgSlug}/roles` as Route)
 }
@@ -671,6 +691,7 @@ export async function workspaceRoleFormAction(
   updateTag(
     `organization:${result.organizationId}:workspace:${result.workspaceId}:role:${result.roleId}`
   )
+  updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
   if (result.cleanupId) {
     redirect(`/orgs/${orgSlug}/destructive-operations?job=${result.cleanupId}` as Route)
@@ -698,6 +719,7 @@ export async function assignWorkspaceRoleUsersAction(
 
   updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
   updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:role:${roleId}`)
+  updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
   return { saved: true }
 }
@@ -723,6 +745,7 @@ export async function deleteWorkspaceRoleAction(
   }
 
   updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
+  updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
   redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles` as Route)
 }
@@ -789,6 +812,7 @@ export async function teamFormAction(
 
   updateTag(`organization:${result.organizationId}:teams`)
   updateTag(`organization:${result.organizationId}:team:${result.teamId}`)
+  updateTag(agentsTag)
   for (const memberId of result.affectedMemberIds) {
     updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
   }
@@ -814,6 +838,7 @@ export async function deleteTeamAction(orgSlug: string, teamId: string, formData
   if ("error" in result) redirect(`${root}?error=${result.error}` as Route)
 
   updateTag(`organization:${result.organizationId}:teams`)
+  updateTag(agentsTag)
   for (const memberId of result.affectedMemberIds) {
     updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
   }

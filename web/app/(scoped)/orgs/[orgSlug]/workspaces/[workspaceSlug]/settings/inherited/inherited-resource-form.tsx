@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useState } from "react"
+import { useActionState, useMemo, useState } from "react"
 import { CircleAlert } from "lucide-react"
 import {
   replaceWorkspaceInheritanceAction,
@@ -33,9 +33,19 @@ export function InheritedResourceForm({
   resources: WorkspaceInheritedResource[]
   workspaceSlug: string
 }) {
+  const serverSelected = useMemo(
+    () => resources.filter((resource) => resource.selected).map((resource) => resource.name),
+    [resources]
+  )
   const [selected, setSelected] = useState(() =>
     resources.filter((resource) => resource.selected).map((resource) => resource.name)
   )
+  const serverSelectedKey = serverSelected.join("\0")
+  const [selectedBaselineKey, setSelectedBaselineKey] = useState(serverSelectedKey)
+  if (selectedBaselineKey !== serverSelectedKey) {
+    setSelectedBaselineKey(serverSelectedKey)
+    setSelected(serverSelected)
+  }
   const action = replaceWorkspaceInheritanceAction.bind(null, orgSlug, workspaceSlug, resourceType)
   const [state, formAction, pending] = useActionState<WorkspaceInheritanceFormState, FormData>(
     action,

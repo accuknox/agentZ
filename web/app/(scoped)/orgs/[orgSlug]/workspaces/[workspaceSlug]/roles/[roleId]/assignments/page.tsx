@@ -7,7 +7,8 @@ export default async function WorkspaceRoleAssignmentsPage({
 }: {
   params: Promise<{ orgSlug: string; roleId: string; workspaceSlug: string }>
 }) {
-  const { orgSlug, roleId, workspaceSlug } = await params
+  const { orgSlug, roleId: encodedRoleId, workspaceSlug } = await params
+  const roleId = decodeURIComponent(encodedRoleId)
   const data = await getWorkspaceRoleUsers(orgSlug, workspaceSlug, roleId)
   if (!data?.role) {
     notFound()

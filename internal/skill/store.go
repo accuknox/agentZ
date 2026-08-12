@@ -72,6 +72,7 @@ type Manifest struct {
 
 // ManifestSkill describes one immutable skill version in a pod bootstrap manifest.
 type ManifestSkill struct {
+	Namespace   string `json:"namespace,omitempty"`
 	Name        string `json:"name"`
 	Version     int64  `json:"version"`
 	StoragePath string `json:"storagePath"`
@@ -455,15 +456,22 @@ func (c *Client) DownloadManifest(ctx context.Context, manifestPath, targetDir s
 		if item.Version < 1 {
 			return errors.New("immutable skill version is invalid")
 		}
+		namespace := item.Namespace
+		if namespace == "" {
+			namespace = manifest.Namespace
+		}
+		if len(namespace) > 63 || !namespaceNameRE.MatchString(namespace) {
+			return errors.New("immutable skill namespace is invalid")
+		}
 		if item.StoragePath != (Config{Bucket: c.bucket}).StoragePath(
-			manifest.Namespace,
+			namespace,
 			item.Name,
 			item.Version,
 		) {
 			return errors.New("immutable skill storage path does not match its identity")
 		}
 		dst := filepath.Join(staging, item.Name)
-		prefix := immutableVersionPrefix(manifest.Namespace, item.Name, item.Version)
+		prefix := immutableVersionPrefix(namespace, item.Name, item.Version)
 		if err := c.downloadSkill(ctx, prefix, dst); err != nil {
 			return fmt.Errorf("download immutable skill %q: %w", item.Name, err)
 		}

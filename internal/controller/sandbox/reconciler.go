@@ -103,11 +103,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.deleteStaleInferenceRuntime(ctx, sandbox, map[string]struct{}{}); err != nil {
 			return ctrl.Result{}, err
 		}
-		if err := r.DeleteAllOf(ctx, &gwv1.ReferenceGrant{}, client.MatchingLabels{
+		grants := &gwv1.ReferenceGrantList{}
+		if err := r.List(ctx, grants, client.MatchingLabels{
 			inference.SandboxLabel: sandbox.Name,
 			sandboxNamespaceLabel:  sandbox.Namespace,
 		}); err != nil {
-			return ctrl.Result{}, fmt.Errorf("delete inference backend reference grants: %w", err)
+			return ctrl.Result{}, fmt.Errorf("list inference backend reference grants: %w", err)
+		}
+		for i := range grants.Items {
+			if err := r.Delete(ctx, &grants.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+				return ctrl.Result{}, fmt.Errorf("delete inference backend reference grant: %w", err)
+			}
 		}
 		if err := r.reconcileInferenceGateway(ctx, sandbox.Namespace); err != nil {
 			return ctrl.Result{}, err

@@ -10,7 +10,8 @@ export default async function WorkspaceRoleLayout({
   children: React.ReactNode
   params: Promise<{ orgSlug: string; roleId: string; workspaceSlug: string }>
 }) {
-  const { orgSlug, roleId, workspaceSlug } = await params
+  const { orgSlug, roleId: encodedRoleId, workspaceSlug } = await params
+  const roleId = decodeURIComponent(encodedRoleId)
   const data = await getWorkspaceRoleEditorData(orgSlug, workspaceSlug, roleId)
   if (!data?.role) {
     notFound()

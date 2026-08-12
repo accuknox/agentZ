@@ -82,8 +82,9 @@ export type SocialAdmission = {
   enabled: boolean
   googleDomains: string[]
   githubRules: { id: string; organization: string; team: string | null }[]
-  roles: AssignmentOption[]
-  teams: AssignmentOption[]
+  roles: (AssignmentOption & { workspaceIds: string[] })[]
+  teams: (AssignmentOption & { workspaceIds: string[] })[]
+  workspaces: AssignmentOption[]
   defaultRoleIds: string[]
   defaultTeamIds: string[]
   joinLinks: { google: string; github: string }
@@ -163,19 +164,19 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
         lastActivity: sql`(
           SELECT max(${schema.sessions.updatedAt})
           FROM ${schema.sessions}
-          WHERE ${schema.sessions.userId} = ${schema.members.userId}
+          WHERE ${schema.sessions.userId} = ${sql.raw('"members"."user_id"')}
         )`.mapWith(schema.sessions.updatedAt),
         ownedAgents: sql<number>`(
           SELECT count(*)::int
           FROM ${schema.agentOwners}
           WHERE ${schema.agentOwners.organizationId} = ${actor.organization.id}
-            AND ${schema.agentOwners.ownerUserId} = ${schema.members.userId}
+            AND ${schema.agentOwners.ownerUserId} = ${sql.raw('"members"."user_id"')}
         )`,
         apiKeys: sql<number>`(
           SELECT count(*)::int
           FROM ${schema.apiKeyScopes}
           WHERE ${schema.apiKeyScopes.organizationId} = ${actor.organization.id}
-            AND ${schema.apiKeyScopes.creatorUserId} = ${schema.members.userId}
+            AND ${schema.apiKeyScopes.creatorUserId} = ${sql.raw('"members"."user_id"')}
         )`,
       })
       .from(schema.members)
@@ -992,46 +993,114 @@ export async function getSocialAdmission(orgSlug: string): Promise<SocialAdmissi
   }
 
   const db = getDB()
-  const [policy, googleDomains, githubRules, roles, teams, defaultRoles, defaultTeams] =
-    await Promise.all([
-      db
-        .select({ enabled: schema.socialAdmissionPolicies.enabled })
-        .from(schema.socialAdmissionPolicies)
-        .where(eq(schema.socialAdmissionPolicies.organizationId, actor.organization.id))
-        .limit(1),
-      db
-        .select({ domain: schema.socialAdmissionGoogleDomains.domain })
-        .from(schema.socialAdmissionGoogleDomains)
-        .where(eq(schema.socialAdmissionGoogleDomains.organizationId, actor.organization.id))
-        .orderBy(asc(schema.socialAdmissionGoogleDomains.domain)),
-      db
-        .select({
-          id: schema.socialAdmissionGithubRules.id,
-          organization: schema.socialAdmissionGithubRules.githubOrganization,
-          team: schema.socialAdmissionGithubRules.githubTeam,
-        })
-        .from(schema.socialAdmissionGithubRules)
-        .where(eq(schema.socialAdmissionGithubRules.organizationId, actor.organization.id))
-        .orderBy(asc(schema.socialAdmissionGithubRules.githubOrganization)),
-      db
-        .select({ id: schema.roleScopes.roleId, name: schema.roleScopes.displayName })
-        .from(schema.roleScopes)
-        .where(eq(schema.roleScopes.organizationId, actor.organization.id))
-        .orderBy(asc(schema.roleScopes.displayName)),
-      db
-        .select({ id: schema.teams.id, name: schema.teams.name })
-        .from(schema.teams)
-        .where(eq(schema.teams.organizationId, actor.organization.id))
-        .orderBy(asc(schema.teams.name)),
-      db
-        .select({ id: schema.socialAdmissionDefaultRoles.roleId })
-        .from(schema.socialAdmissionDefaultRoles)
-        .where(eq(schema.socialAdmissionDefaultRoles.organizationId, actor.organization.id)),
-      db
-        .select({ id: schema.socialAdmissionDefaultTeams.teamId })
-        .from(schema.socialAdmissionDefaultTeams)
-        .where(eq(schema.socialAdmissionDefaultTeams.organizationId, actor.organization.id)),
-    ])
+  const [
+    policy,
+    googleDomains,
+    githubRules,
+    roleRows,
+    teamRows,
+    defaultRoles,
+    defaultTeams,
+    workspaces,
+    workspaceGrants,
+    teamRoles,
+  ] = await Promise.all([
+    db
+      .select({ enabled: schema.socialAdmissionPolicies.enabled })
+      .from(schema.socialAdmissionPolicies)
+      .where(eq(schema.socialAdmissionPolicies.organizationId, actor.organization.id))
+      .limit(1),
+    db
+      .select({ domain: schema.socialAdmissionGoogleDomains.domain })
+      .from(schema.socialAdmissionGoogleDomains)
+      .where(eq(schema.socialAdmissionGoogleDomains.organizationId, actor.organization.id))
+      .orderBy(asc(schema.socialAdmissionGoogleDomains.domain)),
+    db
+      .select({
+        id: schema.socialAdmissionGithubRules.id,
+        organization: schema.socialAdmissionGithubRules.githubOrganization,
+        team: schema.socialAdmissionGithubRules.githubTeam,
+      })
+      .from(schema.socialAdmissionGithubRules)
+      .where(eq(schema.socialAdmissionGithubRules.organizationId, actor.organization.id))
+      .orderBy(asc(schema.socialAdmissionGithubRules.githubOrganization)),
+    db
+      .select({
+        id: schema.roleScopes.roleId,
+        name: schema.roleScopes.displayName,
+        systemRole: schema.roleScopes.systemRole,
+        workspaceId: schema.roleScopes.workspaceId,
+      })
+      .from(schema.roleScopes)
+      .where(eq(schema.roleScopes.organizationId, actor.organization.id))
+      .orderBy(asc(schema.roleScopes.displayName)),
+    db
+      .select({ id: schema.teams.id, name: schema.teams.name })
+      .from(schema.teams)
+      .where(eq(schema.teams.organizationId, actor.organization.id))
+      .orderBy(asc(schema.teams.name)),
+    db
+      .select({ id: schema.socialAdmissionDefaultRoles.roleId })
+      .from(schema.socialAdmissionDefaultRoles)
+      .where(eq(schema.socialAdmissionDefaultRoles.organizationId, actor.organization.id)),
+    db
+      .select({ id: schema.socialAdmissionDefaultTeams.teamId })
+      .from(schema.socialAdmissionDefaultTeams)
+      .where(eq(schema.socialAdmissionDefaultTeams.organizationId, actor.organization.id)),
+    db
+      .select({ id: schema.workspaces.id, name: schema.workspaces.name })
+      .from(schema.workspaces)
+      .where(
+        and(
+          eq(schema.workspaces.organizationId, actor.organization.id),
+          isNull(schema.workspaces.deletedAt)
+        )
+      )
+      .orderBy(asc(schema.workspaces.name)),
+    db
+      .select({
+        roleId: schema.permissionGrants.roleId,
+        workspaceId: schema.permissionGrants.workspaceId,
+      })
+      .from(schema.permissionGrants)
+      .where(
+        and(
+          eq(schema.permissionGrants.organizationId, actor.organization.id),
+          sql`${schema.permissionGrants.workspaceId} IS NOT NULL`
+        )
+      ),
+    db
+      .select({ roleId: schema.teamRoles.roleId, teamId: schema.teamRoles.teamId })
+      .from(schema.teamRoles)
+      .where(eq(schema.teamRoles.organizationId, actor.organization.id)),
+  ])
+
+  const allWorkspaceIds = workspaces.map((workspace) => workspace.id)
+  const roleWorkspaceIds = new Map<string, Set<string>>()
+  for (const role of roleRows) {
+    const ids = new Set<string>()
+    if (role.systemRole === "superadmin") {
+      allWorkspaceIds.forEach((id) => ids.add(id))
+    }
+    if (role.workspaceId) ids.add(role.workspaceId)
+    roleWorkspaceIds.set(role.id, ids)
+  }
+  for (const grant of workspaceGrants) {
+    if (grant.workspaceId) roleWorkspaceIds.get(grant.roleId)?.add(grant.workspaceId)
+  }
+  const roles = roleRows.map(({ id, name }) => ({
+    id,
+    name,
+    workspaceIds: [...(roleWorkspaceIds.get(id) ?? [])].sort(),
+  }))
+  const teams = teamRows.map((team) => {
+    const workspaceIds = new Set<string>()
+    for (const assignment of teamRoles) {
+      if (assignment.teamId !== team.id) continue
+      roleWorkspaceIds.get(assignment.roleId)?.forEach((id) => workspaceIds.add(id))
+    }
+    return { ...team, workspaceIds: [...workspaceIds].sort() }
+  })
 
   const root = getEnv().BETTER_AUTH_URL
   return {
@@ -1047,6 +1116,7 @@ export async function getSocialAdmission(orgSlug: string): Promise<SocialAdmissi
     organization: actor.organization,
     roles,
     teams,
+    workspaces,
   }
 }
 

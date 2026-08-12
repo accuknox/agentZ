@@ -88,7 +88,12 @@ export function PasswordSettings() {
     <section className="flex flex-col gap-4 px-4 md:px-6">
       <h2 className="text-lg font-semibold tracking-normal">Password</h2>
       <div className="w-full max-w-2xl">
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit(submit)} noValidate>
+        <form
+          className="flex flex-col gap-5"
+          method="post"
+          onSubmit={handleSubmit(submit)}
+          noValidate
+        >
           <FieldGroup>
             <Controller
               name="currentPassword"

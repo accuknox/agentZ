@@ -287,6 +287,10 @@ func TestRenderPoolBackend(t *testing.T) {
 	if *openAI.Model != "gpt" {
 		t.Fatalf("primary model override = %#v, want gpt", groups[0].Providers[0].OpenAI)
 	}
+	auth := groups[0].Providers[0].Policies.Auth
+	if auth == nil || auth.SecretRef == nil || string(auth.SecretRef.Name) != "logical-primary" {
+		t.Fatalf("primary credential projection = %#v, want logical-primary", auth)
+	}
 	anthropic := groups[1].Providers[0].Anthropic
 	if anthropic == nil || anthropic.Model == nil {
 		t.Fatalf("secondary model override = %#v, want claude", anthropic)

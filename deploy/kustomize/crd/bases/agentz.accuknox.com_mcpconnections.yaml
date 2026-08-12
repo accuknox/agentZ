@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -59,10 +60,12 @@ spec:
                 description: Auth defines optional upstream authentication settings.
                 properties:
                   bearer:
-                    description: Bearer configures static bearer-style credential injection.
+                    description: Bearer configures static bearer-style credential
+                      injection.
                     properties:
                       location:
-                        description: Location defines where the credential is injected upstream.
+                        description: Location defines where the credential is injected
+                          upstream.
                         properties:
                           cookie:
                             description: Cookie injects auth into a cookie.
@@ -80,13 +83,15 @@ spec:
                                 description: Name is the HTTP header name.
                                 type: string
                               prefix:
-                                description: Prefix is prepended to the resolved credential when set.
+                                description: Prefix is prepended to the resolved credential
+                                  when set.
                                 type: string
                             required:
                             - name
                             type: object
                           queryParameter:
-                            description: QueryParameter injects auth into a query parameter.
+                            description: QueryParameter injects auth into a query
+                              parameter.
                             properties:
                               name:
                                 description: Name is the query parameter name.
@@ -120,13 +125,15 @@ spec:
                     description: OAuth configures OAuth-backed credential injection.
                     properties:
                       authorizationEndpoint:
-                        description: AuthorizationEndpoint is the OAuth authorization endpoint.
+                        description: AuthorizationEndpoint is the OAuth authorization
+                          endpoint.
                         type: string
                       issuer:
                         description: Issuer identifies the OAuth issuer.
                         type: string
                       location:
-                        description: Location defines where the OAuth access token is injected upstream.
+                        description: Location defines where the OAuth access token
+                          is injected upstream.
                         properties:
                           cookie:
                             description: Cookie injects auth into a cookie.
@@ -144,13 +151,15 @@ spec:
                                 description: Name is the HTTP header name.
                                 type: string
                               prefix:
-                                description: Prefix is prepended to the resolved credential when set.
+                                description: Prefix is prepended to the resolved credential
+                                  when set.
                                 type: string
                             required:
                             - name
                             type: object
                           queryParameter:
-                            description: QueryParameter injects auth into a query parameter.
+                            description: QueryParameter injects auth into a query
+                              parameter.
                             properties:
                               name:
                                 description: Name is the query parameter name.
@@ -160,10 +169,12 @@ spec:
                             type: object
                         type: object
                       registrationEndpoint:
-                        description: RegistrationEndpoint is the dynamic client registration endpoint.
+                        description: RegistrationEndpoint is the dynamic client registration
+                          endpoint.
                         type: string
                       resource:
-                        description: Resource is the OAuth resource or audience for the MCP endpoint.
+                        description: Resource is the OAuth resource or audience for
+                          the MCP endpoint.
                         type: string
                       scopes:
                         description: Scopes lists requested OAuth scopes in order.
@@ -203,21 +214,25 @@ spec:
                 minLength: 1
                 type: string
               endpoint:
-                description: Endpoint defines the remote MCP server endpoint and transport settings.
+                description: Endpoint defines the remote MCP server endpoint and transport
+                  settings.
                 properties:
                   headers:
                     additionalProperties:
                       type: string
-                    description: Headers defines non-secret static headers sent to the upstream endpoint.
+                    description: Headers defines non-secret static headers sent to
+                      the upstream endpoint.
                     type: object
                   insecureSkipVerify:
-                    description: InsecureSkipVerify disables upstream TLS certificate verification.
+                    description: InsecureSkipVerify disables upstream TLS certificate
+                      verification.
                     type: boolean
                   timeout:
                     description: Timeout bounds one upstream request to the MCP endpoint.
                     type: string
                   url:
-                    description: URL is the canonical HTTPS URL of the upstream MCP endpoint.
+                    description: URL is the canonical HTTPS URL of the upstream MCP
+                      endpoint.
                     type: string
                 required:
                 - url
@@ -227,30 +242,36 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: creatorUserID is immutable
-              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)'
+              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
+                == oldSelf.creatorUserID)'
           status:
             description: Status defines the observed state of MCPConnection.
             properties:
               authMode:
-                description: AuthMode is the resolved authentication mode ("None", "Bearer", or "OAuth").
+                description: AuthMode is the resolved authentication mode ("None",
+                  "Bearer", or "OAuth").
                 type: string
               authPolicyRef:
-                description: AuthPolicyRef identifies the managed auth policy for the connection.
+                description: AuthPolicyRef identifies the managed auth policy for
+                  the connection.
                 properties:
                   name:
                     description: Name is the resource name.
                     type: string
                   namespace:
-                    description: Namespace is the namespace containing the managed resource.
+                    description: Namespace is the namespace containing the managed
+                      resource.
                     type: string
                 required:
                 - name
                 - namespace
                 type: object
               conditions:
-                description: Conditions represent the current state of the MCPConnection resource.
+                description: Conditions represent the current state of the MCPConnection
+                  resource.
                 items:
-                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -315,7 +336,8 @@ spec:
                     description: Name is the resource name.
                     type: string
                   namespace:
-                    description: Namespace is the namespace containing the managed resource.
+                    description: Namespace is the namespace containing the managed
+                      resource.
                     type: string
                 required:
                 - name
@@ -330,14 +352,16 @@ spec:
                     description: Name is the resource name.
                     type: string
                   namespace:
-                    description: Namespace is the namespace containing the managed resource.
+                    description: Namespace is the namespace containing the managed
+                      resource.
                     type: string
                 required:
                 - name
                 - namespace
                 type: object
               lastProbeTime:
-                description: LastProbeTime is the most recent time an observer completed an MCP probe.
+                description: LastProbeTime is the most recent time an observer completed
+                  an MCP probe.
                 format: date-time
                 type: string
               observedGeneration:
@@ -353,7 +377,8 @@ spec:
                     description: Name is the resource name.
                     type: string
                   namespace:
-                    description: Namespace is the namespace containing the managed resource.
+                    description: Namespace is the namespace containing the managed
+                      resource.
                     type: string
                 required:
                 - name
@@ -372,9 +397,11 @@ spec:
                   upstream tool catalog successfully.
                 type: boolean
               tools:
-                description: Tools lists the most recently discovered upstream MCP tools.
+                description: Tools lists the most recently discovered upstream MCP
+                  tools.
                 items:
-                  description: MCPConnectionTool describes one discovered upstream MCP tool.
+                  description: MCPConnectionTool describes one discovered upstream
+                    MCP tool.
                   properties:
                     name:
                       description: Name is the upstream MCP tool name.

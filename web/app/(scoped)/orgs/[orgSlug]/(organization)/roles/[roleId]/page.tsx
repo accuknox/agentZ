@@ -6,6 +6,7 @@ export default async function RolePage({
 }: {
   params: Promise<{ orgSlug: string; roleId: string }>
 }) {
-  const { orgSlug, roleId } = await params
+  const { orgSlug, roleId: encodedRoleId } = await params
+  const roleId = decodeURIComponent(encodedRoleId)
   redirect(`/orgs/${orgSlug}/roles/${roleId}/permissions` as Route)
 }

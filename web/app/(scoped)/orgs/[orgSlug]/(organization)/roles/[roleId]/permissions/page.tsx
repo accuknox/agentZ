@@ -8,7 +8,8 @@ export default async function RolePermissionsPage({
 }: {
   params: Promise<{ orgSlug: string; roleId: string }>
 }) {
-  const { orgSlug, roleId } = await params
+  const { orgSlug, roleId: encodedRoleId } = await params
+  const roleId = decodeURIComponent(encodedRoleId)
   const data = await getRoleEditorData(orgSlug, roleId)
   if (!data?.role) {
     notFound()

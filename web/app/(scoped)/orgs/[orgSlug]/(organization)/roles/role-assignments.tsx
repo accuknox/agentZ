@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState, useMemo, useState } from "react"
 import { CircleAlert } from "lucide-react"
 import {
   assignOrganizationRoleUsersAction,
@@ -37,8 +37,17 @@ export function RoleAssignments({
   users: RoleUser[]
   workspaceSlug?: string
 }) {
-  const baseline = users.filter((user) => user.assigned).map((user) => user.memberId)
+  const baseline = useMemo(
+    () => users.filter((user) => user.assigned).map((user) => user.memberId),
+    [users]
+  )
   const [selected, setSelected] = useState(baseline)
+  const baselineKey = baseline.join("\0")
+  const [selectedBaselineKey, setSelectedBaselineKey] = useState(baselineKey)
+  if (selectedBaselineKey !== baselineKey) {
+    setSelectedBaselineKey(baselineKey)
+    setSelected(baseline)
+  }
   const action = workspaceSlug
     ? assignWorkspaceRoleUsersAction.bind(null, orgSlug, workspaceSlug, roleId)
     : assignOrganizationRoleUsersAction.bind(null, orgSlug, roleId)

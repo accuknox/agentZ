@@ -19,7 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -370,10 +369,6 @@ func openStores(ctx context.Context, cfg Config) (stores, error) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		pool.Close()
 		return stores{}, fmt.Errorf("register AgentZ scheme: %w", err)
-	}
-	if err := ciliumv2.AddToScheme(scheme); err != nil {
-		pool.Close()
-		return stores{}, fmt.Errorf("register Cilium scheme: %w", err)
 	}
 	k8s, err := ctrlclient.New(kubeConfig, ctrlclient.Options{Scheme: scheme})
 	if err != nil {
@@ -1105,29 +1100,85 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	if err := k8s.Create(ctx, workspace); err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("create Default Workspace resource: %w", err)
 	}
-	deadline := time.Now().Add(cfg.WorkspaceTimeout)
-	for {
-		if err := k8s.Get(ctx, ctrlclient.ObjectKey{Name: workspace.Name}, workspace); err != nil {
-			return fmt.Errorf("get Default Workspace resource: %w", err)
-		}
-		if workspace.Status.State == agentzv1alpha1.WorkspaceStateReady {
-			break
-		}
-		if workspace.Status.State == agentzv1alpha1.WorkspaceStateFailed {
-			return errors.New("default workspace controller reported a failed state")
-		}
-		if time.Now().After(deadline) {
-			return errors.New("timed out waiting for Default Workspace readiness")
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
+	if err := k8s.Get(ctx, ctrlclient.ObjectKey{Name: workspace.Name}, workspace); err != nil {
+		return fmt.Errorf("get Default Workspace resource: %w", err)
+	}
+	if workspace.Spec.WorkspaceID != inventory.Workspace.ID ||
+		workspace.Spec.OrganizationID != inventory.Organization.ID {
+		return errors.New("default workspace identity conflicts with the cutover plan")
 	}
 	source := inventory.Workspace.SourceNamespace
 	target := inventory.Workspace.TargetNamespace
 	owner := inventory.Organization.MigrationUserID
+	labels := map[string]string{
+		agentzv1alpha1.TenantManagedByLabel:      agentzv1alpha1.TenantManagedByValue,
+		agentzv1alpha1.WorkspaceNameLabel:        workspace.Name,
+		agentzv1alpha1.TenantOrganizationIDLabel: tenant.Name,
+	}
+	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+		Name:   target,
+		Labels: labels,
+		Annotations: map[string]string{
+			agentzv1alpha1.WorkspaceIDAnnotation:          inventory.Workspace.ID,
+			agentzv1alpha1.TenantOrganizationIDAnnotation: inventory.Organization.ID,
+		},
+		OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(
+			workspace,
+			agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
+		)},
+	}}
+	if err := k8s.Create(ctx, namespace); apierrors.IsAlreadyExists(err) {
+		if err := k8s.Get(ctx, ctrlclient.ObjectKey{Name: target}, namespace); err != nil {
+			return fmt.Errorf("get staged Workspace namespace: %w", err)
+		}
+		if namespace.Labels[agentzv1alpha1.TenantManagedByLabel] !=
+			agentzv1alpha1.TenantManagedByValue ||
+			namespace.Labels[agentzv1alpha1.WorkspaceNameLabel] != workspace.Name ||
+			namespace.Labels[agentzv1alpha1.TenantOrganizationIDLabel] != tenant.Name ||
+			namespace.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] !=
+				inventory.Workspace.ID ||
+			namespace.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] !=
+				inventory.Organization.ID ||
+			!metav1.IsControlledBy(namespace, workspace) {
+			return errors.New("staged Workspace namespace conflicts with the cutover plan")
+		}
+	} else if err != nil {
+		return fmt.Errorf("stage Workspace namespace: %w", err)
+	}
+	var sourcePVCs corev1.PersistentVolumeClaimList
+	if err := k8s.List(ctx, &sourcePVCs, ctrlclient.InNamespace(source)); err != nil {
+		return fmt.Errorf("list source PVCs: %w", err)
+	}
+	for i := range sourcePVCs.Items {
+		sourcePVC := &sourcePVCs.Items[i]
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourcePVC.Name,
+				Namespace: target,
+				Labels:    labels,
+				OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(
+					workspace,
+					agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
+				)},
+			},
+			Spec: *sourcePVC.Spec.DeepCopy(),
+		}
+		pvc.Spec.VolumeName = ""
+		if err := k8s.Create(ctx, pvc); apierrors.IsAlreadyExists(err) {
+			if err := k8s.Get(ctx, ctrlclient.ObjectKey{Namespace: target, Name: pvc.Name}, pvc); err != nil {
+				return fmt.Errorf("get staged Workspace PVC %q: %w", pvc.Name, err)
+			}
+			if pvc.Labels[agentzv1alpha1.TenantManagedByLabel] !=
+				agentzv1alpha1.TenantManagedByValue ||
+				pvc.Labels[agentzv1alpha1.WorkspaceNameLabel] != workspace.Name ||
+				pvc.Labels[agentzv1alpha1.TenantOrganizationIDLabel] != tenant.Name ||
+				!metav1.IsControlledBy(pvc, workspace) {
+				return fmt.Errorf("staged Workspace PVC %q conflicts with the cutover plan", pvc.Name)
+			}
+		} else if err != nil {
+			return fmt.Errorf("stage Workspace PVC %q: %w", pvc.Name, err)
+		}
+	}
 	create := func(object ctrlclient.Object) error {
 		object.SetNamespace(target)
 		object.SetResourceVersion("")
@@ -1327,20 +1378,33 @@ func verifyExternalStores(ctx context.Context, cfg Config, clients stores, inven
 	if !slices.Equal(kubernetes.PVCs, inventory.Kubernetes.PVCs) {
 		return errors.New("kubernetes target PVC inventory does not match the source inventory")
 	}
-	var policy ciliumv2.CiliumNetworkPolicy
-	if err := clients.k8s.Get(ctx, ctrlclient.ObjectKey{
-		Namespace: inventory.Workspace.TargetNamespace,
-		Name:      agentzv1alpha1.WorkspaceIsolationPolicyName,
-	}, &policy); err != nil {
-		return fmt.Errorf("verify Workspace network policy: %w", err)
-	}
 	var workspace agentzv1alpha1.Workspace
 	if err := clients.k8s.Get(ctx, ctrlclient.ObjectKey{Name: inventory.Workspace.TargetNamespace}, &workspace); err != nil {
-		return fmt.Errorf("verify Workspace controller state: %w", err)
+		return fmt.Errorf("verify staged Workspace: %w", err)
 	}
-	if workspace.Status.State != agentzv1alpha1.WorkspaceStateReady ||
-		workspace.Status.ObservedGeneration != workspace.Generation {
-		return errors.New("workspace controller has not verified the current generation")
+	if workspace.Spec.WorkspaceID != inventory.Workspace.ID ||
+		workspace.Spec.OrganizationID != inventory.Organization.ID {
+		return errors.New("staged Workspace identity does not match the cutover inventory")
+	}
+	var namespace corev1.Namespace
+	if err := clients.k8s.Get(
+		ctx,
+		ctrlclient.ObjectKey{Name: inventory.Workspace.TargetNamespace},
+		&namespace,
+	); err != nil {
+		return fmt.Errorf("verify staged Workspace namespace: %w", err)
+	}
+	if namespace.Labels[agentzv1alpha1.TenantManagedByLabel] !=
+		agentzv1alpha1.TenantManagedByValue ||
+		namespace.Labels[agentzv1alpha1.WorkspaceNameLabel] != workspace.Name ||
+		namespace.Labels[agentzv1alpha1.TenantOrganizationIDLabel] !=
+			inventory.Workspace.OrganizationTenantName ||
+		namespace.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] !=
+			inventory.Workspace.ID ||
+		namespace.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] !=
+			inventory.Organization.ID ||
+		!metav1.IsControlledBy(&namespace, &workspace) {
+		return errors.New("staged Workspace namespace does not match the cutover inventory")
 	}
 	return nil
 }
@@ -1573,33 +1637,26 @@ func deleteLegacyExternalState(ctx context.Context, cfg Config, clients stores, 
 		return fmt.Errorf("get source Tenant for deletion: %w", err)
 	}
 	if inventory.Workspace.SourceNamespace == inventory.Workspace.OrganizationTenantName {
-		namespace := ctrlclient.InNamespace(inventory.Workspace.SourceNamespace)
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.Skill{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source Skills: %w", err)
+		lists := []ctrlclient.ObjectList{
+			&agentzv1alpha1.WorkflowRunList{},
+			&agentzv1alpha1.WorkflowScheduleList{},
+			&agentzv1alpha1.AgentList{},
+			&agentzv1alpha1.SandboxList{},
+			&agentzv1alpha1.InferencePoolList{},
+			&agentzv1alpha1.MCPConnectionList{},
+			&agentzv1alpha1.InferenceProviderList{},
+			&agentzv1alpha1.SkillList{},
+			&agentzv1alpha1.SecretList{},
 		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.InferenceProvider{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source InferenceProviders: %w", err)
-		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.MCPConnection{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source MCPConnections: %w", err)
-		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.InferencePool{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source InferencePools: %w", err)
-		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.Sandbox{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source Sandboxes: %w", err)
-		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.Agent{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source Agents: %w", err)
-		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.Secret{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source Secrets: %w", err)
-		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.WorkflowSchedule{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source WorkflowSchedules: %w", err)
-		}
-		if err := clients.k8s.DeleteAllOf(ctx, &agentzv1alpha1.WorkflowRun{}, namespace); err != nil {
-			return fmt.Errorf("delete migrated source WorkflowRuns: %w", err)
+		for _, list := range lists {
+			if err := deleteMigratedObjects(
+				ctx,
+				clients.k8s,
+				inventory.Workspace.SourceNamespace,
+				list,
+			); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -1611,6 +1668,35 @@ func deleteLegacyExternalState(ctx context.Context, cfg Config, clients stores, 
 		}
 	} else if !apierrors.IsNotFound(err) {
 		return fmt.Errorf("get source Namespace for deletion: %w", err)
+	}
+	return nil
+}
+
+func deleteMigratedObjects(ctx context.Context, k8s ctrlclient.Client, namespace string, list ctrlclient.ObjectList) error {
+	if err := k8s.List(ctx, list, ctrlclient.InNamespace(namespace)); err != nil {
+		return fmt.Errorf("list migrated source objects: %w", err)
+	}
+	objects, err := apimeta.ExtractList(list)
+	if err != nil {
+		return fmt.Errorf("extract migrated source objects: %w", err)
+	}
+	for _, raw := range objects {
+		object, ok := raw.(ctrlclient.Object)
+		if !ok {
+			return fmt.Errorf("migrated source object %T does not implement client.Object", raw)
+		}
+		// The manager is deliberately stopped during cutover, so its finalizers
+		// cannot complete. The target copy has already passed all-store
+		// verification at this point, making direct finalizer removal safe.
+		if len(object.GetFinalizers()) > 0 {
+			object.SetFinalizers(nil)
+			if err := k8s.Update(ctx, object); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("clear migrated source object finalizers: %w", err)
+			}
+		}
+		if err := k8s.Delete(ctx, object); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete migrated source object: %w", err)
+		}
 	}
 	return nil
 }

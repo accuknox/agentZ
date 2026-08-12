@@ -63,6 +63,22 @@ type ImportPreview = SkillImportPreviewItem
 type ImportFormValues = z.infer<typeof importFormSchema>
 type ImportResolution = ImportFormValues["resolutions"][string]
 
+function serializeSkillImportBody(body: unknown) {
+  const value = body as { decisions: SkillImportDecision[]; file: Blob | File }
+  const data = new FormData()
+  data.append("file", value.file)
+  for (const decision of value.decisions) {
+    // Complex multipart values require an explicit content type so the
+    // gateway's OpenAPI validator decodes each decision as JSON.
+    data.append(
+      "decisions",
+      new Blob([JSON.stringify(decision)], { type: "application/json" }),
+      "decision.json"
+    )
+  }
+  return data
+}
+
 export function SkillImportDialog({
   open,
   setOpen,
@@ -182,6 +198,7 @@ export function SkillImportDialog({
       setError(undefined)
       const result = await importSkills({
         body: { decisions, file },
+        bodySerializer: serializeSkillImportBody,
         headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
       })
       if (result.error) {

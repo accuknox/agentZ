@@ -28,6 +28,12 @@ const (
 	SandboxByPoolIndex = "spec.inference.models.pool"
 )
 
+// PoolProviderSecretName returns the Pool-local credential projection name for
+// an inherited Organisation provider.
+func PoolProviderSecretName(pool, provider string) string {
+	return pool + "-" + provider
+}
+
 // ResolvedPoolMember binds one Pool reference to its typed Provider and model.
 type ResolvedPoolMember struct {
 	Ref      agentzv1alpha1.InferencePoolMember
@@ -255,7 +261,12 @@ func ProviderProtocol(kind agentzv1alpha1.InferenceProviderKind, model agentzv1a
 func RenderPoolBackend(pool *agentzv1alpha1.InferencePool, definition PoolDefinition) (*agentgatewayv1alpha1.AgentgatewayBackend, error) {
 	groups := make([]agentgatewayv1alpha1.PriorityGroup, 0, len(definition.Members))
 	for i, member := range definition.Members {
-		target, err := RenderProviderTarget(member.Provider, member.Ref.Model)
+		provider := member.Provider
+		if member.Ref.Scope == agentzv1alpha1.ResourceScopeOrganisation {
+			provider = member.Provider.DeepCopy()
+			provider.Name = PoolProviderSecretName(pool.Name, member.Provider.Name)
+		}
+		target, err := RenderProviderTarget(provider, member.Ref.Model)
 		if err != nil {
 			return nil, fmt.Errorf("render pool member %d: %w", i+1, err)
 		}

@@ -135,11 +135,12 @@ export async function listTeams(orgSlug: string) {
       id: schema.teams.id,
       name: schema.teams.name,
       memberCount: sql<number>`(
-        SELECT count(*)::int FROM team_members WHERE team_id = ${schema.teams.id}
+        SELECT count(*)::int FROM team_members
+        WHERE team_id = ${sql.raw('"teams"."id"')}
       )`,
       roleCount: sql<number>`(
         SELECT count(*)::int FROM team_roles
-        WHERE team_id = ${schema.teams.id}
+        WHERE team_id = ${sql.raw('"teams"."id"')}
           AND organization_id = ${actor.organizationId}
       )`,
       accessibleWorkspaceCount: sql<number>`(
@@ -149,7 +150,7 @@ export async function listTeams(orgSlug: string) {
           JOIN role_scopes
             ON role_scopes.role_id = team_roles.role_id
            AND role_scopes.organization_id = team_roles.organization_id
-          WHERE team_roles.team_id = ${schema.teams.id}
+          WHERE team_roles.team_id = ${sql.raw('"teams"."id"')}
             AND role_scopes.workspace_id IS NOT NULL
           UNION
           SELECT permission_grants.workspace_id
@@ -157,7 +158,7 @@ export async function listTeams(orgSlug: string) {
           JOIN permission_grants
             ON permission_grants.role_id = team_roles.role_id
            AND permission_grants.organization_id = team_roles.organization_id
-          WHERE team_roles.team_id = ${schema.teams.id}
+          WHERE team_roles.team_id = ${sql.raw('"teams"."id"')}
             AND permission_grants.workspace_id IS NOT NULL
         ) accessible_workspaces
       )`,

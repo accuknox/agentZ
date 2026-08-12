@@ -315,6 +315,7 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 		return
 	}
 	desired := poolFromAPI(access.namespace, current.Name, req.Pool)
+	desired.Spec.CreatorUserID = current.Spec.CreatorUserID
 	_, issues, err := inference.ResolvePool(r.Context(), s.k8sClient, desired)
 	if err != nil {
 		writeInternalError(w, r, err)

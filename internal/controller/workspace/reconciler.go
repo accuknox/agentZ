@@ -321,26 +321,26 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if !reportedReady {
-		if err := r.reportLifecycleState(
+		err = r.updateLifecycleStatus(
 			ctx,
-			&workspace,
+			workspace.Name,
 			attempt,
-			gatewayapi.UpdateWorkspaceLifecycleRequestStateReady,
-			nil,
-		); err != nil {
-			return ctrl.Result{}, err
+			agentzv1alpha1.WorkspaceStateReady,
+			agentzv1alpha1.WorkspaceReasonInfrastructureReady,
+			"workspace infrastructure is ready",
+		)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("mark workspace ready: %w", err)
 		}
 	}
-	err = r.updateLifecycleStatus(
+	if err := r.reportLifecycleState(
 		ctx,
-		workspace.Name,
+		&workspace,
 		attempt,
-		agentzv1alpha1.WorkspaceStateReady,
-		agentzv1alpha1.WorkspaceReasonInfrastructureReady,
-		"workspace infrastructure is ready",
-	)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("mark workspace ready: %w", err)
+		gatewayapi.UpdateWorkspaceLifecycleRequestStateReady,
+		nil,
+	); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil

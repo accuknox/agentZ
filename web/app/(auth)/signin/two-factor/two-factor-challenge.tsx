@@ -128,6 +128,7 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
       <section className="flex flex-col gap-5">
         <form
           className="flex flex-col gap-5"
+          method="post"
           onSubmit={form.handleSubmit(submit)}
           aria-busy={locked}
         >

@@ -92,7 +92,7 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		return
 	}
 
-	effective := map[string]struct{}{}
+	var effective map[string]struct{}
 	if params.AgentName != nil {
 		name, ok := validAgentName(w, r, *params.AgentName, "agent_name")
 		if !ok {

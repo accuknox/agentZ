@@ -170,7 +170,12 @@ export function SignUpForm({
         <span className="text-foreground text-3xl font-semibold tracking-tight">AccuKnox</span>
       </div>
       {showPasswordAuth ? (
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit(submit)} noValidate>
+        <form
+          className="flex flex-col gap-5"
+          method="post"
+          onSubmit={handleSubmit(submit)}
+          noValidate
+        >
           <FieldGroup>
             <Controller
               name="name"

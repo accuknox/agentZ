@@ -531,7 +531,9 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		return nil, err
 	}
 	for i := range resources {
-		resources[i].Consumers = consumers[resources[i].Name]
+		if resourceConsumers, ok := consumers[resources[i].Name]; ok {
+			resources[i].Consumers = resourceConsumers
+		}
 		if len(resources[i].Consumers) > 0 {
 			reason := "Unselecting is blocked while this resource has consumers"
 			resources[i].DisabledReason = &reason

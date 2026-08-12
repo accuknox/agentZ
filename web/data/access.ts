@@ -130,27 +130,27 @@ export async function listEffectiveAccess(orgSlug: string) {
       disabledAt: schema.members.disabledAt,
       directRoles: sql<number>`(
         SELECT count(*)::int FROM ${schema.memberRoles}
-        WHERE ${schema.memberRoles.memberId} = ${schema.members.id}
+        WHERE ${schema.memberRoles.memberId} = ${sql.raw('"members"."id"')}
           AND ${schema.memberRoles.organizationId} = ${org.id}
       )`,
       teamRoles: sql<number>`(
         SELECT count(*)::int
         FROM ${schema.teamMembers}
         JOIN ${schema.teamRoles} ON ${schema.teamRoles.teamId} = ${schema.teamMembers.teamId}
-        WHERE ${schema.teamMembers.userId} = ${schema.members.userId}
+        WHERE ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
           AND ${schema.teamRoles.organizationId} = ${org.id}
       )`,
       teams: sql<number>`(
         SELECT count(*)::int
         FROM ${schema.teamMembers}
         JOIN ${schema.teams} ON ${schema.teams.id} = ${schema.teamMembers.teamId}
-        WHERE ${schema.teamMembers.userId} = ${schema.members.userId}
+        WHERE ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
           AND ${schema.teams.organizationId} = ${org.id}
       )`,
       ownedAgents: sql<number>`(
         SELECT count(*)::int FROM ${schema.agentOwners}
         WHERE ${schema.agentOwners.organizationId} = ${org.id}
-          AND ${schema.agentOwners.ownerUserId} = ${schema.members.userId}
+          AND ${schema.agentOwners.ownerUserId} = ${sql.raw('"members"."user_id"')}
       )`,
       sharedAgents: sql<number>`(
         SELECT count(DISTINCT ${schema.agentShares.agentName})::int
@@ -159,8 +159,8 @@ export async function listEffectiveAccess(orgSlug: string) {
           ON ${schema.teamMembers.teamId} = ${schema.agentShares.targetTeamId}
         WHERE ${schema.agentShares.organizationId} = ${org.id}
           AND (
-            ${schema.agentShares.targetUserId} = ${schema.members.userId}
-            OR ${schema.teamMembers.userId} = ${schema.members.userId}
+            ${schema.agentShares.targetUserId} = ${sql.raw('"members"."user_id"')}
+            OR ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
           )
       )`,
     })

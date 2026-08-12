@@ -522,8 +522,8 @@ func TestReconcileRetriesTerminalGatewayObservation(t *testing.T) {
 		t.Fatal("first reconcile error = nil, want gateway status error")
 	}
 	current := getWorkspace(t, workspace.Name)
-	if current.Status.State != agentzv1alpha1.WorkspaceStateProvisioning {
-		t.Fatalf("state after callback failure = %q, want Provisioning", current.Status.State)
+	if current.Status.State != agentzv1alpha1.WorkspaceStateReady {
+		t.Fatalf("state after callback failure = %q, want Ready", current.Status.State)
 	}
 
 	reconcile(t, reconciler, workspace.Name)

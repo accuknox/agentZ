@@ -679,6 +679,7 @@ func (r *Reconciler) resolveImmutableSkills(ctx context.Context, keys []types.Na
 			return nil, fmt.Errorf("get immutable skill %q: %w", key.Name, err)
 		}
 		skills = append(skills, skillpkg.ManifestSkill{
+			Namespace:   skill.Namespace,
 			Name:        skill.Name,
 			Version:     skill.Spec.Version,
 			StoragePath: skill.Spec.StoragePath,

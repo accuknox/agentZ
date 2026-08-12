@@ -408,7 +408,11 @@ function SetupDialog({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-4 pb-4">
           {error ? <FieldError>{error}</FieldError> : null}
-          <form className="flex flex-col gap-6" onSubmit={(event) => void submit(event)}>
+          <form
+            className="flex flex-col gap-6"
+            method="post"
+            onSubmit={(event) => void submit(event)}
+          >
             <div className="flex flex-col gap-6">
               {secretMode ? (
                 <div className="flex flex-col gap-4">
@@ -535,6 +539,7 @@ function ReauthDialog({
       {credential ? (
         <form
           className="flex flex-col gap-5"
+          method="post"
           onSubmit={form.handleSubmit((values) => void onCredentialSubmitAction(values))}
           noValidate
         >

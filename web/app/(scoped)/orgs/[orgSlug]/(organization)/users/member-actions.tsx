@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import type { Route } from "next"
-import { useActionState, useTransition } from "react"
+import { useActionState, useState, useTransition } from "react"
 import { Send, ShieldPlus, X } from "lucide-react"
 import {
   cancelInvitationAction,
@@ -37,10 +37,17 @@ export function InviteMemberDialog({
   teams: AssignmentOption[]
   invitation?: InvitationRow
 }) {
+  const [stage, setStage] = useState<"details" | "review">("details")
+  const [email, setEmail] = useState(invitation?.email ?? "")
+  const [roleIds, setRoleIds] = useState(invitation?.roleIds ?? [])
+  const [teamIds, setTeamIds] = useState(invitation?.teamIds ?? [])
   const [state, action, pending] = useActionState<InviteMemberFormState, FormData>(
     inviteMemberAction.bind(null, orgSlug),
     {}
   )
+  const selectedRoles = roles.filter((role) => roleIds.includes(role.id))
+  const selectedTeams = teams.filter((team) => teamIds.includes(team.id))
+  const ready = email.trim() !== "" && roleIds.length + teamIds.length > 0
 
   return (
     <Dialog>
@@ -59,28 +66,65 @@ export function InviteMemberDialog({
           </DialogDescription>
         </DialogHeader>
         <form action={action} className="flex flex-col gap-5">
-          <Field>
-            <FieldLabel htmlFor={`invite-email-${invitation?.id ?? "new"}`}>Email</FieldLabel>
-            <Input
-              defaultValue={invitation?.email}
-              id={`invite-email-${invitation?.id ?? "new"}`}
-              name="email"
-              type="email"
-              required
-            />
-          </Field>
-          <AssignmentChecks
-            label="Initial Roles"
-            name="role_ids"
-            options={roles}
-            selected={invitation?.roleIds}
-          />
-          <AssignmentChecks
-            label="Initial Teams"
-            name="team_ids"
-            options={teams}
-            selected={invitation?.teamIds}
-          />
+          <input name="email" type="hidden" value={email} />
+          {roleIds.map((id) => (
+            <input key={id} name="role_ids" type="hidden" value={id} />
+          ))}
+          {teamIds.map((id) => (
+            <input key={id} name="team_ids" type="hidden" value={id} />
+          ))}
+          {stage === "details" ? (
+            <>
+              <Field>
+                <FieldLabel htmlFor={`invite-email-${invitation?.id ?? "new"}`}>Email</FieldLabel>
+                <Input
+                  id={`invite-email-${invitation?.id ?? "new"}`}
+                  onChange={(event) => setEmail(event.target.value)}
+                  type="email"
+                  value={email}
+                  required
+                />
+              </Field>
+              <AssignmentChecks
+                label="Initial Roles"
+                onChange={setRoleIds}
+                options={roles}
+                selected={roleIds}
+              />
+              <AssignmentChecks
+                label="Initial Teams"
+                onChange={setTeamIds}
+                options={teams}
+                selected={teamIds}
+              />
+            </>
+          ) : (
+            <section aria-label="Invitation access review" className="grid gap-4">
+              <h3 className="font-medium">Review initial access</h3>
+              <dl className="grid gap-3 text-sm">
+                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                  <dt className="text-muted-foreground">Email</dt>
+                  <dd className="break-all">{email}</dd>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                  <dt className="text-muted-foreground">Direct Roles</dt>
+                  <dd>{selectedRoles.map((role) => role.name).join(", ") || "None"}</dd>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                  <dt className="text-muted-foreground">Teams</dt>
+                  <dd>{selectedTeams.map((team) => team.name).join(", ") || "None"}</dd>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                  <dt className="text-muted-foreground">Effective access</dt>
+                  <dd>
+                    Union of {selectedRoles.length} direct Role
+                    {selectedRoles.length === 1 ? "" : "s"} and {selectedTeams.length} Team
+                    {selectedTeams.length === 1 ? "" : "s"}.
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
           {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
           {state.link ? (
             <div className="bg-muted/40 flex min-w-0 items-center gap-2 p-2">
@@ -88,10 +132,23 @@ export function InviteMemberDialog({
               <CopyButton content={state.link} label="Copy" />
             </div>
           ) : null}
-          <Button disabled={pending} type="submit">
-            {pending ? <Spinner /> : <Send />}
-            Create invitation
-          </Button>
+          <div className="flex justify-end gap-2">
+            {stage === "review" ? (
+              <Button onClick={() => setStage("details")} type="button" variant="outline">
+                Back
+              </Button>
+            ) : null}
+            {stage === "details" ? (
+              <Button disabled={!ready} onClick={() => setStage("review")} type="button">
+                Review access
+              </Button>
+            ) : (
+              <Button disabled={pending} type="submit">
+                {pending ? <Spinner /> : <Send />}
+                {invitation ? "Replace invitation" : "Create invitation"}
+              </Button>
+            )}
+          </div>
         </form>
       </DialogContent>
     </Dialog>
@@ -153,12 +210,12 @@ export function MembershipStateButton({
 
 function AssignmentChecks({
   label,
-  name,
+  onChange,
   options,
   selected = [],
 }: {
   label: string
-  name: string
+  onChange: (ids: string[]) => void
   options: AssignmentOption[]
   selected?: string[]
 }) {
@@ -168,7 +225,15 @@ function AssignmentChecks({
       <div className="grid gap-2 sm:grid-cols-2">
         {options.map((option) => (
           <label className="hover:bg-muted/40 flex items-center gap-2 py-2 text-sm" key={option.id}>
-            <Checkbox defaultChecked={selected.includes(option.id)} name={name} value={option.id} />
+            <Checkbox
+              checked={selected.includes(option.id)}
+              onCheckedChange={(checked) =>
+                onChange(
+                  checked ? [...selected, option.id] : selected.filter((id) => id !== option.id)
+                )
+              }
+              value={option.id}
+            />
             <span className="truncate" title={option.name}>
               {option.name}
             </span>

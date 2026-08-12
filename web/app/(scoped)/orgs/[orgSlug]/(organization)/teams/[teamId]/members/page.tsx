@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -36,6 +36,10 @@ export default async function TeamMembersPage({
                 <TableCell>
                   <span className="flex min-w-0 items-center gap-3">
                     <Avatar size="sm">
+                      <AvatarImage
+                        alt={member.name ?? member.email}
+                        src={member.image ?? undefined}
+                      />
                       <AvatarFallback>
                         {(member.name ?? member.email).slice(0, 1).toUpperCase()}
                       </AvatarFallback>

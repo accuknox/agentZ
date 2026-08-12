@@ -29,6 +29,7 @@ export type ActiveMember = {
   userId: string
   name: string
   email: string
+  image: string | null
   createdAt: string
   disabledAt: string | null
   roles: string[]
@@ -159,6 +160,7 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
         userId: schema.members.userId,
         name: schema.users.name,
         email: schema.users.email,
+        image: schema.users.image,
         createdAt: schema.members.createdAt,
         disabledAt: schema.members.disabledAt,
         lastActivity: sql`(

@@ -9,7 +9,7 @@ import { resolveOrganizationSlug } from "@/data/organizations"
 import { analyzeDestructiveImpact, analyzeTeamDeletionEffects } from "@/data/operations"
 import { getAuth } from "@/lib/auth"
 
-export type TeamMember = { id: string; name: string; email: string }
+export type TeamMember = { id: string; name: string; email: string; image: string | null }
 export type TeamRole = { id: string; name: string; scope: string }
 export type TeamSummary = {
   id: string
@@ -188,7 +188,12 @@ export async function getTeamEditorData(
   )
 
   const members = await getDB()
-    .select({ id: schema.members.id, name: schema.users.name, email: schema.users.email })
+    .select({
+      id: schema.members.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      image: schema.users.image,
+    })
     .from(schema.members)
     .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
     .where(

@@ -1,6 +1,7 @@
 import type { Route } from "next"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Table,
   TableBody,
@@ -107,14 +108,20 @@ function MembersTable({
                 key={member.id}
               >
                 <TableCell className="max-w-72">
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium" title={member.name}>
-                        {member.name}
-                      </span>
-                    </div>
-                    <div className="text-muted-foreground truncate text-xs" title={member.email}>
-                      {member.email}
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar>
+                      <AvatarImage alt={member.name} src={member.image ?? undefined} />
+                      <AvatarFallback>{member.name.slice(0, 1).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium" title={member.name}>
+                          {member.name}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground truncate text-xs" title={member.email}>
+                        {member.email}
+                      </div>
                     </div>
                   </div>
                 </TableCell>

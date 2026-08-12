@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import * as z from "zod"
+import { AdministrationPageHeader } from "@/components/administration"
+import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import {
   getTraceChartAction,
@@ -8,16 +10,16 @@ import {
   listTraceSessionsAction,
 } from "@/data/lens.actions"
 import type { ListAgentActionResponse, TraceSessionFilterItem } from "@/data/types"
-import { TracesChart } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/traces-chart"
-import { TracesChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/traces-chart-skeleton"
-import { TracesFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/traces-filters"
+import { TracesChart } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-chart"
+import { TracesChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-chart-skeleton"
+import { TracesFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-filters"
 import {
   parseLimitParam,
   type TraceDateRange,
   traceDateRange,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/search-params"
-import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/traces-skeleton"
-import { TracesTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/traces/traces-table"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/search-params"
+import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-skeleton"
+import { TracesTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
 
@@ -86,35 +88,35 @@ export default async function TracesPage({
     return <ErrorPanel message="Workspace is unavailable" />
   }
   if (!workspace.workspace.observability_capabilities.read) {
-    return <ErrorPanel message="You do not have Observability access in this Workspace" />
+    return <ErrorPanel message="You do not have Lens access in this Workspace" />
   }
 
   const resolved = resolveTracesSearchParams(searchParams)
   const workspaceId = workspace.workspace.id
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <PageHeader />
-      <Suspense fallback={<TracesFiltersSkeleton />}>
-        <Filters searchParams={resolved} workspaceId={workspaceId} />
-      </Suspense>
-      <Suspense fallback={<TracesChartSkeleton />}>
-        <Chart searchParams={resolved} workspaceId={workspaceId} />
-      </Suspense>
-      <Suspense fallback={<TracesSkeleton />}>
-        <Traces searchParams={resolved} workspaceId={workspaceId} />
-      </Suspense>
-    </main>
-  )
-}
-
-function PageHeader() {
-  return (
-    <div className="flex min-w-0 items-center justify-between px-4 sm:px-6">
-      <div className="min-w-0">
-        <h1 className="text-base font-medium tracking-normal">Traces</h1>
+    <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+      <AdministrationPageHeader title="Traces" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0">
+        <Suspense
+          fallback={
+            <div className="flex flex-col gap-2 border-b px-4 py-2 sm:flex-row sm:px-6">
+              <Skeleton className="h-8 w-full sm:w-64" />
+              <Skeleton className="h-8 w-full sm:w-72" />
+              <Skeleton className="h-8 w-full sm:w-72" />
+            </div>
+          }
+        >
+          <Filters searchParams={resolved} workspaceId={workspaceId} />
+        </Suspense>
+        <Suspense fallback={<TracesChartSkeleton />}>
+          <Chart searchParams={resolved} workspaceId={workspaceId} />
+        </Suspense>
+        <Suspense fallback={<TracesSkeleton />}>
+          <Traces searchParams={resolved} workspaceId={workspaceId} />
+        </Suspense>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -220,10 +222,6 @@ async function Traces({
   )
 
   return <TracesTable data={result.data} error={result.error} workspaceId={workspaceId} />
-}
-
-function TracesFiltersSkeleton() {
-  return <div className="bg-muted/20 h-15 border-b" />
 }
 
 type ResolvedTracesSearchParams = {

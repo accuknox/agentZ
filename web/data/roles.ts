@@ -73,7 +73,7 @@ export const roleResourceCatalog: RoleResourceDefinition[] = [
   },
   {
     resource: "observability",
-    label: "Observability",
+    label: "Lens",
     organisation: false,
     workspace: true,
     actions: ["read"],
@@ -845,14 +845,14 @@ async function previewRole(
       resource: schema.permissionGrants.resource,
       action: schema.permissionGrants.action,
     })
-      .from(schema.permissionGrants)
-      .where(
-        and(
-          grantScope(scope),
-          eq(schema.permissionGrants.roleId, roleId),
-          ne(schema.permissionGrants.resource, "api_key")
-        )
+    .from(schema.permissionGrants)
+    .where(
+      and(
+        grantScope(scope),
+        eq(schema.permissionGrants.roleId, roleId),
+        ne(schema.permissionGrants.resource, "api_key")
       )
+    )
   const grants = expandPermissionGrants(inputs)
   const next = new Set(grants.map(grantKey))
   const removed = existing.filter((grant) => !next.has(grantKey(grant)))

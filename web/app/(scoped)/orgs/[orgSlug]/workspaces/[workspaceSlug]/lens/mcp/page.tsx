@@ -1,15 +1,18 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import * as z from "zod"
+import { AdministrationPageHeader } from "@/components/administration"
+import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getMcpGraphAction } from "@/data/lens.actions"
 import type { ListAgentActionResponse } from "@/data/types"
 import {
   McpEmptyState,
   McpGraph,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/mcp/mcp-graph"
-import { McpFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/mcp/mcp-filters"
-import { mcpDateRange } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/mcp/search-params"
+  McpGraphSkeleton,
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/mcp/mcp-graph"
+import { McpFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/mcp/mcp-filters"
+import { mcpDateRange } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/mcp/search-params"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
 
@@ -57,32 +60,31 @@ export default async function McpPage({
     return <ErrorPanel message="Workspace is unavailable" />
   }
   if (!workspace.workspace.observability_capabilities.read) {
-    return <ErrorPanel message="You do not have Observability access in this Workspace" />
+    return <ErrorPanel message="You do not have Lens access in this Workspace" />
   }
 
   const resolved = resolveMcpSearchParams(searchParams)
   const workspaceId = workspace.workspace.id
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <PageHeader />
-      <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={resolved} workspaceId={workspaceId} />
-      </Suspense>
-      <Suspense fallback={<GraphSkeleton />}>
-        <Graph searchParams={resolved} workspaceId={workspaceId} />
-      </Suspense>
-    </main>
-  )
-}
-
-function PageHeader() {
-  return (
-    <div className="flex min-w-0 items-center justify-between px-4 sm:px-6">
-      <div className="min-w-0">
-        <h1 className="text-base font-medium tracking-normal">MCP Observability</h1>
+    <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+      <AdministrationPageHeader title="MCP Observability" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0">
+        <Suspense
+          fallback={
+            <div className="flex flex-col gap-2 border-b px-4 py-2 sm:flex-row sm:px-6">
+              <Skeleton className="h-8 w-full sm:w-64" />
+              <Skeleton className="h-8 w-full sm:w-72" />
+            </div>
+          }
+        >
+          <Filters searchParams={resolved} workspaceId={workspaceId} />
+        </Suspense>
+        <Suspense fallback={<McpGraphSkeleton />}>
+          <Graph searchParams={resolved} workspaceId={workspaceId} />
+        </Suspense>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -182,18 +184,6 @@ async function resolveMcpSearchParams(
     agentName: params.agent_name,
     range: mcpDateRange(params.from, params.to),
   }
-}
-
-function FiltersSkeleton() {
-  return <div className="bg-muted/20 h-15 border-b" />
-}
-
-function GraphSkeleton() {
-  return (
-    <div className="flex flex-1">
-      <div className="bg-muted/20 min-h-105 w-full border-y" />
-    </div>
-  )
 }
 
 function ErrorPanel({ message }: { message: string }) {

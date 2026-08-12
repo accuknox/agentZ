@@ -110,9 +110,7 @@ export function AuditEvents({
                     <span className="text-muted-foreground text-xs">{event.actor.type}</span>
                   </TableCell>
                   <TableCell className="min-w-48">
-                    <span className="font-mono text-sm font-medium">
-                      {event.action}
-                    </span>
+                    <span className="font-mono text-sm font-medium">{event.action}</span>
                     <span className="text-muted-foreground mt-1 block text-xs md:hidden">
                       {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
                     </span>

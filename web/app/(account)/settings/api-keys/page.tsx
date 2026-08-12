@@ -2,10 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
-import {
-  createAPIKeyFormAction,
-  deleteUserAPIKeyFormAction,
-} from "@/data/api-key.actions"
+import { createAPIKeyFormAction, deleteUserAPIKeyFormAction } from "@/data/api-key.actions"
 import { listUserAPIKeysCachedQuery } from "@/data/api-key.queries"
 import { getOrganizationSession } from "@/data/organizations"
 import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
@@ -97,9 +94,7 @@ async function CreateDialog({ workspace }: { workspace: { id: string; name: stri
 
 async function PersonalAPIKeys() {
   const keys = await listUserAPIKeysCachedQuery()
-  return (
-    <APIKeysTable canDelete deleteAPIKeyAction={deleteUserAPIKeyFormAction} keys={keys} />
-  )
+  return <APIKeysTable canDelete deleteAPIKeyAction={deleteUserAPIKeyFormAction} keys={keys} />
 }
 
 function TableSkeleton() {

@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
 import { getProcessTelemetryAction } from "@/data/lens.actions"
 import type { ProcessTelemetryActionData } from "@/data/types"
-import { ProcessTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/process-telemetry-table"
+import { ProcessTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/process-telemetry-table"
 import {
   RuntimeTelemetryPage as RuntimeTelemetryPageContent,
   type TelemetryPageConfig,
   type TelemetrySearchParams,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/runtime-telemetry-page"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
   title: "Runtime Telemetry",

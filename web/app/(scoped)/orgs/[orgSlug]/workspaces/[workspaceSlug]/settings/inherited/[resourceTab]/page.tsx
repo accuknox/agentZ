@@ -7,7 +7,5 @@ export default async function InheritedWorkspaceTabRedirect({
   params: Promise<{ orgSlug: string; resourceTab: string; workspaceSlug: string }>
 }) {
   const { orgSlug, resourceTab, workspaceSlug } = await params
-  redirect(
-    `/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/inherited/${resourceTab}` as Route
-  )
+  redirect(`/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/inherited/${resourceTab}` as Route)
 }

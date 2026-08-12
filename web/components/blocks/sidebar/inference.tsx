@@ -49,7 +49,10 @@ export function NavInference({
             {showProviders ? (
               <SidebarMenuSubItem>
                 <SidebarMenuSubButton asChild isActive={path === providersPath}>
-                  <Link aria-current={path === providersPath ? "page" : undefined} href={providersPath}>
+                  <Link
+                    aria-current={path === providersPath ? "page" : undefined}
+                    href={providersPath}
+                  >
                     <Brain aria-hidden="true" />
                     <span>Providers</span>
                   </Link>

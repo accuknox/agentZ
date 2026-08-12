@@ -102,7 +102,10 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                     <Building2 aria-hidden="true" className="size-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium" title={scope.organization.name}>
+                    <span
+                      className="block truncate text-sm font-medium"
+                      title={scope.organization.name}
+                    >
                       {scope.organization.name}
                     </span>
                     <span className="text-muted-foreground block text-xs">Organisation</span>

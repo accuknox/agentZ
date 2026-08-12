@@ -19,6 +19,7 @@ import {
 import { Canvas } from "@/components/ai-elements/canvas"
 import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { mcpConnectionFallbackIcon, renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { formatAge } from "@/lib/format"
@@ -195,6 +196,40 @@ export function McpGraph({ graph }: McpGraphProps) {
         <McpAutoLayout graph={graph} setNodes={setNodes} />
         <Controls position="bottom-left" showInteractive={false} />
       </Canvas>
+    </div>
+  )
+}
+
+/**
+ * McpGraphSkeleton preserves the graph canvas while its topology loads.
+ */
+export function McpGraphSkeleton() {
+  return (
+    <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-y">
+      <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-8">
+        <div className="flex min-w-max items-center gap-8 sm:gap-14 lg:gap-24">
+          <div className="flex w-32 flex-col items-center gap-3">
+            <Skeleton className="size-20 rounded-full" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+          <Skeleton className="h-px w-16 rounded-none sm:w-24" />
+          <div className="flex w-32 flex-col items-center gap-3">
+            <Skeleton className="size-20 rounded-full" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-px w-16 rounded-none sm:w-24" />
+          <div className="flex w-32 flex-col items-center gap-3">
+            <Skeleton className="size-20 rounded-full" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+        </div>
+      </div>
+      <div className="absolute bottom-4 left-4 flex overflow-hidden rounded-md border shadow-xs">
+        <Skeleton className="size-8 rounded-none" />
+        <Skeleton className="size-8 rounded-none border-x" />
+        <Skeleton className="size-8 rounded-none" />
+      </div>
     </div>
   )
 }

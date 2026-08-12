@@ -8,7 +8,6 @@ import {
   CircleUserRound,
   CloudCog,
   ScrollText,
-  Search,
   Settings2,
   ShieldCheck,
   UserRoundCheck,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react"
 import { NavAgents } from "./agents"
 import { NavInference } from "./inference"
+import { NavLens } from "./lens"
 import { SidebarNavigationLink } from "./navigation-link"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
@@ -57,7 +57,7 @@ export type SidebarScope =
   | ({
       kind: "workspace"
       workspace: Workspace
-      observabilityCapabilities: ResourceCapabilities
+      lensCapabilities: ResourceCapabilities
     } & WorkspaceNavigationScope)
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
@@ -101,7 +101,7 @@ export function AppSidebar({
               inferencePoolCapabilities={scope.inferencePoolCapabilities}
               inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
               organization={scope.organization}
-              observabilityCapabilities={scope.observabilityCapabilities}
+              lensCapabilities={scope.lensCapabilities}
               skillCapabilities={scope.skillCapabilities}
               sandboxCapabilities={scope.sandboxCapabilities}
               workspace={scope.workspace}
@@ -132,7 +132,7 @@ function WorkspaceNavigation({
   inferencePoolCapabilities,
   inferenceProviderCapabilities,
   organization,
-  observabilityCapabilities,
+  lensCapabilities,
   skillCapabilities,
   sandboxCapabilities,
   workspace,
@@ -141,13 +141,13 @@ function WorkspaceNavigation({
   inferencePoolCapabilities: ResourceCapabilities
   inferenceProviderCapabilities: ResourceCapabilities
   organization: OrganizationSummary
-  observabilityCapabilities: ResourceCapabilities
+  lensCapabilities: ResourceCapabilities
   skillCapabilities: ResourceCapabilities
   sandboxCapabilities: ResourceCapabilities
   workspace: Workspace
 }) {
   const hasResources =
-    observabilityCapabilities.read ||
+    lensCapabilities.read ||
     skillCapabilities.read ||
     mcpConnectionCapabilities.read ||
     sandboxCapabilities.read ||
@@ -193,18 +193,8 @@ function WorkspaceNavigation({
         <SidebarGroup className="px-2 py-2">
           <SidebarGroupLabel>Resources</SidebarGroupLabel>
           <SidebarMenu>
-            {observabilityCapabilities.read ? (
-              <SidebarMenuItem>
-                <SidebarNavigationLink
-                  label="Lens"
-                  match={`/orgs/${organization.slug}/workspaces/${workspace.slug}/observability`}
-                  href={
-                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/observability/traces` as Route
-                  }
-                >
-                  <Search aria-hidden="true" />
-                </SidebarNavigationLink>
-              </SidebarMenuItem>
+            {lensCapabilities.read ? (
+              <NavLens rootPath={`/orgs/${organization.slug}/workspaces/${workspace.slug}`} />
             ) : null}
             {skillCapabilities.read ? (
               <SidebarMenuItem>

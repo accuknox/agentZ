@@ -125,7 +125,7 @@ export default async function WorkspaceLayout({
               inferencePoolCapabilities: result.workspace.inference_pool_capabilities,
               inferenceProviderCapabilities: result.workspace.inference_provider_capabilities,
               organization: result.scope.organization,
-              observabilityCapabilities: result.workspace.observability_capabilities,
+              lensCapabilities: result.workspace.observability_capabilities,
               sandboxCapabilities: result.workspace.sandbox_capabilities,
               skillCapabilities: result.workspace.skill_capabilities,
               workspace: result.workspace,

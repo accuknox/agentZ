@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
 import { getNetworkTelemetryAction } from "@/data/lens.actions"
 import type { NetworkTelemetryActionData } from "@/data/types"
-import { NetworkTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/network-telemetry-table"
+import { NetworkTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/network-telemetry-table"
 import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
   type TelemetrySearchParams,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/runtime-telemetry-page"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
   title: "Network Telemetry",

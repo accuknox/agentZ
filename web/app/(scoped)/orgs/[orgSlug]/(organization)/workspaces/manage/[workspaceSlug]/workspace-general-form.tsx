@@ -2,10 +2,7 @@
 
 import { useActionState } from "react"
 import { CircleAlert, CircleCheck } from "lucide-react"
-import {
-  updateWorkspaceAction,
-  type UpdateWorkspaceFormState,
-} from "@/app/(scoped)/orgs/actions"
+import { updateWorkspaceAction, type UpdateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -22,7 +19,10 @@ export function WorkspaceGeneralForm({
   workspaceId: string
 }) {
   const action = updateWorkspaceAction.bind(null, orgSlug, workspaceId)
-  const [state, formAction, pending] = useActionState<UpdateWorkspaceFormState, FormData>(action, {})
+  const [state, formAction, pending] = useActionState<UpdateWorkspaceFormState, FormData>(
+    action,
+    {}
+  )
 
   return (
     <form action={formAction} className="flex max-w-2xl flex-col gap-5 px-4 md:px-6">

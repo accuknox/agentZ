@@ -1,4 +1,6 @@
 import { Suspense } from "react"
+import { AdministrationPageHeader } from "@/components/administration"
+import { Skeleton } from "@/components/ui/skeleton"
 import * as z from "zod"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import type { Error } from "@/lib/gateway/client"
@@ -7,15 +9,15 @@ import type {
   NetworkTelemetryActionResponse,
   ProcessTelemetryActionResponse,
 } from "@/data/types"
-import { TelemetryChart } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-chart"
-import { TelemetryChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-chart-skeleton"
-import { TelemetryFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-filters"
+import { TelemetryChart } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-chart"
+import { TelemetryChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-chart-skeleton"
+import { TelemetryFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-filters"
 import {
   telemetryDateRange,
   type TelemetryDateRange,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/search-params"
-import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-table-skeleton"
-import { TelemetryTabs } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/telemetry-tabs"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/search-params"
+import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table-skeleton"
+import { TelemetryTabs } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-tabs"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
@@ -74,42 +76,45 @@ export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
     return <ErrorPanel message="Workspace is unavailable" />
   }
   if (!workspace.workspace.observability_capabilities.read) {
-    return <ErrorPanel message="You do not have Observability access in this Workspace" />
+    return <ErrorPanel message="You do not have Lens access in this Workspace" />
   }
 
   const resolved = resolveTelemetrySearchParams(searchParams)
-  const basePath = `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}/observability/runtime-telemetry`
+  const basePath = `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}/lens/runtime-telemetry`
   const workspaceId = workspace.workspace.id
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <PageHeader />
-      <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={resolved} workspaceId={workspaceId} />
-      </Suspense>
-      <Tabs value={config.value} className="flex flex-1 flex-col">
-        <div className="border-b px-4 sm:px-6">
-          <TelemetryTabs basePath={basePath} />
-        </div>
-        <div className="flex flex-1 flex-col">
-          <TabsContent value={config.value} className="m-0 flex flex-1 flex-col">
-            <Suspense fallback={<TelemetryTableSkeleton headers={config.headers} />}>
-              <TelemetryContent config={config} searchParams={resolved} workspaceId={workspaceId} />
-            </Suspense>
-          </TabsContent>
-        </div>
-      </Tabs>
-    </main>
-  )
-}
-
-function PageHeader() {
-  return (
-    <div className="flex min-w-0 items-center justify-between px-4 sm:px-6">
-      <div className="min-w-0">
-        <h1 className="text-base font-medium tracking-normal">Runtime Telemetry</h1>
+    <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+      <AdministrationPageHeader title="Runtime Telemetry" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0">
+        <Suspense
+          fallback={
+            <div className="flex flex-col gap-2 border-b px-4 py-2 sm:flex-row sm:px-6">
+              <Skeleton className="h-8 w-full sm:w-64" />
+              <Skeleton className="h-8 w-full sm:w-72" />
+            </div>
+          }
+        >
+          <Filters searchParams={resolved} workspaceId={workspaceId} />
+        </Suspense>
+        <Tabs value={config.value} className="flex flex-1 flex-col">
+          <div className="border-b px-4 py-2 sm:px-6">
+            <TelemetryTabs basePath={basePath} />
+          </div>
+          <div className="flex flex-1 flex-col">
+            <TabsContent value={config.value} className="m-0 flex flex-1 flex-col">
+              <Suspense fallback={<TelemetryTableSkeleton headers={config.headers} />}>
+                <TelemetryContent
+                  config={config}
+                  searchParams={resolved}
+                  workspaceId={workspaceId}
+                />
+              </Suspense>
+            </TabsContent>
+          </div>
+        </Tabs>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -239,10 +244,6 @@ async function Filters({
       to={range.to}
     />
   )
-}
-
-function FiltersSkeleton() {
-  return <div className="bg-muted/20 h-15 border-b" />
 }
 
 function ErrorPanel({ message }: { message: string }) {

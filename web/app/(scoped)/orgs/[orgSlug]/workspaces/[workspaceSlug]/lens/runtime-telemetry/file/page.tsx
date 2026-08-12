@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
 import { getFileTelemetryAction } from "@/data/lens.actions"
 import type { FileTelemetryActionData } from "@/data/types"
-import { FileTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/file-telemetry-table"
+import { FileTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/file-telemetry-table"
 import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
   type TelemetrySearchParams,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/observability/runtime-telemetry/runtime-telemetry-page"
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
   title: "File Telemetry",

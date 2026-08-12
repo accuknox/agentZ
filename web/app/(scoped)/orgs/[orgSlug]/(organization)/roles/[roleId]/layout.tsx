@@ -2,6 +2,7 @@ import type { Route } from "next"
 import { notFound } from "next/navigation"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getRoleEditorData } from "@/data/roles"
+import { RoleDelete } from "../role-delete"
 
 export default async function RoleLayout({
   children,
@@ -41,6 +42,14 @@ export default async function RoleLayout({
             </div>
           </div>
         </div>
+        {!data.role.immutable ? (
+          <RoleDelete
+            name={data.role.name}
+            orgSlug={orgSlug}
+            roleId={roleId}
+            updatedAt={data.role.updatedAt}
+          />
+        ) : null}
         <RouteTabs label="Role details" tabs={tabs} />
       </header>
       {children}

@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation"
-import { RoleDelete } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-delete"
 import { RoleEditor } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-editor"
 import { getWorkspaceRoleEditorData } from "@/data/roles"
 
@@ -15,17 +14,5 @@ export default async function WorkspaceRolePermissionsPage({
     notFound()
   }
 
-  return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <RoleEditor data={data} />
-      {!data.role.immutable ? (
-        <RoleDelete
-          name={data.role.name}
-          orgSlug={orgSlug}
-          roleId={roleId}
-          workspaceSlug={workspaceSlug}
-        />
-      ) : null}
-    </div>
-  )
+  return <RoleEditor data={data} />
 }

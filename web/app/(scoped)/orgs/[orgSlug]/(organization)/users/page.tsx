@@ -1,8 +1,6 @@
 import type { Route } from "next"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { CopyButton } from "@/components/ui/copy-button"
 import {
   Table,
   TableBody,
@@ -16,7 +14,7 @@ import { RoutedTableRow } from "@/components/routed-table-row"
 import { listEffectiveAccess } from "@/data/access"
 import { getMemberDirectory, type ActiveMember, type InvitationRow } from "@/data/members"
 import { formatAge } from "@/lib/format"
-import { CancelInvitationButton, InviteMemberDialog, MembershipStateButton } from "./member-actions"
+import { InvitationActions, InviteMemberDialog, MembershipStateButton } from "./member-actions"
 
 export default async function UsersPage({
   params,
@@ -178,7 +176,7 @@ function InvitationsTable({
             <TableHead>Initial Access</TableHead>
             <TableHead className="w-56">Inviter</TableHead>
             <TableHead className="w-32">Expiry</TableHead>
-            <TableHead className="w-40 text-right">Actions</TableHead>
+            <TableHead className="w-16 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -201,19 +199,12 @@ function InvitationsTable({
                   {invitation.expired ? <Badge variant="destructivePlain">Expired</Badge> : null}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <CopyButton content={invitation.link} />
-                    <Button asChild size="sm" variant="ghost">
-                      <a href={invitation.link}>Open</a>
-                    </Button>
-                    <InviteMemberDialog
-                      invitation={invitation}
-                      orgSlug={orgSlug}
-                      roles={roles}
-                      teams={teams}
-                    />
-                    <CancelInvitationButton invitationId={invitation.id} orgSlug={orgSlug} />
-                  </div>
+                  <InvitationActions
+                    invitation={invitation}
+                    orgSlug={orgSlug}
+                    roles={roles}
+                    teams={teams}
+                  />
                 </TableCell>
               </TableRow>
             ))

@@ -85,57 +85,55 @@ export default async function UserDetailPage({
 
 function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: string }) {
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <section className="min-w-0 space-y-3">
-        <h2 className="px-4 text-lg font-medium md:px-6">Membership</h2>
-        <div className="w-full min-w-0 border-b">
-          <Table aria-label={`${data.member.name} membership summary`}>
-            <TableBody>
-              <TableRow>
-                <TableHead scope="row">Roles</TableHead>
-                <TableCell>{data.member.roles.join(", ") || "None"}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableHead scope="row">Teams</TableHead>
-                <TableCell>{data.member.teams.join(", ") || "None"}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableHead scope="row">Joined</TableHead>
-                <TableCell>
-                  <time dateTime={data.member.createdAt}>{formatAge(data.member.createdAt)}</time>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableHead scope="row">Last activity</TableHead>
-                <TableCell>
-                  {data.member.lastActivity ? (
-                    <time dateTime={data.member.lastActivity}>
-                      {formatAge(data.member.lastActivity)}
-                    </time>
-                  ) : (
-                    "None"
-                  )}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </section>
-      <section className="space-y-3 px-4 md:px-6 lg:pl-0">
-        <h2 className="text-lg font-medium">Membership actions</h2>
-        <div className="grid gap-2">
-          {data.self || data.member.disabledAt ? null : (
-            <Button asChild variant="outline">
-              <Link
-                href={
-                  `/orgs/${orgSlug}/users/${data.member.id}/remove?operation=membership_disable` as Route
-                }
-              >
-                Disable Membership
-              </Link>
-            </Button>
-          )}
-          {!data.self ? (
+    <section className="min-w-0 space-y-3">
+      <h2 className="px-4 text-lg font-medium md:px-6">Membership</h2>
+      <div className="w-full min-w-0 border-b">
+        <Table aria-label={`${data.member.name} membership summary`}>
+          <TableBody>
+            <TableRow>
+              <TableHead scope="row">Roles</TableHead>
+              <TableCell>{data.member.roles.join(", ") || "None"}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableHead scope="row">Teams</TableHead>
+              <TableCell>{data.member.teams.join(", ") || "None"}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableHead scope="row">Joined</TableHead>
+              <TableCell>
+                <time dateTime={data.member.createdAt}>{formatAge(data.member.createdAt)}</time>
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableHead scope="row">Last activity</TableHead>
+              <TableCell>
+                {data.member.lastActivity ? (
+                  <time dateTime={data.member.lastActivity}>
+                    {formatAge(data.member.lastActivity)}
+                  </time>
+                ) : (
+                  "None"
+                )}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+      {data.self ? null : (
+        <div className="space-y-3 px-4 pt-3 md:px-6">
+          <h2 className="text-lg font-medium">Membership actions</h2>
+          <div className="flex flex-wrap gap-2">
+            {data.member.disabledAt ? null : (
+              <Button asChild variant="outline">
+                <Link
+                  href={
+                    `/orgs/${orgSlug}/users/${data.member.id}/remove?operation=membership_disable` as Route
+                  }
+                >
+                  Disable Membership
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="destructive">
               <Link
                 href={
@@ -145,10 +143,10 @@ function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: strin
                 Remove Membership
               </Link>
             </Button>
-          ) : null}
+          </div>
         </div>
-      </section>
-    </div>
+      )}
+    </section>
   )
 }
 
@@ -250,7 +248,7 @@ function APIKeys({ data }: { data: MemberAdministration }) {
 function Activity({ data }: { data: MemberAdministration }) {
   return (
     <div className="w-full min-w-0 border-b">
-      <Table aria-label={`${data.member.name} Membership activity`}>
+      <Table aria-label={`${data.member.name} activity`}>
         <TableHeader>
           <TableRow>
             <TableHead>Time</TableHead>

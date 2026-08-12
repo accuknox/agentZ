@@ -431,18 +431,15 @@ export const getMemberAdministration = cache(
       db
         .select({
           action: schema.auditEvents.action,
-          actor: schema.users.name,
           createdAt: schema.auditEvents.createdAt,
           id: schema.auditEvents.id,
           result: schema.auditEvents.result,
         })
         .from(schema.auditEvents)
-        .leftJoin(schema.users, eq(schema.users.id, schema.auditEvents.actorId))
         .where(
           and(
             eq(schema.auditEvents.organizationId, directory.organization.id),
-            eq(schema.auditEvents.targetType, "organization_membership"),
-            eq(schema.auditEvents.targetId, member.id)
+            eq(schema.auditEvents.actorId, member.userId)
           )
         )
         .orderBy(desc(schema.auditEvents.createdAt), desc(schema.auditEvents.id))
@@ -450,9 +447,9 @@ export const getMemberAdministration = cache(
     ])
 
     return {
-      activity: activity.map(({ actor, createdAt, ...event }) => ({
+      activity: activity.map(({ createdAt, ...event }) => ({
         ...event,
-        actor: actor ?? "System",
+        actor: member.name,
         createdAt: createdAt.toISOString(),
       })),
       agents: agents.map(({ updatedAt, ...agent }) => ({

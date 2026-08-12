@@ -3,7 +3,7 @@
 import Link from "next/link"
 import type { Route } from "next"
 import { useActionState, useState, useTransition } from "react"
-import { Send, ShieldPlus, X } from "lucide-react"
+import { Check, Copy, MoreHorizontal, Pencil, Send, ShieldPlus, X } from "lucide-react"
 import {
   cancelInvitationAction,
   inviteMemberAction,
@@ -15,6 +15,13 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,18 +31,26 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard"
 
 export function InviteMemberDialog({
   orgSlug,
   roles,
   teams,
   invitation,
+  open,
+  onOpenChange,
+  showTrigger = true,
 }: {
   orgSlug: string
   roles: AssignmentOption[]
   teams: AssignmentOption[]
   invitation?: InvitationRow
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  showTrigger?: boolean
 }) {
   const [stage, setStage] = useState<"details" | "review">("details")
   const [email, setEmail] = useState(invitation?.email ?? "")
@@ -50,14 +65,16 @@ export function InviteMemberDialog({
   const ready = email.trim() !== "" && roleIds.length + teamIds.length > 0
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button>
-          <Send />
-          {invitation ? "Edit" : "Invite user"}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-y-auto">
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button>
+            <Send />
+            {invitation ? "Edit" : "Invite user"}
+          </Button>
+        </DialogTrigger>
+      ) : null}
+      <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-x-hidden overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Invite user</DialogTitle>
           <DialogDescription>
@@ -65,7 +82,7 @@ export function InviteMemberDialog({
             only with the invited email owner.
           </DialogDescription>
         </DialogHeader>
-        <form action={action} className="flex flex-col gap-5">
+        <form action={action} className="flex min-w-0 flex-col gap-5">
           <input name="email" type="hidden" value={email} />
           {roleIds.map((id) => (
             <input key={id} name="role_ids" type="hidden" value={id} />
@@ -91,35 +108,47 @@ export function InviteMemberDialog({
                 options={roles}
                 selected={roleIds}
               />
-              <AssignmentChecks
-                label="Initial Teams"
-                onChange={setTeamIds}
-                options={teams}
-                selected={teamIds}
-              />
+              {teams.length ? (
+                <AssignmentChecks
+                  label="Initial Teams"
+                  onChange={setTeamIds}
+                  options={teams}
+                  selected={teamIds}
+                />
+              ) : null}
             </>
           ) : (
-            <section aria-label="Invitation access review" className="grid gap-4">
+            <section aria-label="Invitation access review" className="grid min-w-0 gap-4">
               <h3 className="font-medium">Review initial access</h3>
-              <dl className="grid gap-3 text-sm">
-                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+              <dl className="grid min-w-0 gap-3 text-sm">
+                <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-muted-foreground">Email</dt>
-                  <dd className="break-all">{email}</dd>
+                  <dd className="min-w-0 break-all">{email}</dd>
                 </div>
-                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-muted-foreground">Direct Roles</dt>
-                  <dd>{selectedRoles.map((role) => role.name).join(", ") || "None"}</dd>
+                  <dd className="min-w-0 break-words">
+                    {selectedRoles.map((role) => role.name).join(", ") || "None"}
+                  </dd>
                 </div>
-                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
-                  <dt className="text-muted-foreground">Teams</dt>
-                  <dd>{selectedTeams.map((team) => team.name).join(", ") || "None"}</dd>
-                </div>
-                <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                {teams.length ? (
+                  <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
+                    <dt className="text-muted-foreground">Teams</dt>
+                    <dd className="min-w-0 break-words">
+                      {selectedTeams.map((team) => team.name).join(", ") || "None"}
+                    </dd>
+                  </div>
+                ) : null}
+                <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-muted-foreground">Effective access</dt>
-                  <dd>
-                    Union of {selectedRoles.length} direct Role
-                    {selectedRoles.length === 1 ? "" : "s"} and {selectedTeams.length} Team
-                    {selectedTeams.length === 1 ? "" : "s"}.
+                  <dd className="min-w-0 break-words">
+                    {teams.length ? "Union of " : ""}
+                    {selectedRoles.length} direct Role
+                    {selectedRoles.length === 1 ? "" : "s"}
+                    {teams.length
+                      ? ` and ${selectedTeams.length} Team${selectedTeams.length === 1 ? "" : "s"}`
+                      : ""}
+                    .
                   </dd>
                 </div>
               </dl>
@@ -127,12 +156,19 @@ export function InviteMemberDialog({
           )}
           {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
           {state.link ? (
-            <div className="bg-muted/40 flex min-w-0 items-center gap-2 p-2">
-              <code className="min-w-0 flex-1 truncate text-xs">{state.link}</code>
-              <CopyButton content={state.link} label="Copy" />
-            </div>
+            <InputGroup className="h-10">
+              <InputGroupInput
+                aria-label="Invitation link"
+                className="font-mono text-xs"
+                readOnly
+                value={state.link}
+              />
+              <InputGroupAddon align="inline-end">
+                <CopyButton content={state.link} label="Copy" />
+              </InputGroupAddon>
+            </InputGroup>
           ) : null}
-          <div className="flex justify-end gap-2">
+          <div className="flex min-w-0 flex-wrap justify-end gap-2">
             {stage === "review" ? (
               <Button onClick={() => setStage("details")} type="button" variant="outline">
                 Back
@@ -155,25 +191,59 @@ export function InviteMemberDialog({
   )
 }
 
-export function CancelInvitationButton({
-  invitationId,
+export function InvitationActions({
+  invitation,
   orgSlug,
+  roles,
+  teams,
 }: {
-  invitationId: string
+  invitation: InvitationRow
   orgSlug: string
+  roles: AssignmentOption[]
+  teams: AssignmentOption[]
 }) {
+  const [editing, setEditing] = useState(false)
   const [pending, start] = useTransition()
+  const { isCopied, handleCopy } = useCopyToClipboard({ text: invitation.link })
+
   return (
-    <Button
-      disabled={pending}
-      onClick={() => start(() => cancelInvitationAction(orgSlug, invitationId))}
-      size="sm"
-      type="button"
-      variant="ghost"
-    >
-      {pending ? <Spinner /> : <X />}
-      Cancel
-    </Button>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button aria-label={`Actions for ${invitation.email}`} size="icon-sm" variant="ghost">
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={handleCopy}>
+            {isCopied ? <Check /> : <Copy />}
+            Copy link
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setEditing(true)}>
+            <Pencil />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={pending}
+            onSelect={() => start(() => cancelInvitationAction(orgSlug, invitation.id))}
+            variant="destructive"
+          >
+            {pending ? <Spinner /> : <X />}
+            Cancel
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <InviteMemberDialog
+        invitation={invitation}
+        onOpenChange={setEditing}
+        open={editing}
+        orgSlug={orgSlug}
+        roles={roles}
+        showTrigger={false}
+        teams={teams}
+      />
+    </>
   )
 }
 

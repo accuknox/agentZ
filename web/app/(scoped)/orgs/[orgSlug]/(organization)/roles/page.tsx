@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { listOrganizationRoles } from "@/data/roles"
 import { formatAge } from "@/lib/format"
+import { RoleTableActions } from "./role-table-actions"
 
 export const unstable_instant = false
 
@@ -49,6 +50,9 @@ export default async function RolesPage({ params }: { params: Promise<{ orgSlug:
               <TableHead className="w-28 text-right">Permissions</TableHead>
               <TableHead>Dependencies</TableHead>
               <TableHead className="w-32">Updated</TableHead>
+              <TableHead className="w-14">
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -80,11 +84,19 @@ export default async function RolesPage({ params }: { params: Promise<{ orgSlug:
                   <TableCell>
                     <time dateTime={role.updatedAt}>{formatAge(role.updatedAt)}</time>
                   </TableCell>
+                  <TableCell>
+                    <RoleTableActions
+                      immutable={role.immutable}
+                      name={role.name}
+                      orgSlug={orgSlug}
+                      roleId={role.id}
+                    />
+                  </TableCell>
                 </RoutedTableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell className="h-24 text-center" colSpan={7}>
+                <TableCell className="h-24 text-center" colSpan={8}>
                   No roles
                 </TableCell>
               </TableRow>

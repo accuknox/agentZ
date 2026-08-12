@@ -1,5 +1,6 @@
 import type { Route } from "next"
 import { notFound } from "next/navigation"
+import { RoleDelete } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-delete"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getWorkspaceRoleEditorData } from "@/data/roles"
 
@@ -33,6 +34,15 @@ export default async function WorkspaceRoleLayout({
             </h1>
           </div>
         </div>
+        {!data.role.immutable ? (
+          <RoleDelete
+            name={data.role.name}
+            orgSlug={orgSlug}
+            roleId={roleId}
+            updatedAt={data.role.updatedAt}
+            workspaceSlug={workspaceSlug}
+          />
+        ) : null}
         <RouteTabs label="Workspace Role details" tabs={tabs} />
       </header>
       {children}

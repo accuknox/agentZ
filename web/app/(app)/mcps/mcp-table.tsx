@@ -116,7 +116,7 @@ export function McpTable({
     pageTokenKey: "page_token",
     tokenStackKey: "token_stack",
   })
-  const [viewConnectionName, setViewConnectionName] = React.useState<string>()
+  const [viewConnection, setViewConnection] = React.useState<McpConnectionSummary>()
   const connectionNames = React.useMemo(
     () =>
       mcpConnections
@@ -132,7 +132,7 @@ export function McpTable({
     () =>
       createMcpColumns({
         deleteMcpAction,
-        onViewAction: setViewConnectionName,
+        onViewAction: setViewConnection,
       }),
     [deleteMcpAction]
   )
@@ -178,7 +178,7 @@ export function McpTable({
                   role="button"
                   tabIndex={0}
                   onClick={() => {
-                    setViewConnectionName(row.original.name)
+                    setViewConnection(row.original)
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") {
@@ -186,7 +186,7 @@ export function McpTable({
                     }
 
                     event.preventDefault()
-                    setViewConnectionName(row.original.name)
+                    setViewConnection(row.original)
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -231,14 +231,15 @@ export function McpTable({
           </Button>
         </div>
       ) : null}
-      {viewConnectionName ? (
+      {viewConnection ? (
         <McpViewSheet
-          name={viewConnectionName}
+          name={viewConnection.name}
+          scope={viewConnection.scope}
           workspaceId={workspaceId}
           open
           onOpenChangeAction={(open) => {
             if (!open) {
-              setViewConnectionName(undefined)
+              setViewConnection(undefined)
             }
           }}
         />

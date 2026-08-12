@@ -62,7 +62,7 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
-  onViewAction: (name: string) => void
+  onViewAction: (connection: McpConnectionSummary) => void
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,
@@ -183,7 +183,7 @@ function McpActions({
     state: DeleteMcpFormState,
     formData: FormData
   ) => Promise<DeleteMcpFormState>
-  onViewAction: (name: string) => void
+  onViewAction: (connection: McpConnectionSummary) => void
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
@@ -208,7 +208,7 @@ function McpActions({
           <DropdownMenuGroup>
             <DropdownMenuItem
               onSelect={() => {
-                onViewAction(connection.name)
+                onViewAction(connection)
               }}
             >
               <Eye />

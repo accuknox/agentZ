@@ -35,7 +35,7 @@ import {
   exportAgentMutableSkills,
   exportImmutableSkills,
   getAgentOwner,
-  getAuditEvent,
+  getEventTrailEvent,
   getInferencePool,
   getInferencePoolUsage,
   getInferenceProvider,
@@ -54,7 +54,7 @@ import {
   listAgents,
   listAgentShares,
   listAgentWorkflowSchedules,
-  listAuditEvents,
+  listEventTrailEvents,
   listFileObservability,
   listFileObservabilitySummary,
   listImmutableSkillSummaries,
@@ -199,9 +199,9 @@ import type {
   GetAgentOwnerData,
   GetAgentOwnerError,
   GetAgentOwnerResponse,
-  GetAuditEventData,
-  GetAuditEventError,
-  GetAuditEventResponse,
+  GetEventTrailEventData,
+  GetEventTrailEventError,
+  GetEventTrailEventResponse,
   GetInferencePoolData,
   GetInferencePoolError,
   GetInferencePoolResponse,
@@ -256,9 +256,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
-  ListAuditEventsData,
-  ListAuditEventsError,
-  ListAuditEventsResponse2,
+  ListEventTrailEventsData,
+  ListEventTrailEventsError,
+  ListEventTrailEventsResponse2,
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
@@ -444,24 +444,24 @@ const createQueryKey = <TOptions extends Options>(
   return [params]
 }
 
-export const listAuditEventsQueryKey = (options?: Options<ListAuditEventsData>) =>
-  createQueryKey("listAuditEvents", options)
+export const listEventTrailEventsQueryKey = (options?: Options<ListEventTrailEventsData>) =>
+  createQueryKey("listEventTrailEvents", options)
 
 /**
- * List Organisation audit events.
+ * List Organisation event trail events.
  *
- * Lists rolling audit history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
+ * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
  *
  */
-export const listAuditEventsOptions = (options?: Options<ListAuditEventsData>) =>
+export const listEventTrailEventsOptions = (options?: Options<ListEventTrailEventsData>) =>
   queryOptions<
-    ListAuditEventsResponse2,
-    ListAuditEventsError,
-    ListAuditEventsResponse2,
-    ReturnType<typeof listAuditEventsQueryKey>
+    ListEventTrailEventsResponse2,
+    ListEventTrailEventsError,
+    ListEventTrailEventsResponse2,
+    ReturnType<typeof listEventTrailEventsQueryKey>
   >({
     queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listAuditEvents({
+      const { data } = await listEventTrailEvents({
         ...options,
         ...queryKey[0],
         signal,
@@ -469,27 +469,27 @@ export const listAuditEventsOptions = (options?: Options<ListAuditEventsData>) =
       })
       return data
     },
-    queryKey: listAuditEventsQueryKey(options),
+    queryKey: listEventTrailEventsQueryKey(options),
   })
 
-export const getAuditEventQueryKey = (options: Options<GetAuditEventData>) =>
-  createQueryKey("getAuditEvent", options)
+export const getEventTrailEventQueryKey = (options: Options<GetEventTrailEventData>) =>
+  createQueryKey("getEventTrailEvent", options)
 
 /**
- * Get an Organisation audit event.
+ * Get an Organisation event trail event.
  *
- * Returns one event from the selected scope's rolling audit history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
+ * Returns one event from the selected scope's rolling event trail history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
  *
  */
-export const getAuditEventOptions = (options: Options<GetAuditEventData>) =>
+export const getEventTrailEventOptions = (options: Options<GetEventTrailEventData>) =>
   queryOptions<
-    GetAuditEventResponse,
-    GetAuditEventError,
-    GetAuditEventResponse,
-    ReturnType<typeof getAuditEventQueryKey>
+    GetEventTrailEventResponse,
+    GetEventTrailEventError,
+    GetEventTrailEventResponse,
+    ReturnType<typeof getEventTrailEventQueryKey>
   >({
     queryFn: async ({ queryKey, signal }) => {
-      const { data } = await getAuditEvent({
+      const { data } = await getEventTrailEvent({
         ...options,
         ...queryKey[0],
         signal,
@@ -497,7 +497,7 @@ export const getAuditEventOptions = (options: Options<GetAuditEventData>) =>
       })
       return data
     },
-    queryKey: getAuditEventQueryKey(options),
+    queryKey: getEventTrailEventQueryKey(options),
   })
 
 export const getTenantQueryKey = (options?: Options<GetTenantData>) =>

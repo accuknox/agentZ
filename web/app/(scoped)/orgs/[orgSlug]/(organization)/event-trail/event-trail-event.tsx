@@ -3,11 +3,11 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
-import { getOrganizationAuditEvent, getWorkspaceAuditEvent } from "@/data/audit"
+import { getOrganizationEventTrailEvent, getWorkspaceEventTrailEvent } from "@/data/event-trail"
 import { formatAge } from "@/lib/format"
-import type { AuditField, AuditResult } from "@/lib/gateway/client"
+import type { EventTrailField, EventTrailResult } from "@/lib/gateway/client"
 
-export async function AuditEventDetail({
+export async function EventTrailEventDetail({
   compact,
   eventId,
   orgSlug,
@@ -19,8 +19,8 @@ export async function AuditEventDetail({
   workspaceSlug?: string
 }) {
   const result = workspaceSlug
-    ? await getWorkspaceAuditEvent(orgSlug, workspaceSlug, eventId)
-    : await getOrganizationAuditEvent(orgSlug, eventId)
+    ? await getWorkspaceEventTrailEvent(orgSlug, workspaceSlug, eventId)
+    : await getOrganizationEventTrailEvent(orgSlug, eventId)
   if (!result) {
     return workspaceSlug ? <AdministrationState kind="forbidden" /> : null
   }
@@ -92,8 +92,8 @@ export async function AuditEventDetail({
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <AuditFields title="Before" fields={event.before} />
-        <AuditFields title="After" fields={event.after} />
+        <EventTrailFields title="Before" fields={event.before} />
+        <EventTrailFields title="After" fields={event.after} />
       </div>
 
       {(event.ip_address || event.user_agent) && (
@@ -123,7 +123,7 @@ export async function AuditEventDetail({
   )
 }
 
-function AuditFields({ title, fields }: { title: string; fields: AuditField[] }) {
+function EventTrailFields({ title, fields }: { title: string; fields: EventTrailField[] }) {
   return (
     <section className="space-y-3 border-b pb-4">
       <h3 className="font-medium">{title}</h3>
@@ -164,7 +164,7 @@ function DetailTerm({
   )
 }
 
-export function ResultBadge({ result }: { result: AuditResult }) {
+export function ResultBadge({ result }: { result: EventTrailResult }) {
   if (result === "succeeded") return <Badge variant="successPlain">Succeeded</Badge>
   if (result === "denied") return <Badge variant="warningPlain">Denied</Badge>
   return <Badge variant="destructivePlain">Failed</Badge>

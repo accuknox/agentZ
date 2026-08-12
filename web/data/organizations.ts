@@ -343,8 +343,8 @@ export async function renameOrganization(
       return { error: "not-found" as const }
     }
 
-    const audit = {
-      id: `audit-${randomUUID()}`,
+    const eventTrail = {
+      id: `event-trail-${randomUUID()}`,
       organizationId: organization.id,
       actorType: "user",
       actorId: organizationSession.session.user.id,
@@ -364,7 +364,7 @@ export async function renameOrganization(
       interface: "web",
       ipAddress: getIp(organizationSession.requestHeaders, getAuth().options),
       userAgent: organizationSession.requestHeaders.get("user-agent"),
-    } satisfies Omit<typeof schema.auditEvents.$inferInsert, "result">
+    } satisfies Omit<typeof schema.eventTrailEvents.$inferInsert, "result">
 
     const [member] = await tx
       .select({ id: schema.members.id })
@@ -401,7 +401,7 @@ export async function renameOrganization(
       )
       .limit(1)
     if (!superadmin) {
-      await tx.insert(schema.auditEvents).values({ ...audit, result: "denied" })
+      await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "denied" })
       return { error: "forbidden" as const }
     }
 
@@ -412,7 +412,7 @@ export async function renameOrganization(
         .where(eq(schema.organizations.slug, input.slug))
         .limit(1)
       if (canonicalSlug) {
-        await tx.insert(schema.auditEvents).values({ ...audit, result: "denied" })
+        await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "denied" })
         return { error: "slug-unavailable" as const }
       }
 
@@ -426,7 +426,7 @@ export async function renameOrganization(
         .onConflictDoNothing()
         .returning({ slug: schema.organizationSlugHistory.slug })
       if (!reservedSlug) {
-        await tx.insert(schema.auditEvents).values({ ...audit, result: "denied" })
+        await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "denied" })
         return { error: "slug-unavailable" as const }
       }
     }
@@ -435,7 +435,7 @@ export async function renameOrganization(
       .update(schema.organizations)
       .set({ name: input.name, slug: input.slug })
       .where(eq(schema.organizations.id, organization.id))
-    await tx.insert(schema.auditEvents).values({ ...audit, result: "succeeded" })
+    await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "succeeded" })
 
     return { slug: input.slug }
   })

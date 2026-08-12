@@ -3,7 +3,7 @@
 Better Auth owns accounts, sessions, Organisations, Organisation Memberships,
 Teams, Invitations, OAuth, reusable Role records, and JWT signing. AgentZ owns
 Workspaces and the product-specific extensions that attach scope, grants, Team
-Roles, admission policy, Agent collaboration, audit, and cleanup semantics to
+Roles, admission policy, Agent collaboration, event trail, and cleanup semantics to
 those records. This boundary preserves Better Auth's security-sensitive native
 flows while allowing the multi-role, multi-scope union that its native
 permission check cannot represent.

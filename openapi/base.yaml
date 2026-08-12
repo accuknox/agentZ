@@ -15,8 +15,8 @@ tags:
   description: Tenant bootstrap and readiness APIs.
 - name: workspaces
   description: Workspace provisioning and navigation APIs.
-- name: audit
-  description: Organisation audit investigation APIs.
+- name: event-trail
+  description: Organisation event trail investigation APIs.
 - name: lens
   description: Trace, span, and OS observability APIs.
 - name: secrets
@@ -39,34 +39,34 @@ tags:
   description: Workflow webhook invocation and trigger listing APIs.
 
 paths:
-  /api/audit-event:
+  /api/event-trail-event:
     get:
-      operationId: listAuditEvents
-      summary: List Organisation audit events.
+      operationId: listEventTrailEvents
+      summary: List Organisation event trail events.
       description: >
-        Lists rolling audit history in the selected scope. An active
+        Lists rolling event trail history in the selected scope. An active
         Superadmin may read Organisation-wide or Workspace events; an active
         Workspace Admin may read only the Workspace bound into the bearer.
-      tags: [audit]
+      tags: [event-trail]
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
-      - $ref: '#/components/parameters/AuditActorTypeQuery'
-      - $ref: '#/components/parameters/AuditActorIDQuery'
-      - $ref: '#/components/parameters/AuditCategoryQuery'
-      - $ref: '#/components/parameters/AuditWorkspaceIDQuery'
-      - $ref: '#/components/parameters/AuditTargetTypeQuery'
-      - $ref: '#/components/parameters/AuditResultQuery'
-      - $ref: '#/components/parameters/AuditCreatedAfterQuery'
-      - $ref: '#/components/parameters/AuditCreatedBeforeQuery'
+      - $ref: '#/components/parameters/EventTrailActorTypeQuery'
+      - $ref: '#/components/parameters/EventTrailActorIDQuery'
+      - $ref: '#/components/parameters/EventTrailCategoryQuery'
+      - $ref: '#/components/parameters/EventTrailWorkspaceIDQuery'
+      - $ref: '#/components/parameters/EventTrailTargetTypeQuery'
+      - $ref: '#/components/parameters/EventTrailResultQuery'
+      - $ref: '#/components/parameters/EventTrailCreatedAfterQuery'
+      - $ref: '#/components/parameters/EventTrailCreatedBeforeQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
-          description: Paginated scoped audit events and filter options.
+          description: Paginated scoped event trail events and filter options.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListAuditEventsResponse'
+                $ref: '#/components/schemas/ListEventTrailEventsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -76,25 +76,25 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/audit-event/{eventId}:
+  /api/event-trail-event/{eventId}:
     get:
-      operationId: getAuditEvent
-      summary: Get an Organisation audit event.
+      operationId: getEventTrailEvent
+      summary: Get an Organisation event trail event.
       description: >
-        Returns one event from the selected scope's rolling audit history.
+        Returns one event from the selected scope's rolling event trail history.
         Workspace Admins are restricted to the Workspace bound into the
         bearer; Superadmins may read Organisation-wide events.
-      tags: [audit]
+      tags: [event-trail]
       parameters:
-      - $ref: '#/components/parameters/AuditEventIDPath'
+      - $ref: '#/components/parameters/EventTrailEventIDPath'
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       responses:
         '200':
-          description: Scoped audit event detail.
+          description: Scoped event trail event detail.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuditEvent'
+                $ref: '#/components/schemas/EventTrailEvent'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3237,24 +3237,24 @@ components:
         minLength: 1
         maxLength: 128
 
-    AuditActorTypeQuery:
+    EventTrailActorTypeQuery:
       name: actor_type
       in: query
       required: false
       description: Exact actor type.
       schema:
-        $ref: '#/components/schemas/AuditActorType'
+        $ref: '#/components/schemas/EventTrailActorType'
 
-    AuditEventIDPath:
+    EventTrailEventIDPath:
       name: eventId
       in: path
       required: true
-      description: Stable audit event ID.
+      description: Stable event trail event ID.
       schema:
         type: string
         minLength: 1
 
-    AuditActorIDQuery:
+    EventTrailActorIDQuery:
       name: actor_id
       in: query
       required: false
@@ -3263,16 +3263,16 @@ components:
         type: string
         minLength: 1
 
-    AuditCategoryQuery:
+    EventTrailCategoryQuery:
       name: category
       in: query
       required: false
-      description: Exact audit category.
+      description: Exact event trail category.
       schema:
         type: string
         minLength: 1
 
-    AuditWorkspaceIDQuery:
+    EventTrailWorkspaceIDQuery:
       name: workspace_id
       in: query
       required: false
@@ -3281,23 +3281,23 @@ components:
         type: string
         minLength: 1
 
-    AuditTargetTypeQuery:
+    EventTrailTargetTypeQuery:
       name: target_type
       in: query
       required: false
       description: Exact target resource type.
       schema:
-        $ref: '#/components/schemas/AuditTargetType'
+        $ref: '#/components/schemas/EventTrailTargetType'
 
-    AuditResultQuery:
+    EventTrailResultQuery:
       name: result
       in: query
       required: false
-      description: Exact audit result.
+      description: Exact event trail result.
       schema:
-        $ref: '#/components/schemas/AuditResult'
+        $ref: '#/components/schemas/EventTrailResult'
 
-    AuditCreatedAfterQuery:
+    EventTrailCreatedAfterQuery:
       name: created_after
       in: query
       required: false
@@ -3306,7 +3306,7 @@ components:
         type: string
         format: date-time
 
-    AuditCreatedBeforeQuery:
+    EventTrailCreatedBeforeQuery:
       name: created_before
       in: query
       required: false
@@ -3616,35 +3616,35 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
-    AuditActorType:
+    EventTrailActorType:
       type: string
       enum: [user, api_key, system]
 
-    AuditResult:
+    EventTrailResult:
       type: string
       enum: [succeeded, denied, failed]
 
-    AuditInterface:
+    EventTrailInterface:
       type: string
       enum: [web, gateway, better_auth, controller, system]
 
-    AuditTargetType:
+    EventTrailTargetType:
       type: string
       enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection, inference_provider, inference_pool, agent]
       x-enum-varnames:
-      - AuditTargetOrganization
-      - AuditTargetOrganizationMembership
-      - AuditTargetWorkspace
-      - AuditTargetRole
-      - AuditTargetSandbox
-      - AuditTargetSkill
-      - AuditTargetTeam
-      - AuditTargetMCPConnection
-      - AuditTargetInferenceProvider
-      - AuditTargetInferencePool
-      - AuditTargetAgent
+      - EventTrailTargetOrganization
+      - EventTrailTargetOrganizationMembership
+      - EventTrailTargetWorkspace
+      - EventTrailTargetRole
+      - EventTrailTargetSandbox
+      - EventTrailTargetSkill
+      - EventTrailTargetTeam
+      - EventTrailTargetMCPConnection
+      - EventTrailTargetInferenceProvider
+      - EventTrailTargetInferencePool
+      - EventTrailTargetAgent
 
-    AuditField:
+    EventTrailField:
       type: object
       additionalProperties: false
       properties:
@@ -3652,23 +3652,23 @@ components:
           type: string
           enum: [member_id, name, provisioning_attempt, role, slug, state, user_id]
           x-enum-varnames:
-          - AuditFieldMemberID
-          - AuditFieldName
-          - AuditFieldProvisioningAttempt
-          - AuditFieldRole
-          - AuditFieldSlug
-          - AuditFieldState
-          - AuditFieldUserID
+          - EventTrailFieldMemberID
+          - EventTrailFieldName
+          - EventTrailFieldProvisioningAttempt
+          - EventTrailFieldRole
+          - EventTrailFieldSlug
+          - EventTrailFieldState
+          - EventTrailFieldUserID
         value:
           type: string
       required: [field, value]
 
-    AuditActor:
+    EventTrailActor:
       type: object
       additionalProperties: false
       properties:
         type:
-          $ref: '#/components/schemas/AuditActorType'
+          $ref: '#/components/schemas/EventTrailActorType'
         id:
           type: string
         name:
@@ -3678,12 +3678,12 @@ components:
           format: email
       required: [type]
 
-    AuditTarget:
+    EventTrailTarget:
       type: object
       additionalProperties: false
       properties:
         type:
-          $ref: '#/components/schemas/AuditTargetType'
+          $ref: '#/components/schemas/EventTrailTargetType'
         id:
           type: string
         name:
@@ -3692,7 +3692,7 @@ components:
           type: string
       required: [type, id]
 
-    AuditWorkspace:
+    EventTrailWorkspace:
       type: object
       additionalProperties: false
       properties:
@@ -3704,7 +3704,7 @@ components:
           type: string
       required: [id]
 
-    AuditCleanup:
+    EventTrailCleanup:
       type: object
       additionalProperties: false
       properties:
@@ -3718,42 +3718,42 @@ components:
           format: date-time
       required: [id, state]
 
-    AuditEvent:
+    EventTrailEvent:
       type: object
       additionalProperties: false
       properties:
         id:
           type: string
         actor:
-          $ref: '#/components/schemas/AuditActor'
+          $ref: '#/components/schemas/EventTrailActor'
         target:
-          $ref: '#/components/schemas/AuditTarget'
+          $ref: '#/components/schemas/EventTrailTarget'
         workspace:
-          $ref: '#/components/schemas/AuditWorkspace'
+          $ref: '#/components/schemas/EventTrailWorkspace'
         category:
           type: string
         action:
           type: string
         result:
-          $ref: '#/components/schemas/AuditResult'
+          $ref: '#/components/schemas/EventTrailResult'
         before:
           type: array
           items:
-            $ref: '#/components/schemas/AuditField'
+            $ref: '#/components/schemas/EventTrailField'
         after:
           type: array
           items:
-            $ref: '#/components/schemas/AuditField'
+            $ref: '#/components/schemas/EventTrailField'
         automatic_cascade:
           type: boolean
         interface:
-          $ref: '#/components/schemas/AuditInterface'
+          $ref: '#/components/schemas/EventTrailInterface'
         ip_address:
           type: string
         user_agent:
           type: string
         cleanup:
-          $ref: '#/components/schemas/AuditCleanup'
+          $ref: '#/components/schemas/EventTrailCleanup'
         created_at:
           type: string
           format: date-time
@@ -3770,14 +3770,14 @@ components:
       - interface
       - created_at
 
-    AuditActorFilter:
+    EventTrailActorFilter:
       type: object
       additionalProperties: false
       properties:
         id:
           type: string
         type:
-          $ref: '#/components/schemas/AuditActorType'
+          $ref: '#/components/schemas/EventTrailActorType'
         name:
           type: string
         email:
@@ -3785,7 +3785,7 @@ components:
           format: email
       required: [type]
 
-    AuditWorkspaceFilter:
+    EventTrailWorkspaceFilter:
       type: object
       additionalProperties: false
       properties:
@@ -3797,14 +3797,14 @@ components:
           type: string
       required: [id]
 
-    AuditFilters:
+    EventTrailFilters:
       type: object
       additionalProperties: false
       properties:
         actors:
           type: array
           items:
-            $ref: '#/components/schemas/AuditActorFilter'
+            $ref: '#/components/schemas/EventTrailActorFilter'
         categories:
           type: array
           items:
@@ -3812,23 +3812,23 @@ components:
         workspaces:
           type: array
           items:
-            $ref: '#/components/schemas/AuditWorkspaceFilter'
+            $ref: '#/components/schemas/EventTrailWorkspaceFilter'
         target_types:
           type: array
           items:
-            $ref: '#/components/schemas/AuditTargetType'
+            $ref: '#/components/schemas/EventTrailTargetType'
       required: [actors, categories, workspaces, target_types]
 
-    ListAuditEventsResponse:
+    ListEventTrailEventsResponse:
       type: object
       additionalProperties: false
       properties:
         events:
           type: array
           items:
-            $ref: '#/components/schemas/AuditEvent'
+            $ref: '#/components/schemas/EventTrailEvent'
         filters:
-          $ref: '#/components/schemas/AuditFilters'
+          $ref: '#/components/schemas/EventTrailFilters'
         next_page_token:
           type: string
       required: [events, filters, next_page_token]

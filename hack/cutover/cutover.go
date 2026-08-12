@@ -1574,15 +1574,15 @@ func finishCutover(ctx context.Context, pool *pgxpool.Pool, inventory TenantInve
 		{"field": "state", "value": "Default Workspace activated; legacy Tenant removed"},
 	})
 	if err != nil {
-		return fmt.Errorf("marshal cutover audit: %w", err)
+		return fmt.Errorf("marshal cutover event trail: %w", err)
 	}
-	if err := db.CreateAuditEvent(ctx, cutoverdb.CreateAuditEventParams{
-		ID:             "audit-" + uuid.NewString(),
+	if err := db.CreateEventTrailEvent(ctx, cutoverdb.CreateEventTrailEventParams{
+		ID:             "event-trail-" + uuid.NewString(),
 		OrganizationID: inventory.Organization.ID,
 		WorkspaceID:    pgtype.Text{String: inventory.Workspace.ID, Valid: true},
 		After:          after,
 	}); err != nil {
-		return fmt.Errorf("record cutover audit: %w", err)
+		return fmt.Errorf("record cutover event trail: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit cutover finalization: %w", err)

@@ -2,12 +2,12 @@
 
 import { AdministrationState } from "@/components/administration"
 import { Button } from "@/components/ui/button"
-import { AuditDrawer } from "../../audit-drawer"
+import { EventTrailDrawer } from "../../event-trail-drawer"
 
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
-    <AuditDrawer>
+    <EventTrailDrawer>
       <AdministrationState actions={<Button onClick={reset}>Try again</Button>} kind="failed" />
-    </AuditDrawer>
+    </EventTrailDrawer>
   )
 }

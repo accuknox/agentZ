@@ -10,7 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-export function AuditDrawer({ children }: { children: ReactNode }) {
+export function EventTrailDrawer({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [open, setOpen] = useState(true)
 
@@ -28,7 +28,7 @@ export function AuditDrawer({ children }: { children: ReactNode }) {
         }}
       >
         <SheetHeader className="shrink-0 border-b">
-          <SheetTitle>Audit event</SheetTitle>
+          <SheetTitle>Event Trail event</SheetTitle>
           <SheetDescription>Organisation mutation and governance evidence.</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">{children}</div>

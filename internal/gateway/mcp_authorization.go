@@ -63,12 +63,12 @@ func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string
 	})
 }
 
-func (s *Service) createMCPAudit(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.AuditResult) error {
-	return s.createResourceAudit(
+func (s *Service) createMCPEventTrail(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
+	return s.createResourceEventTrail(
 		ctx,
 		r,
 		access,
-		gatewaydb.AuditTargetMcpConnection,
+		gatewaydb.EventTrailTargetMcpConnection,
 		name,
 		"mcp_connection",
 		mcpOperationAction(access.operation),

@@ -19,27 +19,27 @@ import (
 )
 
 const (
-	auditRetention         = 30 * 24 * time.Hour
-	auditRetentionInterval = 24 * time.Hour
+	eventTrailRetention         = 30 * 24 * time.Hour
+	eventTrailRetentionInterval = 24 * time.Hour
 )
 
-type auditCursor struct {
+type eventTrailCursor struct {
 	CreatedAt time.Time `json:"created_at"`
 	ID        string    `json:"id"`
 }
 
-type auditAccess struct {
+type eventTrailAccess struct {
 	claims      gatewayClaims
 	workspaceID pgtype.Text
 }
 
-// ListAuditEvents handles GET /api/audit-event.
-func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListAuditEventsParams) {
+// ListEventTrailEvents handles GET /api/event-trail-event.
+func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListEventTrailEventsParams) {
 	workspaceID := ""
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, authErr := s.authorizeAuditRead(r.Context(), workspaceID)
+	access, authErr := s.authorizeEventTrailRead(r.Context(), workspaceID)
 	if authErr != nil {
 		writeError(w, r, authErr)
 		return
@@ -49,8 +49,8 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 	if params.Limit != nil {
 		pageSize = *params.Limit
 	}
-	retainedAfter := time.Now().Add(-auditRetention)
-	query := gatewaydb.GatewayListAuditEventsParams{
+	retainedAfter := time.Now().Add(-eventTrailRetention)
+	query := gatewaydb.GatewayListEventTrailEventsParams{
 		OrganizationID: access.claims.OrganizationID,
 		RetainedAfter: pgtype.Timestamptz{
 			Time:  retainedAfter,
@@ -59,9 +59,9 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 		PageSize: pageSize + 1,
 	}
 	if params.ActorType != nil {
-		query.ActorType = gatewaydb.NullAuditActor{
-			AuditActor: gatewaydb.AuditActor(*params.ActorType),
-			Valid:      true,
+		query.ActorType = gatewaydb.NullEventTrailActor{
+			EventTrailActor: gatewaydb.EventTrailActor(*params.ActorType),
+			Valid:           true,
 		}
 	}
 	if params.ActorId != nil {
@@ -76,7 +76,7 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 				http.StatusForbidden,
 				"forbidden",
 				"request is not authorized for the selected scope",
-				errors.New("audit Workspace filter does not match bearer claims"),
+				errors.New("event trail Workspace filter does not match bearer claims"),
 			))
 			return
 		}
@@ -85,15 +85,15 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 		query.WorkspaceID = pgtype.Text{String: *params.WorkspaceId, Valid: true}
 	}
 	if params.TargetType != nil {
-		query.TargetType = gatewaydb.NullAuditTarget{
-			AuditTarget: gatewaydb.AuditTarget(*params.TargetType),
-			Valid:       true,
+		query.TargetType = gatewaydb.NullEventTrailTarget{
+			EventTrailTarget: gatewaydb.EventTrailTarget(*params.TargetType),
+			Valid:            true,
 		}
 	}
 	if params.Result != nil {
-		query.Result = gatewaydb.NullAuditResult{
-			AuditResult: gatewaydb.AuditResult(*params.Result),
-			Valid:       true,
+		query.Result = gatewaydb.NullEventTrailResult{
+			EventTrailResult: gatewaydb.EventTrailResult(*params.Result),
+			Valid:            true,
 		}
 	}
 	if params.CreatedAfter != nil {
@@ -114,17 +114,17 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 			http.StatusBadRequest,
 			"invalid_request",
 			"created_after must not be later than created_before",
-			errors.New("invalid audit date range"),
+			errors.New("invalid event trail date range"),
 		))
 		return
 	}
-	cursor, cursorSet, ok := decodeCursorPageToken[auditCursor](w, r, params.PageToken)
+	cursor, cursorSet, ok := decodeCursorPageToken[eventTrailCursor](w, r, params.PageToken)
 	if !ok {
 		return
 	}
 	if cursorSet {
 		if cursor.CreatedAt.IsZero() || cursor.ID == "" {
-			writeInvalidPageToken(w, r, errors.New("invalid audit cursor"))
+			writeInvalidPageToken(w, r, errors.New("invalid event trail cursor"))
 			return
 		}
 		query.CursorSet = true
@@ -132,9 +132,9 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 		query.CursorID = cursor.ID
 	}
 
-	rows, err := s.queries.GatewayListAuditEvents(r.Context(), query)
+	rows, err := s.queries.GatewayListEventTrailEvents(r.Context(), query)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list audit events: %w", err))
+		writeInternalError(w, r, fmt.Errorf("list event trail events: %w", err))
 		return
 	}
 
@@ -142,15 +142,15 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 	if len(rows) > int(pageSize) {
 		rows = rows[:pageSize]
 		last := rows[len(rows)-1]
-		nextPageToken = encodeCursorPageToken(auditCursor{
+		nextPageToken = encodeCursorPageToken(eventTrailCursor{
 			CreatedAt: last.CreatedAt.Time,
 			ID:        last.ID,
 		})
 	}
 
-	events := make([]gatewayapi.AuditEvent, 0, len(rows))
+	events := make([]gatewayapi.EventTrailEvent, 0, len(rows))
 	for _, row := range rows {
-		event, viewErr := auditEventView(row)
+		event, viewErr := eventTrailEventView(row)
 		if viewErr != nil {
 			writeInternalError(w, r, viewErr)
 			return
@@ -158,7 +158,7 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 		events = append(events, event)
 	}
 
-	filters, err := s.auditFilters(
+	filters, err := s.eventTrailFilters(
 		r.Context(),
 		access.claims.OrganizationID,
 		query.WorkspaceID,
@@ -169,32 +169,32 @@ func (s *Service) ListAuditEvents(w http.ResponseWriter, r *http.Request, params
 		return
 	}
 
-	writeJSON(w, http.StatusOK, gatewayapi.ListAuditEventsResponse{
+	writeJSON(w, http.StatusOK, gatewayapi.ListEventTrailEventsResponse{
 		Events:        events,
 		Filters:       filters,
 		NextPageToken: nextPageToken,
 	})
 }
 
-// GetAuditEvent handles GET /api/audit-event/{eventId}.
-func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID gatewayapi.AuditEventIDPath, params gatewayapi.GetAuditEventParams) {
+// GetEventTrailEvent handles GET /api/event-trail-event/{eventId}.
+func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eventID gatewayapi.EventTrailEventIDPath, params gatewayapi.GetEventTrailEventParams) {
 	workspaceID := ""
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, authErr := s.authorizeAuditRead(r.Context(), workspaceID)
+	access, authErr := s.authorizeEventTrailRead(r.Context(), workspaceID)
 	if authErr != nil {
 		writeError(w, r, authErr)
 		return
 	}
 
-	rows, err := s.queries.GatewayListAuditEvents(
+	rows, err := s.queries.GatewayListEventTrailEvents(
 		r.Context(),
-		gatewaydb.GatewayListAuditEventsParams{
+		gatewaydb.GatewayListEventTrailEventsParams{
 			OrganizationID: access.claims.OrganizationID,
 			WorkspaceID:    access.workspaceID,
 			RetainedAfter: pgtype.Timestamptz{
-				Time:  time.Now().Add(-auditRetention),
+				Time:  time.Now().Add(-eventTrailRetention),
 				Valid: true,
 			},
 			EventID:  pgtype.Text{String: eventID, Valid: true},
@@ -202,20 +202,20 @@ func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID 
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get audit event: %w", err))
+		writeInternalError(w, r, fmt.Errorf("get event trail event: %w", err))
 		return
 	}
 	if len(rows) == 0 {
 		writeError(w, r, newAPIError(
 			http.StatusNotFound,
-			"audit_event_not_found",
-			"audit event was not found",
-			fmt.Errorf("audit event %q was not found", eventID),
+			"event_trail_event_not_found",
+			"event trail event was not found",
+			fmt.Errorf("event trail event %q was not found", eventID),
 		))
 		return
 	}
 
-	event, err := auditEventView(rows[0])
+	event, err := eventTrailEventView(rows[0])
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -223,10 +223,10 @@ func (s *Service) GetAuditEvent(w http.ResponseWriter, r *http.Request, eventID 
 	writeJSON(w, http.StatusOK, event)
 }
 
-func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (auditAccess, *apiError) {
+func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID string) (eventTrailAccess, *apiError) {
 	auth, ok := requestAuthState(ctx)
 	if !ok || auth.claims == nil {
-		return auditAccess{}, newAPIError(
+		return eventTrailAccess{}, newAPIError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing bearer claims",
@@ -234,7 +234,7 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 		)
 	}
 	if auth.claims.WorkspaceID != workspaceID {
-		return auditAccess{}, newAPIError(
+		return eventTrailAccess{}, newAPIError(
 			http.StatusForbidden,
 			"forbidden",
 			"request is not authorized for the selected scope",
@@ -250,11 +250,11 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 		},
 	)
 	if err != nil {
-		return auditAccess{}, newAPIError(
+		return eventTrailAccess{}, newAPIError(
 			http.StatusInternalServerError,
 			"internal_error",
 			"unexpected server error",
-			fmt.Errorf("authorize audit read: %w", err),
+			fmt.Errorf("authorize event trail read: %w", err),
 		)
 	}
 	allowed := effective.CanAdminister(authorization.Scope{
@@ -262,11 +262,11 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 		WorkspaceID:    workspaceID,
 	})
 	if !allowed {
-		return auditAccess{}, newAPIError(
+		return eventTrailAccess{}, newAPIError(
 			http.StatusForbidden,
 			"forbidden",
 			"administrative authority is required for the selected scope",
-			fmt.Errorf("user %q cannot administer the selected audit scope", auth.claims.UserID),
+			fmt.Errorf("user %q cannot administer the selected event trail scope", auth.claims.UserID),
 		)
 	}
 	if workspaceID != "" {
@@ -278,7 +278,7 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 			},
 		)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && workspace.DeletedAt.Valid) {
-			return auditAccess{}, newAPIError(
+			return eventTrailAccess{}, newAPIError(
 				http.StatusForbidden,
 				"forbidden",
 				"request is not authorized for the selected scope",
@@ -286,75 +286,75 @@ func (s *Service) authorizeAuditRead(ctx context.Context, workspaceID string) (a
 			)
 		}
 		if err != nil {
-			return auditAccess{}, newAPIError(
+			return eventTrailAccess{}, newAPIError(
 				http.StatusInternalServerError,
 				"internal_error",
 				"unexpected server error",
-				fmt.Errorf("resolve audit Workspace: %w", err),
+				fmt.Errorf("resolve event trail Workspace: %w", err),
 			)
 		}
 	}
 
-	access := auditAccess{claims: *auth.claims}
+	access := eventTrailAccess{claims: *auth.claims}
 	if workspaceID != "" {
 		access.workspaceID = pgtype.Text{String: workspaceID, Valid: true}
 	}
 	return access, nil
 }
 
-func (s *Service) auditFilters(ctx context.Context, organizationID string, workspaceID pgtype.Text, retainedAfter time.Time) (gatewayapi.AuditFilters, error) {
+func (s *Service) eventTrailFilters(ctx context.Context, organizationID string, workspaceID pgtype.Text, retainedAfter time.Time) (gatewayapi.EventTrailFilters, error) {
 	retention := pgtype.Timestamptz{Time: retainedAfter, Valid: true}
-	actors, err := s.queries.GatewayListAuditActors(
+	actors, err := s.queries.GatewayListEventTrailActors(
 		ctx,
-		gatewaydb.GatewayListAuditActorsParams{
+		gatewaydb.GatewayListEventTrailActorsParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
 			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {
-		return gatewayapi.AuditFilters{}, fmt.Errorf("list audit actors: %w", err)
+		return gatewayapi.EventTrailFilters{}, fmt.Errorf("list event trail actors: %w", err)
 	}
-	categories, err := s.queries.GatewayListAuditCategories(
+	categories, err := s.queries.GatewayListEventTrailCategories(
 		ctx,
-		gatewaydb.GatewayListAuditCategoriesParams{
+		gatewaydb.GatewayListEventTrailCategoriesParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
 			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {
-		return gatewayapi.AuditFilters{}, fmt.Errorf("list audit categories: %w", err)
+		return gatewayapi.EventTrailFilters{}, fmt.Errorf("list event trail categories: %w", err)
 	}
-	workspaces, err := s.queries.GatewayListAuditWorkspaces(
+	workspaces, err := s.queries.GatewayListEventTrailWorkspaces(
 		ctx,
-		gatewaydb.GatewayListAuditWorkspacesParams{
+		gatewaydb.GatewayListEventTrailWorkspacesParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
 			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {
-		return gatewayapi.AuditFilters{}, fmt.Errorf("list audit workspaces: %w", err)
+		return gatewayapi.EventTrailFilters{}, fmt.Errorf("list event trail workspaces: %w", err)
 	}
-	targetTypes, err := s.queries.GatewayListAuditTargetTypes(
+	targetTypes, err := s.queries.GatewayListEventTrailTargetTypes(
 		ctx,
-		gatewaydb.GatewayListAuditTargetTypesParams{
+		gatewaydb.GatewayListEventTrailTargetTypesParams{
 			OrganizationID: organizationID,
 			RetainedAfter:  retention,
 			WorkspaceID:    workspaceID,
 		},
 	)
 	if err != nil {
-		return gatewayapi.AuditFilters{}, fmt.Errorf("list audit target types: %w", err)
+		return gatewayapi.EventTrailFilters{}, fmt.Errorf("list event trail target types: %w", err)
 	}
 
-	actorFilters := make([]gatewayapi.AuditActorFilter, 0, len(actors))
+	actorFilters := make([]gatewayapi.EventTrailActorFilter, 0, len(actors))
 	for _, actor := range actors {
 		name := actor.ActorName
-		filter := gatewayapi.AuditActorFilter{
+		filter := gatewayapi.EventTrailActorFilter{
 			Name: &name,
-			Type: gatewayapi.AuditActorType(actor.ActorType),
+			Type: gatewayapi.EventTrailActorType(actor.ActorType),
 		}
 		if actor.ActorID.Valid {
 			id := actor.ActorID.String
@@ -367,9 +367,9 @@ func (s *Service) auditFilters(ctx context.Context, organizationID string, works
 		actorFilters = append(actorFilters, filter)
 	}
 
-	workspaceFilters := make([]gatewayapi.AuditWorkspaceFilter, 0, len(workspaces))
+	workspaceFilters := make([]gatewayapi.EventTrailWorkspaceFilter, 0, len(workspaces))
 	for _, workspace := range workspaces {
-		filter := gatewayapi.AuditWorkspaceFilter{Id: workspace.WorkspaceID.String}
+		filter := gatewayapi.EventTrailWorkspaceFilter{Id: workspace.WorkspaceID.String}
 		if workspace.Name.Valid {
 			name := workspace.Name.String
 			filter.Name = &name
@@ -381,15 +381,15 @@ func (s *Service) auditFilters(ctx context.Context, organizationID string, works
 		workspaceFilters = append(workspaceFilters, filter)
 	}
 
-	targetTypeFilters := make([]gatewayapi.AuditTargetType, 0, len(targetTypes))
+	targetTypeFilters := make([]gatewayapi.EventTrailTargetType, 0, len(targetTypes))
 	for _, targetType := range targetTypes {
 		targetTypeFilters = append(
 			targetTypeFilters,
-			gatewayapi.AuditTargetType(targetType),
+			gatewayapi.EventTrailTargetType(targetType),
 		)
 	}
 
-	return gatewayapi.AuditFilters{
+	return gatewayapi.EventTrailFilters{
 		Actors:      actorFilters,
 		Categories:  categories,
 		TargetTypes: targetTypeFilters,
@@ -397,24 +397,24 @@ func (s *Service) auditFilters(ctx context.Context, organizationID string, works
 	}, nil
 }
 
-func auditEventView(row gatewaydb.GatewayListAuditEventsRow) (gatewayapi.AuditEvent, error) {
-	before := []gatewayapi.AuditField{}
+func eventTrailEventView(row gatewaydb.GatewayListEventTrailEventsRow) (gatewayapi.EventTrailEvent, error) {
+	before := []gatewayapi.EventTrailField{}
 	if len(row.Before) > 0 {
 		if err := json.Unmarshal(row.Before, &before); err != nil {
-			return gatewayapi.AuditEvent{}, fmt.Errorf("decode audit event %q before summary: %w", row.ID, err)
+			return gatewayapi.EventTrailEvent{}, fmt.Errorf("decode event trail event %q before summary: %w", row.ID, err)
 		}
 	}
-	after := []gatewayapi.AuditField{}
+	after := []gatewayapi.EventTrailField{}
 	if len(row.After) > 0 {
 		if err := json.Unmarshal(row.After, &after); err != nil {
-			return gatewayapi.AuditEvent{}, fmt.Errorf("decode audit event %q after summary: %w", row.ID, err)
+			return gatewayapi.EventTrailEvent{}, fmt.Errorf("decode event trail event %q after summary: %w", row.ID, err)
 		}
 	}
 
 	actorName := row.ActorName
-	actor := gatewayapi.AuditActor{
+	actor := gatewayapi.EventTrailActor{
 		Name: &actorName,
-		Type: gatewayapi.AuditActorType(row.ActorType),
+		Type: gatewayapi.EventTrailActorType(row.ActorType),
 	}
 	if row.ActorID.Valid {
 		actorID := row.ActorID.String
@@ -426,17 +426,17 @@ func auditEventView(row gatewaydb.GatewayListAuditEventsRow) (gatewayapi.AuditEv
 	}
 
 	targetName := row.TargetName
-	target := gatewayapi.AuditTarget{
+	target := gatewayapi.EventTrailTarget{
 		Id:   row.TargetID,
 		Name: &targetName,
-		Type: gatewayapi.AuditTargetType(row.TargetType),
+		Type: gatewayapi.EventTrailTargetType(row.TargetType),
 	}
 	if row.TargetSlug != "" {
 		targetSlug := row.TargetSlug
 		target.Slug = &targetSlug
 	}
 
-	event := gatewayapi.AuditEvent{
+	event := gatewayapi.EventTrailEvent{
 		Action:           row.Action,
 		Actor:            actor,
 		After:            after,
@@ -445,8 +445,8 @@ func auditEventView(row gatewaydb.GatewayListAuditEventsRow) (gatewayapi.AuditEv
 		Category:         row.Category,
 		CreatedAt:        row.CreatedAt.Time,
 		Id:               row.ID,
-		Interface:        gatewayapi.AuditInterface(row.Interface),
-		Result:           gatewayapi.AuditResult(row.Result),
+		Interface:        gatewayapi.EventTrailInterface(row.Interface),
+		Result:           gatewayapi.EventTrailResult(row.Result),
 		Target:           target,
 	}
 	if row.IpAddress.Valid {
@@ -458,7 +458,7 @@ func auditEventView(row gatewaydb.GatewayListAuditEventsRow) (gatewayapi.AuditEv
 		event.UserAgent = &userAgent
 	}
 	if row.WorkspaceID.Valid {
-		workspace := gatewayapi.AuditWorkspace{Id: row.WorkspaceID.String}
+		workspace := gatewayapi.EventTrailWorkspace{Id: row.WorkspaceID.String}
 		if row.WorkspaceName.Valid {
 			name := row.WorkspaceName.String
 			workspace.Name = &name
@@ -470,9 +470,9 @@ func auditEventView(row gatewaydb.GatewayListAuditEventsRow) (gatewayapi.AuditEv
 		event.Workspace = &workspace
 	}
 	if row.CleanupJobID.Valid && row.CleanupState.Valid {
-		cleanup := gatewayapi.AuditCleanup{
+		cleanup := gatewayapi.EventTrailCleanup{
 			Id:    row.CleanupJobID.String,
-			State: gatewayapi.AuditCleanupState(row.CleanupState.CleanupState),
+			State: gatewayapi.EventTrailCleanupState(row.CleanupState.CleanupState),
 		}
 		if row.CleanupCompletedAt.Valid {
 			cleanup.CompletedAt = &row.CleanupCompletedAt.Time
@@ -483,22 +483,22 @@ func auditEventView(row gatewaydb.GatewayListAuditEventsRow) (gatewayapi.AuditEv
 	return event, nil
 }
 
-func (s *Service) runAuditRetention(ctx context.Context) {
-	ticker := time.NewTicker(auditRetentionInterval)
+func (s *Service) runEventTrailRetention(ctx context.Context) {
+	ticker := time.NewTicker(eventTrailRetentionInterval)
 	defer ticker.Stop()
 
 	for {
-		deleted, err := s.queries.GatewayDeleteExpiredAuditEvents(
+		deleted, err := s.queries.GatewayDeleteExpiredEventTrailEvents(
 			ctx,
 			pgtype.Timestamptz{
-				Time:  time.Now().Add(-auditRetention),
+				Time:  time.Now().Add(-eventTrailRetention),
 				Valid: true,
 			},
 		)
 		if err != nil {
-			slog.ErrorContext(ctx, "delete expired audit events", slog.Any("err", err))
+			slog.ErrorContext(ctx, "delete expired event trail events", slog.Any("err", err))
 		} else if deleted > 0 {
-			slog.InfoContext(ctx, "deleted expired audit events", slog.Int64("count", deleted))
+			slog.InfoContext(ctx, "deleted expired event trail events", slog.Int64("count", deleted))
 		}
 
 		select {

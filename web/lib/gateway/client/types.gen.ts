@@ -4,13 +4,13 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
-export type AuditActorType = "user" | "api_key" | "system"
+export type EventTrailActorType = "user" | "api_key" | "system"
 
-export type AuditResult = "succeeded" | "denied" | "failed"
+export type EventTrailResult = "succeeded" | "denied" | "failed"
 
-export type AuditInterface = "web" | "gateway" | "better_auth" | "controller" | "system"
+export type EventTrailInterface = "web" | "gateway" | "better_auth" | "controller" | "system"
 
-export type AuditTargetType =
+export type EventTrailTargetType =
   | "organization"
   | "organization_membership"
   | "workspace"
@@ -23,78 +23,78 @@ export type AuditTargetType =
   | "inference_pool"
   | "agent"
 
-export type AuditField = {
+export type EventTrailField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
   value: string
 }
 
-export type AuditActor = {
-  type: AuditActorType
+export type EventTrailActor = {
+  type: EventTrailActorType
   id?: string
   name?: string
   email?: string
 }
 
-export type AuditTarget = {
-  type: AuditTargetType
+export type EventTrailTarget = {
+  type: EventTrailTargetType
   id: string
   name?: string
   slug?: string
 }
 
-export type AuditWorkspace = {
+export type EventTrailWorkspace = {
   id: string
   name?: string
   slug?: string
 }
 
-export type AuditCleanup = {
+export type EventTrailCleanup = {
   id: string
   state: "pending" | "running" | "succeeded" | "failed"
   completed_at?: string
 }
 
-export type AuditEvent = {
+export type EventTrailEvent = {
   id: string
-  actor: AuditActor
-  target: AuditTarget
-  workspace?: AuditWorkspace
+  actor: EventTrailActor
+  target: EventTrailTarget
+  workspace?: EventTrailWorkspace
   category: string
   action: string
-  result: AuditResult
-  before: Array<AuditField>
-  after: Array<AuditField>
+  result: EventTrailResult
+  before: Array<EventTrailField>
+  after: Array<EventTrailField>
   automatic_cascade: boolean
-  interface: AuditInterface
+  interface: EventTrailInterface
   ip_address?: string
   user_agent?: string
-  cleanup?: AuditCleanup
+  cleanup?: EventTrailCleanup
   created_at: string
 }
 
-export type AuditActorFilter = {
+export type EventTrailActorFilter = {
   id?: string
-  type: AuditActorType
+  type: EventTrailActorType
   name?: string
   email?: string
 }
 
-export type AuditWorkspaceFilter = {
+export type EventTrailWorkspaceFilter = {
   id: string
   name?: string
   slug?: string
 }
 
-export type AuditFilters = {
-  actors: Array<AuditActorFilter>
+export type EventTrailFilters = {
+  actors: Array<EventTrailActorFilter>
   categories: Array<string>
-  workspaces: Array<AuditWorkspaceFilter>
-  target_types: Array<AuditTargetType>
+  workspaces: Array<EventTrailWorkspaceFilter>
+  target_types: Array<EventTrailTargetType>
 }
 
-export type ListAuditEventsResponse = {
-  events: Array<AuditEvent>
-  filters: AuditFilters
+export type ListEventTrailEventsResponse = {
+  events: Array<EventTrailEvent>
+  filters: EventTrailFilters
   next_page_token: string
 }
 
@@ -1959,47 +1959,47 @@ export type WorkspaceSlugPath = string
 /**
  * Exact actor type.
  */
-export type AuditActorTypeQuery = AuditActorType
+export type EventTrailActorTypeQuery = EventTrailActorType
 
 /**
- * Stable audit event ID.
+ * Stable event trail event ID.
  */
-export type AuditEventIdPath = string
+export type EventTrailEventIdPath = string
 
 /**
  * Exact actor ID.
  */
-export type AuditActorIdQuery = string
+export type EventTrailActorIdQuery = string
 
 /**
- * Exact audit category.
+ * Exact event trail category.
  */
-export type AuditCategoryQuery = string
+export type EventTrailCategoryQuery = string
 
 /**
  * Exact Workspace ID.
  */
-export type AuditWorkspaceIdQuery = string
+export type EventTrailWorkspaceIdQuery = string
 
 /**
  * Exact target resource type.
  */
-export type AuditTargetTypeQuery = AuditTargetType
+export type EventTrailTargetTypeQuery = EventTrailTargetType
 
 /**
- * Exact audit result.
+ * Exact event trail result.
  */
-export type AuditResultQuery = AuditResult
+export type EventTrailResultQuery = EventTrailResult
 
 /**
  * Inclusive lower event timestamp bound.
  */
-export type AuditCreatedAfterQuery = string
+export type EventTrailCreatedAfterQuery = string
 
 /**
  * Inclusive upper event timestamp bound.
  */
-export type AuditCreatedBeforeQuery = string
+export type EventTrailCreatedBeforeQuery = string
 
 /**
  * Agent name.
@@ -2132,7 +2132,7 @@ export type FromDateQuery = string
  */
 export type ToDateQuery = string
 
-export type ListAuditEventsData = {
+export type ListEventTrailEventsData = {
   body?: never
   headers?: {
     /**
@@ -2146,13 +2146,13 @@ export type ListAuditEventsData = {
     /**
      * Exact actor type.
      */
-    actor_type?: AuditActorType
+    actor_type?: EventTrailActorType
     /**
      * Exact actor ID.
      */
     actor_id?: string
     /**
-     * Exact audit category.
+     * Exact event trail category.
      */
     category?: string
     /**
@@ -2162,11 +2162,11 @@ export type ListAuditEventsData = {
     /**
      * Exact target resource type.
      */
-    target_type?: AuditTargetType
+    target_type?: EventTrailTargetType
     /**
-     * Exact audit result.
+     * Exact event trail result.
      */
-    result?: AuditResult
+    result?: EventTrailResult
     /**
      * Inclusive lower event timestamp bound.
      */
@@ -2184,10 +2184,10 @@ export type ListAuditEventsData = {
      */
     page_token?: string
   }
-  url: "/api/audit-event"
+  url: "/api/event-trail-event"
 }
 
-export type ListAuditEventsErrors = {
+export type ListEventTrailEventsErrors = {
   /**
    * Request validation failed.
    */
@@ -2206,18 +2206,19 @@ export type ListAuditEventsErrors = {
   500: Error
 }
 
-export type ListAuditEventsError = ListAuditEventsErrors[keyof ListAuditEventsErrors]
+export type ListEventTrailEventsError = ListEventTrailEventsErrors[keyof ListEventTrailEventsErrors]
 
-export type ListAuditEventsResponses = {
+export type ListEventTrailEventsResponses = {
   /**
-   * Paginated scoped audit events and filter options.
+   * Paginated scoped event trail events and filter options.
    */
-  200: ListAuditEventsResponse
+  200: ListEventTrailEventsResponse
 }
 
-export type ListAuditEventsResponse2 = ListAuditEventsResponses[keyof ListAuditEventsResponses]
+export type ListEventTrailEventsResponse2 =
+  ListEventTrailEventsResponses[keyof ListEventTrailEventsResponses]
 
-export type GetAuditEventData = {
+export type GetEventTrailEventData = {
   body?: never
   headers?: {
     /**
@@ -2228,15 +2229,15 @@ export type GetAuditEventData = {
   }
   path: {
     /**
-     * Stable audit event ID.
+     * Stable event trail event ID.
      */
     eventId: string
   }
   query?: never
-  url: "/api/audit-event/{eventId}"
+  url: "/api/event-trail-event/{eventId}"
 }
 
-export type GetAuditEventErrors = {
+export type GetEventTrailEventErrors = {
   /**
    * Request authentication failed.
    */
@@ -2256,16 +2257,17 @@ export type GetAuditEventErrors = {
   500: Error
 }
 
-export type GetAuditEventError = GetAuditEventErrors[keyof GetAuditEventErrors]
+export type GetEventTrailEventError = GetEventTrailEventErrors[keyof GetEventTrailEventErrors]
 
-export type GetAuditEventResponses = {
+export type GetEventTrailEventResponses = {
   /**
-   * Scoped audit event detail.
+   * Scoped event trail event detail.
    */
-  200: AuditEvent
+  200: EventTrailEvent
 }
 
-export type GetAuditEventResponse = GetAuditEventResponses[keyof GetAuditEventResponses]
+export type GetEventTrailEventResponse =
+  GetEventTrailEventResponses[keyof GetEventTrailEventResponses]
 
 export type GetTenantData = {
   body?: never

@@ -99,190 +99,6 @@ func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
 	return string(ns.ApiKeyTargetType), nil
 }
 
-type AuditActor string
-
-const (
-	AuditActorUser   AuditActor = "user"
-	AuditActorApiKey AuditActor = "api_key"
-	AuditActorSystem AuditActor = "system"
-)
-
-func (e *AuditActor) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AuditActor(s)
-	case string:
-		*e = AuditActor(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AuditActor: %T", src)
-	}
-	return nil
-}
-
-type NullAuditActor struct {
-	AuditActor AuditActor `json:"audit_actor"`
-	Valid      bool       `json:"valid"` // Valid is true if AuditActor is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAuditActor) Scan(value interface{}) error {
-	if value == nil {
-		ns.AuditActor, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AuditActor.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAuditActor) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AuditActor), nil
-}
-
-type AuditInterface string
-
-const (
-	AuditInterfaceWeb        AuditInterface = "web"
-	AuditInterfaceGateway    AuditInterface = "gateway"
-	AuditInterfaceBetterAuth AuditInterface = "better_auth"
-	AuditInterfaceController AuditInterface = "controller"
-	AuditInterfaceSystem     AuditInterface = "system"
-)
-
-func (e *AuditInterface) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AuditInterface(s)
-	case string:
-		*e = AuditInterface(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AuditInterface: %T", src)
-	}
-	return nil
-}
-
-type NullAuditInterface struct {
-	AuditInterface AuditInterface `json:"audit_interface"`
-	Valid          bool           `json:"valid"` // Valid is true if AuditInterface is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAuditInterface) Scan(value interface{}) error {
-	if value == nil {
-		ns.AuditInterface, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AuditInterface.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAuditInterface) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AuditInterface), nil
-}
-
-type AuditResult string
-
-const (
-	AuditResultSucceeded AuditResult = "succeeded"
-	AuditResultDenied    AuditResult = "denied"
-	AuditResultFailed    AuditResult = "failed"
-)
-
-func (e *AuditResult) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AuditResult(s)
-	case string:
-		*e = AuditResult(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AuditResult: %T", src)
-	}
-	return nil
-}
-
-type NullAuditResult struct {
-	AuditResult AuditResult `json:"audit_result"`
-	Valid       bool        `json:"valid"` // Valid is true if AuditResult is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAuditResult) Scan(value interface{}) error {
-	if value == nil {
-		ns.AuditResult, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AuditResult.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAuditResult) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AuditResult), nil
-}
-
-type AuditTarget string
-
-const (
-	AuditTargetOrganization           AuditTarget = "organization"
-	AuditTargetOrganizationMembership AuditTarget = "organization_membership"
-	AuditTargetTeam                   AuditTarget = "team"
-	AuditTargetMcpConnection          AuditTarget = "mcp_connection"
-	AuditTargetInferenceProvider      AuditTarget = "inference_provider"
-	AuditTargetInferencePool          AuditTarget = "inference_pool"
-	AuditTargetRole                   AuditTarget = "role"
-	AuditTargetSandbox                AuditTarget = "sandbox"
-	AuditTargetSkill                  AuditTarget = "skill"
-	AuditTargetAgent                  AuditTarget = "agent"
-	AuditTargetApiKey                 AuditTarget = "api_key"
-	AuditTargetWorkspaceAccess        AuditTarget = "workspace_access"
-	AuditTargetWorkspace              AuditTarget = "workspace"
-)
-
-func (e *AuditTarget) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AuditTarget(s)
-	case string:
-		*e = AuditTarget(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AuditTarget: %T", src)
-	}
-	return nil
-}
-
-type NullAuditTarget struct {
-	AuditTarget AuditTarget `json:"audit_target"`
-	Valid       bool        `json:"valid"` // Valid is true if AuditTarget is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAuditTarget) Scan(value interface{}) error {
-	if value == nil {
-		ns.AuditTarget, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AuditTarget.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAuditTarget) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AuditTarget), nil
-}
-
 type CleanupState string
 
 const (
@@ -417,6 +233,190 @@ func (ns NullDestructiveTarget) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.DestructiveTarget), nil
+}
+
+type EventTrailActor string
+
+const (
+	EventTrailActorUser   EventTrailActor = "user"
+	EventTrailActorApiKey EventTrailActor = "api_key"
+	EventTrailActorSystem EventTrailActor = "system"
+)
+
+func (e *EventTrailActor) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventTrailActor(s)
+	case string:
+		*e = EventTrailActor(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventTrailActor: %T", src)
+	}
+	return nil
+}
+
+type NullEventTrailActor struct {
+	EventTrailActor EventTrailActor `json:"event_trail_actor"`
+	Valid           bool            `json:"valid"` // Valid is true if EventTrailActor is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventTrailActor) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventTrailActor, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventTrailActor.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventTrailActor) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventTrailActor), nil
+}
+
+type EventTrailInterface string
+
+const (
+	EventTrailInterfaceWeb        EventTrailInterface = "web"
+	EventTrailInterfaceGateway    EventTrailInterface = "gateway"
+	EventTrailInterfaceBetterAuth EventTrailInterface = "better_auth"
+	EventTrailInterfaceController EventTrailInterface = "controller"
+	EventTrailInterfaceSystem     EventTrailInterface = "system"
+)
+
+func (e *EventTrailInterface) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventTrailInterface(s)
+	case string:
+		*e = EventTrailInterface(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventTrailInterface: %T", src)
+	}
+	return nil
+}
+
+type NullEventTrailInterface struct {
+	EventTrailInterface EventTrailInterface `json:"event_trail_interface"`
+	Valid               bool                `json:"valid"` // Valid is true if EventTrailInterface is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventTrailInterface) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventTrailInterface, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventTrailInterface.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventTrailInterface) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventTrailInterface), nil
+}
+
+type EventTrailResult string
+
+const (
+	EventTrailResultSucceeded EventTrailResult = "succeeded"
+	EventTrailResultDenied    EventTrailResult = "denied"
+	EventTrailResultFailed    EventTrailResult = "failed"
+)
+
+func (e *EventTrailResult) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventTrailResult(s)
+	case string:
+		*e = EventTrailResult(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventTrailResult: %T", src)
+	}
+	return nil
+}
+
+type NullEventTrailResult struct {
+	EventTrailResult EventTrailResult `json:"event_trail_result"`
+	Valid            bool             `json:"valid"` // Valid is true if EventTrailResult is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventTrailResult) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventTrailResult, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventTrailResult.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventTrailResult) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventTrailResult), nil
+}
+
+type EventTrailTarget string
+
+const (
+	EventTrailTargetOrganization           EventTrailTarget = "organization"
+	EventTrailTargetOrganizationMembership EventTrailTarget = "organization_membership"
+	EventTrailTargetTeam                   EventTrailTarget = "team"
+	EventTrailTargetMcpConnection          EventTrailTarget = "mcp_connection"
+	EventTrailTargetInferenceProvider      EventTrailTarget = "inference_provider"
+	EventTrailTargetInferencePool          EventTrailTarget = "inference_pool"
+	EventTrailTargetRole                   EventTrailTarget = "role"
+	EventTrailTargetSandbox                EventTrailTarget = "sandbox"
+	EventTrailTargetSkill                  EventTrailTarget = "skill"
+	EventTrailTargetAgent                  EventTrailTarget = "agent"
+	EventTrailTargetApiKey                 EventTrailTarget = "api_key"
+	EventTrailTargetWorkspaceAccess        EventTrailTarget = "workspace_access"
+	EventTrailTargetWorkspace              EventTrailTarget = "workspace"
+)
+
+func (e *EventTrailTarget) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventTrailTarget(s)
+	case string:
+		*e = EventTrailTarget(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventTrailTarget: %T", src)
+	}
+	return nil
+}
+
+type NullEventTrailTarget struct {
+	EventTrailTarget EventTrailTarget `json:"event_trail_target"`
+	Valid            bool             `json:"valid"` // Valid is true if EventTrailTarget is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventTrailTarget) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventTrailTarget, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventTrailTarget.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventTrailTarget) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventTrailTarget), nil
 }
 
 type PermissionAction string
@@ -738,27 +738,6 @@ type Apikey struct {
 	Metadata            pgtype.Text      `json:"metadata"`
 }
 
-type AuditEvent struct {
-	ID               string             `json:"id"`
-	OrganizationID   string             `json:"organization_id"`
-	WorkspaceID      pgtype.Text        `json:"workspace_id"`
-	ActorType        AuditActor         `json:"actor_type"`
-	ActorID          pgtype.Text        `json:"actor_id"`
-	TargetType       AuditTarget        `json:"target_type"`
-	TargetID         string             `json:"target_id"`
-	Category         string             `json:"category"`
-	Action           string             `json:"action"`
-	Result           AuditResult        `json:"result"`
-	Before           []byte             `json:"before"`
-	After            []byte             `json:"after"`
-	AutomaticCascade bool               `json:"automatic_cascade"`
-	CleanupJobID     pgtype.Text        `json:"cleanup_job_id"`
-	Interface        AuditInterface     `json:"interface"`
-	IpAddress        pgtype.Text        `json:"ip_address"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-}
-
 type CleanupJob struct {
 	ID             string               `json:"id"`
 	OrganizationID string               `json:"organization_id"`
@@ -776,6 +755,27 @@ type CleanupJob struct {
 	CreatedAt      pgtype.Timestamptz   `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz   `json:"updated_at"`
 	CompletedAt    pgtype.Timestamptz   `json:"completed_at"`
+}
+
+type EventTrailEvent struct {
+	ID               string              `json:"id"`
+	OrganizationID   string              `json:"organization_id"`
+	WorkspaceID      pgtype.Text         `json:"workspace_id"`
+	ActorType        EventTrailActor     `json:"actor_type"`
+	ActorID          pgtype.Text         `json:"actor_id"`
+	TargetType       EventTrailTarget    `json:"target_type"`
+	TargetID         string              `json:"target_id"`
+	Category         string              `json:"category"`
+	Action           string              `json:"action"`
+	Result           EventTrailResult    `json:"result"`
+	Before           []byte              `json:"before"`
+	After            []byte              `json:"after"`
+	AutomaticCascade bool                `json:"automatic_cascade"`
+	CleanupJobID     pgtype.Text         `json:"cleanup_job_id"`
+	Interface        EventTrailInterface `json:"interface"`
+	IpAddress        pgtype.Text         `json:"ip_address"`
+	UserAgent        pgtype.Text         `json:"user_agent"`
+	CreatedAt        pgtype.Timestamptz  `json:"created_at"`
 }
 
 type Invitation struct {

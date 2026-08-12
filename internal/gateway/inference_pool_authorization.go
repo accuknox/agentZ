@@ -48,7 +48,7 @@ func (s *Service) resolveInferencePoolAccess(ctx context.Context, workspaceID, n
 	return s.resolveResourceAccess(ctx, req)
 }
 
-func (s *Service) createInferencePoolAudit(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.AuditResult) error {
+func (s *Service) createInferencePoolEventTrail(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
 	action := "unmapped"
 	switch access.operation {
 	case authorization.OperationCreateInferencePool:
@@ -58,11 +58,11 @@ func (s *Service) createInferencePoolAudit(ctx context.Context, r *http.Request,
 	case authorization.OperationDeleteInferencePool:
 		action = "delete"
 	}
-	return s.createResourceAudit(
+	return s.createResourceEventTrail(
 		ctx,
 		r,
 		access,
-		gatewaydb.AuditTargetInferencePool,
+		gatewaydb.EventTrailTargetInferencePool,
 		name,
 		"inference_pool",
 		action,

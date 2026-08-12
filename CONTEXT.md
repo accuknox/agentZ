@@ -84,7 +84,7 @@ An individually selected Organisation resource exposed read-only within one
 Workspace.
 _Avoid_: Shared resource, copied resource
 
-**Audit Event**:
+**Event Trail Event**:
 An immutable, scoped record of an attempted mutation and its result, actor,
 target, and safe before-and-after summary.
 _Avoid_: Log entry, activity

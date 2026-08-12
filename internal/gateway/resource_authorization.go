@@ -55,11 +55,11 @@ type resourceAccessRequest struct {
 	isCreator       func(context.Context, string, string) (bool, error)
 }
 
-func (a resourceAccess) failureResult() gatewaydb.AuditResult {
+func (a resourceAccess) failureResult() gatewaydb.EventTrailResult {
 	if a.authorized {
-		return gatewaydb.AuditResultFailed
+		return gatewaydb.EventTrailResultFailed
 	}
-	return gatewaydb.AuditResultDenied
+	return gatewaydb.EventTrailResultDenied
 }
 
 func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessRequest) (resourceAccess, *apiError) {
@@ -277,22 +277,22 @@ func resourceForbidden(cause error) *apiError {
 	)
 }
 
-func (s *Service) createResourceAudit(ctx context.Context, r *http.Request, access resourceAccess, target gatewaydb.AuditTarget, id, category, action string, result gatewaydb.AuditResult) error {
-	fields, err := json.Marshal([]gatewayapi.AuditField{{
-		Field: gatewayapi.AuditFieldName, Value: id,
+func (s *Service) createResourceEventTrail(ctx context.Context, r *http.Request, access resourceAccess, target gatewaydb.EventTrailTarget, id, category, action string, result gatewaydb.EventTrailResult) error {
+	fields, err := json.Marshal([]gatewayapi.EventTrailField{{
+		Field: gatewayapi.EventTrailFieldName, Value: id,
 	}})
 	if err != nil {
-		return fmt.Errorf("encode %s audit summary: %w", category, err)
+		return fmt.Errorf("encode %s event trail summary: %w", category, err)
 	}
 	workspaceID := pgtype.Text{}
 	if access.workspaceID != "" {
 		workspaceID = pgtype.Text{String: access.workspaceID, Valid: true}
 	}
-	params := gatewaydb.GatewayCreateAuditEventParams{
-		ID:               "audit-" + uuid.NewString(),
+	params := gatewaydb.GatewayCreateEventTrailEventParams{
+		ID:               "event-trail-" + uuid.NewString(),
 		OrganizationID:   access.claims.OrganizationID,
 		WorkspaceID:      workspaceID,
-		ActorType:        gatewaydb.AuditActorUser,
+		ActorType:        gatewaydb.EventTrailActorUser,
 		ActorID:          pgtype.Text{String: access.claims.UserID, Valid: true},
 		TargetType:       target,
 		TargetID:         id,
@@ -301,7 +301,7 @@ func (s *Service) createResourceAudit(ctx context.Context, r *http.Request, acce
 		Result:           result,
 		After:            fields,
 		AutomaticCascade: false,
-		Interface:        gatewaydb.AuditInterfaceGateway,
+		Interface:        gatewaydb.EventTrailInterfaceGateway,
 	}
 	if host, _, splitErr := net.SplitHostPort(r.RemoteAddr); splitErr == nil && host != "" {
 		params.IpAddress = pgtype.Text{String: host, Valid: true}
@@ -309,9 +309,9 @@ func (s *Service) createResourceAudit(ctx context.Context, r *http.Request, acce
 	if userAgent := strings.TrimSpace(r.UserAgent()); userAgent != "" {
 		params.UserAgent = pgtype.Text{String: userAgent, Valid: true}
 	}
-	_, err = s.queries.GatewayCreateAuditEvent(ctx, params)
+	_, err = s.queries.GatewayCreateEventTrailEvent(ctx, params)
 	if err != nil {
-		return fmt.Errorf("create %s audit event: %w", category, err)
+		return fmt.Errorf("create %s event trail event: %w", category, err)
 	}
 	return nil
 }

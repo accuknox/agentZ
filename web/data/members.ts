@@ -74,7 +74,7 @@ export type MemberAdministration = {
     action: string
     actor: string
     createdAt: string
-    result: typeof schema.auditEvents.$inferSelect.result
+    result: typeof schema.eventTrailEvents.$inferSelect.result
   }[]
 }
 
@@ -432,19 +432,19 @@ export const getMemberAdministration = cache(
         .limit(500),
       db
         .select({
-          action: schema.auditEvents.action,
-          createdAt: schema.auditEvents.createdAt,
-          id: schema.auditEvents.id,
-          result: schema.auditEvents.result,
+          action: schema.eventTrailEvents.action,
+          createdAt: schema.eventTrailEvents.createdAt,
+          id: schema.eventTrailEvents.id,
+          result: schema.eventTrailEvents.result,
         })
-        .from(schema.auditEvents)
+        .from(schema.eventTrailEvents)
         .where(
           and(
-            eq(schema.auditEvents.organizationId, directory.organization.id),
-            eq(schema.auditEvents.actorId, member.userId)
+            eq(schema.eventTrailEvents.organizationId, directory.organization.id),
+            eq(schema.eventTrailEvents.actorId, member.userId)
           )
         )
-        .orderBy(desc(schema.auditEvents.createdAt), desc(schema.auditEvents.id))
+        .orderBy(desc(schema.eventTrailEvents.createdAt), desc(schema.eventTrailEvents.id))
         .limit(100),
     ])
 
@@ -564,7 +564,7 @@ export async function inviteMember(
           }))
         )
       }
-      await tx.insert(schema.auditEvents).values({
+      await tx.insert(schema.eventTrailEvents).values({
         action: "invitation.create",
         actorId: actor.userId,
         actorType: "user",
@@ -574,7 +574,7 @@ export async function inviteMember(
         ],
         automaticCascade: true,
         category: "membership",
-        id: `audit-${randomUUID()}`,
+        id: `event-trail-${randomUUID()}`,
         interface: "web",
         ipAddress: getIp(actor.headers, getAuth().options),
         organizationId: actor.organization.id,
@@ -650,14 +650,14 @@ export async function restoreMembership(orgSlug: string, memberId: string) {
           eq(schema.members.id, member.id)
         )
       )
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       action: "membership.restore",
       actorId: actor.userId,
       actorType: "user",
       after: [{ field: "state", value: "active" }],
       automaticCascade: false,
       category: "membership",
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.headers, getAuth().options),
       organizationId: actor.organization.id,
@@ -960,7 +960,7 @@ export async function removeMembership(
       targetId: member.id,
       targetType: "organization_membership",
     })
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       action: operation === "membership_remove" ? "membership.remove" : "membership.disable",
       actorId: actor.userId,
       actorType: "user",
@@ -972,7 +972,7 @@ export async function removeMembership(
       automaticCascade: true,
       category: "membership",
       cleanupJobId: cleanupId,
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.headers, getAuth().options),
       organizationId: actor.organization.id,
@@ -1237,7 +1237,7 @@ export async function saveSocialAdmission(
         }))
       )
     }
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       action: "social_admission.update",
       actorId: actor.userId,
       actorType: "user",
@@ -1247,7 +1247,7 @@ export async function saveSocialAdmission(
       ],
       automaticCascade: false,
       category: "membership",
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.headers, getAuth().options),
       organizationId: actor.organization.id,

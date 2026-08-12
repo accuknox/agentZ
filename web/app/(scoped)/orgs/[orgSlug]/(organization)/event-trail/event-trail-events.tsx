@@ -10,54 +10,58 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { AuditEvent, AuditFilters, ListAuditEventsData } from "@/lib/gateway/client"
+import type {
+  EventTrailEvent,
+  EventTrailFilters,
+  ListEventTrailEventsData,
+} from "@/lib/gateway/client"
 import {
-  zAuditActorIdQuery,
-  zAuditActorTypeQuery,
-  zAuditCategoryQuery,
-  zAuditCreatedAfterQuery,
-  zAuditCreatedBeforeQuery,
-  zAuditResultQuery,
-  zAuditTargetTypeQuery,
-  zAuditWorkspaceIdQuery,
+  zEventTrailActorIdQuery,
+  zEventTrailActorTypeQuery,
+  zEventTrailCategoryQuery,
+  zEventTrailCreatedAfterQuery,
+  zEventTrailCreatedBeforeQuery,
+  zEventTrailResultQuery,
+  zEventTrailTargetTypeQuery,
+  zEventTrailWorkspaceIdQuery,
   zPageTokenQuery,
 } from "@/lib/gateway/client/zod.gen"
 import { formatAge } from "@/lib/format"
-import { AuditFiltersBar } from "./audit-filters"
-import { ResultBadge } from "./audit-event"
-import { AuditPagination } from "./audit-pagination"
+import { EventTrailFiltersBar } from "./event-trail-filters"
+import { ResultBadge } from "./event-trail-event"
+import { EventTrailPagination } from "./event-trail-pagination"
 
-export const auditQuerySchema = z.object({
-  actor_type: zAuditActorTypeQuery.optional(),
-  actor_id: zAuditActorIdQuery.optional(),
-  category: zAuditCategoryQuery.optional(),
-  workspace_id: zAuditWorkspaceIdQuery.optional(),
-  target_type: zAuditTargetTypeQuery.optional(),
-  result: zAuditResultQuery.optional(),
-  created_after: zAuditCreatedAfterQuery.optional(),
-  created_before: zAuditCreatedBeforeQuery.optional(),
+export const eventTrailQuerySchema = z.object({
+  actor_type: zEventTrailActorTypeQuery.optional(),
+  actor_id: zEventTrailActorIdQuery.optional(),
+  category: zEventTrailCategoryQuery.optional(),
+  workspace_id: zEventTrailWorkspaceIdQuery.optional(),
+  target_type: zEventTrailTargetTypeQuery.optional(),
+  result: zEventTrailResultQuery.optional(),
+  created_after: zEventTrailCreatedAfterQuery.optional(),
+  created_before: zEventTrailCreatedBeforeQuery.optional(),
   page_token: zPageTokenQuery.optional(),
   token_stack: z.string().optional(),
 })
 
-export type AuditQuery = NonNullable<ListAuditEventsData["query"]>
+export type EventTrailQuery = NonNullable<ListEventTrailEventsData["query"]>
 
-export function AuditEvents({
-  audit,
+export function EventTrailEvents({
+  eventTrail,
   basePath,
   query,
   workspace,
 }: {
-  audit: { events: AuditEvent[]; filters: AuditFilters; next_page_token: string }
+  eventTrail: { events: EventTrailEvent[]; filters: EventTrailFilters; next_page_token: string }
   basePath: string
-  query: AuditQuery
+  query: EventTrailQuery
   workspace?: { id: string; name: string }
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <AdministrationPageHeader title="Audit" />
-      <AuditFiltersBar
-        filters={audit.filters}
+      <AdministrationPageHeader title="Event Trail" />
+      <EventTrailFiltersBar
+        filters={eventTrail.filters}
         hideWorkspace={Boolean(workspace)}
         selected={{
           actorType: query.actor_type,
@@ -72,7 +76,9 @@ export function AuditEvents({
       />
       <div className="w-full min-w-0 border-b">
         <Table
-          aria-label={workspace ? `${workspace.name} audit events` : "Organisation audit events"}
+          aria-label={
+            workspace ? `${workspace.name} event trail events` : "Organisation event trail events"
+          }
         >
           <TableHeader>
             <TableRow>
@@ -87,11 +93,11 @@ export function AuditEvents({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {audit.events.length ? (
-              audit.events.map((event) => (
+            {eventTrail.events.length ? (
+              eventTrail.events.map((event) => (
                 <RoutedTableRow
-                  aria-label={`View audit event: ${event.action}`}
-                  data-audit-event-id={event.id}
+                  aria-label={`View event trail event: ${event.action}`}
+                  data-event-trail-event-id={event.id}
                   href={`${basePath}/${event.id}` as Route}
                   key={event.id}
                 >
@@ -139,15 +145,15 @@ export function AuditEvents({
             ) : (
               <TableRow>
                 <TableCell className="h-24 text-center" colSpan={workspace ? 5 : 6}>
-                  No audit events
+                  No eventTrail events
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-        {audit.events.length ? (
+        {eventTrail.events.length ? (
           <div className="py-3">
-            <AuditPagination nextPageToken={audit.next_page_token} />
+            <EventTrailPagination nextPageToken={eventTrail.next_page_token} />
           </div>
         ) : null}
       </div>

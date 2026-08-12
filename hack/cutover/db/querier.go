@@ -16,7 +16,7 @@ type Querier interface {
 	CopyWorkflowTools(ctx context.Context, arg CopyWorkflowToolsParams) (int64, error)
 	CopyWorkflows(ctx context.Context, arg CopyWorkflowsParams) (int64, error)
 	CountNamespaceRows(ctx context.Context, scopeNamespace string) (CountNamespaceRowsRow, error)
-	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
+	CreateEventTrailEvent(ctx context.Context, arg CreateEventTrailEventParams) error
 	CreateState(ctx context.Context, arg CreateStateParams) error
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) error
 	DeleteSourceAgents(ctx context.Context, sourceNamespace string) (int64, error)

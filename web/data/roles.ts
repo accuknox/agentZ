@@ -17,7 +17,7 @@ import { getAuth } from "@/lib/auth"
 
 export type RoleResource = typeof schema.permissionGrants.$inferSelect.resource
 export type RoleAction = typeof schema.permissionGrants.$inferSelect.action
-type AuditResult = typeof schema.auditEvents.$inferInsert.result
+type EventTrailResult = typeof schema.eventTrailEvents.$inferInsert.result
 
 export type RoleGrantInput = {
   workspaceId: string | null
@@ -293,11 +293,11 @@ async function getRoleActor(orgSlug: string): Promise<RoleActor | undefined> {
   }
 }
 
-function roleAudit(
+function roleEventTrail(
   actor: RoleActor,
   action: string,
   targetId: string,
-  result: AuditResult,
+  result: EventTrailResult,
   workspaceId?: string
 ) {
   return {
@@ -306,7 +306,7 @@ function roleAudit(
     action,
     automaticCascade: false,
     category: "role",
-    id: `audit-${randomUUID()}`,
+    id: `event-trail-${randomUUID()}`,
     interface: "web" as const,
     ipAddress: getIp(actor.requestHeaders, getAuth().options),
     organizationId: actor.organization.id,
@@ -446,8 +446,10 @@ export async function saveOrganizationRole(
   const denied = await getDeniedRoleActor(orgSlug)
   if (denied) {
     await getDB()
-      .insert(schema.auditEvents)
-      .values(roleAudit(denied, roleId ? "role.update" : "role.create", roleId ?? "new", "denied"))
+      .insert(schema.eventTrailEvents)
+      .values(
+        roleEventTrail(denied, roleId ? "role.update" : "role.create", roleId ?? "new", "denied")
+      )
   }
   return { error: "forbidden" as const }
 }
@@ -469,8 +471,8 @@ export async function assignOrganizationRoleUsers(
   const denied = await getDeniedRoleActor(orgSlug)
   if (denied) {
     await getDB()
-      .insert(schema.auditEvents)
-      .values(roleAudit(denied, "role.assign", roleId, "denied"))
+      .insert(schema.eventTrailEvents)
+      .values(roleEventTrail(denied, "role.assign", roleId, "denied"))
   }
   return { error: "forbidden" as const }
 }
@@ -481,8 +483,8 @@ export async function deleteOrganizationRole(orgSlug: string, roleId: string) {
   const denied = await getDeniedRoleActor(orgSlug)
   if (denied) {
     await getDB()
-      .insert(schema.auditEvents)
-      .values(roleAudit(denied, "role.delete", roleId, "denied"))
+      .insert(schema.eventTrailEvents)
+      .values(roleEventTrail(denied, "role.delete", roleId, "denied"))
   }
   return { error: "forbidden" as const }
 }
@@ -978,8 +980,8 @@ async function saveRole(
     : await validateGrantScopes(actor.organization.id, input.grants)
   if (!valid) {
     await getDB()
-      .insert(schema.auditEvents)
-      .values(roleAudit(actor, action, roleId ?? "new", "failed", workspace?.id))
+      .insert(schema.eventTrailEvents)
+      .values(roleEventTrail(actor, action, roleId ?? "new", "failed", workspace?.id))
     return { error: "invalid" as const }
   }
   const grants = expandPermissionGrants(input.grants)
@@ -1020,8 +1022,8 @@ async function saveRole(
       .limit(1)
     if (!authorized) {
       await tx
-        .insert(schema.auditEvents)
-        .values(roleAudit(actor, action, roleId ?? "new", "denied", workspace?.id))
+        .insert(schema.eventTrailEvents)
+        .values(roleEventTrail(actor, action, roleId ?? "new", "denied", workspace?.id))
       return { error: "forbidden" as const }
     }
 
@@ -1105,13 +1107,13 @@ async function saveRole(
           .where(and(roleScope(scope), eq(schema.roleScopes.roleId, id)))
           .limit(1)
         if (!immutable) return { error: "not-found" as const }
-        await tx.insert(schema.auditEvents).values({
+        await tx.insert(schema.eventTrailEvents).values({
           actorId: actor.userId,
           actorType: "user",
           action,
           automaticCascade: false,
           category: "role",
-          id: `audit-${randomUUID()}`,
+          id: `event-trail-${randomUUID()}`,
           interface: "web",
           ipAddress: getIp(actor.requestHeaders, getAuth().options),
           organizationId: actor.organization.id,
@@ -1308,7 +1310,7 @@ async function saveRole(
         workspaceId: workspace?.id,
       })
     }
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       actorId: actor.userId,
       actorType: "user",
       action,
@@ -1325,7 +1327,7 @@ async function saveRole(
         : null,
       category: "role",
       cleanupJobId: cleanupId,
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.requestHeaders, getAuth().options),
       organizationId: actor.organization.id,
@@ -1432,9 +1434,9 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
       (role.systemRole === "workspace_admin" && authority.systemRole !== "superadmin")
     ) {
       await tx
-        .insert(schema.auditEvents)
+        .insert(schema.eventTrailEvents)
         .values(
-          roleAudit(
+          roleEventTrail(
             actor,
             workspace ? "workspace_role.assign" : "role.assign",
             roleId,
@@ -1520,7 +1522,7 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
         )
     }
 
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       actorId: actor.userId,
       actorType: "user",
       action: workspace ? "workspace_role.assign" : "role.assign",
@@ -1528,7 +1530,7 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
       automaticCascade: false,
       before: current.map(({ memberId }) => ({ field: "member_id" as const, value: memberId })),
       category: "role",
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.requestHeaders, getAuth().options),
       organizationId: actor.organization.id,
@@ -1562,9 +1564,9 @@ async function removeRole(scope: RoleManagement, roleId: string) {
     if (!role) return { error: "not-found" as const }
     if (role.immutable) {
       await tx
-        .insert(schema.auditEvents)
+        .insert(schema.eventTrailEvents)
         .values(
-          roleAudit(
+          roleEventTrail(
             actor,
             workspace ? "workspace_role.delete" : "role.delete",
             roleId,
@@ -1640,9 +1642,9 @@ async function removeRole(scope: RoleManagement, roleId: string) {
       .limit(1)
     if (!authorized) {
       await tx
-        .insert(schema.auditEvents)
+        .insert(schema.eventTrailEvents)
         .values(
-          roleAudit(
+          roleEventTrail(
             actor,
             workspace ? "workspace_role.delete" : "role.delete",
             roleId,
@@ -1672,14 +1674,14 @@ async function removeRole(scope: RoleManagement, roleId: string) {
           eq(schema.organizationRoles.id, roleId)
         )
       )
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       actorId: actor.userId,
       actorType: "user",
       action: workspace ? "workspace_role.delete" : "role.delete",
       automaticCascade: false,
       before: [{ field: "name", value: role.name }],
       category: "role",
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(actor.requestHeaders, getAuth().options),
       organizationId: actor.organization.id,
@@ -1762,9 +1764,9 @@ export async function saveWorkspaceRole(
   const denied = await getDeniedWorkspaceRoleActor(orgSlug, workspaceSlug)
   if (denied) {
     await getDB()
-      .insert(schema.auditEvents)
+      .insert(schema.eventTrailEvents)
       .values(
-        roleAudit(
+        roleEventTrail(
           denied,
           roleId ? "workspace_role.update" : "workspace_role.create",
           roleId ?? "new",
@@ -1802,8 +1804,10 @@ export async function assignWorkspaceRoleUsers(
   const denied = await getDeniedWorkspaceRoleActor(orgSlug, workspaceSlug)
   if (denied) {
     await getDB()
-      .insert(schema.auditEvents)
-      .values(roleAudit(denied, "workspace_role.assign", roleId, "denied", denied.workspace.id))
+      .insert(schema.eventTrailEvents)
+      .values(
+        roleEventTrail(denied, "workspace_role.assign", roleId, "denied", denied.workspace.id)
+      )
   }
   return { error: "forbidden" as const }
 }
@@ -1814,8 +1818,10 @@ export async function deleteWorkspaceRole(orgSlug: string, workspaceSlug: string
   const denied = await getDeniedWorkspaceRoleActor(orgSlug, workspaceSlug)
   if (denied) {
     await getDB()
-      .insert(schema.auditEvents)
-      .values(roleAudit(denied, "workspace_role.delete", roleId, "denied", denied.workspace.id))
+      .insert(schema.eventTrailEvents)
+      .values(
+        roleEventTrail(denied, "workspace_role.delete", roleId, "denied", denied.workspace.id)
+      )
   }
   return { error: "forbidden" as const }
 }

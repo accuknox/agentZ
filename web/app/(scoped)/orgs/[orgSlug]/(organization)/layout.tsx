@@ -19,11 +19,11 @@ import { signInURL } from "@/lib/sign-in-redirect"
 export const unstable_instant = false
 
 export default async function OrganizationLayout({
-  auditEvent,
+  eventTrailEvent,
   children,
   params,
 }: {
-  auditEvent: React.ReactNode
+  eventTrailEvent: React.ReactNode
   children: React.ReactNode
   params: Promise<{ orgSlug: string }>
 }) {
@@ -130,8 +130,8 @@ export default async function OrganizationLayout({
   }
 
   const root = `/orgs/${result.organization.slug}`
-  const rememberedPath = requestedURL.pathname.startsWith(`${root}/audit/`)
-    ? `${root}/audit`
+  const rememberedPath = requestedURL.pathname.startsWith(`${root}/event-trail/`)
+    ? `${root}/event-trail`
     : requestedURL.pathname
   await rememberOrganizationRoute(result.organization.id, rememberedPath, null)
 
@@ -165,7 +165,7 @@ export default async function OrganizationLayout({
         }
       >
         <AdministrationLayout>{children}</AdministrationLayout>
-        {auditEvent}
+        {eventTrailEvent}
       </AppShell>
     </>
   )

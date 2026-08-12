@@ -340,7 +340,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationCreateMCPConnection)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
-			if err := s.createMCPAudit(r.Context(), r, access, "unknown", access.failureResult()); err != nil {
+			if err := s.createMCPEventTrail(r.Context(), r, access, "unknown", access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
 			}
@@ -352,7 +352,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 
 	var req gatewayapi.CreateMCPConnectionRequest
 	if !decodeJSONBody(w, r, &req, false) {
-		if err := s.createMCPAudit(r.Context(), r, access, "unknown", gatewaydb.AuditResultFailed); err != nil {
+		if err := s.createMCPEventTrail(r.Context(), r, access, "unknown", gatewaydb.EventTrailResultFailed); err != nil {
 			recordRequestError(w, "internal_error", err)
 		}
 		return
@@ -361,7 +361,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 	name := strings.TrimSpace(req.Name)
 	fields := validateMCPConnectionName(name, "name")
 	if len(fields) > 0 {
-		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+		if err := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed); err != nil {
 			writeInternalError(w, r, err)
 			return
 		}
@@ -389,7 +389,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 
 	spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, &req.Auth)
 	if len(fields) > 0 {
-		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+		if err := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed); err != nil {
 			writeInternalError(w, r, err)
 			return
 		}
@@ -408,17 +408,17 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 	if err := mcpconnwebhook.Validate(conn); err != nil {
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			err = errors.Join(err, auditErr)
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			err = errors.Join(err, eventTrailErr)
 		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
 	if err := s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials); err != nil {
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			err.Cause = errors.Join(err.Cause, auditErr)
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			err.Cause = errors.Join(err.Cause, eventTrailErr)
 		}
 		writeMCPAPIError(w, r, err)
 		return
@@ -428,14 +428,14 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		if delErr != nil {
 			err = errors.Join(err, delErr)
 		}
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			err = errors.Join(err, auditErr)
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			err = errors.Join(err, eventTrailErr)
 		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
-	if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultSucceeded); err != nil {
+	if err := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -485,7 +485,7 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationDeleteMCPConnection)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
-			if err := s.createMCPAudit(r.Context(), r, access, name, access.failureResult()); err != nil {
+			if err := s.createMCPEventTrail(r.Context(), r, access, name, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
 			}
@@ -495,7 +495,7 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	}
 	conn, ok := s.getMCPConnection(w, r, access.namespace, name)
 	if !ok {
-		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+		if err := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed); err != nil {
 			recordRequestError(w, "internal_error", err)
 		}
 		return
@@ -504,9 +504,9 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 		r.Context(), access, agentzv1alpha1.OrganizationResourceKindMCPConnection, name,
 	)
 	if err != nil || conflict != nil {
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if err != nil || auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if err != nil || eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, conflict)
@@ -515,15 +515,15 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 
 	referrers, err := s.referencingSandboxes(r.Context(), access.namespace, conn.Name)
 	if err != nil {
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			err = errors.Join(err, auditErr)
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			err = errors.Join(err, eventTrailErr)
 		}
 		writeMCPInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
 		return
 	}
 	if len(referrers) > 0 {
-		if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed); err != nil {
+		if err := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed); err != nil {
 			writeInternalError(w, r, err)
 			return
 		}
@@ -541,30 +541,30 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	}
 
 	if err := s.k8sClient.Delete(r.Context(), conn); err != nil {
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			err = errors.Join(err, auditErr)
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			err = errors.Join(err, eventTrailErr)
 		}
 		writeMCPAPIError(w, r, mapKubeHTTPError("delete mcp connection", err))
 		return
 	}
 	if err := s.deleteMCPConnectionCredentials(r.Context(), *conn); err != nil {
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			err = errors.Join(err, auditErr)
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			err = errors.Join(err, eventTrailErr)
 		}
 		writeMCPAPIError(w, r, mapOpenBaoError(err))
 		return
 	}
 	if err := s.waitForMCPConnectionDeletion(r.Context(), conn.Name); err != nil {
-		auditErr := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			err = errors.Join(err, auditErr)
+		eventTrailErr := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			err = errors.Join(err, eventTrailErr)
 		}
 		writeMCPInternalError(w, r, err)
 		return
 	}
-	if err := s.createMCPAudit(r.Context(), r, access, name, gatewaydb.AuditResultSucceeded); err != nil {
+	if err := s.createMCPEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}

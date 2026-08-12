@@ -179,8 +179,10 @@ function WorkspaceNavigation({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarNavigationLink
-                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/audit` as Route}
-                  label="Audit"
+                  href={
+                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/event-trail` as Route
+                  }
+                  label="Event Trail"
                 >
                   <Activity aria-hidden="true" />
                 </SidebarNavigationLink>
@@ -384,7 +386,7 @@ function OrganizationNavigation({
               </SidebarNavigationLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarNavigationLink href={`${root}/audit` as Route} label="Audit">
+              <SidebarNavigationLink href={`${root}/event-trail` as Route} label="Event Trail">
                 <Activity aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>

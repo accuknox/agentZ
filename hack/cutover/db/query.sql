@@ -501,8 +501,8 @@ WHERE tenant_namespace = sqlc.arg(source_namespace);
 DELETE FROM agents
 WHERE tenant_namespace = sqlc.arg(source_namespace);
 
--- name: CreateAuditEvent :exec
-INSERT INTO audit_events(
+-- name: CreateEventTrailEvent :exec
+INSERT INTO event_trail_events(
   id,
   organization_id,
   workspace_id,

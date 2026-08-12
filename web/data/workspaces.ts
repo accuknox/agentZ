@@ -266,7 +266,7 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
       )
       .limit(1)
 
-    const audit = {
+    const eventTrail = {
       action: "workspace.modify",
       actorId: organizationSession.session.user.id,
       actorType: "user" as const,
@@ -274,7 +274,7 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
       automaticCascade: false,
       before: [{ field: "name", value: workspace.name }],
       category: "workspace" as const,
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web" as const,
       ipAddress: getIp(organizationSession.requestHeaders, getAuth().options),
       organizationId: workspace.organizationId,
@@ -283,10 +283,10 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
       targetType: "workspace",
       userAgent: organizationSession.requestHeaders.get("user-agent"),
       workspaceId: workspace.id,
-    } satisfies typeof schema.auditEvents.$inferInsert
+    } satisfies typeof schema.eventTrailEvents.$inferInsert
 
     if (!superadmin) {
-      await tx.insert(schema.auditEvents).values(audit)
+      await tx.insert(schema.eventTrailEvents).values(eventTrail)
       return { error: "forbidden" as const }
     }
     if (workspace.name !== name) {
@@ -295,7 +295,7 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
         .set({ name, updatedAt: new Date() })
         .where(eq(schema.workspaces.id, workspace.id))
     }
-    await tx.insert(schema.auditEvents).values(audit)
+    await tx.insert(schema.eventTrailEvents).values(eventTrail)
     return { organizationId: workspace.organizationId, workspaceId: workspace.id }
   })
 }

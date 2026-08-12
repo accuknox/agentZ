@@ -27,10 +27,10 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-type sandboxAudit struct {
+type sandboxEventTrail struct {
 	access resourceAccess
 	name   string
-	result gatewaydb.AuditResult
+	result gatewaydb.EventTrailResult
 }
 
 func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandboxName string, operation authorization.Operation) (resourceAccess, *apiError) {
@@ -54,16 +54,16 @@ func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandbox
 	return access, apiErr
 }
 
-func (s *Service) createSandboxAudit(ctx context.Context, r *http.Request, audit sandboxAudit) error {
-	return s.createResourceAudit(
+func (s *Service) createSandboxEventTrail(ctx context.Context, r *http.Request, eventTrail sandboxEventTrail) error {
+	return s.createResourceEventTrail(
 		ctx,
 		r,
-		audit.access,
-		gatewaydb.AuditTargetSandbox,
-		audit.name,
+		eventTrail.access,
+		gatewaydb.EventTrailTargetSandbox,
+		eventTrail.name,
 		"sandbox",
-		sandboxOperationAction(audit.access.operation),
-		audit.result,
+		sandboxOperationAction(eventTrail.access.operation),
+		eventTrail.result,
 	)
 }
 

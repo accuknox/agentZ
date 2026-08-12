@@ -2,12 +2,16 @@ import "server-only"
 
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { getAuditEvent, listAuditEvents, type ListAuditEventsData } from "@/lib/gateway/client"
+import {
+  getEventTrailEvent,
+  listEventTrailEvents,
+  type ListEventTrailEventsData,
+} from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
-export async function listOrganizationAuditEvents(
+export async function listOrganizationEventTrailEvents(
   orgSlug: string,
-  query: NonNullable<ListAuditEventsData["query"]>
+  query: NonNullable<ListEventTrailEventsData["query"]>
 ) {
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind !== "ready") {
@@ -15,7 +19,7 @@ export async function listOrganizationAuditEvents(
   }
 
   await activateOrganization(scope.organization.id)
-  const result = await listAuditEvents({
+  const result = await listEventTrailEvents({
     client: getGatewayServerClient(),
     query,
   })
@@ -26,23 +30,23 @@ export async function listOrganizationAuditEvents(
   return result.data
 }
 
-export async function getOrganizationAuditEvent(orgSlug: string, eventId: string) {
+export async function getOrganizationEventTrailEvent(orgSlug: string, eventId: string) {
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind !== "ready") {
     return
   }
 
   await activateOrganization(scope.organization.id)
-  return getAuditEvent({
+  return getEventTrailEvent({
     client: getGatewayServerClient(),
     path: { eventId },
   })
 }
 
-export async function listWorkspaceAuditEvents(
+export async function listWorkspaceEventTrailEvents(
   orgSlug: string,
   workspaceSlug: string,
-  query: NonNullable<ListAuditEventsData["query"]>
+  query: NonNullable<ListEventTrailEventsData["query"]>
 ) {
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (
@@ -53,22 +57,22 @@ export async function listWorkspaceAuditEvents(
     return
   }
 
-  const audit = await listAuditEvents({
+  const eventTrail = await listEventTrailEvents({
     client: getGatewayServerClient(scope.workspace.id),
     headers: { "X-AgentZ-Workspace-ID": scope.workspace.id },
     query,
   })
-  if (audit.error) {
-    throw new Error(audit.error.message)
+  if (eventTrail.error) {
+    throw new Error(eventTrail.error.message)
   }
 
   return {
-    audit: audit.data,
+    eventTrail: eventTrail.data,
     workspace: { id: scope.workspace.id, name: scope.workspace.name },
   }
 }
 
-export async function getWorkspaceAuditEvent(
+export async function getWorkspaceEventTrailEvent(
   orgSlug: string,
   workspaceSlug: string,
   eventId: string
@@ -82,7 +86,7 @@ export async function getWorkspaceAuditEvent(
     return
   }
 
-  return getAuditEvent({
+  return getEventTrailEvent({
     client: getGatewayServerClient(scope.workspace.id),
     headers: { "X-AgentZ-Workspace-ID": scope.workspace.id },
     path: { eventId },

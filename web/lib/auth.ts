@@ -511,14 +511,14 @@ function buildAuth() {
                   )
                   .onConflictDoNothing()
               }
-              await tx.insert(schema.auditEvents).values({
+              await tx.insert(schema.eventTrailEvents).values({
                 action: "invitation.accept",
                 actorId: user.id,
                 actorType: "user",
                 after: [{ field: "user_id", value: user.id }],
                 automaticCascade: false,
                 category: "membership",
-                id: `audit-${randomUUID()}`,
+                id: `event-trail-${randomUUID()}`,
                 interface: "better_auth",
                 organizationId: organization.id,
                 result: "succeeded",
@@ -860,14 +860,14 @@ async function createSocialAdmissionMembership(
     if (assignments.length === 0) {
       return
     }
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       action: "social_admission.accept",
       actorId: user.id,
       actorType: "user",
       after: [{ field: "user_id", value: user.id }],
       automaticCascade: false,
       category: "membership",
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "better_auth",
       organizationId: state.organizationId,
       result: "succeeded",

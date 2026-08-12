@@ -1447,7 +1447,7 @@ export async function deleteWorkspace(
       targetType: "workspace",
       workspaceId: workspace.id,
     })
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       action: "workspace.delete",
       actorId: result.organizationSession.session.user.id,
       actorType: "user",
@@ -1455,7 +1455,7 @@ export async function deleteWorkspace(
       before: [{ field: "name", value: workspace.name }],
       category: "workspace",
       cleanupJobId: cleanupId,
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(result.organizationSession.requestHeaders, getAuth().options),
       organizationId: result.organization.id,

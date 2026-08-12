@@ -115,7 +115,7 @@ func (s *Service) resolveInferenceProviderAccess(ctx context.Context, workspaceI
 	return s.resolveResourceAccess(ctx, req)
 }
 
-func (s *Service) createInferenceProviderAudit(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.AuditResult) error {
+func (s *Service) createInferenceProviderEventTrail(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
 	action := "unmapped"
 	switch access.operation {
 	case authorization.OperationCreateInferenceProvider:
@@ -127,8 +127,8 @@ func (s *Service) createInferenceProviderAudit(ctx context.Context, r *http.Requ
 	case authorization.OperationDeleteInferenceProvider:
 		action = "delete"
 	}
-	return s.createResourceAudit(
-		ctx, r, access, gatewaydb.AuditTargetInferenceProvider, name,
+	return s.createResourceEventTrail(
+		ctx, r, access, gatewaydb.EventTrailTargetInferenceProvider, name,
 		"inference_provider", action, result,
 	)
 }
@@ -428,7 +428,7 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createInferenceProviderAudit(
+			err := s.createInferenceProviderEventTrail(
 				r.Context(), r, access, "oauth-ticket", access.failureResult(),
 			)
 			if err != nil {
@@ -439,17 +439,17 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceAudited := false
+	persistenceEventTrailed := false
 	defer func() {
-		if persistenceAudited {
+		if persistenceEventTrailed {
 			return
 		}
-		err := s.createInferenceProviderAudit(
+		err := s.createInferenceProviderEventTrail(
 			context.WithoutCancel(r.Context()), r, access, "oauth-ticket",
-			gatewaydb.AuditResultFailed,
+			gatewaydb.EventTrailResultFailed,
 		)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "audit failed Inference Provider OAuth ticket", slog.Any("err", err))
+			slog.ErrorContext(r.Context(), "event trail failed Inference Provider OAuth ticket", slog.Any("err", err))
 		}
 	}()
 	ns := access.namespace
@@ -573,18 +573,18 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		return
 	}
 	path := ns + "/" + oauthTicketPathDir + "/" + id
-	persistenceAudited = true
+	persistenceEventTrailed = true
 	err = s.baoKV.PutMetadata(r.Context(), path, baoapi.KVMetadataPutInput{
 		CASRequired:        true,
 		DeleteVersionAfter: oauthTicketLifetime,
 		MaxVersions:        1,
 	})
 	if err != nil {
-		auditErr := s.createInferenceProviderAudit(
-			r.Context(), r, access, id, gatewaydb.AuditResultFailed,
+		eventTrailErr := s.createInferenceProviderEventTrail(
+			r.Context(), r, access, id, gatewaydb.EventTrailResultFailed,
 		)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, mapOpenBaoError(err))
@@ -596,18 +596,18 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		if cleanupErr != nil && !errors.Is(cleanupErr, baoapi.ErrSecretNotFound) {
 			err = errors.Join(err, fmt.Errorf("clean up oauth ticket metadata: %w", cleanupErr))
 		}
-		auditErr := s.createInferenceProviderAudit(
-			r.Context(), r, access, id, gatewaydb.AuditResultFailed,
+		eventTrailErr := s.createInferenceProviderEventTrail(
+			r.Context(), r, access, id, gatewaydb.EventTrailResultFailed,
 		)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, mapOpenBaoError(err))
 		return
 	}
-	if err := s.createInferenceProviderAudit(
-		r.Context(), r, access, id, gatewaydb.AuditResultSucceeded,
+	if err := s.createInferenceProviderEventTrail(
+		r.Context(), r, access, id, gatewaydb.EventTrailResultSucceeded,
 	); err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -636,7 +636,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createInferenceProviderAudit(
+			err := s.createInferenceProviderEventTrail(
 				r.Context(), r, access, name, access.failureResult(),
 			)
 			if err != nil {
@@ -647,13 +647,13 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceAudited := false
+	persistenceEventTrailed := false
 	defer func() {
-		if persistenceAudited {
+		if persistenceEventTrailed {
 			return
 		}
-		if err := s.createInferenceProviderAudit(context.WithoutCancel(r.Context()), r, access, name, gatewaydb.AuditResultFailed); err != nil {
-			slog.ErrorContext(r.Context(), "audit failed Inference Provider create", slog.Any("err", err))
+		if err := s.createInferenceProviderEventTrail(context.WithoutCancel(r.Context()), r, access, name, gatewaydb.EventTrailResultFailed); err != nil {
+			slog.ErrorContext(r.Context(), "event trail failed Inference Provider create", slog.Any("err", err))
 		}
 	}()
 	ns := access.namespace
@@ -730,7 +730,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		}
 	}
 	provider.OwnerReferences = []metav1.OwnerReference{access.owner}
-	persistenceAudited = true
+	persistenceEventTrailed = true
 	if err := s.k8sClient.Create(r.Context(), provider); err != nil {
 		if record != nil {
 			cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
@@ -744,18 +744,18 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 				return
 			}
 		}
-		auditErr := s.createInferenceProviderAudit(
-			r.Context(), r, access, name, gatewaydb.AuditResultFailed,
+		eventTrailErr := s.createInferenceProviderEventTrail(
+			r.Context(), r, access, name, gatewaydb.EventTrailResultFailed,
 		)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("create inference provider", err))
 		return
 	}
-	if err := s.createInferenceProviderAudit(
-		r.Context(), r, access, name, gatewaydb.AuditResultSucceeded,
+	if err := s.createInferenceProviderEventTrail(
+		r.Context(), r, access, name, gatewaydb.EventTrailResultSucceeded,
 	); err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -928,7 +928,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createInferenceProviderAudit(
+			err := s.createInferenceProviderEventTrail(
 				r.Context(), r, access, providerName, access.failureResult(),
 			)
 			if err != nil {
@@ -939,17 +939,17 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceAudited := false
+	persistenceEventTrailed := false
 	defer func() {
-		if persistenceAudited {
+		if persistenceEventTrailed {
 			return
 		}
-		err := s.createInferenceProviderAudit(
+		err := s.createInferenceProviderEventTrail(
 			context.WithoutCancel(r.Context()), r, access, providerName,
-			gatewaydb.AuditResultFailed,
+			gatewaydb.EventTrailResultFailed,
 		)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "audit failed Inference Provider update", slog.Any("err", err))
+			slog.ErrorContext(r.Context(), "event trail failed Inference Provider update", slog.Any("err", err))
 		}
 	}()
 	ns := access.namespace
@@ -1058,13 +1058,13 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		current.Annotations = map[string]string{}
 	}
 	current.Annotations[providerUpdatedAtAnnotation] = time.Now().UTC().Format(time.RFC3339Nano)
-	persistenceAudited = true
+	persistenceEventTrailed = true
 	if err := s.k8sClient.Update(r.Context(), current); err != nil {
-		auditErr := s.createInferenceProviderAudit(
-			r.Context(), r, access, providerName, gatewaydb.AuditResultFailed,
+		eventTrailErr := s.createInferenceProviderEventTrail(
+			r.Context(), r, access, providerName, gatewaydb.EventTrailResultFailed,
 		)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		if credentialChanged {
@@ -1082,8 +1082,8 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, mapKubeHTTPError("update inference provider", err))
 		return
 	}
-	if err := s.createInferenceProviderAudit(
-		r.Context(), r, access, providerName, gatewaydb.AuditResultSucceeded,
+	if err := s.createInferenceProviderEventTrail(
+		r.Context(), r, access, providerName, gatewaydb.EventTrailResultSucceeded,
 	); err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -1112,7 +1112,7 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createInferenceProviderAudit(
+			err := s.createInferenceProviderEventTrail(
 				r.Context(), r, access, providerName, access.failureResult(),
 			)
 			if err != nil {
@@ -1123,13 +1123,13 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceAudited := false
+	persistenceEventTrailed := false
 	defer func() {
-		if persistenceAudited {
+		if persistenceEventTrailed {
 			return
 		}
-		if err := s.createInferenceProviderAudit(context.WithoutCancel(r.Context()), r, access, providerName, gatewaydb.AuditResultFailed); err != nil {
-			slog.ErrorContext(r.Context(), "audit failed Inference Provider delete", slog.Any("err", err))
+		if err := s.createInferenceProviderEventTrail(context.WithoutCancel(r.Context()), r, access, providerName, gatewaydb.EventTrailResultFailed); err != nil {
+			slog.ErrorContext(r.Context(), "event trail failed Inference Provider delete", slog.Any("err", err))
 		}
 	}()
 	provider, usage, ok := s.providerAndUsage(w, r, access.namespace, providerName)
@@ -1170,20 +1170,20 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		))
 		return
 	}
-	persistenceAudited = true
+	persistenceEventTrailed = true
 	if err := s.k8sClient.Delete(r.Context(), provider); err != nil {
-		auditErr := s.createInferenceProviderAudit(
-			r.Context(), r, access, providerName, gatewaydb.AuditResultFailed,
+		eventTrailErr := s.createInferenceProviderEventTrail(
+			r.Context(), r, access, providerName, gatewaydb.EventTrailResultFailed,
 		)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("delete inference provider", err))
 		return
 	}
-	if err := s.createInferenceProviderAudit(
-		r.Context(), r, access, providerName, gatewaydb.AuditResultSucceeded,
+	if err := s.createInferenceProviderEventTrail(
+		r.Context(), r, access, providerName, gatewaydb.EventTrailResultSucceeded,
 	); err != nil {
 		writeInternalError(w, r, err)
 		return

@@ -1,4 +1,4 @@
-import { AuditEventDetail } from "../audit-event"
+import { EventTrailEventDetail } from "../event-trail-event"
 
 export const unstable_instant = {
   prefetch: "runtime",
@@ -14,7 +14,7 @@ export const unstable_instant = {
         ["x-agentz-pathname", null],
       ],
       params: {
-        catchAll: ["audit", "sample-event"],
+        catchAll: ["event trail", "sample-event"],
         eventId: "sample-event",
         orgSlug: "sample-organisation",
       },
@@ -22,11 +22,11 @@ export const unstable_instant = {
   ],
 }
 
-export default async function AuditEventPage({
+export default async function EventTrailEventPage({
   params,
 }: {
   params: Promise<{ eventId: string; orgSlug: string }>
 }) {
   const { eventId, orgSlug } = await params
-  return <AuditEventDetail eventId={eventId} orgSlug={orgSlug} />
+  return <EventTrailEventDetail eventId={eventId} orgSlug={orgSlug} />
 }

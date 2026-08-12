@@ -1368,7 +1368,7 @@ WITH revoked AS (
     AND apikeys.reference_id = revoked.organization_id
   RETURNING apikeys.id
 )
-INSERT INTO audit_events(
+INSERT INTO event_trail_events(
   id,
   organization_id,
   workspace_id,
@@ -1383,7 +1383,7 @@ INSERT INTO audit_events(
   interface
 )
 SELECT
-  sqlc.arg(audit_id),
+  sqlc.arg(event_trail_id),
   revoked.organization_id,
   revoked.workspace_id,
   'system',
@@ -1948,8 +1948,8 @@ WHERE user_id = sqlc.arg(user_id)
   AND disabled_at IS NULL
 FOR UPDATE;
 
--- name: GatewayCreateAuditEvent :one
-INSERT INTO audit_events(
+-- name: GatewayCreateEventTrailEvent :one
+INSERT INTO event_trail_events(
   id,
   organization_id,
   workspace_id,
@@ -2007,196 +2007,196 @@ RETURNING
   user_agent,
   created_at;
 
--- name: GatewayListAuditEvents :many
+-- name: GatewayListEventTrailEvents :many
 SELECT
-  audit_events.id,
-  audit_events.organization_id,
-  audit_events.workspace_id,
-  audit_events.actor_type,
-  audit_events.actor_id,
-  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  event_trail_events.id,
+  event_trail_events.organization_id,
+  event_trail_events.workspace_id,
+  event_trail_events.actor_type,
+  event_trail_events.actor_id,
+  COALESCE(users.name, apikeys.name, event_trail_events.actor_id, 'System') AS actor_name,
   users.email AS actor_email,
-  audit_events.target_type,
-  audit_events.target_id,
+  event_trail_events.target_type,
+  event_trail_events.target_id,
   COALESCE(
-    CASE audit_events.target_type
+    CASE event_trail_events.target_type
       WHEN 'organization' THEN organizations.name
       WHEN 'workspace' THEN target_workspaces.name
       WHEN 'organization_membership' THEN target_users.name
       WHEN 'team' THEN target_teams.name
     END,
-    audit_events.target_id
+    event_trail_events.target_id
   ) AS target_name,
   (COALESCE(
-    (CASE audit_events.target_type
+    (CASE event_trail_events.target_type
       WHEN 'organization' THEN organizations.slug
       WHEN 'workspace' THEN target_workspaces.slug
     END)::text,
     ''
   ))::text AS target_slug,
-  audit_events.category,
-  audit_events.action,
-  audit_events.result,
-  audit_events.before,
-  audit_events.after,
-  audit_events.automatic_cascade,
-  audit_events.cleanup_job_id,
-  audit_events.interface,
-  audit_events.ip_address,
-  audit_events.user_agent,
-  audit_events.created_at,
+  event_trail_events.category,
+  event_trail_events.action,
+  event_trail_events.result,
+  event_trail_events.before,
+  event_trail_events.after,
+  event_trail_events.automatic_cascade,
+  event_trail_events.cleanup_job_id,
+  event_trail_events.interface,
+  event_trail_events.ip_address,
+  event_trail_events.user_agent,
+  event_trail_events.created_at,
   workspaces.name AS workspace_name,
   workspaces.slug AS workspace_slug,
   cleanup_jobs.state AS cleanup_state,
   cleanup_jobs.completed_at AS cleanup_completed_at
-FROM audit_events
+FROM event_trail_events
 JOIN organizations
-  ON organizations.id = audit_events.organization_id
+  ON organizations.id = event_trail_events.organization_id
 LEFT JOIN users
-  ON audit_events.actor_type = 'user'
-  AND users.id = audit_events.actor_id
+  ON event_trail_events.actor_type = 'user'
+  AND users.id = event_trail_events.actor_id
 LEFT JOIN apikeys
-  ON audit_events.actor_type = 'api_key'
-  AND apikeys.id = audit_events.actor_id
+  ON event_trail_events.actor_type = 'api_key'
+  AND apikeys.id = event_trail_events.actor_id
 LEFT JOIN workspaces
-  ON workspaces.id = audit_events.workspace_id
-  AND workspaces.organization_id = audit_events.organization_id
+  ON workspaces.id = event_trail_events.workspace_id
+  AND workspaces.organization_id = event_trail_events.organization_id
 LEFT JOIN workspaces AS target_workspaces
-  ON audit_events.target_type = 'workspace'
-  AND target_workspaces.id = audit_events.target_id
-  AND target_workspaces.organization_id = audit_events.organization_id
+  ON event_trail_events.target_type = 'workspace'
+  AND target_workspaces.id = event_trail_events.target_id
+  AND target_workspaces.organization_id = event_trail_events.organization_id
 LEFT JOIN members AS target_members
-  ON audit_events.target_type = 'organization_membership'
-  AND target_members.id = audit_events.target_id
-  AND target_members.organization_id = audit_events.organization_id
+  ON event_trail_events.target_type = 'organization_membership'
+  AND target_members.id = event_trail_events.target_id
+  AND target_members.organization_id = event_trail_events.organization_id
 LEFT JOIN users AS target_users
   ON target_users.id = target_members.user_id
 LEFT JOIN teams AS target_teams
-  ON audit_events.target_type = 'team'
-  AND target_teams.id = audit_events.target_id
-  AND target_teams.organization_id = audit_events.organization_id
+  ON event_trail_events.target_type = 'team'
+  AND target_teams.id = event_trail_events.target_id
+  AND target_teams.organization_id = event_trail_events.organization_id
 LEFT JOIN cleanup_jobs
-  ON cleanup_jobs.id = audit_events.cleanup_job_id
-  AND cleanup_jobs.organization_id = audit_events.organization_id
-WHERE audit_events.organization_id = sqlc.arg(organization_id)
-  AND audit_events.created_at >= sqlc.arg(retained_after)
+  ON cleanup_jobs.id = event_trail_events.cleanup_job_id
+  AND cleanup_jobs.organization_id = event_trail_events.organization_id
+WHERE event_trail_events.organization_id = sqlc.arg(organization_id)
+  AND event_trail_events.created_at >= sqlc.arg(retained_after)
   AND (
     sqlc.narg(event_id)::text IS NULL
-    OR audit_events.id = sqlc.narg(event_id)::text
+    OR event_trail_events.id = sqlc.narg(event_id)::text
   )
   AND (
-    sqlc.narg(actor_type)::audit_actor IS NULL
-    OR audit_events.actor_type = sqlc.narg(actor_type)::audit_actor
+    sqlc.narg(actor_type)::event_trail_actor IS NULL
+    OR event_trail_events.actor_type = sqlc.narg(actor_type)::event_trail_actor
   )
   AND (
     sqlc.narg(actor_id)::text IS NULL
-    OR audit_events.actor_id = sqlc.narg(actor_id)::text
+    OR event_trail_events.actor_id = sqlc.narg(actor_id)::text
   )
   AND (
     sqlc.narg(category)::text IS NULL
-    OR audit_events.category = sqlc.narg(category)::text
+    OR event_trail_events.category = sqlc.narg(category)::text
   )
   AND (
     sqlc.narg(workspace_id)::text IS NULL
-    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+    OR event_trail_events.workspace_id = sqlc.narg(workspace_id)::text
   )
   AND (
-    sqlc.narg(target_type)::audit_target IS NULL
-    OR audit_events.target_type = sqlc.narg(target_type)::audit_target
+    sqlc.narg(target_type)::event_trail_target IS NULL
+    OR event_trail_events.target_type = sqlc.narg(target_type)::event_trail_target
   )
   AND (
-    sqlc.narg(result)::audit_result IS NULL
-    OR audit_events.result = sqlc.narg(result)::audit_result
+    sqlc.narg(result)::event_trail_result IS NULL
+    OR event_trail_events.result = sqlc.narg(result)::event_trail_result
   )
   AND (
     sqlc.narg(created_after)::timestamptz IS NULL
-    OR audit_events.created_at >= sqlc.narg(created_after)::timestamptz
+    OR event_trail_events.created_at >= sqlc.narg(created_after)::timestamptz
   )
   AND (
     sqlc.narg(created_before)::timestamptz IS NULL
-    OR audit_events.created_at <= sqlc.narg(created_before)::timestamptz
+    OR event_trail_events.created_at <= sqlc.narg(created_before)::timestamptz
   )
   AND (
     NOT sqlc.arg(cursor_set)::boolean
-    OR audit_events.created_at < sqlc.arg(cursor_created_at)::timestamptz
+    OR event_trail_events.created_at < sqlc.arg(cursor_created_at)::timestamptz
     OR (
-      audit_events.created_at = sqlc.arg(cursor_created_at)::timestamptz
-      AND audit_events.id < sqlc.arg(cursor_id)::text
+      event_trail_events.created_at = sqlc.arg(cursor_created_at)::timestamptz
+      AND event_trail_events.id < sqlc.arg(cursor_id)::text
     )
   )
-ORDER BY audit_events.created_at DESC, audit_events.id DESC
+ORDER BY event_trail_events.created_at DESC, event_trail_events.id DESC
 LIMIT sqlc.arg(page_size);
 
--- name: GatewayListAuditActors :many
+-- name: GatewayListEventTrailActors :many
 SELECT
-  audit_events.actor_type,
-  audit_events.actor_id,
-  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  event_trail_events.actor_type,
+  event_trail_events.actor_id,
+  COALESCE(users.name, apikeys.name, event_trail_events.actor_id, 'System') AS actor_name,
   users.email AS actor_email
-FROM audit_events
+FROM event_trail_events
 LEFT JOIN users
-  ON audit_events.actor_type = 'user'
-  AND users.id = audit_events.actor_id
+  ON event_trail_events.actor_type = 'user'
+  AND users.id = event_trail_events.actor_id
 LEFT JOIN apikeys
-  ON audit_events.actor_type = 'api_key'
-  AND apikeys.id = audit_events.actor_id
-WHERE audit_events.organization_id = sqlc.arg(organization_id)
-  AND audit_events.created_at >= sqlc.arg(retained_after)
+  ON event_trail_events.actor_type = 'api_key'
+  AND apikeys.id = event_trail_events.actor_id
+WHERE event_trail_events.organization_id = sqlc.arg(organization_id)
+  AND event_trail_events.created_at >= sqlc.arg(retained_after)
   AND (
     sqlc.narg(workspace_id)::text IS NULL
-    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+    OR event_trail_events.workspace_id = sqlc.narg(workspace_id)::text
   )
 GROUP BY
-  audit_events.actor_type,
-  audit_events.actor_id,
+  event_trail_events.actor_type,
+  event_trail_events.actor_id,
   users.name,
   users.email,
   apikeys.name
-ORDER BY COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System'), audit_events.actor_type;
+ORDER BY COALESCE(users.name, apikeys.name, event_trail_events.actor_id, 'System'), event_trail_events.actor_type;
 
--- name: GatewayListAuditCategories :many
+-- name: GatewayListEventTrailCategories :many
 SELECT DISTINCT category
-FROM audit_events
-WHERE audit_events.organization_id = sqlc.arg(organization_id)
-  AND audit_events.created_at >= sqlc.arg(retained_after)
+FROM event_trail_events
+WHERE event_trail_events.organization_id = sqlc.arg(organization_id)
+  AND event_trail_events.created_at >= sqlc.arg(retained_after)
   AND (
     sqlc.narg(workspace_id)::text IS NULL
-    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+    OR event_trail_events.workspace_id = sqlc.narg(workspace_id)::text
   )
 ORDER BY category;
 
--- name: GatewayListAuditTargetTypes :many
+-- name: GatewayListEventTrailTargetTypes :many
 SELECT DISTINCT target_type
-FROM audit_events
-WHERE audit_events.organization_id = sqlc.arg(organization_id)
-  AND audit_events.created_at >= sqlc.arg(retained_after)
+FROM event_trail_events
+WHERE event_trail_events.organization_id = sqlc.arg(organization_id)
+  AND event_trail_events.created_at >= sqlc.arg(retained_after)
   AND (
     sqlc.narg(workspace_id)::text IS NULL
-    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+    OR event_trail_events.workspace_id = sqlc.narg(workspace_id)::text
   )
 ORDER BY target_type;
 
--- name: GatewayListAuditWorkspaces :many
+-- name: GatewayListEventTrailWorkspaces :many
 SELECT
-  audit_events.workspace_id,
+  event_trail_events.workspace_id,
   workspaces.name,
   workspaces.slug
-FROM audit_events
+FROM event_trail_events
 LEFT JOIN workspaces
-  ON workspaces.id = audit_events.workspace_id
-  AND workspaces.organization_id = audit_events.organization_id
-WHERE audit_events.organization_id = sqlc.arg(organization_id)
-  AND audit_events.workspace_id IS NOT NULL
-  AND audit_events.created_at >= sqlc.arg(retained_after)
+  ON workspaces.id = event_trail_events.workspace_id
+  AND workspaces.organization_id = event_trail_events.organization_id
+WHERE event_trail_events.organization_id = sqlc.arg(organization_id)
+  AND event_trail_events.workspace_id IS NOT NULL
+  AND event_trail_events.created_at >= sqlc.arg(retained_after)
   AND (
     sqlc.narg(workspace_id)::text IS NULL
-    OR audit_events.workspace_id = sqlc.narg(workspace_id)::text
+    OR event_trail_events.workspace_id = sqlc.narg(workspace_id)::text
   )
-GROUP BY audit_events.workspace_id, workspaces.name, workspaces.slug
-ORDER BY workspaces.name, audit_events.workspace_id;
+GROUP BY event_trail_events.workspace_id, workspaces.name, workspaces.slug
+ORDER BY workspaces.name, event_trail_events.workspace_id;
 
--- name: GatewayDeleteExpiredAuditEvents :execrows
-DELETE FROM audit_events
+-- name: GatewayDeleteExpiredEventTrailEvents :execrows
+DELETE FROM event_trail_events
 WHERE created_at < sqlc.arg(expires_before);
 
 -- name: GatewayUpsertLastAccessibleContext :one

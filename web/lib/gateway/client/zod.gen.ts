@@ -2,13 +2,19 @@
 
 import * as z from "zod"
 
-export const zAuditActorType = z.enum(["user", "api_key", "system"])
+export const zEventTrailActorType = z.enum(["user", "api_key", "system"])
 
-export const zAuditResult = z.enum(["succeeded", "denied", "failed"])
+export const zEventTrailResult = z.enum(["succeeded", "denied", "failed"])
 
-export const zAuditInterface = z.enum(["web", "gateway", "better_auth", "controller", "system"])
+export const zEventTrailInterface = z.enum([
+  "web",
+  "gateway",
+  "better_auth",
+  "controller",
+  "system",
+])
 
-export const zAuditTargetType = z.enum([
+export const zEventTrailTargetType = z.enum([
   "organization",
   "organization_membership",
   "workspace",
@@ -22,78 +28,78 @@ export const zAuditTargetType = z.enum([
   "agent",
 ])
 
-export const zAuditField = z.object({
+export const zEventTrailField = z.object({
   field: z.enum(["member_id", "name", "provisioning_attempt", "role", "slug", "state", "user_id"]),
   value: z.string(),
 })
 
-export const zAuditActor = z.object({
-  type: zAuditActorType,
+export const zEventTrailActor = z.object({
+  type: zEventTrailActorType,
   id: z.string().optional(),
   name: z.string().optional(),
   email: z.email().optional(),
 })
 
-export const zAuditTarget = z.object({
-  type: zAuditTargetType,
+export const zEventTrailTarget = z.object({
+  type: zEventTrailTargetType,
   id: z.string(),
   name: z.string().optional(),
   slug: z.string().optional(),
 })
 
-export const zAuditWorkspace = z.object({
+export const zEventTrailWorkspace = z.object({
   id: z.string(),
   name: z.string().optional(),
   slug: z.string().optional(),
 })
 
-export const zAuditCleanup = z.object({
+export const zEventTrailCleanup = z.object({
   id: z.string(),
   state: z.enum(["pending", "running", "succeeded", "failed"]),
   completed_at: z.iso.datetime().optional(),
 })
 
-export const zAuditEvent = z.object({
+export const zEventTrailEvent = z.object({
   id: z.string(),
-  actor: zAuditActor,
-  target: zAuditTarget,
-  workspace: zAuditWorkspace.optional(),
+  actor: zEventTrailActor,
+  target: zEventTrailTarget,
+  workspace: zEventTrailWorkspace.optional(),
   category: z.string(),
   action: z.string(),
-  result: zAuditResult,
-  before: z.array(zAuditField),
-  after: z.array(zAuditField),
+  result: zEventTrailResult,
+  before: z.array(zEventTrailField),
+  after: z.array(zEventTrailField),
   automatic_cascade: z.boolean(),
-  interface: zAuditInterface,
+  interface: zEventTrailInterface,
   ip_address: z.string().optional(),
   user_agent: z.string().optional(),
-  cleanup: zAuditCleanup.optional(),
+  cleanup: zEventTrailCleanup.optional(),
   created_at: z.iso.datetime(),
 })
 
-export const zAuditActorFilter = z.object({
+export const zEventTrailActorFilter = z.object({
   id: z.string().optional(),
-  type: zAuditActorType,
+  type: zEventTrailActorType,
   name: z.string().optional(),
   email: z.email().optional(),
 })
 
-export const zAuditWorkspaceFilter = z.object({
+export const zEventTrailWorkspaceFilter = z.object({
   id: z.string(),
   name: z.string().optional(),
   slug: z.string().optional(),
 })
 
-export const zAuditFilters = z.object({
-  actors: z.array(zAuditActorFilter),
+export const zEventTrailFilters = z.object({
+  actors: z.array(zEventTrailActorFilter),
   categories: z.array(z.string()),
-  workspaces: z.array(zAuditWorkspaceFilter),
-  target_types: z.array(zAuditTargetType),
+  workspaces: z.array(zEventTrailWorkspaceFilter),
+  target_types: z.array(zEventTrailTargetType),
 })
 
-export const zListAuditEventsResponse = z.object({
-  events: z.array(zAuditEvent),
-  filters: zAuditFilters,
+export const zListEventTrailEventsResponse = z.object({
+  events: z.array(zEventTrailEvent),
+  filters: zEventTrailFilters,
   next_page_token: z.string(),
 })
 
@@ -2122,47 +2128,47 @@ export const zWorkspaceSlugPath = z.string().min(1).max(128)
 /**
  * Exact actor type.
  */
-export const zAuditActorTypeQuery = zAuditActorType
+export const zEventTrailActorTypeQuery = zEventTrailActorType
 
 /**
- * Stable audit event ID.
+ * Stable event trail event ID.
  */
-export const zAuditEventIdPath = z.string().min(1)
+export const zEventTrailEventIdPath = z.string().min(1)
 
 /**
  * Exact actor ID.
  */
-export const zAuditActorIdQuery = z.string().min(1)
+export const zEventTrailActorIdQuery = z.string().min(1)
 
 /**
- * Exact audit category.
+ * Exact event trail category.
  */
-export const zAuditCategoryQuery = z.string().min(1)
+export const zEventTrailCategoryQuery = z.string().min(1)
 
 /**
  * Exact Workspace ID.
  */
-export const zAuditWorkspaceIdQuery = z.string().min(1)
+export const zEventTrailWorkspaceIdQuery = z.string().min(1)
 
 /**
  * Exact target resource type.
  */
-export const zAuditTargetTypeQuery = zAuditTargetType
+export const zEventTrailTargetTypeQuery = zEventTrailTargetType
 
 /**
- * Exact audit result.
+ * Exact event trail result.
  */
-export const zAuditResultQuery = zAuditResult
+export const zEventTrailResultQuery = zEventTrailResult
 
 /**
  * Inclusive lower event timestamp bound.
  */
-export const zAuditCreatedAfterQuery = z.iso.datetime()
+export const zEventTrailCreatedAfterQuery = z.iso.datetime()
 
 /**
  * Inclusive upper event timestamp bound.
  */
-export const zAuditCreatedBeforeQuery = z.iso.datetime()
+export const zEventTrailCreatedBeforeQuery = z.iso.datetime()
 
 /**
  * Agent name.
@@ -2296,14 +2302,14 @@ export const zFromDateQuery = z.iso.date()
 export const zToDateQuery = z.iso.date()
 
 /**
- * Paginated scoped audit events and filter options.
+ * Paginated scoped event trail events and filter options.
  */
-export const zListAuditEventsResponse2 = zListAuditEventsResponse
+export const zListEventTrailEventsResponse2 = zListEventTrailEventsResponse
 
 /**
- * Scoped audit event detail.
+ * Scoped event trail event detail.
  */
-export const zGetAuditEventResponse = zAuditEvent
+export const zGetEventTrailEventResponse = zEventTrailEvent
 
 /**
  * Tenant bootstrap state.

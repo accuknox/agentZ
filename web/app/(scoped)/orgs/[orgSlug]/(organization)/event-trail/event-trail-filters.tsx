@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "@bprogress/next/app"
 import { RotateCcw } from "lucide-react"
 import { usePathname, useSearchParams } from "next/navigation"
-import type { AuditActorType, AuditFilters, AuditResult } from "@/lib/gateway/client"
+import type { EventTrailActorType, EventTrailFilters, EventTrailResult } from "@/lib/gateway/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,23 +16,27 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const allResults = ["succeeded", "denied", "failed"] as const satisfies readonly AuditResult[]
-const allActorTypes = ["user", "api_key", "system"] as const satisfies readonly AuditActorType[]
+const allResults = ["succeeded", "denied", "failed"] as const satisfies readonly EventTrailResult[]
+const allActorTypes = [
+  "user",
+  "api_key",
+  "system",
+] as const satisfies readonly EventTrailActorType[]
 
-export function AuditFiltersBar({
+export function EventTrailFiltersBar({
   filters,
   hideWorkspace,
   selected,
 }: {
-  filters: AuditFilters
+  filters: EventTrailFilters
   hideWorkspace?: boolean
   selected: {
-    actorType?: AuditActorType
+    actorType?: EventTrailActorType
     actorId?: string
     category?: string
     workspaceId?: string
     targetType?: string
-    result?: AuditResult
+    result?: EventTrailResult
     createdAfter?: string
     createdBefore?: string
   }
@@ -65,20 +69,20 @@ export function AuditFiltersBar({
   return (
     <form
       aria-busy={pending}
-      aria-label="Audit filters"
+      aria-label="Event Trail filters"
       className="bg-background grid gap-3 border-b px-4 py-3 opacity-100 transition-opacity aria-busy:opacity-65 sm:grid-cols-2 md:px-6 xl:grid-cols-4"
       onSubmit={(event) => event.preventDefault()}
       role="search"
     >
       <FilterSelect
-        id="audit-actor-type"
+        id="event-trail-actor-type"
         label="Actor type"
         onValueChange={(value) => update("actor_type", value, ["actor_id"])}
         options={allActorTypes.map((type) => ({ label: type, value: type }))}
         value={selected.actorType}
       />
       <FilterSelect
-        id="audit-actor"
+        id="event-trail-actor"
         label="Actor"
         onValueChange={(value) => update("actor_id", value)}
         options={filters.actors.flatMap((actor) =>
@@ -89,7 +93,7 @@ export function AuditFiltersBar({
         value={selected.actorId}
       />
       <FilterSelect
-        id="audit-category"
+        id="event-trail-category"
         label="Category"
         onValueChange={(value) => update("category", value)}
         options={filters.categories.map((category) => ({ label: category, value: category }))}
@@ -97,7 +101,7 @@ export function AuditFiltersBar({
       />
       {!hideWorkspace ? (
         <FilterSelect
-          id="audit-workspace"
+          id="event-trail-workspace"
           label="Workspace"
           onValueChange={(value) => update("workspace_id", value)}
           options={filters.workspaces.map((workspace) => ({
@@ -108,23 +112,23 @@ export function AuditFiltersBar({
         />
       ) : null}
       <FilterSelect
-        id="audit-target-type"
+        id="event-trail-target-type"
         label="Resource type"
         onValueChange={(value) => update("target_type", value)}
         options={filters.target_types.map((type) => ({ label: type, value: type }))}
         value={selected.targetType}
       />
       <FilterSelect
-        id="audit-result"
+        id="event-trail-result"
         label="Result"
         onValueChange={(value) => update("result", value)}
         options={allResults.map((result) => ({ label: result, value: result }))}
         value={selected.result}
       />
       <div className="grid gap-1.5">
-        <Label htmlFor="audit-created-after">From</Label>
+        <Label htmlFor="event-trail-created-after">From</Label>
         <Input
-          id="audit-created-after"
+          id="event-trail-created-after"
           max={selected.createdBefore?.slice(0, 10)}
           type="date"
           value={selected.createdAfter?.slice(0, 10) ?? ""}
@@ -137,9 +141,9 @@ export function AuditFiltersBar({
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="audit-created-before">To</Label>
+        <Label htmlFor="event-trail-created-before">To</Label>
         <Input
-          id="audit-created-before"
+          id="event-trail-created-before"
           min={selected.createdAfter?.slice(0, 10)}
           type="date"
           value={selected.createdBefore?.slice(0, 10) ?? ""}

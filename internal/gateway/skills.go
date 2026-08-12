@@ -44,7 +44,7 @@ func (s *Service) resolveSkillAccess(ctx context.Context, workspaceID, name stri
 	return s.resolveResourceAccess(ctx, req)
 }
 
-func (s *Service) createSkillAudit(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.AuditResult) error {
+func (s *Service) createSkillEventTrail(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
 	action := "unmapped"
 	switch access.operation {
 	case authorization.OperationCreateSkill:
@@ -54,8 +54,8 @@ func (s *Service) createSkillAudit(ctx context.Context, r *http.Request, access 
 	case authorization.OperationDeleteSkill:
 		action = "delete"
 	}
-	return s.createResourceAudit(
-		ctx, r, access, gatewaydb.AuditTargetSkill, name, "skill", action, result,
+	return s.createResourceEventTrail(
+		ctx, r, access, gatewaydb.EventTrailTargetSkill, name, "skill", action, result,
 	)
 }
 
@@ -208,7 +208,7 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request, params gat
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, "", authorization.OperationCreateSkill)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createSkillAudit(r.Context(), r, access, req.Name, access.failureResult())
+			err := s.createSkillEventTrail(r.Context(), r, access, req.Name, access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -252,15 +252,15 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request, params gat
 		},
 	}
 	if err := s.k8sClient.Create(r.Context(), skill); err != nil {
-		auditErr := s.createSkillAudit(r.Context(), r, access, req.Name, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		eventTrailErr := s.createSkillEventTrail(r.Context(), r, access, req.Name, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("create skill", err))
 		return
 	}
-	if err := s.createSkillAudit(r.Context(), r, access, req.Name, gatewaydb.AuditResultSucceeded); err != nil {
+	if err := s.createSkillEventTrail(r.Context(), r, access, req.Name, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -282,7 +282,7 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, skillName, authorization.OperationUpdateSkill)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createSkillAudit(r.Context(), r, access, skillName, access.failureResult())
+			err := s.createSkillEventTrail(r.Context(), r, access, skillName, access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -347,15 +347,15 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		return nil
 	})
 	if err != nil {
-		auditErr := s.createSkillAudit(r.Context(), r, access, skillName, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		eventTrailErr := s.createSkillEventTrail(r.Context(), r, access, skillName, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("update skill", err))
 		return
 	}
-	if err := s.createSkillAudit(r.Context(), r, access, skillName, gatewaydb.AuditResultSucceeded); err != nil {
+	if err := s.createSkillEventTrail(r.Context(), r, access, skillName, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -377,7 +377,7 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, skillName, authorization.OperationDeleteSkill)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createSkillAudit(r.Context(), r, access, skillName, access.failureResult())
+			err := s.createSkillEventTrail(r.Context(), r, access, skillName, access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -401,9 +401,9 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 		r.Context(), access, agentzv1alpha1.OrganizationResourceKindSkill, skillName,
 	)
 	if err != nil || conflict != nil {
-		auditErr := s.createSkillAudit(r.Context(), r, access, skillName, gatewaydb.AuditResultFailed)
-		if err != nil || auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		eventTrailErr := s.createSkillEventTrail(r.Context(), r, access, skillName, gatewaydb.EventTrailResultFailed)
+		if err != nil || eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, conflict)
@@ -414,15 +414,15 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 	skill.Name = skillName
 	skill.Namespace = ns
 	if err := s.k8sClient.Delete(r.Context(), skill); err != nil {
-		auditErr := s.createSkillAudit(r.Context(), r, access, skillName, gatewaydb.AuditResultFailed)
-		if auditErr != nil {
-			writeInternalError(w, r, errors.Join(err, auditErr))
+		eventTrailErr := s.createSkillEventTrail(r.Context(), r, access, skillName, gatewaydb.EventTrailResultFailed)
+		if eventTrailErr != nil {
+			writeInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("delete skill", err))
 		return
 	}
-	if err := s.createSkillAudit(r.Context(), r, access, skillName, gatewaydb.AuditResultSucceeded); err != nil {
+	if err := s.createSkillEventTrail(r.Context(), r, access, skillName, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -743,7 +743,7 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request, params ga
 	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, "", authorization.OperationCreateSkill)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createSkillAudit(r.Context(), r, access, "import", access.failureResult())
+			err := s.createSkillEventTrail(r.Context(), r, access, "import", access.failureResult())
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -752,20 +752,20 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request, params ga
 		writeError(w, r, apiErr)
 		return
 	}
-	audited := false
+	eventTrailed := false
 	defer func() {
-		if audited {
+		if eventTrailed {
 			return
 		}
-		err := s.createSkillAudit(
+		err := s.createSkillEventTrail(
 			context.WithoutCancel(r.Context()),
 			r,
 			access,
 			"import",
-			gatewaydb.AuditResultFailed,
+			gatewaydb.EventTrailResultFailed,
 		)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "audit failed Skill import", slog.Any("err", err))
+			slog.ErrorContext(r.Context(), "event trail failed Skill import", slog.Any("err", err))
 		}
 	}()
 	bundle, ok := readSkillUpload(w, r)
@@ -859,8 +859,8 @@ func (s *Service) ImportSkills(w http.ResponseWriter, r *http.Request, params ga
 		writeError(w, r, importErr)
 		return
 	}
-	audited = true
-	if err := s.createSkillAudit(r.Context(), r, access, "import", gatewaydb.AuditResultSucceeded); err != nil {
+	eventTrailed = true
+	if err := s.createSkillEventTrail(r.Context(), r, access, "import", gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -896,9 +896,9 @@ func (s *Service) importImmutableSkills(r *http.Request, namespace string, bundl
 			)
 		}
 		if action == skill.DecisionOverwrite && !canModify && current.Spec.CreatorUserID != access.claims.UserID {
-			auditAccess := access
-			auditAccess.operation = authorization.OperationUpdateSkill
-			if err := s.createSkillAudit(ctx, r, auditAccess, tree.Name, gatewaydb.AuditResultDenied); err != nil {
+			eventTrailAccess := access
+			eventTrailAccess.operation = authorization.OperationUpdateSkill
+			if err := s.createSkillEventTrail(ctx, r, eventTrailAccess, tree.Name, gatewaydb.EventTrailResultDenied); err != nil {
 				return newAPIError(http.StatusInternalServerError, "internal_error", "unexpected server error", err)
 			}
 			return resourceForbidden(errors.New("skill creator privilege is missing"))
@@ -975,7 +975,7 @@ func (s *Service) importImmutableSkills(r *http.Request, namespace string, bundl
 				},
 			}
 			if err := s.k8sClient.Create(ctx, item); err != nil {
-				auditErr := s.createSkillAudit(ctx, r, access, plan.tree.Name, gatewaydb.AuditResultFailed)
+				eventTrailErr := s.createSkillEventTrail(ctx, r, access, plan.tree.Name, gatewaydb.EventTrailResultFailed)
 				applied := plans[:i+1]
 				if apierrors.IsAlreadyExists(err) {
 					applied = plans[:i]
@@ -983,10 +983,10 @@ func (s *Service) importImmutableSkills(r *http.Request, namespace string, bundl
 				cleanupErr := s.rollbackImmutableImport(ctx, namespace, applied, plans)
 				return mapKubeHTTPError(
 					"create immutable skill",
-					errors.Join(err, cleanupErr, auditErr),
+					errors.Join(err, cleanupErr, eventTrailErr),
 				)
 			}
-			if err := s.createSkillAudit(ctx, r, access, plan.tree.Name, gatewaydb.AuditResultSucceeded); err != nil {
+			if err := s.createSkillEventTrail(ctx, r, access, plan.tree.Name, gatewaydb.EventTrailResultSucceeded); err != nil {
 				return newAPIError(http.StatusInternalServerError, "internal_error", "unexpected server error", err)
 			}
 			continue
@@ -1003,9 +1003,9 @@ func (s *Service) importImmutableSkills(r *http.Request, namespace string, bundl
 			return s.k8sClient.Update(ctx, item)
 		})
 		if err != nil {
-			auditAccess := access
-			auditAccess.operation = authorization.OperationUpdateSkill
-			auditErr := s.createSkillAudit(ctx, r, auditAccess, plan.tree.Name, gatewaydb.AuditResultFailed)
+			eventTrailAccess := access
+			eventTrailAccess.operation = authorization.OperationUpdateSkill
+			eventTrailErr := s.createSkillEventTrail(ctx, r, eventTrailAccess, plan.tree.Name, gatewaydb.EventTrailResultFailed)
 			applied := plans[:i+1]
 			if apierrors.IsConflict(err) {
 				applied = plans[:i]
@@ -1013,12 +1013,12 @@ func (s *Service) importImmutableSkills(r *http.Request, namespace string, bundl
 			cleanupErr := s.rollbackImmutableImport(ctx, namespace, applied, plans)
 			return mapKubeHTTPError(
 				"update immutable skill",
-				errors.Join(err, cleanupErr, auditErr),
+				errors.Join(err, cleanupErr, eventTrailErr),
 			)
 		}
-		auditAccess := access
-		auditAccess.operation = authorization.OperationUpdateSkill
-		if err := s.createSkillAudit(ctx, r, auditAccess, plan.tree.Name, gatewaydb.AuditResultSucceeded); err != nil {
+		eventTrailAccess := access
+		eventTrailAccess.operation = authorization.OperationUpdateSkill
+		if err := s.createSkillEventTrail(ctx, r, eventTrailAccess, plan.tree.Name, gatewaydb.EventTrailResultSucceeded); err != nil {
 			return newAPIError(http.StatusInternalServerError, "internal_error", "unexpected server error", err)
 		}
 	}
@@ -1190,7 +1190,7 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 		access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, name, authorization.OperationDeleteSkill)
 		if apiErr != nil {
 			if access.claims.OrganizationID != "" {
-				err := s.createSkillAudit(r.Context(), r, access, name, access.failureResult())
+				err := s.createSkillEventTrail(r.Context(), r, access, name, access.failureResult())
 				if err != nil {
 					writeInternalError(w, r, err)
 					return
@@ -1203,11 +1203,11 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 			r.Context(), access, agentzv1alpha1.OrganizationResourceKindSkill, name,
 		)
 		if err != nil || conflict != nil {
-			auditErr := s.createSkillAudit(
-				r.Context(), r, access, name, gatewaydb.AuditResultFailed,
+			eventTrailErr := s.createSkillEventTrail(
+				r.Context(), r, access, name, gatewaydb.EventTrailResultFailed,
 			)
-			if err != nil || auditErr != nil {
-				writeInternalError(w, r, errors.Join(err, auditErr))
+			if err != nil || eventTrailErr != nil {
+				writeInternalError(w, r, errors.Join(err, eventTrailErr))
 				return
 			}
 			writeError(w, r, conflict)
@@ -1224,15 +1224,15 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 	}
 	for i, item := range items {
 		if err := s.k8sClient.Delete(r.Context(), item); err != nil {
-			auditErr := s.createSkillAudit(r.Context(), r, accesses[i], item.Name, gatewaydb.AuditResultFailed)
-			if auditErr != nil {
-				writeInternalError(w, r, errors.Join(err, auditErr))
+			eventTrailErr := s.createSkillEventTrail(r.Context(), r, accesses[i], item.Name, gatewaydb.EventTrailResultFailed)
+			if eventTrailErr != nil {
+				writeInternalError(w, r, errors.Join(err, eventTrailErr))
 				return
 			}
 			writeError(w, r, mapKubeHTTPError("delete immutable skill", err))
 			return
 		}
-		if err := s.createSkillAudit(r.Context(), r, accesses[i], item.Name, gatewaydb.AuditResultSucceeded); err != nil {
+		if err := s.createSkillEventTrail(r.Context(), r, accesses[i], item.Name, gatewaydb.EventTrailResultSucceeded); err != nil {
 			writeInternalError(w, r, err)
 			return
 		}

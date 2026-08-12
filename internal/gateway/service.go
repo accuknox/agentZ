@@ -309,10 +309,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err := svc.recoverWorkspaceProvisioning(ctx); err != nil {
 		return err
 	}
-	auditRetentionDone := make(chan struct{})
+	eventTrailRetentionDone := make(chan struct{})
 	go func() {
-		defer close(auditRetentionDone)
-		svc.runAuditRetention(runCtx)
+		defer close(eventTrailRetentionDone)
+		svc.runEventTrailRetention(runCtx)
 	}()
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -367,7 +367,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	stopRun()
 	<-cleanupDone
-	<-auditRetentionDone
+	<-eventTrailRetentionDone
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)

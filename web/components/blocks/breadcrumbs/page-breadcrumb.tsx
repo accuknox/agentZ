@@ -57,7 +57,7 @@ const labels = new Map<string, string>([
   ["traces", "Traces"],
   ["triggers", "Triggers"],
   ["update", "Update"],
-  ["audit", "Audit"],
+  ["event-trail", "Event Trail"],
   ["general", "General"],
   ["workspaces", "Workspaces"],
   ["workflows", "Workflows"],
@@ -66,7 +66,7 @@ const labels = new Map<string, string>([
 const pageRoutes = new Set([
   "/",
   "/orgs/[orgSlug]",
-  "/orgs/[orgSlug]/audit",
+  "/orgs/[orgSlug]/event-trail",
   "/orgs/[orgSlug]/general",
   "/orgs/[orgSlug]/mcps",
   "/orgs/[orgSlug]/skills",

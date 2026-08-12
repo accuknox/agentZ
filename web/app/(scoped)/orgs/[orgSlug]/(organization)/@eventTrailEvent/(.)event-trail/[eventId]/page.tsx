@@ -1,19 +1,19 @@
-import { AuditEventDetail } from "../../../audit/audit-event"
-import { AuditDrawer } from "../../audit-drawer"
+import { EventTrailEventDetail } from "../../../event-trail/event-trail-event"
+import { EventTrailDrawer } from "../../event-trail-drawer"
 
 // Next 16.2 cannot validate runtime samples for intercepted dynamic segments;
 // the canonical detail route validates the same server-rendered content.
 export const unstable_instant = false
 
-export default async function InterceptedAuditEventPage({
+export default async function InterceptedEventTrailEventPage({
   params,
 }: {
   params: Promise<{ eventId: string; orgSlug: string }>
 }) {
   const { eventId, orgSlug } = await params
   return (
-    <AuditDrawer>
-      <AuditEventDetail compact eventId={eventId} orgSlug={orgSlug} />
-    </AuditDrawer>
+    <EventTrailDrawer>
+      <EventTrailEventDetail compact eventId={eventId} orgSlug={orgSlug} />
+    </EventTrailDrawer>
   )
 }

@@ -615,130 +615,6 @@ func (q *Queries) GatewayCreateAgentShare(ctx context.Context, arg GatewayCreate
 	return i, err
 }
 
-const gatewayCreateAuditEvent = `-- name: GatewayCreateAuditEvent :one
-INSERT INTO audit_events(
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  category,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  interface,
-  ip_address,
-  user_agent
-)
-VALUES (
-  $1,
-  $2,
-  $3,
-  $4,
-  $5,
-  $6,
-  $7,
-  $8,
-  $9,
-  $10,
-  $11,
-  $12,
-  $13,
-  $14,
-  $15,
-  $16,
-  $17
-)
-RETURNING
-  id,
-  organization_id,
-  workspace_id,
-  actor_type,
-  actor_id,
-  target_type,
-  target_id,
-  category,
-  action,
-  result,
-  before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  interface,
-  ip_address,
-  user_agent,
-  created_at
-`
-
-type GatewayCreateAuditEventParams struct {
-	ID               string         `json:"id"`
-	OrganizationID   string         `json:"organization_id"`
-	WorkspaceID      pgtype.Text    `json:"workspace_id"`
-	ActorType        AuditActor     `json:"actor_type"`
-	ActorID          pgtype.Text    `json:"actor_id"`
-	TargetType       AuditTarget    `json:"target_type"`
-	TargetID         string         `json:"target_id"`
-	Category         string         `json:"category"`
-	Action           string         `json:"action"`
-	Result           AuditResult    `json:"result"`
-	Before           []byte         `json:"before"`
-	After            []byte         `json:"after"`
-	AutomaticCascade bool           `json:"automatic_cascade"`
-	CleanupJobID     pgtype.Text    `json:"cleanup_job_id"`
-	Interface        AuditInterface `json:"interface"`
-	IpAddress        pgtype.Text    `json:"ip_address"`
-	UserAgent        pgtype.Text    `json:"user_agent"`
-}
-
-func (q *Queries) GatewayCreateAuditEvent(ctx context.Context, arg GatewayCreateAuditEventParams) (AuditEvent, error) {
-	row := q.db.QueryRow(ctx, gatewayCreateAuditEvent,
-		arg.ID,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.ActorType,
-		arg.ActorID,
-		arg.TargetType,
-		arg.TargetID,
-		arg.Category,
-		arg.Action,
-		arg.Result,
-		arg.Before,
-		arg.After,
-		arg.AutomaticCascade,
-		arg.CleanupJobID,
-		arg.Interface,
-		arg.IpAddress,
-		arg.UserAgent,
-	)
-	var i AuditEvent
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.ActorType,
-		&i.ActorID,
-		&i.TargetType,
-		&i.TargetID,
-		&i.Category,
-		&i.Action,
-		&i.Result,
-		&i.Before,
-		&i.After,
-		&i.AutomaticCascade,
-		&i.CleanupJobID,
-		&i.Interface,
-		&i.IpAddress,
-		&i.UserAgent,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const gatewayCreateCleanupJob = `-- name: GatewayCreateCleanupJob :one
 INSERT INTO cleanup_jobs(
   id,
@@ -815,6 +691,130 @@ func (q *Queries) GatewayCreateCleanupJob(ctx context.Context, arg GatewayCreate
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CompletedAt,
+	)
+	return i, err
+}
+
+const gatewayCreateEventTrailEvent = `-- name: GatewayCreateEventTrailEvent :one
+INSERT INTO event_trail_events(
+  id,
+  organization_id,
+  workspace_id,
+  actor_type,
+  actor_id,
+  target_type,
+  target_id,
+  category,
+  action,
+  result,
+  before,
+  after,
+  automatic_cascade,
+  cleanup_job_id,
+  interface,
+  ip_address,
+  user_agent
+)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9,
+  $10,
+  $11,
+  $12,
+  $13,
+  $14,
+  $15,
+  $16,
+  $17
+)
+RETURNING
+  id,
+  organization_id,
+  workspace_id,
+  actor_type,
+  actor_id,
+  target_type,
+  target_id,
+  category,
+  action,
+  result,
+  before,
+  after,
+  automatic_cascade,
+  cleanup_job_id,
+  interface,
+  ip_address,
+  user_agent,
+  created_at
+`
+
+type GatewayCreateEventTrailEventParams struct {
+	ID               string              `json:"id"`
+	OrganizationID   string              `json:"organization_id"`
+	WorkspaceID      pgtype.Text         `json:"workspace_id"`
+	ActorType        EventTrailActor     `json:"actor_type"`
+	ActorID          pgtype.Text         `json:"actor_id"`
+	TargetType       EventTrailTarget    `json:"target_type"`
+	TargetID         string              `json:"target_id"`
+	Category         string              `json:"category"`
+	Action           string              `json:"action"`
+	Result           EventTrailResult    `json:"result"`
+	Before           []byte              `json:"before"`
+	After            []byte              `json:"after"`
+	AutomaticCascade bool                `json:"automatic_cascade"`
+	CleanupJobID     pgtype.Text         `json:"cleanup_job_id"`
+	Interface        EventTrailInterface `json:"interface"`
+	IpAddress        pgtype.Text         `json:"ip_address"`
+	UserAgent        pgtype.Text         `json:"user_agent"`
+}
+
+func (q *Queries) GatewayCreateEventTrailEvent(ctx context.Context, arg GatewayCreateEventTrailEventParams) (EventTrailEvent, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateEventTrailEvent,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ActorType,
+		arg.ActorID,
+		arg.TargetType,
+		arg.TargetID,
+		arg.Category,
+		arg.Action,
+		arg.Result,
+		arg.Before,
+		arg.After,
+		arg.AutomaticCascade,
+		arg.CleanupJobID,
+		arg.Interface,
+		arg.IpAddress,
+		arg.UserAgent,
+	)
+	var i EventTrailEvent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.TargetType,
+		&i.TargetID,
+		&i.Category,
+		&i.Action,
+		&i.Result,
+		&i.Before,
+		&i.After,
+		&i.AutomaticCascade,
+		&i.CleanupJobID,
+		&i.Interface,
+		&i.IpAddress,
+		&i.UserAgent,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1238,13 +1238,13 @@ func (q *Queries) GatewayDeleteAgentShare(ctx context.Context, arg GatewayDelete
 	return result.RowsAffected(), nil
 }
 
-const gatewayDeleteExpiredAuditEvents = `-- name: GatewayDeleteExpiredAuditEvents :execrows
-DELETE FROM audit_events
+const gatewayDeleteExpiredEventTrailEvents = `-- name: GatewayDeleteExpiredEventTrailEvents :execrows
+DELETE FROM event_trail_events
 WHERE created_at < $1
 `
 
-func (q *Queries) GatewayDeleteExpiredAuditEvents(ctx context.Context, expiresBefore pgtype.Timestamptz) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayDeleteExpiredAuditEvents, expiresBefore)
+func (q *Queries) GatewayDeleteExpiredEventTrailEvents(ctx context.Context, expiresBefore pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteExpiredEventTrailEvents, expiresBefore)
 	if err != nil {
 		return 0, err
 	}
@@ -2603,56 +2603,56 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 	return items, nil
 }
 
-const gatewayListAuditActors = `-- name: GatewayListAuditActors :many
+const gatewayListEventTrailActors = `-- name: GatewayListEventTrailActors :many
 SELECT
-  audit_events.actor_type,
-  audit_events.actor_id,
-  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  event_trail_events.actor_type,
+  event_trail_events.actor_id,
+  COALESCE(users.name, apikeys.name, event_trail_events.actor_id, 'System') AS actor_name,
   users.email AS actor_email
-FROM audit_events
+FROM event_trail_events
 LEFT JOIN users
-  ON audit_events.actor_type = 'user'
-  AND users.id = audit_events.actor_id
+  ON event_trail_events.actor_type = 'user'
+  AND users.id = event_trail_events.actor_id
 LEFT JOIN apikeys
-  ON audit_events.actor_type = 'api_key'
-  AND apikeys.id = audit_events.actor_id
-WHERE audit_events.organization_id = $1
-  AND audit_events.created_at >= $2
+  ON event_trail_events.actor_type = 'api_key'
+  AND apikeys.id = event_trail_events.actor_id
+WHERE event_trail_events.organization_id = $1
+  AND event_trail_events.created_at >= $2
   AND (
     $3::text IS NULL
-    OR audit_events.workspace_id = $3::text
+    OR event_trail_events.workspace_id = $3::text
   )
 GROUP BY
-  audit_events.actor_type,
-  audit_events.actor_id,
+  event_trail_events.actor_type,
+  event_trail_events.actor_id,
   users.name,
   users.email,
   apikeys.name
-ORDER BY COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System'), audit_events.actor_type
+ORDER BY COALESCE(users.name, apikeys.name, event_trail_events.actor_id, 'System'), event_trail_events.actor_type
 `
 
-type GatewayListAuditActorsParams struct {
+type GatewayListEventTrailActorsParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
 	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
-type GatewayListAuditActorsRow struct {
-	ActorType  AuditActor  `json:"actor_type"`
-	ActorID    pgtype.Text `json:"actor_id"`
-	ActorName  string      `json:"actor_name"`
-	ActorEmail pgtype.Text `json:"actor_email"`
+type GatewayListEventTrailActorsRow struct {
+	ActorType  EventTrailActor `json:"actor_type"`
+	ActorID    pgtype.Text     `json:"actor_id"`
+	ActorName  string          `json:"actor_name"`
+	ActorEmail pgtype.Text     `json:"actor_email"`
 }
 
-func (q *Queries) GatewayListAuditActors(ctx context.Context, arg GatewayListAuditActorsParams) ([]GatewayListAuditActorsRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditActors, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
+func (q *Queries) GatewayListEventTrailActors(ctx context.Context, arg GatewayListEventTrailActorsParams) ([]GatewayListEventTrailActorsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListEventTrailActors, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GatewayListAuditActorsRow{}
+	items := []GatewayListEventTrailActorsRow{}
 	for rows.Next() {
-		var i GatewayListAuditActorsRow
+		var i GatewayListEventTrailActorsRow
 		if err := rows.Scan(
 			&i.ActorType,
 			&i.ActorID,
@@ -2669,26 +2669,26 @@ func (q *Queries) GatewayListAuditActors(ctx context.Context, arg GatewayListAud
 	return items, nil
 }
 
-const gatewayListAuditCategories = `-- name: GatewayListAuditCategories :many
+const gatewayListEventTrailCategories = `-- name: GatewayListEventTrailCategories :many
 SELECT DISTINCT category
-FROM audit_events
-WHERE audit_events.organization_id = $1
-  AND audit_events.created_at >= $2
+FROM event_trail_events
+WHERE event_trail_events.organization_id = $1
+  AND event_trail_events.created_at >= $2
   AND (
     $3::text IS NULL
-    OR audit_events.workspace_id = $3::text
+    OR event_trail_events.workspace_id = $3::text
   )
 ORDER BY category
 `
 
-type GatewayListAuditCategoriesParams struct {
+type GatewayListEventTrailCategoriesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
 	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
-func (q *Queries) GatewayListAuditCategories(ctx context.Context, arg GatewayListAuditCategoriesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditCategories, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
+func (q *Queries) GatewayListEventTrailCategories(ctx context.Context, arg GatewayListEventTrailCategoriesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, gatewayListEventTrailCategories, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -2707,176 +2707,176 @@ func (q *Queries) GatewayListAuditCategories(ctx context.Context, arg GatewayLis
 	return items, nil
 }
 
-const gatewayListAuditEvents = `-- name: GatewayListAuditEvents :many
+const gatewayListEventTrailEvents = `-- name: GatewayListEventTrailEvents :many
 SELECT
-  audit_events.id,
-  audit_events.organization_id,
-  audit_events.workspace_id,
-  audit_events.actor_type,
-  audit_events.actor_id,
-  COALESCE(users.name, apikeys.name, audit_events.actor_id, 'System') AS actor_name,
+  event_trail_events.id,
+  event_trail_events.organization_id,
+  event_trail_events.workspace_id,
+  event_trail_events.actor_type,
+  event_trail_events.actor_id,
+  COALESCE(users.name, apikeys.name, event_trail_events.actor_id, 'System') AS actor_name,
   users.email AS actor_email,
-  audit_events.target_type,
-  audit_events.target_id,
+  event_trail_events.target_type,
+  event_trail_events.target_id,
   COALESCE(
-    CASE audit_events.target_type
+    CASE event_trail_events.target_type
       WHEN 'organization' THEN organizations.name
       WHEN 'workspace' THEN target_workspaces.name
       WHEN 'organization_membership' THEN target_users.name
       WHEN 'team' THEN target_teams.name
     END,
-    audit_events.target_id
+    event_trail_events.target_id
   ) AS target_name,
   (COALESCE(
-    (CASE audit_events.target_type
+    (CASE event_trail_events.target_type
       WHEN 'organization' THEN organizations.slug
       WHEN 'workspace' THEN target_workspaces.slug
     END)::text,
     ''
   ))::text AS target_slug,
-  audit_events.category,
-  audit_events.action,
-  audit_events.result,
-  audit_events.before,
-  audit_events.after,
-  audit_events.automatic_cascade,
-  audit_events.cleanup_job_id,
-  audit_events.interface,
-  audit_events.ip_address,
-  audit_events.user_agent,
-  audit_events.created_at,
+  event_trail_events.category,
+  event_trail_events.action,
+  event_trail_events.result,
+  event_trail_events.before,
+  event_trail_events.after,
+  event_trail_events.automatic_cascade,
+  event_trail_events.cleanup_job_id,
+  event_trail_events.interface,
+  event_trail_events.ip_address,
+  event_trail_events.user_agent,
+  event_trail_events.created_at,
   workspaces.name AS workspace_name,
   workspaces.slug AS workspace_slug,
   cleanup_jobs.state AS cleanup_state,
   cleanup_jobs.completed_at AS cleanup_completed_at
-FROM audit_events
+FROM event_trail_events
 JOIN organizations
-  ON organizations.id = audit_events.organization_id
+  ON organizations.id = event_trail_events.organization_id
 LEFT JOIN users
-  ON audit_events.actor_type = 'user'
-  AND users.id = audit_events.actor_id
+  ON event_trail_events.actor_type = 'user'
+  AND users.id = event_trail_events.actor_id
 LEFT JOIN apikeys
-  ON audit_events.actor_type = 'api_key'
-  AND apikeys.id = audit_events.actor_id
+  ON event_trail_events.actor_type = 'api_key'
+  AND apikeys.id = event_trail_events.actor_id
 LEFT JOIN workspaces
-  ON workspaces.id = audit_events.workspace_id
-  AND workspaces.organization_id = audit_events.organization_id
+  ON workspaces.id = event_trail_events.workspace_id
+  AND workspaces.organization_id = event_trail_events.organization_id
 LEFT JOIN workspaces AS target_workspaces
-  ON audit_events.target_type = 'workspace'
-  AND target_workspaces.id = audit_events.target_id
-  AND target_workspaces.organization_id = audit_events.organization_id
+  ON event_trail_events.target_type = 'workspace'
+  AND target_workspaces.id = event_trail_events.target_id
+  AND target_workspaces.organization_id = event_trail_events.organization_id
 LEFT JOIN members AS target_members
-  ON audit_events.target_type = 'organization_membership'
-  AND target_members.id = audit_events.target_id
-  AND target_members.organization_id = audit_events.organization_id
+  ON event_trail_events.target_type = 'organization_membership'
+  AND target_members.id = event_trail_events.target_id
+  AND target_members.organization_id = event_trail_events.organization_id
 LEFT JOIN users AS target_users
   ON target_users.id = target_members.user_id
 LEFT JOIN teams AS target_teams
-  ON audit_events.target_type = 'team'
-  AND target_teams.id = audit_events.target_id
-  AND target_teams.organization_id = audit_events.organization_id
+  ON event_trail_events.target_type = 'team'
+  AND target_teams.id = event_trail_events.target_id
+  AND target_teams.organization_id = event_trail_events.organization_id
 LEFT JOIN cleanup_jobs
-  ON cleanup_jobs.id = audit_events.cleanup_job_id
-  AND cleanup_jobs.organization_id = audit_events.organization_id
-WHERE audit_events.organization_id = $1
-  AND audit_events.created_at >= $2
+  ON cleanup_jobs.id = event_trail_events.cleanup_job_id
+  AND cleanup_jobs.organization_id = event_trail_events.organization_id
+WHERE event_trail_events.organization_id = $1
+  AND event_trail_events.created_at >= $2
   AND (
     $3::text IS NULL
-    OR audit_events.id = $3::text
+    OR event_trail_events.id = $3::text
   )
   AND (
-    $4::audit_actor IS NULL
-    OR audit_events.actor_type = $4::audit_actor
+    $4::event_trail_actor IS NULL
+    OR event_trail_events.actor_type = $4::event_trail_actor
   )
   AND (
     $5::text IS NULL
-    OR audit_events.actor_id = $5::text
+    OR event_trail_events.actor_id = $5::text
   )
   AND (
     $6::text IS NULL
-    OR audit_events.category = $6::text
+    OR event_trail_events.category = $6::text
   )
   AND (
     $7::text IS NULL
-    OR audit_events.workspace_id = $7::text
+    OR event_trail_events.workspace_id = $7::text
   )
   AND (
-    $8::audit_target IS NULL
-    OR audit_events.target_type = $8::audit_target
+    $8::event_trail_target IS NULL
+    OR event_trail_events.target_type = $8::event_trail_target
   )
   AND (
-    $9::audit_result IS NULL
-    OR audit_events.result = $9::audit_result
+    $9::event_trail_result IS NULL
+    OR event_trail_events.result = $9::event_trail_result
   )
   AND (
     $10::timestamptz IS NULL
-    OR audit_events.created_at >= $10::timestamptz
+    OR event_trail_events.created_at >= $10::timestamptz
   )
   AND (
     $11::timestamptz IS NULL
-    OR audit_events.created_at <= $11::timestamptz
+    OR event_trail_events.created_at <= $11::timestamptz
   )
   AND (
     NOT $12::boolean
-    OR audit_events.created_at < $13::timestamptz
+    OR event_trail_events.created_at < $13::timestamptz
     OR (
-      audit_events.created_at = $13::timestamptz
-      AND audit_events.id < $14::text
+      event_trail_events.created_at = $13::timestamptz
+      AND event_trail_events.id < $14::text
     )
   )
-ORDER BY audit_events.created_at DESC, audit_events.id DESC
+ORDER BY event_trail_events.created_at DESC, event_trail_events.id DESC
 LIMIT $15
 `
 
-type GatewayListAuditEventsParams struct {
-	OrganizationID  string             `json:"organization_id"`
-	RetainedAfter   pgtype.Timestamptz `json:"retained_after"`
-	EventID         pgtype.Text        `json:"event_id"`
-	ActorType       NullAuditActor     `json:"actor_type"`
-	ActorID         pgtype.Text        `json:"actor_id"`
-	Category        pgtype.Text        `json:"category"`
-	WorkspaceID     pgtype.Text        `json:"workspace_id"`
-	TargetType      NullAuditTarget    `json:"target_type"`
-	Result          NullAuditResult    `json:"result"`
-	CreatedAfter    pgtype.Timestamptz `json:"created_after"`
-	CreatedBefore   pgtype.Timestamptz `json:"created_before"`
-	CursorSet       bool               `json:"cursor_set"`
-	CursorCreatedAt time.Time          `json:"cursor_created_at"`
-	CursorID        string             `json:"cursor_id"`
-	PageSize        int32              `json:"page_size"`
+type GatewayListEventTrailEventsParams struct {
+	OrganizationID  string               `json:"organization_id"`
+	RetainedAfter   pgtype.Timestamptz   `json:"retained_after"`
+	EventID         pgtype.Text          `json:"event_id"`
+	ActorType       NullEventTrailActor  `json:"actor_type"`
+	ActorID         pgtype.Text          `json:"actor_id"`
+	Category        pgtype.Text          `json:"category"`
+	WorkspaceID     pgtype.Text          `json:"workspace_id"`
+	TargetType      NullEventTrailTarget `json:"target_type"`
+	Result          NullEventTrailResult `json:"result"`
+	CreatedAfter    pgtype.Timestamptz   `json:"created_after"`
+	CreatedBefore   pgtype.Timestamptz   `json:"created_before"`
+	CursorSet       bool                 `json:"cursor_set"`
+	CursorCreatedAt time.Time            `json:"cursor_created_at"`
+	CursorID        string               `json:"cursor_id"`
+	PageSize        int32                `json:"page_size"`
 }
 
-type GatewayListAuditEventsRow struct {
-	ID                 string             `json:"id"`
-	OrganizationID     string             `json:"organization_id"`
-	WorkspaceID        pgtype.Text        `json:"workspace_id"`
-	ActorType          AuditActor         `json:"actor_type"`
-	ActorID            pgtype.Text        `json:"actor_id"`
-	ActorName          string             `json:"actor_name"`
-	ActorEmail         pgtype.Text        `json:"actor_email"`
-	TargetType         AuditTarget        `json:"target_type"`
-	TargetID           string             `json:"target_id"`
-	TargetName         string             `json:"target_name"`
-	TargetSlug         string             `json:"target_slug"`
-	Category           string             `json:"category"`
-	Action             string             `json:"action"`
-	Result             AuditResult        `json:"result"`
-	Before             []byte             `json:"before"`
-	After              []byte             `json:"after"`
-	AutomaticCascade   bool               `json:"automatic_cascade"`
-	CleanupJobID       pgtype.Text        `json:"cleanup_job_id"`
-	Interface          AuditInterface     `json:"interface"`
-	IpAddress          pgtype.Text        `json:"ip_address"`
-	UserAgent          pgtype.Text        `json:"user_agent"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	WorkspaceName      pgtype.Text        `json:"workspace_name"`
-	WorkspaceSlug      pgtype.Text        `json:"workspace_slug"`
-	CleanupState       NullCleanupState   `json:"cleanup_state"`
-	CleanupCompletedAt pgtype.Timestamptz `json:"cleanup_completed_at"`
+type GatewayListEventTrailEventsRow struct {
+	ID                 string              `json:"id"`
+	OrganizationID     string              `json:"organization_id"`
+	WorkspaceID        pgtype.Text         `json:"workspace_id"`
+	ActorType          EventTrailActor     `json:"actor_type"`
+	ActorID            pgtype.Text         `json:"actor_id"`
+	ActorName          string              `json:"actor_name"`
+	ActorEmail         pgtype.Text         `json:"actor_email"`
+	TargetType         EventTrailTarget    `json:"target_type"`
+	TargetID           string              `json:"target_id"`
+	TargetName         string              `json:"target_name"`
+	TargetSlug         string              `json:"target_slug"`
+	Category           string              `json:"category"`
+	Action             string              `json:"action"`
+	Result             EventTrailResult    `json:"result"`
+	Before             []byte              `json:"before"`
+	After              []byte              `json:"after"`
+	AutomaticCascade   bool                `json:"automatic_cascade"`
+	CleanupJobID       pgtype.Text         `json:"cleanup_job_id"`
+	Interface          EventTrailInterface `json:"interface"`
+	IpAddress          pgtype.Text         `json:"ip_address"`
+	UserAgent          pgtype.Text         `json:"user_agent"`
+	CreatedAt          pgtype.Timestamptz  `json:"created_at"`
+	WorkspaceName      pgtype.Text         `json:"workspace_name"`
+	WorkspaceSlug      pgtype.Text         `json:"workspace_slug"`
+	CleanupState       NullCleanupState    `json:"cleanup_state"`
+	CleanupCompletedAt pgtype.Timestamptz  `json:"cleanup_completed_at"`
 }
 
-func (q *Queries) GatewayListAuditEvents(ctx context.Context, arg GatewayListAuditEventsParams) ([]GatewayListAuditEventsRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditEvents,
+func (q *Queries) GatewayListEventTrailEvents(ctx context.Context, arg GatewayListEventTrailEventsParams) ([]GatewayListEventTrailEventsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListEventTrailEvents,
 		arg.OrganizationID,
 		arg.RetainedAfter,
 		arg.EventID,
@@ -2897,9 +2897,9 @@ func (q *Queries) GatewayListAuditEvents(ctx context.Context, arg GatewayListAud
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GatewayListAuditEventsRow{}
+	items := []GatewayListEventTrailEventsRow{}
 	for rows.Next() {
-		var i GatewayListAuditEventsRow
+		var i GatewayListEventTrailEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
@@ -2938,33 +2938,33 @@ func (q *Queries) GatewayListAuditEvents(ctx context.Context, arg GatewayListAud
 	return items, nil
 }
 
-const gatewayListAuditTargetTypes = `-- name: GatewayListAuditTargetTypes :many
+const gatewayListEventTrailTargetTypes = `-- name: GatewayListEventTrailTargetTypes :many
 SELECT DISTINCT target_type
-FROM audit_events
-WHERE audit_events.organization_id = $1
-  AND audit_events.created_at >= $2
+FROM event_trail_events
+WHERE event_trail_events.organization_id = $1
+  AND event_trail_events.created_at >= $2
   AND (
     $3::text IS NULL
-    OR audit_events.workspace_id = $3::text
+    OR event_trail_events.workspace_id = $3::text
   )
 ORDER BY target_type
 `
 
-type GatewayListAuditTargetTypesParams struct {
+type GatewayListEventTrailTargetTypesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
 	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
-func (q *Queries) GatewayListAuditTargetTypes(ctx context.Context, arg GatewayListAuditTargetTypesParams) ([]AuditTarget, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditTargetTypes, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
+func (q *Queries) GatewayListEventTrailTargetTypes(ctx context.Context, arg GatewayListEventTrailTargetTypesParams) ([]EventTrailTarget, error) {
+	rows, err := q.db.Query(ctx, gatewayListEventTrailTargetTypes, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AuditTarget{}
+	items := []EventTrailTarget{}
 	for rows.Next() {
-		var target_type AuditTarget
+		var target_type EventTrailTarget
 		if err := rows.Scan(&target_type); err != nil {
 			return nil, err
 		}
@@ -2976,47 +2976,47 @@ func (q *Queries) GatewayListAuditTargetTypes(ctx context.Context, arg GatewayLi
 	return items, nil
 }
 
-const gatewayListAuditWorkspaces = `-- name: GatewayListAuditWorkspaces :many
+const gatewayListEventTrailWorkspaces = `-- name: GatewayListEventTrailWorkspaces :many
 SELECT
-  audit_events.workspace_id,
+  event_trail_events.workspace_id,
   workspaces.name,
   workspaces.slug
-FROM audit_events
+FROM event_trail_events
 LEFT JOIN workspaces
-  ON workspaces.id = audit_events.workspace_id
-  AND workspaces.organization_id = audit_events.organization_id
-WHERE audit_events.organization_id = $1
-  AND audit_events.workspace_id IS NOT NULL
-  AND audit_events.created_at >= $2
+  ON workspaces.id = event_trail_events.workspace_id
+  AND workspaces.organization_id = event_trail_events.organization_id
+WHERE event_trail_events.organization_id = $1
+  AND event_trail_events.workspace_id IS NOT NULL
+  AND event_trail_events.created_at >= $2
   AND (
     $3::text IS NULL
-    OR audit_events.workspace_id = $3::text
+    OR event_trail_events.workspace_id = $3::text
   )
-GROUP BY audit_events.workspace_id, workspaces.name, workspaces.slug
-ORDER BY workspaces.name, audit_events.workspace_id
+GROUP BY event_trail_events.workspace_id, workspaces.name, workspaces.slug
+ORDER BY workspaces.name, event_trail_events.workspace_id
 `
 
-type GatewayListAuditWorkspacesParams struct {
+type GatewayListEventTrailWorkspacesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	RetainedAfter  pgtype.Timestamptz `json:"retained_after"`
 	WorkspaceID    pgtype.Text        `json:"workspace_id"`
 }
 
-type GatewayListAuditWorkspacesRow struct {
+type GatewayListEventTrailWorkspacesRow struct {
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 	Name        pgtype.Text `json:"name"`
 	Slug        pgtype.Text `json:"slug"`
 }
 
-func (q *Queries) GatewayListAuditWorkspaces(ctx context.Context, arg GatewayListAuditWorkspacesParams) ([]GatewayListAuditWorkspacesRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListAuditWorkspaces, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
+func (q *Queries) GatewayListEventTrailWorkspaces(ctx context.Context, arg GatewayListEventTrailWorkspacesParams) ([]GatewayListEventTrailWorkspacesRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListEventTrailWorkspaces, arg.OrganizationID, arg.RetainedAfter, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GatewayListAuditWorkspacesRow{}
+	items := []GatewayListEventTrailWorkspacesRow{}
 	for rows.Next() {
-		var i GatewayListAuditWorkspacesRow
+		var i GatewayListEventTrailWorkspacesRow
 		if err := rows.Scan(&i.WorkspaceID, &i.Name, &i.Slug); err != nil {
 			return nil, err
 		}
@@ -5255,7 +5255,7 @@ WITH revoked AS (
     AND apikeys.reference_id = revoked.organization_id
   RETURNING apikeys.id
 )
-INSERT INTO audit_events(
+INSERT INTO event_trail_events(
   id,
   organization_id,
   workspace_id,
@@ -5287,7 +5287,7 @@ JOIN disabled ON disabled.id = revoked.api_key_id
 `
 
 type GatewayRevokeScopedAPIKeyParams struct {
-	AuditID        string             `json:"audit_id"`
+	EventTrailID   string             `json:"event_trail_id"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	RevokedReason  pgtype.Text        `json:"revoked_reason"`
 	ApiKeyID       string             `json:"api_key_id"`
@@ -5298,7 +5298,7 @@ type GatewayRevokeScopedAPIKeyParams struct {
 
 func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, gatewayRevokeScopedAPIKey,
-		arg.AuditID,
+		arg.EventTrailID,
 		arg.RevokedAt,
 		arg.RevokedReason,
 		arg.ApiKeyID,

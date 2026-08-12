@@ -1,6 +1,6 @@
-import type { ListAuditEventsData } from "@/lib/gateway/client"
-import { listOrganizationAuditEvents } from "@/data/audit"
-import { AuditEvents, auditQuerySchema } from "./audit-events"
+import type { ListEventTrailEventsData } from "@/lib/gateway/client"
+import { listOrganizationEventTrailEvents } from "@/data/event-trail"
+import { EventTrailEvents, eventTrailQuerySchema } from "./event-trail-events"
 
 export const unstable_instant = {
   prefetch: "runtime",
@@ -15,7 +15,7 @@ export const unstable_instant = {
         ["rsc", null],
         ["x-agentz-pathname", null],
       ],
-      params: { catchAll: ["audit"], orgSlug: "sample-organisation" },
+      params: { catchAll: ["event trail"], orgSlug: "sample-organisation" },
       searchParams: {
         actor_id: null,
         actor_type: null,
@@ -31,7 +31,7 @@ export const unstable_instant = {
   ],
 }
 
-export default async function AuditPage({
+export default async function EventTrailPage({
   params,
   searchParams,
 }: {
@@ -39,12 +39,18 @@ export default async function AuditPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [{ orgSlug }, raw] = await Promise.all([params, searchParams])
-  const filters = auditQuerySchema.parse(raw)
-  const query = { ...filters, limit: 50 } satisfies NonNullable<ListAuditEventsData["query"]>
-  const audit = await listOrganizationAuditEvents(orgSlug, query)
-  if (!audit) {
+  const filters = eventTrailQuerySchema.parse(raw)
+  const query = { ...filters, limit: 50 } satisfies NonNullable<ListEventTrailEventsData["query"]>
+  const eventTrail = await listOrganizationEventTrailEvents(orgSlug, query)
+  if (!eventTrail) {
     return null
   }
 
-  return <AuditEvents audit={audit} basePath={`/orgs/${orgSlug}/audit`} query={query} />
+  return (
+    <EventTrailEvents
+      eventTrail={eventTrail}
+      basePath={`/orgs/${orgSlug}/event-trail`}
+      query={query}
+    />
+  )
 }

@@ -27,17 +27,17 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-type workspaceAudit struct {
+type workspaceEventTrail struct {
 	request        *http.Request
 	organizationID string
 	workspaceID    string
-	actorType      gatewaydb.AuditActor
+	actorType      gatewaydb.EventTrailActor
 	actorID        string
 	action         string
-	result         gatewaydb.AuditResult
-	interfaceName  gatewaydb.AuditInterface
-	before         []gatewayapi.AuditField
-	after          []gatewayapi.AuditField
+	result         gatewaydb.EventTrailResult
+	interfaceName  gatewaydb.EventTrailInterface
+	before         []gatewayapi.EventTrailField
+	after          []gatewayapi.EventTrailField
 }
 
 // ListWorkspaces handles GET /api/workspace.
@@ -191,17 +191,17 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !allowed {
-		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
 			request:        r,
 			organizationID: claims.OrganizationID,
 			workspaceID:    id,
-			actorType:      gatewaydb.AuditActorUser,
+			actorType:      gatewaydb.EventTrailActorUser,
 			actorID:        claims.UserID,
 			action:         "workspace.create",
-			result:         gatewaydb.AuditResultDenied,
-			interfaceName:  gatewaydb.AuditInterfaceGateway,
-			after: []gatewayapi.AuditField{
-				{Field: gatewayapi.AuditFieldName, Value: req.Name},
+			result:         gatewaydb.EventTrailResultDenied,
+			interfaceName:  gatewaydb.EventTrailInterfaceGateway,
+			after: []gatewayapi.EventTrailField{
+				{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
 			},
 		})
 		if err != nil {
@@ -234,18 +234,18 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(fields) > 0 {
-		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
 			request: r, organizationID: claims.OrganizationID, workspaceID: id,
-			actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
-			action: "workspace.create", result: gatewaydb.AuditResultFailed,
-			interfaceName: gatewaydb.AuditInterfaceGateway,
+			actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+			action: "workspace.create", result: gatewaydb.EventTrailResultFailed,
+			interfaceName: gatewaydb.EventTrailInterfaceGateway,
 		})
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			writeInternalError(w, r, fmt.Errorf("commit failed workspace create audit: %w", err))
+			writeInternalError(w, r, fmt.Errorf("commit failed workspace create event trail: %w", err))
 			return
 		}
 		writeError(w, r, newAPIError(
@@ -301,17 +301,17 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if assigned != int64(len(req.AdminMemberIds)) {
 		_ = tx.Rollback(r.Context())
-		err = createWorkspaceAudit(r.Context(), s.queries, workspaceAudit{
+		err = createWorkspaceEventTrail(r.Context(), s.queries, workspaceEventTrail{
 			request:        r,
 			organizationID: claims.OrganizationID,
 			workspaceID:    id,
-			actorType:      gatewaydb.AuditActorUser,
+			actorType:      gatewaydb.EventTrailActorUser,
 			actorID:        claims.UserID,
 			action:         "workspace.create",
-			result:         gatewaydb.AuditResultDenied,
-			interfaceName:  gatewaydb.AuditInterfaceGateway,
-			after: []gatewayapi.AuditField{
-				{Field: gatewayapi.AuditFieldName, Value: req.Name},
+			result:         gatewaydb.EventTrailResultDenied,
+			interfaceName:  gatewaydb.EventTrailInterfaceGateway,
+			after: []gatewayapi.EventTrailField{
+				{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
 			},
 		})
 		if err != nil {
@@ -345,20 +345,20 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, r, errors.New("projected Workspace Admin count changed"))
 		return
 	}
-	err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
 		request:        r,
 		organizationID: claims.OrganizationID,
 		workspaceID:    id,
-		actorType:      gatewaydb.AuditActorUser,
+		actorType:      gatewaydb.EventTrailActorUser,
 		actorID:        claims.UserID,
 		action:         "workspace.create",
-		result:         gatewaydb.AuditResultSucceeded,
-		interfaceName:  gatewaydb.AuditInterfaceGateway,
-		after: []gatewayapi.AuditField{
-			{Field: gatewayapi.AuditFieldName, Value: req.Name},
-			{Field: gatewayapi.AuditFieldSlug, Value: workspaceSlug},
-			{Field: gatewayapi.AuditFieldProvisioningAttempt, Value: "1"},
-			{Field: gatewayapi.AuditFieldState, Value: "provisioning"},
+		result:         gatewaydb.EventTrailResultSucceeded,
+		interfaceName:  gatewaydb.EventTrailInterfaceGateway,
+		after: []gatewayapi.EventTrailField{
+			{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
+			{Field: gatewayapi.EventTrailFieldSlug, Value: workspaceSlug},
+			{Field: gatewayapi.EventTrailFieldProvisioningAttempt, Value: "1"},
+			{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
 		},
 	})
 	if err != nil {
@@ -384,7 +384,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			r.Context(),
 			row,
 			reason,
-			gatewaydb.AuditInterfaceGateway,
+			gatewaydb.EventTrailInterfaceGateway,
 		)
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -515,15 +515,15 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		},
 	)
 	if !allowed || getErr != nil || current.State != gatewaydb.WorkspaceStateFailed {
-		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
 			request:        r,
 			organizationID: claims.OrganizationID,
 			workspaceID:    workspaceID,
-			actorType:      gatewaydb.AuditActorUser,
+			actorType:      gatewaydb.EventTrailActorUser,
 			actorID:        claims.UserID,
 			action:         "workspace.retry",
-			result:         gatewaydb.AuditResultDenied,
-			interfaceName:  gatewaydb.AuditInterfaceGateway,
+			result:         gatewaydb.EventTrailResultDenied,
+			interfaceName:  gatewaydb.EventTrailInterfaceGateway,
 		})
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -578,28 +578,28 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		))
 		return
 	}
-	err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
 		request:        r,
 		organizationID: claims.OrganizationID,
 		workspaceID:    workspaceID,
-		actorType:      gatewaydb.AuditActorUser,
+		actorType:      gatewaydb.EventTrailActorUser,
 		actorID:        claims.UserID,
 		action:         "workspace.retry",
-		result:         gatewaydb.AuditResultSucceeded,
-		interfaceName:  gatewaydb.AuditInterfaceGateway,
-		before: []gatewayapi.AuditField{
+		result:         gatewaydb.EventTrailResultSucceeded,
+		interfaceName:  gatewaydb.EventTrailInterfaceGateway,
+		before: []gatewayapi.EventTrailField{
 			{
-				Field: gatewayapi.AuditFieldProvisioningAttempt,
+				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 				Value: strconv.FormatInt(current.ProvisioningAttempt, 10),
 			},
-			{Field: gatewayapi.AuditFieldState, Value: "failed"},
+			{Field: gatewayapi.EventTrailFieldState, Value: "failed"},
 		},
-		after: []gatewayapi.AuditField{
+		after: []gatewayapi.EventTrailField{
 			{
-				Field: gatewayapi.AuditFieldProvisioningAttempt,
+				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 				Value: strconv.FormatInt(current.ProvisioningAttempt+1, 10),
 			},
-			{Field: gatewayapi.AuditFieldState, Value: "provisioning"},
+			{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
 		},
 	})
 	if err != nil {
@@ -627,7 +627,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 			r.Context(),
 			current,
 			reason,
-			gatewaydb.AuditInterfaceGateway,
+			gatewaydb.EventTrailInterfaceGateway,
 		)
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -751,26 +751,26 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
 			organizationID: tenant.Spec.OrganizationID,
 			workspaceID:    workspaceID,
-			actorType:      gatewaydb.AuditActorSystem,
+			actorType:      gatewaydb.EventTrailActorSystem,
 			action:         "workspace.lifecycle",
-			result:         gatewaydb.AuditResultDenied,
-			interfaceName:  gatewaydb.AuditInterfaceController,
-			before: []gatewayapi.AuditField{
+			result:         gatewaydb.EventTrailResultDenied,
+			interfaceName:  gatewaydb.EventTrailInterfaceController,
+			before: []gatewayapi.EventTrailField{
 				{
-					Field: gatewayapi.AuditFieldProvisioningAttempt,
+					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 					Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
 				},
-				{Field: gatewayapi.AuditFieldState, Value: string(previous.State)},
+				{Field: gatewayapi.EventTrailFieldState, Value: string(previous.State)},
 			},
-			after: []gatewayapi.AuditField{
+			after: []gatewayapi.EventTrailField{
 				{
-					Field: gatewayapi.AuditFieldProvisioningAttempt,
+					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 					Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
 				},
-				{Field: gatewayapi.AuditFieldState, Value: string(state)},
+				{Field: gatewayapi.EventTrailFieldState, Value: string(state)},
 			},
 		})
 		if err != nil {
@@ -793,26 +793,26 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		writeInternalError(w, r, fmt.Errorf("read previous workspace lifecycle: %w", previousErr))
 		return
 	}
-	err = createWorkspaceAudit(r.Context(), q, workspaceAudit{
+	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
 		organizationID: tenant.Spec.OrganizationID,
 		workspaceID:    workspaceID,
-		actorType:      gatewaydb.AuditActorSystem,
+		actorType:      gatewaydb.EventTrailActorSystem,
 		action:         "workspace." + string(state),
-		result:         gatewaydb.AuditResultSucceeded,
-		interfaceName:  gatewaydb.AuditInterfaceController,
-		before: []gatewayapi.AuditField{
+		result:         gatewaydb.EventTrailResultSucceeded,
+		interfaceName:  gatewaydb.EventTrailInterfaceController,
+		before: []gatewayapi.EventTrailField{
 			{
-				Field: gatewayapi.AuditFieldProvisioningAttempt,
+				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 				Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
 			},
-			{Field: gatewayapi.AuditFieldState, Value: string(previous.State)},
+			{Field: gatewayapi.EventTrailFieldState, Value: string(previous.State)},
 		},
-		after: []gatewayapi.AuditField{
+		after: []gatewayapi.EventTrailField{
 			{
-				Field: gatewayapi.AuditFieldProvisioningAttempt,
+				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 				Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
 			},
-			{Field: gatewayapi.AuditFieldState, Value: string(state)},
+			{Field: gatewayapi.EventTrailFieldState, Value: string(state)},
 		},
 	})
 	if err != nil {
@@ -978,7 +978,7 @@ func (s *Service) recoverWorkspaceProvisioning(ctx context.Context) error {
 			ctx,
 			row,
 			reason,
-			gatewaydb.AuditInterfaceGateway,
+			gatewaydb.EventTrailInterfaceGateway,
 		)
 		if failErr != nil {
 			return failErr
@@ -987,7 +987,7 @@ func (s *Service) recoverWorkspaceProvisioning(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.Workspace, reason string, interfaceName gatewaydb.AuditInterface) (gatewaydb.Workspace, error) {
+func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.Workspace, reason string, interfaceName gatewaydb.EventTrailInterface) (gatewaydb.Workspace, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return gatewaydb.Workspace{}, fmt.Errorf("begin fail workspace provisioning: %w", err)
@@ -1009,26 +1009,26 @@ func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.W
 		return gatewaydb.Workspace{}, fmt.Errorf("fail workspace provisioning: %w", err)
 	}
 	if changed == 1 {
-		err = createWorkspaceAudit(ctx, q, workspaceAudit{
+		err = createWorkspaceEventTrail(ctx, q, workspaceEventTrail{
 			organizationID: row.OrganizationID,
 			workspaceID:    row.ID,
-			actorType:      gatewaydb.AuditActorSystem,
+			actorType:      gatewaydb.EventTrailActorSystem,
 			action:         "workspace.failed",
-			result:         gatewaydb.AuditResultFailed,
+			result:         gatewaydb.EventTrailResultFailed,
 			interfaceName:  interfaceName,
-			before: []gatewayapi.AuditField{
+			before: []gatewayapi.EventTrailField{
 				{
-					Field: gatewayapi.AuditFieldProvisioningAttempt,
+					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 					Value: strconv.FormatInt(row.ProvisioningAttempt, 10),
 				},
-				{Field: gatewayapi.AuditFieldState, Value: "provisioning"},
+				{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
 			},
-			after: []gatewayapi.AuditField{
+			after: []gatewayapi.EventTrailField{
 				{
-					Field: gatewayapi.AuditFieldProvisioningAttempt,
+					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
 					Value: strconv.FormatInt(row.ProvisioningAttempt, 10),
 				},
-				{Field: gatewayapi.AuditFieldState, Value: "failed"},
+				{Field: gatewayapi.EventTrailFieldState, Value: "failed"},
 			},
 		})
 		if err != nil {
@@ -1051,48 +1051,48 @@ func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.W
 	return current, nil
 }
 
-func createWorkspaceAudit(ctx context.Context, q gatewaydb.Querier, audit workspaceAudit) error {
-	before, err := json.Marshal(audit.before)
+func createWorkspaceEventTrail(ctx context.Context, q gatewaydb.Querier, eventTrail workspaceEventTrail) error {
+	before, err := json.Marshal(eventTrail.before)
 	if err != nil {
-		return fmt.Errorf("encode workspace audit before state: %w", err)
+		return fmt.Errorf("encode workspace event trail before state: %w", err)
 	}
-	after, err := json.Marshal(audit.after)
+	after, err := json.Marshal(eventTrail.after)
 	if err != nil {
-		return fmt.Errorf("encode workspace audit after state: %w", err)
+		return fmt.Errorf("encode workspace event trail after state: %w", err)
 	}
-	params := gatewaydb.GatewayCreateAuditEventParams{
-		ID:               "audit-" + uuid.NewString(),
-		OrganizationID:   audit.organizationID,
-		ActorType:        audit.actorType,
-		TargetType:       gatewaydb.AuditTargetWorkspace,
-		TargetID:         audit.workspaceID,
+	params := gatewaydb.GatewayCreateEventTrailEventParams{
+		ID:               "event-trail-" + uuid.NewString(),
+		OrganizationID:   eventTrail.organizationID,
+		ActorType:        eventTrail.actorType,
+		TargetType:       gatewaydb.EventTrailTargetWorkspace,
+		TargetID:         eventTrail.workspaceID,
 		Category:         "workspace",
-		Action:           audit.action,
-		Result:           audit.result,
+		Action:           eventTrail.action,
+		Result:           eventTrail.result,
 		Before:           before,
 		After:            after,
 		AutomaticCascade: false,
-		Interface:        audit.interfaceName,
+		Interface:        eventTrail.interfaceName,
 	}
-	if audit.actorID != "" {
-		params.ActorID = pgtype.Text{String: audit.actorID, Valid: true}
+	if eventTrail.actorID != "" {
+		params.ActorID = pgtype.Text{String: eventTrail.actorID, Valid: true}
 	}
-	if audit.workspaceID != "" {
-		params.WorkspaceID = pgtype.Text{String: audit.workspaceID, Valid: true}
+	if eventTrail.workspaceID != "" {
+		params.WorkspaceID = pgtype.Text{String: eventTrail.workspaceID, Valid: true}
 	}
-	if audit.request != nil {
-		host, _, err := net.SplitHostPort(audit.request.RemoteAddr)
+	if eventTrail.request != nil {
+		host, _, err := net.SplitHostPort(eventTrail.request.RemoteAddr)
 		if err == nil && host != "" {
 			params.IpAddress = pgtype.Text{String: host, Valid: true}
 		}
-		userAgent := strings.TrimSpace(audit.request.UserAgent())
+		userAgent := strings.TrimSpace(eventTrail.request.UserAgent())
 		if userAgent != "" {
 			params.UserAgent = pgtype.Text{String: userAgent, Valid: true}
 		}
 	}
-	_, err = q.GatewayCreateAuditEvent(ctx, params)
+	_, err = q.GatewayCreateEventTrailEvent(ctx, params)
 	if err != nil {
-		return fmt.Errorf("create workspace audit event: %w", err)
+		return fmt.Errorf("create workspace event trail event: %w", err)
 	}
 	return nil
 }

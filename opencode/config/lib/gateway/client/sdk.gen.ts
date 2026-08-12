@@ -103,9 +103,9 @@ import type {
   GetAgentOwnerData,
   GetAgentOwnerErrors,
   GetAgentOwnerResponses,
-  GetAuditEventData,
-  GetAuditEventErrors,
-  GetAuditEventResponses,
+  GetEventTrailEventData,
+  GetEventTrailEventErrors,
+  GetEventTrailEventResponses,
   GetInferencePoolData,
   GetInferencePoolErrors,
   GetInferencePoolResponses,
@@ -160,9 +160,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
-  ListAuditEventsData,
-  ListAuditEventsErrors,
-  ListAuditEventsResponses,
+  ListEventTrailEventsData,
+  ListEventTrailEventsErrors,
+  ListEventTrailEventsResponses,
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
@@ -385,8 +385,8 @@ import {
   zExportImmutableSkillsBody,
   zExportImmutableSkillsHeaders,
   zGetAgentOwnerPath,
-  zGetAuditEventHeaders,
-  zGetAuditEventPath,
+  zGetEventTrailEventHeaders,
+  zGetEventTrailEventPath,
   zGetInferencePoolHeaders,
   zGetInferencePoolPath,
   zGetInferencePoolUsageHeaders,
@@ -420,8 +420,8 @@ import {
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
-  zListAuditEventsHeaders,
-  zListAuditEventsQuery,
+  zListEventTrailEventsHeaders,
+  zListEventTrailEventsQuery,
   zListFileObservabilityPath,
   zListFileObservabilityQuery,
   zListFileObservabilitySummaryPath,
@@ -551,50 +551,58 @@ export type Options<
 }
 
 /**
- * List Organisation audit events.
+ * List Organisation event trail events.
  *
- * Lists rolling audit history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
+ * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
  *
  */
-export const listAuditEvents = <ThrowOnError extends boolean = false>(
-  options?: Options<ListAuditEventsData, ThrowOnError>
+export const listEventTrailEvents = <ThrowOnError extends boolean = false>(
+  options?: Options<ListEventTrailEventsData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<ListAuditEventsResponses, ListAuditEventsErrors, ThrowOnError>({
+  (options?.client ?? client).get<
+    ListEventTrailEventsResponses,
+    ListEventTrailEventsErrors,
+    ThrowOnError
+  >({
     requestValidator: async (data) =>
       await z
         .object({
           body: z.never().optional(),
-          headers: zListAuditEventsHeaders.optional(),
+          headers: zListEventTrailEventsHeaders.optional(),
           path: z.never().optional(),
-          query: zListAuditEventsQuery.optional(),
+          query: zListEventTrailEventsQuery.optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/audit-event",
+    url: "/api/event-trail-event",
     ...options,
   })
 
 /**
- * Get an Organisation audit event.
+ * Get an Organisation event trail event.
  *
- * Returns one event from the selected scope's rolling audit history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
+ * Returns one event from the selected scope's rolling event trail history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
  *
  */
-export const getAuditEvent = <ThrowOnError extends boolean = false>(
-  options: Options<GetAuditEventData, ThrowOnError>
+export const getEventTrailEvent = <ThrowOnError extends boolean = false>(
+  options: Options<GetEventTrailEventData, ThrowOnError>
 ) =>
-  (options.client ?? client).get<GetAuditEventResponses, GetAuditEventErrors, ThrowOnError>({
+  (options.client ?? client).get<
+    GetEventTrailEventResponses,
+    GetEventTrailEventErrors,
+    ThrowOnError
+  >({
     requestValidator: async (data) =>
       await z
         .object({
           body: z.never().optional(),
-          headers: zGetAuditEventHeaders.optional(),
-          path: zGetAuditEventPath,
+          headers: zGetEventTrailEventHeaders.optional(),
+          path: zGetEventTrailEventPath,
           query: z.never().optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/audit-event/{eventId}",
+    url: "/api/event-trail-event/{eventId}",
     ...options,
   })
 

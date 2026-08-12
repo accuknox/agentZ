@@ -278,8 +278,8 @@ func (q *Queries) CountNamespaceRows(ctx context.Context, scopeNamespace string)
 	return i, err
 }
 
-const createAuditEvent = `-- name: CreateAuditEvent :exec
-INSERT INTO audit_events(
+const createEventTrailEvent = `-- name: CreateEventTrailEvent :exec
+INSERT INTO event_trail_events(
   id,
   organization_id,
   workspace_id,
@@ -309,15 +309,15 @@ VALUES (
 )
 `
 
-type CreateAuditEventParams struct {
+type CreateEventTrailEventParams struct {
 	ID             string      `json:"id"`
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    pgtype.Text `json:"workspace_id"`
 	After          []byte      `json:"after"`
 }
 
-func (q *Queries) CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error {
-	_, err := q.db.Exec(ctx, createAuditEvent,
+func (q *Queries) CreateEventTrailEvent(ctx context.Context, arg CreateEventTrailEventParams) error {
+	_, err := q.db.Exec(ctx, createEventTrailEvent,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,

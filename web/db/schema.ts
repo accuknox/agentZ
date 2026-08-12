@@ -15,7 +15,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
-import type { AuditField } from "@/lib/gateway/client/types.gen"
+import type { EventTrailField } from "@/lib/gateway/client/types.gen"
 import {
   apikeys,
   invitations,
@@ -67,9 +67,9 @@ export const agentShareCapability = pgEnum("agent_share_capability", [
   "delete_shared_secret",
 ])
 export const apiKeyTargetType = pgEnum("api_key_target_type", ["agent", "workflow"])
-export const auditActor = pgEnum("audit_actor", ["user", "api_key", "system"])
-export const auditResult = pgEnum("audit_result", ["succeeded", "denied", "failed"])
-export const auditTarget = pgEnum("audit_target", [
+export const eventTrailActor = pgEnum("event_trail_actor", ["user", "api_key", "system"])
+export const eventTrailResult = pgEnum("event_trail_result", ["succeeded", "denied", "failed"])
+export const eventTrailTarget = pgEnum("event_trail_target", [
   "organization",
   "organization_membership",
   "team",
@@ -84,7 +84,7 @@ export const auditTarget = pgEnum("audit_target", [
   "workspace_access",
   "workspace",
 ])
-export const auditInterface = pgEnum("audit_interface", [
+export const eventTrailInterface = pgEnum("event_trail_interface", [
   "web",
   "gateway",
   "better_auth",
@@ -717,50 +717,50 @@ export const cleanupJobs = pgTable(
   ]
 )
 
-export const auditEvents = pgTable(
-  "audit_events",
+export const eventTrailEvents = pgTable(
+  "event_trail_events",
   {
     id: text("id").primaryKey(),
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "restrict" }),
     workspaceId: text("workspace_id"),
-    actorType: auditActor("actor_type").notNull(),
+    actorType: eventTrailActor("actor_type").notNull(),
     actorId: text("actor_id"),
-    targetType: auditTarget("target_type").notNull(),
+    targetType: eventTrailTarget("target_type").notNull(),
     targetId: text("target_id").notNull(),
     category: text("category").notNull(),
     action: text("action").notNull(),
-    result: auditResult("result").notNull(),
-    before: jsonb("before").$type<AuditField[]>(),
-    after: jsonb("after").$type<AuditField[]>(),
+    result: eventTrailResult("result").notNull(),
+    before: jsonb("before").$type<EventTrailField[]>(),
+    after: jsonb("after").$type<EventTrailField[]>(),
     automaticCascade: boolean("automatic_cascade").default(false).notNull(),
     cleanupJobId: text("cleanup_job_id"),
-    interface: auditInterface("interface").notNull(),
+    interface: eventTrailInterface("interface").notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    index("audit_events_organization_created_idx").on(
+    index("event_trail_events_organization_created_idx").on(
       table.organizationId,
       table.createdAt,
       table.id
     ),
-    index("audit_events_workspace_created_idx").on(table.workspaceId, table.createdAt),
-    index("audit_events_created_idx").on(table.createdAt),
+    index("event_trail_events_workspace_created_idx").on(table.workspaceId, table.createdAt),
+    index("event_trail_events_created_idx").on(table.createdAt),
     foreignKey({
       columns: [table.cleanupJobId, table.organizationId],
       foreignColumns: [cleanupJobs.id, cleanupJobs.organizationId],
-      name: "audit_events_cleanup_job_organization_fk",
+      name: "event_trail_events_cleanup_job_organization_fk",
     }).onDelete("restrict"),
     check(
-      "audit_events_actor_ck",
+      "event_trail_events_actor_ck",
       sql`(${table.actorType} = 'system' AND ${table.actorId} IS NULL) OR
         (${table.actorType} <> 'system' AND ${table.actorId} IS NOT NULL)`
     ),
     check(
-      "audit_events_workspace_target_ck",
+      "event_trail_events_workspace_target_ck",
       sql`${table.targetType} <> 'workspace' OR
         (${table.workspaceId} IS NOT NULL AND ${table.targetId} = ${table.workspaceId})`
     ),

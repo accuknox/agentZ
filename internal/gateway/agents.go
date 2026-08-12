@@ -395,11 +395,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, mapKubeHTTPError("create agent", err))
 		return
 	}
-	err = createAgentAudit(r.Context(), r, q, access, name, "agent.create",
+	err = createAgentEventTrail(r.Context(), r, q, access, name, "agent.create",
 		nil,
-		[]gatewayapi.AuditField{
-			{Field: gatewayapi.AuditFieldName, Value: name},
-			{Field: gatewayapi.AuditFieldUserID, Value: access.claims.UserID},
+		[]gatewayapi.EventTrailField{
+			{Field: gatewayapi.EventTrailFieldName, Value: name},
+			{Field: gatewayapi.EventTrailFieldUserID, Value: access.claims.UserID},
 		},
 	)
 	if err != nil {
@@ -568,10 +568,10 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		writeError(w, r, mapGatewayStoreError("update agent", err))
 		return
 	}
-	err = createAgentAudit(
+	err = createAgentEventTrail(
 		r.Context(), r, q, access, name, "agent.modify",
-		agentConfigurationAuditFields(name, before),
-		agentConfigurationAuditFields(name, updated),
+		agentConfigurationEventTrailFields(name, before),
+		agentConfigurationEventTrailFields(name, updated),
 	)
 	if err != nil {
 		s.rollbackAgentUpdate(r.Context(), ns, before)
@@ -716,10 +716,10 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		))
 		return
 	}
-	err = createAgentAudit(r.Context(), r, q, access, agentName, "agent.delete",
-		[]gatewayapi.AuditField{
-			{Field: gatewayapi.AuditFieldName, Value: agentName},
-			{Field: gatewayapi.AuditFieldUserID, Value: owner.OwnerUserID},
+	err = createAgentEventTrail(r.Context(), r, q, access, agentName, "agent.delete",
+		[]gatewayapi.EventTrailField{
+			{Field: gatewayapi.EventTrailFieldName, Value: agentName},
+			{Field: gatewayapi.EventTrailFieldUserID, Value: owner.OwnerUserID},
 		},
 		nil,
 	)
@@ -871,14 +871,14 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		writeInternalError(w, r, fmt.Errorf("transfer Agent owner: %w", err))
 		return
 	}
-	err = createAgentAudit(r.Context(), r, q, access, agentName, "agent.owner.transfer",
-		[]gatewayapi.AuditField{
-			{Field: gatewayapi.AuditFieldName, Value: agentName},
-			{Field: gatewayapi.AuditFieldUserID, Value: previous.OwnerUserID},
+	err = createAgentEventTrail(r.Context(), r, q, access, agentName, "agent.owner.transfer",
+		[]gatewayapi.EventTrailField{
+			{Field: gatewayapi.EventTrailFieldName, Value: agentName},
+			{Field: gatewayapi.EventTrailFieldUserID, Value: previous.OwnerUserID},
 		},
-		[]gatewayapi.AuditField{
-			{Field: gatewayapi.AuditFieldName, Value: agentName},
-			{Field: gatewayapi.AuditFieldUserID, Value: row.OwnerUserID},
+		[]gatewayapi.EventTrailField{
+			{Field: gatewayapi.EventTrailFieldName, Value: agentName},
+			{Field: gatewayapi.EventTrailFieldUserID, Value: row.OwnerUserID},
 		},
 	)
 	if err != nil {
@@ -1079,9 +1079,9 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 		writeError(w, r, agentShareNotFound(shareID))
 		return
 	}
-	err = createAgentAudit(r.Context(), r, q, access, agentName, "agent.share.delete",
-		agentShareAuditFields(agentName, share),
-		[]gatewayapi.AuditField{{Field: gatewayapi.AuditFieldName, Value: agentName}},
+	err = createAgentEventTrail(r.Context(), r, q, access, agentName, "agent.share.delete",
+		agentShareEventTrailFields(agentName, share),
+		[]gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: agentName}},
 	)
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -1611,9 +1611,9 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 			return gatewayapi.AgentShare{}, fmt.Errorf("add Agent Share grant: %w", err)
 		}
 	}
-	if err := createAgentAudit(ctx, r, q, access, agentName, "agent.share.upsert",
+	if err := createAgentEventTrail(ctx, r, q, access, agentName, "agent.share.upsert",
 		nil,
-		agentShareAuditFields(agentName, row),
+		agentShareEventTrailFields(agentName, row),
 	); err != nil {
 		return gatewayapi.AgentShare{}, err
 	}
@@ -1691,36 +1691,36 @@ func (s *Service) agentShareResponse(ctx context.Context, access resourceAccess,
 	return item, nil
 }
 
-func createAgentAudit(ctx context.Context, r *http.Request, q gatewaydb.Querier, access resourceAccess, agentName string, action string, before []gatewayapi.AuditField, after []gatewayapi.AuditField) error {
+func createAgentEventTrail(ctx context.Context, r *http.Request, q gatewaydb.Querier, access resourceAccess, agentName string, action string, before []gatewayapi.EventTrailField, after []gatewayapi.EventTrailField) error {
 	if before == nil {
-		before = []gatewayapi.AuditField{}
+		before = []gatewayapi.EventTrailField{}
 	}
 	if after == nil {
-		after = []gatewayapi.AuditField{}
+		after = []gatewayapi.EventTrailField{}
 	}
 	beforeJSON, err := json.Marshal(before)
 	if err != nil {
-		return fmt.Errorf("encode Agent audit before state: %w", err)
+		return fmt.Errorf("encode Agent event trail before state: %w", err)
 	}
 	afterJSON, err := json.Marshal(after)
 	if err != nil {
-		return fmt.Errorf("encode Agent audit after state: %w", err)
+		return fmt.Errorf("encode Agent event trail after state: %w", err)
 	}
-	params := gatewaydb.GatewayCreateAuditEventParams{
-		ID:               "audit-" + uuid.NewString(),
+	params := gatewaydb.GatewayCreateEventTrailEventParams{
+		ID:               "event-trail-" + uuid.NewString(),
 		OrganizationID:   access.claims.OrganizationID,
 		WorkspaceID:      pgtype.Text{String: access.workspaceID, Valid: access.workspaceID != ""},
-		ActorType:        gatewaydb.AuditActorUser,
+		ActorType:        gatewaydb.EventTrailActorUser,
 		ActorID:          pgtype.Text{String: access.claims.UserID, Valid: true},
-		TargetType:       gatewaydb.AuditTargetAgent,
+		TargetType:       gatewaydb.EventTrailTargetAgent,
 		TargetID:         agentName,
 		Category:         "agent",
 		Action:           action,
-		Result:           gatewaydb.AuditResultSucceeded,
+		Result:           gatewaydb.EventTrailResultSucceeded,
 		Before:           beforeJSON,
 		After:            afterJSON,
 		AutomaticCascade: false,
-		Interface:        gatewaydb.AuditInterfaceGateway,
+		Interface:        gatewaydb.EventTrailInterfaceGateway,
 	}
 	if host, _, splitErr := net.SplitHostPort(r.RemoteAddr); splitErr == nil && host != "" {
 		params.IpAddress = pgtype.Text{String: host, Valid: true}
@@ -1728,15 +1728,15 @@ func createAgentAudit(ctx context.Context, r *http.Request, q gatewaydb.Querier,
 	if userAgent := strings.TrimSpace(r.UserAgent()); userAgent != "" {
 		params.UserAgent = pgtype.Text{String: userAgent, Valid: true}
 	}
-	if _, err := q.GatewayCreateAuditEvent(ctx, params); err != nil {
-		return fmt.Errorf("create Agent audit event: %w", err)
+	if _, err := q.GatewayCreateEventTrailEvent(ctx, params); err != nil {
+		return fmt.Errorf("create Agent event trail event: %w", err)
 	}
 	return nil
 }
 
-func agentConfigurationAuditFields(agentName string, agent *agentzv1alpha1.Agent) []gatewayapi.AuditField {
+func agentConfigurationEventTrailFields(agentName string, agent *agentzv1alpha1.Agent) []gatewayapi.EventTrailField {
 	if agent == nil {
-		return []gatewayapi.AuditField{{Field: gatewayapi.AuditFieldName, Value: agentName}}
+		return []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: agentName}}
 	}
 
 	skills := make([]string, 0, len(agent.Spec.Skills))
@@ -1751,22 +1751,22 @@ func agentConfigurationAuditFields(agentName string, agent *agentzv1alpha1.Agent
 		agent.Spec.Memory.Enabled,
 		strings.Join(skills, ","),
 	)
-	return []gatewayapi.AuditField{
-		{Field: gatewayapi.AuditFieldName, Value: agentName},
-		{Field: gatewayapi.AuditFieldState, Value: state},
+	return []gatewayapi.EventTrailField{
+		{Field: gatewayapi.EventTrailFieldName, Value: agentName},
+		{Field: gatewayapi.EventTrailFieldState, Value: state},
 	}
 }
 
-func agentShareAuditFields(agentName string, share gatewaydb.AgentShare) []gatewayapi.AuditField {
-	fields := []gatewayapi.AuditField{{Field: gatewayapi.AuditFieldName, Value: agentName}}
+func agentShareEventTrailFields(agentName string, share gatewaydb.AgentShare) []gatewayapi.EventTrailField {
+	fields := []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: agentName}}
 	if share.TargetUserID.Valid {
-		fields = append(fields, gatewayapi.AuditField{
-			Field: gatewayapi.AuditFieldUserID, Value: share.TargetUserID.String,
+		fields = append(fields, gatewayapi.EventTrailField{
+			Field: gatewayapi.EventTrailFieldUserID, Value: share.TargetUserID.String,
 		})
 	}
 	if share.TargetTeamID.Valid {
-		fields = append(fields, gatewayapi.AuditField{
-			Field: gatewayapi.AuditFieldName, Value: "team:" + share.TargetTeamID.String,
+		fields = append(fields, gatewayapi.EventTrailField{
+			Field: gatewayapi.EventTrailFieldName, Value: "team:" + share.TargetTeamID.String,
 		})
 	}
 	return fields

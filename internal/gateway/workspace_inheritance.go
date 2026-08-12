@@ -173,11 +173,11 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 	)
 	if !allowed || getErr != nil {
 		if action == "modify" {
-			_ = createWorkspaceAudit(r.Context(), s.queries, workspaceAudit{
+			_ = createWorkspaceEventTrail(r.Context(), s.queries, workspaceEventTrail{
 				request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
-				actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
-				action: "workspace.inheritance.modify", result: gatewaydb.AuditResultDenied,
-				interfaceName: gatewaydb.AuditInterfaceGateway,
+				actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+				action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultDenied,
+				interfaceName: gatewaydb.EventTrailInterfaceGateway,
 			})
 		}
 		if !allowed {
@@ -308,12 +308,12 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 	if err != nil {
 		return fmt.Errorf("replace Workspace inheritance: %w", err)
 	}
-	err = createWorkspaceAudit(ctx, q, workspaceAudit{
+	err = createWorkspaceEventTrail(ctx, q, workspaceEventTrail{
 		request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
-		actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
-		action: "workspace.inheritance.modify", result: gatewaydb.AuditResultSucceeded,
-		interfaceName: gatewaydb.AuditInterfaceGateway,
-		after:         []gatewayapi.AuditField{{Field: gatewayapi.AuditFieldName, Value: string(resourceType)}},
+		actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+		action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultSucceeded,
+		interfaceName: gatewaydb.EventTrailInterfaceGateway,
+		after:         []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
 	})
 	if err != nil {
 		return err
@@ -325,15 +325,15 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 }
 
 func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gatewayClaims, workspaceID string, resourceType gatewayapi.InheritedResourceType) {
-	err := createWorkspaceAudit(context.WithoutCancel(r.Context()), s.queries, workspaceAudit{
+	err := createWorkspaceEventTrail(context.WithoutCancel(r.Context()), s.queries, workspaceEventTrail{
 		request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
-		actorType: gatewaydb.AuditActorUser, actorID: claims.UserID,
-		action: "workspace.inheritance.modify", result: gatewaydb.AuditResultFailed,
-		interfaceName: gatewaydb.AuditInterfaceGateway,
-		after:         []gatewayapi.AuditField{{Field: gatewayapi.AuditFieldName, Value: string(resourceType)}},
+		actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+		action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultFailed,
+		interfaceName: gatewaydb.EventTrailInterfaceGateway,
+		after:         []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
 	})
 	if err != nil {
-		slog.ErrorContext(r.Context(), "audit failed Workspace inheritance mutation", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "event trail failed Workspace inheritance mutation", slog.Any("err", err))
 	}
 }
 

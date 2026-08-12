@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination"
 import { useTokenPagination } from "@/lib/use-token-pagination"
 
-export function AuditPagination({ nextPageToken }: { nextPageToken: string }) {
+export function EventTrailPagination({ nextPageToken }: { nextPageToken: string }) {
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
     pageTokenKey: "page_token",
     tokenStackKey: "token_stack",

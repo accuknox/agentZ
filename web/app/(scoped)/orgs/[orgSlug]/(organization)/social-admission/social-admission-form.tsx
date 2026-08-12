@@ -314,9 +314,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         <JoinLink label="GitHub" link={data.joinLinks.github} />
         <Button asChild className="w-fit" variant="link">
           <Link
-            href={`/orgs/${orgSlug}/audit?category=membership&target_type=organization` as Route}
+            href={
+              `/orgs/${orgSlug}/event-trail?category=membership&target_type=organization` as Route
+            }
           >
-            Review Social Admission audit events
+            Review Social Admission eventTrail events
             <ArrowRight />
           </Link>
         </Button>

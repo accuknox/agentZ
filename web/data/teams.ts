@@ -38,7 +38,7 @@ export type TeamDetail = TeamSummary & {
     id: string
     action: string
     actorName: string
-    result: typeof schema.auditEvents.$inferSelect.result
+    result: typeof schema.eventTrailEvents.$inferSelect.result
     createdAt: string
   }[]
 }
@@ -60,13 +60,13 @@ async function getTeamActor(orgSlug: string, requireSuperadmin = true) {
   } satisfies TeamActor
 }
 
-function teamAudit(
+function teamEventTrail(
   actor: TeamActor,
   action: string,
   targetId: string,
-  result: typeof schema.auditEvents.$inferInsert.result,
-  before?: typeof schema.auditEvents.$inferInsert.before,
-  after?: typeof schema.auditEvents.$inferInsert.after
+  result: typeof schema.eventTrailEvents.$inferInsert.result,
+  before?: typeof schema.eventTrailEvents.$inferInsert.before,
+  after?: typeof schema.eventTrailEvents.$inferInsert.after
 ) {
   return {
     actorId: actor.userId,
@@ -76,7 +76,7 @@ function teamAudit(
     automaticCascade: false,
     before,
     category: "team",
-    id: `audit-${randomUUID()}`,
+    id: `event-trail-${randomUUID()}`,
     interface: "web" as const,
     ipAddress: getIp(actor.requestHeaders, getAuth().options),
     organizationId: actor.organizationId,
@@ -347,13 +347,17 @@ export async function saveTeam(
       .for("update")
     if (!(await isSuperadmin(tx, actor))) {
       await tx
-        .insert(schema.auditEvents)
-        .values(teamAudit(actor, teamId ? "team.update" : "team.create", teamId ?? "new", "denied"))
+        .insert(schema.eventTrailEvents)
+        .values(
+          teamEventTrail(actor, teamId ? "team.update" : "team.create", teamId ?? "new", "denied")
+        )
       return { error: "forbidden" as const }
     }
     const action = teamId ? "team.update" : "team.create"
     const attempt = (result: "failed" | "denied") =>
-      tx.insert(schema.auditEvents).values(teamAudit(actor, action, teamId ?? "new", result))
+      tx
+        .insert(schema.eventTrailEvents)
+        .values(teamEventTrail(actor, action, teamId ?? "new", result))
     const valid = await validTeamAccess(tx, actor, input.memberIds, input.roleIds)
     if (!valid) {
       await attempt("failed")
@@ -504,8 +508,8 @@ export async function saveTeam(
       .values(
         roleIds.map((roleId) => ({ teamId: team.id, roleId, organizationId: actor.organizationId }))
       )
-    await tx.insert(schema.auditEvents).values(
-      teamAudit(
+    await tx.insert(schema.eventTrailEvents).values(
+      teamEventTrail(
         actor,
         teamId ? "team.update" : "team.create",
         team.id,
@@ -559,7 +563,9 @@ export async function deleteTeam(
       .limit(1)
     if (!team) return { error: "not-found" as const }
     if (!(await isSuperadmin(tx, actor))) {
-      await tx.insert(schema.auditEvents).values(teamAudit(actor, "team.delete", team.id, "denied"))
+      await tx
+        .insert(schema.eventTrailEvents)
+        .values(teamEventTrail(actor, "team.delete", team.id, "denied"))
       return { error: "forbidden" as const }
     }
     const teamUsers = await tx
@@ -686,8 +692,8 @@ export async function deleteTeam(
       targetId: team.id,
       targetType: "team",
     })
-    await tx.insert(schema.auditEvents).values({
-      ...teamAudit(actor, "team.delete", team.id, "succeeded", [
+    await tx.insert(schema.eventTrailEvents).values({
+      ...teamEventTrail(actor, "team.delete", team.id, "succeeded", [
         { field: "name", value: team.name },
       ]),
       automaticCascade: true,
@@ -710,22 +716,22 @@ export async function getTeamDetail(orgSlug: string, teamId: string) {
   const selectedRoles = new Set(editor.team.roleIds)
   const activity = await getDB()
     .select({
-      id: schema.auditEvents.id,
-      action: schema.auditEvents.action,
+      id: schema.eventTrailEvents.id,
+      action: schema.eventTrailEvents.action,
       actorName: schema.users.name,
-      result: schema.auditEvents.result,
-      createdAt: schema.auditEvents.createdAt,
+      result: schema.eventTrailEvents.result,
+      createdAt: schema.eventTrailEvents.createdAt,
     })
-    .from(schema.auditEvents)
-    .leftJoin(schema.users, eq(schema.users.id, schema.auditEvents.actorId))
+    .from(schema.eventTrailEvents)
+    .leftJoin(schema.users, eq(schema.users.id, schema.eventTrailEvents.actorId))
     .where(
       and(
-        eq(schema.auditEvents.organizationId, editor.organizationId),
-        eq(schema.auditEvents.targetType, "team"),
-        eq(schema.auditEvents.targetId, teamId)
+        eq(schema.eventTrailEvents.organizationId, editor.organizationId),
+        eq(schema.eventTrailEvents.targetType, "team"),
+        eq(schema.eventTrailEvents.targetId, teamId)
       )
     )
-    .orderBy(desc(schema.auditEvents.createdAt), desc(schema.auditEvents.id))
+    .orderBy(desc(schema.eventTrailEvents.createdAt), desc(schema.eventTrailEvents.id))
     .limit(50)
   return {
     ...summary,

@@ -229,7 +229,7 @@ export async function createAPIKeyFormAction(
         workspaceId: scope.workspaceId,
       })
       await tx.insert(schema.apiKeyTargets).values(targets)
-      await tx.insert(schema.auditEvents).values({
+      await tx.insert(schema.eventTrailEvents).values({
         actorId: authContext.userId,
         actorType: "user",
         action: "api_key.create",
@@ -239,7 +239,7 @@ export async function createAPIKeyFormAction(
         ],
         automaticCascade: false,
         category: "api_key",
-        id: `audit-${randomUUID()}`,
+        id: `event-trail-${randomUUID()}`,
         interface: "web",
         ipAddress: getIp(requestHeaders, auth.options),
         organizationId: authContext.organizationId,
@@ -318,7 +318,7 @@ export async function deleteAPIKeyFormAction(
       .update(schema.apikeys)
       .set({ enabled: false, updatedAt: now })
       .where(eq(schema.apikeys.id, parsed.data.keyID))
-    await tx.insert(schema.auditEvents).values({
+    await tx.insert(schema.eventTrailEvents).values({
       actorId: authContext.userId,
       actorType: "user",
       action: "api_key.revoke",
@@ -332,7 +332,7 @@ export async function deleteAPIKeyFormAction(
       ],
       automaticCascade: false,
       category: "api_key",
-      id: `audit-${randomUUID()}`,
+      id: `event-trail-${randomUUID()}`,
       interface: "web",
       ipAddress: getIp(requestHeaders, auth.options),
       organizationId: authContext.organizationId,

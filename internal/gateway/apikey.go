@@ -283,7 +283,7 @@ func (s *Service) revokeAPIKeyScope(ctx context.Context, scope apiKeyScope, reas
 	now := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 	_, err := s.queries.GatewayRevokeScopedAPIKey(ctx, gatewaydb.GatewayRevokeScopedAPIKeyParams{
 		ApiKeyID:       scope.ApiKeyID,
-		AuditID:        "audit-" + uuid.NewString(),
+		EventTrailID:   "event-trail-" + uuid.NewString(),
 		OrganizationID: scope.OrganizationID,
 		WorkspaceID:    scope.WorkspaceID,
 		RevokedAt:      now,

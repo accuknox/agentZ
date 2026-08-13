@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -395,7 +394,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, mapKubeHTTPError("create agent", err))
 		return
 	}
-	err = createAgentEventTrail(r.Context(), r, q, access, name, "agent.create",
+	err = createAgentEventTrail(r.Context(), q, access, name, "agent.create",
 		nil,
 		[]gatewayapi.EventTrailField{
 			{Field: gatewayapi.EventTrailFieldName, Value: name},
@@ -569,7 +568,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	err = createAgentEventTrail(
-		r.Context(), r, q, access, name, "agent.modify",
+		r.Context(), q, access, name, "agent.modify",
 		agentConfigurationEventTrailFields(name, before),
 		agentConfigurationEventTrailFields(name, updated),
 	)
@@ -716,7 +715,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		))
 		return
 	}
-	err = createAgentEventTrail(r.Context(), r, q, access, agentName, "agent.delete",
+	err = createAgentEventTrail(r.Context(), q, access, agentName, "agent.delete",
 		[]gatewayapi.EventTrailField{
 			{Field: gatewayapi.EventTrailFieldName, Value: agentName},
 			{Field: gatewayapi.EventTrailFieldUserID, Value: owner.OwnerUserID},
@@ -871,7 +870,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		writeInternalError(w, r, fmt.Errorf("transfer Agent owner: %w", err))
 		return
 	}
-	err = createAgentEventTrail(r.Context(), r, q, access, agentName, "agent.owner.transfer",
+	err = createAgentEventTrail(r.Context(), q, access, agentName, "agent.owner.transfer",
 		[]gatewayapi.EventTrailField{
 			{Field: gatewayapi.EventTrailFieldName, Value: agentName},
 			{Field: gatewayapi.EventTrailFieldUserID, Value: previous.OwnerUserID},
@@ -1014,7 +1013,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	}
 
 	row, err := s.createAgentShare(
-		r.Context(), r, access, agentName, targetUser, targetTeam, caps,
+		r.Context(), access, agentName, targetUser, targetTeam, caps,
 	)
 	if err != nil {
 		if errors.Is(err, errAgentShareIssuedByOther) ||
@@ -1079,7 +1078,7 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 		writeError(w, r, agentShareNotFound(shareID))
 		return
 	}
-	err = createAgentEventTrail(r.Context(), r, q, access, agentName, "agent.share.delete",
+	err = createAgentEventTrail(r.Context(), q, access, agentName, "agent.share.delete",
 		agentShareEventTrailFields(agentName, share),
 		[]gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: agentName}},
 	)
@@ -1459,7 +1458,7 @@ var (
 	errAgentShareIssuedByOther    = errors.New("delegated sharers cannot replace shares issued by another user")
 )
 
-func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access resourceAccess, agentName string, targetUser pgtype.Text, targetTeam pgtype.Text, caps []gatewaydb.AgentShareCapability) (gatewayapi.AgentShare, error) {
+func (s *Service) createAgentShare(ctx context.Context, access resourceAccess, agentName string, targetUser pgtype.Text, targetTeam pgtype.Text, caps []gatewaydb.AgentShareCapability) (gatewayapi.AgentShare, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return gatewayapi.AgentShare{}, fmt.Errorf("begin Agent Share transaction: %w", err)
@@ -1611,7 +1610,7 @@ func (s *Service) createAgentShare(ctx context.Context, r *http.Request, access 
 			return gatewayapi.AgentShare{}, fmt.Errorf("add Agent Share grant: %w", err)
 		}
 	}
-	if err := createAgentEventTrail(ctx, r, q, access, agentName, "agent.share.upsert",
+	if err := createAgentEventTrail(ctx, q, access, agentName, "agent.share.upsert",
 		nil,
 		agentShareEventTrailFields(agentName, row),
 	); err != nil {
@@ -1691,7 +1690,7 @@ func (s *Service) agentShareResponse(ctx context.Context, access resourceAccess,
 	return item, nil
 }
 
-func createAgentEventTrail(ctx context.Context, r *http.Request, q gatewaydb.Querier, access resourceAccess, agentName string, action string, before []gatewayapi.EventTrailField, after []gatewayapi.EventTrailField) error {
+func createAgentEventTrail(ctx context.Context, q gatewaydb.Querier, access resourceAccess, agentName string, action string, before []gatewayapi.EventTrailField, after []gatewayapi.EventTrailField) error {
 	if before == nil {
 		before = []gatewayapi.EventTrailField{}
 	}
@@ -1707,26 +1706,18 @@ func createAgentEventTrail(ctx context.Context, r *http.Request, q gatewaydb.Que
 		return fmt.Errorf("encode Agent event trail after state: %w", err)
 	}
 	params := gatewaydb.GatewayCreateEventTrailEventParams{
-		ID:               "event-trail-" + uuid.NewString(),
-		OrganizationID:   access.claims.OrganizationID,
-		WorkspaceID:      pgtype.Text{String: access.workspaceID, Valid: access.workspaceID != ""},
-		ActorType:        gatewaydb.EventTrailActorUser,
-		ActorID:          pgtype.Text{String: access.claims.UserID, Valid: true},
-		TargetType:       gatewaydb.EventTrailTargetAgent,
-		TargetID:         agentName,
-		Category:         "agent",
-		Action:           action,
-		Result:           gatewaydb.EventTrailResultSucceeded,
-		Before:           beforeJSON,
-		After:            afterJSON,
-		AutomaticCascade: false,
-		Interface:        gatewaydb.EventTrailInterfaceGateway,
-	}
-	if host, _, splitErr := net.SplitHostPort(r.RemoteAddr); splitErr == nil && host != "" {
-		params.IpAddress = pgtype.Text{String: host, Valid: true}
-	}
-	if userAgent := strings.TrimSpace(r.UserAgent()); userAgent != "" {
-		params.UserAgent = pgtype.Text{String: userAgent, Valid: true}
+		ID:             "event-trail-" + uuid.NewString(),
+		OrganizationID: access.claims.OrganizationID,
+		WorkspaceID:    pgtype.Text{String: access.workspaceID, Valid: access.workspaceID != ""},
+		ActorType:      gatewaydb.EventTrailActorUser,
+		ActorID:        pgtype.Text{String: access.claims.UserID, Valid: true},
+		TargetType:     gatewaydb.EventTrailTargetAgent,
+		TargetID:       agentName,
+		Category:       "agent",
+		Action:         action,
+		Result:         gatewaydb.EventTrailResultSucceeded,
+		Before:         beforeJSON,
+		After:          afterJSON,
 	}
 	if _, err := q.GatewayCreateEventTrailEvent(ctx, params); err != nil {
 		return fmt.Errorf("create Agent event trail event: %w", err)

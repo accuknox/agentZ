@@ -18,7 +18,6 @@ package gateway
 
 import (
 	"context"
-	"net/http"
 
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -54,10 +53,9 @@ func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandbox
 	return access, apiErr
 }
 
-func (s *Service) createSandboxEventTrail(ctx context.Context, r *http.Request, eventTrail sandboxEventTrail) error {
+func (s *Service) createSandboxEventTrail(ctx context.Context, eventTrail sandboxEventTrail) error {
 	return s.createResourceEventTrail(
 		ctx,
-		r,
 		eventTrail.access,
 		gatewaydb.EventTrailTargetSandbox,
 		eventTrail.name,

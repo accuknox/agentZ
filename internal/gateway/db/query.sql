@@ -1378,9 +1378,7 @@ INSERT INTO event_trail_events(
   category,
   action,
   result,
-  after,
-  automatic_cascade,
-  interface
+  after
 )
 SELECT
   sqlc.arg(event_trail_id),
@@ -1392,9 +1390,7 @@ SELECT
   'api_key',
   'api_key.revoke',
   'succeeded',
-  jsonb_build_array(jsonb_build_object('field', 'state', 'value', 'revoked')),
-  true,
-  'gateway'
+  jsonb_build_array(jsonb_build_object('field', 'state', 'value', 'revoked'))
 FROM revoked
 JOIN disabled ON disabled.id = revoked.api_key_id;
 
@@ -1961,12 +1957,7 @@ INSERT INTO event_trail_events(
   action,
   result,
   before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  interface,
-  ip_address,
-  user_agent
+  after
 )
 VALUES (
   sqlc.arg(id),
@@ -1980,12 +1971,7 @@ VALUES (
   sqlc.arg(action),
   sqlc.arg(result),
   sqlc.narg(before),
-  sqlc.narg(after),
-  sqlc.arg(automatic_cascade),
-  sqlc.narg(cleanup_job_id),
-  sqlc.arg(interface),
-  sqlc.narg(ip_address),
-  sqlc.narg(user_agent)
+  sqlc.narg(after)
 )
 RETURNING
   id,
@@ -2000,11 +1986,6 @@ RETURNING
   result,
   before,
   after,
-  automatic_cascade,
-  cleanup_job_id,
-  interface,
-  ip_address,
-  user_agent,
   created_at;
 
 -- name: GatewayListEventTrailEvents :many
@@ -2039,16 +2020,9 @@ SELECT
   event_trail_events.result,
   event_trail_events.before,
   event_trail_events.after,
-  event_trail_events.automatic_cascade,
-  event_trail_events.cleanup_job_id,
-  event_trail_events.interface,
-  event_trail_events.ip_address,
-  event_trail_events.user_agent,
   event_trail_events.created_at,
   workspaces.name AS workspace_name,
-  workspaces.slug AS workspace_slug,
-  cleanup_jobs.state AS cleanup_state,
-  cleanup_jobs.completed_at AS cleanup_completed_at
+  workspaces.slug AS workspace_slug
 FROM event_trail_events
 JOIN organizations
   ON organizations.id = event_trail_events.organization_id
@@ -2075,9 +2049,6 @@ LEFT JOIN teams AS target_teams
   ON event_trail_events.target_type = 'team'
   AND target_teams.id = event_trail_events.target_id
   AND target_teams.organization_id = event_trail_events.organization_id
-LEFT JOIN cleanup_jobs
-  ON cleanup_jobs.id = event_trail_events.cleanup_job_id
-  AND cleanup_jobs.organization_id = event_trail_events.organization_id
 WHERE event_trail_events.organization_id = sqlc.arg(organization_id)
   AND event_trail_events.created_at >= sqlc.arg(retained_after)
   AND (
@@ -2085,28 +2056,32 @@ WHERE event_trail_events.organization_id = sqlc.arg(organization_id)
     OR event_trail_events.id = sqlc.narg(event_id)::text
   )
   AND (
-    sqlc.narg(actor_type)::event_trail_actor IS NULL
-    OR event_trail_events.actor_type = sqlc.narg(actor_type)::event_trail_actor
+    COALESCE(cardinality(sqlc.arg(actor_types)::text[]), 0) = 0
+    OR event_trail_events.actor_type = ANY(sqlc.arg(actor_types)::text[]::event_trail_actor[])
   )
   AND (
-    sqlc.narg(actor_id)::text IS NULL
-    OR event_trail_events.actor_id = sqlc.narg(actor_id)::text
+    COALESCE(cardinality(sqlc.arg(actor_ids)::text[]), 0) = 0
+    OR event_trail_events.actor_id = ANY(sqlc.arg(actor_ids)::text[])
   )
   AND (
-    sqlc.narg(category)::text IS NULL
-    OR event_trail_events.category = sqlc.narg(category)::text
+    COALESCE(cardinality(sqlc.arg(categories)::text[]), 0) = 0
+    OR event_trail_events.category = ANY(sqlc.arg(categories)::text[])
   )
   AND (
-    sqlc.narg(workspace_id)::text IS NULL
-    OR event_trail_events.workspace_id = sqlc.narg(workspace_id)::text
+    sqlc.narg(scope_workspace_id)::text IS NULL
+    OR event_trail_events.workspace_id = sqlc.narg(scope_workspace_id)::text
   )
   AND (
-    sqlc.narg(target_type)::event_trail_target IS NULL
-    OR event_trail_events.target_type = sqlc.narg(target_type)::event_trail_target
+    COALESCE(cardinality(sqlc.arg(workspace_ids)::text[]), 0) = 0
+    OR event_trail_events.workspace_id = ANY(sqlc.arg(workspace_ids)::text[])
   )
   AND (
-    sqlc.narg(result)::event_trail_result IS NULL
-    OR event_trail_events.result = sqlc.narg(result)::event_trail_result
+    COALESCE(cardinality(sqlc.arg(target_types)::text[]), 0) = 0
+    OR event_trail_events.target_type = ANY(sqlc.arg(target_types)::text[]::event_trail_target[])
+  )
+  AND (
+    COALESCE(cardinality(sqlc.arg(results)::text[]), 0) = 0
+    OR event_trail_events.result = ANY(sqlc.arg(results)::text[]::event_trail_result[])
   )
   AND (
     sqlc.narg(created_after)::timestamptz IS NULL

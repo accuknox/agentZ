@@ -512,8 +512,6 @@ INSERT INTO event_trail_events(
   category,
   action,
   result,
-  automatic_cascade,
-  interface,
   after
 )
 VALUES (
@@ -526,7 +524,5 @@ VALUES (
   'cutover',
   'tenant.cutover',
   'succeeded',
-  TRUE,
-  'system',
   sqlc.arg(after)
 );

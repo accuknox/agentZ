@@ -19,7 +19,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -63,10 +62,9 @@ func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string
 	})
 }
 
-func (s *Service) createMCPEventTrail(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
+func (s *Service) createMCPEventTrail(ctx context.Context, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
 	return s.createResourceEventTrail(
 		ctx,
-		r,
 		access,
 		gatewaydb.EventTrailTargetMcpConnection,
 		name,

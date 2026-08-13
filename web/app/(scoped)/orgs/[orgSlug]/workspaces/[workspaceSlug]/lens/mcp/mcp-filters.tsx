@@ -99,7 +99,7 @@ export function McpFilters({ agents, selectedAgentName, from, to }: McpFiltersPr
               </span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="max-w-[calc(100vw-2rem)] overflow-auto p-0">
+          <PopoverContent align="start" className="w-fit p-0">
             <McpDateRangePicker from={from} to={to} update={update} />
           </PopoverContent>
         </Popover>

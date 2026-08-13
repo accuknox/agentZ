@@ -708,12 +708,7 @@ INSERT INTO event_trail_events(
   action,
   result,
   before,
-  after,
-  automatic_cascade,
-  cleanup_job_id,
-  interface,
-  ip_address,
-  user_agent
+  after
 )
 VALUES (
   $1,
@@ -727,12 +722,7 @@ VALUES (
   $9,
   $10,
   $11,
-  $12,
-  $13,
-  $14,
-  $15,
-  $16,
-  $17
+  $12
 )
 RETURNING
   id,
@@ -747,32 +737,22 @@ RETURNING
   result,
   before,
   after,
-  automatic_cascade,
-  cleanup_job_id,
-  interface,
-  ip_address,
-  user_agent,
   created_at
 `
 
 type GatewayCreateEventTrailEventParams struct {
-	ID               string              `json:"id"`
-	OrganizationID   string              `json:"organization_id"`
-	WorkspaceID      pgtype.Text         `json:"workspace_id"`
-	ActorType        EventTrailActor     `json:"actor_type"`
-	ActorID          pgtype.Text         `json:"actor_id"`
-	TargetType       EventTrailTarget    `json:"target_type"`
-	TargetID         string              `json:"target_id"`
-	Category         string              `json:"category"`
-	Action           string              `json:"action"`
-	Result           EventTrailResult    `json:"result"`
-	Before           []byte              `json:"before"`
-	After            []byte              `json:"after"`
-	AutomaticCascade bool                `json:"automatic_cascade"`
-	CleanupJobID     pgtype.Text         `json:"cleanup_job_id"`
-	Interface        EventTrailInterface `json:"interface"`
-	IpAddress        pgtype.Text         `json:"ip_address"`
-	UserAgent        pgtype.Text         `json:"user_agent"`
+	ID             string           `json:"id"`
+	OrganizationID string           `json:"organization_id"`
+	WorkspaceID    pgtype.Text      `json:"workspace_id"`
+	ActorType      EventTrailActor  `json:"actor_type"`
+	ActorID        pgtype.Text      `json:"actor_id"`
+	TargetType     EventTrailTarget `json:"target_type"`
+	TargetID       string           `json:"target_id"`
+	Category       string           `json:"category"`
+	Action         string           `json:"action"`
+	Result         EventTrailResult `json:"result"`
+	Before         []byte           `json:"before"`
+	After          []byte           `json:"after"`
 }
 
 func (q *Queries) GatewayCreateEventTrailEvent(ctx context.Context, arg GatewayCreateEventTrailEventParams) (EventTrailEvent, error) {
@@ -789,11 +769,6 @@ func (q *Queries) GatewayCreateEventTrailEvent(ctx context.Context, arg GatewayC
 		arg.Result,
 		arg.Before,
 		arg.After,
-		arg.AutomaticCascade,
-		arg.CleanupJobID,
-		arg.Interface,
-		arg.IpAddress,
-		arg.UserAgent,
 	)
 	var i EventTrailEvent
 	err := row.Scan(
@@ -809,11 +784,6 @@ func (q *Queries) GatewayCreateEventTrailEvent(ctx context.Context, arg GatewayC
 		&i.Result,
 		&i.Before,
 		&i.After,
-		&i.AutomaticCascade,
-		&i.CleanupJobID,
-		&i.Interface,
-		&i.IpAddress,
-		&i.UserAgent,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -2739,16 +2709,9 @@ SELECT
   event_trail_events.result,
   event_trail_events.before,
   event_trail_events.after,
-  event_trail_events.automatic_cascade,
-  event_trail_events.cleanup_job_id,
-  event_trail_events.interface,
-  event_trail_events.ip_address,
-  event_trail_events.user_agent,
   event_trail_events.created_at,
   workspaces.name AS workspace_name,
-  workspaces.slug AS workspace_slug,
-  cleanup_jobs.state AS cleanup_state,
-  cleanup_jobs.completed_at AS cleanup_completed_at
+  workspaces.slug AS workspace_slug
 FROM event_trail_events
 JOIN organizations
   ON organizations.id = event_trail_events.organization_id
@@ -2775,9 +2738,6 @@ LEFT JOIN teams AS target_teams
   ON event_trail_events.target_type = 'team'
   AND target_teams.id = event_trail_events.target_id
   AND target_teams.organization_id = event_trail_events.organization_id
-LEFT JOIN cleanup_jobs
-  ON cleanup_jobs.id = event_trail_events.cleanup_job_id
-  AND cleanup_jobs.organization_id = event_trail_events.organization_id
 WHERE event_trail_events.organization_id = $1
   AND event_trail_events.created_at >= $2
   AND (
@@ -2785,94 +2745,92 @@ WHERE event_trail_events.organization_id = $1
     OR event_trail_events.id = $3::text
   )
   AND (
-    $4::event_trail_actor IS NULL
-    OR event_trail_events.actor_type = $4::event_trail_actor
+    COALESCE(cardinality($4::text[]), 0) = 0
+    OR event_trail_events.actor_type = ANY($4::text[]::event_trail_actor[])
   )
   AND (
-    $5::text IS NULL
-    OR event_trail_events.actor_id = $5::text
+    COALESCE(cardinality($5::text[]), 0) = 0
+    OR event_trail_events.actor_id = ANY($5::text[])
   )
   AND (
-    $6::text IS NULL
-    OR event_trail_events.category = $6::text
+    COALESCE(cardinality($6::text[]), 0) = 0
+    OR event_trail_events.category = ANY($6::text[])
   )
   AND (
     $7::text IS NULL
     OR event_trail_events.workspace_id = $7::text
   )
   AND (
-    $8::event_trail_target IS NULL
-    OR event_trail_events.target_type = $8::event_trail_target
+    COALESCE(cardinality($8::text[]), 0) = 0
+    OR event_trail_events.workspace_id = ANY($8::text[])
   )
   AND (
-    $9::event_trail_result IS NULL
-    OR event_trail_events.result = $9::event_trail_result
+    COALESCE(cardinality($9::text[]), 0) = 0
+    OR event_trail_events.target_type = ANY($9::text[]::event_trail_target[])
   )
   AND (
-    $10::timestamptz IS NULL
-    OR event_trail_events.created_at >= $10::timestamptz
+    COALESCE(cardinality($10::text[]), 0) = 0
+    OR event_trail_events.result = ANY($10::text[]::event_trail_result[])
   )
   AND (
     $11::timestamptz IS NULL
-    OR event_trail_events.created_at <= $11::timestamptz
+    OR event_trail_events.created_at >= $11::timestamptz
   )
   AND (
-    NOT $12::boolean
-    OR event_trail_events.created_at < $13::timestamptz
+    $12::timestamptz IS NULL
+    OR event_trail_events.created_at <= $12::timestamptz
+  )
+  AND (
+    NOT $13::boolean
+    OR event_trail_events.created_at < $14::timestamptz
     OR (
-      event_trail_events.created_at = $13::timestamptz
-      AND event_trail_events.id < $14::text
+      event_trail_events.created_at = $14::timestamptz
+      AND event_trail_events.id < $15::text
     )
   )
 ORDER BY event_trail_events.created_at DESC, event_trail_events.id DESC
-LIMIT $15
+LIMIT $16
 `
 
 type GatewayListEventTrailEventsParams struct {
-	OrganizationID  string               `json:"organization_id"`
-	RetainedAfter   pgtype.Timestamptz   `json:"retained_after"`
-	EventID         pgtype.Text          `json:"event_id"`
-	ActorType       NullEventTrailActor  `json:"actor_type"`
-	ActorID         pgtype.Text          `json:"actor_id"`
-	Category        pgtype.Text          `json:"category"`
-	WorkspaceID     pgtype.Text          `json:"workspace_id"`
-	TargetType      NullEventTrailTarget `json:"target_type"`
-	Result          NullEventTrailResult `json:"result"`
-	CreatedAfter    pgtype.Timestamptz   `json:"created_after"`
-	CreatedBefore   pgtype.Timestamptz   `json:"created_before"`
-	CursorSet       bool                 `json:"cursor_set"`
-	CursorCreatedAt time.Time            `json:"cursor_created_at"`
-	CursorID        string               `json:"cursor_id"`
-	PageSize        int32                `json:"page_size"`
+	OrganizationID   string             `json:"organization_id"`
+	RetainedAfter    pgtype.Timestamptz `json:"retained_after"`
+	EventID          pgtype.Text        `json:"event_id"`
+	ActorTypes       []string           `json:"actor_types"`
+	ActorIds         []string           `json:"actor_ids"`
+	Categories       []string           `json:"categories"`
+	ScopeWorkspaceID pgtype.Text        `json:"scope_workspace_id"`
+	WorkspaceIds     []string           `json:"workspace_ids"`
+	TargetTypes      []string           `json:"target_types"`
+	Results          []string           `json:"results"`
+	CreatedAfter     pgtype.Timestamptz `json:"created_after"`
+	CreatedBefore    pgtype.Timestamptz `json:"created_before"`
+	CursorSet        bool               `json:"cursor_set"`
+	CursorCreatedAt  time.Time          `json:"cursor_created_at"`
+	CursorID         string             `json:"cursor_id"`
+	PageSize         int32              `json:"page_size"`
 }
 
 type GatewayListEventTrailEventsRow struct {
-	ID                 string              `json:"id"`
-	OrganizationID     string              `json:"organization_id"`
-	WorkspaceID        pgtype.Text         `json:"workspace_id"`
-	ActorType          EventTrailActor     `json:"actor_type"`
-	ActorID            pgtype.Text         `json:"actor_id"`
-	ActorName          string              `json:"actor_name"`
-	ActorEmail         pgtype.Text         `json:"actor_email"`
-	TargetType         EventTrailTarget    `json:"target_type"`
-	TargetID           string              `json:"target_id"`
-	TargetName         string              `json:"target_name"`
-	TargetSlug         string              `json:"target_slug"`
-	Category           string              `json:"category"`
-	Action             string              `json:"action"`
-	Result             EventTrailResult    `json:"result"`
-	Before             []byte              `json:"before"`
-	After              []byte              `json:"after"`
-	AutomaticCascade   bool                `json:"automatic_cascade"`
-	CleanupJobID       pgtype.Text         `json:"cleanup_job_id"`
-	Interface          EventTrailInterface `json:"interface"`
-	IpAddress          pgtype.Text         `json:"ip_address"`
-	UserAgent          pgtype.Text         `json:"user_agent"`
-	CreatedAt          pgtype.Timestamptz  `json:"created_at"`
-	WorkspaceName      pgtype.Text         `json:"workspace_name"`
-	WorkspaceSlug      pgtype.Text         `json:"workspace_slug"`
-	CleanupState       NullCleanupState    `json:"cleanup_state"`
-	CleanupCompletedAt pgtype.Timestamptz  `json:"cleanup_completed_at"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	ActorType      EventTrailActor    `json:"actor_type"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	ActorName      string             `json:"actor_name"`
+	ActorEmail     pgtype.Text        `json:"actor_email"`
+	TargetType     EventTrailTarget   `json:"target_type"`
+	TargetID       string             `json:"target_id"`
+	TargetName     string             `json:"target_name"`
+	TargetSlug     string             `json:"target_slug"`
+	Category       string             `json:"category"`
+	Action         string             `json:"action"`
+	Result         EventTrailResult   `json:"result"`
+	Before         []byte             `json:"before"`
+	After          []byte             `json:"after"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	WorkspaceName  pgtype.Text        `json:"workspace_name"`
+	WorkspaceSlug  pgtype.Text        `json:"workspace_slug"`
 }
 
 func (q *Queries) GatewayListEventTrailEvents(ctx context.Context, arg GatewayListEventTrailEventsParams) ([]GatewayListEventTrailEventsRow, error) {
@@ -2880,12 +2838,13 @@ func (q *Queries) GatewayListEventTrailEvents(ctx context.Context, arg GatewayLi
 		arg.OrganizationID,
 		arg.RetainedAfter,
 		arg.EventID,
-		arg.ActorType,
-		arg.ActorID,
-		arg.Category,
-		arg.WorkspaceID,
-		arg.TargetType,
-		arg.Result,
+		arg.ActorTypes,
+		arg.ActorIds,
+		arg.Categories,
+		arg.ScopeWorkspaceID,
+		arg.WorkspaceIds,
+		arg.TargetTypes,
+		arg.Results,
 		arg.CreatedAfter,
 		arg.CreatedBefore,
 		arg.CursorSet,
@@ -2917,16 +2876,9 @@ func (q *Queries) GatewayListEventTrailEvents(ctx context.Context, arg GatewayLi
 			&i.Result,
 			&i.Before,
 			&i.After,
-			&i.AutomaticCascade,
-			&i.CleanupJobID,
-			&i.Interface,
-			&i.IpAddress,
-			&i.UserAgent,
 			&i.CreatedAt,
 			&i.WorkspaceName,
 			&i.WorkspaceSlug,
-			&i.CleanupState,
-			&i.CleanupCompletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -5265,9 +5217,7 @@ INSERT INTO event_trail_events(
   category,
   action,
   result,
-  after,
-  automatic_cascade,
-  interface
+  after
 )
 SELECT
   $1,
@@ -5279,9 +5229,7 @@ SELECT
   'api_key',
   'api_key.revoke',
   'succeeded',
-  jsonb_build_array(jsonb_build_object('field', 'state', 'value', 'revoked')),
-  true,
-  'gateway'
+  jsonb_build_array(jsonb_build_object('field', 'state', 'value', 'revoked'))
 FROM revoked
 JOIN disabled ON disabled.id = revoked.api_key_id
 `

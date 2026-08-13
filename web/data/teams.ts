@@ -1,13 +1,11 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { getIp } from "better-auth/api"
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 import { analyzeDestructiveImpact, analyzeTeamDeletionEffects } from "@/data/operations"
-import { getAuth } from "@/lib/auth"
 
 export type TeamMember = { id: string; name: string; email: string; image: string | null }
 export type TeamRole = { id: string; name: string; scope: string }
@@ -73,17 +71,13 @@ function teamEventTrail(
     actorType: "user" as const,
     action,
     after,
-    automaticCascade: false,
     before,
     category: "team",
     id: `event-trail-${randomUUID()}`,
-    interface: "web" as const,
-    ipAddress: getIp(actor.requestHeaders, getAuth().options),
     organizationId: actor.organizationId,
     result,
     targetId,
     targetType: "team" as const,
-    userAgent: actor.requestHeaders.get("user-agent"),
   }
 }
 
@@ -696,8 +690,6 @@ export async function deleteTeam(
       ...teamEventTrail(actor, "team.delete", team.id, "succeeded", [
         { field: "name", value: team.name },
       ]),
-      automaticCascade: true,
-      cleanupJobId: cleanupId,
     })
     return {
       cleanupId,

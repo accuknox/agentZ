@@ -201,7 +201,7 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationCreateInferencePool)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			if err := s.createInferencePoolEventTrail(r.Context(), r, access, name, access.failureResult()); err != nil {
+			if err := s.createInferencePoolEventTrail(r.Context(), access, name, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
 			}
@@ -215,9 +215,9 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 			return
 		}
 		err := s.createInferencePoolEventTrail(
-			context.WithoutCancel(r.Context()), r, access, name,
-			gatewaydb.EventTrailResultFailed,
-		)
+			context.WithoutCancel(r.Context()), access, name,
+			gatewaydb.EventTrailResultFailed)
+
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool create", slog.Any("err", err))
 		}
@@ -244,7 +244,7 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 	eventTrailed = true
-	if err := s.createInferencePoolEventTrail(r.Context(), r, access, name, gatewaydb.EventTrailResultSucceeded); err != nil {
+	if err := s.createInferencePoolEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -270,7 +270,7 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, poolName, authorization.OperationUpdateInferencePool)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			if err := s.createInferencePoolEventTrail(r.Context(), r, access, poolName, access.failureResult()); err != nil {
+			if err := s.createInferencePoolEventTrail(r.Context(), access, poolName, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
 			}
@@ -284,9 +284,9 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 			return
 		}
 		err := s.createInferencePoolEventTrail(
-			context.WithoutCancel(r.Context()), r, access, poolName,
-			gatewaydb.EventTrailResultFailed,
-		)
+			context.WithoutCancel(r.Context()), access, poolName,
+			gatewaydb.EventTrailResultFailed)
+
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool update", slog.Any("err", err))
 		}
@@ -340,7 +340,7 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 		return
 	}
 	eventTrailed = true
-	if err := s.createInferencePoolEventTrail(r.Context(), r, access, poolName, gatewaydb.EventTrailResultSucceeded); err != nil {
+	if err := s.createInferencePoolEventTrail(r.Context(), access, poolName, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -356,7 +356,7 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, poolName, authorization.OperationDeleteInferencePool)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			if err := s.createInferencePoolEventTrail(r.Context(), r, access, poolName, access.failureResult()); err != nil {
+			if err := s.createInferencePoolEventTrail(r.Context(), access, poolName, access.failureResult()); err != nil {
 				writeInternalError(w, r, err)
 				return
 			}
@@ -369,7 +369,7 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		if eventTrailed {
 			return
 		}
-		if err := s.createInferencePoolEventTrail(context.WithoutCancel(r.Context()), r, access, poolName, gatewaydb.EventTrailResultFailed); err != nil {
+		if err := s.createInferencePoolEventTrail(context.WithoutCancel(r.Context()), access, poolName, gatewaydb.EventTrailResultFailed); err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool delete", slog.Any("err", err))
 		}
 	}()
@@ -396,7 +396,7 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		return
 	}
 	eventTrailed = true
-	if err := s.createInferencePoolEventTrail(r.Context(), r, access, poolName, gatewaydb.EventTrailResultSucceeded); err != nil {
+	if err := s.createInferencePoolEventTrail(r.Context(), access, poolName, gatewaydb.EventTrailResultSucceeded); err != nil {
 		writeInternalError(w, r, err)
 		return
 	}

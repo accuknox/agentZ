@@ -1,7 +1,6 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { getIp } from "better-auth/api"
 import { cache } from "react"
 import { and, eq, isNull } from "drizzle-orm"
 import {
@@ -24,7 +23,6 @@ import {
   resolveOrganizationSlug,
 } from "@/data/organizations"
 import { getDB, schema } from "@/db"
-import { getAuth } from "@/lib/auth"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 
@@ -271,17 +269,13 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
       actorId: organizationSession.session.user.id,
       actorType: "user" as const,
       after: [{ field: "name", value: name }],
-      automaticCascade: false,
       before: [{ field: "name", value: workspace.name }],
       category: "workspace" as const,
       id: `event-trail-${randomUUID()}`,
-      interface: "web" as const,
-      ipAddress: getIp(organizationSession.requestHeaders, getAuth().options),
       organizationId: workspace.organizationId,
       result: superadmin ? ("succeeded" as const) : ("denied" as const),
       targetId: workspace.id,
       targetType: "workspace",
-      userAgent: organizationSession.requestHeaders.get("user-agent"),
       workspaceId: workspace.id,
     } satisfies typeof schema.eventTrailEvents.$inferInsert
 

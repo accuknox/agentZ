@@ -1,7 +1,6 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { getIp } from "better-auth/api"
 import { APIError } from "@better-auth/core/error"
 import { and, asc, count, desc, eq, exists, inArray, isNull, or, sql } from "drizzle-orm"
 import { headers } from "next/headers"
@@ -572,16 +571,12 @@ export async function inviteMember(
           { field: "user_id", value: email },
           { field: "role", value: `${roleIds.length} Roles, ${teamIds.length} Teams` },
         ],
-        automaticCascade: true,
         category: "membership",
         id: `event-trail-${randomUUID()}`,
-        interface: "web",
-        ipAddress: getIp(actor.headers, getAuth().options),
         organizationId: actor.organization.id,
         result: "succeeded",
         targetId: invitation.id,
         targetType: "organization_membership",
-        userAgent: actor.headers.get("user-agent"),
       })
     })
   } catch (error) {
@@ -655,16 +650,12 @@ export async function restoreMembership(orgSlug: string, memberId: string) {
       actorId: actor.userId,
       actorType: "user",
       after: [{ field: "state", value: "active" }],
-      automaticCascade: false,
       category: "membership",
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(actor.headers, getAuth().options),
       organizationId: actor.organization.id,
       result: "succeeded",
       targetId: member.id,
       targetType: "organization_membership",
-      userAgent: actor.headers.get("user-agent"),
     })
     return {}
   })
@@ -969,17 +960,12 @@ export async function removeMembership(
         { field: "role", value: `${revokedKeys.length} API keys revoked` },
         { field: "name", value: `${ownedAgents.length} owned Agents queued` },
       ],
-      automaticCascade: true,
       category: "membership",
-      cleanupJobId: cleanupId,
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(actor.headers, getAuth().options),
       organizationId: actor.organization.id,
       result: "succeeded",
       targetId: member.id,
       targetType: "organization_membership",
-      userAgent: actor.headers.get("user-agent"),
     })
     return { cleanupId }
   })
@@ -1245,16 +1231,12 @@ export async function saveSocialAdmission(
         { field: "state", value: input.enabled ? "enabled" : "disabled" },
         { field: "role", value: `${roleIds.length} default Roles` },
       ],
-      automaticCascade: false,
       category: "membership",
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(actor.headers, getAuth().options),
       organizationId: actor.organization.id,
       result: "succeeded",
       targetId: actor.organization.id,
       targetType: "organization",
-      userAgent: actor.headers.get("user-agent"),
     })
     return {}
   })

@@ -6,14 +6,6 @@ export const zEventTrailActorType = z.enum(["user", "api_key", "system"])
 
 export const zEventTrailResult = z.enum(["succeeded", "denied", "failed"])
 
-export const zEventTrailInterface = z.enum([
-  "web",
-  "gateway",
-  "better_auth",
-  "controller",
-  "system",
-])
-
 export const zEventTrailTargetType = z.enum([
   "organization",
   "organization_membership",
@@ -53,12 +45,6 @@ export const zEventTrailWorkspace = z.object({
   slug: z.string().optional(),
 })
 
-export const zEventTrailCleanup = z.object({
-  id: z.string(),
-  state: z.enum(["pending", "running", "succeeded", "failed"]),
-  completed_at: z.iso.datetime().optional(),
-})
-
 export const zEventTrailEvent = z.object({
   id: z.string(),
   actor: zEventTrailActor,
@@ -69,11 +55,6 @@ export const zEventTrailEvent = z.object({
   result: zEventTrailResult,
   before: z.array(zEventTrailField),
   after: z.array(zEventTrailField),
-  automatic_cascade: z.boolean(),
-  interface: zEventTrailInterface,
-  ip_address: z.string().optional(),
-  user_agent: z.string().optional(),
-  cleanup: zEventTrailCleanup.optional(),
   created_at: z.iso.datetime(),
 })
 
@@ -97,9 +78,30 @@ export const zEventTrailFilters = z.object({
   target_types: z.array(zEventTrailTargetType),
 })
 
+export const zEventTrailFilterField = z.enum([
+  "actor_type",
+  "actor_id",
+  "category",
+  "workspace_id",
+  "target_type",
+  "result",
+  "created_at",
+])
+
+export const zEventTrailFilter = z.object({
+  field: zEventTrailFilterField,
+  values: z.array(z.string().min(1).max(256)).min(1).max(100),
+})
+
+export const zListEventTrailEventsRequest = z.object({
+  filters: z.array(zEventTrailFilter).max(7),
+  limit: z.int().gte(1).lte(100).default(50),
+  page_token: z.string().optional(),
+})
+
 export const zListEventTrailEventsResponse = z.object({
   events: z.array(zEventTrailEvent),
-  filters: zEventTrailFilters,
+  filter_options: zEventTrailFilters,
   next_page_token: z.string(),
 })
 
@@ -2129,49 +2131,9 @@ export const zResourceScopeQuery = zResourceScope
 export const zWorkspaceSlugPath = z.string().min(1).max(128)
 
 /**
- * Exact actor type.
- */
-export const zEventTrailActorTypeQuery = zEventTrailActorType
-
-/**
  * Stable event trail event ID.
  */
 export const zEventTrailEventIdPath = z.string().min(1)
-
-/**
- * Exact actor ID.
- */
-export const zEventTrailActorIdQuery = z.string().min(1)
-
-/**
- * Exact event trail category.
- */
-export const zEventTrailCategoryQuery = z.string().min(1)
-
-/**
- * Exact Workspace ID.
- */
-export const zEventTrailWorkspaceIdQuery = z.string().min(1)
-
-/**
- * Exact target resource type.
- */
-export const zEventTrailTargetTypeQuery = zEventTrailTargetType
-
-/**
- * Exact event trail result.
- */
-export const zEventTrailResultQuery = zEventTrailResult
-
-/**
- * Inclusive lower event timestamp bound.
- */
-export const zEventTrailCreatedAfterQuery = z.iso.datetime()
-
-/**
- * Inclusive upper event timestamp bound.
- */
-export const zEventTrailCreatedBeforeQuery = z.iso.datetime()
 
 /**
  * Agent name.

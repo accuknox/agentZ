@@ -29,12 +29,47 @@ type eventTrailCursor struct {
 }
 
 type eventTrailAccess struct {
-	claims      gatewayClaims
-	workspaceID pgtype.Text
+	organizationID string
+	workspaceID    pgtype.Text
 }
 
-// ListEventTrailEvents handles GET /api/event-trail-event.
+type eventTrailClause struct {
+	actorTypes    []string
+	actorIDs      []string
+	categories    []string
+	workspaceIDs  []string
+	targetTypes   []string
+	results       []string
+	createdAfter  pgtype.Timestamptz
+	createdBefore pgtype.Timestamptz
+}
+
+// ListEventTrailEvents handles POST /api/event-trail-event.
 func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListEventTrailEventsParams) {
+	var req gatewayapi.ListEventTrailEventsRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+	if req.Limit < 1 || req.Limit > 100 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 100",
+			errors.New("invalid event trail page size"),
+		))
+		return
+	}
+	clause, err := compileEventTrailFilters(req.Filters)
+	if err != nil {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			err.Error(),
+			err,
+		))
+		return
+	}
+
 	workspaceID := ""
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
@@ -44,81 +79,19 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		writeError(w, r, authErr)
 		return
 	}
-
-	pageSize := int32(50)
-	if params.Limit != nil {
-		pageSize = *params.Limit
-	}
-	retainedAfter := time.Now().Add(-eventTrailRetention)
-	query := gatewaydb.GatewayListEventTrailEventsParams{
-		OrganizationID: access.claims.OrganizationID,
-		RetainedAfter: pgtype.Timestamptz{
-			Time:  retainedAfter,
-			Valid: true,
-		},
-		PageSize: pageSize + 1,
-	}
-	if params.ActorType != nil {
-		query.ActorType = gatewaydb.NullEventTrailActor{
-			EventTrailActor: gatewaydb.EventTrailActor(*params.ActorType),
-			Valid:           true,
-		}
-	}
-	if params.ActorId != nil {
-		query.ActorID = pgtype.Text{String: *params.ActorId, Valid: true}
-	}
-	if params.Category != nil {
-		query.Category = pgtype.Text{String: *params.Category, Valid: true}
-	}
-	if access.workspaceID.Valid {
-		if params.WorkspaceId != nil && *params.WorkspaceId != access.workspaceID.String {
-			writeError(w, r, newAPIError(
-				http.StatusForbidden,
-				"forbidden",
-				"request is not authorized for the selected scope",
-				errors.New("event trail Workspace filter does not match bearer claims"),
-			))
-			return
-		}
-		query.WorkspaceID = access.workspaceID
-	} else if params.WorkspaceId != nil {
-		query.WorkspaceID = pgtype.Text{String: *params.WorkspaceId, Valid: true}
-	}
-	if params.TargetType != nil {
-		query.TargetType = gatewaydb.NullEventTrailTarget{
-			EventTrailTarget: gatewaydb.EventTrailTarget(*params.TargetType),
-			Valid:            true,
-		}
-	}
-	if params.Result != nil {
-		query.Result = gatewaydb.NullEventTrailResult{
-			EventTrailResult: gatewaydb.EventTrailResult(*params.Result),
-			Valid:            true,
-		}
-	}
-	if params.CreatedAfter != nil {
-		query.CreatedAfter = pgtype.Timestamptz{
-			Time:  *params.CreatedAfter,
-			Valid: true,
-		}
-	}
-	if params.CreatedBefore != nil {
-		query.CreatedBefore = pgtype.Timestamptz{
-			Time:  *params.CreatedBefore,
-			Valid: true,
-		}
-	}
-	if params.CreatedAfter != nil && params.CreatedBefore != nil &&
-		params.CreatedAfter.After(*params.CreatedBefore) {
+	if access.workspaceID.Valid && len(clause.workspaceIDs) > 0 {
 		writeError(w, r, newAPIError(
 			http.StatusBadRequest,
 			"invalid_request",
-			"created_after must not be later than created_before",
-			errors.New("invalid event trail date range"),
+			"workspace_id cannot filter a Workspace-scoped request",
+			errors.New("workspace filter duplicates the authorized scope"),
 		))
 		return
 	}
-	cursor, cursorSet, ok := decodeCursorPageToken[eventTrailCursor](w, r, params.PageToken)
+
+	pageSize := req.Limit
+	retainedAfter := time.Now().Add(-eventTrailRetention)
+	cursor, cursorSet, ok := decodeCursorPageToken[eventTrailCursor](w, r, req.PageToken)
 	if !ok {
 		return
 	}
@@ -127,11 +100,25 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 			writeInvalidPageToken(w, r, errors.New("invalid event trail cursor"))
 			return
 		}
-		query.CursorSet = true
-		query.CursorCreatedAt = cursor.CreatedAt
-		query.CursorID = cursor.ID
 	}
 
+	query := gatewaydb.GatewayListEventTrailEventsParams{
+		OrganizationID:   access.organizationID,
+		RetainedAfter:    pgtype.Timestamptz{Time: retainedAfter, Valid: true},
+		ScopeWorkspaceID: access.workspaceID,
+		ActorTypes:       clause.actorTypes,
+		ActorIds:         clause.actorIDs,
+		Categories:       clause.categories,
+		WorkspaceIds:     clause.workspaceIDs,
+		TargetTypes:      clause.targetTypes,
+		Results:          clause.results,
+		CreatedAfter:     clause.createdAfter,
+		CreatedBefore:    clause.createdBefore,
+		CursorSet:        cursorSet,
+		CursorCreatedAt:  cursor.CreatedAt,
+		CursorID:         cursor.ID,
+		PageSize:         pageSize + 1,
+	}
 	rows, err := s.queries.GatewayListEventTrailEvents(r.Context(), query)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("list event trail events: %w", err))
@@ -160,8 +147,8 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 
 	filters, err := s.eventTrailFilters(
 		r.Context(),
-		access.claims.OrganizationID,
-		query.WorkspaceID,
+		access.organizationID,
+		access.workspaceID,
 		retainedAfter,
 	)
 	if err != nil {
@@ -171,7 +158,7 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 
 	writeJSON(w, http.StatusOK, gatewayapi.ListEventTrailEventsResponse{
 		Events:        events,
-		Filters:       filters,
+		FilterOptions: filters,
 		NextPageToken: nextPageToken,
 	})
 }
@@ -191,8 +178,8 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 	rows, err := s.queries.GatewayListEventTrailEvents(
 		r.Context(),
 		gatewaydb.GatewayListEventTrailEventsParams{
-			OrganizationID: access.claims.OrganizationID,
-			WorkspaceID:    access.workspaceID,
+			OrganizationID:   access.organizationID,
+			ScopeWorkspaceID: access.workspaceID,
 			RetainedAfter: pgtype.Timestamptz{
 				Time:  time.Now().Add(-eventTrailRetention),
 				Valid: true,
@@ -221,6 +208,107 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 		return
 	}
 	writeJSON(w, http.StatusOK, event)
+}
+
+func compileEventTrailFilters(filters []gatewayapi.EventTrailFilter) (eventTrailClause, error) {
+	if len(filters) > 7 {
+		return eventTrailClause{}, errors.New("event trail supports at most seven filters")
+	}
+
+	clause := eventTrailClause{}
+	fields := make(map[gatewayapi.EventTrailFilterField]struct{}, len(filters))
+	for _, filter := range filters {
+		if _, exists := fields[filter.Field]; exists {
+			return eventTrailClause{}, fmt.Errorf("duplicate event trail filter field %q", filter.Field)
+		}
+		fields[filter.Field] = struct{}{}
+		values := filter.Values
+		if len(values) == 0 {
+			return eventTrailClause{}, errors.New("event trail filters require at least one value")
+		}
+		if len(values) > 100 {
+			return eventTrailClause{}, errors.New("event trail filters support at most one hundred values")
+		}
+		for _, value := range values {
+			if value == "" || len(value) > 256 {
+				return eventTrailClause{}, errors.New(
+					"event trail filter values must contain 1 to 256 characters",
+				)
+			}
+		}
+
+		if filter.Field == gatewayapi.CreatedAt {
+			if len(values) != 2 {
+				return eventTrailClause{}, errors.New("created_at requires exactly two timestamps")
+			}
+			from, err := time.Parse(time.RFC3339, values[0])
+			if err != nil {
+				return eventTrailClause{}, errors.New("event trail timestamps must use RFC 3339")
+			}
+			to, parseErr := time.Parse(time.RFC3339, values[1])
+			if parseErr != nil {
+				return eventTrailClause{}, errors.New("event trail timestamps must use RFC 3339")
+			}
+			if from.After(to) {
+				return eventTrailClause{}, errors.New("event trail date range starts after it ends")
+			}
+			clause.createdAfter = pgtype.Timestamptz{Time: from, Valid: true}
+			clause.createdBefore = pgtype.Timestamptz{Time: to, Valid: true}
+			continue
+		}
+
+		switch filter.Field {
+		case gatewayapi.ActorType:
+			for _, value := range values {
+				actorType := gatewayapi.EventTrailActorType(value)
+				if actorType != gatewayapi.EventTrailActorTypeUser &&
+					actorType != gatewayapi.EventTrailActorTypeApiKey &&
+					actorType != gatewayapi.EventTrailActorTypeSystem {
+					return eventTrailClause{}, fmt.Errorf("invalid actor type %q", value)
+				}
+			}
+			clause.actorTypes = values
+		case gatewayapi.ActorId:
+			clause.actorIDs = values
+		case gatewayapi.Category:
+			clause.categories = values
+		case gatewayapi.WorkspaceId:
+			clause.workspaceIDs = values
+		case gatewayapi.TargetType:
+			for _, value := range values {
+				targetType := gatewayapi.EventTrailTargetType(value)
+				switch targetType {
+				case gatewayapi.EventTrailTargetOrganization,
+					gatewayapi.EventTrailTargetOrganizationMembership,
+					gatewayapi.EventTrailTargetTeam,
+					gatewayapi.EventTrailTargetMCPConnection,
+					gatewayapi.EventTrailTargetInferenceProvider,
+					gatewayapi.EventTrailTargetInferencePool,
+					gatewayapi.EventTrailTargetRole,
+					gatewayapi.EventTrailTargetSandbox,
+					gatewayapi.EventTrailTargetSkill,
+					gatewayapi.EventTrailTargetAgent,
+					gatewayapi.EventTrailTargetWorkspace:
+				default:
+					return eventTrailClause{}, fmt.Errorf("invalid target type %q", value)
+				}
+			}
+			clause.targetTypes = values
+		case gatewayapi.Result:
+			for _, value := range values {
+				result := gatewayapi.EventTrailResult(value)
+				if result != gatewayapi.EventTrailResultSucceeded &&
+					result != gatewayapi.EventTrailResultDenied &&
+					result != gatewayapi.EventTrailResultFailed {
+					return eventTrailClause{}, fmt.Errorf("invalid result %q", value)
+				}
+			}
+			clause.results = values
+		default:
+			return eventTrailClause{}, errors.New("unsupported event trail filter field")
+		}
+	}
+	return clause, nil
 }
 
 func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID string) (eventTrailAccess, *apiError) {
@@ -295,7 +383,7 @@ func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID strin
 		}
 	}
 
-	access := eventTrailAccess{claims: *auth.claims}
+	access := eventTrailAccess{organizationID: auth.claims.OrganizationID}
 	if workspaceID != "" {
 		access.workspaceID = pgtype.Text{String: workspaceID, Valid: true}
 	}
@@ -437,25 +525,15 @@ func eventTrailEventView(row gatewaydb.GatewayListEventTrailEventsRow) (gatewaya
 	}
 
 	event := gatewayapi.EventTrailEvent{
-		Action:           row.Action,
-		Actor:            actor,
-		After:            after,
-		AutomaticCascade: row.AutomaticCascade,
-		Before:           before,
-		Category:         row.Category,
-		CreatedAt:        row.CreatedAt.Time,
-		Id:               row.ID,
-		Interface:        gatewayapi.EventTrailInterface(row.Interface),
-		Result:           gatewayapi.EventTrailResult(row.Result),
-		Target:           target,
-	}
-	if row.IpAddress.Valid {
-		ipAddress := row.IpAddress.String
-		event.IpAddress = &ipAddress
-	}
-	if row.UserAgent.Valid {
-		userAgent := row.UserAgent.String
-		event.UserAgent = &userAgent
+		Action:    row.Action,
+		Actor:     actor,
+		After:     after,
+		Before:    before,
+		Category:  row.Category,
+		CreatedAt: row.CreatedAt.Time,
+		Id:        row.ID,
+		Result:    gatewayapi.EventTrailResult(row.Result),
+		Target:    target,
 	}
 	if row.WorkspaceID.Valid {
 		workspace := gatewayapi.EventTrailWorkspace{Id: row.WorkspaceID.String}
@@ -469,17 +547,6 @@ func eventTrailEventView(row gatewaydb.GatewayListEventTrailEventsRow) (gatewaya
 		}
 		event.Workspace = &workspace
 	}
-	if row.CleanupJobID.Valid && row.CleanupState.Valid {
-		cleanup := gatewayapi.EventTrailCleanup{
-			Id:    row.CleanupJobID.String,
-			State: gatewayapi.EventTrailCleanupState(row.CleanupState.CleanupState),
-		}
-		if row.CleanupCompletedAt.Valid {
-			cleanup.CompletedAt = &row.CleanupCompletedAt.Time
-		}
-		event.Cleanup = &cleanup
-	}
-
 	return event, nil
 }
 

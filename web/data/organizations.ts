@@ -1,7 +1,6 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { getIp } from "better-auth/api"
 import type { Route } from "next"
 import { cache } from "react"
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm"
@@ -360,10 +359,6 @@ export async function renameOrganization(
         { field: "name", value: input.name },
         { field: "slug", value: input.slug },
       ],
-      automaticCascade: false,
-      interface: "web",
-      ipAddress: getIp(organizationSession.requestHeaders, getAuth().options),
-      userAgent: organizationSession.requestHeaders.get("user-agent"),
     } satisfies Omit<typeof schema.eventTrailEvents.$inferInsert, "result">
 
     const [member] = await tx

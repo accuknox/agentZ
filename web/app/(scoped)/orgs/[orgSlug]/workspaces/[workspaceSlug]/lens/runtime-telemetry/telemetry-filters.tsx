@@ -111,7 +111,7 @@ function DateRangeControl({
           <span className="truncate">{rangeLabel(from, to)}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-w-[calc(100vw-2rem)] overflow-auto p-0">
+      <PopoverContent align="start" className="w-fit p-0">
         <Calendar
           mode="range"
           numberOfMonths={2}

@@ -84,13 +84,6 @@ export const eventTrailTarget = pgEnum("event_trail_target", [
   "workspace_access",
   "workspace",
 ])
-export const eventTrailInterface = pgEnum("event_trail_interface", [
-  "web",
-  "gateway",
-  "better_auth",
-  "controller",
-  "system",
-])
 export const cleanupState = pgEnum("cleanup_state", [
   "pending",
   "running",
@@ -734,11 +727,6 @@ export const eventTrailEvents = pgTable(
     result: eventTrailResult("result").notNull(),
     before: jsonb("before").$type<EventTrailField[]>(),
     after: jsonb("after").$type<EventTrailField[]>(),
-    automaticCascade: boolean("automatic_cascade").default(false).notNull(),
-    cleanupJobId: text("cleanup_job_id"),
-    interface: eventTrailInterface("interface").notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -749,11 +737,6 @@ export const eventTrailEvents = pgTable(
     ),
     index("event_trail_events_workspace_created_idx").on(table.workspaceId, table.createdAt),
     index("event_trail_events_created_idx").on(table.createdAt),
-    foreignKey({
-      columns: [table.cleanupJobId, table.organizationId],
-      foreignColumns: [cleanupJobs.id, cleanupJobs.organizationId],
-      name: "event_trail_events_cleanup_job_organization_fk",
-    }).onDelete("restrict"),
     check(
       "event_trail_events_actor_ck",
       sql`(${table.actorType} = 'system' AND ${table.actorId} IS NULL) OR

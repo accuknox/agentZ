@@ -19,11 +19,9 @@ import { signInURL } from "@/lib/sign-in-redirect"
 export const unstable_instant = false
 
 export default async function OrganizationLayout({
-  eventTrailEvent,
   children,
   params,
 }: {
-  eventTrailEvent: React.ReactNode
   children: React.ReactNode
   params: Promise<{ orgSlug: string }>
 }) {
@@ -165,7 +163,6 @@ export default async function OrganizationLayout({
         }
       >
         <AdministrationLayout>{children}</AdministrationLayout>
-        {eventTrailEvent}
       </AppShell>
     </>
   )

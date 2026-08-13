@@ -405,6 +405,36 @@ import type {
   WriteAgentFileResponse,
 } from "../types.gen"
 
+/**
+ * List Organisation event trail events.
+ *
+ * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
+ *
+ */
+export const listEventTrailEventsMutation = (
+  options?: Partial<Options<ListEventTrailEventsData>>
+): UseMutationOptions<
+  ListEventTrailEventsResponse2,
+  ListEventTrailEventsError,
+  Options<ListEventTrailEventsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ListEventTrailEventsResponse2,
+    ListEventTrailEventsError,
+    Options<ListEventTrailEventsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await listEventTrailEvents({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
 export type QueryKey<TOptions extends Options> = [
   Pick<TOptions, "baseUrl" | "body" | "headers" | "path" | "query"> & {
     _id: string
@@ -443,34 +473,6 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
-
-export const listEventTrailEventsQueryKey = (options?: Options<ListEventTrailEventsData>) =>
-  createQueryKey("listEventTrailEvents", options)
-
-/**
- * List Organisation event trail events.
- *
- * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
- *
- */
-export const listEventTrailEventsOptions = (options?: Options<ListEventTrailEventsData>) =>
-  queryOptions<
-    ListEventTrailEventsResponse2,
-    ListEventTrailEventsError,
-    ListEventTrailEventsResponse2,
-    ReturnType<typeof listEventTrailEventsQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await listEventTrailEvents({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: listEventTrailEventsQueryKey(options),
-  })
 
 export const getEventTrailEventQueryKey = (options: Options<GetEventTrailEventData>) =>
   createQueryKey("getEventTrailEvent", options)

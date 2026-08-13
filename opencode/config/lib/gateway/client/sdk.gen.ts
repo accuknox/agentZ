@@ -420,8 +420,8 @@ import {
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
+  zListEventTrailEventsBody,
   zListEventTrailEventsHeaders,
-  zListEventTrailEventsQuery,
   zListFileObservabilityPath,
   zListFileObservabilityQuery,
   zListFileObservabilitySummaryPath,
@@ -557,9 +557,9 @@ export type Options<
  *
  */
 export const listEventTrailEvents = <ThrowOnError extends boolean = false>(
-  options?: Options<ListEventTrailEventsData, ThrowOnError>
+  options: Options<ListEventTrailEventsData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<
+  (options.client ?? client).post<
     ListEventTrailEventsResponses,
     ListEventTrailEventsErrors,
     ThrowOnError
@@ -567,15 +567,19 @@ export const listEventTrailEvents = <ThrowOnError extends boolean = false>(
     requestValidator: async (data) =>
       await z
         .object({
-          body: z.never().optional(),
+          body: zListEventTrailEventsBody,
           headers: zListEventTrailEventsHeaders.optional(),
           path: z.never().optional(),
-          query: zListEventTrailEventsQuery.optional(),
+          query: z.never().optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/event-trail-event",
     ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

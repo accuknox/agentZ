@@ -356,9 +356,9 @@ export type Options<
  *
  */
 export const listEventTrailEvents = <ThrowOnError extends boolean = false>(
-  options?: Options<ListEventTrailEventsData, ThrowOnError>
+  options: Options<ListEventTrailEventsData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<
+  (options.client ?? client).post<
     ListEventTrailEventsResponses,
     ListEventTrailEventsErrors,
     ThrowOnError
@@ -366,6 +366,10 @@ export const listEventTrailEvents = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/event-trail-event",
     ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

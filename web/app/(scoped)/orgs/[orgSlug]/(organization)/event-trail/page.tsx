@@ -1,6 +1,6 @@
 import type { ListEventTrailEventsData } from "@/lib/gateway/client"
-import { listOrganizationEventTrailEvents } from "@/data/event-trail"
-import { EventTrailEvents, eventTrailQuerySchema } from "./event-trail-events"
+import { eventTrailQuerySchema, listOrganizationEventTrailEvents } from "@/data/event-trail"
+import { EventTrailEvents } from "./event-trail-events"
 
 export const unstable_instant = {
   prefetch: "runtime",
@@ -17,15 +17,9 @@ export const unstable_instant = {
       ],
       params: { catchAll: ["event trail"], orgSlug: "sample-organisation" },
       searchParams: {
-        actor_id: null,
-        actor_type: null,
-        category: null,
-        created_after: null,
-        created_before: null,
+        filters: null,
         page_token: null,
-        result: null,
-        target_type: null,
-        workspace_id: null,
+        token_stack: null,
       },
     },
   ],
@@ -39,18 +33,16 @@ export default async function EventTrailPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [{ orgSlug }, raw] = await Promise.all([params, searchParams])
-  const filters = eventTrailQuerySchema.parse(raw)
-  const query = { ...filters, limit: 50 } satisfies NonNullable<ListEventTrailEventsData["query"]>
-  const eventTrail = await listOrganizationEventTrailEvents(orgSlug, query)
+  const search = eventTrailQuerySchema.parse(raw)
+  const body = {
+    filters: search.filters ?? [],
+    limit: 50,
+    page_token: search.page_token,
+  } satisfies ListEventTrailEventsData["body"]
+  const eventTrail = await listOrganizationEventTrailEvents(orgSlug, body)
   if (!eventTrail) {
     return null
   }
 
-  return (
-    <EventTrailEvents
-      eventTrail={eventTrail}
-      basePath={`/orgs/${orgSlug}/event-trail`}
-      query={query}
-    />
-  )
+  return <EventTrailEvents eventTrail={eventTrail} filters={body.filters} />
 }

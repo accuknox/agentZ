@@ -19,7 +19,6 @@ package gateway
 import (
 	"context"
 	"errors"
-	"net/http"
 
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -48,7 +47,7 @@ func (s *Service) resolveInferencePoolAccess(ctx context.Context, workspaceID, n
 	return s.resolveResourceAccess(ctx, req)
 }
 
-func (s *Service) createInferencePoolEventTrail(ctx context.Context, r *http.Request, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
+func (s *Service) createInferencePoolEventTrail(ctx context.Context, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
 	action := "unmapped"
 	switch access.operation {
 	case authorization.OperationCreateInferencePool:
@@ -60,7 +59,6 @@ func (s *Service) createInferencePoolEventTrail(ctx context.Context, r *http.Req
 	}
 	return s.createResourceEventTrail(
 		ctx,
-		r,
 		access,
 		gatewaydb.EventTrailTargetInferencePool,
 		name,

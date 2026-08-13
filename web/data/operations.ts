@@ -2,11 +2,9 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import type { UrlObject } from "node:url"
-import { getIp } from "better-auth/api"
 import { and, asc, eq, exists, inArray, isNull, ne, or } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
-import { getAuth } from "@/lib/auth"
 
 export type DestructiveTarget =
   | {
@@ -1451,18 +1449,13 @@ export async function deleteWorkspace(
       action: "workspace.delete",
       actorId: result.organizationSession.session.user.id,
       actorType: "user",
-      automaticCascade: true,
       before: [{ field: "name", value: workspace.name }],
       category: "workspace",
-      cleanupJobId: cleanupId,
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(result.organizationSession.requestHeaders, getAuth().options),
       organizationId: result.organization.id,
       result: "succeeded",
       targetId: workspace.id,
       targetType: "workspace",
-      userAgent: result.organizationSession.requestHeaders.get("user-agent"),
       workspaceId: workspace.id,
     })
     return { cleanupId }

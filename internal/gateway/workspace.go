@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -28,14 +27,12 @@ import (
 )
 
 type workspaceEventTrail struct {
-	request        *http.Request
 	organizationID string
 	workspaceID    string
 	actorType      gatewaydb.EventTrailActor
 	actorID        string
 	action         string
 	result         gatewaydb.EventTrailResult
-	interfaceName  gatewaydb.EventTrailInterface
 	before         []gatewayapi.EventTrailField
 	after          []gatewayapi.EventTrailField
 }
@@ -192,14 +189,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if !allowed {
 		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-			request:        r,
 			organizationID: claims.OrganizationID,
 			workspaceID:    id,
 			actorType:      gatewaydb.EventTrailActorUser,
 			actorID:        claims.UserID,
 			action:         "workspace.create",
 			result:         gatewaydb.EventTrailResultDenied,
-			interfaceName:  gatewaydb.EventTrailInterfaceGateway,
 			after: []gatewayapi.EventTrailField{
 				{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
 			},
@@ -235,10 +230,9 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(fields) > 0 {
 		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-			request: r, organizationID: claims.OrganizationID, workspaceID: id,
+			organizationID: claims.OrganizationID, workspaceID: id,
 			actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
 			action: "workspace.create", result: gatewaydb.EventTrailResultFailed,
-			interfaceName: gatewaydb.EventTrailInterfaceGateway,
 		})
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -302,14 +296,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if assigned != int64(len(req.AdminMemberIds)) {
 		_ = tx.Rollback(r.Context())
 		err = createWorkspaceEventTrail(r.Context(), s.queries, workspaceEventTrail{
-			request:        r,
 			organizationID: claims.OrganizationID,
 			workspaceID:    id,
 			actorType:      gatewaydb.EventTrailActorUser,
 			actorID:        claims.UserID,
 			action:         "workspace.create",
 			result:         gatewaydb.EventTrailResultDenied,
-			interfaceName:  gatewaydb.EventTrailInterfaceGateway,
 			after: []gatewayapi.EventTrailField{
 				{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
 			},
@@ -346,14 +338,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-		request:        r,
 		organizationID: claims.OrganizationID,
 		workspaceID:    id,
 		actorType:      gatewaydb.EventTrailActorUser,
 		actorID:        claims.UserID,
 		action:         "workspace.create",
 		result:         gatewaydb.EventTrailResultSucceeded,
-		interfaceName:  gatewaydb.EventTrailInterfaceGateway,
 		after: []gatewayapi.EventTrailField{
 			{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
 			{Field: gatewayapi.EventTrailFieldSlug, Value: workspaceSlug},
@@ -384,7 +374,6 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			r.Context(),
 			row,
 			reason,
-			gatewaydb.EventTrailInterfaceGateway,
 		)
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -516,14 +505,12 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 	)
 	if !allowed || getErr != nil || current.State != gatewaydb.WorkspaceStateFailed {
 		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-			request:        r,
 			organizationID: claims.OrganizationID,
 			workspaceID:    workspaceID,
 			actorType:      gatewaydb.EventTrailActorUser,
 			actorID:        claims.UserID,
 			action:         "workspace.retry",
 			result:         gatewaydb.EventTrailResultDenied,
-			interfaceName:  gatewaydb.EventTrailInterfaceGateway,
 		})
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -579,14 +566,12 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		return
 	}
 	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-		request:        r,
 		organizationID: claims.OrganizationID,
 		workspaceID:    workspaceID,
 		actorType:      gatewaydb.EventTrailActorUser,
 		actorID:        claims.UserID,
 		action:         "workspace.retry",
 		result:         gatewaydb.EventTrailResultSucceeded,
-		interfaceName:  gatewaydb.EventTrailInterfaceGateway,
 		before: []gatewayapi.EventTrailField{
 			{
 				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
@@ -627,7 +612,6 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 			r.Context(),
 			current,
 			reason,
-			gatewaydb.EventTrailInterfaceGateway,
 		)
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -757,7 +741,6 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 			actorType:      gatewaydb.EventTrailActorSystem,
 			action:         "workspace.lifecycle",
 			result:         gatewaydb.EventTrailResultDenied,
-			interfaceName:  gatewaydb.EventTrailInterfaceController,
 			before: []gatewayapi.EventTrailField{
 				{
 					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
@@ -799,7 +782,6 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		actorType:      gatewaydb.EventTrailActorSystem,
 		action:         "workspace." + string(state),
 		result:         gatewaydb.EventTrailResultSucceeded,
-		interfaceName:  gatewaydb.EventTrailInterfaceController,
 		before: []gatewayapi.EventTrailField{
 			{
 				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
@@ -978,7 +960,6 @@ func (s *Service) recoverWorkspaceProvisioning(ctx context.Context) error {
 			ctx,
 			row,
 			reason,
-			gatewaydb.EventTrailInterfaceGateway,
 		)
 		if failErr != nil {
 			return failErr
@@ -987,7 +968,7 @@ func (s *Service) recoverWorkspaceProvisioning(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.Workspace, reason string, interfaceName gatewaydb.EventTrailInterface) (gatewaydb.Workspace, error) {
+func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.Workspace, reason string) (gatewaydb.Workspace, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return gatewaydb.Workspace{}, fmt.Errorf("begin fail workspace provisioning: %w", err)
@@ -1015,7 +996,6 @@ func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.W
 			actorType:      gatewaydb.EventTrailActorSystem,
 			action:         "workspace.failed",
 			result:         gatewaydb.EventTrailResultFailed,
-			interfaceName:  interfaceName,
 			before: []gatewayapi.EventTrailField{
 				{
 					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
@@ -1061,34 +1041,22 @@ func createWorkspaceEventTrail(ctx context.Context, q gatewaydb.Querier, eventTr
 		return fmt.Errorf("encode workspace event trail after state: %w", err)
 	}
 	params := gatewaydb.GatewayCreateEventTrailEventParams{
-		ID:               "event-trail-" + uuid.NewString(),
-		OrganizationID:   eventTrail.organizationID,
-		ActorType:        eventTrail.actorType,
-		TargetType:       gatewaydb.EventTrailTargetWorkspace,
-		TargetID:         eventTrail.workspaceID,
-		Category:         "workspace",
-		Action:           eventTrail.action,
-		Result:           eventTrail.result,
-		Before:           before,
-		After:            after,
-		AutomaticCascade: false,
-		Interface:        eventTrail.interfaceName,
+		ID:             "event-trail-" + uuid.NewString(),
+		OrganizationID: eventTrail.organizationID,
+		ActorType:      eventTrail.actorType,
+		TargetType:     gatewaydb.EventTrailTargetWorkspace,
+		TargetID:       eventTrail.workspaceID,
+		Category:       "workspace",
+		Action:         eventTrail.action,
+		Result:         eventTrail.result,
+		Before:         before,
+		After:          after,
 	}
 	if eventTrail.actorID != "" {
 		params.ActorID = pgtype.Text{String: eventTrail.actorID, Valid: true}
 	}
 	if eventTrail.workspaceID != "" {
 		params.WorkspaceID = pgtype.Text{String: eventTrail.workspaceID, Valid: true}
-	}
-	if eventTrail.request != nil {
-		host, _, err := net.SplitHostPort(eventTrail.request.RemoteAddr)
-		if err == nil && host != "" {
-			params.IpAddress = pgtype.Text{String: host, Valid: true}
-		}
-		userAgent := strings.TrimSpace(eventTrail.request.UserAgent())
-		if userAgent != "" {
-			params.UserAgent = pgtype.Text{String: userAgent, Valid: true}
-		}
 	}
 	_, err = q.GatewayCreateEventTrailEvent(ctx, params)
 	if err != nil {

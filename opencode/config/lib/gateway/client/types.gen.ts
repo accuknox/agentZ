@@ -8,8 +8,6 @@ export type EventTrailActorType = "user" | "api_key" | "system"
 
 export type EventTrailResult = "succeeded" | "denied" | "failed"
 
-export type EventTrailInterface = "web" | "gateway" | "better_auth" | "controller" | "system"
-
 export type EventTrailTargetType =
   | "organization"
   | "organization_membership"
@@ -48,12 +46,6 @@ export type EventTrailWorkspace = {
   slug?: string
 }
 
-export type EventTrailCleanup = {
-  id: string
-  state: "pending" | "running" | "succeeded" | "failed"
-  completed_at?: string
-}
-
 export type EventTrailEvent = {
   id: string
   actor: EventTrailActor
@@ -64,11 +56,6 @@ export type EventTrailEvent = {
   result: EventTrailResult
   before: Array<EventTrailField>
   after: Array<EventTrailField>
-  automatic_cascade: boolean
-  interface: EventTrailInterface
-  ip_address?: string
-  user_agent?: string
-  cleanup?: EventTrailCleanup
   created_at: string
 }
 
@@ -92,9 +79,23 @@ export type EventTrailFilters = {
   target_types: Array<EventTrailTargetType>
 }
 
+export type EventTrailFilterField =
+  "actor_type" | "actor_id" | "category" | "workspace_id" | "target_type" | "result" | "created_at"
+
+export type EventTrailFilter = {
+  field: EventTrailFilterField
+  values: Array<string>
+}
+
+export type ListEventTrailEventsRequest = {
+  filters: Array<EventTrailFilter>
+  limit: number
+  page_token?: string
+}
+
 export type ListEventTrailEventsResponse = {
   events: Array<EventTrailEvent>
-  filters: EventTrailFilters
+  filter_options: EventTrailFilters
   next_page_token: string
 }
 
@@ -1960,49 +1961,9 @@ export type ResourceScopeQuery = ResourceScope
 export type WorkspaceSlugPath = string
 
 /**
- * Exact actor type.
- */
-export type EventTrailActorTypeQuery = EventTrailActorType
-
-/**
  * Stable event trail event ID.
  */
 export type EventTrailEventIdPath = string
-
-/**
- * Exact actor ID.
- */
-export type EventTrailActorIdQuery = string
-
-/**
- * Exact event trail category.
- */
-export type EventTrailCategoryQuery = string
-
-/**
- * Exact Workspace ID.
- */
-export type EventTrailWorkspaceIdQuery = string
-
-/**
- * Exact target resource type.
- */
-export type EventTrailTargetTypeQuery = EventTrailTargetType
-
-/**
- * Exact event trail result.
- */
-export type EventTrailResultQuery = EventTrailResult
-
-/**
- * Inclusive lower event timestamp bound.
- */
-export type EventTrailCreatedAfterQuery = string
-
-/**
- * Inclusive upper event timestamp bound.
- */
-export type EventTrailCreatedBeforeQuery = string
 
 /**
  * Agent name.
@@ -2136,7 +2097,7 @@ export type FromDateQuery = string
 export type ToDateQuery = string
 
 export type ListEventTrailEventsData = {
-  body?: never
+  body: ListEventTrailEventsRequest
   headers?: {
     /**
      * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
@@ -2145,48 +2106,7 @@ export type ListEventTrailEventsData = {
     "X-AgentZ-Workspace-ID"?: string
   }
   path?: never
-  query?: {
-    /**
-     * Exact actor type.
-     */
-    actor_type?: EventTrailActorType
-    /**
-     * Exact actor ID.
-     */
-    actor_id?: string
-    /**
-     * Exact event trail category.
-     */
-    category?: string
-    /**
-     * Exact Workspace ID.
-     */
-    workspace_id?: string
-    /**
-     * Exact target resource type.
-     */
-    target_type?: EventTrailTargetType
-    /**
-     * Exact event trail result.
-     */
-    result?: EventTrailResult
-    /**
-     * Inclusive lower event timestamp bound.
-     */
-    created_after?: string
-    /**
-     * Inclusive upper event timestamp bound.
-     */
-    created_before?: string
-    /**
-     * Maximum number of items to return.
-     */
-    limit?: number
-    /**
-     * Opaque pagination token from a previous response.
-     */
-    page_token?: string
-  }
+  query?: never
   url: "/api/event-trail-event"
 }
 

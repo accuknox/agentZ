@@ -64,6 +64,13 @@
       "when": 1786595967522,
       "tag": "0008_organization_workspace_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786611879694,
+      "tag": "0009_dashing_whizzer",
+      "breakpoints": true
     }
   ]
 }

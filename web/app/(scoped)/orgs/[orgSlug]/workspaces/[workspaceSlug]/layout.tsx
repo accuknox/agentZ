@@ -99,11 +99,11 @@ export default async function WorkspaceLayout({
     permanentRedirect(`${requestedURL.pathname}${requestedURL.search}` as Route)
   }
 
-  await rememberOrganizationRoute(
-    result.scope.organization.id,
-    requestedURL.pathname,
-    result.workspace.id
-  )
+  const root = `/orgs/${result.scope.organization.slug}/workspaces/${result.workspace.slug}`
+  const rememberedPath = requestedURL.pathname.startsWith(`${root}/event-trail/`)
+    ? `${root}/event-trail`
+    : requestedURL.pathname
+  await rememberOrganizationRoute(result.scope.organization.id, rememberedPath, result.workspace.id)
 
   return (
     <>

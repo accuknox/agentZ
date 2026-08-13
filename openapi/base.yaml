@@ -40,7 +40,7 @@ tags:
 
 paths:
   /api/event-trail-event:
-    get:
+    post:
       operationId: listEventTrailEvents
       summary: List Organisation event trail events.
       description: >
@@ -50,16 +50,12 @@ paths:
       tags: [event-trail]
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
-      - $ref: '#/components/parameters/EventTrailActorTypeQuery'
-      - $ref: '#/components/parameters/EventTrailActorIDQuery'
-      - $ref: '#/components/parameters/EventTrailCategoryQuery'
-      - $ref: '#/components/parameters/EventTrailWorkspaceIDQuery'
-      - $ref: '#/components/parameters/EventTrailTargetTypeQuery'
-      - $ref: '#/components/parameters/EventTrailResultQuery'
-      - $ref: '#/components/parameters/EventTrailCreatedAfterQuery'
-      - $ref: '#/components/parameters/EventTrailCreatedBeforeQuery'
-      - $ref: '#/components/parameters/LimitQuery'
-      - $ref: '#/components/parameters/PageTokenQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListEventTrailEventsRequest'
       responses:
         '200':
           description: Paginated scoped event trail events and filter options.
@@ -3237,14 +3233,6 @@ components:
         minLength: 1
         maxLength: 128
 
-    EventTrailActorTypeQuery:
-      name: actor_type
-      in: query
-      required: false
-      description: Exact actor type.
-      schema:
-        $ref: '#/components/schemas/EventTrailActorType'
-
     EventTrailEventIDPath:
       name: eventId
       in: path
@@ -3253,67 +3241,6 @@ components:
       schema:
         type: string
         minLength: 1
-
-    EventTrailActorIDQuery:
-      name: actor_id
-      in: query
-      required: false
-      description: Exact actor ID.
-      schema:
-        type: string
-        minLength: 1
-
-    EventTrailCategoryQuery:
-      name: category
-      in: query
-      required: false
-      description: Exact event trail category.
-      schema:
-        type: string
-        minLength: 1
-
-    EventTrailWorkspaceIDQuery:
-      name: workspace_id
-      in: query
-      required: false
-      description: Exact Workspace ID.
-      schema:
-        type: string
-        minLength: 1
-
-    EventTrailTargetTypeQuery:
-      name: target_type
-      in: query
-      required: false
-      description: Exact target resource type.
-      schema:
-        $ref: '#/components/schemas/EventTrailTargetType'
-
-    EventTrailResultQuery:
-      name: result
-      in: query
-      required: false
-      description: Exact event trail result.
-      schema:
-        $ref: '#/components/schemas/EventTrailResult'
-
-    EventTrailCreatedAfterQuery:
-      name: created_after
-      in: query
-      required: false
-      description: Inclusive lower event timestamp bound.
-      schema:
-        type: string
-        format: date-time
-
-    EventTrailCreatedBeforeQuery:
-      name: created_before
-      in: query
-      required: false
-      description: Inclusive upper event timestamp bound.
-      schema:
-        type: string
-        format: date-time
 
     AgentNameQuery:
       name: agent_name
@@ -3624,10 +3551,6 @@ components:
       type: string
       enum: [succeeded, denied, failed]
 
-    EventTrailInterface:
-      type: string
-      enum: [web, gateway, better_auth, controller, system]
-
     EventTrailTargetType:
       type: string
       enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection, inference_provider, inference_pool, agent]
@@ -3704,20 +3627,6 @@ components:
           type: string
       required: [id]
 
-    EventTrailCleanup:
-      type: object
-      additionalProperties: false
-      properties:
-        id:
-          type: string
-        state:
-          type: string
-          enum: [pending, running, succeeded, failed]
-        completed_at:
-          type: string
-          format: date-time
-      required: [id, state]
-
     EventTrailEvent:
       type: object
       additionalProperties: false
@@ -3744,16 +3653,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EventTrailField'
-        automatic_cascade:
-          type: boolean
-        interface:
-          $ref: '#/components/schemas/EventTrailInterface'
-        ip_address:
-          type: string
-        user_agent:
-          type: string
-        cleanup:
-          $ref: '#/components/schemas/EventTrailCleanup'
         created_at:
           type: string
           format: date-time
@@ -3766,8 +3665,6 @@ components:
       - result
       - before
       - after
-      - automatic_cascade
-      - interface
       - created_at
 
     EventTrailActorFilter:
@@ -3819,6 +3716,45 @@ components:
             $ref: '#/components/schemas/EventTrailTargetType'
       required: [actors, categories, workspaces, target_types]
 
+    EventTrailFilterField:
+      type: string
+      enum: [actor_type, actor_id, category, workspace_id, target_type, result, created_at]
+
+    EventTrailFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          $ref: '#/components/schemas/EventTrailFilterField'
+        values:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+      required: [field, values]
+
+    ListEventTrailEventsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        filters:
+          type: array
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/EventTrailFilter'
+        limit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 50
+        page_token:
+          type: string
+      required: [filters, limit]
+
     ListEventTrailEventsResponse:
       type: object
       additionalProperties: false
@@ -3827,11 +3763,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EventTrailEvent'
-        filters:
+        filter_options:
           $ref: '#/components/schemas/EventTrailFilters'
         next_page_token:
           type: string
-      required: [events, filters, next_page_token]
+      required: [events, filter_options, next_page_token]
 
     TraceID:
       type: string

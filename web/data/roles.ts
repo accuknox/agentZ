@@ -2,7 +2,6 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import type { UrlObject } from "node:url"
-import { getIp } from "better-auth/api"
 import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
 import { getDB, schema } from "@/db"
@@ -13,7 +12,6 @@ import {
   type CascadingAgent,
   type WorkspaceAccessLoss,
 } from "@/data/operations"
-import { getAuth } from "@/lib/auth"
 
 export type RoleResource = typeof schema.permissionGrants.$inferSelect.resource
 export type RoleAction = typeof schema.permissionGrants.$inferSelect.action
@@ -304,16 +302,12 @@ function roleEventTrail(
     actorId: actor.userId,
     actorType: "user" as const,
     action,
-    automaticCascade: false,
     category: "role",
     id: `event-trail-${randomUUID()}`,
-    interface: "web" as const,
-    ipAddress: getIp(actor.requestHeaders, getAuth().options),
     organizationId: actor.organization.id,
     result,
     targetId,
     targetType: "role" as const,
-    userAgent: actor.requestHeaders.get("user-agent"),
     workspaceId,
   }
 }
@@ -1111,16 +1105,12 @@ async function saveRole(
           actorId: actor.userId,
           actorType: "user",
           action,
-          automaticCascade: false,
           category: "role",
           id: `event-trail-${randomUUID()}`,
-          interface: "web",
-          ipAddress: getIp(actor.requestHeaders, getAuth().options),
           organizationId: actor.organization.id,
           result: "denied",
           targetId: id,
           targetType: "role",
-          userAgent: actor.requestHeaders.get("user-agent"),
           workspaceId: workspace?.id,
         })
         return { error: "immutable" as const }
@@ -1318,7 +1308,6 @@ async function saveRole(
         { field: "name", value: input.name },
         { field: "state", value: `${grants.length} Permission Grants` },
       ],
-      automaticCascade: reduction,
       before: before
         ? [
             { field: "name", value: before.name },
@@ -1326,15 +1315,11 @@ async function saveRole(
           ]
         : null,
       category: "role",
-      cleanupJobId: cleanupId,
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(actor.requestHeaders, getAuth().options),
       organizationId: actor.organization.id,
       result: "succeeded",
       targetId: id,
       targetType: "role",
-      userAgent: actor.requestHeaders.get("user-agent"),
       workspaceId: workspace?.id,
     })
     return workspace
@@ -1527,17 +1512,13 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
       actorType: "user",
       action: workspace ? "workspace_role.assign" : "role.assign",
       after: selected.map((memberId) => ({ field: "member_id" as const, value: memberId })),
-      automaticCascade: false,
       before: current.map(({ memberId }) => ({ field: "member_id" as const, value: memberId })),
       category: "role",
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(actor.requestHeaders, getAuth().options),
       organizationId: actor.organization.id,
       result: "succeeded",
       targetId: roleId,
       targetType: "role",
-      userAgent: actor.requestHeaders.get("user-agent"),
       workspaceId: workspace?.id,
     })
     return workspace
@@ -1678,17 +1659,13 @@ async function removeRole(scope: RoleManagement, roleId: string) {
       actorId: actor.userId,
       actorType: "user",
       action: workspace ? "workspace_role.delete" : "role.delete",
-      automaticCascade: false,
       before: [{ field: "name", value: role.name }],
       category: "role",
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(actor.requestHeaders, getAuth().options),
       organizationId: actor.organization.id,
       result: "succeeded",
       targetId: roleId,
       targetType: "role",
-      userAgent: actor.requestHeaders.get("user-agent"),
       workspaceId: workspace?.id,
     })
     return workspace

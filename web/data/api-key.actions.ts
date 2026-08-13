@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto"
 import { defaultKeyHasher } from "@better-auth/api-key"
-import { getIp } from "better-auth/api"
 import { generateRandomString } from "better-auth/crypto"
 import { and, eq, inArray, isNull } from "drizzle-orm"
 import { updateTag } from "next/cache"
@@ -237,16 +236,12 @@ export async function createAPIKeyFormAction(
           { field: "name", value: parsed.data.name },
           { field: "state", value: "active" },
         ],
-        automaticCascade: false,
         category: "api_key",
         id: `event-trail-${randomUUID()}`,
-        interface: "web",
-        ipAddress: getIp(requestHeaders, auth.options),
         organizationId: authContext.organizationId,
         result: "succeeded",
         targetId: keyID,
         targetType: "api_key",
-        userAgent: requestHeaders.get("user-agent"),
         workspaceId: scope.workspaceId,
       })
     })
@@ -330,16 +325,12 @@ export async function deleteAPIKeyFormAction(
         { field: "name", value: key.name ?? "API key" },
         { field: "state", value: "revoked" },
       ],
-      automaticCascade: false,
       category: "api_key",
       id: `event-trail-${randomUUID()}`,
-      interface: "web",
-      ipAddress: getIp(requestHeaders, auth.options),
       organizationId: authContext.organizationId,
       result: "succeeded",
       targetId: parsed.data.keyID,
       targetType: "api_key",
-      userAgent: requestHeaders.get("user-agent"),
       workspaceId: scope.workspaceId,
     })
     return "revoked" as const

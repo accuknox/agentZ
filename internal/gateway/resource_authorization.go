@@ -21,9 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -277,7 +275,7 @@ func resourceForbidden(cause error) *apiError {
 	)
 }
 
-func (s *Service) createResourceEventTrail(ctx context.Context, r *http.Request, access resourceAccess, target gatewaydb.EventTrailTarget, id, category, action string, result gatewaydb.EventTrailResult) error {
+func (s *Service) createResourceEventTrail(ctx context.Context, access resourceAccess, target gatewaydb.EventTrailTarget, id, category, action string, result gatewaydb.EventTrailResult) error {
 	fields, err := json.Marshal([]gatewayapi.EventTrailField{{
 		Field: gatewayapi.EventTrailFieldName, Value: id,
 	}})
@@ -289,25 +287,17 @@ func (s *Service) createResourceEventTrail(ctx context.Context, r *http.Request,
 		workspaceID = pgtype.Text{String: access.workspaceID, Valid: true}
 	}
 	params := gatewaydb.GatewayCreateEventTrailEventParams{
-		ID:               "event-trail-" + uuid.NewString(),
-		OrganizationID:   access.claims.OrganizationID,
-		WorkspaceID:      workspaceID,
-		ActorType:        gatewaydb.EventTrailActorUser,
-		ActorID:          pgtype.Text{String: access.claims.UserID, Valid: true},
-		TargetType:       target,
-		TargetID:         id,
-		Category:         category,
-		Action:           category + "." + action,
-		Result:           result,
-		After:            fields,
-		AutomaticCascade: false,
-		Interface:        gatewaydb.EventTrailInterfaceGateway,
-	}
-	if host, _, splitErr := net.SplitHostPort(r.RemoteAddr); splitErr == nil && host != "" {
-		params.IpAddress = pgtype.Text{String: host, Valid: true}
-	}
-	if userAgent := strings.TrimSpace(r.UserAgent()); userAgent != "" {
-		params.UserAgent = pgtype.Text{String: userAgent, Valid: true}
+		ID:             "event-trail-" + uuid.NewString(),
+		OrganizationID: access.claims.OrganizationID,
+		WorkspaceID:    workspaceID,
+		ActorType:      gatewaydb.EventTrailActorUser,
+		ActorID:        pgtype.Text{String: access.claims.UserID, Valid: true},
+		TargetType:     target,
+		TargetID:       id,
+		Category:       category,
+		Action:         category + "." + action,
+		Result:         result,
+		After:          fields,
 	}
 	_, err = s.queries.GatewayCreateEventTrailEvent(ctx, params)
 	if err != nil {

@@ -1,10 +1,7 @@
 import type { ListEventTrailEventsData } from "@/lib/gateway/client"
-import {
-  EventTrailEvents,
-  eventTrailQuerySchema,
-} from "@/app/(scoped)/orgs/[orgSlug]/(organization)/event-trail/event-trail-events"
+import { EventTrailEvents } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/event-trail/event-trail-events"
 import { AdministrationState } from "@/components/administration"
-import { listWorkspaceEventTrailEvents } from "@/data/event-trail"
+import { eventTrailQuerySchema, listWorkspaceEventTrailEvents } from "@/data/event-trail"
 
 export const unstable_instant = false
 
@@ -16,23 +13,21 @@ export default async function WorkspaceEventTrailPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [{ orgSlug, workspaceSlug }, raw] = await Promise.all([params, searchParams])
-  const filters = eventTrailQuerySchema.parse(raw)
-  const query = {
-    ...filters,
+  const search = eventTrailQuerySchema.parse(raw)
+  const body = {
+    filters: search.filters ?? [],
     limit: 50,
-    workspace_id: undefined,
-  } satisfies NonNullable<ListEventTrailEventsData["query"]>
-  const result = await listWorkspaceEventTrailEvents(orgSlug, workspaceSlug, query)
+    page_token: search.page_token,
+  } satisfies ListEventTrailEventsData["body"]
+  const result = await listWorkspaceEventTrailEvents(orgSlug, workspaceSlug, body)
   if (!result) {
     return <AdministrationState kind="forbidden" />
   }
 
-  const basePath = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/event-trail`
   return (
     <EventTrailEvents
       eventTrail={result.eventTrail}
-      basePath={basePath}
-      query={query}
+      filters={body.filters}
       workspace={result.workspace}
     />
   )

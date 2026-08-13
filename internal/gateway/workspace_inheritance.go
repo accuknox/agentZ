@@ -134,7 +134,7 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 		writeInternalError(w, r, err)
 		return
 	}
-	if err := s.persistWorkspaceResourceSelection(r.Context(), r, claims, workspaceID, resourceType, names); err != nil {
+	if err := s.persistWorkspaceResourceSelection(r.Context(), claims, workspaceID, resourceType, names); err != nil {
 		compensationErr := s.updateWorkspaceResourceSelection(r.Context(), workspace, previous)
 		writeInternalError(w, r, errors.Join(err, compensationErr))
 		return
@@ -175,10 +175,9 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 	if !allowed || getErr != nil {
 		if action == "modify" {
 			_ = createWorkspaceEventTrail(r.Context(), s.queries, workspaceEventTrail{
-				request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
+				organizationID: claims.OrganizationID, workspaceID: workspaceID,
 				actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
 				action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultDenied,
-				interfaceName: gatewaydb.EventTrailInterfaceGateway,
 			})
 		}
 		if !allowed {
@@ -273,7 +272,7 @@ func (s *Service) updateWorkspaceResourceSelection(ctx context.Context, row gate
 	return nil
 }
 
-func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http.Request, claims gatewayClaims, workspaceID string, resourceType gatewayapi.InheritedResourceType, names []string) error {
+func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims gatewayClaims, workspaceID string, resourceType gatewayapi.InheritedResourceType, names []string) error {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin Workspace inheritance update: %w", err)
@@ -310,11 +309,10 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 		return fmt.Errorf("replace Workspace inheritance: %w", err)
 	}
 	err = createWorkspaceEventTrail(ctx, q, workspaceEventTrail{
-		request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
+		organizationID: claims.OrganizationID, workspaceID: workspaceID,
 		actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
 		action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultSucceeded,
-		interfaceName: gatewaydb.EventTrailInterfaceGateway,
-		after:         []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+		after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
 	})
 	if err != nil {
 		return err
@@ -327,11 +325,10 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, r *http
 
 func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gatewayClaims, workspaceID string, resourceType gatewayapi.InheritedResourceType) {
 	err := createWorkspaceEventTrail(context.WithoutCancel(r.Context()), s.queries, workspaceEventTrail{
-		request: r, organizationID: claims.OrganizationID, workspaceID: workspaceID,
+		organizationID: claims.OrganizationID, workspaceID: workspaceID,
 		actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
 		action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultFailed,
-		interfaceName: gatewaydb.EventTrailInterfaceGateway,
-		after:         []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+		after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
 	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "event trail failed Workspace inheritance mutation", slog.Any("err", err))

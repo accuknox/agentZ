@@ -278,51 +278,6 @@ func (ns NullEventTrailActor) Value() (driver.Value, error) {
 	return string(ns.EventTrailActor), nil
 }
 
-type EventTrailInterface string
-
-const (
-	EventTrailInterfaceWeb        EventTrailInterface = "web"
-	EventTrailInterfaceGateway    EventTrailInterface = "gateway"
-	EventTrailInterfaceBetterAuth EventTrailInterface = "better_auth"
-	EventTrailInterfaceController EventTrailInterface = "controller"
-	EventTrailInterfaceSystem     EventTrailInterface = "system"
-)
-
-func (e *EventTrailInterface) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = EventTrailInterface(s)
-	case string:
-		*e = EventTrailInterface(s)
-	default:
-		return fmt.Errorf("unsupported scan type for EventTrailInterface: %T", src)
-	}
-	return nil
-}
-
-type NullEventTrailInterface struct {
-	EventTrailInterface EventTrailInterface `json:"event_trail_interface"`
-	Valid               bool                `json:"valid"` // Valid is true if EventTrailInterface is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullEventTrailInterface) Scan(value interface{}) error {
-	if value == nil {
-		ns.EventTrailInterface, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.EventTrailInterface.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullEventTrailInterface) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.EventTrailInterface), nil
-}
-
 type EventTrailResult string
 
 const (
@@ -758,24 +713,19 @@ type CleanupJob struct {
 }
 
 type EventTrailEvent struct {
-	ID               string              `json:"id"`
-	OrganizationID   string              `json:"organization_id"`
-	WorkspaceID      pgtype.Text         `json:"workspace_id"`
-	ActorType        EventTrailActor     `json:"actor_type"`
-	ActorID          pgtype.Text         `json:"actor_id"`
-	TargetType       EventTrailTarget    `json:"target_type"`
-	TargetID         string              `json:"target_id"`
-	Category         string              `json:"category"`
-	Action           string              `json:"action"`
-	Result           EventTrailResult    `json:"result"`
-	Before           []byte              `json:"before"`
-	After            []byte              `json:"after"`
-	AutomaticCascade bool                `json:"automatic_cascade"`
-	CleanupJobID     pgtype.Text         `json:"cleanup_job_id"`
-	Interface        EventTrailInterface `json:"interface"`
-	IpAddress        pgtype.Text         `json:"ip_address"`
-	UserAgent        pgtype.Text         `json:"user_agent"`
-	CreatedAt        pgtype.Timestamptz  `json:"created_at"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	ActorType      EventTrailActor    `json:"actor_type"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	TargetType     EventTrailTarget   `json:"target_type"`
+	TargetID       string             `json:"target_id"`
+	Category       string             `json:"category"`
+	Action         string             `json:"action"`
+	Result         EventTrailResult   `json:"result"`
+	Before         []byte             `json:"before"`
+	After          []byte             `json:"after"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type Invitation struct {

@@ -73,7 +73,7 @@ export function DestructiveConfirmationDialog({
           {state.error ? (
             <Alert variant="destructive">
               <CircleAlertIcon aria-hidden="true" />
-              <AlertTitle>Could not delete Team</AlertTitle>
+              <AlertTitle>Deletion failed</AlertTitle>
               <AlertDescription>{state.error}</AlertDescription>
             </Alert>
           ) : null}
@@ -114,7 +114,7 @@ function ConfirmationSubmit({ disabled, label }: { disabled: boolean; label: str
   return (
     <Button disabled={disabled || pending} type="submit" variant="destructive">
       {pending ? <Spinner data-icon="inline-start" /> : <Trash2Icon data-icon="inline-start" />}
-      {pending ? "Deleting…" : label}
+      {pending ? "Deleting..." : label}
     </Button>
   )
 }

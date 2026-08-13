@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useFormStatus } from "react-dom"
+import { RotateCcw } from "lucide-react"
 import { AdministrationState } from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -61,8 +62,8 @@ function RetryButton() {
 
   return (
     <Button disabled={pending} type="submit">
-      {pending ? <Spinner /> : null}
-      {pending ? "Retrying…" : "Retry provisioning"}
+      {pending ? <Spinner /> : <RotateCcw data-icon="inline-start" />}
+      {pending ? "Retrying..." : "Retry provisioning"}
     </Button>
   )
 }

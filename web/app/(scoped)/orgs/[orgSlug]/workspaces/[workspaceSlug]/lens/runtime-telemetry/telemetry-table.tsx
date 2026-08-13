@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ArrowLeft, ArrowRight } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -160,16 +161,11 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
 
 export function ActionBadge({ action }: { action: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit rounded-full px-2 py-1 text-xs font-medium",
-        action === "Blocked" && "bg-destructive/12 text-destructive",
-        action === "Allowed" && "bg-primary/12 text-primary",
-        action !== "Allowed" && action !== "Blocked" && "bg-muted text-muted-foreground"
-      )}
+    <Badge
+      variant={action === "Blocked" ? "destructive" : action === "Allowed" ? "success" : "pending"}
     >
       {action}
-    </span>
+    </Badge>
   )
 }
 

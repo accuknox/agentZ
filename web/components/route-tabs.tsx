@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 
 export type RouteTab = {
   href: Route
+  activePath?: Route
   label: string
   disabled?: boolean
 }
@@ -16,17 +17,20 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const current = searchParams.size ? `${pathname}?${searchParams}` : pathname
-  const active = tabs.reduce<Route | undefined>((selected, tab) => {
+  const active = tabs.reduce<RouteTab | undefined>((selected, tab) => {
     const href = String(tab.href)
-    const matches = href.includes("?")
-      ? current === href
-      : current === href || (!searchParams.size && pathname.startsWith(`${href}/`))
+    const path = String(tab.activePath ?? tab.href)
+    const matches = tab.activePath
+      ? pathname === path || pathname.startsWith(`${path}/`)
+      : href.includes("?")
+        ? current === href
+        : pathname === href || pathname.startsWith(`${href}/`)
     if (!matches) {
       return selected
     }
 
-    if (!selected || href.length > String(selected).length) {
-      return tab.href
+    if (!selected || path.length > String(selected.activePath ?? selected.href).length) {
+      return tab
     }
 
     return selected
@@ -50,9 +54,9 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
               </span>
             ) : (
               <Link
-                aria-current={active === tab.href ? "page" : undefined}
+                aria-current={active === tab ? "page" : undefined}
                 className={routeTabClassName}
-                data-active={active === tab.href ? "" : undefined}
+                data-active={active === tab ? "" : undefined}
                 href={tab.href}
                 key={tab.href}
               >

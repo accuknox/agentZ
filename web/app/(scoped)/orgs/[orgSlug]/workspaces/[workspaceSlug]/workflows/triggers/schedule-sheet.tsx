@@ -3,6 +3,7 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
+import { CalendarCheck } from "lucide-react"
 import * as z from "zod"
 import type {
   JsonValue,
@@ -585,7 +586,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
           ) : null}
           <div className="shrink-0">
             <Button type="submit" disabled={isPending || schemaPending} className="w-full">
-              {isPending ? <Spinner /> : null}
+              {isPending ? <Spinner /> : <CalendarCheck data-icon="inline-start" />}
               {isPending ? pendingLabel : submitLabel}
             </Button>
           </div>

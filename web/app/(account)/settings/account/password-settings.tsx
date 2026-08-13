@@ -3,6 +3,7 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
+import { KeyRound } from "lucide-react"
 import { z } from "zod"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -170,7 +171,11 @@ export function PasswordSettings() {
           {success ? <p className="text-sm">Password updated.</p> : null}
           <div>
             <Button type="submit" disabled={pendingAction}>
-              {pendingAction ? <Spinner data-icon="inline-start" /> : null}
+              {pendingAction ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <KeyRound data-icon="inline-start" />
+              )}
               Update password
             </Button>
           </div>

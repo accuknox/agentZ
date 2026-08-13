@@ -24,8 +24,11 @@ export default async function ManageWorkspaceLayout({
   const root = `/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}`
   const tabs = [
     { href: root as Route, label: "General" },
-    { href: `${root}/inherited/skills` as Route, label: "Inherited Resources" },
-    { href: `${root}/delete` as Route, label: "Delete" },
+    {
+      activePath: `${root}/inherited` as Route,
+      href: `${root}/inherited/skills` as Route,
+      label: "Inherited Resources",
+    },
   ] satisfies RouteTab[]
 
   return (

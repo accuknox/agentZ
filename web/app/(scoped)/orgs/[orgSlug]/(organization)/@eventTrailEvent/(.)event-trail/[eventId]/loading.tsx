@@ -6,7 +6,7 @@ export default function Loading() {
     <EventTrailDrawer>
       <div aria-label="Loading event trail event" role="status">
         <Skeleton className="min-h-96 w-full" />
-        <span className="sr-only">Loading event trail event…</span>
+        <span className="sr-only">Loading event trail event...</span>
       </div>
     </EventTrailDrawer>
   )

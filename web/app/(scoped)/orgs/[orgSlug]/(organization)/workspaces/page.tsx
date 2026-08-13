@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table"
 import { getWorkspaceDirectory } from "@/data/workspaces"
 import { formatAge } from "@/lib/format"
+import { WorkspaceTableActions } from "./workspace-table-actions"
 
 export const unstable_instant = false
 
@@ -55,6 +56,9 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
               <TableHead className="w-36">Status</TableHead>
               <TableHead className="w-36 text-right">Administrators</TableHead>
               <TableHead className="w-32">Updated</TableHead>
+              <TableHead className="w-14">
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -77,11 +81,19 @@ export default async function WorkspacesPage({ params }: { params: Promise<{ org
                   <TableCell>
                     <time dateTime={workspace.updated_at}>{formatAge(workspace.updated_at)}</time>
                   </TableCell>
+                  <TableCell>
+                    <WorkspaceTableActions
+                      name={workspace.name}
+                      orgSlug={result.scope.organization.slug}
+                      workspaceId={workspace.id}
+                      workspaceSlug={workspace.slug}
+                    />
+                  </TableCell>
                 </RoutedTableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell className="h-24 text-center" colSpan={4}>
+                <TableCell className="h-24 text-center" colSpan={5}>
                   No workspaces
                 </TableCell>
               </TableRow>

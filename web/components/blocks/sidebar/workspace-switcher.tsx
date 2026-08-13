@@ -113,7 +113,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 </div>
               </div>
               <Command>
-                <CommandInput placeholder="Search Workspaces…" />
+                <CommandInput placeholder="Search Workspaces..." />
                 <CommandList className="max-h-72">
                   <CommandEmpty>No matching Workspaces.</CommandEmpty>
                   <CommandGroup heading="Switch Workspace">

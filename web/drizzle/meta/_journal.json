@@ -61,15 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1786427901203,
+      "when": 1786595967522,
       "tag": "0008_organization_workspace_contracts",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1786560025314,
-      "tag": "0009_rename_audit_to_event_trail",
       "breakpoints": true
     }
   ]

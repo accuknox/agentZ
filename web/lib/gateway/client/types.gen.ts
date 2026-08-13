@@ -191,9 +191,12 @@ export type InheritedResourceConsumer = {
   name: string
 }
 
+export type ResourceLifecycle = "Accepted" | "Ready" | "NotReady" | "Degraded" | "Error"
+
 export type WorkspaceInheritedResource = {
   name: string
-  ready: boolean
+  status: ResourceLifecycle
+  message?: string
   selected: boolean
   consumers: Array<InheritedResourceConsumer>
   disabled_reason?: string
@@ -1750,8 +1753,6 @@ export type McpConnectionCookieLocation = {
   name: string
 }
 
-export type McpConnectionLifecycle = "Accepted" | "Ready" | "Error"
-
 export type McpConnectionReason =
   | "Ready"
   | "ProbePending"
@@ -1759,6 +1760,8 @@ export type McpConnectionReason =
   | "InvalidCredentials"
   | "ProtocolError"
   | "InternalError"
+
+export type McpConnectionLifecycle = "Accepted" | "Ready" | "Error"
 
 export type ListMcpConnectionsResponse = {
   mcp_connections: Array<McpConnectionSummary>

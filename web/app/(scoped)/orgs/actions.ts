@@ -124,8 +124,8 @@ const socialAdmissionFormSchema = z
 
 export async function deleteWorkspaceAction(
   orgSlug: string,
-  workspaceSlug: string,
   workspaceId: string,
+  _state: { error?: string; fingerprint?: string },
   formData: FormData
 ) {
   const parsed = z
@@ -134,17 +134,43 @@ export async function deleteWorkspaceAction(
       confirmation: formData.get("confirmation"),
       fingerprint: formData.get("fingerprint"),
     })
-  const root = `/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/delete`
-  if (!parsed.success) redirect(`${root}?error=invalid` as Route)
+  if (!parsed.success) return { error: "Enter the Workspace name exactly as shown." }
   const result = await deleteWorkspace(
     orgSlug,
     workspaceId,
     parsed.data.confirmation,
     parsed.data.fingerprint
   )
-  if ("error" in result) redirect(`${root}?error=${result.error}` as Route)
+  if ("error" in result) {
+    if (result.error === "stale-preview") {
+      const impact = await getDestructiveImpact(orgSlug, {
+        operation: "workspace_delete",
+        targetId: workspaceId,
+        targetType: "workspace",
+      })
+      return {
+        error: "The Workspace changed. Confirm the deletion again.",
+        fingerprint: impact?.fingerprint,
+      }
+    }
+    return { error: "The Workspace no longer meets the deletion requirements." }
+  }
   revalidatePath(`/orgs/${orgSlug}/workspaces`)
   redirect(`/orgs/${orgSlug}/workspaces` as Route)
+}
+
+export async function prepareWorkspaceDeleteAction(orgSlug: string, workspaceId: string) {
+  const impact = await getDestructiveImpact(orgSlug, {
+    operation: "workspace_delete",
+    targetId: workspaceId,
+    targetType: "workspace",
+  })
+  if (!impact) return { error: "Workspace deletion is unavailable." }
+  return {
+    confirmation: impact.confirmation,
+    fingerprint: impact.fingerprint,
+    name: impact.targetLabel,
+  }
 }
 
 export type RenameOrganizationFormState = {

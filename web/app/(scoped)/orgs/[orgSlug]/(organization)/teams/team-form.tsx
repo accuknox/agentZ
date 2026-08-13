@@ -3,7 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useActionState, useState } from "react"
-import { CircleAlert } from "lucide-react"
+import { CircleAlert, Save } from "lucide-react"
 import { teamFormAction, type TeamFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -93,7 +93,7 @@ export function TeamForm({
               onValueChangeAction={setMemberIds}
               options={memberOptions}
               placeholder="Select active members"
-              searchPlaceholder="Search active members…"
+              searchPlaceholder="Search active members..."
               value={memberIds}
             />
             <FieldError>{state.errors?.memberIds?.[0]}</FieldError>
@@ -108,7 +108,7 @@ export function TeamForm({
               onValueChangeAction={setRoleIds}
               options={roleOptions}
               placeholder="Select Roles"
-              searchPlaceholder="Search Roles…"
+              searchPlaceholder="Search Roles..."
               value={roleIds}
             />
             <FieldError>{state.errors?.roleIds?.[0]}</FieldError>
@@ -123,8 +123,8 @@ export function TeamForm({
             disabled={pending || !name.trim() || memberIds.length === 0 || roleIds.length === 0}
             type="submit"
           >
-            {pending ? <Spinner /> : null}
-            {pending ? "Saving…" : data.team ? "Update Team" : "Create Team"}
+            {pending ? <Spinner /> : <Save data-icon="inline-start" />}
+            {pending ? "Saving..." : data.team ? "Update Team" : "Create Team"}
           </Button>
         </div>
       </form>

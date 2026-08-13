@@ -196,7 +196,7 @@ export function InviteMemberDialog({
             </DialogClose>
             <Button data-dialog-submit disabled={pending} form={formId} type="submit">
               {pending ? <Spinner /> : <Send />}
-              {pending ? "Saving…" : invitation ? "Confirm replacement" : "Confirm invitation"}
+              {pending ? "Saving..." : invitation ? "Confirm replacement" : "Confirm invitation"}
             </Button>
           </DialogFooter>
         </DialogContent>

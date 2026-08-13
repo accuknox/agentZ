@@ -4062,14 +4062,20 @@ components:
           type: string
       required: [kind, name]
 
+    ResourceLifecycle:
+      type: string
+      enum: [Accepted, Ready, NotReady, Degraded, Error]
+
     WorkspaceInheritedResource:
       type: object
       additionalProperties: false
       properties:
         name:
           type: string
-        ready:
-          type: boolean
+        status:
+          $ref: '#/components/schemas/ResourceLifecycle'
+        message:
+          type: string
         selected:
           type: boolean
         consumers:
@@ -4078,7 +4084,7 @@ components:
             $ref: '#/components/schemas/InheritedResourceConsumer'
         disabled_reason:
           type: string
-      required: [name, ready, selected, consumers]
+      required: [name, status, selected, consumers]
 
     ListWorkspaceInheritedResourcesResponse:
       type: object
@@ -7562,13 +7568,13 @@ components:
           minLength: 1
       required: [name]
 
-    MCPConnectionLifecycle:
-      type: string
-      enum: [Accepted, Ready, Error]
-
     MCPConnectionReason:
       type: string
       enum: [Ready, ProbePending, Unreachable, InvalidCredentials, ProtocolError, InternalError]
+
+    MCPConnectionLifecycle:
+      type: string
+      enum: [Accepted, Ready, Error]
 
     ListMCPConnectionsResponse:
       type: object

@@ -3,7 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { Fragment, startTransition, useActionState, useMemo, useState } from "react"
-import { CircleAlert, LockKeyhole, Plus, ShieldCheck, X } from "lucide-react"
+import { CircleAlert, LockKeyhole, Plus, Save, ShieldCheck, X } from "lucide-react"
 import {
   organizationRoleFormAction,
   type RoleFormState,
@@ -347,14 +347,14 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
               <CardAction>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline">
+                    <Button type="button" variant="outline">
                       <Plus data-icon="inline-start" />
                       Add permissions
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-80 p-0 sm:w-96">
                     <Command>
-                      <CommandInput placeholder="Search permissions…" />
+                      <CommandInput placeholder="Search permissions..." />
                       <CommandList>
                         <CommandEmpty>No permissions found.</CommandEmpty>
                         <CommandGroup heading="Resources">
@@ -589,7 +589,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                 type="submit"
                 value="save"
               >
-                {pending ? <Spinner data-icon="inline-start" /> : null}
+                {pending ? <Spinner data-icon="inline-start" /> : <Save data-icon="inline-start" />}
                 Confirm update
               </Button>
             </DialogFooter>
@@ -619,7 +619,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
             type="submit"
             value={role ? "preview" : "save"}
           >
-            {pending ? <Spinner data-icon="inline-start" /> : null}
+            {pending ? <Spinner data-icon="inline-start" /> : <Save data-icon="inline-start" />}
             {role ? "Update" : "Create"}
           </Button>
         ) : null}

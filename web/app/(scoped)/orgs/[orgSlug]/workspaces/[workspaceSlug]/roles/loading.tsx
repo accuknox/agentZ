@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 export default function Loading() {
   return (
     <div className="flex flex-col gap-4" role="status">
-      <span className="sr-only">Loading Workspace Roles…</span>
+      <span className="sr-only">Loading Workspace Roles...</span>
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <Skeleton className="h-7 w-44" />

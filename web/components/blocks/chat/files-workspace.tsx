@@ -151,7 +151,7 @@ const fileDragType = "application/x-agentz-file-path"
 const maxPreviewBytes = 8 << 20
 
 async function downloadAgentFile(agentName: string, path: string, filename: string): Promise<void> {
-  const toastId = toast.loading(`Downloading ${filename}…`)
+  const toastId = toast.loading(`Downloading ${filename}...`)
   try {
     const { data } = await readAgentFileRaw({
       parseAs: "blob",
@@ -375,7 +375,7 @@ function OpenFilesWorkspace({
             role="status"
             style={{ width: explorerWidth }}
           >
-            <Spinner /> Loading workspace…
+            <Spinner /> Loading workspace...
           </div>
         ) : rootQuery.isError ? (
           <div
@@ -1005,7 +1005,7 @@ function WorkspaceBody({
               {moveOperation.directory === "."
                 ? "workspace root"
                 : moveOperation.directory.slice(moveOperation.directory.lastIndexOf("/") + 1)}
-              …
+              ...
             </span>
           </div>
         ) : null}
@@ -1120,7 +1120,7 @@ function DirectoryTree({
         className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
         role="status"
       >
-        <Spinner className="size-3" /> Loading…
+        <Spinner className="size-3" /> Loading...
       </div>
     )
   }
@@ -1471,7 +1471,7 @@ function EditorPane({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading {filename}…
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -1519,7 +1519,7 @@ function EditorPane({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading {filename}…
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -1558,7 +1558,7 @@ function EditorPane({
               {save.isPending ? <Spinner aria-hidden="true" /> : <Save />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{save.isPending ? "Saving…" : "Save file"}</TooltipContent>
+          <TooltipContent>{save.isPending ? "Saving..." : "Save file"}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1807,7 +1807,7 @@ function RawPreview({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading preview…
+        <Spinner /> Loading preview...
       </div>
     )
   }
@@ -1863,12 +1863,12 @@ function EntryDialog({
     createFile.isPending || createDirectory.isPending || rename.isPending || remove.isPending
   const pendingLabel =
     action.kind === "file"
-      ? "Creating file…"
+      ? "Creating file..."
       : action.kind === "directory"
-        ? "Creating folder…"
+        ? "Creating folder..."
         : action.kind === "rename"
-          ? "Renaming…"
-          : "Deleting…"
+          ? "Renaming..."
+          : "Deleting..."
 
   const label =
     action.kind === "file"
@@ -1903,7 +1903,7 @@ function EntryDialog({
             disabled={pending}
             name="entry-name"
             onChange={(event) => setName(event.target.value)}
-            placeholder={action.kind === "directory" ? "folder-name…" : "filename.md…"}
+            placeholder={action.kind === "directory" ? "folder-name..." : "filename.md..."}
             spellCheck={false}
             value={name}
           />

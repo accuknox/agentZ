@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Plus } from "lucide-react"
+import { Plus, Save } from "lucide-react"
 import type { Route } from "next"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -457,7 +457,7 @@ export function AgentDialog({
             </Button>
           </DialogClose>
           <Button type="submit" form="agent-form-simple" disabled={isPending || !hasSandboxes}>
-            {isPending ? <Spinner aria-hidden="true" /> : null}
+            {isPending ? <Spinner aria-hidden="true" /> : <Save data-icon="inline-start" />}
             {mode === "create" ? "Create agent" : "Update agent"}
           </Button>
         </DialogFooter>

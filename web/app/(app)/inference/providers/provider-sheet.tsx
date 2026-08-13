@@ -11,6 +11,7 @@ import {
   KeyRound,
   Pencil,
   Plus,
+  Save,
   Tag,
   Trash2,
   TriangleAlert,
@@ -1168,7 +1169,7 @@ export function ProviderSheet({
                         className="w-(--radix-popover-trigger-width) p-0"
                       >
                         <Command>
-                          <CommandInput placeholder="Search providers…" />
+                          <CommandInput placeholder="Search providers..." />
                           <CommandList>
                             <CommandEmpty>No provider found.</CommandEmpty>
                             <CommandGroup>
@@ -1873,7 +1874,7 @@ export function ProviderSheet({
                         </a>
                       </Button>
                       <p className="text-muted-foreground flex items-center gap-2 text-xs">
-                        <Spinner className="size-3" /> Waiting for you to finish signing in…
+                        <Spinner className="size-3" /> Waiting for you to finish signing in...
                       </p>
                     </div>
                   ) : null}
@@ -2031,7 +2032,7 @@ export function ProviderSheet({
                   ]}
                   placeholder="Select models"
                   searchPlaceholder={
-                    isSubscription ? "Search available models…" : "Search or enter a model ID…"
+                    isSubscription ? "Search available models..." : "Search or enter a model ID..."
                   }
                   emptyMessage={
                     isSubscription
@@ -2062,7 +2063,7 @@ export function ProviderSheet({
                   className="text-muted-foreground flex items-center gap-2 text-sm"
                 >
                   <Spinner />
-                  Loading model catalog…
+                  Loading model catalog...
                 </p>
               )}
               {modelCatalogState === "error" && (
@@ -2156,7 +2157,7 @@ export function ProviderSheet({
                   (!provider && isSubscription && subscriptionOAuth.status !== "connected")
                 }
               >
-                {pending ? <Spinner /> : null}
+                {pending ? <Spinner /> : <Save data-icon="inline-start" />}
                 {provider ? "Save changes" : "Add provider"}
               </Button>
             </div>

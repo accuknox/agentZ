@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form"
 import { useRouter } from "next/navigation"
 import QRCode from "react-qr-code"
 import { z } from "zod"
-import { Download, ShieldCheck, ShieldOff, XIcon } from "lucide-react"
+import { ArrowRight, Download, ShieldCheck, ShieldOff, XIcon } from "lucide-react"
 import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
 import { reauthenticateWithGithub, reauthenticateWithGoogle } from "./actions"
@@ -577,6 +577,7 @@ function ReauthDialog({
             <Button type="submit" disabled={pending}>
               {pending ? <Spinner data-icon="inline-start" /> : null}
               Continue
+              {!pending ? <ArrowRight data-icon="inline-end" /> : null}
             </Button>
           </DialogFooter>
         </form>

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
@@ -482,12 +483,16 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		workspace.OrganizationID,
 	)
 	resources := []gatewayapi.WorkspaceInheritedResource{}
-	appendResource := func(name string, ready bool) {
-		resources = append(resources, gatewayapi.WorkspaceInheritedResource{
-			Name: name, Ready: ready,
+	appendResource := func(name string, status gatewayapi.ResourceLifecycle, message string) {
+		resource := gatewayapi.WorkspaceInheritedResource{
+			Name: name, Status: status,
 			Selected:  slices.Contains(selectedNames, name),
 			Consumers: []gatewayapi.InheritedResourceConsumer{},
-		})
+		}
+		if message != "" {
+			resource.Message = &message
+		}
+		resources = append(resources, resource)
 	}
 	switch resourceType {
 	case gatewayapi.InheritedResourceTypeSkill:
@@ -496,7 +501,7 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 			return nil, fmt.Errorf("list Organisation Skills: %w", err)
 		}
 		for _, item := range list.Items {
-			appendResource(item.Name, true)
+			appendResource(item.Name, gatewayapi.ResourceLifecycleReady, "")
 		}
 	case gatewayapi.InheritedResourceTypeSandbox:
 		var list agentzv1alpha1.SandboxList
@@ -504,7 +509,11 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 			return nil, fmt.Errorf("list Organisation Sandboxes: %w", err)
 		}
 		for _, item := range list.Items {
-			appendResource(item.Name, item.Status.InferenceReady)
+			status := gatewayapi.ResourceLifecycleNotReady
+			if item.Status.InferenceReady {
+				status = gatewayapi.ResourceLifecycleReady
+			}
+			appendResource(item.Name, status, "")
 		}
 	case gatewayapi.InheritedResourceTypeMCPConnection:
 		var list agentzv1alpha1.MCPConnectionList
@@ -512,7 +521,19 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 			return nil, fmt.Errorf("list Organisation MCP Connections: %w", err)
 		}
 		for _, item := range list.Items {
-			appendResource(item.Name, item.Status.State == agentzv1alpha1.MCPConnectionStateReady)
+			mcpStatus, _, message := s.mcpConnectionStatus(item)
+			var status gatewayapi.ResourceLifecycle
+			switch mcpStatus {
+			case gatewayapi.MCPConnectionLifecycleAccepted:
+				status = gatewayapi.ResourceLifecycleAccepted
+			case gatewayapi.MCPConnectionLifecycleReady:
+				status = gatewayapi.ResourceLifecycleReady
+			case gatewayapi.MCPConnectionLifecycleError:
+				status = gatewayapi.ResourceLifecycleError
+			default:
+				return nil, fmt.Errorf("unknown MCP connection lifecycle %q", mcpStatus)
+			}
+			appendResource(item.Name, status, message)
 		}
 	case gatewayapi.InheritedResourceTypeInferenceProvider:
 		var list agentzv1alpha1.InferenceProviderList
@@ -520,7 +541,29 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 			return nil, fmt.Errorf("list Organisation Inference Providers: %w", err)
 		}
 		for _, item := range list.Items {
-			appendResource(item.Name, item.Status.State == agentzv1alpha1.InferenceProviderStateReady)
+			status := gatewayapi.ResourceLifecycleNotReady
+			switch item.Status.State {
+			case agentzv1alpha1.InferenceProviderStateAccepted:
+				status = gatewayapi.ResourceLifecycleAccepted
+			case agentzv1alpha1.InferenceProviderStateReady:
+				status = gatewayapi.ResourceLifecycleReady
+			case agentzv1alpha1.InferenceProviderStateDegraded:
+				status = gatewayapi.ResourceLifecycleDegraded
+			}
+			message := ""
+			if status == gatewayapi.ResourceLifecycleDegraded {
+				for _, condition := range item.Status.Conditions {
+					if condition.Status == metav1.ConditionFalse {
+						message = strings.TrimSpace(condition.Message)
+						break
+					}
+				}
+			}
+			appendResource(
+				item.Name,
+				status,
+				message,
+			)
 		}
 	default:
 		return nil, fmt.Errorf("unknown inherited resource type %q", resourceType)

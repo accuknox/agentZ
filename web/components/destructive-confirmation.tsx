@@ -2,10 +2,11 @@
 
 import { useId, useState } from "react"
 import { useFormStatus } from "react-dom"
-import { LoaderCircleIcon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Spinner } from "@/components/ui/spinner"
 
 export function DestructiveConfirmation({
   action,
@@ -45,11 +46,7 @@ function ConfirmationSubmit({ disabled, label }: { disabled: boolean; label: str
   const { pending } = useFormStatus()
   return (
     <Button disabled={disabled || pending} type="submit" variant="destructive">
-      {pending ? (
-        <LoaderCircleIcon aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-      ) : (
-        <Trash2Icon aria-hidden="true" />
-      )}
+      {pending ? <Spinner data-icon="inline-start" /> : <Trash2Icon data-icon="inline-start" />}
       {label}
     </Button>
   )

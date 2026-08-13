@@ -199,7 +199,7 @@ export function AdministrationLoadingState() {
       className="flex min-w-0 flex-1 flex-col"
       role="status"
     >
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">Loading...</span>
       <div className="flex flex-col gap-3 px-4 py-6 md:px-6">
         <Skeleton className="mb-3 h-7 w-48 max-w-full" />
         <Skeleton className="h-10 w-full" />

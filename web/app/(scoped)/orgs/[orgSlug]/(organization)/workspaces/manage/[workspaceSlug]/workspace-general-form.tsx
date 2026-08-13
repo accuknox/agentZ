@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
-import { CircleAlert, CircleCheck } from "lucide-react"
+import { CircleAlert, CircleCheck, Save } from "lucide-react"
 import { updateWorkspaceAction, type UpdateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -25,18 +25,18 @@ export function WorkspaceGeneralForm({
   )
 
   return (
-    <form action={formAction} className="flex max-w-2xl flex-col gap-5 px-4 md:px-6">
+    <form action={formAction} className="flex max-w-3xl flex-col gap-5 px-4 md:px-6">
       {state.error ? (
         <Alert variant="destructive">
           <CircleAlert aria-hidden="true" />
-          <AlertTitle>Workspace not saved</AlertTitle>
+          <AlertTitle>Workspace not updated</AlertTitle>
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       ) : null}
       {state.saved ? (
         <Alert>
           <CircleCheck aria-hidden="true" />
-          <AlertTitle>Workspace saved</AlertTitle>
+          <AlertTitle>Workspace updated</AlertTitle>
         </Alert>
       ) : null}
       <FieldGroup>
@@ -55,10 +55,10 @@ export function WorkspaceGeneralForm({
           {state.error ? <FieldError>{state.error}</FieldError> : null}
         </Field>
       </FieldGroup>
-      <div>
+      <div className="flex justify-end">
         <Button disabled={pending} type="submit">
-          {pending ? <Spinner aria-hidden="true" /> : null}
-          {pending ? "Saving…" : "Save Workspace"}
+          {pending ? <Spinner aria-hidden="true" /> : <Save data-icon="inline-start" />}
+          {pending ? "Updating..." : "Update Workspace"}
         </Button>
       </div>
     </form>

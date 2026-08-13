@@ -5,6 +5,7 @@ import Link from "next/link"
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
+import { UserPlus } from "lucide-react"
 import { z } from "zod"
 import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
@@ -274,7 +275,11 @@ export function SignUpForm({
               aria-invalid={passwordActionError ? "true" : undefined}
               disabled={locked}
             >
-              {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
+              {pendingAction === "password" ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <UserPlus data-icon="inline-start" />
+              )}
               Sign up
             </Button>
             {passwordActionError ? <FieldError>{passwordActionError}</FieldError> : null}

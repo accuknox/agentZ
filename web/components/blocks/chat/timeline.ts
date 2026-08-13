@@ -26,7 +26,7 @@ export type TimelineRow =
       type: "user"
     }
   | { createdAt: number; entries: RenderEntry[]; key: string; type: "assistant" }
-  // "Thinking…" placeholder rendered while the active turn has no content yet.
+  // "Thinking..." placeholder rendered while the active turn has no content yet.
   | { key: string; type: "thinking" }
   | { body?: string; diffs: SnapshotFileDiff[]; key: string; title?: string; type: "diff-summary" }
   | { key: string; type: "checkpoint"; variant: "compaction" | "interrupted" }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
+import { Save } from "lucide-react"
 import type { OrganizationSummary } from "@/data/organizations"
 import {
   renameOrganizationAction,
@@ -72,8 +73,8 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
       </div>
       <div className="flex max-w-2xl justify-end px-4 pb-6 md:px-6">
         <Button aria-busy={pending} disabled={pending} type="submit">
-          {pending ? <Spinner /> : null}
-          {pending ? "Saving…" : "Save changes"}
+          {pending ? <Spinner /> : <Save data-icon="inline-start" />}
+          {pending ? "Saving..." : "Save changes"}
         </Button>
       </div>
     </form>

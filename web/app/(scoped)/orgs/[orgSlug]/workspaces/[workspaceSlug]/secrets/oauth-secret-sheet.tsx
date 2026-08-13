@@ -7,7 +7,16 @@ import { queryOptions, useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
-import { Check, ChevronDown, CircleAlert, RefreshCw, Search, Settings2, X } from "lucide-react"
+import {
+  Cable,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  RefreshCw,
+  Search,
+  Settings2,
+  X,
+} from "lucide-react"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
@@ -1106,7 +1115,7 @@ export function OAuthSecretSheet({
                 isSubmitting || oauthPopupFlowID !== undefined || isDiscoveryPendingForCurrentURL
               }
             >
-              {isSubmitting || oauthPopupFlowID ? <Spinner /> : null}
+              {isSubmitting || oauthPopupFlowID ? <Spinner /> : <Cable data-icon="inline-start" />}
               {oauthPopupFlowID ? "Waiting for OAuth" : isSubmitting ? "Connecting" : "Connect"}
             </Button>
           </div>

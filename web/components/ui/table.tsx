@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -8,7 +6,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain"
+      className="relative w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
     >
       <table
         data-slot="table"

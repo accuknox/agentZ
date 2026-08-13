@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -10,6 +9,7 @@ import {
 } from "@/components/ui/table"
 import { getTeamDetail } from "@/data/teams"
 import { formatAge } from "@/lib/format"
+import { ResultBadge } from "../../../event-trail/event-trail-event"
 
 export default async function TeamActivityPage({
   params,
@@ -42,11 +42,7 @@ export default async function TeamActivityPage({
                 </TableCell>
                 <TableCell className="font-mono text-sm">{event.action}</TableCell>
                 <TableCell>
-                  <Badge
-                    variant={event.result === "succeeded" ? "successPlain" : "destructivePlain"}
-                  >
-                    {event.result}
-                  </Badge>
+                  <ResultBadge result={event.result} />
                 </TableCell>
               </TableRow>
             ))

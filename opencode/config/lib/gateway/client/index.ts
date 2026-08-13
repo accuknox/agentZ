@@ -758,6 +758,7 @@ export type {
   ResolveWorkspaceSlugResponse,
   ResolveWorkspaceSlugResponses,
   ResourceCapabilities,
+  ResourceLifecycle,
   ResourceReference,
   ResourceScope,
   ResourceScopeQuery,

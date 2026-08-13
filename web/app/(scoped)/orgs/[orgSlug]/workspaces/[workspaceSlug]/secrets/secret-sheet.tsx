@@ -3,6 +3,7 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
+import { KeyRound } from "lucide-react"
 import type { PutSecretFormAction } from "@/data/types"
 import { secretFormInputSchema } from "@/data/schema"
 import type * as z from "zod"
@@ -166,7 +167,7 @@ export function SecretSheet({
           ) : null}
           <div className="shrink-0">
             <Button type="submit" disabled={isPending} className="w-full">
-              {isPending ? <Spinner /> : null}
+              {isPending ? <Spinner /> : <KeyRound data-icon="inline-start" />}
               {isPending ? "Creating..." : "Create secret"}
             </Button>
           </div>

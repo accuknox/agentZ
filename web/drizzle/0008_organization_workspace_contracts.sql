@@ -1,12 +1,12 @@
 CREATE TYPE "public"."agent_share_capability" AS ENUM('share_non_authored', 'use_shared', 'read_shared_secret', 'write_shared_secret', 'delete_shared_secret');--> statement-breakpoint
 CREATE TYPE "public"."api_key_target_type" AS ENUM('agent', 'workflow');--> statement-breakpoint
-CREATE TYPE "public"."audit_actor" AS ENUM('user', 'api_key', 'system');--> statement-breakpoint
-CREATE TYPE "public"."audit_interface" AS ENUM('web', 'gateway', 'better_auth', 'controller', 'system');--> statement-breakpoint
-CREATE TYPE "public"."audit_result" AS ENUM('succeeded', 'denied', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."audit_target" AS ENUM('organization', 'organization_membership', 'team', 'mcp_connection', 'inference_provider', 'inference_pool', 'role', 'sandbox', 'skill', 'agent', 'api_key', 'workspace_access', 'workspace');--> statement-breakpoint
 CREATE TYPE "public"."cleanup_state" AS ENUM('pending', 'running', 'succeeded', 'failed', 'retrying');--> statement-breakpoint
 CREATE TYPE "public"."destructive_operation" AS ENUM('membership_disable', 'membership_remove', 'team_delete', 'role_reduce', 'access_revoke', 'workspace_delete');--> statement-breakpoint
 CREATE TYPE "public"."destructive_target" AS ENUM('organization_membership', 'team', 'role', 'workspace_access', 'workspace');--> statement-breakpoint
+CREATE TYPE "public"."event_trail_actor" AS ENUM('user', 'api_key', 'system');--> statement-breakpoint
+CREATE TYPE "public"."event_trail_interface" AS ENUM('web', 'gateway', 'better_auth', 'controller', 'system');--> statement-breakpoint
+CREATE TYPE "public"."event_trail_result" AS ENUM('succeeded', 'denied', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."event_trail_target" AS ENUM('organization', 'organization_membership', 'team', 'mcp_connection', 'inference_provider', 'inference_pool', 'role', 'sandbox', 'skill', 'agent', 'api_key', 'workspace_access', 'workspace');--> statement-breakpoint
 CREATE TYPE "public"."permission_action" AS ENUM('read', 'create', 'modify', 'delete', 'author', 'share_authored', 'share_non_authored', 'use_shared', 'read_shared_secret', 'write_shared_secret', 'delete_shared_secret');--> statement-breakpoint
 CREATE TYPE "public"."permission_resource" AS ENUM('mcp_connection', 'skill', 'sandbox', 'inference_provider', 'inference_pool', 'agent', 'api_key', 'observability');--> statement-breakpoint
 CREATE TYPE "public"."system_role" AS ENUM('superadmin', 'workspace_admin');--> statement-breakpoint
@@ -63,31 +63,6 @@ CREATE TABLE "api_key_targets" (
         ("api_key_targets"."target_type" = 'workflow' AND "api_key_targets"."workflow_name" <> ''))
 );
 --> statement-breakpoint
-CREATE TABLE "audit_events" (
-	"id" text PRIMARY KEY NOT NULL,
-	"organization_id" text NOT NULL,
-	"workspace_id" text,
-	"actor_type" "audit_actor" NOT NULL,
-	"actor_id" text,
-	"target_type" "audit_target" NOT NULL,
-	"target_id" text NOT NULL,
-	"category" text NOT NULL,
-	"action" text NOT NULL,
-	"result" "audit_result" NOT NULL,
-	"before" jsonb,
-	"after" jsonb,
-	"automatic_cascade" boolean DEFAULT false NOT NULL,
-	"cleanup_job_id" text,
-	"interface" "audit_interface" NOT NULL,
-	"ip_address" text,
-	"user_agent" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "audit_events_actor_ck" CHECK (("audit_events"."actor_type" = 'system' AND "audit_events"."actor_id" IS NULL) OR
-        ("audit_events"."actor_type" <> 'system' AND "audit_events"."actor_id" IS NOT NULL)),
-	CONSTRAINT "audit_events_workspace_target_ck" CHECK ("audit_events"."target_type" <> 'workspace' OR
-        ("audit_events"."workspace_id" IS NOT NULL AND "audit_events"."target_id" = "audit_events"."workspace_id"))
-);
---> statement-breakpoint
 CREATE TABLE "cleanup_jobs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -114,6 +89,31 @@ CREATE TABLE "cleanup_jobs" (
         ("cleanup_jobs"."operation" = 'role_reduce' AND "cleanup_jobs"."target_type" = 'role') OR
         ("cleanup_jobs"."operation" = 'access_revoke' AND "cleanup_jobs"."target_type" = 'workspace_access') OR
         ("cleanup_jobs"."operation" = 'workspace_delete' AND "cleanup_jobs"."target_type" = 'workspace'))
+);
+--> statement-breakpoint
+CREATE TABLE "event_trail_events" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"workspace_id" text,
+	"actor_type" "event_trail_actor" NOT NULL,
+	"actor_id" text,
+	"target_type" "event_trail_target" NOT NULL,
+	"target_id" text NOT NULL,
+	"category" text NOT NULL,
+	"action" text NOT NULL,
+	"result" "event_trail_result" NOT NULL,
+	"before" jsonb,
+	"after" jsonb,
+	"automatic_cascade" boolean DEFAULT false NOT NULL,
+	"cleanup_job_id" text,
+	"interface" "event_trail_interface" NOT NULL,
+	"ip_address" text,
+	"user_agent" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "event_trail_events_actor_ck" CHECK (("event_trail_events"."actor_type" = 'system' AND "event_trail_events"."actor_id" IS NULL) OR
+        ("event_trail_events"."actor_type" <> 'system' AND "event_trail_events"."actor_id" IS NOT NULL)),
+	CONSTRAINT "event_trail_events_workspace_target_ck" CHECK ("event_trail_events"."target_type" <> 'workspace' OR
+        ("event_trail_events"."workspace_id" IS NOT NULL AND "event_trail_events"."target_id" = "event_trail_events"."workspace_id"))
 );
 --> statement-breakpoint
 CREATE TABLE "invitation_roles" (
@@ -336,10 +336,10 @@ ALTER TABLE "api_key_scopes" ADD CONSTRAINT "api_key_scopes_workspace_id_workspa
 ALTER TABLE "api_key_scopes" ADD CONSTRAINT "api_key_scopes_creator_user_id_users_id_fk" FOREIGN KEY ("creator_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_key_scopes" ADD CONSTRAINT "api_key_scopes_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_key_targets" ADD CONSTRAINT "api_key_targets_api_key_id_api_key_scopes_api_key_id_fk" FOREIGN KEY ("api_key_id") REFERENCES "public"."api_key_scopes"("api_key_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_cleanup_job_organization_fk" FOREIGN KEY ("cleanup_job_id","organization_id") REFERENCES "public"."cleanup_jobs"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cleanup_jobs" ADD CONSTRAINT "cleanup_jobs_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cleanup_jobs" ADD CONSTRAINT "cleanup_jobs_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_trail_events" ADD CONSTRAINT "event_trail_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_trail_events" ADD CONSTRAINT "event_trail_events_cleanup_job_organization_fk" FOREIGN KEY ("cleanup_job_id","organization_id") REFERENCES "public"."cleanup_jobs"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_invitation_id_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."invitations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_teams" ADD CONSTRAINT "invitation_teams_invitation_id_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."invitations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -384,10 +384,10 @@ CREATE INDEX "api_key_scopes_workspace_idx" ON "api_key_scopes" USING btree ("or
 CREATE INDEX "api_key_scopes_creator_idx" ON "api_key_scopes" USING btree ("organization_id","creator_user_id");--> statement-breakpoint
 CREATE INDEX "api_key_scopes_revoked_idx" ON "api_key_scopes" USING btree ("organization_id","workspace_id","revoked_at");--> statement-breakpoint
 CREATE INDEX "api_key_targets_agent_idx" ON "api_key_targets" USING btree ("agent_name");--> statement-breakpoint
-CREATE INDEX "audit_events_organization_created_idx" ON "audit_events" USING btree ("organization_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "audit_events_workspace_created_idx" ON "audit_events" USING btree ("workspace_id","created_at");--> statement-breakpoint
-CREATE INDEX "audit_events_created_idx" ON "audit_events" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "cleanup_jobs_due_idx" ON "cleanup_jobs" USING btree ("state","next_attempt_at");--> statement-breakpoint
+CREATE INDEX "event_trail_events_organization_created_idx" ON "event_trail_events" USING btree ("organization_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "event_trail_events_workspace_created_idx" ON "event_trail_events" USING btree ("workspace_id","created_at");--> statement-breakpoint
+CREATE INDEX "event_trail_events_created_idx" ON "event_trail_events" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "permission_grants_scope_idx" ON "permission_grants" USING btree ("organization_id","workspace_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "role_scopes_organization_name_uidx" ON "role_scopes" USING btree ("organization_id",lower(btrim("display_name"))) WHERE "role_scopes"."workspace_id" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "role_scopes_workspace_name_uidx" ON "role_scopes" USING btree ("organization_id","workspace_id",lower(btrim("display_name"))) WHERE "role_scopes"."workspace_id" IS NOT NULL;--> statement-breakpoint

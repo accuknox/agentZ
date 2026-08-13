@@ -1,5 +1,5 @@
 {
-  "id": "9562c651-3259-4a34-9ead-2d13126949bb",
+  "id": "1151269d-0181-46ed-badd-7ed4b738d11a",
   "prevId": "dc4385e0-3a22-415f-ba2a-3ae65ca3c605",
   "version": "7",
   "dialect": "postgresql",
@@ -611,225 +611,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.audit_events": {
-      "name": "audit_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "actor_type": {
-          "name": "actor_type",
-          "type": "audit_actor",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_id": {
-          "name": "actor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "target_type": {
-          "name": "target_type",
-          "type": "audit_target",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "result": {
-          "name": "result",
-          "type": "audit_result",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "before": {
-          "name": "before",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "after": {
-          "name": "after",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "automatic_cascade": {
-          "name": "automatic_cascade",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "cleanup_job_id": {
-          "name": "cleanup_job_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "interface": {
-          "name": "interface",
-          "type": "audit_interface",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ip_address": {
-          "name": "ip_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "user_agent": {
-          "name": "user_agent",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "audit_events_organization_created_idx": {
-          "name": "audit_events_organization_created_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "audit_events_workspace_created_idx": {
-          "name": "audit_events_workspace_created_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "audit_events_created_idx": {
-          "name": "audit_events_created_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "audit_events_organization_id_organizations_id_fk": {
-          "name": "audit_events_organization_id_organizations_id_fk",
-          "tableFrom": "audit_events",
-          "tableTo": "organizations",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "audit_events_cleanup_job_organization_fk": {
-          "name": "audit_events_cleanup_job_organization_fk",
-          "tableFrom": "audit_events",
-          "tableTo": "cleanup_jobs",
-          "columnsFrom": ["cleanup_job_id", "organization_id"],
-          "columnsTo": ["id", "organization_id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "audit_events_actor_ck": {
-          "name": "audit_events_actor_ck",
-          "value": "(\"audit_events\".\"actor_type\" = 'system' AND \"audit_events\".\"actor_id\" IS NULL) OR\n        (\"audit_events\".\"actor_type\" <> 'system' AND \"audit_events\".\"actor_id\" IS NOT NULL)"
-        },
-        "audit_events_workspace_target_ck": {
-          "name": "audit_events_workspace_target_ck",
-          "value": "\"audit_events\".\"target_type\" <> 'workspace' OR\n        (\"audit_events\".\"workspace_id\" IS NOT NULL AND \"audit_events\".\"target_id\" = \"audit_events\".\"workspace_id\")"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.cleanup_jobs": {
       "name": "cleanup_jobs",
       "schema": "",
@@ -999,6 +780,225 @@
         "cleanup_jobs_operation_target_ck": {
           "name": "cleanup_jobs_operation_target_ck",
           "value": "(\"cleanup_jobs\".\"operation\" IN ('membership_disable', 'membership_remove') AND\n          \"cleanup_jobs\".\"target_type\" = 'organization_membership') OR\n        (\"cleanup_jobs\".\"operation\" = 'team_delete' AND \"cleanup_jobs\".\"target_type\" = 'team') OR\n        (\"cleanup_jobs\".\"operation\" = 'role_reduce' AND \"cleanup_jobs\".\"target_type\" = 'role') OR\n        (\"cleanup_jobs\".\"operation\" = 'access_revoke' AND \"cleanup_jobs\".\"target_type\" = 'workspace_access') OR\n        (\"cleanup_jobs\".\"operation\" = 'workspace_delete' AND \"cleanup_jobs\".\"target_type\" = 'workspace')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.event_trail_events": {
+      "name": "event_trail_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_type": {
+          "name": "actor_type",
+          "type": "event_trail_actor",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "event_trail_target",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "event_trail_result",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before": {
+          "name": "before",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after": {
+          "name": "after",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "automatic_cascade": {
+          "name": "automatic_cascade",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "cleanup_job_id": {
+          "name": "cleanup_job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interface": {
+          "name": "interface",
+          "type": "event_trail_interface",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "event_trail_events_organization_created_idx": {
+          "name": "event_trail_events_organization_created_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_trail_events_workspace_created_idx": {
+          "name": "event_trail_events_workspace_created_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "event_trail_events_created_idx": {
+          "name": "event_trail_events_created_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_trail_events_organization_id_organizations_id_fk": {
+          "name": "event_trail_events_organization_id_organizations_id_fk",
+          "tableFrom": "event_trail_events",
+          "tableTo": "organizations",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "event_trail_events_cleanup_job_organization_fk": {
+          "name": "event_trail_events_cleanup_job_organization_fk",
+          "tableFrom": "event_trail_events",
+          "tableTo": "cleanup_jobs",
+          "columnsFrom": ["cleanup_job_id", "organization_id"],
+          "columnsTo": ["id", "organization_id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "event_trail_events_actor_ck": {
+          "name": "event_trail_events_actor_ck",
+          "value": "(\"event_trail_events\".\"actor_type\" = 'system' AND \"event_trail_events\".\"actor_id\" IS NULL) OR\n        (\"event_trail_events\".\"actor_type\" <> 'system' AND \"event_trail_events\".\"actor_id\" IS NOT NULL)"
+        },
+        "event_trail_events_workspace_target_ck": {
+          "name": "event_trail_events_workspace_target_ck",
+          "value": "\"event_trail_events\".\"target_type\" <> 'workspace' OR\n        (\"event_trail_events\".\"workspace_id\" IS NOT NULL AND \"event_trail_events\".\"target_id\" = \"event_trail_events\".\"workspace_id\")"
         }
       },
       "isRLSEnabled": false
@@ -3790,40 +3790,6 @@
       "schema": "public",
       "values": ["agent", "workflow"]
     },
-    "public.audit_actor": {
-      "name": "audit_actor",
-      "schema": "public",
-      "values": ["user", "api_key", "system"]
-    },
-    "public.audit_interface": {
-      "name": "audit_interface",
-      "schema": "public",
-      "values": ["web", "gateway", "better_auth", "controller", "system"]
-    },
-    "public.audit_result": {
-      "name": "audit_result",
-      "schema": "public",
-      "values": ["succeeded", "denied", "failed"]
-    },
-    "public.audit_target": {
-      "name": "audit_target",
-      "schema": "public",
-      "values": [
-        "organization",
-        "organization_membership",
-        "team",
-        "mcp_connection",
-        "inference_provider",
-        "inference_pool",
-        "role",
-        "sandbox",
-        "skill",
-        "agent",
-        "api_key",
-        "workspace_access",
-        "workspace"
-      ]
-    },
     "public.cleanup_state": {
       "name": "cleanup_state",
       "schema": "public",
@@ -3845,6 +3811,40 @@
       "name": "destructive_target",
       "schema": "public",
       "values": ["organization_membership", "team", "role", "workspace_access", "workspace"]
+    },
+    "public.event_trail_actor": {
+      "name": "event_trail_actor",
+      "schema": "public",
+      "values": ["user", "api_key", "system"]
+    },
+    "public.event_trail_interface": {
+      "name": "event_trail_interface",
+      "schema": "public",
+      "values": ["web", "gateway", "better_auth", "controller", "system"]
+    },
+    "public.event_trail_result": {
+      "name": "event_trail_result",
+      "schema": "public",
+      "values": ["succeeded", "denied", "failed"]
+    },
+    "public.event_trail_target": {
+      "name": "event_trail_target",
+      "schema": "public",
+      "values": [
+        "organization",
+        "organization_membership",
+        "team",
+        "mcp_connection",
+        "inference_provider",
+        "inference_pool",
+        "role",
+        "sandbox",
+        "skill",
+        "agent",
+        "api_key",
+        "workspace_access",
+        "workspace"
+      ]
     },
     "public.permission_action": {
       "name": "permission_action",

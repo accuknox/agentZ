@@ -28,6 +28,7 @@ import {
   GripVertical,
   Layers3,
   Plus,
+  Save,
   Trash2,
   TriangleAlert,
 } from "lucide-react"
@@ -518,7 +519,7 @@ export function PoolSheet({
                 Cancel
               </Button>
               <Button type="submit" disabled={pending}>
-                {pending ? <Spinner /> : null}
+                {pending ? <Spinner /> : <Save data-icon="inline-start" />}
                 {pool ? "Save changes" : "Create Pool"}
               </Button>
             </div>
@@ -753,7 +754,7 @@ function MemberPicker({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(24rem,calc(100vw-2rem))] p-0">
         <Command>
-          <CommandInput placeholder="Search…" />
+          <CommandInput placeholder="Search..." />
           <CommandList>
             <CommandEmpty>No matches.</CommandEmpty>
             <CommandGroup>

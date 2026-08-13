@@ -361,8 +361,13 @@ function IdentityForm({
         />
       </FieldGroup>
       <StepActions>
-        <Button type="submit" onClick={onAdvanceAction}>
+        <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -408,8 +413,13 @@ function PackageStep({
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
         </Button>
-        <Button type="submit" onClick={onAdvanceAction}>
+        <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -1006,9 +1016,14 @@ function McpStep({
         <Button
           type="submit"
           onClick={onAdvanceAction}
-          disabled={selected.some((ref) => ref.tools.length === 0)}
+          disabled={form.formState.isSubmitting || selected.some((ref) => ref.tools.length === 0)}
         >
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -1164,8 +1179,13 @@ function SkillsStep({
         <Button type="button" variant="secondary" onClick={onPrev}>
           Previous
         </Button>
-        <Button type="submit" onClick={onAdvanceAction}>
+        <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -1219,6 +1239,7 @@ function ModelsStep({
       : undefined
   )
   const [invalidSubmit, setInvalidSubmit] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
 
   const refs = React.useMemo(
     () =>
@@ -1335,6 +1356,7 @@ function ModelsStep({
           setInvalidSubmit(true)
           return
         }
+        setSubmitting(true)
         onNext({
           models: selected,
           default_model: defaultRef,
@@ -1719,9 +1741,10 @@ function ModelsStep({
         <Button
           type="submit"
           onClick={onAdvanceAction}
-          disabled={providers.length === 0 && pools.length === 0}
+          disabled={submitting || (providers.length === 0 && pools.length === 0)}
         >
           Next
+          {submitting ? <Spinner data-icon="inline-end" /> : <ArrowRight data-icon="inline-end" />}
         </Button>
       </StepActions>
     </form>
@@ -2012,7 +2035,7 @@ function AllowedHostsStep({
           Previous
         </Button>
         <Button type="submit" disabled={pending}>
-          {pending ? <Spinner /> : null}
+          {pending ? <Spinner /> : <Box data-icon="inline-start" />}
           {pending ? pendingLabel : submitLabel}
         </Button>
       </StepActions>

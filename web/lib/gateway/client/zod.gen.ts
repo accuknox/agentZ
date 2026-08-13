@@ -218,9 +218,12 @@ export const zInheritedResourceConsumer = z.object({
   name: z.string(),
 })
 
+export const zResourceLifecycle = z.enum(["Accepted", "Ready", "NotReady", "Degraded", "Error"])
+
 export const zWorkspaceInheritedResource = z.object({
   name: z.string(),
-  ready: z.boolean(),
+  status: zResourceLifecycle,
+  message: z.string().optional(),
   selected: z.boolean(),
   consumers: z.array(zInheritedResourceConsumer),
   disabled_reason: z.string().optional(),
@@ -1904,8 +1907,6 @@ export const zMcpConnectionAuth = z.object({
   oauth: zMcpConnectionOAuthAuth.optional(),
 })
 
-export const zMcpConnectionLifecycle = z.enum(["Accepted", "Ready", "Error"])
-
 export const zMcpConnectionReason = z.enum([
   "Ready",
   "ProbePending",
@@ -1914,6 +1915,8 @@ export const zMcpConnectionReason = z.enum([
   "ProtocolError",
   "InternalError",
 ])
+
+export const zMcpConnectionLifecycle = z.enum(["Accepted", "Ready", "Error"])
 
 export const zMcpConnectionDetail = z.object({
   can_delete: z.boolean(),

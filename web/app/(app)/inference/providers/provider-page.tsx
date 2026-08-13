@@ -44,7 +44,7 @@ function TableSkeleton() {
   return (
     <div className="flex flex-1 flex-col">
       <span role="status" className="sr-only">
-        Loading providers…
+        Loading providers...
       </span>
       <div aria-hidden className="flex flex-1 flex-col">
         <div className="bg-muted/25 flex h-9 items-center gap-6 border-b px-4">

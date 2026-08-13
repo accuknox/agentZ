@@ -16,7 +16,16 @@ import {
   type UseFormReturn,
 } from "react-hook-form"
 import * as z from "zod"
-import { Check, ChevronDown, CircleAlert, RefreshCw, Settings2, Trash2, X } from "lucide-react"
+import {
+  Check,
+  ChevronDown,
+  CircleAlert,
+  RefreshCw,
+  Save,
+  Settings2,
+  Trash2,
+  X,
+} from "lucide-react"
 import {
   findMcpServerByURL,
   mcpServers,
@@ -1536,7 +1545,9 @@ export function McpSheet({
                 oauthPopupFlowId ||
                 isDiscoveryPendingForCurrentURL ? (
                   <Spinner />
-                ) : null}
+                ) : (
+                  <Save data-icon="inline-start" />
+                )}
                 {oauthPopupFlowId
                   ? "Waiting for OAuth"
                   : isSubmitting || isRefreshing

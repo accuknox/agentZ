@@ -3,7 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useActionState, useState } from "react"
-import { CircleAlert } from "lucide-react"
+import { CircleAlert, Plus } from "lucide-react"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -114,7 +114,7 @@ export function WorkspaceForm({
               }}
               options={options}
               placeholder="No initial administrators"
-              searchPlaceholder="Search active members…"
+              searchPlaceholder="Search active members..."
               value={admins}
             />
             <FieldError>{errors?.admin_member_ids?.[0]}</FieldError>
@@ -132,7 +132,7 @@ export function WorkspaceForm({
                   }
                   options={resources[key].map((name) => ({ label: name, value: name }))}
                   placeholder={`No ${label.toLowerCase()} selected`}
-                  searchPlaceholder={`Search ${label.toLowerCase()}…`}
+                  searchPlaceholder={`Search ${label.toLowerCase()}...`}
                   value={inherited[key]}
                 />
               </Field>
@@ -207,8 +207,8 @@ export function WorkspaceForm({
               </Button>
             </DialogClose>
             <Button data-dialog-submit disabled={pending} form="workspace-form" type="submit">
-              {pending ? <Spinner /> : null}
-              {pending ? "Creating…" : "Confirm and create"}
+              {pending ? <Spinner /> : <Plus data-icon="inline-start" />}
+              {pending ? "Creating..." : "Confirm and create"}
             </Button>
           </DialogFooter>
         </DialogContent>

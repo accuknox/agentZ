@@ -827,7 +827,7 @@ export function useOpencodeChat(
           {
             onSseError: () => {
               if (abortController.signal.aborted) return
-              setStreamError("Connection lost. Reconnecting…")
+              setStreamError("Connection lost. Reconnecting...")
             },
             signal: abortController.signal,
           }
@@ -850,14 +850,14 @@ export function useOpencodeChat(
         flushQueue()
         if (abortController.signal.aborted) return
 
-        setStreamError("Connection closed. Reconnecting…")
+        setStreamError("Connection closed. Reconnecting...")
         reconnectTimer = setTimeout(() => {
           setStreamEpoch((current) => current + 1)
         }, 1_000)
       } catch {
         if (abortController.signal.aborted) return
 
-        setStreamError("Failed to subscribe to session events. Reconnecting…")
+        setStreamError("Failed to subscribe to session events. Reconnecting...")
         reconnectTimer = setTimeout(() => {
           setStreamEpoch((current) => current + 1)
         }, 1_000)

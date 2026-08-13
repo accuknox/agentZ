@@ -108,7 +108,7 @@ export function RoleDeleteDialog({
             </DialogClose>
             <Button data-dialog-submit disabled={pending} type="submit" variant="destructive">
               {pending ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
-              {pending ? "Deleting…" : "Delete role"}
+              {pending ? "Deleting..." : "Delete role"}
             </Button>
           </DialogFooter>
         </form>

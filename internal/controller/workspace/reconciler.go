@@ -149,7 +149,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonTenantUnavailable,
 			"Organisation infrastructure is not ready",
-			err,
 		)
 	}
 	if err := r.reconcileNamespace(ctx, &workspace, tenant); err != nil {
@@ -170,7 +169,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonProvisioning,
 			"workspace namespace is not ready",
-			err,
 		)
 	}
 	err = gatewayrbac.Reconcile(ctx, r.Direct, gatewayrbac.Config{
@@ -195,7 +193,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonProvisioning,
 			"workspace scoped access is not ready",
-			err,
 		)
 	}
 	if err := r.reconcileNixStorePVC(ctx, &workspace, tenant); err != nil {
@@ -216,7 +213,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonStoragePending,
 			"workspace package storage is not ready",
-			err,
 		)
 	}
 
@@ -239,7 +235,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonNetworkPolicyPending,
 			"workspace network isolation is not ready",
-			err,
 		)
 	}
 	if !valid {
@@ -250,7 +245,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonNetworkPolicyPending,
 			"workspace network isolation is not ready",
-			errors.New("cilium has not validated the workspace isolation policy"),
 		)
 	}
 	certReady, err := sinjectorca.Reconcile(ctx, r.CertClient, sinjectorca.Config{
@@ -285,7 +279,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonCertificatePending,
 			"workspace certificate is not ready",
-			err,
 		)
 	}
 	if !certReady {
@@ -296,7 +289,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			terminalReported,
 			agentzv1alpha1.WorkspaceReasonCertificatePending,
 			"workspace certificate is not ready",
-			errors.New("cert-manager has not issued the workspace certificate"),
 		)
 	}
 	if reportedFailed {
@@ -624,7 +616,7 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 	return ready, nil
 }
 
-func (r *Reconciler) markPending(ctx context.Context, workspace *agentzv1alpha1.Workspace, attempt int64, terminalReported bool, reason, message string, cause error) error {
+func (r *Reconciler) markPending(ctx context.Context, workspace *agentzv1alpha1.Workspace, attempt int64, terminalReported bool, reason, message string) error {
 	if terminalReported {
 		return nil
 	}

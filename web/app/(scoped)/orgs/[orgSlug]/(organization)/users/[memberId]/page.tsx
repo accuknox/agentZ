@@ -17,6 +17,7 @@ import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getEffectiveAccessDetail } from "@/data/access"
 import { getMemberAdministration, type MemberAdministration } from "@/data/members"
 import { formatAge } from "@/lib/format"
+import { ResultBadge } from "../../event-trail/event-trail-event"
 
 const AccessDetailView = dynamic(() =>
   import("../../access/[memberId]/access-graph").then((module) => module.AccessDetailView)
@@ -267,11 +268,7 @@ function Activity({ data }: { data: MemberAdministration }) {
                 <TableCell>{event.actor}</TableCell>
                 <TableCell className="font-mono text-sm">{event.action}</TableCell>
                 <TableCell>
-                  <Badge
-                    variant={event.result === "succeeded" ? "successPlain" : "destructivePlain"}
-                  >
-                    {event.result}
-                  </Badge>
+                  <ResultBadge result={event.result} />
                 </TableCell>
               </TableRow>
             ))

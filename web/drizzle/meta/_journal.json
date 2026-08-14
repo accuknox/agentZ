@@ -71,6 +71,20 @@
       "when": 1786611879694,
       "tag": "0009_dashing_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786684116371,
+      "tag": "0010_clear_legacy_invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786684128639,
+      "tag": "0011_bearer_invitations",
+      "breakpoints": true
     }
   ]
 }

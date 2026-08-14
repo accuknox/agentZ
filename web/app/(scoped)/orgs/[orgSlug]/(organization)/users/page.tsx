@@ -15,7 +15,7 @@ import { RoutedTableRow } from "@/components/routed-table-row"
 import { listEffectiveAccess } from "@/data/access"
 import { getMemberDirectory, type ActiveMember, type InvitationRow } from "@/data/members"
 import { formatAge } from "@/lib/format"
-import { InvitationActions, InviteMemberDialog, MembershipStateButton } from "./member-actions"
+import { InvitationActions, InvitationDialog, MembershipStateButton } from "./member-actions"
 
 export default async function UsersPage({
   params,
@@ -45,7 +45,7 @@ export default async function UsersPage({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
-        actions={<InviteMemberDialog orgSlug={orgSlug} roles={data.roles} teams={data.teams} />}
+        actions={<InvitationDialog orgSlug={orgSlug} roles={data.roles} teams={data.teams} />}
         title="Users"
       />
       <div className="px-4 md:px-6">
@@ -179,7 +179,7 @@ function InvitationsTable({
       <Table aria-label="Pending Invitations" className="w-full min-w-3xl table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-64">Email</TableHead>
+            <TableHead className="w-48">Created</TableHead>
             <TableHead>Initial Access</TableHead>
             <TableHead className="w-56">Inviter</TableHead>
             <TableHead className="w-32">Expiry</TableHead>
@@ -190,10 +190,8 @@ function InvitationsTable({
           {invitations.length ? (
             invitations.map((invitation) => (
               <TableRow key={invitation.id}>
-                <TableCell className="max-w-72">
-                  <span className="truncate font-medium" title={invitation.email}>
-                    {invitation.email}
-                  </span>
+                <TableCell>
+                  <time dateTime={invitation.createdAt}>{formatAge(invitation.createdAt)}</time>
                 </TableCell>
                 <TableCell>
                   <AssignmentSummary roles={invitation.roles} teams={invitation.teams} />

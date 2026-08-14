@@ -347,21 +347,21 @@ export async function analyzeTeamDeletionEffects(
         )
         .orderBy(asc(schema.workspaces.name), asc(schema.agentShares.agentName)),
       db
-        .select({ id: schema.invitations.id, email: schema.invitations.email })
+        .select({ id: schema.organizationInvitations.id })
         .from(schema.invitationTeams)
         .innerJoin(
-          schema.invitations,
-          eq(schema.invitations.id, schema.invitationTeams.invitationId)
+          schema.organizationInvitations,
+          eq(schema.organizationInvitations.id, schema.invitationTeams.invitationId)
         )
         .where(
           and(
             eq(schema.invitationTeams.organizationId, organizationId),
             eq(schema.invitationTeams.teamId, teamId),
-            eq(schema.invitations.organizationId, organizationId),
-            eq(schema.invitations.status, "pending")
+            eq(schema.organizationInvitations.organizationId, organizationId),
+            eq(schema.organizationInvitations.status, "pending")
           )
         )
-        .orderBy(asc(schema.invitations.email), asc(schema.invitations.id)),
+        .orderBy(asc(schema.organizationInvitations.id)),
       db
         .select({ teamId: schema.socialAdmissionDefaultTeams.teamId })
         .from(schema.socialAdmissionDefaultTeams)
@@ -914,11 +914,11 @@ export async function analyzeDestructiveImpact(
         severity: "critical" as const,
       })),
       ...effects.invitations.map<DestructiveImpactItem>((invitation) => ({
-        detail: `${invitation.email}; the pending Invitation no longer assigns this Team.`,
+        detail: "The pending Invitation no longer assigns this Team.",
         group: "Consumers" as const,
         href: { pathname: `/orgs/${orgSlug}/users/status/invited` },
         id: `invitation:${invitation.id}`,
-        label: invitation.email,
+        label: "Pending invitation",
         severity: "warning" as const,
       })),
       ...effects.socialDefaults.map<DestructiveImpactItem>(() => ({

@@ -191,6 +191,28 @@ export const invitations = pgTable(
   ]
 )
 
+export const organizationInvitations = pgTable(
+  "organization_invitations",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    status: text("status").default("pending").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    inviterId: text("inviter_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    acceptedBy: text("accepted_by").references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    acceptedAt: timestamp("accepted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("organizationInvitations_organizationId_idx").on(table.organizationId)]
+)
+
 export const apikeys = pgTable(
   "apikeys",
   {
@@ -264,6 +286,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   teamMembers: many(teamMembers),
   members: many(members),
   invitations: many(invitations),
+  organizationInvitations: many(organizationInvitations),
   twoFactors: many(twoFactors),
 }))
 
@@ -286,6 +309,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   teams: many(teams),
   members: many(members),
   invitations: many(invitations),
+  organizationInvitations: many(organizationInvitations),
 }))
 
 export const organizationRolesRelations = relations(organizationRoles, ({ one }) => ({
@@ -333,6 +357,33 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
   users: one(users, {
     fields: [invitations.inviterId],
     references: [users.id],
+  }),
+}))
+
+export const organizationInvitationsInviterIdRelations = relations(
+  organizationInvitations,
+  ({ one }) => ({
+    users: one(users, {
+      fields: [organizationInvitations.inviterId],
+      references: [users.id],
+    }),
+  })
+)
+
+export const organizationInvitationsAcceptedByRelations = relations(
+  organizationInvitations,
+  ({ one }) => ({
+    users: one(users, {
+      fields: [organizationInvitations.acceptedBy],
+      references: [users.id],
+    }),
+  })
+)
+
+export const organizationInvitationsRelations = relations(organizationInvitations, ({ one }) => ({
+  organizations: one(organizations, {
+    fields: [organizationInvitations.organizationId],
+    references: [organizations.id],
   }),
 }))
 

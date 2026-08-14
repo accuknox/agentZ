@@ -1,6 +1,6 @@
 # Organisation and Workspace Manual Acceptance
 
-Date: 2026-08-10
+Date: 2026-08-14
 
 ## Environment
 
@@ -23,9 +23,16 @@ Date: 2026-08-10
 
 ## Results
 
-- Direct email/password signup created one governed Organisation and immutable
-  Superadmin assignment. Invitation acceptance added Bob and Zero without an
-  unrelated Organisation in the invitation flow.
+- Direct email/password signup created one governed personal Organisation and
+  immutable Superadmin assignment. Every signup retains that Organisation even
+  when the User continues through an Organisation Invitation.
+- A signed-in User accepted a bearer Organisation Invitation despite having a
+  different email address. Two concurrent acceptance attempts produced one
+  Membership and one unavailable result; the transaction also assigned the
+  selected direct Role and Team, activated the Organisation session, and wrote
+  one Event Trail Event. A current Member and a disabled Member did not consume
+  later links, while an expired link was unavailable. All test fixtures were
+  removed after verification.
 - GitHub and Google signup controls initiated authorization at `github.com` and
   `accounts.google.com`. Provider callbacks were not completed because this
   local run did not have interactive external identities for the test users.

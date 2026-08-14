@@ -1570,11 +1570,11 @@ async function removeRole(scope: RoleManagement, roleId: string) {
         )`,
         invitations: sql<number>`(
           SELECT count(*)::int FROM invitation_roles
-          JOIN invitations ON invitations.id = invitation_roles.invitation_id
+          JOIN organization_invitations ON organization_invitations.id = invitation_roles.invitation_id
           WHERE invitation_roles.role_id = ${roleId}
             AND invitation_roles.organization_id = ${actor.organization.id}
-            AND invitations.organization_id = ${actor.organization.id}
-            AND invitations.status = 'pending'
+            AND organization_invitations.organization_id = ${actor.organization.id}
+            AND organization_invitations.status = 'pending'
         )`,
         socialDefaults: sql<number>`(
           SELECT count(*)::int FROM social_admission_default_roles

@@ -18,8 +18,8 @@ import {
 import type { EventTrailField } from "@/lib/gateway/client/types.gen"
 import {
   apikeys,
-  invitations,
   members,
+  organizationInvitations,
   organizationRoles,
   organizations,
   teams,
@@ -387,7 +387,7 @@ export const invitationRoles = pgTable(
   {
     invitationId: text("invitation_id")
       .notNull()
-      .references(() => invitations.id, { onDelete: "cascade" }),
+      .references(() => organizationInvitations.id, { onDelete: "cascade" }),
     roleId: text("role_id").notNull(),
     organizationId: text("organization_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -407,7 +407,7 @@ export const invitationTeams = pgTable(
   {
     invitationId: text("invitation_id")
       .notNull()
-      .references(() => invitations.id, { onDelete: "cascade" }),
+      .references(() => organizationInvitations.id, { onDelete: "cascade" }),
     teamId: text("team_id")
       .notNull()
       .references(() => teams.id, { onDelete: "restrict" }),

@@ -8,9 +8,9 @@ import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } fr
 import { renameOrganization, switchOrganization } from "@/data/organizations"
 import { deleteWorkspace, getDestructiveImpact } from "@/data/operations"
 import {
-  applyInvitation,
+  acceptInvitation,
   cancelInvitation,
-  inviteMember,
+  createInvitation,
   removeMembership,
   restoreMembership,
   saveSocialAdmission,
@@ -247,7 +247,7 @@ export type TeamFormState = {
   errors?: { name?: string[]; memberIds?: string[]; roleIds?: string[] }
 }
 
-export type InviteMemberFormState = { error?: string; link?: string }
+export type InvitationFormState = { error?: string; link?: string }
 
 export type SocialAdmissionFormState = { error?: string; saved?: boolean }
 
@@ -256,45 +256,41 @@ export async function switchOrganizationAction(organizationId: string): Promise<
   redirect(destination ?? "/settings/account")
 }
 
-export async function inviteMemberAction(
+export async function createInvitationAction(
   orgSlug: string,
-  _state: InviteMemberFormState,
+  _state: InvitationFormState,
   formData: FormData
-): Promise<InviteMemberFormState> {
+): Promise<InvitationFormState> {
   const parsed = z
     .object({
-      email: z.string().trim().toLowerCase().pipe(z.email()),
+      invitationId: z.string().min(1).nullable(),
       roleIds: z.array(z.string().min(1)),
       teamIds: z.array(z.string().min(1)),
     })
     .safeParse({
-      email: formData.get("email"),
+      invitationId: formData.get("invitation_id"),
       roleIds: formData.getAll("role_ids"),
       teamIds: formData.getAll("team_ids"),
     })
   if (!parsed.success) {
-    return { error: "Enter a valid email and select at least one Role or Team." }
+    return { error: "Select at least one initial Role or Team." }
   }
   if (parsed.data.roleIds.length + parsed.data.teamIds.length === 0) {
     return { error: "Select at least one initial Role or Team." }
   }
 
-  const result = await inviteMember(orgSlug, parsed.data)
+  const result = await createInvitation(orgSlug, parsed.data)
   if ("error" in result) {
-    return {
-      error:
-        result.error === "already-member"
-          ? "That email already belongs to an active Organisation Member."
-          : "Invitation could not be created.",
-    }
+    return { error: "Invitation could not be created." }
   }
 
   revalidatePath(`/orgs/${orgSlug}/users`, "page")
-  return { link: `${getEnv().BETTER_AUTH_URL}/accept-invitation/${result.invitationId}` }
+  return { link: `${getEnv().BETTER_AUTH_URL}/accept-invitation/${result.token}` }
 }
 
 export async function cancelInvitationAction(orgSlug: string, invitationId: string) {
-  await cancelInvitation(orgSlug, invitationId)
+  const result = await cancelInvitation(orgSlug, invitationId)
+  if ("error" in result) throw new Error("Invitation could not be cancelled.")
   revalidatePath(`/orgs/${orgSlug}/users`, "page")
 }
 
@@ -373,10 +369,10 @@ export async function socialAdmissionAction(
   return { saved: true }
 }
 
-export async function acceptInvitationAction(invitationId: string): Promise<never> {
-  const result = await applyInvitation(invitationId)
+export async function acceptInvitationAction(token: string): Promise<never> {
+  const result = await acceptInvitation(token)
   if ("error" in result) {
-    redirect(`/accept-invitation/${invitationId}?error=${result.error}` as Route)
+    redirect(`/accept-invitation/${token}?error=${result.error}` as Route)
   }
 
   revalidatePath("/orgs", "layout")

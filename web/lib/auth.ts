@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
-import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
 import { APIError, BASE_ERROR_CODES } from "@better-auth/core/error"
@@ -19,6 +19,7 @@ import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config
 import { getEnv } from "@/lib/env"
 import { getGithubUserInfo, socialOAuthStateSchema } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
+import { organizationInvitation, organizationMembershipLimit } from "@/lib/organization-invitation"
 import { minPasswordLength } from "@/lib/password-policy"
 import { signInReturnTo } from "@/lib/sign-in-redirect"
 
@@ -32,9 +33,6 @@ const defaultTwoFactorCookieMaxAge = 10 * 60
 const defaultTrustDeviceMaxAge = 30 * 24 * 60 * 60
 const credentialEmailSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
-})
-const directOAuthStateSchema = z.object({
-  agentzEnrollment: z.literal("direct"),
 })
 const organizationAccessControl = createAccessControl(defaultStatements)
 const superadminRole = organizationAccessControl.newRole(defaultStatements)
@@ -199,51 +197,7 @@ function buildAuth() {
       },
       user: {
         create: {
-          after: async (user, context) => {
-            if (context?.path === "/sign-up/email") {
-              const [invitation] = await getDB()
-                .select({ id: schema.invitations.id })
-                .from(schema.invitations)
-                .where(
-                  and(
-                    eq(schema.invitations.email, user.email),
-                    eq(schema.invitations.status, "pending"),
-                    gt(schema.invitations.expiresAt, new Date())
-                  )
-                )
-                .limit(1)
-
-              if (invitation) {
-                return
-              }
-            } else if (context?.path === "/callback/:id") {
-              const state = await getOAuthState()
-              const direct = directOAuthStateSchema.safeParse(state)
-              if (direct.success) {
-                const organization = await getAuth().api.createOrganization({
-                  body: {
-                    name: `${user.name}'s Organisation`,
-                    slug: `org-${randomUUID()}`,
-                    userId: user.id,
-                  },
-                })
-                await getDB()
-                  .update(schema.sessions)
-                  .set({ activeOrganizationId: organization.id })
-                  .where(
-                    and(
-                      eq(schema.sessions.userId, user.id),
-                      isNull(schema.sessions.activeOrganizationId)
-                    )
-                  )
-                return
-              }
-
-              return
-            } else {
-              return
-            }
-
+          after: async (user) => {
             const organization = await getAuth().api.createOrganization({
               body: {
                 name: `${user.name}'s Organisation`,
@@ -459,8 +413,7 @@ function buildAuth() {
         allowUserToCreateOrganization: false,
         creatorRole: "superadmin",
         disableOrganizationDeletion: true,
-        cancelPendingInvitationsOnReInvite: true,
-        requireEmailVerificationOnInvitation: false,
+        membershipLimit: organizationMembershipLimit,
         dynamicAccessControl: {
           enabled: true,
         },
@@ -490,39 +443,6 @@ function buildAuth() {
             throw APIError.from("FORBIDDEN", {
               code: "GOVERNED_ORGANIZATION_MUTATION_REQUIRED",
               message: "Organisation updates must use the governed product action.",
-            })
-          },
-          afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
-            const roles = await getDB()
-              .select({ roleId: schema.invitationRoles.roleId })
-              .from(schema.invitationRoles)
-              .where(eq(schema.invitationRoles.invitationId, invitation.id))
-
-            await getDB().transaction(async (tx) => {
-              if (roles.length) {
-                await tx
-                  .insert(schema.memberRoles)
-                  .values(
-                    roles.map(({ roleId }) => ({
-                      memberId: member.id,
-                      organizationId: organization.id,
-                      roleId,
-                    }))
-                  )
-                  .onConflictDoNothing()
-              }
-              await tx.insert(schema.eventTrailEvents).values({
-                action: "invitation.accept",
-                actorId: user.id,
-                actorType: "user",
-                after: [{ field: "user_id", value: user.id }],
-                category: "membership",
-                id: `event-trail-${randomUUID()}`,
-                organizationId: organization.id,
-                result: "succeeded",
-                targetId: invitation.id,
-                targetType: "organization_membership",
-              })
             })
           },
           afterCreateOrganization: async ({ member, organization }) => {
@@ -639,6 +559,7 @@ function buildAuth() {
           },
         },
       }),
+      organizationInvitation(),
       apiKey([
         {
           configId: agentAPIKeyConfigID,

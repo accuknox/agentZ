@@ -1,7 +1,7 @@
 import "server-only"
 
-import { randomUUID } from "node:crypto"
-import { APIError } from "@better-auth/core/error"
+import { createHash, randomUUID } from "node:crypto"
+import { generateId } from "@better-auth/core/utils/id"
 import { and, asc, count, desc, eq, exists, inArray, isNull, or, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { cache } from "react"
@@ -10,6 +10,7 @@ import { resolveOrganizationSlug } from "@/data/organizations"
 import { analyzeDestructiveImpact, type DestructiveTarget } from "@/data/operations"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
+import { invitationExpiresIn } from "@/lib/organization-invitation"
 
 export type MemberTab = "active" | "invited" | "disabled"
 
@@ -41,7 +42,6 @@ export type ActiveMember = {
 
 export type InvitationRow = {
   id: string
-  email: string
   expiresAt: string
   createdAt: string
   inviter: string
@@ -49,7 +49,6 @@ export type InvitationRow = {
   teams: string[]
   roleIds: string[]
   teamIds: string[]
-  link: string
   expired: boolean
 }
 
@@ -91,7 +90,6 @@ export type SocialAdmission = {
 }
 
 type Actor = {
-  headers: Headers
   organization: { id: string; name: string; slug: string }
   userId: string
 }
@@ -139,7 +137,6 @@ async function superadminActor(orgSlug: string): Promise<Actor | undefined> {
   }
 
   return {
-    headers: result.organizationSession.requestHeaders,
     organization: result.organization,
     userId: result.organizationSession.session.user.id,
   }
@@ -187,21 +184,23 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
       .limit(500),
     db
       .select({
-        id: schema.invitations.id,
-        email: schema.invitations.email,
-        expiresAt: schema.invitations.expiresAt,
-        createdAt: schema.invitations.createdAt,
+        id: schema.organizationInvitations.id,
+        expiresAt: schema.organizationInvitations.expiresAt,
+        createdAt: schema.organizationInvitations.createdAt,
         inviter: schema.users.email,
       })
-      .from(schema.invitations)
-      .innerJoin(schema.users, eq(schema.users.id, schema.invitations.inviterId))
+      .from(schema.organizationInvitations)
+      .innerJoin(schema.users, eq(schema.users.id, schema.organizationInvitations.inviterId))
       .where(
         and(
-          eq(schema.invitations.organizationId, actor.organization.id),
-          eq(schema.invitations.status, "pending")
+          eq(schema.organizationInvitations.organizationId, actor.organization.id),
+          eq(schema.organizationInvitations.status, "pending")
         )
       )
-      .orderBy(desc(schema.invitations.createdAt), desc(schema.invitations.id))
+      .orderBy(
+        desc(schema.organizationInvitations.createdAt),
+        desc(schema.organizationInvitations.id)
+      )
       .limit(500),
     db
       .select({ id: schema.roleScopes.roleId, name: schema.roleScopes.displayName })
@@ -346,7 +345,6 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
     active.push(row)
   }
 
-  const baseURL = getEnv().BETTER_AUTH_URL
   const now = Date.now()
   return {
     active,
@@ -357,7 +355,6 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
       createdAt: invitation.createdAt.toISOString(),
       expired: invitation.expiresAt.getTime() <= now,
       expiresAt: invitation.expiresAt.toISOString(),
-      link: `${baseURL}/accept-invitation/${invitation.id}`,
       roleIds: roleIdsByInvitation.get(invitation.id) ?? [],
       roles: rolesByInvitation.get(invitation.id) ?? [],
       teamIds: teamIdsByInvitation.get(invitation.id) ?? [],
@@ -470,44 +467,46 @@ export const getMemberAdministration = cache(
   }
 )
 
-export async function inviteMember(
+export async function createInvitation(
   orgSlug: string,
-  input: { email: string; roleIds: string[]; teamIds: string[] }
+  input: { invitationId: string | null; roleIds: string[]; teamIds: string[] }
 ) {
   const actor = await superadminActor(orgSlug)
   if (!actor) {
     return { error: "forbidden" as const }
   }
 
-  const email = input.email.trim().toLowerCase()
   const roleIds = [...new Set(input.roleIds)]
   const teamIds = [...new Set(input.teamIds)]
-  if (!email || roleIds.length + teamIds.length === 0) {
+  if (roleIds.length + teamIds.length === 0) {
     return { error: "invalid" as const }
   }
 
-  const db = getDB()
-  const [roles, teams] = await Promise.all([
-    roleIds.length
-      ? db
-          .select({ id: schema.roleScopes.roleId, role: schema.organizationRoles.role })
+  const id = generateId()
+  const token = generateId()
+  const tokenHash = createHash("sha256").update(token).digest("hex")
+  return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    if (!authorized) return { error: "forbidden" as const }
+
+    const roles = roleIds.length
+      ? await tx
+          .select({ id: schema.roleScopes.roleId })
           .from(schema.roleScopes)
-          .innerJoin(
-            schema.organizationRoles,
-            and(
-              eq(schema.organizationRoles.id, schema.roleScopes.roleId),
-              eq(schema.organizationRoles.organizationId, schema.roleScopes.organizationId)
-            )
-          )
           .where(
             and(
               eq(schema.roleScopes.organizationId, actor.organization.id),
               inArray(schema.roleScopes.roleId, roleIds)
             )
           )
-      : [],
-    teamIds.length
-      ? db
+      : []
+    const teams = teamIds.length
+      ? await tx
           .select({ id: schema.teams.id })
           .from(schema.teams)
           .where(
@@ -516,78 +515,67 @@ export async function inviteMember(
               inArray(schema.teams.id, teamIds)
             )
           )
-      : [],
-  ])
-  if (roles.length !== roleIds.length || teams.length !== teamIds.length) {
-    return { error: "invalid" as const }
-  }
-
-  let invitation
-  try {
-    invitation = await getAuth().api.createInvitation({
-      headers: actor.headers,
-      body: {
-        email,
-        organizationId: actor.organization.id,
-        role: roles.length ? roles.map(({ role }) => role) : "member",
-        teamId: teamIds,
-      },
-    })
-  } catch (error) {
-    if (error instanceof APIError) {
-      if (error.body?.code === "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION") {
-        return { error: "already-member" as const }
-      }
+      : []
+    if (roles.length !== roleIds.length || teams.length !== teamIds.length) {
       return { error: "invalid" as const }
     }
-    throw error
-  }
 
-  try {
-    await db.transaction(async (tx) => {
-      if (roleIds.length) {
-        await tx.insert(schema.invitationRoles).values(
-          roleIds.map((roleId) => ({
-            invitationId: invitation.id,
-            organizationId: actor.organization.id,
-            roleId,
-          }))
+    if (input.invitationId) {
+      const canceled = await tx
+        .update(schema.organizationInvitations)
+        .set({ status: "canceled" })
+        .where(
+          and(
+            eq(schema.organizationInvitations.id, input.invitationId),
+            eq(schema.organizationInvitations.organizationId, actor.organization.id),
+            eq(schema.organizationInvitations.status, "pending")
+          )
         )
-      }
-      if (teamIds.length) {
-        await tx.insert(schema.invitationTeams).values(
-          teamIds.map((teamId) => ({
-            invitationId: invitation.id,
-            organizationId: actor.organization.id,
-            teamId,
-          }))
-        )
-      }
-      await tx.insert(schema.eventTrailEvents).values({
-        action: "invitation.create",
-        actorId: actor.userId,
-        actorType: "user",
-        after: [
-          { field: "user_id", value: email },
-          { field: "role", value: `${roleIds.length} Roles, ${teamIds.length} Teams` },
-        ],
-        category: "membership",
-        id: `event-trail-${randomUUID()}`,
-        organizationId: actor.organization.id,
-        result: "succeeded",
-        targetId: invitation.id,
-        targetType: "organization_membership",
-      })
-    })
-  } catch (error) {
-    await getAuth().api.cancelInvitation({
-      headers: actor.headers,
-      body: { invitationId: invitation.id },
-    })
-    throw error
-  }
+        .returning({ id: schema.organizationInvitations.id })
+      if (!canceled.length) return { error: "invalid" as const }
+    }
 
-  return { invitationId: invitation.id }
+    const now = new Date()
+    await tx.insert(schema.organizationInvitations).values({
+      id,
+      organizationId: actor.organization.id,
+      tokenHash,
+      expiresAt: new Date(now.getTime() + invitationExpiresIn),
+      inviterId: actor.userId,
+      createdAt: now,
+    })
+    if (roleIds.length) {
+      await tx.insert(schema.invitationRoles).values(
+        roleIds.map((roleId) => ({
+          invitationId: id,
+          organizationId: actor.organization.id,
+          roleId,
+        }))
+      )
+    }
+    if (teamIds.length) {
+      await tx.insert(schema.invitationTeams).values(
+        teamIds.map((teamId) => ({
+          invitationId: id,
+          organizationId: actor.organization.id,
+          teamId,
+        }))
+      )
+    }
+    await tx.insert(schema.eventTrailEvents).values({
+      action: "invitation.create",
+      actorId: actor.userId,
+      actorType: "user",
+      after: [{ field: "role", value: `${roleIds.length} Roles, ${teamIds.length} Teams` }],
+      category: "membership",
+      id: `event-trail-${randomUUID()}`,
+      organizationId: actor.organization.id,
+      result: "succeeded",
+      targetId: id,
+      targetType: "organization_membership",
+    })
+    return { token }
+  })
 }
 
 export async function cancelInvitation(orgSlug: string, invitationId: string) {
@@ -596,11 +584,27 @@ export async function cancelInvitation(orgSlug: string, invitationId: string) {
     return { error: "forbidden" as const }
   }
 
-  await getAuth().api.cancelInvitation({
-    headers: actor.headers,
-    body: { invitationId },
+  return getDB().transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, actor.organization.id))
+      .for("update")
+    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    if (!authorized) return { error: "forbidden" as const }
+
+    await tx
+      .update(schema.organizationInvitations)
+      .set({ status: "canceled" })
+      .where(
+        and(
+          eq(schema.organizationInvitations.id, invitationId),
+          eq(schema.organizationInvitations.organizationId, actor.organization.id),
+          eq(schema.organizationInvitations.status, "pending")
+        )
+      )
+    return {}
   })
-  return {}
 }
 
 export async function restoreMembership(orgSlug: string, memberId: string) {
@@ -1242,36 +1246,77 @@ export async function saveSocialAdmission(
   })
 }
 
-export async function applyInvitation(invitationId: string) {
+export async function acceptInvitation(token: string) {
   const requestHeaders = await headers()
   const session = await getAuth().api.getSession({ headers: requestHeaders })
   if (!session) {
     return { error: "unauthorized" as const }
   }
 
-  let accepted
-  try {
-    accepted = await getAuth().api.acceptInvitation({
-      headers: requestHeaders,
-      body: { invitationId },
-    })
-  } catch (error) {
-    if (error instanceof APIError) {
-      if (error.body?.code === "YOU_ARE_NOT_THE_RECIPIENT_OF_THE_INVITATION") {
-        return { error: "email-mismatch" as const }
-      }
-      return { error: "not-found" as const }
-    }
-    throw error
+  const result = await getAuth().api.acceptOrganizationInvitation({
+    headers: requestHeaders,
+    body: { token },
+  })
+  if (result.kind === "accepted" || result.kind === "member") {
+    return { slug: result.slug }
+  }
+  return { error: result.kind }
+}
+
+export async function getInvitationAcceptance(token: string) {
+  const requestHeaders = await headers()
+  const session = await getAuth().api.getSession({ headers: requestHeaders })
+  if (!session) {
+    return { kind: "unauthorized" as const }
   }
 
-  const [organization] = await getDB()
-    .select({ slug: schema.organizations.slug })
-    .from(schema.organizations)
-    .where(eq(schema.organizations.id, accepted.invitation.organizationId))
+  const tokenHash = createHash("sha256").update(token).digest("hex")
+  const [invitation] = await getDB()
+    .select({
+      expiresAt: schema.organizationInvitations.expiresAt,
+      inviterName: schema.users.name,
+      organizationId: schema.organizations.id,
+      organizationName: schema.organizations.name,
+      organizationSlug: schema.organizations.slug,
+      status: schema.organizationInvitations.status,
+    })
+    .from(schema.organizationInvitations)
+    .innerJoin(
+      schema.organizations,
+      eq(schema.organizations.id, schema.organizationInvitations.organizationId)
+    )
+    .innerJoin(schema.users, eq(schema.users.id, schema.organizationInvitations.inviterId))
+    .where(eq(schema.organizationInvitations.tokenHash, tokenHash))
     .limit(1)
-  if (!organization) {
-    return { error: "not-found" as const }
+
+  if (
+    !invitation ||
+    invitation.status !== "pending" ||
+    invitation.expiresAt.getTime() <= Date.now()
+  ) {
+    return { kind: "unavailable" as const }
   }
-  return { slug: organization.slug }
+
+  const [membership] = await getDB()
+    .select({ disabledAt: schema.members.disabledAt })
+    .from(schema.members)
+    .where(
+      and(
+        eq(schema.members.organizationId, invitation.organizationId),
+        eq(schema.members.userId, session.user.id)
+      )
+    )
+    .limit(1)
+  if (membership && !membership.disabledAt) {
+    return { kind: "member" as const, slug: invitation.organizationSlug }
+  }
+  if (membership) {
+    return { kind: "disabled" as const }
+  }
+
+  return {
+    kind: "ready" as const,
+    inviterName: invitation.inviterName,
+    organizationName: invitation.organizationName,
+  }
 }

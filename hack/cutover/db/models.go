@@ -1007,6 +1007,18 @@ type Organization struct {
 	Metadata  pgtype.Text      `json:"metadata"`
 }
 
+type OrganizationInvitation struct {
+	ID             string           `json:"id"`
+	OrganizationID string           `json:"organization_id"`
+	TokenHash      string           `json:"token_hash"`
+	Status         string           `json:"status"`
+	ExpiresAt      pgtype.Timestamp `json:"expires_at"`
+	InviterID      string           `json:"inviter_id"`
+	AcceptedBy     pgtype.Text      `json:"accepted_by"`
+	AcceptedAt     pgtype.Timestamp `json:"accepted_at"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
 type OrganizationRole struct {
 	ID             string           `json:"id"`
 	OrganizationID string           `json:"organization_id"`

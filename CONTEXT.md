@@ -15,6 +15,11 @@ One User's enabled or disabled membership in one Organisation. It does not own
 the User or affect the User's memberships in other Organisations.
 _Avoid_: User account, Organisation User
 
+**Organisation Invitation**:
+A single-use, 48-hour capability to create one Organisation Membership for the
+signed-in User who holds it. It identifies initial access, never a recipient.
+_Avoid_: Email invitation, recipient invitation
+
 **Workspace**:
 An isolated product-resource scope within one Organisation. An Organisation may
 contain zero or more Workspaces.

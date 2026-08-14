@@ -304,7 +304,8 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         <AlertDescription>
           These rules are evaluated only when a qualifying Social account joins this Organisation.
           Default access is assigned once; later sign-ins do not recalculate or remove it. Explicit
-          Invitations bypass Social Admission rules and continue to enforce email equality.
+          Invitations bypass Social Admission rules and grant their configured access to the
+          signed-in User who accepts the link first.
         </AlertDescription>
       </Alert>
 

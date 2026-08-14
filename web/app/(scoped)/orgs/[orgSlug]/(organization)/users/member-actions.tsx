@@ -3,12 +3,12 @@
 import Link from "next/link"
 import type { Route } from "next"
 import { useActionState, useState, useTransition } from "react"
-import { Check, Copy, MoreHorizontal, Pencil, Send, ShieldPlus, X } from "lucide-react"
+import { MoreHorizontal, Pencil, Send, ShieldPlus, X } from "lucide-react"
 import {
   cancelInvitationAction,
-  inviteMemberAction,
+  createInvitationAction,
   restoreMembershipAction,
-  type InviteMemberFormState,
+  type InvitationFormState,
 } from "@/app/(scoped)/orgs/actions"
 import type { AssignmentOption, InvitationRow } from "@/data/members"
 import { Button } from "@/components/ui/button"
@@ -31,13 +31,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard"
 
-export function InviteMemberDialog({
+export function InvitationDialog({
   orgSlug,
   roles,
   teams,
@@ -55,12 +52,11 @@ export function InviteMemberDialog({
   showTrigger?: boolean
 }) {
   const [confirmationOpen, setConfirmationOpen] = useState(false)
-  const [email, setEmail] = useState(invitation?.email ?? "")
   const [roleIds, setRoleIds] = useState(invitation?.roleIds ?? [])
   const [teamIds, setTeamIds] = useState(invitation?.teamIds ?? [])
-  const [state, action, pending] = useActionState<InviteMemberFormState, FormData>(
+  const [state, action, pending] = useActionState<InvitationFormState, FormData>(
     async (previousState, formData) => {
-      const result = await inviteMemberAction(orgSlug, previousState, formData)
+      const result = await createInvitationAction(orgSlug, previousState, formData)
       setConfirmationOpen(false)
       return result
     },
@@ -68,7 +64,7 @@ export function InviteMemberDialog({
   )
   const selectedRoles = roles.filter((role) => roleIds.includes(role.id))
   const selectedTeams = teams.filter((team) => teamIds.includes(team.id))
-  const ready = email.trim() !== "" && roleIds.length + teamIds.length > 0
+  const ready = roleIds.length + teamIds.length > 0
   const formId = `invitation-form-${invitation?.id ?? "new"}`
 
   return (
@@ -78,36 +74,26 @@ export function InviteMemberDialog({
           <DialogTrigger asChild>
             <Button>
               <Send />
-              {invitation ? "Edit" : "Invite user"}
+              {invitation ? "Edit" : "Create invitation"}
             </Button>
           </DialogTrigger>
         ) : null}
         <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-x-hidden overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Invite user</DialogTitle>
+            <DialogTitle>{invitation ? "Replace invitation" : "Create invitation"}</DialogTitle>
             <DialogDescription>
-              Creates a 48-hour bearer link. Anyone with the link can try to accept it, so share it
-              only with the invited email owner.
+              Creates a one-time link that expires after 48 hours. Any signed-in user with the link
+              can join with the selected access.
             </DialogDescription>
           </DialogHeader>
           <form action={action} className="flex min-w-0 flex-col gap-5" id={formId}>
-            <input name="email" type="hidden" value={email} />
+            {invitation ? <input name="invitation_id" type="hidden" value={invitation.id} /> : null}
             {roleIds.map((id) => (
               <input key={id} name="role_ids" type="hidden" value={id} />
             ))}
             {teamIds.map((id) => (
               <input key={id} name="team_ids" type="hidden" value={id} />
             ))}
-            <Field>
-              <FieldLabel htmlFor={`invite-email-${invitation?.id ?? "new"}`}>Email</FieldLabel>
-              <Input
-                id={`invite-email-${invitation?.id ?? "new"}`}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                type="email"
-                value={email}
-              />
-            </Field>
             <AssignmentChecks
               label="Initial Roles"
               onChange={setRoleIds}
@@ -124,17 +110,22 @@ export function InviteMemberDialog({
             ) : null}
             {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
             {state.link ? (
-              <InputGroup className="h-10">
-                <InputGroupInput
-                  aria-label="Invitation link"
-                  className="font-mono text-xs"
-                  readOnly
-                  value={state.link}
-                />
-                <InputGroupAddon align="inline-end">
-                  <CopyButton content={state.link} label="Copy" />
-                </InputGroupAddon>
-              </InputGroup>
+              <div className="grid gap-2">
+                <p className="text-muted-foreground text-sm">
+                  Copy this link now. It cannot be shown again.
+                </p>
+                <InputGroup className="h-10">
+                  <InputGroupInput
+                    aria-label="Invitation link"
+                    className="font-mono text-xs"
+                    readOnly
+                    value={state.link}
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <CopyButton content={state.link} label="Copy" />
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
             ) : null}
             <div className="flex min-w-0 flex-wrap justify-end gap-2">
               <Button disabled={!ready} onClick={() => setConfirmationOpen(true)} type="button">
@@ -149,16 +140,12 @@ export function InviteMemberDialog({
           <DialogHeader>
             <DialogTitle>Confirm invitation</DialogTitle>
             <DialogDescription>
-              Confirm the recipient and their initial access before creating the invitation.
+              Confirm the initial access granted to whoever accepts this one-time link.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[min(60dvh,36rem)] overflow-y-auto py-2">
             <section aria-label="Invitation access confirmation" className="grid min-w-0 gap-4">
               <dl className="grid min-w-0 gap-3 text-sm">
-                <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
-                  <dt className="text-muted-foreground">Email</dt>
-                  <dd className="min-w-0 break-all">{email}</dd>
-                </div>
                 <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-muted-foreground">Direct Roles</dt>
                   <dd className="min-w-0 break-words">
@@ -176,10 +163,10 @@ export function InviteMemberDialog({
                 <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-muted-foreground">Effective access</dt>
                   <dd className="min-w-0 break-words">
-                    {teams.length ? "Union of " : ""}
+                    {selectedTeams.length ? "Union of " : ""}
                     {selectedRoles.length} direct Role
                     {selectedRoles.length === 1 ? "" : "s"}
-                    {teams.length
+                    {selectedTeams.length
                       ? ` and ${selectedTeams.length} Team${selectedTeams.length === 1 ? "" : "s"}`
                       : ""}
                     .
@@ -218,21 +205,16 @@ export function InvitationActions({
 }) {
   const [editing, setEditing] = useState(false)
   const [pending, start] = useTransition()
-  const { isCopied, handleCopy } = useCopyToClipboard({ text: invitation.link })
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button aria-label={`Actions for ${invitation.email}`} size="icon-sm" variant="ghost">
+          <Button aria-label="Invitation actions" size="icon-sm" variant="ghost">
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={handleCopy}>
-            {isCopied ? <Check /> : <Copy />}
-            Copy link
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setEditing(true)}>
             <Pencil />
             Edit
@@ -248,7 +230,7 @@ export function InvitationActions({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <InviteMemberDialog
+      <InvitationDialog
         invitation={invitation}
         onOpenChange={setEditing}
         open={editing}

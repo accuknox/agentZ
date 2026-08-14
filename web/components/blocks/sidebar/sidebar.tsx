@@ -1,15 +1,21 @@
 import type { Route } from "next"
+import Link from "next/link"
 import {
   Activity,
+  ArrowLeft,
   Box,
   Bot,
   Building2,
   Cable,
   CircleUserRound,
   CloudCog,
+  KeyRound,
+  Monitor,
   ScrollText,
   Settings2,
   ShieldCheck,
+  SlidersHorizontal,
+  User2,
   UserRoundCheck,
   UsersRound,
 } from "lucide-react"
@@ -28,6 +34,7 @@ import {
   SidebarRail,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -52,6 +59,7 @@ type WorkspaceNavigationScope = {
 
 export type SidebarScope =
   | { kind: "account" }
+  | { kind: "settings"; hasAppDestination: boolean }
   | { kind: "no-access"; organization: OrganizationSummary }
   | ({ kind: "organization" } & WorkspaceNavigationScope)
   | ({
@@ -81,9 +89,23 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" {...sidebarProps}>
       <SidebarHeader className="p-2">
-        <WorkspaceSwitcher scope={scope} />
+        {scope.kind === "settings" && scope.hasAppDestination ? (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild size="lg" tooltip="Back to app">
+                <Link href="/">
+                  <ArrowLeft aria-hidden="true" />
+                  <span>Back to app</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        ) : (
+          <WorkspaceSwitcher scope={scope} />
+        )}
       </SidebarHeader>
       <SidebarContent className="gap-0">
+        {scope.kind === "settings" ? <SettingsNavigation /> : null}
         {scope.kind === "organization" ? (
           <OrganizationNavigation
             canEnterOrganization={scope.canEnterOrganization}
@@ -118,6 +140,36 @@ export function AppSidebar({
       ) : null}
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+function SettingsNavigation() {
+  return (
+    <SidebarGroup className="px-2 py-2">
+      <SidebarGroupLabel>Personal</SidebarGroupLabel>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarNavigationLink href="/settings/account" label="Account">
+            <User2 aria-hidden="true" />
+          </SidebarNavigationLink>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarNavigationLink href="/settings/api-keys" label="API Keys">
+            <KeyRound aria-hidden="true" />
+          </SidebarNavigationLink>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarNavigationLink href="/settings/sessions" label="Sessions">
+            <Monitor aria-hidden="true" />
+          </SidebarNavigationLink>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarNavigationLink href="/settings/preferences" label="Preferences">
+            <SlidersHorizontal aria-hidden="true" />
+          </SidebarNavigationLink>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </SidebarGroup>
   )
 }
 

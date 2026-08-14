@@ -30,7 +30,10 @@ async function AccountGate({ children }: { children: React.ReactNode }) {
           <AppSidebar
             activeOrganizationId={organizationSession.session.session.activeOrganizationId}
             organizations={organizationSession.organizations}
-            scope={{ kind: "account" }}
+            scope={{
+              hasAppDestination: organizationSession.organizations.length > 0,
+              kind: "settings",
+            }}
             user={{
               email: organizationSession.session.user.email,
               image: organizationSession.session.user.image,

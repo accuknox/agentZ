@@ -10,17 +10,10 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpDown,
-  Download,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-} from "lucide-react"
+import { ArrowUpDown, Download, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { useTokenPagination } from "@/lib/use-token-pagination"
 import { AgentGettingReady } from "@/components/agent-readiness"
+import { TablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -200,26 +193,13 @@ export function SkillTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearSelectionAndGoPrevious}
-          disabled={disabled || !canGoPrevious || pending}
-        >
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearSelectionAndGoNext}
-          disabled={disabled || !hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      <TablePagination
+        canGoNext={!disabled && hasNextPage}
+        canGoPrevious={!disabled && canGoPrevious}
+        goNext={clearSelectionAndGoNext}
+        goPrevious={clearSelectionAndGoPrevious}
+        pending={pending}
+      />
     </div>
   )
 }

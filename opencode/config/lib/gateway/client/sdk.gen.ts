@@ -428,6 +428,7 @@ import {
   zListAgentMutableSkillsPath,
   zListAgentMutableSkillsQuery,
   zListAgentSharesPath,
+  zListAgentSharesQuery,
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
@@ -479,6 +480,7 @@ import {
   zListWorkflowWebhookTriggersPath,
   zListWorkflowWebhookTriggersQuery,
   zListWorkspaceInheritedResourcesPath,
+  zListWorkspacesQuery,
   zPatchWorkflowRunNodeStatusBody,
   zPatchWorkflowRunNodeStatusPath,
   zPatchWorkflowRunStatusBody,
@@ -681,7 +683,7 @@ export const listWorkspaces = <ThrowOnError extends boolean = false>(
         .object({
           body: z.never().optional(),
           path: z.never().optional(),
-          query: z.never().optional(),
+          query: zListWorkspacesQuery.optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1215,7 +1217,7 @@ export const listAgentShares = <ThrowOnError extends boolean = false>(
         .object({
           body: z.never().optional(),
           path: zListAgentSharesPath,
-          query: z.never().optional(),
+          query: zListAgentSharesQuery.optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],

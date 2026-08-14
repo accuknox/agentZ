@@ -6,10 +6,15 @@ import { AgentShareForm } from "../../agent-access-forms"
 
 export default async function AgentSharingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string; workspaceSlug: string; agentName: string }>
+  searchParams: Promise<{ page_token?: string }>
 }) {
-  const { orgSlug, workspaceSlug, agentName } = await params
+  const [{ orgSlug, workspaceSlug, agentName }, { page_token }] = await Promise.all([
+    params,
+    searchParams,
+  ])
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") {
     notFound()
@@ -18,7 +23,8 @@ export default async function AgentSharingPage({
   const detail = await getWorkspaceAgentDetail(
     scope.scope.organization.id,
     scope.workspace.id,
-    agentName
+    agentName,
+    page_token
   )
   if (!detail) {
     notFound()
@@ -34,6 +40,7 @@ export default async function AgentSharingPage({
       actionScope={actionScope}
       agentName={agentName}
       shares={detail.shares}
+      sharesNextPageToken={detail.sharesNextPageToken}
       teams={detail.teams}
       users={detail.users}
     />

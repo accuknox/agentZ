@@ -16,8 +16,7 @@ import {
   type WatchMcpConnectionsEvent,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { useTokenPagination } from "@/lib/use-token-pagination"
-import { Button } from "@/components/ui/button"
+import { TokenTablePagination } from "@/components/table-pagination"
 import {
   Table,
   TableBody,
@@ -29,7 +28,6 @@ import {
 import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { createMcpColumns } from "./mcp-columns"
 import { McpViewSheet } from "./mcp-view-sheet"
-import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
   name: "w-40",
@@ -112,10 +110,6 @@ export function McpTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "age", desc: true }])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
-    pageTokenKey: "page_token",
-    tokenStackKey: "token_stack",
-  })
   const [viewConnection, setViewConnection] = React.useState<McpConnectionSummary>()
   const connectionNames = React.useMemo(
     () =>
@@ -209,28 +203,7 @@ export function McpTable({
           </TableBody>
         </Table>
       </div>
-      {canGoPrevious || hasNextPage ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goPrevious}
-            disabled={!canGoPrevious || pending}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => goNext(nextPageToken)}
-            disabled={!hasNextPage || pending}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
-      ) : null}
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
       {viewConnection ? (
         <McpViewSheet
           name={viewConnection.name}

@@ -71,10 +71,6 @@ export default async function WorkspaceAgentPage({
                 <TableCell>Creator</TableCell>
                 <TableCell className="break-words">{detail.creatorLabel}</TableCell>
               </TableRow>
-              <TableRow>
-                <TableCell>Shares</TableCell>
-                <TableCell>{detail.shares.length}</TableCell>
-              </TableRow>
             </TableBody>
           </Table>
         </div>

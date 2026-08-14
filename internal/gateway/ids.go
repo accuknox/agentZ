@@ -33,6 +33,16 @@ type eventPageCursor struct {
 	ID        int64     `json:"id"`
 }
 
+type workspacePageCursor struct {
+	Name string `json:"name"`
+	ID   string `json:"id"`
+}
+
+type agentSharePageCursor struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+}
+
 func requestID(r *http.Request) string {
 	if r == nil {
 		return ""
@@ -258,6 +268,30 @@ func decodeEventPageToken(w http.ResponseWriter, r *http.Request, token *gateway
 	if cursor.EventTime.IsZero() || cursor.ID < 1 {
 		writeInvalidPageToken(w, r, errBadRequest)
 		return eventPageCursor{}, false, false
+	}
+	return cursor, true, true
+}
+
+func decodeWorkspacePageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (workspacePageCursor, bool, bool) {
+	cursor, set, ok := decodeCursorPageToken[workspacePageCursor](w, r, token)
+	if !ok || !set {
+		return cursor, set, ok
+	}
+	if cursor.Name == "" || cursor.ID == "" {
+		writeInvalidPageToken(w, r, errBadRequest)
+		return workspacePageCursor{}, false, false
+	}
+	return cursor, true, true
+}
+
+func decodeAgentSharePageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (agentSharePageCursor, bool, bool) {
+	cursor, set, ok := decodeCursorPageToken[agentSharePageCursor](w, r, token)
+	if !ok || !set {
+		return cursor, set, ok
+	}
+	if cursor.CreatedAt.IsZero() || cursor.ID == "" {
+		writeInvalidPageToken(w, r, errBadRequest)
+		return agentSharePageCursor{}, false, false
 	}
 	return cursor, true, true
 }

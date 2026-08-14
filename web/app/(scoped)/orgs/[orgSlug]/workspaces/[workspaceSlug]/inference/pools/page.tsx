@@ -4,10 +4,13 @@ import InferencePoolsPage from "@/app/(app)/inference/pools/pool-page"
 
 export default async function WorkspaceInferencePoolsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string; workspaceSlug: string }>
+  searchParams: Promise<{ page_token?: string }>
 }) {
   const { orgSlug, workspaceSlug } = await params
+  const { page_token } = await searchParams
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready" || !scope.workspace.inference_pool_capabilities.read)
     return <AdministrationState kind="forbidden" />
@@ -15,6 +18,7 @@ export default async function WorkspaceInferencePoolsPage({
   return (
     <InferencePoolsPage
       capabilities={scope.workspace.inference_pool_capabilities}
+      pageToken={page_token}
       scope={{ basePath, workspaceId: scope.workspace.id }}
     />
   )

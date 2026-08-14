@@ -12,7 +12,7 @@ import {
 } from "@tanstack/react-table"
 import { watchSecrets, type SecretListItem, type WatchSecretsEvent } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { Button } from "@/components/ui/button"
+import { TokenTablePagination } from "@/components/table-pagination"
 import {
   Table,
   TableBody,
@@ -21,8 +21,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useTokenPagination } from "@/lib/use-token-pagination"
-import { ArrowLeft, ArrowRight } from "lucide-react"
 import { createSecretColumns } from "./secret-columns"
 import type { DeleteSecretFormAction } from "@/data/types"
 
@@ -111,10 +109,6 @@ export function SecretTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
-    pageTokenKey: "page_token",
-    tokenStackKey: "token_stack",
-  })
   const query = useQuery(watchSecretsQueryOptions(agentName, workspaceId, secrets))
   const rows = query.data ?? secrets
   const columns = React.useMemo(
@@ -178,28 +172,7 @@ export function SecretTable({
           </TableBody>
         </Table>
       </div>
-      {canGoPrevious || hasNextPage ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goPrevious}
-            disabled={!canGoPrevious || pending}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => goNext(nextPageToken)}
-            disabled={!hasNextPage || pending}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
-      ) : null}
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
     </div>
   )
 }

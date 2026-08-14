@@ -145,6 +145,9 @@ paths:
         Lists nondeleted Workspaces accessible to the current active
         Organisation membership. Superadmins receive every Workspace.
       tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
           description: Accessible Workspaces and navigation capabilities.
@@ -736,6 +739,8 @@ paths:
       tags: [agents]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
           description: Agent Shares for the selected Agent.
@@ -4044,7 +4049,9 @@ components:
           type: boolean
         can_enter_organization:
           type: boolean
-      required: [workspaces, can_create, can_enter_organization]
+        next_page_token:
+          type: string
+      required: [workspaces, can_create, can_enter_organization, next_page_token]
 
     CreateWorkspaceRequest:
       type: object
@@ -4504,7 +4511,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AgentShare'
-      required: [shares]
+        next_page_token:
+          type: string
+      required: [shares, next_page_token]
 
     ListSkillsResponse:
       type: object

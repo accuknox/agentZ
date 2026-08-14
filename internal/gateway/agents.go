@@ -900,7 +900,7 @@ const (
 	agentShareAll
 )
 
-func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListAgentSharesParams) {
 	agentName, access, ok := s.resolveNamedAgent(w, r, agentName)
 	if !ok {
 		return
@@ -915,12 +915,26 @@ func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentN
 		writeError(w, r, resourceForbidden(errors.New("agent Share authority is missing")))
 		return
 	}
-	shares, err := s.agentShares(r.Context(), access, agentName, authority == agentShareAll)
+	limit, ok := validLimit(w, r, params.Limit)
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeAgentSharePageToken(w, r, params.PageToken)
+	if !ok {
+		return
+	}
+	shares, next, err := s.agentShares(
+		r.Context(), access, agentName, authority == agentShareAll,
+		cursor, cursorSet, limit,
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListAgentSharesResponse{Shares: shares})
+	writeJSON(w, http.StatusOK, gatewayapi.ListAgentSharesResponse{
+		NextPageToken: next,
+		Shares:        shares,
+	})
 }
 
 // UpsertAgentShare handles POST /api/agent/{agentName}/share.
@@ -1622,44 +1636,55 @@ func (s *Service) createAgentShare(ctx context.Context, access resourceAccess, a
 	return s.agentShareResponse(ctx, access, row)
 }
 
-func (s *Service) agentShares(ctx context.Context, access resourceAccess, agentName string, manageAll bool) ([]gatewayapi.AgentShare, error) {
+func (s *Service) agentShares(ctx context.Context, access resourceAccess, agentName string, manageAll bool, cursor agentSharePageCursor, cursorSet bool, limit int) ([]gatewayapi.AgentShare, string, error) {
 	rows, err := s.queries.GatewayListAgentShares(ctx, gatewaydb.GatewayListAgentSharesParams{
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
+		ManageAll:      manageAll,
+		UserID:         access.claims.UserID,
+		CursorSet:      cursorSet,
+		CursorCreatedAt: pgtype.Timestamptz{
+			Time:  cursor.CreatedAt,
+			Valid: cursorSet,
+		},
+		CursorID: cursor.ID,
+		PageSize: int32(limit + 1),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list Agent Shares: %w", err)
+		return nil, "", fmt.Errorf("list Agent Shares: %w", err)
+	}
+	next := ""
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		next = encodeCursorPageToken(agentSharePageCursor{
+			CreatedAt: last.CreatedAt.Time,
+			ID:        last.ID,
+		})
 	}
 	out := make([]gatewayapi.AgentShare, 0, len(rows))
 	for _, row := range rows {
-		if !manageAll && row.CreatedBy != access.claims.UserID {
-			continue
-		}
 		item, err := s.agentShareResponse(ctx, access, row)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		out = append(out, item)
 	}
-	return out, nil
+	return out, next, nil
 }
 
 func (s *Service) agentShareByID(ctx context.Context, access resourceAccess, agentName string, shareID string) (gatewaydb.AgentShare, error) {
-	rows, err := s.queries.GatewayListAgentShares(ctx, gatewaydb.GatewayListAgentSharesParams{
+	row, err := s.queries.GatewayGetAgentShare(ctx, gatewaydb.GatewayGetAgentShareParams{
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		AgentName:      agentName,
+		ID:             shareID,
 	})
 	if err != nil {
-		return gatewaydb.AgentShare{}, fmt.Errorf("list Agent Shares: %w", err)
+		return gatewaydb.AgentShare{}, fmt.Errorf("get Agent Share: %w", err)
 	}
-	for _, row := range rows {
-		if row.ID == shareID {
-			return row, nil
-		}
-	}
-	return gatewaydb.AgentShare{}, pgx.ErrNoRows
+	return row, nil
 }
 
 func (s *Service) agentShareResponse(ctx context.Context, access resourceAccess, row gatewaydb.AgentShare) (gatewayapi.AgentShare, error) {

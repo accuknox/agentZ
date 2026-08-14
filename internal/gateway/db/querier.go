@@ -52,6 +52,7 @@ type Querier interface {
 	GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (ApiKeyScope, error)
 	GatewayGetAgent(ctx context.Context, arg GatewayGetAgentParams) (Agent, error)
 	GatewayGetAgentOwner(ctx context.Context, arg GatewayGetAgentOwnerParams) (AgentOwner, error)
+	GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentShareParams) (AgentShare, error)
 	GatewayGetCleanupJob(ctx context.Context, arg GatewayGetCleanupJobParams) (CleanupJob, error)
 	GatewayGetLastAccessibleContext(ctx context.Context, arg GatewayGetLastAccessibleContextParams) (LastAccessibleContext, error)
 	GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error)

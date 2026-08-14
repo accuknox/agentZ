@@ -2,15 +2,34 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import { generateId } from "@better-auth/core/utils/id"
-import { and, asc, count, desc, eq, exists, inArray, isNull, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm"
 import { headers } from "next/headers"
 import { cache } from "react"
+import { z } from "zod"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 import { analyzeDestructiveImpact, type DestructiveTarget } from "@/data/operations"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
 import { invitationExpiresIn } from "@/lib/organization-invitation"
+import { decodePageToken, encodePageToken } from "@/data/page-token"
+
+const memberPageCursor = z.object({ email: z.string(), id: z.string().min(1), name: z.string() })
+const invitationPageCursor = z.object({ createdAt: z.string().datetime(), id: z.string().min(1) })
 
 export type MemberTab = "active" | "invited" | "disabled"
 
@@ -22,6 +41,7 @@ export type MemberDirectory = {
   invited: InvitationRow[]
   roles: AssignmentOption[]
   teams: AssignmentOption[]
+  nextPageToken: string
 }
 
 export type ActiveMember = {
@@ -36,6 +56,7 @@ export type ActiveMember = {
   teams: string[]
   ownedAgents: number
   apiKeys: number
+  sharedAgents: number
   lastActivity: string | null
   superadmin: boolean
 }
@@ -142,13 +163,22 @@ async function superadminActor(orgSlug: string): Promise<Actor | undefined> {
   }
 }
 
-export async function getMemberDirectory(orgSlug: string): Promise<MemberDirectory | undefined> {
+export async function getMemberDirectory(
+  orgSlug: string,
+  page?: { tab: MemberTab; pageToken?: string }
+): Promise<MemberDirectory | undefined> {
   const actor = await superadminActor(orgSlug)
   if (!actor) {
     return
   }
 
   const db = getDB()
+  const memberCursor =
+    page?.tab === "active" || page?.tab === "disabled"
+      ? decodePageToken(memberPageCursor, page.pageToken)
+      : undefined
+  const invitationCursor =
+    page?.tab === "invited" ? decodePageToken(invitationPageCursor, page.pageToken) : undefined
   const [members, invitations, roleRows, teamRows] = await Promise.all([
     db
       .select({
@@ -176,12 +206,44 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
           WHERE ${schema.apiKeyScopes.organizationId} = ${actor.organization.id}
             AND ${schema.apiKeyScopes.creatorUserId} = ${sql.raw('"members"."user_id"')}
         )`,
+        sharedAgents: sql<number>`(
+          SELECT count(DISTINCT ${schema.agentShares.agentName})::int
+          FROM ${schema.agentShares}
+          LEFT JOIN ${schema.teamMembers}
+            ON ${schema.teamMembers.teamId} = ${schema.agentShares.targetTeamId}
+          WHERE ${schema.agentShares.organizationId} = ${actor.organization.id}
+            AND (
+              ${schema.agentShares.targetUserId} = ${sql.raw('"members"."user_id"')}
+              OR ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
+            )
+        )`,
       })
       .from(schema.members)
       .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
-      .where(eq(schema.members.organizationId, actor.organization.id))
-      .orderBy(asc(schema.users.name), asc(schema.users.email))
-      .limit(500),
+      .where(
+        and(
+          eq(schema.members.organizationId, actor.organization.id),
+          page?.tab === "active" ? isNull(schema.members.disabledAt) : undefined,
+          page?.tab === "disabled" ? isNotNull(schema.members.disabledAt) : undefined,
+          page?.tab === "invited" ? sql`false` : undefined,
+          memberCursor
+            ? or(
+                gt(schema.users.name, memberCursor.name),
+                and(
+                  eq(schema.users.name, memberCursor.name),
+                  gt(schema.users.email, memberCursor.email)
+                ),
+                and(
+                  eq(schema.users.name, memberCursor.name),
+                  eq(schema.users.email, memberCursor.email),
+                  gt(schema.members.id, memberCursor.id)
+                )
+              )
+            : undefined
+        )
+      )
+      .orderBy(asc(schema.users.name), asc(schema.users.email), asc(schema.members.id))
+      .limit(page ? 51 : 500),
     db
       .select({
         id: schema.organizationInvitations.id,
@@ -194,14 +256,27 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
       .where(
         and(
           eq(schema.organizationInvitations.organizationId, actor.organization.id),
-          eq(schema.organizationInvitations.status, "pending")
+          eq(schema.organizationInvitations.status, "pending"),
+          page?.tab && page.tab !== "invited" ? sql`false` : undefined,
+          invitationCursor
+            ? or(
+                lt(schema.organizationInvitations.createdAt, new Date(invitationCursor.createdAt)),
+                and(
+                  eq(
+                    schema.organizationInvitations.createdAt,
+                    new Date(invitationCursor.createdAt)
+                  ),
+                  lt(schema.organizationInvitations.id, invitationCursor.id)
+                )
+              )
+            : undefined
         )
       )
       .orderBy(
         desc(schema.organizationInvitations.createdAt),
         desc(schema.organizationInvitations.id)
       )
-      .limit(500),
+      .limit(page ? 51 : 500),
     db
       .select({ id: schema.roleScopes.roleId, name: schema.roleScopes.displayName })
       .from(schema.roleScopes)
@@ -216,9 +291,11 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
       .limit(500),
   ])
 
-  const memberIds = members.map((member) => member.id)
-  const userIds = members.map((member) => member.userId)
-  const invitationIds = invitations.map((invitation) => invitation.id)
+  const memberPage = page && members.length > 50 ? members.slice(0, 50) : members
+  const invitationPage = page && invitations.length > 50 ? invitations.slice(0, 50) : invitations
+  const memberIds = memberPage.map((member) => member.id)
+  const userIds = memberPage.map((member) => member.userId)
+  const invitationIds = invitationPage.map((invitation) => invitation.id)
   const [memberRoles, memberTeams, invitationRoles, invitationTeams] = await Promise.all([
     memberIds.length
       ? db
@@ -326,7 +403,7 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
 
   const active: ActiveMember[] = []
   const disabled: ActiveMember[] = []
-  for (const member of members) {
+  for (const member of memberPage) {
     const row = {
       ...member,
       apiKeys: member.apiKeys,
@@ -346,11 +423,24 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
   }
 
   const now = Date.now()
+  const lastMember = memberPage.at(-1)
+  const lastInvitation = invitationPage.at(-1)
+  const nextPageToken =
+    page?.tab === "invited"
+      ? invitations.length > 50 && lastInvitation
+        ? encodePageToken({
+            createdAt: lastInvitation.createdAt.toISOString(),
+            id: lastInvitation.id,
+          })
+        : ""
+      : page && members.length > 50 && lastMember
+        ? encodePageToken({ email: lastMember.email, id: lastMember.id, name: lastMember.name })
+        : ""
   return {
     active,
     actorUserId: actor.userId,
     disabled,
-    invited: invitations.map((invitation) => ({
+    invited: invitationPage.map((invitation) => ({
       ...invitation,
       createdAt: invitation.createdAt.toISOString(),
       expired: invitation.expiresAt.getTime() <= now,
@@ -361,6 +451,7 @@ export async function getMemberDirectory(orgSlug: string): Promise<MemberDirecto
       teams: teamsByInvitation.get(invitation.id) ?? [],
     })),
     organization: actor.organization,
+    nextPageToken,
     roles: roleRows,
     teams: teamRows,
   }

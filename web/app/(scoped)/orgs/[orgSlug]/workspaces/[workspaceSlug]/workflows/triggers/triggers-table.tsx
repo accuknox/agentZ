@@ -10,18 +10,10 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpDown,
-  MoreHorizontal,
-  Pencil,
-  Play,
-  Trash2,
-} from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react"
 import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
 import { formatAge } from "@/lib/format"
-import { useTokenPagination } from "@/lib/use-token-pagination"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -106,10 +98,6 @@ export function ScheduleTriggersTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at", desc: true }])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
-    pageTokenKey: "page_token",
-    tokenStackKey: "token_stack",
-  })
   const router = useRouter()
   const columns = React.useMemo<ColumnDef<WorkflowSchedule>[]>(
     () =>
@@ -208,28 +196,7 @@ export function ScheduleTriggersTable({
           </TableBody>
         </Table>
       </div>
-      {canGoPrevious || hasNextPage ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goPrevious}
-            disabled={!canGoPrevious || pending}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => goNext(nextPageToken)}
-            disabled={!hasNextPage || pending}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
-      ) : null}
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
     </div>
   )
 }

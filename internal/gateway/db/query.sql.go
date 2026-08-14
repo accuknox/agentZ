@@ -1573,6 +1573,51 @@ func (q *Queries) GatewayGetAgentOwner(ctx context.Context, arg GatewayGetAgentO
 	return i, err
 }
 
+const gatewayGetAgentShare = `-- name: GatewayGetAgentShare :one
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  target_user_id,
+  target_team_id,
+  created_by,
+  created_at
+FROM agent_shares
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND agent_name = $3
+  AND id = $4
+`
+
+type GatewayGetAgentShareParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	AgentName      string `json:"agent_name"`
+	ID             string `json:"id"`
+}
+
+func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentShareParams) (AgentShare, error) {
+	row := q.db.QueryRow(ctx, gatewayGetAgentShare,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.ID,
+	)
+	var i AgentShare
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.TargetUserID,
+		&i.TargetTeamID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const gatewayGetCleanupJob = `-- name: GatewayGetCleanupJob :one
 SELECT
   id,
@@ -2225,7 +2270,7 @@ WITH role_assignments AS (
   JOIN member_roles
     ON member_roles.member_id = members.id
     AND member_roles.organization_id = members.organization_id
-  WHERE members.user_id = $2
+  WHERE members.user_id = $6
     AND members.organization_id = $1
     AND members.disabled_at IS NULL
 
@@ -2245,7 +2290,7 @@ WITH role_assignments AS (
     ON team_role_scope.role_id = team_roles.role_id
     AND team_role_scope.organization_id = team_roles.organization_id
     AND team_role_scope.system_role IS NULL
-  WHERE members.user_id = $2
+  WHERE members.user_id = $6
     AND members.organization_id = $1
     AND members.disabled_at IS NULL
 ), actor_roles AS (
@@ -2313,11 +2358,24 @@ WHERE workspaces.organization_id = $1
           AND permission_grants.workspace_id = workspaces.id
       )
   )
+  AND (
+    NOT $2::bool
+    OR workspaces.name > $3
+    OR (
+      workspaces.name = $3
+      AND workspaces.id > $4
+    )
+  )
 ORDER BY workspaces.name, workspaces.id
+LIMIT $5
 `
 
 type GatewayListAccessibleWorkspacesParams struct {
 	OrganizationID string `json:"organization_id"`
+	CursorSet      bool   `json:"cursor_set"`
+	CursorName     string `json:"cursor_name"`
+	CursorID       string `json:"cursor_id"`
+	PageSize       int32  `json:"page_size"`
 	UserID         string `json:"user_id"`
 }
 
@@ -2328,7 +2386,14 @@ type GatewayListAccessibleWorkspacesRow struct {
 }
 
 func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg GatewayListAccessibleWorkspacesParams) ([]GatewayListAccessibleWorkspacesRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListAccessibleWorkspaces, arg.OrganizationID, arg.UserID)
+	rows, err := q.db.Query(ctx, gatewayListAccessibleWorkspaces,
+		arg.OrganizationID,
+		arg.CursorSet,
+		arg.CursorName,
+		arg.CursorID,
+		arg.PageSize,
+		arg.UserID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2450,17 +2515,43 @@ FROM agent_shares
 WHERE organization_id = $1
   AND workspace_id = $2
   AND agent_name = $3
-ORDER BY target_user_id NULLS LAST, target_team_id NULLS LAST, id
+  AND ($4::bool OR created_by = $5)
+  AND (
+    NOT $6::bool
+    OR created_at < $7
+    OR (
+      created_at = $7
+      AND id < $8
+    )
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $9
 `
 
 type GatewayListAgentSharesParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	AgentName      string `json:"agent_name"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	AgentName       string             `json:"agent_name"`
+	ManageAll       bool               `json:"manage_all"`
+	UserID          string             `json:"user_id"`
+	CursorSet       bool               `json:"cursor_set"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        string             `json:"cursor_id"`
+	PageSize        int32              `json:"page_size"`
 }
 
 func (q *Queries) GatewayListAgentShares(ctx context.Context, arg GatewayListAgentSharesParams) ([]AgentShare, error) {
-	rows, err := q.db.Query(ctx, gatewayListAgentShares, arg.OrganizationID, arg.WorkspaceID, arg.AgentName)
+	rows, err := q.db.Query(ctx, gatewayListAgentShares,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.ManageAll,
+		arg.UserID,
+		arg.CursorSet,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageSize,
+	)
 	if err != nil {
 		return nil, err
 	}

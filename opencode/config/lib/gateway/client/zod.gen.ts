@@ -191,6 +191,7 @@ export const zListWorkspacesResponse = z.object({
   workspaces: z.array(zWorkspace),
   can_create: z.boolean(),
   can_enter_organization: z.boolean(),
+  next_page_token: z.string(),
 })
 
 export const zInheritedResourceType = z.enum([
@@ -468,6 +469,7 @@ export const zAgentShare = z.object({
 
 export const zListAgentSharesResponse = z.object({
   shares: z.array(zAgentShare),
+  next_page_token: z.string(),
 })
 
 export const zSkill = z.object({
@@ -2316,6 +2318,11 @@ export const zGetTenantResponse = zTenant
  */
 export const zEnsureTenantResponse = zTenant
 
+export const zListWorkspacesQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
+})
+
 /**
  * Accessible Workspaces and navigation capabilities.
  */
@@ -2536,6 +2543,11 @@ export const zTransferAgentOwnerResponse = zAgentOwner
 
 export const zListAgentSharesPath = z.object({
   agentName: zAgentName,
+})
+
+export const zListAgentSharesQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
 })
 
 /**

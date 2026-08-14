@@ -4,7 +4,7 @@ import { CircleAlert } from "lucide-react"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
+import { listInferencePoolsPageCachedQuery } from "@/data/inference-pool.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { NewInferencePoolButton } from "./pool-sheet"
 import { InferencePoolTable } from "./pool-table"
@@ -15,15 +15,17 @@ export const metadata: Metadata = { title: "Pools" }
 
 export default function InferencePoolsPage({
   capabilities,
+  pageToken,
   scope,
 }: {
   capabilities: ResourceCapabilities
+  pageToken?: string
   scope: InferencePoolActionScope
 }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <Suspense fallback={<PoolPageSkeleton />}>
-        <Pools capabilities={capabilities} scope={scope} />
+        <Pools capabilities={capabilities} pageToken={pageToken} scope={scope} />
       </Suspense>
     </main>
   )
@@ -31,13 +33,15 @@ export default function InferencePoolsPage({
 
 async function Pools({
   capabilities,
+  pageToken,
   scope,
 }: {
   capabilities: ResourceCapabilities
+  pageToken?: string
   scope: InferencePoolActionScope
 }) {
   const [pools, providers] = await Promise.all([
-    listInferencePoolsCachedQuery(scope.workspaceId),
+    listInferencePoolsPageCachedQuery({ limit: 50, page_token: pageToken }, scope.workspaceId),
     listInferenceProvidersCachedQuery(scope.workspaceId),
   ])
   if (pools.error) {
@@ -73,7 +77,13 @@ async function Pools({
           ) : undefined
         }
       />
-      <InferencePoolTable pools={pools.pools} providers={providers.providers} scope={scope} />
+      <InferencePoolTable
+        hasNextPage={pools.hasNextPage}
+        nextPageToken={pools.nextPageToken}
+        pools={pools.pools}
+        providers={providers.providers}
+        scope={scope}
+      />
     </>
   )
 }

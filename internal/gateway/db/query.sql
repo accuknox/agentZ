@@ -587,7 +587,16 @@ WHERE workspaces.organization_id = sqlc.arg(organization_id)
           AND permission_grants.workspace_id = workspaces.id
       )
   )
-ORDER BY workspaces.name, workspaces.id;
+  AND (
+    NOT sqlc.arg(cursor_set)::bool
+    OR workspaces.name > sqlc.arg(cursor_name)
+    OR (
+      workspaces.name = sqlc.arg(cursor_name)
+      AND workspaces.id > sqlc.arg(cursor_id)
+    )
+  )
+ORDER BY workspaces.name, workspaces.id
+LIMIT sqlc.arg(page_size);
 
 -- name: GatewayUpdateWorkspaceName :one
 UPDATE workspaces
@@ -1601,7 +1610,33 @@ FROM agent_shares
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
-ORDER BY target_user_id NULLS LAST, target_team_id NULLS LAST, id;
+  AND (sqlc.arg(manage_all)::bool OR created_by = sqlc.arg(user_id))
+  AND (
+    NOT sqlc.arg(cursor_set)::bool
+    OR created_at < sqlc.arg(cursor_created_at)
+    OR (
+      created_at = sqlc.arg(cursor_created_at)
+      AND id < sqlc.arg(cursor_id)
+    )
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayGetAgentShare :one
+SELECT
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  target_user_id,
+  target_team_id,
+  created_by,
+  created_at
+FROM agent_shares
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND id = sqlc.arg(id);
 
 -- name: GatewayLockAgentShares :many
 SELECT

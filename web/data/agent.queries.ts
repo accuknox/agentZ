@@ -34,6 +34,7 @@ export type WorkspaceAgentDetail = {
   users: AgentShareTarget[]
   teams: AgentShareTarget[]
   shares: AgentShareRow[]
+  sharesNextPageToken: string
 }
 
 export async function listAgentsCachedQuery(
@@ -73,7 +74,8 @@ export async function listAgentsCachedQuery(
 export async function getWorkspaceAgentDetail(
   organizationId: string,
   workspaceId: string,
-  agentName: string
+  agentName: string,
+  sharePageToken?: string
 ): Promise<WorkspaceAgentDetail | undefined> {
   "use cache: private"
 
@@ -85,7 +87,11 @@ export async function getWorkspaceAgentDetail(
   const [agents, ownerResult, sharesResult, members, teams, eligibleRoles] = await Promise.all([
     listAgents({ query: { agent_name: [agentName], limit: 1 }, client }),
     getAgentOwner({ path: { agentName }, client }),
-    listAgentShares({ path: { agentName }, client }),
+    listAgentShares({
+      path: { agentName },
+      query: { limit: 50, page_token: sharePageToken },
+      client,
+    }),
     db
       .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
       .from(schema.members)
@@ -246,6 +252,7 @@ export async function getWorkspaceAgentDetail(
         ? (userLabels.get(share.target_user_id) ?? share.target_user_id)
         : (teamLabels.get(share.target_team_id ?? "") ?? share.target_team_id ?? "Unknown Team"),
     })),
+    sharesNextPageToken: sharesResult.error ? "" : sharesResult.data.next_page_token,
     teams: teams.map((team) => ({ id: team.id, label: team.name })),
     users: knownUsers.map((user) => ({ id: user.id, label: user.label, email: user.email })),
   }

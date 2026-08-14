@@ -1,11 +1,15 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
+import { z } from "zod"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 import { analyzeDestructiveImpact, analyzeTeamDeletionEffects } from "@/data/operations"
+import { decodePageToken, encodePageToken } from "@/data/page-token"
+
+const teamPageCursor = z.object({ id: z.string().min(1), name: z.string().min(1) })
 
 export type TeamMember = { id: string; name: string; email: string; image: string | null }
 export type TeamRole = { id: string; name: string; scope: string }
@@ -113,12 +117,13 @@ async function isSuperadmin(db: TeamDatabase, actor: TeamActor) {
   return Boolean(role)
 }
 
-export async function listTeams(orgSlug: string) {
+export async function listTeams(orgSlug: string, pageToken?: string) {
   "use cache: private"
   cacheLife({ stale: 30 })
   const actor = await getTeamActor(orgSlug)
   if (!actor) return
   cacheTag(`organization:${actor.organizationId}:teams`)
+  const cursor = decodePageToken(teamPageCursor, pageToken)
 
   const rows = await getDB()
     .select({
@@ -156,12 +161,28 @@ export async function listTeams(orgSlug: string) {
       createdAt: schema.teams.createdAt,
     })
     .from(schema.teams)
-    .where(eq(schema.teams.organizationId, actor.organizationId))
+    .where(
+      and(
+        eq(schema.teams.organizationId, actor.organizationId),
+        cursor
+          ? or(
+              gt(schema.teams.name, cursor.name),
+              and(eq(schema.teams.name, cursor.name), gt(schema.teams.id, cursor.id))
+            )
+          : undefined
+      )
+    )
     .orderBy(asc(schema.teams.name), asc(schema.teams.id))
+    .limit(51)
+
+  const hasNextPage = rows.length > 50
+  const page = hasNextPage ? rows.slice(0, 50) : rows
+  const last = page.at(-1)
 
   return {
     organizationId: actor.organizationId,
-    teams: rows.map(({ createdAt, updatedAt, ...team }) => ({
+    nextPageToken: hasNextPage && last ? encodePageToken({ id: last.id, name: last.name }) : "",
+    teams: page.map(({ createdAt, updatedAt, ...team }) => ({
       ...team,
       updatedAt: (updatedAt ?? createdAt).toISOString(),
     })),

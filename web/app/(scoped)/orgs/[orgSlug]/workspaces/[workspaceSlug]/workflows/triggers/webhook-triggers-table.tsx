@@ -1,10 +1,10 @@
 "use client"
 
+import * as React from "react"
 import { useRouter } from "@bprogress/next/app"
-import { ArrowLeft, ArrowRight } from "lucide-react"
-import { useTokenPagination } from "@/lib/use-token-pagination"
+import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { formatAge } from "@/lib/format"
 import {
   Table,
@@ -43,66 +43,92 @@ export function WebhookTriggersTable({
   nextPageToken: string
   rows: WebhookTriggerRow[]
 }) {
+  "use no memo"
+
   const router = useRouter()
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
-    pageTokenKey: "page_token",
-    tokenStackKey: "token_stack",
-  })
+  const columns = React.useMemo<ColumnDef<WebhookTriggerRow>[]>(
+    () => [
+      {
+        id: "api_key",
+        header: "API Key",
+        cell: ({ row }) => (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{row.original.apiKeyName || "Deleted key"}</span>
+              {row.original.deleted ? <Badge variant="outline">Deleted</Badge> : null}
+            </div>
+            <code className="text-muted-foreground text-xs">{row.original.apiKeyDisplay}</code>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "workflowName",
+        id: "workflow_name",
+        header: "Workflow",
+        cell: ({ row }) => <span className="font-mono text-sm">{row.original.workflowName}</span>,
+      },
+      {
+        accessorKey: "lastTriggeredAt",
+        id: "last_triggered",
+        header: "Last Triggered",
+        cell: ({ row }) => <span>{formatAge(row.original.lastTriggeredAt)}</span>,
+      },
+    ],
+    []
+  )
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() })
+
+  function open(row: WebhookTriggerRow) {
+    router.push(
+      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=webhook&workflow_name=${encodeURIComponent(row.workflowName)}&webhook_api_key_id=${encodeURIComponent(row.apiKeyID)}`
+    )
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
         <Table className="table-auto">
           <TableHeader>
-            <TableRow>
-              <TableHead className={`h-8 px-4 ${columnClassName.api_key}`}>API Key</TableHead>
-              <TableHead className={`h-8 px-4 ${columnClassName.workflow_name}`}>
-                Workflow
-              </TableHead>
-              <TableHead className={`h-8 px-4 ${columnClassName.last_triggered}`}>
-                Last Triggered
-              </TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((group) => (
+              <TableRow key={group.id}>
+                {group.headers.map((header) => (
+                  <TableHead
+                    className={`h-8 px-4 ${columnClassName[header.column.id]}`}
+                    key={header.id}
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
-            {rows.length > 0 ? (
-              rows.map((row) => (
+            {table.getRowModel().rows.length > 0 ? (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
-                  key={`${row.workflowName}:${row.apiKeyID}`}
+                  key={row.id}
                   className="cursor-pointer"
                   role="link"
                   tabIndex={0}
-                  onClick={() => {
-                    router.push(
-                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=webhook&workflow_name=${encodeURIComponent(row.workflowName)}&webhook_api_key_id=${encodeURIComponent(row.apiKeyID)}`
-                    )
-                  }}
+                  onClick={() => open(row.original)}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
-                      return
-                    }
+                    if (event.key !== "Enter" && event.key !== " ") return
 
                     event.preventDefault()
-                    router.push(
-                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=webhook&workflow_name=${encodeURIComponent(row.workflowName)}&webhook_api_key_id=${encodeURIComponent(row.apiKeyID)}`
-                    )
+                    open(row.original)
                   }}
                 >
-                  <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.api_key}`}>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{row.apiKeyName || "Deleted key"}</span>
-                        {row.deleted ? <Badge variant="outline">Deleted</Badge> : null}
-                      </div>
-                      <code className="text-muted-foreground text-xs">{row.apiKeyDisplay}</code>
-                    </div>
-                  </TableCell>
-                  <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.workflow_name}`}>
-                    <span className="font-mono text-sm">{row.workflowName}</span>
-                  </TableCell>
-                  <TableCell className={`h-11 px-4 py-1.5 ${columnClassName.last_triggered}`}>
-                    <span>{formatAge(row.lastTriggeredAt)}</span>
-                  </TableCell>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id]}`}
+                      key={cell.id}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))
             ) : (
@@ -115,28 +141,7 @@ export function WebhookTriggersTable({
           </TableBody>
         </Table>
       </div>
-      {canGoPrevious || hasNextPage ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goPrevious}
-            disabled={!canGoPrevious || pending}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => goNext(nextPageToken)}
-            disabled={!hasNextPage || pending}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
-      ) : null}
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
     </div>
   )
 }

@@ -15,6 +15,7 @@ import {
   retryWorkspace,
   type CreateWorkspaceRequest,
   type InheritedResourceType,
+  type Workspace,
 } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import {
@@ -36,13 +37,46 @@ export const getWorkspaceDirectory = cache(async (orgSlug: string) => {
   }
 
   await activateOrganization(scope.organization.id)
-  const result = await listWorkspaces({ client: getGatewayServerClient() })
-  if (result.error) {
-    throw new Error(result.error.message)
-  }
+  const client = getGatewayServerClient()
+  const workspaces: Workspace[] = []
+  let pageToken: string | undefined
+  let canCreate = false
+  let canEnterOrganization = false
+  do {
+    const result = await listWorkspaces({
+      client,
+      query: { limit: 200, page_token: pageToken },
+    })
+    if (result.error) throw new Error(result.error.message)
+    workspaces.push(...result.data.workspaces)
+    canCreate = result.data.can_create
+    canEnterOrganization = result.data.can_enter_organization
+    pageToken = result.data.next_page_token || undefined
+  } while (pageToken)
 
-  return { directory: result.data, scope }
+  return {
+    directory: {
+      can_create: canCreate,
+      can_enter_organization: canEnterOrganization,
+      next_page_token: "",
+      workspaces,
+    },
+    scope,
+  }
 })
+
+export async function getWorkspacePage(orgSlug: string, pageToken?: string) {
+  const scope = await resolveOrganizationSlug(orgSlug)
+  if (scope.kind !== "ready" || !scope.organization.hasAccess) return { scope }
+
+  await activateOrganization(scope.organization.id)
+  const result = await listWorkspaces({
+    client: getGatewayServerClient(),
+    query: { limit: 50, page_token: pageToken },
+  })
+  if (result.error) throw new Error(result.error.message)
+  return { directory: result.data, scope }
+}
 
 export const getWorkspaceScope = cache(async (orgSlug: string, workspaceSlug: string) => {
   const scope = await resolveOrganizationSlug(orgSlug)
@@ -54,25 +88,23 @@ export const getWorkspaceScope = cache(async (orgSlug: string, workspaceSlug: st
   }
 
   await activateOrganization(scope.organization.id)
-  const [directory, workspace] = await Promise.all([
-    listWorkspaces({ client: getGatewayServerClient() }),
+  const [directoryResult, workspace] = await Promise.all([
+    getWorkspaceDirectory(orgSlug),
     resolveWorkspaceSlug({
       client: getGatewayServerClient(),
       path: { workspaceSlug },
     }),
   ])
-  if (directory.error) {
-    throw new Error(directory.error.message)
-  }
+  if (!directoryResult.directory) throw new Error("workspace directory is unavailable")
   if (workspace.response?.status === 404) {
-    return { directory: directory.data, kind: "not-found" as const, scope }
+    return { directory: directoryResult.directory, kind: "not-found" as const, scope }
   }
   if (workspace.error) {
     throw new Error(workspace.error.message)
   }
 
   return {
-    directory: directory.data,
+    directory: directoryResult.directory,
     kind: "ready" as const,
     retired: workspace.data.slug !== workspaceSlug,
     scope,

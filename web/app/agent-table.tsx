@@ -11,8 +11,8 @@ import {
 } from "@tanstack/react-table"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
-import { Button } from "@/components/ui/button"
 import { RoutedTableRow } from "@/components/routed-table-row"
+import { TokenTablePagination } from "@/components/table-pagination"
 import {
   Table,
   TableBody,
@@ -23,8 +23,6 @@ import {
 } from "@/components/ui/table"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
-import { useTokenPagination } from "@/lib/use-token-pagination"
-import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
@@ -60,10 +58,6 @@ export function AgentTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
-    pageTokenKey: "page_token",
-    tokenStackKey: "token_stack",
-  })
   const columns = React.useMemo(
     () =>
       createAgentColumns(
@@ -144,28 +138,7 @@ export function AgentTable({
           </TableBody>
         </Table>
       </div>
-      {canGoPrevious || hasNextPage ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goPrevious}
-            disabled={!canGoPrevious || pending}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => goNext(nextPageToken)}
-            disabled={!hasNextPage || pending}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
-      ) : null}
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
     </div>
   )
 }

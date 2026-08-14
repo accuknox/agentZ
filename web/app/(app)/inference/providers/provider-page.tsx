@@ -4,7 +4,7 @@ import { CircleAlert } from "lucide-react"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
+import { listInferenceProvidersPageCachedQuery } from "@/data/inference-provider.queries"
 import { NewInferenceProviderButton } from "./new-provider-button"
 import { InferenceProviderTable } from "./provider-table"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
@@ -14,9 +14,11 @@ export const metadata: Metadata = { title: "Providers" }
 
 export default function InferenceProvidersPage({
   capabilities,
+  pageToken,
   scope,
 }: {
   capabilities: ResourceCapabilities
+  pageToken?: string
   scope: InferenceProviderActionScope
 }) {
   return (
@@ -26,18 +28,34 @@ export default function InferenceProvidersPage({
         title="Providers"
       />
       <Suspense fallback={<TableSkeleton />}>
-        <Providers scope={scope} />
+        <Providers pageToken={pageToken} scope={scope} />
       </Suspense>
     </main>
   )
 }
 
-async function Providers({ scope }: { scope: InferenceProviderActionScope }) {
-  const result = await listInferenceProvidersCachedQuery(scope.workspaceId)
+async function Providers({
+  pageToken,
+  scope,
+}: {
+  pageToken?: string
+  scope: InferenceProviderActionScope
+}) {
+  const result = await listInferenceProvidersPageCachedQuery(
+    { limit: 50, page_token: pageToken },
+    scope.workspaceId
+  )
   if (result.error) {
     return <ErrorPanel message={result.error.message} />
   }
-  return <InferenceProviderTable providers={result.providers} scope={scope} />
+  return (
+    <InferenceProviderTable
+      hasNextPage={result.hasNextPage}
+      nextPageToken={result.nextPageToken}
+      providers={result.providers}
+      scope={scope}
+    />
+  )
 }
 
 function TableSkeleton() {

@@ -37,6 +37,7 @@ import {
   type WatchWorkflowRunsResponse,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { useTokenPagination } from "@/lib/use-token-pagination"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -204,11 +205,11 @@ export function RunsTable({
       staleTime: Infinity,
     })
   )
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
+  const router = useRouter()
+  const { canGoPrevious, goPrevious } = useTokenPagination({
     pageTokenKey: "page_token",
     tokenStackKey: "token_stack",
   })
-  const router = useRouter()
   const rows = query.data ?? workflowRuns
   const columns = React.useMemo<ColumnDef<WorkflowRunSummary>[]>(
     () =>
@@ -310,26 +311,7 @@ export function RunsTable({
           </TableBody>
         </Table>
       </div>
-      {canGoPrevious || hasNextPage ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goPrevious}
-            disabled={!canGoPrevious || pending}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => goNext(nextPageToken)}
-            disabled={!hasNextPage || pending}
-          >
-            Next
-          </Button>
-        </div>
-      ) : null}
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
     </div>
   )
 }

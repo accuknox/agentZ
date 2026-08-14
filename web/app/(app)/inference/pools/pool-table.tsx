@@ -6,20 +6,10 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
+import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import type { Route } from "next"
 import Link from "next/link"
 import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpDown,
   ArrowUpRight,
   CheckCircle2,
   CircleAlert,
@@ -69,6 +59,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferencePoolAction } from "@/data/inference-pool.actions"
 import type { InferencePoolActionScope } from "@/data/inference-pool.actions"
 import { formatAge, formatCompactNumber } from "@/lib/format"
@@ -83,8 +74,6 @@ import {
 } from "@/lib/gateway/client"
 import { ProviderIcon } from "../providers/provider-shared"
 import { PoolSheet } from "./pool-sheet"
-
-const pageSize = 25
 
 const columnClassName: Record<string, string> = {
   display_name: "w-56",
@@ -148,10 +137,14 @@ const watchPoolsQueryOptions = (
   })
 
 export function InferencePoolTable({
+  hasNextPage,
+  nextPageToken,
   pools,
   providers,
   scope,
 }: {
+  hasNextPage: boolean
+  nextPageToken: string
   pools: InferencePool[]
   providers: InferenceProvider[]
   scope: InferencePoolActionScope
@@ -160,23 +153,7 @@ export function InferencePoolTable({
 
   const [viewing, setViewing] = React.useState<InferencePool>()
   const [editing, setEditing] = React.useState<InferencePool>()
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "updated_at", desc: true }])
-  const [page, setPage] = React.useState(0)
-  const pageCount = Math.max(1, Math.ceil(pools.length / pageSize))
-  const currentPage = Math.min(page, pageCount - 1)
-  const poolIDs = React.useMemo(() => {
-    const ordered = [...pools]
-    const sort = sorting[0]
-    if (sort?.id === "display_name") {
-      ordered.sort((a, b) => a.display_name.localeCompare(b.display_name))
-    } else {
-      ordered.sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at))
-    }
-    if (sort?.desc) ordered.reverse()
-    return ordered
-      .slice(currentPage * pageSize, currentPage * pageSize + pageSize)
-      .map((pool) => pool.id)
-  }, [currentPage, pools, sorting])
+  const poolIDs = React.useMemo(() => pools.map((pool) => pool.id), [pools])
   const watched = useQuery(watchPoolsQueryOptions(poolIDs, pools, scope)).data ?? pools
   const providerByID = React.useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),
@@ -186,15 +163,7 @@ export function InferencePoolTable({
     () => [
       {
         accessorKey: "display_name",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Name <ArrowUpDown />
-          </Button>
-        ),
+        header: "Name",
         cell: ({ row }) => (
           <span className="block truncate font-medium">{row.original.display_name}</span>
         ),
@@ -279,15 +248,7 @@ export function InferencePoolTable({
       },
       {
         accessorKey: "updated_at",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Updated <ArrowUpDown />
-          </Button>
-        ),
+        header: "Updated",
         cell: ({ row }) => formatAge(row.original.updated_at),
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
@@ -311,13 +272,7 @@ export function InferencePoolTable({
     data: watched,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: { sorting },
   })
-  const visibleRows = table
-    .getRowModel()
-    .rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize)
 
   return (
     <TooltipProvider>
@@ -341,8 +296,8 @@ export function InferencePoolTable({
               ))}
             </TableHeader>
             <TableBody>
-              {visibleRows.length ? (
-                visibleRows.map((row) => (
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
                     role="button"
@@ -375,28 +330,7 @@ export function InferencePoolTable({
             </TableBody>
           </Table>
         </div>
-        {pageCount > 1 ? (
-          <div className="flex items-center justify-end gap-2 px-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={currentPage === 0}
-              onClick={() => setPage(currentPage - 1)}
-            >
-              <ArrowLeft data-icon="inline-start" />
-              Previous
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={currentPage + 1 === pageCount}
-              onClick={() => setPage(currentPage + 1)}
-            >
-              Next
-              <ArrowRight data-icon="inline-end" />
-            </Button>
-          </div>
-        ) : null}
+        <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
         <PoolViewSheet
           pool={viewing}
           providers={providers}

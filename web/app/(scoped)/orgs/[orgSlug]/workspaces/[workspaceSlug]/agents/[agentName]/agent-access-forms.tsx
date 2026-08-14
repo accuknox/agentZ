@@ -1,7 +1,8 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState, useMemo, useState } from "react"
 import { CircleAlert, RefreshCw, Share2, Trash2 } from "lucide-react"
+import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import {
   deleteAgentShareFormAction,
   transferAgentOwnerFormAction,
@@ -13,6 +14,7 @@ import {
 import type { AgentShareRow, AgentShareTarget } from "@/data/agent.queries"
 import type { AgentShareCapability } from "@/lib/gateway/client"
 import { AccessSourceChip } from "@/components/administration"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -127,12 +129,14 @@ export function AgentShareForm({
   actionScope,
   agentName,
   shares,
+  sharesNextPageToken,
   teams,
   users,
 }: {
   actionScope: AgentActionScope
   agentName: string
   shares: AgentShareRow[]
+  sharesNextPageToken: string
   teams: AgentShareTarget[]
   users: AgentShareTarget[]
 }) {
@@ -146,9 +150,12 @@ export function AgentShareForm({
     <div className="flex min-w-0 flex-col gap-6">
       <section className="min-w-0 space-y-3">
         <h2 className="px-4 text-lg font-medium md:px-6">Current shares</h2>
-        <div className="w-full min-w-0 border-b">
-          <AgentSharesTable actionScope={actionScope} agentName={agentName} shares={shares} />
-        </div>
+        <AgentSharesTable
+          actionScope={actionScope}
+          agentName={agentName}
+          nextPageToken={sharesNextPageToken}
+          shares={shares}
+        />
       </section>
       <section className="max-w-3xl min-w-0 space-y-3">
         <h2 className="px-4 text-lg font-medium md:px-6">Add or replace share</h2>
@@ -253,53 +260,101 @@ export function AgentShareForm({
 function AgentSharesTable({
   actionScope,
   agentName,
+  nextPageToken,
   shares,
 }: {
   actionScope: AgentActionScope
   agentName: string
+  nextPageToken: string
   shares: AgentShareRow[]
 }) {
-  if (shares.length === 0) {
-    return (
-      <div className="text-muted-foreground flex min-h-24 items-center justify-center text-sm">
-        No shares
-      </div>
-    )
-  }
+  "use no memo"
+
+  const columns = useMemo<ColumnDef<AgentShareRow>[]>(
+    () => [
+      { accessorKey: "target_label", header: "Target" },
+      {
+        id: "source",
+        header: "Source",
+        cell: ({ row }) => (
+          <AccessSourceChip source={row.original.target_user_id ? "Direct Share" : "Team Share"} />
+        ),
+      },
+      {
+        accessorKey: "capabilities",
+        header: "Capabilities",
+        cell: ({ row }) =>
+          row.original.capabilities.map((capability) => capability.replaceAll("_", " ")).join(", "),
+      },
+      { accessorKey: "created_by_label", header: "Created by" },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <DeleteShareButton
+            actionScope={actionScope}
+            agentName={agentName}
+            shareId={row.original.id}
+          />
+        ),
+      },
+    ],
+    [actionScope, agentName]
+  )
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({ columns, data: shares, getCoreRowModel: getCoreRowModel() })
 
   return (
-    <Table aria-label={`${agentName} shares`}>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Target</TableHead>
-          <TableHead>Source</TableHead>
-          <TableHead>Capabilities</TableHead>
-          <TableHead>Created by</TableHead>
-          <TableHead className="w-16 text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {shares.map((share) => (
-          <TableRow key={share.id}>
-            <TableCell className="break-words">{share.target_label}</TableCell>
-            <TableCell>
-              <AccessSourceChip source={share.target_user_id ? "Direct Share" : "Team Share"} />
-            </TableCell>
-            <TableCell>
-              {share.capabilities.map((capability) => capability.replaceAll("_", " ")).join(", ")}
-            </TableCell>
-            <TableCell className="break-words">{share.created_by_label}</TableCell>
-            <TableCell className="text-right">
-              <DeleteShareButton
-                actionScope={actionScope}
-                agentName={agentName}
-                shareId={share.id}
-              />
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <div className="flex flex-col gap-3">
+      <div className="w-full min-w-0 border-b">
+        <Table aria-label={`${agentName} shares`}>
+          <TableHeader>
+            {table.getHeaderGroups().map((group) => (
+              <TableRow key={group.id}>
+                {group.headers.map((header) => (
+                  <TableHead
+                    className={header.column.id === "actions" ? "w-16 text-right" : undefined}
+                    key={header.id}
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      className={
+                        cell.column.id === "actions"
+                          ? "text-right"
+                          : cell.column.id === "target_label" ||
+                              cell.column.id === "created_by_label"
+                            ? "break-words"
+                            : undefined
+                      }
+                      key={cell.id}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell className="h-24 text-center" colSpan={columns.length}>
+                  No shares
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
+    </div>
   )
 }
 

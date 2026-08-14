@@ -2,8 +2,9 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import type { UrlObject } from "node:url"
-import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
+import { and, asc, eq, gt, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
+import { z } from "zod"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 import {
@@ -12,6 +13,9 @@ import {
   type CascadingAgent,
   type WorkspaceAccessLoss,
 } from "@/data/operations"
+import { decodePageToken, encodePageToken } from "@/data/page-token"
+
+const rolePageCursor = z.object({ id: z.string().min(1), name: z.string().min(1) })
 
 export type RoleResource = typeof schema.permissionGrants.$inferSelect.resource
 export type RoleAction = typeof schema.permissionGrants.$inferSelect.action
@@ -391,7 +395,7 @@ async function validateGrantScopes(organizationId: string, grants: RoleGrantInpu
   })
 }
 
-export async function listOrganizationRoles(orgSlug: string) {
+export async function listOrganizationRoles(orgSlug: string, pageToken?: string) {
   "use cache: private"
   cacheLife({ stale: 30 })
   const scope = await resolveRoleManagement(orgSlug)
@@ -400,7 +404,7 @@ export async function listOrganizationRoles(orgSlug: string) {
     `organization:${scope.actor.organization.id}:roles`,
     `organization:${scope.actor.organization.id}:user:${scope.actor.userId}:roles`
   )
-  return { organization: scope.actor.organization, roles: await listRoles(scope) }
+  return { organization: scope.actor.organization, ...(await listRoles(scope, pageToken)) }
 }
 
 export async function getRoleEditorData(
@@ -666,7 +670,8 @@ function grantScope(scope: RoleManagement) {
   )
 }
 
-async function listRoles(scope: RoleManagement) {
+async function listRoles(scope: RoleManagement, pageToken?: string) {
+  const cursor = decodePageToken(rolePageCursor, pageToken)
   const rows = await getDB()
     .select({
       id: schema.roleScopes.roleId,
@@ -690,9 +695,25 @@ async function listRoles(scope: RoleManagement) {
       )`,
     })
     .from(schema.roleScopes)
-    .where(roleScope(scope))
-    .orderBy(asc(schema.roleScopes.systemRole), asc(schema.roleScopes.displayName))
-  const stored = rows.length
+    .where(
+      and(
+        roleScope(scope),
+        cursor
+          ? or(
+              gt(schema.roleScopes.displayName, cursor.name),
+              and(
+                eq(schema.roleScopes.displayName, cursor.name),
+                gt(schema.roleScopes.roleId, cursor.id)
+              )
+            )
+          : undefined
+      )
+    )
+    .orderBy(asc(schema.roleScopes.displayName), asc(schema.roleScopes.roleId))
+    .limit(51)
+  const hasNextPage = rows.length > 50
+  const page = hasNextPage ? rows.slice(0, 50) : rows
+  const stored = page.length
     ? await getDB()
         .select()
         .from(schema.permissionGrants)
@@ -702,13 +723,13 @@ async function listRoles(scope: RoleManagement) {
             ne(schema.permissionGrants.resource, "api_key"),
             inArray(
               schema.permissionGrants.roleId,
-              rows.map(({ id }) => id)
+              page.map(({ id }) => id)
             )
           )
         )
     : []
 
-  return rows.map((row): OrganizationRoleSummary => {
+  const roles = page.map((row): OrganizationRoleSummary => {
     const roleGrants = stored.filter(({ roleId }) => roleId === row.id)
     const expected = expandPermissionGrants(
       roleGrants
@@ -731,6 +752,11 @@ async function listRoles(scope: RoleManagement) {
       updatedAt: row.updatedAt.toISOString(),
     }
   })
+  const last = page.at(-1)
+  return {
+    nextPageToken: hasNextPage && last ? encodePageToken({ id: last.id, name: last.name }) : "",
+    roles,
+  }
 }
 
 async function loadRoleEditor(scope: RoleManagement, roleId?: string): Promise<RoleEditorData> {
@@ -1674,7 +1700,11 @@ async function removeRole(scope: RoleManagement, roleId: string) {
   })
 }
 
-export async function listWorkspaceRoles(orgSlug: string, workspaceSlug: string) {
+export async function listWorkspaceRoles(
+  orgSlug: string,
+  workspaceSlug: string,
+  pageToken?: string
+) {
   "use cache: private"
   cacheLife({ stale: 30 })
   const scope = await resolveRoleManagement(orgSlug, workspaceSlug)
@@ -1685,7 +1715,7 @@ export async function listWorkspaceRoles(orgSlug: string, workspaceSlug: string)
   )
   return {
     organization: scope.actor.organization,
-    roles: await listRoles(scope),
+    ...(await listRoles(scope, pageToken)),
     superadmin: scope.superadmin,
     workspace: scope.workspace,
   }

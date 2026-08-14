@@ -2328,12 +2328,15 @@ components:
     ListAgentSharesResponse:
       additionalProperties: false
       properties:
+        next_page_token:
+          type: string
         shares:
           items:
             $ref: '#/components/schemas/AgentShare'
           type: array
       required:
       - shares
+      - next_page_token
       type: object
     ListAgentsResponse:
       additionalProperties: false
@@ -2674,6 +2677,8 @@ components:
           type: boolean
         can_enter_organization:
           type: boolean
+        next_page_token:
+          type: string
         workspaces:
           items:
             $ref: '#/components/schemas/Workspace'
@@ -2682,6 +2687,7 @@ components:
       - workspaces
       - can_create
       - can_enter_organization
+      - next_page_token
       type: object
     MCPConnectionAuth:
       additionalProperties: false
@@ -24104,6 +24110,8 @@ paths:
       operationId: listAgentShares
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         "200":
           content:
@@ -39706,6 +39714,9 @@ paths:
       description: |
         Lists nondeleted Workspaces accessible to the current active Organisation membership. Superadmins receive every Workspace.
       operationId: listWorkspaces
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         "200":
           content:

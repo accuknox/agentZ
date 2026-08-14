@@ -1,7 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import {
+  type CellContext,
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
 import { AdministrationPageHeader } from "@/components/administration"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { CodeBlock } from "@/components/ai-elements/code-block"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import {
@@ -20,7 +28,6 @@ import type {
 import { formatAge } from "@/lib/format"
 import { ResultBadge } from "./event-trail-event"
 import { EventTrailFilters } from "./event-trail-filters"
-import { EventTrailPagination } from "./event-trail-pagination"
 
 export function EventTrailEvents({
   eventTrail,
@@ -31,7 +38,98 @@ export function EventTrailEvents({
   filters: EventTrailFilter[]
   workspace?: { name: string }
 }) {
+  "use no memo"
+
   const [selected, setSelected] = useState<EventTrailEvent>()
+  const columns = useMemo<ColumnDef<EventTrailEvent>[]>(
+    () => [
+      {
+        accessorKey: "created_at",
+        header: "Time",
+        cell: ({ row }) => (
+          <time className="text-muted-foreground text-xs" dateTime={row.original.created_at}>
+            {formatAge(row.original.created_at)}
+          </time>
+        ),
+      },
+      {
+        id: "actor",
+        header: "Actor",
+        cell: ({ row }) => (
+          <>
+            <span
+              className="block truncate"
+              title={row.original.actor.name ?? row.original.actor.email ?? row.original.actor.id}
+            >
+              {row.original.actor.name ??
+                row.original.actor.email ??
+                row.original.actor.id ??
+                "System"}
+            </span>
+            <span className="text-muted-foreground text-xs">{row.original.actor.type}</span>
+          </>
+        ),
+      },
+      {
+        accessorKey: "action",
+        header: "Event",
+        cell: ({ row }) => (
+          <>
+            <span className="font-mono text-sm font-medium">{row.original.action}</span>
+            <span className="text-muted-foreground mt-1 block text-xs md:hidden">
+              {row.original.actor.name ??
+                row.original.actor.email ??
+                row.original.actor.id ??
+                "System"}
+            </span>
+          </>
+        ),
+      },
+      {
+        id: "target",
+        header: "Target",
+        cell: ({ row }) => (
+          <>
+            <span
+              className="block truncate"
+              title={row.original.target.name ?? row.original.target.id}
+            >
+              {row.original.target.name ?? row.original.target.id}
+            </span>
+            <span className="text-muted-foreground text-xs">{row.original.target.type}</span>
+          </>
+        ),
+      },
+      ...(!workspace
+        ? [
+            {
+              id: "workspace",
+              header: "Workspace",
+              cell: ({ row }: CellContext<EventTrailEvent, unknown>) => (
+                <span
+                  className="block truncate"
+                  title={row.original.workspace?.name ?? row.original.workspace?.id}
+                >
+                  {row.original.workspace?.name ?? row.original.workspace?.id ?? "Organisation"}
+                </span>
+              ),
+            } satisfies ColumnDef<EventTrailEvent>,
+          ]
+        : []),
+      {
+        accessorKey: "result",
+        header: "Result",
+        cell: ({ row }) => <ResultBadge result={row.original.result} />,
+      },
+    ],
+    [workspace]
+  )
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({
+    columns,
+    data: eventTrail.events,
+    getCoreRowModel: getCoreRowModel(),
+  })
 
   return (
     <Sheet open={selected !== undefined} onOpenChange={(open) => !open && setSelected(undefined)}>
@@ -49,72 +147,61 @@ export function EventTrailEvents({
             }
           >
             <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead className="hidden md:table-cell">Actor</TableHead>
-                <TableHead>Event</TableHead>
-                <TableHead>Target</TableHead>
-                {!workspace ? (
-                  <TableHead className="hidden lg:table-cell">Workspace</TableHead>
-                ) : null}
-                <TableHead>Result</TableHead>
-              </TableRow>
+              {table.getHeaderGroups().map((group) => (
+                <TableRow key={group.id}>
+                  {group.headers.map((header) => (
+                    <TableHead
+                      className={
+                        header.column.id === "actor"
+                          ? "hidden md:table-cell"
+                          : header.column.id === "workspace"
+                            ? "hidden lg:table-cell"
+                            : undefined
+                      }
+                      key={header.id}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
-              {eventTrail.events.length ? (
-                eventTrail.events.map((event) => (
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => (
                   <TableRow
-                    aria-label={`View event trail event: ${event.action}`}
+                    aria-label={`View event trail event: ${row.original.action}`}
                     className="focus-visible:ring-ring cursor-pointer focus-visible:ring-2 focus-visible:ring-inset"
-                    key={event.id}
-                    onClick={() => setSelected(event)}
+                    key={row.id}
+                    onClick={() => setSelected(row.original)}
                     onKeyDown={(keyboardEvent) => {
                       if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return
                       keyboardEvent.preventDefault()
-                      setSelected(event)
+                      setSelected(row.original)
                     }}
                     role="button"
                     tabIndex={0}
                   >
-                    <TableCell className="min-w-36">
-                      <time className="text-muted-foreground text-xs" dateTime={event.created_at}>
-                        {formatAge(event.created_at)}
-                      </time>
-                    </TableCell>
-                    <TableCell className="hidden max-w-56 md:table-cell">
-                      <span
-                        className="block truncate"
-                        title={event.actor.name ?? event.actor.email ?? event.actor.id}
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        className={
+                          cell.column.id === "created_at"
+                            ? "min-w-36"
+                            : cell.column.id === "actor"
+                              ? "hidden max-w-56 md:table-cell"
+                              : cell.column.id === "action"
+                                ? "min-w-48"
+                                : cell.column.id === "workspace"
+                                  ? "hidden max-w-56 lg:table-cell"
+                                  : cell.column.id === "target"
+                                    ? "max-w-56"
+                                    : undefined
+                        }
+                        key={cell.id}
                       >
-                        {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
-                      </span>
-                      <span className="text-muted-foreground text-xs">{event.actor.type}</span>
-                    </TableCell>
-                    <TableCell className="min-w-48">
-                      <span className="font-mono text-sm font-medium">{event.action}</span>
-                      <span className="text-muted-foreground mt-1 block text-xs md:hidden">
-                        {event.actor.name ?? event.actor.email ?? event.actor.id ?? "System"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="max-w-56">
-                      <span className="block truncate" title={event.target.name ?? event.target.id}>
-                        {event.target.name ?? event.target.id}
-                      </span>
-                      <span className="text-muted-foreground text-xs">{event.target.type}</span>
-                    </TableCell>
-                    {!workspace ? (
-                      <TableCell className="hidden max-w-56 lg:table-cell">
-                        <span
-                          className="block truncate"
-                          title={event.workspace?.name ?? event.workspace?.id}
-                        >
-                          {event.workspace?.name ?? event.workspace?.id ?? "Organisation"}
-                        </span>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
-                    ) : null}
-                    <TableCell>
-                      <ResultBadge result={event.result} />
-                    </TableCell>
+                    ))}
                   </TableRow>
                 ))
               ) : (
@@ -126,11 +213,12 @@ export function EventTrailEvents({
               )}
             </TableBody>
           </Table>
-          {eventTrail.events.length ? (
-            <div className="py-3">
-              <EventTrailPagination nextPageToken={eventTrail.next_page_token} />
-            </div>
-          ) : null}
+          <div className="py-3">
+            <TokenTablePagination
+              hasNextPage={Boolean(eventTrail.next_page_token)}
+              nextPageToken={eventTrail.next_page_token}
+            />
+          </div>
         </div>
       </div>
       <SheetContent className="gap-0 overflow-hidden p-0 sm:w-[35rem]! sm:max-w-none!">

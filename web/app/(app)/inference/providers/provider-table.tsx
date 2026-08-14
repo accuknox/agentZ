@@ -6,18 +6,8 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
+import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
-import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpDown,
   CheckCircle2,
   CircleAlert,
   CircleDashed,
@@ -56,6 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferenceProviderAction } from "@/data/inference-provider.actions"
 import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
 import { formatAge } from "@/lib/format"
@@ -67,8 +58,6 @@ import {
 } from "@/lib/gateway/client"
 import { ProviderSheet } from "./provider-sheet"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
-
-const pageSize = 25
 
 const columnClassName: Record<string, string> = {
   display_name: "w-64",
@@ -140,9 +129,13 @@ const watchProvidersQueryOptions = (
   })
 
 export function InferenceProviderTable({
+  hasNextPage,
+  nextPageToken,
   providers,
   scope,
 }: {
+  hasNextPage: boolean
+  nextPageToken: string
   providers: InferenceProvider[]
   scope: InferenceProviderActionScope
 }) {
@@ -150,25 +143,11 @@ export function InferenceProviderTable({
 
   const watched = useQuery(watchProvidersQueryOptions(providers, scope)).data ?? providers
   const [editing, setEditing] = React.useState<InferenceProvider>()
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "updated_at", desc: true }])
-  const [page, setPage] = React.useState(0)
-
-  const pageCount = Math.max(1, Math.ceil(watched.length / pageSize))
-  const currentPage = Math.min(page, pageCount - 1)
   const columns = React.useMemo<ColumnDef<InferenceProvider>[]>(
     () => [
       {
         accessorKey: "display_name",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Name
-            <ArrowUpDown />
-          </Button>
-        ),
+        header: "Name",
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-2">
             <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
@@ -198,16 +177,7 @@ export function InferenceProviderTable({
       },
       {
         accessorKey: "updated_at",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Updated
-            <ArrowUpDown />
-          </Button>
-        ),
+        header: "Updated",
         cell: ({ row }) => <span>{formatAge(row.original.updated_at)}</span>,
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
@@ -226,14 +196,7 @@ export function InferenceProviderTable({
     data: watched,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: { sorting },
   })
-
-  const visibleRows = table
-    .getRowModel()
-    .rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize)
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -256,8 +219,8 @@ export function InferenceProviderTable({
             ))}
           </TableHeader>
           <TableBody>
-            {visibleRows.length > 0 ? (
-              visibleRows.map((row) => (
+            {table.getRowModel().rows.length > 0 ? (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
                   className={row.original.can_modify ? "cursor-pointer" : undefined}
@@ -295,28 +258,7 @@ export function InferenceProviderTable({
           </TableBody>
         </Table>
       </div>
-      {pageCount > 1 ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={currentPage === 0}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={currentPage + 1 === pageCount}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
-      ) : null}
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
 
       <ProviderSheet
         key={editing?.id ?? "closed"}

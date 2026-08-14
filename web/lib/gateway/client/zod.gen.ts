@@ -191,6 +191,7 @@ export const zListWorkspacesResponse = z.object({
   workspaces: z.array(zWorkspace),
   can_create: z.boolean(),
   can_enter_organization: z.boolean(),
+  next_page_token: z.string(),
 })
 
 export const zInheritedResourceType = z.enum([
@@ -468,6 +469,7 @@ export const zAgentShare = z.object({
 
 export const zListAgentSharesResponse = z.object({
   shares: z.array(zAgentShare),
+  next_page_token: z.string(),
 })
 
 export const zSkill = z.object({

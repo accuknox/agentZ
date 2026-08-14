@@ -3,8 +3,6 @@
 import * as React from "react"
 import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
-  ArrowLeft,
-  ArrowRight,
   Brain,
   Calendar,
   CircleAlert,
@@ -38,8 +36,7 @@ import type {
 } from "@/data/types"
 import { Badge } from "@/components/ui/badge"
 import { CodeBlock } from "@/components/ai-elements/code-block"
-import { Button } from "@/components/ui/button"
-import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination"
+import { TablePagination, TokenTablePagination } from "@/components/table-pagination"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -61,7 +58,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { useTokenPagination } from "@/lib/use-token-pagination"
 
 const columnClassName: Record<string, string> = {
   trace: "min-w-40 w-[20%]",
@@ -385,7 +381,7 @@ export function TracesTable({
         </div>
         <div className="flex h-12 w-full items-center gap-3 px-6">
           <span className="text-muted-foreground text-xs">{data.traces.length} rows</span>
-          <TracePagination hasNextPage={data.hasNextPage} nextPageToken={data.nextPageToken} />
+          <TokenTablePagination hasNextPage={data.hasNextPage} nextPageToken={data.nextPageToken} />
         </div>
       </div>
       <TraceInspector
@@ -615,30 +611,13 @@ function SpansInspectorContent({
         <aside className="bg-background min-h-0 border-b lg:border-r lg:border-b-0">
           <div className="bg-muted/10 flex h-10 items-center justify-between px-4 lg:px-5">
             <div className="text-sm font-medium">Spans ({data.spans.length})</div>
-            {canGoPrevious || data.hasNextPage ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={!canGoPrevious || pagePending}
-                  onClick={onPreviousPage}
-                >
-                  <ArrowLeft data-icon="inline-start" />
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={!data.hasNextPage || pagePending}
-                  onClick={onNextPage}
-                >
-                  Next
-                  <ArrowRight data-icon="inline-end" />
-                </Button>
-              </div>
-            ) : null}
+            <TablePagination
+              canGoNext={data.hasNextPage}
+              canGoPrevious={canGoPrevious}
+              goNext={onNextPage}
+              goPrevious={onPreviousPage}
+              pending={pagePending}
+            />
           </div>
           <div className="max-h-72 overflow-auto py-2 pb-5 lg:h-[calc(100vh-134px)] lg:max-h-none lg:pb-8">
             {data.spans.length > 0 ? (
@@ -1355,52 +1334,6 @@ function InspectorSkeleton() {
         <Skeleton className="mt-6 h-64 w-full" />
       </div>
     </div>
-  )
-}
-
-function TracePagination({
-  hasNextPage,
-  nextPageToken,
-}: {
-  hasNextPage: boolean
-  nextPageToken: string
-}) {
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
-    pageTokenKey: "page_token",
-    tokenStackKey: "token_stack",
-  })
-
-  if (!canGoPrevious && !hasNextPage) {
-    return null
-  }
-
-  return (
-    <Pagination className="mx-0 ml-auto w-fit justify-end" data-pending={pending}>
-      <PaginationContent>
-        <PaginationItem>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={!canGoPrevious || pending}
-            onClick={goPrevious}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-        </PaginationItem>
-        <PaginationItem>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={!hasNextPage || pending}
-            onClick={() => goNext(nextPageToken)}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </PaginationItem>
-      </PaginationContent>
-    </Pagination>
   )
 }
 

@@ -172,6 +172,7 @@ export type ListWorkspacesResponse = {
   workspaces: Array<Workspace>
   can_create: boolean
   can_enter_organization: boolean
+  next_page_token: string
 }
 
 export type CreateWorkspaceRequest = {
@@ -370,6 +371,7 @@ export type ListAgentsResponse = {
 
 export type ListAgentSharesResponse = {
   shares: Array<AgentShare>
+  next_page_token: string
 }
 
 export type ListSkillsResponse = {
@@ -2274,7 +2276,16 @@ export type EnsureTenantResponse = EnsureTenantResponses[keyof EnsureTenantRespo
 export type ListWorkspacesData = {
   body?: never
   path?: never
-  query?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
   url: "/api/workspace"
 }
 
@@ -3272,7 +3283,16 @@ export type ListAgentSharesData = {
      */
     agentName: AgentName
   }
-  query?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
   url: "/api/agent/{agentName}/share"
 }
 

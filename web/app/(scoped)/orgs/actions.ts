@@ -5,7 +5,7 @@ import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } from "@/data/cache"
-import { renameOrganization, switchOrganization } from "@/data/organizations"
+import { switchOrganization, updateOrganizationName } from "@/data/organizations"
 import { deleteWorkspace, getDestructiveImpact } from "@/data/operations"
 import {
   acceptInvitation,
@@ -39,20 +39,13 @@ import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
 import { zReplaceWorkspaceInheritedResourcesRequest } from "@/lib/gateway/client/zod.gen"
 import type { InheritedResourceType } from "@/lib/gateway/client"
 
-const renameOrganizationSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Enter an Organisation name.")
-    .max(100, "Use 100 characters or fewer.")
-    .refine((name) => name.trim() === name, {
-      message: "Remove leading or trailing spaces.",
-    }),
-  slug: z
-    .string()
-    .min(3, "Use at least 3 characters.")
-    .max(63, "Use 63 characters or fewer.")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and single hyphens."),
-})
+const organizationNameSchema = z
+  .string()
+  .min(1, "Enter an Organisation name.")
+  .max(100, "Use 100 characters or fewer.")
+  .refine((name) => name.trim() === name, {
+    message: "Remove leading or trailing spaces.",
+  })
 const roleGrantSchema = z.object({
   workspaceId: z.string().min(1).nullable(),
   resource: z.enum(schema.permissionResource.enumValues),
@@ -173,15 +166,11 @@ export async function prepareWorkspaceDeleteAction(orgSlug: string, workspaceId:
   }
 }
 
-export type RenameOrganizationFormState = {
-  values: {
-    name: string
-    slug: string
-  }
+export type UpdateOrganizationNameFormState = {
+  name: string
   errors?: {
     form?: string
     name?: string[]
-    slug?: string[]
   }
 }
 
@@ -379,36 +368,25 @@ export async function acceptInvitationAction(token: string): Promise<never> {
   redirect(`/orgs/${result.slug}` as Route)
 }
 
-export async function renameOrganizationAction(
+export async function updateOrganizationNameAction(
   organizationId: string,
-  _state: RenameOrganizationFormState,
+  state: UpdateOrganizationNameFormState,
   formData: FormData
-): Promise<RenameOrganizationFormState> {
-  const values = {
-    name: formData.get("name"),
-    slug: formData.get("slug"),
-  }
-  const parsed = renameOrganizationSchema.safeParse(values)
+): Promise<UpdateOrganizationNameFormState> {
+  const parsed = organizationNameSchema.safeParse(formData.get("name"))
   if (!parsed.success) {
-    const fields = z.flattenError(parsed.error).fieldErrors
     return {
-      values: _state.values,
-      errors: {
-        name: fields.name,
-        slug: fields.slug,
-      },
+      name: state.name,
+      errors: { name: parsed.error.issues.map((issue) => issue.message) },
     }
   }
 
-  const result = await renameOrganization(organizationId, parsed.data)
+  const result = await updateOrganizationName(organizationId, parsed.data)
   if ("error" in result) {
     return {
-      values: parsed.data,
+      name: parsed.data,
       errors: {
-        form:
-          result.error === "slug-unavailable"
-            ? "That slug is unavailable. Choose another."
-            : "You no longer have permission to rename this Organisation.",
+        form: "You no longer have permission to rename this Organisation.",
       },
     }
   }

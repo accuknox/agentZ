@@ -4,8 +4,8 @@ import { useActionState } from "react"
 import { Save } from "lucide-react"
 import type { OrganizationSummary } from "@/data/organizations"
 import {
-  renameOrganizationAction,
-  type RenameOrganizationFormState,
+  type UpdateOrganizationNameFormState,
+  updateOrganizationNameAction,
 } from "@/app/(scoped)/orgs/actions"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -13,14 +13,9 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 
 export function OrganizationForm({ organization }: { organization: OrganizationSummary }) {
-  const initialState: RenameOrganizationFormState = {
-    values: {
-      name: organization.name,
-      slug: organization.slug,
-    },
-  }
+  const initialState: UpdateOrganizationNameFormState = { name: organization.name }
   const [state, action, pending] = useActionState(
-    renameOrganizationAction.bind(null, organization.id),
+    updateOrganizationNameAction.bind(null, organization.id),
     initialState
   )
 
@@ -37,7 +32,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
             </FieldLabel>
             <Input
               aria-invalid={Boolean(state.errors?.name)}
-              defaultValue={state.values.name}
+              defaultValue={state.name}
               id="organization-name"
               maxLength={100}
               name="name"
@@ -47,26 +42,16 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
               <FieldError errors={state.errors.name.map((message) => ({ message }))} />
             ) : null}
           </Field>
-          <Field data-invalid={Boolean(state.errors?.slug)}>
-            <FieldLabel htmlFor="organization-slug" required>
-              URL slug
-            </FieldLabel>
+          <Field>
+            <FieldLabel htmlFor="organization-slug">Slug</FieldLabel>
             <Input
-              aria-invalid={Boolean(state.errors?.slug)}
               autoCapitalize="none"
               autoCorrect="off"
-              defaultValue={state.values.slug}
+              defaultValue={organization.slug}
+              disabled
               id="organization-slug"
-              maxLength={63}
-              minLength={3}
-              name="slug"
-              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              required
               spellCheck={false}
             />
-            {state.errors?.slug ? (
-              <FieldError errors={state.errors.slug.map((message) => ({ message }))} />
-            ) : null}
           </Field>
           {state.errors?.form ? <FieldError errors={[{ message: state.errors.form }]} /> : null}
         </FieldGroup>

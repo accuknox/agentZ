@@ -91,7 +91,7 @@ export default async function WorkspaceLayout({
   const requestedPath =
     requestHeaders.get("x-agentz-pathname") ?? `/orgs/${orgSlug}/workspaces/${workspaceSlug}`
   const requestedURL = new URL(requestedPath, "http://agentz.local")
-  if (result.scope.retired || result.retired) {
+  if (result.retired) {
     const prefix = `/orgs/${orgSlug}/workspaces/${workspaceSlug}`
     const canonical =
       `/orgs/${result.scope.organization.slug}/workspaces/${result.workspace.slug}` as const

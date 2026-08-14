@@ -4838,21 +4838,6 @@ func (q *Queries) GatewayRenameWorkspace(ctx context.Context, arg GatewayRenameW
 	return i, err
 }
 
-const gatewayReserveOrganizationSlug = `-- name: GatewayReserveOrganizationSlug :exec
-INSERT INTO organization_slug_history(slug, organization_id)
-VALUES ($1, $2)
-`
-
-type GatewayReserveOrganizationSlugParams struct {
-	Slug           string `json:"slug"`
-	OrganizationID string `json:"organization_id"`
-}
-
-func (q *Queries) GatewayReserveOrganizationSlug(ctx context.Context, arg GatewayReserveOrganizationSlugParams) error {
-	_, err := q.db.Exec(ctx, gatewayReserveOrganizationSlug, arg.Slug, arg.OrganizationID)
-	return err
-}
-
 const gatewayReserveWorkspaceSlug = `-- name: GatewayReserveWorkspaceSlug :exec
 INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
 VALUES (
@@ -4871,30 +4856,6 @@ type GatewayReserveWorkspaceSlugParams struct {
 func (q *Queries) GatewayReserveWorkspaceSlug(ctx context.Context, arg GatewayReserveWorkspaceSlugParams) error {
 	_, err := q.db.Exec(ctx, gatewayReserveWorkspaceSlug, arg.OrganizationID, arg.WorkspaceID, arg.Slug)
 	return err
-}
-
-const gatewayResolveOrganizationSlug = `-- name: GatewayResolveOrganizationSlug :one
-SELECT
-  organizations.id,
-  organizations.name,
-  organizations.slug
-FROM organization_slug_history
-JOIN organizations
-  ON organizations.id = organization_slug_history.organization_id
-WHERE organization_slug_history.slug = $1
-`
-
-type GatewayResolveOrganizationSlugRow struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-func (q *Queries) GatewayResolveOrganizationSlug(ctx context.Context, slug string) (GatewayResolveOrganizationSlugRow, error) {
-	row := q.db.QueryRow(ctx, gatewayResolveOrganizationSlug, slug)
-	var i GatewayResolveOrganizationSlugRow
-	err := row.Scan(&i.ID, &i.Name, &i.Slug)
-	return i, err
 }
 
 const gatewayResolvePermissions = `-- name: GatewayResolvePermissions :many

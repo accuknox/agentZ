@@ -1,5 +1,5 @@
 import type { Metadata, Route } from "next"
-import { notFound, permanentRedirect, redirect } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
@@ -38,10 +38,6 @@ async function OrganizationProvisioning({ params }: { params: Promise<{ orgSlug:
   if (scope.kind !== "ready") {
     notFound()
   }
-  if (scope.retired) {
-    permanentRedirect(`/orgs/${scope.organization.slug}/setting-up` as Route)
-  }
-
   await activateOrganization(scope.organization.id)
   const tenant = await ensureTenant({
     client: getGatewayServerClient(),

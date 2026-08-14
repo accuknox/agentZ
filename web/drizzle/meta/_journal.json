@@ -85,6 +85,20 @@
       "when": 1786684128639,
       "tag": "0011_bearer_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786700116068,
+      "tag": "0012_remove_organization_slug_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786700119971,
+      "tag": "0013_protect_organization_slug",
+      "breakpoints": true
     }
   ]
 }

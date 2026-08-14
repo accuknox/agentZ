@@ -142,7 +142,7 @@ export const resolveOrganizationSlug = cache(async (slug: string) => {
   }
 
   const db = getDB()
-  let [organization] = await db
+  const [organization] = await db
     .select({
       id: schema.organizations.id,
       name: schema.organizations.name,
@@ -151,24 +151,6 @@ export const resolveOrganizationSlug = cache(async (slug: string) => {
     .from(schema.organizations)
     .where(eq(schema.organizations.slug, slug))
     .limit(1)
-
-  if (!organization) {
-    const [historical] = await db
-      .select({
-        id: schema.organizations.id,
-        name: schema.organizations.name,
-        slug: schema.organizations.slug,
-      })
-      .from(schema.organizationSlugHistory)
-      .innerJoin(
-        schema.organizations,
-        eq(schema.organizations.id, schema.organizationSlugHistory.organizationId)
-      )
-      .where(eq(schema.organizationSlugHistory.slug, slug))
-      .limit(1)
-
-    organization = historical
-  }
 
   if (!organization) {
     return { kind: "not-found" as const }
@@ -204,7 +186,6 @@ export const resolveOrganizationSlug = cache(async (slug: string) => {
     kind: "ready" as const,
     organization: accessible,
     organizationSession,
-    retired: accessible.slug !== slug,
   }
 })
 
@@ -314,14 +295,12 @@ export async function rememberOrganizationRoute(
     })
 }
 
-export type RenameOrganizationResult =
-  | { slug: string }
-  | { error: "forbidden" | "not-found" | "slug-unavailable" }
+export type UpdateOrganizationNameResult = { slug: string } | { error: "forbidden" | "not-found" }
 
-export async function renameOrganization(
+export async function updateOrganizationName(
   organizationId: string,
-  input: { name: string; slug: string }
-): Promise<RenameOrganizationResult> {
+  name: string
+): Promise<UpdateOrganizationNameResult> {
   const organizationSession = await getOrganizationSession()
   if (!organizationSession) {
     return { error: "forbidden" }
@@ -351,14 +330,8 @@ export async function renameOrganization(
       targetId: organization.id,
       category: "organization",
       action: "organization.rename",
-      before: [
-        { field: "name", value: organization.name },
-        { field: "slug", value: organization.slug },
-      ],
-      after: [
-        { field: "name", value: input.name },
-        { field: "slug", value: input.slug },
-      ],
+      before: [{ field: "name", value: organization.name }],
+      after: [{ field: "name", value: name }],
     } satisfies Omit<typeof schema.eventTrailEvents.$inferInsert, "result">
 
     const [member] = await tx
@@ -400,39 +373,13 @@ export async function renameOrganization(
       return { error: "forbidden" as const }
     }
 
-    if (organization.slug !== input.slug) {
-      const [canonicalSlug] = await tx
-        .select({ id: schema.organizations.id })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.slug, input.slug))
-        .limit(1)
-      if (canonicalSlug) {
-        await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "denied" })
-        return { error: "slug-unavailable" as const }
-      }
-
-      await tx
-        .insert(schema.organizationSlugHistory)
-        .values({ organizationId: organization.id, slug: organization.slug })
-        .onConflictDoNothing()
-      const [reservedSlug] = await tx
-        .insert(schema.organizationSlugHistory)
-        .values({ organizationId: organization.id, slug: input.slug })
-        .onConflictDoNothing()
-        .returning({ slug: schema.organizationSlugHistory.slug })
-      if (!reservedSlug) {
-        await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "denied" })
-        return { error: "slug-unavailable" as const }
-      }
-    }
-
     await tx
       .update(schema.organizations)
-      .set({ name: input.name, slug: input.slug })
+      .set({ name })
       .where(eq(schema.organizations.id, organization.id))
     await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "succeeded" })
 
-    return { slug: input.slug }
+    return { slug: organization.slug }
   })
 }
 

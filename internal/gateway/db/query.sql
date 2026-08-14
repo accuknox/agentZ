@@ -662,20 +662,6 @@ WHERE id = sqlc.arg(id)
   )
   AND deleted_at IS NULL;
 
--- name: GatewayReserveOrganizationSlug :exec
-INSERT INTO organization_slug_history(slug, organization_id)
-VALUES (sqlc.arg(slug), sqlc.arg(organization_id));
-
--- name: GatewayResolveOrganizationSlug :one
-SELECT
-  organizations.id,
-  organizations.name,
-  organizations.slug
-FROM organization_slug_history
-JOIN organizations
-  ON organizations.id = organization_slug_history.organization_id
-WHERE organization_slug_history.slug = sqlc.arg(slug);
-
 -- name: GatewayReserveWorkspaceSlug :exec
 INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
 VALUES (

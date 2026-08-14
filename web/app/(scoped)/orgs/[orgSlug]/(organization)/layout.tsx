@@ -1,6 +1,6 @@
 import type { Route } from "next"
 import { headers } from "next/headers"
-import { notFound, permanentRedirect, redirect } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { AdministrationLayout, AdministrationState } from "@/components/administration"
 import { AppShell } from "@/components/blocks/app-shell"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
@@ -71,15 +71,6 @@ export default async function OrganizationLayout({
     )
   }
 
-  const requestHeaders = await headers()
-  const requestedPath = requestHeaders.get("x-agentz-pathname") ?? `/orgs/${orgSlug}`
-  const requestedURL = new URL(requestedPath, "http://agentz.local")
-  if (result.retired) {
-    const prefix = `/orgs/${orgSlug}`
-    requestedURL.pathname = `/orgs/${result.organization.slug}${requestedURL.pathname.slice(prefix.length)}`
-    permanentRedirect(`${requestedURL.pathname}${requestedURL.search}` as Route)
-  }
-
   await activateOrganization(result.organization.id)
   if (!result.organization.hasAccess) {
     return (
@@ -128,6 +119,9 @@ export default async function OrganizationLayout({
   }
 
   const root = `/orgs/${result.organization.slug}`
+  const requestHeaders = await headers()
+  const requestedPath = requestHeaders.get("x-agentz-pathname") ?? root
+  const requestedURL = new URL(requestedPath, "http://agentz.local")
   const rememberedPath = requestedURL.pathname.startsWith(`${root}/event-trail/`)
     ? `${root}/event-trail`
     : requestedURL.pathname

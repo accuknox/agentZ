@@ -10,6 +10,11 @@ The top-level product tenant and governance scope. An Organisation may contain
 members, Teams, Workspaces, and shared resources.
 _Avoid_: Tenant, account
 
+**Organisation Slug**:
+The immutable, globally unique URL identifier assigned when an Organisation is
+created.
+_Avoid_: Organisation name, alias
+
 **Organisation Membership**:
 One User's enabled or disabled membership in one Organisation. It does not own
 the User or affect the User's memberships in other Organisations.

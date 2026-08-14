@@ -111,9 +111,7 @@ type Querier interface {
 	GatewayRemoveSocialAdmissionDefaultTeam(ctx context.Context, arg GatewayRemoveSocialAdmissionDefaultTeamParams) (int64, error)
 	GatewayRemoveSocialAdmissionGoogleDomain(ctx context.Context, arg GatewayRemoveSocialAdmissionGoogleDomainParams) (int64, error)
 	GatewayRenameWorkspace(ctx context.Context, arg GatewayRenameWorkspaceParams) (Workspace, error)
-	GatewayReserveOrganizationSlug(ctx context.Context, arg GatewayReserveOrganizationSlugParams) error
 	GatewayReserveWorkspaceSlug(ctx context.Context, arg GatewayReserveWorkspaceSlugParams) error
-	GatewayResolveOrganizationSlug(ctx context.Context, slug string) (GatewayResolveOrganizationSlugRow, error)
 	GatewayResolvePermissions(ctx context.Context, arg GatewayResolvePermissionsParams) ([]GatewayResolvePermissionsRow, error)
 	GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (GatewayResolveWorkspaceSlugRow, error)
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)

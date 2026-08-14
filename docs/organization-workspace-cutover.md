@@ -78,8 +78,7 @@ Verify before ending maintenance:
 
 - each active account opens
   `/orgs/{orgSlug}/workspaces/{defaultWorkspaceSlug}`;
-- recorded Organisation and Workspace slugs permanently redirect to their
-  canonical scoped URL;
+- recorded Workspace slugs permanently redirect to their canonical scoped URL;
 - Tenant and Workspace resources are Ready and use deterministic namespaces;
 - migrated Agents, Workflows, Secrets, Skills, API keys, telemetry, OpenBao
   data, and S3 objects are available only in the Default Workspace;

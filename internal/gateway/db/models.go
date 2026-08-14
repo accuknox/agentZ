@@ -1028,12 +1028,6 @@ type OrganizationRole struct {
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 }
 
-type OrganizationSlugHistory struct {
-	Slug           string             `json:"slug"`
-	OrganizationID string             `json:"organization_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
 type PermissionGrant struct {
 	RoleID         string             `json:"role_id"`
 	OrganizationID string             `json:"organization_id"`

@@ -184,14 +184,6 @@ export const workspaceInheritedResources = pgTable(
   ]
 )
 
-export const organizationSlugHistory = pgTable("organization_slug_history", {
-  slug: text("slug").primaryKey(),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "restrict" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-})
-
 export const workspaceSlugHistory = pgTable(
   "workspace_slug_history",
   {

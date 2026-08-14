@@ -422,23 +422,6 @@ function buildAuth() {
           superadmin: superadminRole,
         },
         organizationHooks: {
-          beforeCreateOrganization: async ({ organization }) => {
-            if (!organization.slug) {
-              return
-            }
-
-            const [reservedSlug] = await getDB()
-              .select({ slug: schema.organizationSlugHistory.slug })
-              .from(schema.organizationSlugHistory)
-              .where(eq(schema.organizationSlugHistory.slug, organization.slug))
-              .limit(1)
-            if (reservedSlug) {
-              throw APIError.from("BAD_REQUEST", {
-                code: "ORGANIZATION_SLUG_UNAVAILABLE",
-                message: "That Organisation slug is unavailable.",
-              })
-            }
-          },
           beforeUpdateOrganization: async () => {
             throw APIError.from("FORBIDDEN", {
               code: "GOVERNED_ORGANIZATION_MUTATION_REQUIRED",
@@ -474,13 +457,6 @@ function buildAuth() {
                   memberId: member.id,
                   organizationId: organization.id,
                   roleId,
-                })
-                .onConflictDoNothing()
-              await tx
-                .insert(schema.organizationSlugHistory)
-                .values({
-                  organizationId: organization.id,
-                  slug: organization.slug,
                 })
                 .onConflictDoNothing()
             })

@@ -348,8 +348,8 @@ export async function socialAdmissionAction(
   if ("error" in result) {
     return {
       error:
-        result.error === "default-role-required"
-          ? "Enable Social Admission only after selecting at least one default Role."
+        result.error === "default-access-required"
+          ? "Enable Social Admission only after selecting at least one default Role or Team."
           : "Social Admission could not be saved.",
     }
   }

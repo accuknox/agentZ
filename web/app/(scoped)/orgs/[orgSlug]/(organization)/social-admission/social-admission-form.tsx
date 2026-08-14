@@ -1,12 +1,12 @@
 "use client"
 
-import type { Route } from "next"
 import Link from "next/link"
 import { Fragment, useActionState, useEffect, useMemo, useState } from "react"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
-import { ArrowRight, CircleAlert, Plus, Save, X } from "lucide-react"
+import { ArrowRight, CircleAlert, Info, Plus, Save, X } from "lucide-react"
 import { socialAdmissionAction, type SocialAdmissionFormState } from "@/app/(scoped)/orgs/actions"
 import type { SocialAdmission } from "@/data/members"
+import type { EventTrailFilter } from "@/lib/gateway/client"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/ui/copy-button"
@@ -56,6 +56,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
   const [roleIds, setRoleIds] = useState(data.defaultRoleIds)
   const [teamIds, setTeamIds] = useState(data.defaultTeamIds)
   const [dirty, setDirty] = useState(false)
+  const [accessInvalid, setAccessInvalid] = useState(false)
   const [actionState, setActionState] = useState(state)
   if (actionState !== state) {
     setActionState(state)
@@ -67,7 +68,8 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       !githubOrganizationPattern.test(rule.organization.trim()) ||
       (rule.team !== null && rule.team !== "" && !githubTeamPattern.test(rule.team.trim()))
   )
-  const invalid = enabled && (roleIds.length === 0 || githubInvalid || Boolean(domainError))
+  const hasDefaultAccess = roleIds.length + teamIds.length > 0
+  const invalid = enabled && (githubInvalid || Boolean(domainError))
   const qualifiedWorkspaces = useMemo(
     () =>
       data.workspaces.flatMap((workspace) => {
@@ -116,6 +118,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       action={action}
       className="flex max-w-4xl min-w-0 flex-col gap-8 px-4 pb-6 md:px-6"
       onChange={() => setDirty(true)}
+      onSubmit={(event) => {
+        if (!enabled || hasDefaultAccess) return
+        event.preventDefault()
+        setAccessInvalid(true)
+      }}
     >
       {submittedRoleIds.map((id) => (
         <input key={id} name="role_ids" type="hidden" value={id} />
@@ -134,7 +141,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       ))}
 
       <section className="flex flex-col gap-5">
-        <Field className="border-b pb-6" orientation="horizontal">
+        <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="social-admission-enabled">Enable Social Sign Up</FieldLabel>
             <FieldDescription>
@@ -148,24 +155,31 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             name="enabled"
             onCheckedChange={(checked) => {
               setEnabled(checked)
+              setAccessInvalid(false)
               setDomainError(undefined)
               setDirty(true)
             }}
           />
         </Field>
         {state.error ? (
-          <Alert variant="destructive">
+          <Alert
+            className="-mx-4 w-[100cqw] max-w-none rounded-none border-x-0 px-4 md:-mx-6 md:px-6"
+            variant="destructive"
+          >
             <CircleAlert aria-hidden="true" />
             <AlertTitle>Policy not saved</AlertTitle>
             <AlertDescription>{state.error}</AlertDescription>
           </Alert>
         ) : null}
-        {enabled && roleIds.length === 0 ? (
-          <Alert variant="warning">
+        {enabled && !hasDefaultAccess ? (
+          <Alert
+            className="-mx-4 w-[100cqw] max-w-none rounded-none border-x-0 px-4 md:-mx-6 md:px-6"
+            variant="warning"
+          >
             <CircleAlert aria-hidden="true" />
-            <AlertTitle>Default role required</AlertTitle>
+            <AlertTitle>Default access required</AlertTitle>
             <AlertDescription>
-              Select at least one default role before enabling Social Sign Up.
+              Select at least one default role or team before saving Social Sign Up.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -180,17 +194,19 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                 Assign roles and teams once when a qualifying account joins.
               </p>
             </div>
-            <FieldGroup className="grid md:grid-cols-2">
-              <Field data-invalid={roleIds.length === 0}>
-                <FieldLabel htmlFor="default-roles" required>
-                  Default roles
-                </FieldLabel>
+            <FieldGroup
+              className="grid md:grid-cols-2"
+              data-invalid={accessInvalid && !hasDefaultAccess}
+            >
+              <Field data-invalid={accessInvalid && !hasDefaultAccess}>
+                <FieldLabel htmlFor="default-roles">Default roles</FieldLabel>
                 <MultiSelectDropdown
                   emptyMessage="No roles available."
                   id="default-roles"
-                  invalid={roleIds.length === 0}
+                  invalid={accessInvalid && !hasDefaultAccess}
                   onValueChangeAction={(value) => {
                     setRoleIds(value)
+                    if (value.length + teamIds.length > 0) setAccessInvalid(false)
                     setDirty(true)
                   }}
                   options={data.roles.map((role) => ({ label: role.name, value: role.id }))}
@@ -198,17 +214,16 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                   searchPlaceholder="Search roles..."
                   value={roleIds}
                 />
-                <FieldError>
-                  {roleIds.length === 0 ? "Select at least one default role." : null}
-                </FieldError>
               </Field>
-              <Field>
+              <Field data-invalid={accessInvalid && !hasDefaultAccess}>
                 <FieldLabel htmlFor="default-teams">Default teams</FieldLabel>
                 <MultiSelectDropdown
                   emptyMessage="No teams available."
                   id="default-teams"
+                  invalid={accessInvalid && !hasDefaultAccess}
                   onValueChangeAction={(value) => {
                     setTeamIds(value)
+                    if (roleIds.length + value.length > 0) setAccessInvalid(false)
                     setDirty(true)
                   }}
                   options={data.teams.map((team) => ({ label: team.name, value: team.id }))}
@@ -217,6 +232,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                   value={teamIds}
                 />
               </Field>
+              {accessInvalid && !hasDefaultAccess ? (
+                <FieldError className="md:col-span-2">
+                  Select at least one default role or team.
+                </FieldError>
+              ) : null}
             </FieldGroup>
 
             <div className="flex flex-col gap-3 pt-2">
@@ -226,49 +246,49 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                   Workspaces reached through the selected default roles and teams.
                 </p>
               </div>
-              <Table aria-label="Qualified workspaces" className="w-full table-fixed">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-2/5 px-3">Workspace</TableHead>
-                    <TableHead className="px-3">Granted through</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {qualifiedWorkspaces.length ? (
-                    qualifiedWorkspaces.map((workspace) => (
-                      <TableRow key={workspace.id}>
-                        <TableCell className="h-11 px-3 font-medium whitespace-normal">
-                          {workspace.name}
-                        </TableCell>
-                        <TableCell className="h-11 px-3 whitespace-normal">
-                          <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                            {workspace.sources.map((source) => (
-                              <span key={`${source.kind}:${source.name}`}>
-                                <span className="text-foreground font-medium">{source.kind}</span>
-                                {" · "}
-                                {source.name}
-                              </span>
-                            ))}
-                          </div>
+              <div className="-mx-4 w-[100cqw] min-w-0 border-b md:-mx-6">
+                <Table aria-label="Qualified workspaces" className="w-full table-fixed">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-2/5">Workspace</TableHead>
+                      <TableHead>Granted through</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {qualifiedWorkspaces.length ? (
+                      qualifiedWorkspaces.map((workspace) => (
+                        <TableRow key={workspace.id}>
+                          <TableCell className="font-medium whitespace-normal">
+                            {workspace.name}
+                          </TableCell>
+                          <TableCell className="whitespace-normal">
+                            <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+                              {workspace.sources.map((source) => (
+                                <span key={`${source.kind}:${source.name}`}>
+                                  <span className="text-foreground font-medium">{source.kind}</span>
+                                  {" · "}
+                                  {source.name}
+                                </span>
+                              ))}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell
+                          className="text-muted-foreground h-24 text-center whitespace-normal"
+                          colSpan={2}
+                        >
+                          No workspaces are granted by the selected defaults
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        className="text-muted-foreground h-20 px-3 text-center whitespace-normal"
-                        colSpan={2}
-                      >
-                        No workspaces are granted by the selected defaults
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </section>
-
-          <Separator />
 
           <section className="flex flex-col gap-6">
             <div className="flex flex-col gap-1">
@@ -340,7 +360,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
               </Field>
             </div>
 
-            <Separator />
+            <Separator className="-mx-4 w-[100cqw] md:-mx-6" />
 
             <div className="grid gap-5 md:grid-cols-[11rem_minmax(0,1fr)]">
               <ProviderHeading
@@ -459,7 +479,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             </div>
           </section>
 
-          <Alert>
+          <Alert
+            className="-mx-4 w-[100cqw] max-w-none rounded-none border-x-0 px-4 md:-mx-6 md:px-6"
+            variant="info"
+          >
+            <Info aria-hidden="true" />
             <AlertTitle>Membership lifecycle</AlertTitle>
             <AlertDescription>
               These rules are evaluated only when a qualifying Social account joins this
@@ -475,11 +499,20 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             <JoinLink label="GitHub" link={data.joinLinks.github} />
             <Button asChild className="w-fit" variant="link">
               <Link
-                href={
-                  `/orgs/${orgSlug}/event-trail?category=membership&target_type=organization` as Route
-                }
+                href={{
+                  pathname: `/orgs/${orgSlug}/event-trail`,
+                  query: {
+                    filters: JSON.stringify([
+                      { field: "category", values: ["membership"] },
+                      {
+                        field: "target_type",
+                        values: ["organization_membership"],
+                      },
+                    ] satisfies EventTrailFilter[]),
+                  },
+                }}
               >
-                Review Social Admission eventTrail events
+                Review membership event trail
                 <ArrowRight data-icon="inline-end" />
               </Link>
             </Button>
@@ -487,10 +520,10 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         </>
       ) : null}
 
-      <div className="flex justify-end border-t pt-6">
+      <div className="-mx-4 flex w-[100cqw] justify-end border-t px-4 pt-6 md:-mx-6 md:px-6">
         <Button disabled={pending || invalid} type="submit">
           {pending ? <Spinner /> : <Save data-icon="inline-start" />}
-          {pending ? "Saving..." : "Save Social Admission"}
+          {pending ? "Saving..." : "Save Admission Policy"}
         </Button>
       </div>
     </form>

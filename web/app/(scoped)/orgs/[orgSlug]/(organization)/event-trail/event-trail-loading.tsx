@@ -18,7 +18,7 @@ export function EventTrailLoading({ workspace = false }: { workspace?: boolean }
         <Skeleton className="h-7 w-28" />
         <Skeleton className="h-7 w-20" />
       </div>
-      <div className="w-full min-w-0 border-b">
+      <div className="w-full min-w-0">
         <Table aria-label="Loading event trail table">
           <TableHeader>
             <TableRow>

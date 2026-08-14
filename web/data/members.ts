@@ -1216,8 +1216,9 @@ export async function saveSocialAdmission(
   }
 
   const roleIds = [...new Set(input.roleIds)]
-  if (input.enabled && roleIds.length === 0) {
-    return { error: "default-role-required" as const }
+  const teamIds = [...new Set(input.teamIds)]
+  if (input.enabled && roleIds.length + teamIds.length === 0) {
+    return { error: "default-access-required" as const }
   }
 
   const domains = [
@@ -1241,7 +1242,6 @@ export async function saveSocialAdmission(
       return { error: "forbidden" as const }
     }
 
-    const teamIds = [...new Set(input.teamIds)]
     const [roles, teams] = await Promise.all([
       roleIds.length
         ? tx

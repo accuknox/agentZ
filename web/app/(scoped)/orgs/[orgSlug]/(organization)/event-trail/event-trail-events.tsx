@@ -140,7 +140,7 @@ export function EventTrailEvents({
           hideWorkspace={Boolean(workspace)}
           options={eventTrail.filter_options}
         />
-        <div className="w-full min-w-0 border-b">
+        <div className="w-full min-w-0">
           <Table
             aria-label={
               workspace ? `${workspace.name} event trail events` : "Organisation event trail events"

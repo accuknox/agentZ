@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import type { UrlObject } from "node:url"
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
@@ -14,6 +15,7 @@ type UpdateSandboxPageProps = {
   params: Promise<{
     name: string
   }>
+  providersHref: UrlObject
   workspaceId?: string
 }
 
@@ -32,13 +34,19 @@ export async function generateMetadata({
 export default async function UpdateSandboxPage({
   basePath,
   params,
+  providersHref,
   workspaceId,
 }: UpdateSandboxPageProps) {
   const { name } = await params
 
   return (
     <Suspense fallback={<UpdateSandboxSkeleton />}>
-      <UpdateSandboxContent basePath={basePath} name={name} workspaceId={workspaceId} />
+      <UpdateSandboxContent
+        basePath={basePath}
+        name={name}
+        providersHref={providersHref}
+        workspaceId={workspaceId}
+      />
     </Suspense>
   )
 }
@@ -46,10 +54,12 @@ export default async function UpdateSandboxPage({
 async function UpdateSandboxContent({
   basePath,
   name,
+  providersHref,
   workspaceId,
 }: {
   basePath: string
   name: string
+  providersHref: UrlObject
   workspaceId?: string
 }) {
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
@@ -109,6 +119,7 @@ async function UpdateSandboxContent({
       <SandboxWizard
         key={wizardKey}
         mode="update"
+        providersHref={providersHref}
         scope={{ basePath, workspaceId }}
         initialName={sandbox.name}
         initialPackages={sandbox.packages ?? []}

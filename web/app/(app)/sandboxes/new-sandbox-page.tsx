@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import type { UrlObject } from "node:url"
 import { Suspense } from "react"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { defaultSandboxPackages } from "@/data/sandbox-defaults"
@@ -13,9 +14,11 @@ export const metadata: Metadata = {
 
 export default function NewSandboxPage({
   basePath,
+  providersHref,
   workspaceId,
 }: {
   basePath: string
+  providersHref: UrlObject
   workspaceId?: string
 }) {
   return (
@@ -24,7 +27,11 @@ export default function NewSandboxPage({
         <h1 className="text-2xl font-semibold tracking-normal">New sandbox</h1>
       </div>
       <Suspense fallback={<WizardSkeleton />}>
-        <NewSandboxWizard basePath={basePath} workspaceId={workspaceId} />
+        <NewSandboxWizard
+          basePath={basePath}
+          providersHref={providersHref}
+          workspaceId={workspaceId}
+        />
       </Suspense>
     </main>
   )
@@ -32,9 +39,11 @@ export default function NewSandboxPage({
 
 async function NewSandboxWizard({
   basePath,
+  providersHref,
   workspaceId,
 }: {
   basePath: string
+  providersHref: UrlObject
   workspaceId?: string
 }) {
   const [result, skills, providers, pools] = await Promise.all([
@@ -48,6 +57,7 @@ async function NewSandboxWizard({
   return (
     <SandboxWizard
       mode="create"
+      providersHref={providersHref}
       scope={{ basePath, workspaceId }}
       initialPackages={[...defaultSandboxPackages]}
       immutableSkills={skills.skills ?? []}

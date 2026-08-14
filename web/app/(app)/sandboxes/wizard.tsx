@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+import type { UrlObject } from "node:url"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
 import {
@@ -20,6 +22,7 @@ import {
   Cable,
   ChevronDown,
   CircleAlert,
+  ExternalLink,
   Globe2,
   Layers3,
   ScrollText,
@@ -44,6 +47,14 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import {
   Field,
   FieldDescription,
@@ -184,6 +195,7 @@ type SandboxWizardProps = {
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
   mode: SandboxWizardMode
+  providersHref: UrlObject
   scope: SandboxActionScope
   secretHostSuggestions?: Promise<SecretHost[]>
 }
@@ -215,6 +227,7 @@ type ModelsStepProps = {
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
   initialInference?: SandboxInference
+  providersHref: UrlObject
   scope: SandboxActionScope
   onAdvanceAction: () => void
   onNext: (inference: SandboxInference) => void
@@ -1196,6 +1209,7 @@ function ModelsStep({
   inferenceProviders,
   inferencePools,
   initialInference,
+  providersHref,
   scope,
   onAdvanceAction,
   onNext,
@@ -1366,57 +1380,62 @@ function ModelsStep({
       }}
     >
       {providers.length === 0 && pools.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
-          <Brain className="text-muted-foreground size-8" aria-hidden="true" />
-          <div>
-            <p className="font-medium">No inference providers are configured</p>
-            <p className="text-muted-foreground mt-1 text-sm">
+        <Empty className="gap-3 p-8">
+          <EmptyHeader>
+            <EmptyMedia>
+              <Brain className="text-muted-foreground size-8" aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>No inference providers are configured</EmptyTitle>
+            <EmptyDescription>
               Add a provider, then refresh this catalog without losing the rest of your draft.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <a href={`${scope.basePath}/inference/providers`} target="_blank" rel="noreferrer">
-                Open provider setup
-              </a>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={refreshing}
-              onClick={() =>
-                startRefresh(async () => {
-                  const providerResult = await refreshInferenceProvidersAction(scope)
-                  const poolResult = scope.workspaceId
-                    ? await refreshInferencePoolsAction({
-                        basePath: scope.basePath,
-                        workspaceId: scope.workspaceId,
-                      })
-                    : { pools: [], error: undefined }
-                  if (providerResult.error || poolResult.error) {
-                    setRefreshError(
-                      providerResult.error?.message ??
-                        poolResult.error?.message ??
-                        "Inference catalog could not be refreshed"
-                    )
-                    return
-                  }
-                  setRefreshError("")
-                  setProviders(providerResult.providers)
-                  setPools(poolResult.pools)
-                })
-              }
-            >
-              {refreshing ? <Spinner /> : <RefreshCw />} Refresh
-            </Button>
-          </div>
-          {refreshError ? (
-            <Alert variant="destructive">
-              <CircleAlert />
-              <AlertDescription>{refreshError}</AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <div className="flex gap-2">
+              <Button asChild variant="outline">
+                <Link href={providersHref} target="_blank" rel="noreferrer">
+                  Open provider setup
+                  <ExternalLink data-icon="inline-end" />
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={refreshing}
+                onClick={() =>
+                  startRefresh(async () => {
+                    const providerResult = await refreshInferenceProvidersAction(scope)
+                    const poolResult = scope.workspaceId
+                      ? await refreshInferencePoolsAction({
+                          basePath: scope.basePath,
+                          workspaceId: scope.workspaceId,
+                        })
+                      : { pools: [], error: undefined }
+                    if (providerResult.error || poolResult.error) {
+                      setRefreshError(
+                        providerResult.error?.message ??
+                          poolResult.error?.message ??
+                          "Inference catalog could not be refreshed"
+                      )
+                      return
+                    }
+                    setRefreshError("")
+                    setProviders(providerResult.providers)
+                    setPools(poolResult.pools)
+                  })
+                }
+              >
+                {refreshing ? <Spinner /> : <RefreshCw />} Refresh
+              </Button>
+            </div>
+            {refreshError ? (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertDescription>{refreshError}</AlertDescription>
+              </Alert>
+            ) : null}
+          </EmptyContent>
+        </Empty>
       ) : (
         <div className="grid min-h-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="order-2 min-w-0 lg:order-1">
@@ -2103,6 +2122,7 @@ export function SandboxWizard({
   inferencePools,
   mcpConnections,
   mode,
+  providersHref,
   scope,
   secretHostSuggestions,
 }: SandboxWizardProps) {
@@ -2264,6 +2284,7 @@ export function SandboxWizard({
                   inferenceProviders={inferenceProviders}
                   inferencePools={inferencePools}
                   initialInference={data.inference ?? initialInference}
+                  providersHref={providersHref}
                   scope={scope}
                   onAdvanceAction={() => {
                     pendingNavigationRef.current = undefined

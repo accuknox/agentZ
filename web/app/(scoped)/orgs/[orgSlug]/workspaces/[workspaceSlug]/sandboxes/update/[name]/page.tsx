@@ -18,6 +18,9 @@ export default async function UpdateWorkspaceSandboxPage({
     <UpdateSandboxPage
       basePath={basePath}
       params={Promise.resolve({ name: values.name })}
+      providersHref={{
+        pathname: `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/inference/providers`,
+      }}
       workspaceId={scope.workspace.id}
     />
   )

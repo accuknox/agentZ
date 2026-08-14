@@ -12,5 +12,13 @@ export default async function NewWorkspaceSandboxPage({
   if (scope.kind !== "ready" || !scope.workspace.sandbox_capabilities.create)
     return <AdministrationState kind="forbidden" />
   const basePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/sandboxes`
-  return <NewSandboxPage basePath={basePath} workspaceId={scope.workspace.id} />
+  return (
+    <NewSandboxPage
+      basePath={basePath}
+      providersHref={{
+        pathname: `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/inference/providers`,
+      }}
+      workspaceId={scope.workspace.id}
+    />
+  )
 }

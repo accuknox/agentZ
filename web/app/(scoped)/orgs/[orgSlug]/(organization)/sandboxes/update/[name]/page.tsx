@@ -21,6 +21,9 @@ export default async function UpdateOrganizationSandboxPage({
     <UpdateSandboxPage
       basePath={`/orgs/${scope.organization.slug}/sandboxes`}
       params={Promise.resolve({ name: values.name })}
+      providersHref={{
+        pathname: `/orgs/${scope.organization.slug}/inference/providers`,
+      }}
     />
   )
 }

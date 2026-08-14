@@ -15,5 +15,12 @@ export default async function NewOrganizationSandboxPage({
   await activateOrganization(scope.organization.id)
   const tenant = await ensureTenant({ client: getGatewayServerClient(), throwOnError: true })
   if (!tenant.data?.sandbox_capabilities.create) return <AdministrationState kind="forbidden" />
-  return <NewSandboxPage basePath={`/orgs/${scope.organization.slug}/sandboxes`} />
+  return (
+    <NewSandboxPage
+      basePath={`/orgs/${scope.organization.slug}/sandboxes`}
+      providersHref={{
+        pathname: `/orgs/${scope.organization.slug}/inference/providers`,
+      }}
+    />
+  )
 }

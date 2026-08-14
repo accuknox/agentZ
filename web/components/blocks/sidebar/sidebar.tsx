@@ -346,7 +346,11 @@ function OrganizationNavigation({
             {organization.superadmin ? (
               <>
                 <SidebarMenuItem>
-                  <SidebarNavigationLink href={`${root}/users` as Route} label="Users">
+                  <SidebarNavigationLink
+                    href={`${root}/users/status/active` as Route}
+                    label="Users"
+                    match={`${root}/users`}
+                  >
                     <CircleUserRound aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>

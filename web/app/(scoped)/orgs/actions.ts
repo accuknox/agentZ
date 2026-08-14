@@ -70,6 +70,10 @@ const teamFormSchema = z.object({
   roleIds: z.array(z.string().min(1)).min(1, "Select at least one Role.").max(1_000),
   updatedAt: z.string().optional(),
 })
+const invitationAccessSchema = z.object({
+  roleIds: z.array(z.string().min(1)),
+  teamIds: z.array(z.string().min(1)),
+})
 const socialAdmissionFormSchema = z
   .object({
     enabled: z.boolean(),
@@ -110,8 +114,8 @@ const socialAdmissionFormSchema = z
         })
       }
     })
-    if (data.enabled && data.roleIds.length === 0) {
-      ctx.addIssue({ code: "custom", message: "Select at least one default Role." })
+    if (data.enabled && data.roleIds.length + data.teamIds.length === 0) {
+      ctx.addIssue({ code: "custom", message: "Select at least one default Role or Team." })
     }
   })
 
@@ -250,21 +254,11 @@ export async function createInvitationAction(
   _state: InvitationFormState,
   formData: FormData
 ): Promise<InvitationFormState> {
-  const parsed = z
-    .object({
-      invitationId: z.string().min(1).nullable(),
-      roleIds: z.array(z.string().min(1)),
-      teamIds: z.array(z.string().min(1)),
-    })
-    .safeParse({
-      invitationId: formData.get("invitation_id"),
-      roleIds: formData.getAll("role_ids"),
-      teamIds: formData.getAll("team_ids"),
-    })
-  if (!parsed.success) {
-    return { error: "Select at least one initial Role or Team." }
-  }
-  if (parsed.data.roleIds.length + parsed.data.teamIds.length === 0) {
+  const parsed = invitationAccessSchema.safeParse({
+    roleIds: formData.getAll("role_ids"),
+    teamIds: formData.getAll("team_ids"),
+  })
+  if (!parsed.success || parsed.data.roleIds.length + parsed.data.teamIds.length === 0) {
     return { error: "Select at least one initial Role or Team." }
   }
 
@@ -273,14 +267,14 @@ export async function createInvitationAction(
     return { error: "Invitation could not be created." }
   }
 
-  revalidatePath(`/orgs/${orgSlug}/users`, "page")
+  revalidatePath(`/orgs/${orgSlug}/users/status/invited`, "page")
   return { link: `${getEnv().BETTER_AUTH_URL}/accept-invitation/${result.token}` }
 }
 
 export async function cancelInvitationAction(orgSlug: string, invitationId: string) {
   const result = await cancelInvitation(orgSlug, invitationId)
   if ("error" in result) throw new Error("Invitation could not be cancelled.")
-  revalidatePath(`/orgs/${orgSlug}/users`, "page")
+  revalidatePath(`/orgs/${orgSlug}/users/status/invited`, "page")
 }
 
 export async function restoreMembershipAction(orgSlug: string, memberId: string) {
@@ -289,7 +283,8 @@ export async function restoreMembershipAction(orgSlug: string, memberId: string)
     throw new Error("Membership could not be restored.")
   }
 
-  revalidatePath(`/orgs/${orgSlug}/users`, "page")
+  revalidatePath(`/orgs/${orgSlug}/users/status/active`, "page")
+  revalidatePath(`/orgs/${orgSlug}/users/status/disabled`, "page")
 }
 
 export async function removeMembershipAction(
@@ -338,8 +333,9 @@ export async function removeMembershipAction(
     return { error: "The Membership no longer satisfies this action." }
   }
 
-  revalidatePath(`/orgs/${orgSlug}/users`, "page")
-  redirect(`/orgs/${orgSlug}/users` as Route)
+  revalidatePath(`/orgs/${orgSlug}/users/status/active`, "page")
+  revalidatePath(`/orgs/${orgSlug}/users/status/disabled`, "page")
+  redirect(`/orgs/${orgSlug}/users/status/active` as Route)
 }
 
 export async function socialAdmissionAction(

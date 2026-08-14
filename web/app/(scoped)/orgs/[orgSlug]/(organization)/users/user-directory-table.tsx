@@ -167,17 +167,10 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => (
-          <InvitationActions
-            invitation={row.original}
-            orgSlug={orgSlug}
-            roles={data.roles}
-            teams={data.teams}
-          />
-        ),
+        cell: ({ row }) => <InvitationActions invitationId={row.original.id} orgSlug={orgSlug} />,
       },
     ],
-    [data.roles, data.teams, orgSlug]
+    [orgSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({ columns, data: data.invited, getCoreRowModel: getCoreRowModel() })

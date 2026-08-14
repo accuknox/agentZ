@@ -68,8 +68,6 @@ export type InvitationRow = {
   inviter: string
   roles: string[]
   teams: string[]
-  roleIds: string[]
-  teamIds: string[]
   expired: boolean
 }
 
@@ -336,7 +334,6 @@ export async function getMemberDirectory(
           .select({
             invitationId: schema.invitationRoles.invitationId,
             name: schema.roleScopes.displayName,
-            roleId: schema.invitationRoles.roleId,
           })
           .from(schema.invitationRoles)
           .innerJoin(
@@ -353,7 +350,6 @@ export async function getMemberDirectory(
           .select({
             invitationId: schema.invitationTeams.invitationId,
             name: schema.teams.name,
-            teamId: schema.invitationTeams.teamId,
           })
           .from(schema.invitationTeams)
           .innerJoin(schema.teams, eq(schema.teams.id, schema.invitationTeams.teamId))
@@ -376,28 +372,18 @@ export async function getMemberDirectory(
   }
 
   const rolesByInvitation = new Map<string, string[]>()
-  const roleIdsByInvitation = new Map<string, string[]>()
   for (const role of invitationRoles) {
     rolesByInvitation.set(role.invitationId, [
       ...(rolesByInvitation.get(role.invitationId) ?? []),
       role.name,
     ])
-    roleIdsByInvitation.set(role.invitationId, [
-      ...(roleIdsByInvitation.get(role.invitationId) ?? []),
-      role.roleId,
-    ])
   }
 
   const teamsByInvitation = new Map<string, string[]>()
-  const teamIdsByInvitation = new Map<string, string[]>()
   for (const team of invitationTeams) {
     teamsByInvitation.set(team.invitationId, [
       ...(teamsByInvitation.get(team.invitationId) ?? []),
       team.name,
-    ])
-    teamIdsByInvitation.set(team.invitationId, [
-      ...(teamIdsByInvitation.get(team.invitationId) ?? []),
-      team.teamId,
     ])
   }
 
@@ -445,9 +431,7 @@ export async function getMemberDirectory(
       createdAt: invitation.createdAt.toISOString(),
       expired: invitation.expiresAt.getTime() <= now,
       expiresAt: invitation.expiresAt.toISOString(),
-      roleIds: roleIdsByInvitation.get(invitation.id) ?? [],
       roles: rolesByInvitation.get(invitation.id) ?? [],
-      teamIds: teamIdsByInvitation.get(invitation.id) ?? [],
       teams: teamsByInvitation.get(invitation.id) ?? [],
     })),
     organization: actor.organization,
@@ -558,10 +542,9 @@ export const getMemberAdministration = cache(
   }
 )
 
-export async function createInvitation(
-  orgSlug: string,
-  input: { invitationId: string | null; roleIds: string[]; teamIds: string[] }
-) {
+type InvitationAccess = { roleIds: string[]; teamIds: string[] }
+
+export async function createInvitation(orgSlug: string, input: InvitationAccess) {
   const actor = await superadminActor(orgSlug)
   if (!actor) {
     return { error: "forbidden" as const }
@@ -609,21 +592,6 @@ export async function createInvitation(
       : []
     if (roles.length !== roleIds.length || teams.length !== teamIds.length) {
       return { error: "invalid" as const }
-    }
-
-    if (input.invitationId) {
-      const canceled = await tx
-        .update(schema.organizationInvitations)
-        .set({ status: "canceled" })
-        .where(
-          and(
-            eq(schema.organizationInvitations.id, input.invitationId),
-            eq(schema.organizationInvitations.organizationId, actor.organization.id),
-            eq(schema.organizationInvitations.status, "pending")
-          )
-        )
-        .returning({ id: schema.organizationInvitations.id })
-      if (!canceled.length) return { error: "invalid" as const }
     }
 
     const now = new Date()

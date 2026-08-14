@@ -2,25 +2,17 @@
 
 import Link from "next/link"
 import type { Route } from "next"
-import { useActionState, useState, useTransition } from "react"
-import { MoreHorizontal, Pencil, Send, ShieldPlus, X } from "lucide-react"
+import { useActionState, useId, useState, useTransition } from "react"
+import { MoreHorizontal, Send, ShieldPlus, X } from "lucide-react"
 import {
   cancelInvitationAction,
   createInvitationAction,
   restoreMembershipAction,
   type InvitationFormState,
 } from "@/app/(scoped)/orgs/actions"
-import type { AssignmentOption, InvitationRow } from "@/data/members"
+import type { AssignmentOption } from "@/data/members"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { CopyButton } from "@/components/ui/copy-button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogClose,
@@ -31,215 +23,75 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import { Spinner } from "@/components/ui/spinner"
 
-export function InvitationDialog({
+export function CreateInvitationDialog({
   orgSlug,
   roles,
   teams,
-  invitation,
-  open,
-  onOpenChange,
-  showTrigger = true,
 }: {
   orgSlug: string
   roles: AssignmentOption[]
   teams: AssignmentOption[]
-  invitation?: InvitationRow
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-  showTrigger?: boolean
 }) {
-  const [confirmationOpen, setConfirmationOpen] = useState(false)
-  const [roleIds, setRoleIds] = useState(invitation?.roleIds ?? [])
-  const [teamIds, setTeamIds] = useState(invitation?.teamIds ?? [])
-  const [state, action, pending] = useActionState<InvitationFormState, FormData>(
-    async (previousState, formData) => {
-      const result = await createInvitationAction(orgSlug, previousState, formData)
-      setConfirmationOpen(false)
-      return result
-    },
-    {}
-  )
-  const selectedRoles = roles.filter((role) => roleIds.includes(role.id))
-  const selectedTeams = teams.filter((team) => teamIds.includes(team.id))
-  const ready = roleIds.length + teamIds.length > 0
-  const formId = `invitation-form-${invitation?.id ?? "new"}`
+  const [open, setOpen] = useState(false)
+  const [flow, setFlow] = useState(0)
 
   return (
-    <>
-      <Dialog onOpenChange={onOpenChange} open={open}>
-        {showTrigger ? (
-          <DialogTrigger asChild>
-            <Button>
-              <Send />
-              {invitation ? "Edit" : "Create invitation"}
-            </Button>
-          </DialogTrigger>
-        ) : null}
-        <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-x-hidden overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{invitation ? "Replace invitation" : "Create invitation"}</DialogTitle>
-            <DialogDescription>
-              Creates a one-time link that expires after 48 hours. Any signed-in user with the link
-              can join with the selected access.
-            </DialogDescription>
-          </DialogHeader>
-          <form action={action} className="flex min-w-0 flex-col gap-5" id={formId}>
-            {invitation ? <input name="invitation_id" type="hidden" value={invitation.id} /> : null}
-            {roleIds.map((id) => (
-              <input key={id} name="role_ids" type="hidden" value={id} />
-            ))}
-            {teamIds.map((id) => (
-              <input key={id} name="team_ids" type="hidden" value={id} />
-            ))}
-            <AssignmentChecks
-              label="Initial Roles"
-              onChange={setRoleIds}
-              options={roles}
-              selected={roleIds}
-            />
-            {teams.length ? (
-              <AssignmentChecks
-                label="Initial Teams"
-                onChange={setTeamIds}
-                options={teams}
-                selected={teamIds}
-              />
-            ) : null}
-            {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
-            {state.link ? (
-              <div className="grid gap-2">
-                <p className="text-muted-foreground text-sm">
-                  Copy this link now. It cannot be shown again.
-                </p>
-                <InputGroup className="h-10">
-                  <InputGroupInput
-                    aria-label="Invitation link"
-                    className="font-mono text-xs"
-                    readOnly
-                    value={state.link}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <CopyButton content={state.link} label="Copy" />
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
-            ) : null}
-            <div className="flex min-w-0 flex-wrap justify-end gap-2">
-              <Button disabled={!ready} onClick={() => setConfirmationOpen(true)} type="button">
-                {invitation ? "Replace invitation" : "Create invitation"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-      <Dialog onOpenChange={setConfirmationOpen} open={confirmationOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Confirm invitation</DialogTitle>
-            <DialogDescription>
-              Confirm the initial access granted to whoever accepts this one-time link.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[min(60dvh,36rem)] overflow-y-auto py-2">
-            <section aria-label="Invitation access confirmation" className="grid min-w-0 gap-4">
-              <dl className="grid min-w-0 gap-3 text-sm">
-                <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
-                  <dt className="text-muted-foreground">Direct Roles</dt>
-                  <dd className="min-w-0 break-words">
-                    {selectedRoles.map((role) => role.name).join(", ") || "None"}
-                  </dd>
-                </div>
-                {teams.length ? (
-                  <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
-                    <dt className="text-muted-foreground">Teams</dt>
-                    <dd className="min-w-0 break-words">
-                      {selectedTeams.map((team) => team.name).join(", ") || "None"}
-                    </dd>
-                  </div>
-                ) : null}
-                <div className="grid min-w-0 gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
-                  <dt className="text-muted-foreground">Effective access</dt>
-                  <dd className="min-w-0 break-words">
-                    {selectedTeams.length ? "Union of " : ""}
-                    {selectedRoles.length} direct Role
-                    {selectedRoles.length === 1 ? "" : "s"}
-                    {selectedTeams.length
-                      ? ` and ${selectedTeams.length} Team${selectedTeams.length === 1 ? "" : "s"}`
-                      : ""}
-                    .
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button disabled={pending} type="button" variant="outline">
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button data-dialog-submit disabled={pending} form={formId} type="submit">
-              {pending ? <Spinner /> : <Send />}
-              {pending ? "Saving..." : invitation ? "Confirm replacement" : "Confirm invitation"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Dialog
+      onOpenChange={(next) => {
+        if (next) setFlow((current) => current + 1)
+        setOpen(next)
+      }}
+      open={open}
+    >
+      <DialogTrigger asChild>
+        <Button>
+          <Send />
+          Create invitation
+        </Button>
+      </DialogTrigger>
+      <CreateInvitationForm key={flow} orgSlug={orgSlug} roles={roles} teams={teams} />
+    </Dialog>
   )
 }
 
 export function InvitationActions({
-  invitation,
+  invitationId,
   orgSlug,
-  roles,
-  teams,
 }: {
-  invitation: InvitationRow
+  invitationId: string
   orgSlug: string
-  roles: AssignmentOption[]
-  teams: AssignmentOption[]
 }) {
-  const [editing, setEditing] = useState(false)
   const [pending, start] = useTransition()
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button aria-label="Invitation actions" size="icon-sm" variant="ghost">
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => setEditing(true)}>
-            <Pencil />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={pending}
-            onSelect={() => start(() => cancelInvitationAction(orgSlug, invitation.id))}
-            variant="destructive"
-          >
-            {pending ? <Spinner /> : <X />}
-            Cancel
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <InvitationDialog
-        invitation={invitation}
-        onOpenChange={setEditing}
-        open={editing}
-        orgSlug={orgSlug}
-        roles={roles}
-        showTrigger={false}
-        teams={teams}
-      />
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button aria-label="Invitation actions" size="icon-sm" variant="ghost">
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          disabled={pending}
+          onSelect={() => start(() => cancelInvitationAction(orgSlug, invitationId))}
+          variant="destructive"
+        >
+          {pending ? <Spinner /> : <X />}
+          Cancel
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -274,38 +126,103 @@ export function MembershipStateButton({
   )
 }
 
-function AssignmentChecks({
-  label,
-  onChange,
-  options,
-  selected = [],
+function CreateInvitationForm({
+  orgSlug,
+  roles,
+  teams,
 }: {
-  label: string
-  onChange: (ids: string[]) => void
-  options: AssignmentOption[]
-  selected?: string[]
+  orgSlug: string
+  roles: AssignmentOption[]
+  teams: AssignmentOption[]
 }) {
+  const formId = useId()
+  const [roleIds, setRoleIds] = useState<string[]>([])
+  const [teamIds, setTeamIds] = useState<string[]>([])
+  const [state, submit, pending] = useActionState<InvitationFormState, FormData>(
+    createInvitationAction.bind(null, orgSlug),
+    {}
+  )
+  const ready = roleIds.length + teamIds.length > 0
+
+  if (state.link) {
+    return (
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invitation created</DialogTitle>
+          <DialogDescription>
+            Copy this link now. For security, it cannot be shown again.
+          </DialogDescription>
+        </DialogHeader>
+        <InputGroup className="h-10">
+          <InputGroupInput
+            aria-label="Invitation link"
+            className="font-mono text-xs"
+            readOnly
+            value={state.link}
+          />
+          <InputGroupAddon align="inline-end">
+            <CopyButton content={state.link} label="Copy" />
+          </InputGroupAddon>
+        </InputGroup>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button">Done</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    )
+  }
+
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="text-sm font-medium">{label}</legend>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {options.map((option) => (
-          <label className="hover:bg-muted/40 flex items-center gap-2 py-2 text-sm" key={option.id}>
-            <Checkbox
-              checked={selected.includes(option.id)}
-              onCheckedChange={(checked) =>
-                onChange(
-                  checked ? [...selected, option.id] : selected.filter((id) => id !== option.id)
-                )
-              }
-              value={option.id}
-            />
-            <span className="truncate" title={option.name}>
-              {option.name}
-            </span>
-          </label>
+    <DialogContent className="sm:max-w-xl">
+      <DialogHeader>
+        <DialogTitle>Create invitation</DialogTitle>
+        <DialogDescription>
+          Create a one-time link that expires after 48 hours. Any signed-in user with the link can
+          join with the selected access.
+        </DialogDescription>
+      </DialogHeader>
+      <form action={submit} className="flex min-w-0 flex-col gap-5" id={formId}>
+        {roleIds.map((id) => (
+          <input key={id} name="role_ids" type="hidden" value={id} />
         ))}
-      </div>
-    </fieldset>
+        {teamIds.map((id) => (
+          <input key={id} name="team_ids" type="hidden" value={id} />
+        ))}
+        <FieldGroup className="grid sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${formId}-roles`}>Direct roles</FieldLabel>
+            <MultiSelectDropdown
+              emptyMessage="No roles available."
+              id={`${formId}-roles`}
+              onValueChangeAction={setRoleIds}
+              options={roles.map((role) => ({ label: role.name, value: role.id }))}
+              placeholder="Select direct roles"
+              searchPlaceholder="Search roles..."
+              value={roleIds}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-teams`}>Teams</FieldLabel>
+            <MultiSelectDropdown
+              emptyMessage="No teams available."
+              id={`${formId}-teams`}
+              onValueChangeAction={setTeamIds}
+              options={teams.map((team) => ({ label: team.name, value: team.id }))}
+              placeholder="Select teams"
+              searchPlaceholder="Search teams..."
+              value={teamIds}
+            />
+          </Field>
+        </FieldGroup>
+        {state.error ? <FieldError>{state.error}</FieldError> : null}
+        <div className="flex justify-end">
+          <Button disabled={!ready || pending} type="submit">
+            {pending ? <Spinner /> : <Send />}
+            {pending ? "Saving..." : "Create invitation"}
+          </Button>
+        </div>
+      </form>
+    </DialogContent>
   )
 }

@@ -54,9 +54,10 @@ var baseOperationCapabilities = map[string][]string{
 		"createWorkflowRun", "createWorkflowSchedule", "deleteAgent",
 		"deleteAgentEntry", "deleteAgentMutableSkills", "deleteAgentShare",
 		"deleteWorkflowRun", "deleteWorkflows", "deleteWorkflowSchedule",
-		"exportAgentMutableSkills",
+		"exportAgentMutableSkills", "importMutableSkills",
 		"getAgentOwner", "getWorkflow", "getWorkflowRun", "listAgents",
 		"listAgentMutableSkills", "listAgentShares", "listAgentWorkflowSchedules",
+		"previewMutableSkillImport",
 		"listWorkflowRuns", "listWorkflowSchedules", "listWorkflowSummaries",
 		"listWorkflowWebhookTriggers", "readAgentFile", "readAgentFileRaw",
 		"renameAgentEntry", "statAgentFile", "transferAgentOwner", "updateAgent",
@@ -135,7 +136,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSandboxes",
 	},
 	"skill.create": {
-		"createSkill", "importSkills",
+		"createSkill", "importImmutableSkills",
 	},
 	"skill.delete": {
 		"deleteImmutableSkills", "deleteSkill",
@@ -145,7 +146,7 @@ var baseOperationCapabilities = map[string][]string{
 	},
 	"skill.read": {
 		"exportImmutableSkills", "getSkillReferences", "listImmutableSkillSummaries",
-		"listImmutableSkillVersions", "listSkills", "previewSkillImport",
+		"listImmutableSkillVersions", "listSkills", "previewImmutableSkillImport",
 	},
 	"workflow_run.report": {
 		"patchWorkflowRunNodeStatus", "patchWorkflowRunStatus",

@@ -140,9 +140,12 @@ import type {
   GetWorkspaceData,
   GetWorkspaceErrors,
   GetWorkspaceResponses,
-  ImportSkillsData,
-  ImportSkillsErrors,
-  ImportSkillsResponses,
+  ImportImmutableSkillsData,
+  ImportImmutableSkillsErrors,
+  ImportImmutableSkillsResponses,
+  ImportMutableSkillsData,
+  ImportMutableSkillsErrors,
+  ImportMutableSkillsResponses,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookErrors,
   InvokeWorkflowWebhookResponses,
@@ -242,9 +245,12 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
-  PreviewSkillImportData,
-  PreviewSkillImportErrors,
-  PreviewSkillImportResponses,
+  PreviewImmutableSkillImportData,
+  PreviewImmutableSkillImportErrors,
+  PreviewImmutableSkillImportResponses,
+  PreviewMutableSkillImportData,
+  PreviewMutableSkillImportErrors,
+  PreviewMutableSkillImportResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -935,14 +941,56 @@ export const exportAgentMutableSkills = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Parse a skill import and report live conflicts.
+ * Parse a mutable skill import and report Agent conflicts.
  */
-export const previewSkillImport = <ThrowOnError extends boolean = false>(
-  options: Options<PreviewSkillImportData, ThrowOnError>
+export const previewMutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewMutableSkillImportData, ThrowOnError>
 ) =>
   (options.client ?? client).post<
-    PreviewSkillImportResponses,
-    PreviewSkillImportErrors,
+    PreviewMutableSkillImportResponses,
+    PreviewMutableSkillImportErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import/preview",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Import mutable skills into selected Agents.
+ */
+export const importMutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportMutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ImportMutableSkillsResponses,
+    ImportMutableSkillsErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Parse an immutable skill import and report scope conflicts.
+ */
+export const previewImmutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewImmutableSkillImportData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PreviewImmutableSkillImportResponses,
+    PreviewImmutableSkillImportErrors,
     ThrowOnError
   >({
     ...formDataBodySerializer,
@@ -958,10 +1006,14 @@ export const previewSkillImport = <ThrowOnError extends boolean = false>(
 /**
  * Import immutable skills.
  */
-export const importSkills = <ThrowOnError extends boolean = false>(
-  options: Options<ImportSkillsData, ThrowOnError>
+export const importImmutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportImmutableSkillsData, ThrowOnError>
 ) =>
-  (options.client ?? client).post<ImportSkillsResponses, ImportSkillsErrors, ThrowOnError>({
+  (options.client ?? client).post<
+    ImportImmutableSkillsResponses,
+    ImportImmutableSkillsErrors,
+    ThrowOnError
+  >({
     ...formDataBodySerializer,
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/skill/import",

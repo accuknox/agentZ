@@ -1368,10 +1368,11 @@ components:
       required:
       - id
       type: object
-    ExportSkillsRequest:
+    ExportImmutableSkillsRequest:
       additionalProperties: false
       properties:
         skills:
+          description: Skill references whose names are unique across scopes.
           items:
             $ref: '#/components/schemas/ResourceReference'
           maxItems: 200
@@ -1380,6 +1381,19 @@ components:
           uniqueItems: true
       required:
       - skills
+      type: object
+    ExportMutableSkillsRequest:
+      additionalProperties: false
+      properties:
+        skill_names:
+          items:
+            $ref: '#/components/schemas/SkillName'
+          maxItems: 200
+          minItems: 1
+          type: array
+          uniqueItems: true
+      required:
+      - skill_names
       type: object
     FieldError:
       additionalProperties: false
@@ -1557,6 +1571,27 @@ components:
       - models
       - kind
       type: object
+    ImmutableSkillImportPreviewItem:
+      additionalProperties: false
+      properties:
+        conflict:
+          type: boolean
+        name:
+          $ref: '#/components/schemas/SkillName'
+      required:
+      - name
+      - conflict
+      type: object
+    ImmutableSkillImportPreviewResponse:
+      additionalProperties: false
+      properties:
+        skills:
+          items:
+            $ref: '#/components/schemas/ImmutableSkillImportPreviewItem'
+          type: array
+      required:
+      - skills
+      type: object
     ImmutableSkillSummary:
       allOf:
       - $ref: '#/components/schemas/SkillFileSummary'
@@ -1591,16 +1626,6 @@ components:
         - can_modify
         - can_delete
         type: object
-    ImportSkillsResponse:
-      additionalProperties: false
-      properties:
-        skills:
-          items:
-            $ref: '#/components/schemas/SkillName'
-          type: array
-      required:
-      - skills
-      type: object
     InferenceModel:
       additionalProperties: false
       properties:
@@ -3029,6 +3054,29 @@ components:
       - id
       - connection_id
       - name
+      type: object
+    MutableSkillImportPreviewItem:
+      additionalProperties: false
+      properties:
+        conflict_agents:
+          items:
+            $ref: '#/components/schemas/AgentName'
+          type: array
+        name:
+          $ref: '#/components/schemas/SkillName'
+      required:
+      - name
+      - conflict_agents
+      type: object
+    MutableSkillImportPreviewResponse:
+      additionalProperties: false
+      properties:
+        skills:
+          items:
+            $ref: '#/components/schemas/MutableSkillImportPreviewItem'
+          type: array
+      required:
+      - skills
       type: object
     MutableSkillSummary:
       allOf:
@@ -22234,26 +22282,20 @@ components:
       - $ref: '#/components/schemas/CreateSkillImportDecision'
       - $ref: '#/components/schemas/OverwriteSkillImportDecision'
       - $ref: '#/components/schemas/RenameSkillImportDecision'
-    SkillImportPreviewItem:
+    SkillImportResponse:
       additionalProperties: false
       properties:
-        immutable_conflict:
-          type: boolean
-        name:
-          $ref: '#/components/schemas/SkillName'
-      required:
-      - name
-      - immutable_conflict
-      type: object
-    SkillImportPreviewResponse:
-      additionalProperties: false
-      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/SkillImportAgentResult'
+          type: array
         skills:
           items:
-            $ref: '#/components/schemas/SkillImportPreviewItem'
+            $ref: '#/components/schemas/SkillName'
           type: array
       required:
       - skills
+      - agents
       type: object
     SkillName:
       description: Immutable Skill resource name.
@@ -24150,6 +24192,7 @@ paths:
       operationId: deleteAgentMutableSkills
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         content:
           application/json:
@@ -24179,6 +24222,7 @@ paths:
       operationId: listAgentMutableSkills
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -24205,11 +24249,12 @@ paths:
       operationId: exportAgentMutableSkills
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExportSkillsRequest'
+              $ref: '#/components/schemas/ExportMutableSkillsRequest'
         required: true
       responses:
         "200":
@@ -24237,6 +24282,112 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Stream mutable Agent skills as a ZIP archive.
+      tags:
+      - skills
+  /api/agent/skill/import:
+    post:
+      operationId: importMutableSkills
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                agents:
+                  items:
+                    $ref: '#/components/schemas/AgentName'
+                  maxItems: 200
+                  minItems: 1
+                  type: array
+                  uniqueItems: true
+                decisions:
+                  description: JSON-encoded array of SkillImportDecision objects.
+                  maxLength: 65536
+                  minLength: 2
+                  type: string
+                file:
+                  format: binary
+                  type: string
+              required:
+              - file
+              - agents
+              - decisions
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillImportResponse'
+          description: Imported skills and a result for every targeted Agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "502":
+          $ref: '#/components/responses/BadGateway'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Import mutable skills into selected Agents.
+      tags:
+      - skills
+  /api/agent/skill/import/preview:
+    post:
+      operationId: previewMutableSkillImport
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                agents:
+                  items:
+                    $ref: '#/components/schemas/AgentName'
+                  maxItems: 200
+                  minItems: 1
+                  type: array
+                  uniqueItems: true
+                file:
+                  format: binary
+                  type: string
+              required:
+              - file
+              - agents
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MutableSkillImportPreviewResponse'
+          description: Parsed skills and current Agent conflicts.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "502":
+          $ref: '#/components/responses/BadGateway'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Parse a mutable skill import and report Agent conflicts.
       tags:
       - skills
   /api/agent/watch:
@@ -38663,7 +38814,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExportSkillsRequest'
+              $ref: '#/components/schemas/ExportImmutableSkillsRequest'
         required: true
       responses:
         "200":
@@ -38691,7 +38842,7 @@ paths:
       - skills
   /api/skill/import:
     post:
-      operationId: importSkills
+      operationId: importImmutableSkills
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
@@ -38699,12 +38850,18 @@ paths:
           multipart/form-data:
             schema:
               properties:
-                decisions:
+                agents:
+                  description: Workspace Agents to attach imported skills to.
                   items:
-                    $ref: '#/components/schemas/SkillImportDecision'
+                    $ref: '#/components/schemas/AgentName'
                   maxItems: 200
-                  minItems: 1
                   type: array
+                  uniqueItems: true
+                decisions:
+                  description: JSON-encoded array of SkillImportDecision objects.
+                  maxLength: 65536
+                  minLength: 2
+                  type: string
                 file:
                   format: binary
                   type: string
@@ -38718,8 +38875,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ImportSkillsResponse'
-          description: A result for every targeted Agent.
+                $ref: '#/components/schemas/SkillImportResponse'
+          description: Imported skills and any requested Agent attachment results.
         "400":
           $ref: '#/components/responses/BadRequest'
         "413":
@@ -38736,7 +38893,7 @@ paths:
       - skills
   /api/skill/import/preview:
     post:
-      operationId: previewSkillImport
+      operationId: previewImmutableSkillImport
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
@@ -38756,7 +38913,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SkillImportPreviewResponse'
+                $ref: '#/components/schemas/ImmutableSkillImportPreviewResponse'
           description: Parsed skills and current conflicts.
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -38769,7 +38926,7 @@ paths:
       security:
       - GatewayBearer:
         - skill.read
-      summary: Parse a skill import and report live conflicts.
+      summary: Parse an immutable skill import and report scope conflicts.
       tags:
       - skills
   /api/skill/summary:

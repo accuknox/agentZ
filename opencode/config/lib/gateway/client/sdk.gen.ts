@@ -142,9 +142,12 @@ import type {
   GetWorkspaceData,
   GetWorkspaceErrors,
   GetWorkspaceResponses,
-  ImportSkillsData,
-  ImportSkillsErrors,
-  ImportSkillsResponses,
+  ImportImmutableSkillsData,
+  ImportImmutableSkillsErrors,
+  ImportImmutableSkillsResponses,
+  ImportMutableSkillsData,
+  ImportMutableSkillsErrors,
+  ImportMutableSkillsResponses,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookErrors,
   InvokeWorkflowWebhookResponses,
@@ -244,9 +247,12 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
-  PreviewSkillImportData,
-  PreviewSkillImportErrors,
-  PreviewSkillImportResponses,
+  PreviewImmutableSkillImportData,
+  PreviewImmutableSkillImportErrors,
+  PreviewImmutableSkillImportResponses,
+  PreviewMutableSkillImportData,
+  PreviewMutableSkillImportErrors,
+  PreviewMutableSkillImportResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -359,6 +365,7 @@ import {
   zDeleteAgentEntryPath,
   zDeleteAgentEntryQuery,
   zDeleteAgentMutableSkillsBody,
+  zDeleteAgentMutableSkillsHeaders,
   zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
   zDeleteAgentSharePath,
@@ -381,6 +388,7 @@ import {
   zDeleteWorkflowSchedulePath,
   zDeleteWorkflowsPath,
   zExportAgentMutableSkillsBody,
+  zExportAgentMutableSkillsHeaders,
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
   zExportImmutableSkillsHeaders,
@@ -409,11 +417,14 @@ import {
   zGetWorkflowPath,
   zGetWorkflowRunPath,
   zGetWorkspacePath,
-  zImportSkillsBody,
-  zImportSkillsHeaders,
+  zImportImmutableSkillsBody,
+  zImportImmutableSkillsHeaders,
+  zImportMutableSkillsBody,
+  zImportMutableSkillsHeaders,
   zInvokeWorkflowWebhookBody,
   zInvokeWorkflowWebhookPath,
   zInvokeWorkflowWebhookQuery,
+  zListAgentMutableSkillsHeaders,
   zListAgentMutableSkillsPath,
   zListAgentMutableSkillsQuery,
   zListAgentSharesPath,
@@ -472,8 +483,10 @@ import {
   zPatchWorkflowRunNodeStatusPath,
   zPatchWorkflowRunStatusBody,
   zPatchWorkflowRunStatusPath,
-  zPreviewSkillImportBody,
-  zPreviewSkillImportHeaders,
+  zPreviewImmutableSkillImportBody,
+  zPreviewImmutableSkillImportHeaders,
+  zPreviewMutableSkillImportBody,
+  zPreviewMutableSkillImportHeaders,
   zPutSecretBody,
   zPutSecretPath,
   zPutSecretQuery,
@@ -1352,6 +1365,7 @@ export const deleteAgentMutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zDeleteAgentMutableSkillsBody,
+          headers: zDeleteAgentMutableSkillsHeaders.optional(),
           path: zDeleteAgentMutableSkillsPath,
           query: z.never().optional(),
         })
@@ -1380,6 +1394,7 @@ export const listAgentMutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListAgentMutableSkillsHeaders.optional(),
           path: zListAgentMutableSkillsPath,
           query: zListAgentMutableSkillsQuery.optional(),
         })
@@ -1404,6 +1419,7 @@ export const exportAgentMutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zExportAgentMutableSkillsBody,
+          headers: zExportAgentMutableSkillsHeaders.optional(),
           path: zExportAgentMutableSkillsPath,
           query: z.never().optional(),
         })
@@ -1418,22 +1434,82 @@ export const exportAgentMutableSkills = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Parse a skill import and report live conflicts.
+ * Parse a mutable skill import and report Agent conflicts.
  */
-export const previewSkillImport = <ThrowOnError extends boolean = false>(
-  options: Options<PreviewSkillImportData, ThrowOnError>
+export const previewMutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewMutableSkillImportData, ThrowOnError>
 ) =>
   (options.client ?? client).post<
-    PreviewSkillImportResponses,
-    PreviewSkillImportErrors,
+    PreviewMutableSkillImportResponses,
+    PreviewMutableSkillImportErrors,
     ThrowOnError
   >({
     ...formDataBodySerializer,
     requestValidator: async (data) =>
       await z
         .object({
-          body: zPreviewSkillImportBody,
-          headers: zPreviewSkillImportHeaders.optional(),
+          body: zPreviewMutableSkillImportBody,
+          headers: zPreviewMutableSkillImportHeaders.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import/preview",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Import mutable skills into selected Agents.
+ */
+export const importMutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportMutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ImportMutableSkillsResponses,
+    ImportMutableSkillsErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zImportMutableSkillsBody,
+          headers: zImportMutableSkillsHeaders.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Parse an immutable skill import and report scope conflicts.
+ */
+export const previewImmutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewImmutableSkillImportData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PreviewImmutableSkillImportResponses,
+    PreviewImmutableSkillImportErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPreviewImmutableSkillImportBody,
+          headers: zPreviewImmutableSkillImportHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1450,16 +1526,20 @@ export const previewSkillImport = <ThrowOnError extends boolean = false>(
 /**
  * Import immutable skills.
  */
-export const importSkills = <ThrowOnError extends boolean = false>(
-  options: Options<ImportSkillsData, ThrowOnError>
+export const importImmutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportImmutableSkillsData, ThrowOnError>
 ) =>
-  (options.client ?? client).post<ImportSkillsResponses, ImportSkillsErrors, ThrowOnError>({
+  (options.client ?? client).post<
+    ImportImmutableSkillsResponses,
+    ImportImmutableSkillsErrors,
+    ThrowOnError
+  >({
     ...formDataBodySerializer,
     requestValidator: async (data) =>
       await z
         .object({
-          body: zImportSkillsBody,
-          headers: zImportSkillsHeaders.optional(),
+          body: zImportImmutableSkillsBody,
+          headers: zImportImmutableSkillsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })

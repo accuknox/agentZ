@@ -3,7 +3,7 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, FileArchive, Replace, TriangleAlert } from "lucide-react"
-import { Controller, useForm, useWatch, type Control } from "react-hook-form"
+import { Controller, useForm, useWatch, type Control, type FieldErrors } from "react-hook-form"
 import { toast } from "sonner"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
@@ -14,8 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldError } from "@/components/ui/field"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Select,
   SelectContent,
@@ -26,65 +27,71 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import {
-  importSkills,
-  previewSkillImport,
+  importImmutableSkills,
+  importMutableSkills,
+  previewImmutableSkillImport,
+  previewMutableSkillImport,
+  type Agent,
+  type AgentName,
+  type ImmutableSkillImportPreviewItem,
+  type MutableSkillImportPreviewItem,
   type SkillImportDecision,
-  type SkillImportPreviewItem,
 } from "@/lib/gateway/client"
-import { zSkillName } from "@/lib/gateway/client/zod.gen"
+import { zAgentName, zSkillName } from "@/lib/gateway/client/zod.gen"
 import { cn } from "@/lib/utils"
 
+const importTypeSchema = z.enum(["mutable", "immutable"])
 const renameSchema = z.string().refine((name) => zSkillName.safeParse(name).success, {
   message: "Use 1–32 lowercase letters, numbers, or hyphens",
 })
-
 const importFormSchema = z
   .object({
+    type: importTypeSchema,
+    agents: z
+      .array(zAgentName)
+      .max(200, "Select at most 200 agents")
+      .refine((names) => new Set(names).size === names.length, "Agents must be unique"),
     resolutions: z.record(z.string(), z.enum(["create", "overwrite", "rename"])),
     renames: z.record(z.string(), z.string()),
   })
   .superRefine((value, ctx) => {
+    if (value.type === "mutable" && value.agents.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Select at least one agent",
+        path: ["agents"],
+      })
+    }
     for (const [name, resolution] of Object.entries(value.resolutions)) {
-      if (resolution !== "rename") {
-        continue
-      }
+      if (resolution !== "rename") continue
       const rename = renameSchema.safeParse(value.renames[name])
-      if (!rename.success) {
-        ctx.addIssue({
-          code: "custom",
-          message: rename.error.issues[0]?.message ?? "Skill name is invalid",
-          path: ["renames", name],
-        })
-      }
+      if (rename.success) continue
+      ctx.addIssue({
+        code: "custom",
+        message: rename.error.issues[0]?.message ?? "Skill name is invalid",
+        path: ["renames", name],
+      })
     }
   })
 
-type ImportPreview = SkillImportPreviewItem
 type ImportFormValues = z.infer<typeof importFormSchema>
 type ImportResolution = ImportFormValues["resolutions"][string]
-
-function serializeSkillImportBody(body: unknown) {
-  const value = body as { decisions: SkillImportDecision[]; file: Blob | File }
-  const data = new FormData()
-  data.append("file", value.file)
-  for (const decision of value.decisions) {
-    // Complex multipart values require an explicit content type so the
-    // gateway's OpenAPI validator decodes each decision as JSON.
-    data.append(
-      "decisions",
-      new Blob([JSON.stringify(decision)], { type: "application/json" }),
-      "decision.json"
-    )
-  }
-  return data
+type ImportPreview = {
+  name: ImmutableSkillImportPreviewItem["name"]
+  immutableConflict: boolean
+  mutableConflictAgents: MutableSkillImportPreviewItem["conflict_agents"]
 }
 
 export function SkillImportDialog({
+  agents,
+  canImportImmutable,
   open,
   setOpen,
   onImported,
   workspaceId,
 }: {
+  agents: Agent[]
+  canImportImmutable: boolean
   open: boolean
   setOpen: (open: boolean) => void
   onImported: () => Promise<void>
@@ -97,17 +104,24 @@ export function SkillImportDialog({
   const [preview, setPreview] = React.useState<ImportPreview[]>([])
   const [error, setError] = React.useState<string>()
   const [pending, startTransition] = React.useTransition()
+  const defaultType = workspaceId && agents.length > 0 ? "mutable" : "immutable"
+  const emptyForm = {
+    type: defaultType,
+    agents: [],
+    resolutions: {},
+    renames: {},
+  } satisfies ImportFormValues
   const form = useForm<ImportFormValues>({
     resolver: zodResolver(importFormSchema),
-    defaultValues: {
-      resolutions: {},
-      renames: {},
-    },
+    defaultValues: emptyForm,
     mode: "onSubmit",
     reValidateMode: "onChange",
   })
-  const resolutions = useWatch({ control: form.control, name: "resolutions", defaultValue: {} })
-  const conflicts = preview.filter((skill) => skill.immutable_conflict).length
+  const type = useWatch({ control: form.control, name: "type" })
+  const selectedAgents = useWatch({ control: form.control, name: "agents" })
+  const resolutions = useWatch({ control: form.control, name: "resolutions" })
+  const conflicts = preview.filter((skill) => skillHasConflict(skill, type, selectedAgents)).length
+  const scopeHeaders = workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined
 
   function reset() {
     setDragging(false)
@@ -115,10 +129,7 @@ export function SkillImportDialog({
     setPreview([])
     setError(undefined)
     setInputKey((current) => current + 1)
-    form.reset({
-      resolutions: {},
-      renames: {},
-    })
+    form.reset(emptyForm)
   }
 
   function chooseFile(nextFile: File | undefined) {
@@ -131,10 +142,7 @@ export function SkillImportDialog({
     setFile(nextFile)
     setPreview([])
     setError(undefined)
-    form.reset({
-      resolutions: {},
-      renames: {},
-    })
+    form.reset(emptyForm)
   }
 
   function chooseDroppedFile(items: DataTransferItemList, files: FileList) {
@@ -157,19 +165,48 @@ export function SkillImportDialog({
     }
     startTransition(async () => {
       setError(undefined)
-      const result = await previewSkillImport({
-        headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
-        body: {
-          file,
-        },
-      })
-      if (result.error) {
-        setError(result.error.message)
+      const readyAgents = agents
+        .filter((agent) => agent.status === "IDLE")
+        .map((agent) => agent.name)
+      const [mutableResult, immutableResult] = await Promise.all([
+        workspaceId && readyAgents.length > 0
+          ? previewMutableSkillImport({
+              body: { agents: readyAgents, file },
+              headers: scopeHeaders,
+            })
+          : undefined,
+        canImportImmutable
+          ? previewImmutableSkillImport({ body: { file }, headers: scopeHeaders })
+          : undefined,
+      ])
+      if (mutableResult?.error) {
+        setError(mutableResult.error.message)
         return
       }
-      const nextPreview = result.data.skills
+      if (immutableResult?.error) {
+        setError(immutableResult.error.message)
+        return
+      }
+      const mutableSkills = new Map(
+        mutableResult?.data.skills.map((skill) => [skill.name, skill.conflict_agents]) ?? []
+      )
+      const immutableSkills = new Map(
+        immutableResult?.data.skills.map((skill) => [skill.name, skill.conflict]) ?? []
+      )
+      const names = new Set([...mutableSkills.keys(), ...immutableSkills.keys()])
+      const nextPreview = [...names].map((name) => ({
+        name,
+        immutableConflict: immutableSkills.get(name) ?? false,
+        mutableConflictAgents: mutableSkills.get(name) ?? [],
+      }))
+      if (nextPreview.length === 0) {
+        setError("No importable skills found")
+        return
+      }
       setPreview(nextPreview)
       form.reset({
+        type: workspaceId && readyAgents.length > 0 ? "mutable" : "immutable",
+        agents: [],
         resolutions: Object.fromEntries(nextPreview.map((skill) => [skill.name, "create"])),
         renames: Object.fromEntries(nextPreview.map((skill) => [skill.name, ""])),
       })
@@ -180,15 +217,14 @@ export function SkillImportDialog({
     if (!file || preview.length === 0) {
       return
     }
-    const renames = values.renames
     const decisions: SkillImportDecision[] = preview.map((skill) => {
-      const conflict = skill.immutable_conflict
+      const conflict = skillHasConflict(skill, values.type, values.agents)
       const resolution = values.resolutions[skill.name]
       if (conflict && resolution === "rename") {
         return {
           action: "rename",
           name: skill.name,
-          rename: renameSchema.parse(renames[skill.name]),
+          rename: renameSchema.parse(values.renames[skill.name]),
         }
       }
       return { action: conflict ? "overwrite" : "create", name: skill.name }
@@ -196,25 +232,50 @@ export function SkillImportDialog({
 
     startTransition(async () => {
       setError(undefined)
-      const result = await importSkills({
-        body: { decisions, file },
-        bodySerializer: serializeSkillImportBody,
-        headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
-      })
+      const result =
+        values.type === "mutable"
+          ? await importMutableSkills({
+              body: {
+                agents: values.agents,
+                decisions: JSON.stringify(decisions),
+                file,
+              },
+              headers: scopeHeaders,
+            })
+          : await importImmutableSkills({
+              body: {
+                agents: workspaceId ? values.agents : undefined,
+                decisions: JSON.stringify(decisions),
+                file,
+              },
+              headers: scopeHeaders,
+            })
       if (result.error) {
         setError(result.error.message)
         toast.error(preview.length === 1 ? "Failed to import skill" : "Failed to import skills")
         return
       }
-      toast.success(preview.length === 1 ? "Skill imported" : "Skills imported")
+      const failed = result.data.agents.filter((agent) => agent.status === "failed")
+      if (failed.length > 0) {
+        const names = failed.map((agent) => agent.agent)
+        toast.warning(
+          failed.length <= 3
+            ? `Import failed for ${names.join(", ")}`
+            : `Import failed for ${failed.length} agents`
+        )
+      } else {
+        toast.success(preview.length === 1 ? "Skill imported" : "Skills imported")
+      }
       reset()
       setOpen(false)
       await onImported()
     })
   }
 
-  function reportInvalidSubmit() {
-    setError("Resolve import errors before continuing")
+  function reportInvalidSubmit(errors: FieldErrors<ImportFormValues>) {
+    const message =
+      errors.agents?.message ?? errors.type?.message ?? "Resolve import errors before continuing"
+    setError(message)
   }
 
   return (
@@ -291,14 +352,90 @@ export function SkillImportDialog({
             </>
           ) : (
             <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Controller
+                  name="type"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Type</FieldLabel>
+                      <Select
+                        value={field.value}
+                        disabled={pending}
+                        onValueChange={(value) => {
+                          const nextType = importTypeSchema.parse(value)
+                          field.onChange(nextType)
+                          form.setValue("agents", [], {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                          form.setValue(
+                            "resolutions",
+                            Object.fromEntries(preview.map((skill) => [skill.name, "create"]))
+                          )
+                          form.setValue("renames", {})
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {workspaceId && agents.length > 0 ? (
+                              <SelectItem value="mutable">Mutable</SelectItem>
+                            ) : null}
+                            {canImportImmutable ? (
+                              <SelectItem value="immutable">Immutable</SelectItem>
+                            ) : null}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+                />
+                {workspaceId ? (
+                  <Controller
+                    name="agents"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel>Agents</FieldLabel>
+                        <MultiSelectDropdown
+                          invalid={fieldState.invalid}
+                          disabled={pending}
+                          options={agents.map((agent) => ({
+                            disabled: agent.status !== "IDLE",
+                            label: agent.name,
+                            value: agent.name,
+                          }))}
+                          value={field.value}
+                          placeholder="Select agents"
+                          onBlurAction={field.onBlur}
+                          onValueChangeAction={(values) => {
+                            field.onChange(values)
+                            form.setValue(
+                              "resolutions",
+                              Object.fromEntries(preview.map((skill) => [skill.name, "create"]))
+                            )
+                            form.setValue("renames", {})
+                          }}
+                        />
+                        {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                      </Field>
+                    )}
+                  />
+                ) : null}
+              </div>
               <div className="rounded-md border">
                 {preview.map((skill) => (
                   <ImportPreviewRow
                     key={skill.name}
+                    agents={selectedAgents}
                     control={form.control}
                     pending={pending}
-                    skill={skill}
                     resolution={resolutions[skill.name] ?? "create"}
+                    skill={skill}
+                    type={type}
                     onResolutionChange={(name, resolution) =>
                       form.setValue(`resolutions.${name}`, resolution, {
                         shouldDirty: true,
@@ -339,19 +476,23 @@ export function SkillImportDialog({
 }
 
 function ImportPreviewRow({
+  agents,
   control,
   pending,
   resolution,
   skill,
+  type,
   onResolutionChange,
 }: {
+  agents: AgentName[]
   control: Control<ImportFormValues>
   pending: boolean
   resolution: ImportResolution
   skill: ImportPreview
+  type: ImportFormValues["type"]
   onResolutionChange: (name: string, resolution: ImportResolution) => void
 }) {
-  const conflict = skill.immutable_conflict
+  const conflict = skillHasConflict(skill, type, agents)
   return (
     <div className="border-b p-3 last:border-b-0">
       <div className="flex items-center justify-between gap-3">
@@ -417,4 +558,16 @@ function ImportPreviewRow({
       ) : null}
     </div>
   )
+}
+
+function skillHasConflict(
+  skill: ImportPreview,
+  type: ImportFormValues["type"],
+  agents: AgentName[]
+): boolean {
+  if (type === "immutable") {
+    return skill.immutableConflict
+  }
+  const selected = new Set(agents)
+  return skill.mutableConflictAgents.some((agent) => selected.has(agent))
 }

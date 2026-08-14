@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { AdministrationState } from "@/components/administration"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { ensureTenant } from "@/lib/gateway/client"
@@ -19,5 +20,13 @@ export default async function OrganizationSkillsPage({
   if (!tenant.data) throw new Error("gateway returned no tenant resource capabilities")
   if (!tenant.data.skill_capabilities.read) return <AdministrationState kind="forbidden" />
 
-  return <SkillsClient canCreate={tenant.data.skill_capabilities.create} />
+  return (
+    <Suspense fallback={null}>
+      <SkillsClient
+        agents={[]}
+        canCreateImmutable={tenant.data.skill_capabilities.create}
+        canReadImmutable={tenant.data.skill_capabilities.read}
+      />
+    </Suspense>
+  )
 }

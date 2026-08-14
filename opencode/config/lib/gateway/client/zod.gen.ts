@@ -529,8 +529,30 @@ export const zDeleteSkillsRequest = z.object({
   skill_names: z.array(zSkillName).min(1).max(200),
 })
 
-export const zExportSkillsRequest = z.object({
+export const zExportMutableSkillsRequest = z.object({
+  skill_names: z.array(zSkillName).min(1).max(200),
+})
+
+export const zExportImmutableSkillsRequest = z.object({
   skills: z.array(zResourceReference).min(1).max(200),
+})
+
+export const zImmutableSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  conflict: z.boolean(),
+})
+
+export const zImmutableSkillImportPreviewResponse = z.object({
+  skills: z.array(zImmutableSkillImportPreviewItem),
+})
+
+export const zMutableSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  conflict_agents: z.array(zAgentName),
+})
+
+export const zMutableSkillImportPreviewResponse = z.object({
+  skills: z.array(zMutableSkillImportPreviewItem),
 })
 
 export const zCreateSkillImportDecision = z.object({
@@ -555,23 +577,15 @@ export const zSkillImportDecision = z.discriminatedUnion("action", [
   zRenameSkillImportDecision.extend({ action: z.literal("rename") }),
 ])
 
-export const zSkillImportPreviewItem = z.object({
-  name: zSkillName,
-  immutable_conflict: z.boolean(),
-})
-
-export const zSkillImportPreviewResponse = z.object({
-  skills: z.array(zSkillImportPreviewItem),
-})
-
 export const zSkillImportAgentResult = z.object({
   agent: zAgentName,
   status: z.enum(["succeeded", "failed"]),
   error: z.string().optional(),
 })
 
-export const zImportSkillsResponse = z.object({
+export const zSkillImportResponse = z.object({
   skills: z.array(zSkillName),
+  agents: z.array(zSkillImportAgentResult),
 })
 
 export const zSkillReferences = z.object({
@@ -2587,6 +2601,10 @@ export const zDeleteAgentEntryResponse = z.void()
 
 export const zDeleteAgentMutableSkillsBody = zDeleteSkillsRequest
 
+export const zDeleteAgentMutableSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
 export const zDeleteAgentMutableSkillsPath = z.object({
   agentName: zAgentName,
 })
@@ -2595,6 +2613,10 @@ export const zDeleteAgentMutableSkillsPath = z.object({
  * Skills deleted.
  */
 export const zDeleteAgentMutableSkillsResponse = z.void()
+
+export const zListAgentMutableSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zListAgentMutableSkillsPath = z.object({
   agentName: zAgentName,
@@ -2610,7 +2632,11 @@ export const zListAgentMutableSkillsQuery = z.object({
  */
 export const zListAgentMutableSkillsResponse = zListMutableSkillsResponse
 
-export const zExportAgentMutableSkillsBody = zExportSkillsRequest
+export const zExportAgentMutableSkillsBody = zExportMutableSkillsRequest
+
+export const zExportAgentMutableSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
 
 export const zExportAgentMutableSkillsPath = z.object({
   agentName: zAgentName,
@@ -2621,32 +2647,62 @@ export const zExportAgentMutableSkillsPath = z.object({
  */
 export const zExportAgentMutableSkillsResponse = z.string()
 
-export const zPreviewSkillImportBody = z.object({
+export const zPreviewMutableSkillImportBody = z.object({
+  file: z.string(),
+  agents: z.array(zAgentName).min(1).max(200),
+})
+
+export const zPreviewMutableSkillImportHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+/**
+ * Parsed skills and current Agent conflicts.
+ */
+export const zPreviewMutableSkillImportResponse = zMutableSkillImportPreviewResponse
+
+export const zImportMutableSkillsBody = z.object({
+  file: z.string(),
+  agents: z.array(zAgentName).min(1).max(200),
+  decisions: z.string().min(2).max(65536),
+})
+
+export const zImportMutableSkillsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+/**
+ * Imported skills and a result for every targeted Agent.
+ */
+export const zImportMutableSkillsResponse = zSkillImportResponse
+
+export const zPreviewImmutableSkillImportBody = z.object({
   file: z.string(),
 })
 
-export const zPreviewSkillImportHeaders = z.object({
+export const zPreviewImmutableSkillImportHeaders = z.object({
   "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
 })
 
 /**
  * Parsed skills and current conflicts.
  */
-export const zPreviewSkillImportResponse = zSkillImportPreviewResponse
+export const zPreviewImmutableSkillImportResponse = zImmutableSkillImportPreviewResponse
 
-export const zImportSkillsBody = z.object({
+export const zImportImmutableSkillsBody = z.object({
   file: z.string(),
-  decisions: z.array(zSkillImportDecision).min(1).max(200),
+  decisions: z.string().min(2).max(65536),
+  agents: z.array(zAgentName).max(200).optional(),
 })
 
-export const zImportSkillsHeaders = z.object({
+export const zImportImmutableSkillsHeaders = z.object({
   "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
 })
 
 /**
- * A result for every targeted Agent.
+ * Imported skills and any requested Agent attachment results.
  */
-export const zImportSkillsResponse2 = zImportSkillsResponse
+export const zImportImmutableSkillsResponse = zSkillImportResponse
 
 export const zDeleteImmutableSkillsBody = zDeleteSkillsRequest
 
@@ -2700,7 +2756,7 @@ export const zListImmutableSkillSummariesQuery = z.object({
  */
 export const zListImmutableSkillSummariesResponse2 = zListImmutableSkillSummariesResponse
 
-export const zExportImmutableSkillsBody = zExportSkillsRequest
+export const zExportImmutableSkillsBody = zExportImmutableSkillsRequest
 
 export const zExportImmutableSkillsHeaders = z.object({
   "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),

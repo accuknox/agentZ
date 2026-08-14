@@ -48,7 +48,8 @@ import {
   getWorkflow,
   getWorkflowRun,
   getWorkspace,
-  importSkills,
+  importImmutableSkills,
+  importMutableSkills,
   invokeWorkflowWebhook,
   listAgentMutableSkills,
   listAgents,
@@ -83,7 +84,8 @@ import {
   type Options,
   patchWorkflowRunNodeStatus,
   patchWorkflowRunStatus,
-  previewSkillImport,
+  previewImmutableSkillImport,
+  previewMutableSkillImport,
   putSecret,
   readAgentFile,
   readAgentFileRaw,
@@ -238,9 +240,12 @@ import type {
   GetWorkspaceData,
   GetWorkspaceError,
   GetWorkspaceResponse,
-  ImportSkillsData,
-  ImportSkillsError,
-  ImportSkillsResponse2,
+  ImportImmutableSkillsData,
+  ImportImmutableSkillsError,
+  ImportImmutableSkillsResponse,
+  ImportMutableSkillsData,
+  ImportMutableSkillsError,
+  ImportMutableSkillsResponse,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookError,
   InvokeWorkflowWebhookResponse,
@@ -340,9 +345,12 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusError,
   PatchWorkflowRunStatusResponse,
-  PreviewSkillImportData,
-  PreviewSkillImportError,
-  PreviewSkillImportResponse,
+  PreviewImmutableSkillImportData,
+  PreviewImmutableSkillImportError,
+  PreviewImmutableSkillImportResponse,
+  PreviewMutableSkillImportData,
+  PreviewMutableSkillImportError,
+  PreviewMutableSkillImportResponse,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
@@ -1356,22 +1364,76 @@ export const exportAgentMutableSkillsMutation = (
 }
 
 /**
- * Parse a skill import and report live conflicts.
+ * Parse a mutable skill import and report Agent conflicts.
  */
-export const previewSkillImportMutation = (
-  options?: Partial<Options<PreviewSkillImportData>>
+export const previewMutableSkillImportMutation = (
+  options?: Partial<Options<PreviewMutableSkillImportData>>
 ): UseMutationOptions<
-  PreviewSkillImportResponse,
-  PreviewSkillImportError,
-  Options<PreviewSkillImportData>
+  PreviewMutableSkillImportResponse,
+  PreviewMutableSkillImportError,
+  Options<PreviewMutableSkillImportData>
 > => {
   const mutationOptions: UseMutationOptions<
-    PreviewSkillImportResponse,
-    PreviewSkillImportError,
-    Options<PreviewSkillImportData>
+    PreviewMutableSkillImportResponse,
+    PreviewMutableSkillImportError,
+    Options<PreviewMutableSkillImportData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await previewSkillImport({
+      const { data } = await previewMutableSkillImport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Import mutable skills into selected Agents.
+ */
+export const importMutableSkillsMutation = (
+  options?: Partial<Options<ImportMutableSkillsData>>
+): UseMutationOptions<
+  ImportMutableSkillsResponse,
+  ImportMutableSkillsError,
+  Options<ImportMutableSkillsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ImportMutableSkillsResponse,
+    ImportMutableSkillsError,
+    Options<ImportMutableSkillsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await importMutableSkills({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Parse an immutable skill import and report scope conflicts.
+ */
+export const previewImmutableSkillImportMutation = (
+  options?: Partial<Options<PreviewImmutableSkillImportData>>
+): UseMutationOptions<
+  PreviewImmutableSkillImportResponse,
+  PreviewImmutableSkillImportError,
+  Options<PreviewImmutableSkillImportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PreviewImmutableSkillImportResponse,
+    PreviewImmutableSkillImportError,
+    Options<PreviewImmutableSkillImportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await previewImmutableSkillImport({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -1385,16 +1447,20 @@ export const previewSkillImportMutation = (
 /**
  * Import immutable skills.
  */
-export const importSkillsMutation = (
-  options?: Partial<Options<ImportSkillsData>>
-): UseMutationOptions<ImportSkillsResponse2, ImportSkillsError, Options<ImportSkillsData>> => {
+export const importImmutableSkillsMutation = (
+  options?: Partial<Options<ImportImmutableSkillsData>>
+): UseMutationOptions<
+  ImportImmutableSkillsResponse,
+  ImportImmutableSkillsError,
+  Options<ImportImmutableSkillsData>
+> => {
   const mutationOptions: UseMutationOptions<
-    ImportSkillsResponse2,
-    ImportSkillsError,
-    Options<ImportSkillsData>
+    ImportImmutableSkillsResponse,
+    ImportImmutableSkillsError,
+    Options<ImportImmutableSkillsData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await importSkills({
+      const { data } = await importImmutableSkills({
         ...options,
         ...fnOptions,
         throwOnError: true,

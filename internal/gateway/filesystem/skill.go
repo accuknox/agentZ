@@ -151,26 +151,18 @@ func (s *service) deleteSkills(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *service) exportSkills(w http.ResponseWriter, r *http.Request) {
-	var req gatewayapi.ExportSkillsRequest
+	var req gatewayapi.ExportMutableSkillsRequest
 	if ferr := decodeBody(w, r, &req); ferr != nil {
 		writeFailure(w, r, ferr)
 		return
 	}
-	names := make([]string, 0, len(req.Skills))
-	for _, ref := range req.Skills {
-		if ref.Scope != gatewayapi.ResourceScopeWorkspace {
-			writeFailure(w, r, badRequest("skills is invalid", errors.New("skill scope must be Workspace")))
-			return
-		}
-		names = append(names, ref.Name)
-	}
-	if err := skill.ValidateNames(names); err != nil {
+	if err := skill.ValidateNames(req.SkillNames); err != nil {
 		writeFailure(w, r, badRequest("skill_names is invalid", err))
 		return
 	}
 
 	files := make([]string, 0)
-	for _, name := range names {
+	for _, name := range req.SkillNames {
 		root := path.Join(mutableSkillsRoot, name)
 		info, err := s.root.Stat(root)
 		if err != nil || !info.IsDir() {

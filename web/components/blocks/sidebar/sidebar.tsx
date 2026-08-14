@@ -156,6 +156,7 @@ async function WorkspaceNavigation({
   const hasResources =
     lensCapabilities.read ||
     skillCapabilities.read ||
+    hasAgents ||
     mcpConnectionCapabilities.read ||
     sandboxCapabilities.read ||
     inferenceProviderCapabilities.read ||
@@ -200,7 +201,7 @@ async function WorkspaceNavigation({
           <SidebarGroupLabel>Resources</SidebarGroupLabel>
           <SidebarMenu>
             {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
-            {skillCapabilities.read ? (
+            {skillCapabilities.read || hasAgents ? (
               <SidebarMenuItem>
                 <SidebarNavigationLink href={`${workspacePath}/skills` as Route} label="Skills">
                   <ScrollText aria-hidden="true" />

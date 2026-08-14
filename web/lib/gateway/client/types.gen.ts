@@ -480,8 +480,33 @@ export type DeleteSkillsRequest = {
   skill_names: Array<SkillName>
 }
 
-export type ExportSkillsRequest = {
+export type ExportMutableSkillsRequest = {
+  skill_names: Array<SkillName>
+}
+
+export type ExportImmutableSkillsRequest = {
+  /**
+   * Skill references whose names are unique across scopes.
+   */
   skills: Array<ResourceReference>
+}
+
+export type ImmutableSkillImportPreviewItem = {
+  name: SkillName
+  conflict: boolean
+}
+
+export type ImmutableSkillImportPreviewResponse = {
+  skills: Array<ImmutableSkillImportPreviewItem>
+}
+
+export type MutableSkillImportPreviewItem = {
+  name: SkillName
+  conflict_agents: Array<AgentName>
+}
+
+export type MutableSkillImportPreviewResponse = {
+  skills: Array<MutableSkillImportPreviewItem>
 }
 
 export type SkillImportDecision =
@@ -511,23 +536,15 @@ export type RenameSkillImportDecision = {
   rename: SkillName
 }
 
-export type SkillImportPreviewItem = {
-  name: SkillName
-  immutable_conflict: boolean
-}
-
-export type SkillImportPreviewResponse = {
-  skills: Array<SkillImportPreviewItem>
-}
-
 export type SkillImportAgentResult = {
   agent: AgentName
   status: "succeeded" | "failed"
   error?: string
 }
 
-export type ImportSkillsResponse = {
+export type SkillImportResponse = {
   skills: Array<SkillName>
+  agents: Array<SkillImportAgentResult>
 }
 
 export type SkillReferences = {
@@ -3545,6 +3562,13 @@ export type DeleteAgentEntryResponse = DeleteAgentEntryResponses[keyof DeleteAge
 
 export type DeleteAgentMutableSkillsData = {
   body: DeleteSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Agent name.
@@ -3594,6 +3618,13 @@ export type DeleteAgentMutableSkillsResponse =
 
 export type ListAgentMutableSkillsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Agent name.
@@ -3643,7 +3674,14 @@ export type ListAgentMutableSkillsResponse =
   ListAgentMutableSkillsResponses[keyof ListAgentMutableSkillsResponses]
 
 export type ExportAgentMutableSkillsData = {
-  body: ExportSkillsRequest
+  body: ExportMutableSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Agent name.
@@ -3691,7 +3729,126 @@ export type ExportAgentMutableSkillsResponses = {
 export type ExportAgentMutableSkillsResponse =
   ExportAgentMutableSkillsResponses[keyof ExportAgentMutableSkillsResponses]
 
-export type PreviewSkillImportData = {
+export type PreviewMutableSkillImportData = {
+  body: {
+    file: Blob | File
+    agents: Array<AgentName>
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/agent/skill/import/preview"
+}
+
+export type PreviewMutableSkillImportErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * The Agent filesystem is unavailable.
+   */
+  502: Error
+}
+
+export type PreviewMutableSkillImportError =
+  PreviewMutableSkillImportErrors[keyof PreviewMutableSkillImportErrors]
+
+export type PreviewMutableSkillImportResponses = {
+  /**
+   * Parsed skills and current Agent conflicts.
+   */
+  200: MutableSkillImportPreviewResponse
+}
+
+export type PreviewMutableSkillImportResponse =
+  PreviewMutableSkillImportResponses[keyof PreviewMutableSkillImportResponses]
+
+export type ImportMutableSkillsData = {
+  body: {
+    file: Blob | File
+    agents: Array<AgentName>
+    /**
+     * JSON-encoded array of SkillImportDecision objects.
+     */
+    decisions: string
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/agent/skill/import"
+}
+
+export type ImportMutableSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * The Agent filesystem is unavailable.
+   */
+  502: Error
+}
+
+export type ImportMutableSkillsError = ImportMutableSkillsErrors[keyof ImportMutableSkillsErrors]
+
+export type ImportMutableSkillsResponses = {
+  /**
+   * Imported skills and a result for every targeted Agent.
+   */
+  200: SkillImportResponse
+}
+
+export type ImportMutableSkillsResponse =
+  ImportMutableSkillsResponses[keyof ImportMutableSkillsResponses]
+
+export type PreviewImmutableSkillImportData = {
   body: {
     file: Blob | File
   }
@@ -3707,7 +3864,7 @@ export type PreviewSkillImportData = {
   url: "/api/skill/import/preview"
 }
 
-export type PreviewSkillImportErrors = {
+export type PreviewImmutableSkillImportErrors = {
   /**
    * Request validation failed.
    */
@@ -3726,22 +3883,30 @@ export type PreviewSkillImportErrors = {
   422: Error
 }
 
-export type PreviewSkillImportError = PreviewSkillImportErrors[keyof PreviewSkillImportErrors]
+export type PreviewImmutableSkillImportError =
+  PreviewImmutableSkillImportErrors[keyof PreviewImmutableSkillImportErrors]
 
-export type PreviewSkillImportResponses = {
+export type PreviewImmutableSkillImportResponses = {
   /**
    * Parsed skills and current conflicts.
    */
-  200: SkillImportPreviewResponse
+  200: ImmutableSkillImportPreviewResponse
 }
 
-export type PreviewSkillImportResponse =
-  PreviewSkillImportResponses[keyof PreviewSkillImportResponses]
+export type PreviewImmutableSkillImportResponse =
+  PreviewImmutableSkillImportResponses[keyof PreviewImmutableSkillImportResponses]
 
-export type ImportSkillsData = {
+export type ImportImmutableSkillsData = {
   body: {
     file: Blob | File
-    decisions: Array<SkillImportDecision>
+    /**
+     * JSON-encoded array of SkillImportDecision objects.
+     */
+    decisions: string
+    /**
+     * Workspace Agents to attach imported skills to.
+     */
+    agents?: Array<AgentName>
   }
   headers?: {
     /**
@@ -3755,7 +3920,7 @@ export type ImportSkillsData = {
   url: "/api/skill/import"
 }
 
-export type ImportSkillsErrors = {
+export type ImportImmutableSkillsErrors = {
   /**
    * Request validation failed.
    */
@@ -3774,16 +3939,18 @@ export type ImportSkillsErrors = {
   422: Error
 }
 
-export type ImportSkillsError = ImportSkillsErrors[keyof ImportSkillsErrors]
+export type ImportImmutableSkillsError =
+  ImportImmutableSkillsErrors[keyof ImportImmutableSkillsErrors]
 
-export type ImportSkillsResponses = {
+export type ImportImmutableSkillsResponses = {
   /**
-   * A result for every targeted Agent.
+   * Imported skills and any requested Agent attachment results.
    */
-  200: ImportSkillsResponse
+  200: SkillImportResponse
 }
 
-export type ImportSkillsResponse2 = ImportSkillsResponses[keyof ImportSkillsResponses]
+export type ImportImmutableSkillsResponse =
+  ImportImmutableSkillsResponses[keyof ImportImmutableSkillsResponses]
 
 export type DeleteImmutableSkillsData = {
   body: DeleteSkillsRequest
@@ -3996,7 +4163,7 @@ export type ListImmutableSkillSummariesResponse2 =
   ListImmutableSkillSummariesResponses[keyof ListImmutableSkillSummariesResponses]
 
 export type ExportImmutableSkillsData = {
-  body: ExportSkillsRequest
+  body: ExportImmutableSkillsRequest
   headers?: {
     /**
      * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.

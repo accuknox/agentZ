@@ -5,6 +5,7 @@ import {
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
+  type Column,
   type ColumnDef,
   type SortingState,
   useReactTable,
@@ -19,6 +20,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useTokenPagination } from "@/lib/use-token-pagination"
+import { AgentGettingReady } from "@/components/agent-readiness"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -30,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Table,
   TableBody,
@@ -47,34 +50,41 @@ const columnClassName: Record<string, string> = {
   version: "w-24",
   file_count: "w-24",
   size_bytes: "w-28",
+  agents: "w-52",
   modified_at: "w-44",
   actions: "w-14",
 }
 
 export function SkillTable({
   data,
+  disabled,
   error,
   exporting,
   hasNextPage,
+  showAgents,
+  showImmutable,
   loading,
   nextPageToken,
   selected,
-  setDeleteNames,
   setSelected,
+  onDelete,
   onEdit,
   onExport,
 }: {
   data: Skill[]
+  disabled: boolean
   error: { message: string } | null
   exporting: boolean
   hasNextPage: boolean
+  showAgents: boolean
+  showImmutable: boolean
   loading: boolean
   nextPageToken: string
   selected: Set<string>
-  setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+  onDelete: (key: string) => void
   onEdit: (skill: ImmutableSkill) => void
-  onExport: (name: string) => void
+  onExport: (key: string) => void
 }) {
   "use no memo"
 
@@ -86,14 +96,27 @@ export function SkillTable({
   const columns = React.useMemo(
     () =>
       createSkillColumns({
+        disabled,
         exporting,
         selected,
-        setDeleteNames,
+        showAgents,
+        showImmutable,
         setSelected,
+        onDelete,
         onEdit,
         onExport,
       }),
-    [exporting, onEdit, onExport, selected, setDeleteNames, setSelected]
+    [
+      disabled,
+      exporting,
+      onEdit,
+      onExport,
+      selected,
+      setSelected,
+      onDelete,
+      showAgents,
+      showImmutable,
+    ]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -104,6 +127,7 @@ export function SkillTable({
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
     state: { sorting },
+    getRowId: (row) => row.key,
   })
 
   function clearSelectionAndGoPrevious() {
@@ -117,9 +141,9 @@ export function SkillTable({
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="min-w-0 space-y-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="w-full table-fixed">
+        <Table className="table-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -137,24 +161,31 @@ export function SkillTable({
             ))}
           </TableHeader>
           <TableBody>
-            {loading ? <SkillTableSkeleton columns={columns.length} /> : null}
-            {!loading && error ? (
+            {disabled ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <AgentGettingReady className="text-muted-foreground inline-flex items-center gap-2 text-sm" />
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {!disabled && loading ? <SkillTableSkeleton columns={columns.length} /> : null}
+            {!disabled && !loading && error ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="text-destructive h-24 text-center">
                   {error.message}
                 </TableCell>
               </TableRow>
             ) : null}
-            {!loading && !error && table.getRowModel().rows.length === 0 ? (
+            {!disabled && !loading && !error && table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
                   No skills
                 </TableCell>
               </TableRow>
             ) : null}
-            {!loading && !error
+            {!disabled && !loading && !error
               ? table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={selected.has(row.original.name) && "selected"}>
+                  <TableRow key={row.id} data-state={selected.has(row.original.key) && "selected"}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
@@ -169,55 +200,60 @@ export function SkillTable({
           </TableBody>
         </Table>
       </div>
-      {canGoPrevious || hasNextPage ? (
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearSelectionAndGoPrevious}
-            disabled={!canGoPrevious || pending}
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearSelectionAndGoNext}
-            disabled={!hasNextPage || pending}
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
-      ) : null}
+      <div className="flex items-center justify-end gap-2 px-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearSelectionAndGoPrevious}
+          disabled={disabled || !canGoPrevious || pending}
+        >
+          <ArrowLeft data-icon="inline-start" />
+          Previous
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearSelectionAndGoNext}
+          disabled={disabled || !hasNextPage || pending}
+        >
+          Next
+          <ArrowRight data-icon="inline-end" />
+        </Button>
+      </div>
     </div>
   )
 }
 
 function createSkillColumns({
+  disabled,
   exporting,
   selected,
-  setDeleteNames,
+  showAgents,
+  showImmutable,
   setSelected,
+  onDelete,
   onEdit,
   onExport,
 }: {
+  disabled: boolean
   exporting: boolean
   selected: Set<string>
-  setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
+  showAgents: boolean
+  showImmutable: boolean
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+  onDelete: (key: string) => void
   onEdit: (skill: ImmutableSkill) => void
-  onExport: (name: string) => void
+  onExport: (key: string) => void
 }): ColumnDef<Skill>[] {
   const columns: ColumnDef<Skill>[] = [
     {
       id: "select",
       header: ({ table }) => {
         const rows = table.getRowModel().rows
-        const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.original.name))
+        const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.original.key))
         return (
           <Checkbox
+            disabled={disabled}
             checked={allSelected}
             aria-label="Select all skills"
             onCheckedChange={(checked) => {
@@ -225,9 +261,9 @@ function createSkillColumns({
                 const next = new Set(current)
                 for (const row of rows) {
                   if (checked === true) {
-                    next.add(row.original.name)
+                    next.add(row.original.key)
                   } else {
-                    next.delete(row.original.name)
+                    next.delete(row.original.key)
                   }
                 }
                 return next
@@ -238,15 +274,15 @@ function createSkillColumns({
       },
       cell: ({ row }) => (
         <Checkbox
-          checked={selected.has(row.original.name)}
+          checked={selected.has(row.original.key)}
           aria-label={`Select ${row.original.name}`}
           onCheckedChange={(checked) => {
             setSelected((current) => {
               const next = new Set(current)
               if (checked === true) {
-                next.add(row.original.name)
+                next.add(row.original.key)
               } else {
-                next.delete(row.original.name)
+                next.delete(row.original.key)
               }
               return next
             })
@@ -259,21 +295,25 @@ function createSkillColumns({
       accessorKey: "name",
       header: ({ column }) => <SortButton column={column} label="Name" />,
       cell: ({ row }) => (
-        <span className="block truncate font-medium" title={row.original.name}>
+        <span className="block min-w-0 truncate font-medium" title={row.original.name}>
           {row.original.name}
         </span>
       ),
     },
   ]
 
-  columns.push({
-    accessorKey: "version",
-    header: ({ column }) => <SortButton column={column} label="Version" />,
-    cell: ({ row }) => {
-      const skill = row.original
-      return <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
-    },
-  })
+  if (showImmutable) {
+    columns.push({
+      accessorKey: "version",
+      header: ({ column }) => <SortButton column={column} label="Version" />,
+      cell: ({ row }) => {
+        const skill = row.original
+        return skill.type === "immutable" ? (
+          <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
+        ) : null
+      },
+    })
+  }
 
   columns.push(
     {
@@ -293,6 +333,17 @@ function createSkillColumns({
       ),
     }
   )
+
+  if (showAgents) {
+    columns.push({
+      id: "agents",
+      header: "Agents",
+      cell: ({ row }) => (
+        <AgentsSummary agents={row.original.type === "immutable" ? row.original.agents : []} />
+      ),
+      enableSorting: false,
+    })
+  }
 
   columns.push(
     {
@@ -315,7 +366,7 @@ function createSkillColumns({
         <SkillRowActions
           exporting={exporting}
           skill={row.original}
-          setDeleteNames={setDeleteNames}
+          onDelete={onDelete}
           onEdit={onEdit}
           onExport={onExport}
         />
@@ -327,13 +378,7 @@ function createSkillColumns({
   return columns
 }
 
-function SortButton({
-  column,
-  label,
-}: {
-  column: { toggleSorting: (desc?: boolean) => void; getIsSorted: () => false | "asc" | "desc" }
-  label: string
-}) {
+function SortButton({ column, label }: { column: Column<Skill>; label: string }) {
   return (
     <Button
       className="-ml-2"
@@ -346,18 +391,40 @@ function SortButton({
   )
 }
 
+function AgentsSummary({ agents }: { agents: ImmutableSkill["agents"] }) {
+  if (agents.length === 0) {
+    return <span className="text-muted-foreground">-</span>
+  }
+  const sorted = agents.toSorted()
+  const summary =
+    sorted.length <= 2
+      ? sorted.join(", ")
+      : `${sorted.slice(0, 2).join(", ")}, +${sorted.length - 2}`
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <code className="cursor-default">{summary}</code>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={6}>{sorted.join(", ")}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 function SkillRowActions({
   exporting,
   skill,
-  setDeleteNames,
+  onDelete,
   onEdit,
   onExport,
 }: {
   exporting: boolean
   skill: Skill
-  setDeleteNames: React.Dispatch<React.SetStateAction<string[]>>
+  onDelete: (key: string) => void
   onEdit: (skill: ImmutableSkill) => void
-  onExport: (name: string) => void
+  onExport: (key: string) => void
 }) {
   return (
     <div className="flex justify-end">
@@ -370,18 +437,18 @@ function SkillRowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
-            {skill.can_modify ? (
+            {skill.type === "immutable" && skill.can_modify ? (
               <DropdownMenuItem onSelect={() => onEdit(skill)}>
                 <Pencil />
                 Edit
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem disabled={exporting} onSelect={() => onExport(skill.name)}>
+            <DropdownMenuItem disabled={exporting} onSelect={() => onExport(skill.key)}>
               {exporting ? <Spinner /> : <Download />}
               Export
             </DropdownMenuItem>
-            {skill.can_delete ? (
-              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteNames([skill.name])}>
+            {skill.type === "mutable" || skill.can_delete ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => onDelete(skill.key)}>
                 <Trash2 />
                 Delete
               </DropdownMenuItem>

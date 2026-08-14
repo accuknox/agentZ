@@ -51,9 +51,9 @@ const (
 
 // Decision selects the destination and precondition for one imported skill.
 type Decision struct {
-	Action DecisionAction
-	Name   string
-	Rename string
+	Action DecisionAction `json:"action"`
+	Name   string         `json:"name"`
+	Rename string         `json:"rename,omitempty"`
 }
 
 // File is one validated regular file in a skill tree.

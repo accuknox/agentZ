@@ -529,8 +529,30 @@ export const zDeleteSkillsRequest = z.object({
   skill_names: z.array(zSkillName).min(1).max(200),
 })
 
-export const zExportSkillsRequest = z.object({
+export const zExportMutableSkillsRequest = z.object({
+  skill_names: z.array(zSkillName).min(1).max(200),
+})
+
+export const zExportImmutableSkillsRequest = z.object({
   skills: z.array(zResourceReference).min(1).max(200),
+})
+
+export const zImmutableSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  conflict: z.boolean(),
+})
+
+export const zImmutableSkillImportPreviewResponse = z.object({
+  skills: z.array(zImmutableSkillImportPreviewItem),
+})
+
+export const zMutableSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  conflict_agents: z.array(zAgentName),
+})
+
+export const zMutableSkillImportPreviewResponse = z.object({
+  skills: z.array(zMutableSkillImportPreviewItem),
 })
 
 export const zCreateSkillImportDecision = z.object({
@@ -555,23 +577,15 @@ export const zSkillImportDecision = z.discriminatedUnion("action", [
   zRenameSkillImportDecision.extend({ action: z.literal("rename") }),
 ])
 
-export const zSkillImportPreviewItem = z.object({
-  name: zSkillName,
-  immutable_conflict: z.boolean(),
-})
-
-export const zSkillImportPreviewResponse = z.object({
-  skills: z.array(zSkillImportPreviewItem),
-})
-
 export const zSkillImportAgentResult = z.object({
   agent: zAgentName,
   status: z.enum(["succeeded", "failed"]),
   error: z.string().optional(),
 })
 
-export const zImportSkillsResponse = z.object({
+export const zSkillImportResponse = z.object({
   skills: z.array(zSkillName),
+  agents: z.array(zSkillImportAgentResult),
 })
 
 export const zSkillReferences = z.object({
@@ -2444,14 +2458,24 @@ export const zListAgentMutableSkillsResponse = zListMutableSkillsResponse
 export const zExportAgentMutableSkillsResponse = z.string()
 
 /**
- * Parsed skills and current conflicts.
+ * Parsed skills and current Agent conflicts.
  */
-export const zPreviewSkillImportResponse = zSkillImportPreviewResponse
+export const zPreviewMutableSkillImportResponse = zMutableSkillImportPreviewResponse
 
 /**
- * A result for every targeted Agent.
+ * Imported skills and a result for every targeted Agent.
  */
-export const zImportSkillsResponse2 = zImportSkillsResponse
+export const zImportMutableSkillsResponse = zSkillImportResponse
+
+/**
+ * Parsed skills and current conflicts.
+ */
+export const zPreviewImmutableSkillImportResponse = zImmutableSkillImportPreviewResponse
+
+/**
+ * Imported skills and any requested Agent attachment results.
+ */
+export const zImportImmutableSkillsResponse = zSkillImportResponse
 
 /**
  * Skills deleted.

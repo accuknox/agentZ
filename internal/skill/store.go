@@ -93,8 +93,9 @@ type Summary struct {
 
 // VersionSelection identifies one immutable skill version for export.
 type VersionSelection struct {
-	Name    string
-	Version int64
+	Namespace string
+	Name      string
+	Version   int64
 }
 
 // ConfigFromDir reads a mounted Kubernetes Secret directory into Config.
@@ -330,14 +331,18 @@ func (c *Client) UploadVersion(ctx context.Context, namespace string, tree Tree,
 }
 
 // WriteVersionsZIP streams immutable skill versions into a portable ZIP.
-func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, namespace string, selections []VersionSelection) error {
+func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, selections []VersionSelection) error {
 	selections = slices.Clone(selections)
 	slices.SortFunc(selections, func(a, b VersionSelection) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 	zw := zip.NewWriter(w)
 	for _, selection := range selections {
-		prefix := immutableVersionPrefix(namespace, selection.Name, selection.Version)
+		prefix := immutableVersionPrefix(
+			selection.Namespace,
+			selection.Name,
+			selection.Version,
+		)
 		paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
 			Bucket: aws.String(c.bucket), Prefix: aws.String(prefix),
 		})

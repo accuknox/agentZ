@@ -83,12 +83,12 @@ func (s *Service) ListAgentMutableSkills(w http.ResponseWriter, r *http.Request,
 }
 
 // DeleteAgentMutableSkills handles DELETE /api/agent/{agentName}/skill.
-func (s *Service) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+func (s *Service) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, _ gatewayapi.DeleteAgentMutableSkillsParams) {
 	s.proxyFilesystem(w, r, agentName, "/skill")
 }
 
 // ExportAgentMutableSkills handles POST /api/agent/{agentName}/skill/export.
-func (s *Service) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+func (s *Service) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, _ gatewayapi.ExportAgentMutableSkillsParams) {
 	s.proxyFilesystem(w, r, agentName, "/skill/export")
 }
 

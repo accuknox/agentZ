@@ -2,18 +2,41 @@
 
 import type { Route } from "next"
 import Link from "next/link"
-import { useActionState, useEffect, useMemo, useState } from "react"
+import { Fragment, useActionState, useEffect, useMemo, useState } from "react"
+import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { ArrowRight, CircleAlert, Plus, Save, X } from "lucide-react"
 import { socialAdmissionAction, type SocialAdmissionFormState } from "@/app/(scoped)/orgs/actions"
 import type { SocialAdmission } from "@/data/members"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { CopyButton } from "@/components/ui/copy-button"
-import { Field, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { Input } from "@/components/ui/input"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
+import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 const googleDomainPattern =
   /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/
@@ -38,22 +61,32 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
     setActionState(state)
     if (state.saved) setDirty(false)
   }
+
   const githubInvalid = rules.some(
     (rule) =>
       !githubOrganizationPattern.test(rule.organization.trim()) ||
-      (Boolean(rule.team) && !githubTeamPattern.test(rule.team?.trim() ?? ""))
+      (rule.team !== null && rule.team !== "" && !githubTeamPattern.test(rule.team.trim()))
   )
-  const invalid = (enabled && roleIds.length === 0) || githubInvalid || Boolean(domainError)
-  const workspaceIds = useMemo(() => {
-    const ids = new Set<string>()
-    data.roles
-      .filter((role) => roleIds.includes(role.id))
-      .forEach((role) => role.workspaceIds.forEach((id) => ids.add(id)))
-    data.teams
-      .filter((team) => teamIds.includes(team.id))
-      .forEach((team) => team.workspaceIds.forEach((id) => ids.add(id)))
-    return ids
-  }, [data.roles, data.teams, roleIds, teamIds])
+  const invalid = enabled && (roleIds.length === 0 || githubInvalid || Boolean(domainError))
+  const qualifiedWorkspaces = useMemo(
+    () =>
+      data.workspaces.flatMap((workspace) => {
+        const sources = [
+          ...data.roles
+            .filter((role) => roleIds.includes(role.id) && role.workspaceIds.includes(workspace.id))
+            .map((role) => ({ kind: "Role", name: role.name })),
+          ...data.teams
+            .filter((team) => teamIds.includes(team.id) && team.workspaceIds.includes(workspace.id))
+            .map((team) => ({ kind: "Team", name: team.name })),
+        ]
+        return sources.length ? [{ ...workspace, sources }] : []
+      }),
+    [data.roles, data.teams, data.workspaces, roleIds, teamIds]
+  )
+  const submittedRoleIds = enabled ? roleIds : data.defaultRoleIds
+  const submittedTeamIds = enabled ? teamIds : data.defaultTeamIds
+  const submittedDomains = enabled ? domains : data.googleDomains
+  const submittedRules = enabled ? rules : data.githubRules
 
   useEffect(() => {
     if (!dirty) return
@@ -73,7 +106,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       setDomain("")
       return
     }
-    setDomains([...domains, value])
+    setDomains((current) => [...current, value])
     setDomain("")
     setDirty(true)
   }
@@ -84,23 +117,45 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       className="flex max-w-4xl min-w-0 flex-col gap-8 px-4 pb-6 md:px-6"
       onChange={() => setDirty(true)}
     >
-      <section className="grid gap-5">
-        <Field orientation="horizontal">
+      {submittedRoleIds.map((id) => (
+        <input key={id} name="role_ids" type="hidden" value={id} />
+      ))}
+      {submittedTeamIds.map((id) => (
+        <input key={id} name="team_ids" type="hidden" value={id} />
+      ))}
+      {submittedDomains.map((value) => (
+        <input key={value} name="google_domains" type="hidden" value={value} />
+      ))}
+      {submittedRules.map((rule) => (
+        <Fragment key={rule.id}>
+          <input name="github_organization" type="hidden" value={rule.organization} />
+          <input name="github_team" type="hidden" value={rule.team ?? ""} />
+        </Fragment>
+      ))}
+
+      <section className="flex flex-col gap-5">
+        <Field className="border-b pb-6" orientation="horizontal">
+          <FieldContent>
+            <FieldLabel htmlFor="social-admission-enabled">Enable Social Sign Up</FieldLabel>
+            <FieldDescription>
+              Let people join this Organisation when they match the access rules below.
+            </FieldDescription>
+          </FieldContent>
           <Switch
-            aria-label="Enable guarded Social sign-up"
-            id="social-admission-enabled"
+            aria-label="Enable Social Sign Up"
             checked={enabled}
+            id="social-admission-enabled"
             name="enabled"
-            onCheckedChange={(checked) => setEnabled(checked)}
+            onCheckedChange={(checked) => {
+              setEnabled(checked)
+              setDomainError(undefined)
+              setDirty(true)
+            }}
           />
-          <div className="grid gap-1">
-            <FieldLabel htmlFor="social-admission-enabled">
-              Enable guarded Social sign-up
-            </FieldLabel>
-          </div>
         </Field>
         {state.error ? (
           <Alert variant="destructive">
+            <CircleAlert aria-hidden="true" />
             <AlertTitle>Policy not saved</AlertTitle>
             <AlertDescription>{state.error}</AlertDescription>
           </Alert>
@@ -108,274 +163,359 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         {enabled && roleIds.length === 0 ? (
           <Alert variant="warning">
             <CircleAlert aria-hidden="true" />
-            <AlertTitle>Default Role required</AlertTitle>
+            <AlertTitle>Default role required</AlertTitle>
             <AlertDescription>
-              Select at least one default Role before enabling Social sign-up.
+              Select at least one default role before enabling Social Sign Up.
             </AlertDescription>
           </Alert>
         ) : null}
       </section>
 
-      <section className="grid gap-4">
-        <h3 className="text-base font-semibold">Default access</h3>
-        <div className="grid gap-6 md:grid-cols-2">
-          <CheckList
-            label="Default roles"
-            name="role_ids"
-            onChange={setRoleIds}
-            options={data.roles}
-            value={roleIds}
-          />
-          <CheckList
-            label="Default teams"
-            name="team_ids"
-            onChange={setTeamIds}
-            options={data.teams}
-            value={teamIds}
-          />
-        </div>
-        <div className="grid gap-3 border-y py-4">
-          <div>
-            <h4 className="text-sm font-medium">Derived Workspace access</h4>
-            <p className="text-muted-foreground text-sm">
-              Qualifying members can enter Workspaces reached by the selected Roles and Teams.
-            </p>
-          </div>
-          {data.workspaces.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No active Workspaces</p>
-          ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {data.workspaces.map((workspace) => (
-                <li className="flex items-center gap-2 text-sm" key={workspace.id}>
-                  <span
-                    aria-hidden="true"
-                    className={
-                      workspaceIds.has(workspace.id)
-                        ? "bg-primary size-2 rounded-full"
-                        : "bg-muted-foreground/35 size-2 rounded-full"
-                    }
-                  />
-                  <span>{workspace.name}</span>
-                  <span className="text-muted-foreground ml-auto">
-                    {workspaceIds.has(workspace.id) ? "Granted" : "No access"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-5">
-        <h3 className="text-base font-semibold">External rules</h3>
-        <Field>
-          <FieldLabel htmlFor="google-domains">Google email domains</FieldLabel>
-          <div className="flex gap-2">
-            <Input
-              aria-describedby={domainError ? "google-domains-error" : undefined}
-              aria-invalid={Boolean(domainError)}
-              id="google-domains"
-              onChange={(event) => setDomain(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return
-                event.preventDefault()
-                addDomain()
-              }}
-              placeholder="example.com"
-              value={domain}
-            />
-            <Button onClick={addDomain} type="button" variant="outline">
-              <Plus />
-              Add
-            </Button>
-          </div>
-          {domainError ? (
-            <p className="text-destructive text-sm" id="google-domains-error" role="alert">
-              {domainError}
-            </p>
-          ) : null}
-          <div className="grid gap-1">
-            {domains.map((value) => (
-              <div className="flex items-center gap-2 py-2" key={value}>
-                <span className="min-w-0 flex-1 truncate text-sm">{value}</span>
-                <Button
-                  aria-label={`Remove ${value}`}
-                  onClick={() => {
-                    setDomains(domains.filter((candidate) => candidate !== value))
+      {enabled ? (
+        <>
+          <section className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-semibold">Default access</h3>
+              <p className="text-muted-foreground text-sm">
+                Assign roles and teams once when a qualifying account joins.
+              </p>
+            </div>
+            <FieldGroup className="grid md:grid-cols-2">
+              <Field data-invalid={roleIds.length === 0}>
+                <FieldLabel htmlFor="default-roles" required>
+                  Default roles
+                </FieldLabel>
+                <MultiSelectDropdown
+                  emptyMessage="No roles available."
+                  id="default-roles"
+                  invalid={roleIds.length === 0}
+                  onValueChangeAction={(value) => {
+                    setRoleIds(value)
                     setDirty(true)
                   }}
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <X />
-                </Button>
-                <input name="google_domains" type="hidden" value={value} />
+                  options={data.roles.map((role) => ({ label: role.name, value: role.id }))}
+                  placeholder="Select default roles"
+                  searchPlaceholder="Search roles..."
+                  value={roleIds}
+                />
+                <FieldError>
+                  {roleIds.length === 0 ? "Select at least one default role." : null}
+                </FieldError>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="default-teams">Default teams</FieldLabel>
+                <MultiSelectDropdown
+                  emptyMessage="No teams available."
+                  id="default-teams"
+                  onValueChangeAction={(value) => {
+                    setTeamIds(value)
+                    setDirty(true)
+                  }}
+                  options={data.teams.map((team) => ({ label: team.name, value: team.id }))}
+                  placeholder="Select default teams"
+                  searchPlaceholder="Search teams..."
+                  value={teamIds}
+                />
+              </Field>
+            </FieldGroup>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="flex flex-col gap-1">
+                <h4 className="text-sm font-medium">Qualified workspaces</h4>
+                <p className="text-muted-foreground text-sm">
+                  Workspaces reached through the selected default roles and teams.
+                </p>
               </div>
-            ))}
-          </div>
-        </Field>
-        <div className="grid gap-3">
-          <h3 className="text-sm font-medium">GitHub rules</h3>
-          {rules.map((rule, index) => {
-            const organizationInvalid = !githubOrganizationPattern.test(rule.organization.trim())
-            const teamInvalid =
-              Boolean(rule.team) && !githubTeamPattern.test(rule.team?.trim() ?? "")
-            const errorId = `github-rule-${rule.id}-error`
-            return (
-              <div className="grid gap-2" key={rule.id}>
-                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                  <Input
-                    aria-describedby={organizationInvalid ? errorId : undefined}
-                    aria-invalid={organizationInvalid}
-                    aria-label={`GitHub organization rule ${index + 1}`}
-                    name="github_organization"
-                    onChange={(event) =>
-                      setRules(
-                        rules.map((candidate, candidateIndex) =>
-                          candidateIndex === index
-                            ? { ...candidate, organization: event.target.value }
-                            : candidate
-                        )
-                      )
-                    }
-                    placeholder="GitHub organization"
-                    value={rule.organization}
-                  />
-                  <Input
-                    aria-describedby={teamInvalid ? errorId : undefined}
-                    aria-invalid={teamInvalid}
-                    aria-label={`GitHub team rule ${index + 1}`}
-                    name="github_team"
-                    onChange={(event) =>
-                      setRules(
-                        rules.map((candidate, candidateIndex) =>
-                          candidateIndex === index
-                            ? { ...candidate, team: event.target.value || null }
-                            : candidate
-                        )
-                      )
-                    }
-                    placeholder="Team slug"
-                    value={rule.team ?? ""}
-                  />
-                  <Button
-                    aria-label="Remove GitHub rule"
-                    onClick={() => {
-                      setRules(rules.filter((_, candidateIndex) => candidateIndex !== index))
-                      setDirty(true)
+              <Table aria-label="Qualified workspaces" className="w-full table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-2/5 px-3">Workspace</TableHead>
+                    <TableHead className="px-3">Granted through</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {qualifiedWorkspaces.length ? (
+                    qualifiedWorkspaces.map((workspace) => (
+                      <TableRow key={workspace.id}>
+                        <TableCell className="h-11 px-3 font-medium whitespace-normal">
+                          {workspace.name}
+                        </TableCell>
+                        <TableCell className="h-11 px-3 whitespace-normal">
+                          <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            {workspace.sources.map((source) => (
+                              <span key={`${source.kind}:${source.name}`}>
+                                <span className="text-foreground font-medium">{source.kind}</span>
+                                {" · "}
+                                {source.name}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        className="text-muted-foreground h-20 px-3 text-center whitespace-normal"
+                        colSpan={2}
+                      >
+                        No workspaces are granted by the selected defaults
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="flex flex-col gap-6">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-semibold">External rules</h3>
+              <p className="text-muted-foreground text-sm">
+                Define which Google and GitHub accounts qualify to join.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-[11rem_minmax(0,1fr)]">
+              <ProviderHeading
+                description="Allow exact email domains."
+                icon={<Google aria-hidden className="size-5" />}
+                title="Google"
+              />
+              <Field data-invalid={Boolean(domainError)}>
+                <FieldLabel htmlFor="google-domains">Email domain</FieldLabel>
+                <InputGroup>
+                  <InputGroupInput
+                    aria-describedby={domainError ? "google-domains-error" : undefined}
+                    aria-invalid={Boolean(domainError)}
+                    autoComplete="off"
+                    id="google-domains"
+                    onChange={(event) => setDomain(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return
+                      event.preventDefault()
+                      addDomain()
                     }}
-                    size="icon"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <X />
-                  </Button>
-                </div>
-                {organizationInvalid || teamInvalid ? (
-                  <p className="text-destructive text-sm" id={errorId} role="alert">
-                    {organizationInvalid
-                      ? "Enter a valid GitHub organization name."
-                      : "Enter a lowercase GitHub team slug."}
-                  </p>
-                ) : null}
-              </div>
-            )
-          })}
-          <Button
-            className="w-fit"
-            onClick={() => {
-              const id =
-                crypto.randomUUID?.() ?? crypto.getRandomValues(new Uint32Array(4)).join("-")
-              setRules([...rules, { id, organization: "", team: null }])
-              setDirty(true)
-            }}
-            type="button"
-            variant="outline"
-          >
-            <Plus />
-            Add GitHub rule
-          </Button>
-        </div>
-      </section>
+                    placeholder="example.com"
+                    value={domain}
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton onClick={addDomain}>
+                      <Plus data-icon="inline-start" />
+                      Add
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+                <FieldError id="google-domains-error">{domainError}</FieldError>
+                {domains.length ? (
+                  <div className="mt-1 flex flex-col">
+                    {domains.map((value, index) => (
+                      <Fragment key={value}>
+                        {index ? <Separator /> : null}
+                        <div className="flex min-w-0 items-center gap-2 py-2">
+                          <span className="min-w-0 flex-1 truncate text-sm">{value}</span>
+                          <Button
+                            aria-label={`Remove ${value}`}
+                            onClick={() => {
+                              setDomains((current) =>
+                                current.filter((candidate) => candidate !== value)
+                              )
+                              setDirty(true)
+                            }}
+                            size="icon-sm"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <X />
+                          </Button>
+                        </div>
+                      </Fragment>
+                    ))}
+                  </div>
+                ) : (
+                  <FieldDescription>No Google domains configured.</FieldDescription>
+                )}
+              </Field>
+            </div>
 
-      <Alert>
-        <AlertTitle>Membership lifecycle</AlertTitle>
-        <AlertDescription>
-          These rules are evaluated only when a qualifying Social account joins this Organisation.
-          Default access is assigned once; later sign-ins do not recalculate or remove it. Explicit
-          Invitations bypass Social Admission rules and grant their configured access to the
-          signed-in User who accepts the link first.
-        </AlertDescription>
-      </Alert>
+            <Separator />
 
-      <section className="grid gap-3">
-        <h3 className="text-base font-semibold">Join links</h3>
-        <JoinLink label="Google" link={data.joinLinks.google} />
-        <JoinLink label="GitHub" link={data.joinLinks.github} />
-        <Button asChild className="w-fit" variant="link">
-          <Link
-            href={
-              `/orgs/${orgSlug}/event-trail?category=membership&target_type=organization` as Route
-            }
-          >
-            Review Social Admission eventTrail events
-            <ArrowRight />
-          </Link>
-        </Button>
-      </section>
+            <div className="grid gap-5 md:grid-cols-[11rem_minmax(0,1fr)]">
+              <ProviderHeading
+                description="Allow an organization or one of its teams."
+                icon={
+                  <>
+                    <GitHubLight aria-hidden className="size-5 dark:hidden" />
+                    <GitHubDark aria-hidden className="hidden size-5 dark:block" />
+                  </>
+                }
+                title="GitHub"
+              />
+              <FieldGroup>
+                {rules.length ? (
+                  rules.map((rule, index) => {
+                    const organizationInvalid = !githubOrganizationPattern.test(
+                      rule.organization.trim()
+                    )
+                    const teamInvalid =
+                      rule.team !== null &&
+                      rule.team !== "" &&
+                      !githubTeamPattern.test(rule.team.trim())
+                    const errorId = `github-rule-${rule.id}-error`
+                    return (
+                      <Fragment key={rule.id}>
+                        {index ? <Separator /> : null}
+                        <Field data-invalid={organizationInvalid || teamInvalid}>
+                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                            <Field>
+                              <FieldLabel htmlFor={`github-organization-${rule.id}`}>
+                                Organization
+                              </FieldLabel>
+                              <Input
+                                aria-describedby={organizationInvalid ? errorId : undefined}
+                                aria-invalid={organizationInvalid}
+                                autoComplete="off"
+                                id={`github-organization-${rule.id}`}
+                                onChange={(event) =>
+                                  setRules((current) =>
+                                    current.map((candidate, candidateIndex) =>
+                                      candidateIndex === index
+                                        ? { ...candidate, organization: event.target.value }
+                                        : candidate
+                                    )
+                                  )
+                                }
+                                placeholder="acme"
+                                value={rule.organization}
+                              />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor={`github-team-${rule.id}`}>
+                                Team slug <span className="text-muted-foreground">(optional)</span>
+                              </FieldLabel>
+                              <Input
+                                aria-describedby={teamInvalid ? errorId : undefined}
+                                aria-invalid={teamInvalid}
+                                autoComplete="off"
+                                id={`github-team-${rule.id}`}
+                                onChange={(event) =>
+                                  setRules((current) =>
+                                    current.map((candidate, candidateIndex) =>
+                                      candidateIndex === index
+                                        ? { ...candidate, team: event.target.value || null }
+                                        : candidate
+                                    )
+                                  )
+                                }
+                                placeholder="platform"
+                                value={rule.team ?? ""}
+                              />
+                            </Field>
+                            <Button
+                              aria-label={`Remove GitHub rule ${index + 1}`}
+                              onClick={() => {
+                                setRules((current) =>
+                                  current.filter((_, candidateIndex) => candidateIndex !== index)
+                                )
+                                setDirty(true)
+                              }}
+                              size="icon"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <X />
+                            </Button>
+                          </div>
+                          {organizationInvalid || teamInvalid ? (
+                            <FieldError id={errorId}>
+                              {organizationInvalid
+                                ? "Enter a valid GitHub organization name."
+                                : "Enter a lowercase GitHub team slug."}
+                            </FieldError>
+                          ) : null}
+                        </Field>
+                      </Fragment>
+                    )
+                  })
+                ) : (
+                  <FieldDescription>No GitHub rules configured.</FieldDescription>
+                )}
+                <Button
+                  className="w-fit"
+                  onClick={() => {
+                    const id = crypto.randomUUID()
+                    setRules((current) => [...current, { id, organization: "", team: null }])
+                    setDirty(true)
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  <Plus data-icon="inline-start" />
+                  Add GitHub rule
+                </Button>
+              </FieldGroup>
+            </div>
+          </section>
 
-      <div className="flex justify-end">
+          <Alert>
+            <AlertTitle>Membership lifecycle</AlertTitle>
+            <AlertDescription>
+              These rules are evaluated only when a qualifying Social account joins this
+              Organisation. Default access is assigned once; later sign-ins do not recalculate or
+              remove it. Explicit Invitations bypass Social Admission rules and grant their
+              configured access to the signed-in User who accepts the link first.
+            </AlertDescription>
+          </Alert>
+
+          <section className="flex flex-col gap-3">
+            <h3 className="text-base font-semibold">Join links</h3>
+            <JoinLink label="Google" link={data.joinLinks.google} />
+            <JoinLink label="GitHub" link={data.joinLinks.github} />
+            <Button asChild className="w-fit" variant="link">
+              <Link
+                href={
+                  `/orgs/${orgSlug}/event-trail?category=membership&target_type=organization` as Route
+                }
+              >
+                Review Social Admission eventTrail events
+                <ArrowRight data-icon="inline-end" />
+              </Link>
+            </Button>
+          </section>
+        </>
+      ) : null}
+
+      <div className="flex justify-end border-t pt-6">
         <Button disabled={pending || invalid} type="submit">
-          {pending ? <Spinner /> : <Save />}
-          Save social admission
+          {pending ? <Spinner /> : <Save data-icon="inline-start" />}
+          {pending ? "Saving..." : "Save Social Admission"}
         </Button>
       </div>
     </form>
   )
 }
 
-function CheckList({
-  label,
-  name,
-  onChange,
-  options,
-  value,
+function ProviderHeading({
+  description,
+  icon,
+  title,
 }: {
-  label: string
-  name: string
-  onChange: (value: string[]) => void
-  options: { id: string; name: string }[]
-  value: string[]
+  description: string
+  icon: React.ReactNode
+  title: string
 }) {
   return (
-    <fieldset className="grid gap-2">
-      <legend className="text-sm font-medium">{label}</legend>
-      {options.length === 0 ? (
-        <p className="text-muted-foreground py-3 text-sm">No options available</p>
-      ) : (
-        <div className="grid gap-1">
-          {options.map((option) => (
-            <label className="flex items-center gap-2 py-3 text-sm" key={option.id}>
-              <Checkbox
-                aria-label={`${label}: ${option.name}`}
-                checked={value.includes(option.id)}
-                name={name}
-                onCheckedChange={(checked) =>
-                  onChange(
-                    checked
-                      ? [...value, option.id]
-                      : value.filter((candidate) => candidate !== option.id)
-                  )
-                }
-                value={option.id}
-              />
-              <span className="truncate">{option.name}</span>
-            </label>
-          ))}
-        </div>
-      )}
-    </fieldset>
+    <div className="flex items-start gap-3">
+      <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg">
+        {icon}
+      </span>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <h4 className="text-sm font-medium">{title}</h4>
+        <p className="text-muted-foreground text-xs leading-relaxed">{description}</p>
+      </div>
+    </div>
   )
 }
 

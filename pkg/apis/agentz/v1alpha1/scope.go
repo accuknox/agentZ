@@ -46,8 +46,18 @@ type ResourceReference struct {
 
 // ScopeNamespace returns the deterministic namespace for a stable scope ID.
 // Hashing the typed scope keeps display names out of infrastructure identity
-// and separates identical Organisation and Workspace IDs.
+// and separates identical Organisation and Workspace IDs. It panics when scope
+// is not a supported ResourceScope because callers must use the declared enum.
 func ScopeNamespace(scope ResourceScope, stableID string) string {
 	sum := sha256.Sum256([]byte(string(scope) + "\x00" + stableID))
-	return "knox-" + hex.EncodeToString(sum[:16])
+	digest := hex.EncodeToString(sum[:16])
+
+	switch scope {
+	case ResourceScopeOrganisation:
+		return "org-" + digest
+	case ResourceScopeWorkspace:
+		return "ws-" + digest
+	default:
+		panic("unsupported ResourceScope " + scope)
+	}
 }

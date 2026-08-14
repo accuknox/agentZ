@@ -12,7 +12,7 @@ import (
 func TestTenantChangePredicate(t *testing.T) {
 	t.Parallel()
 
-	const identity = "knox-05d3f392d8021c42b0434f9f5f20eac6"
+	const identity = "org-05d3f392d8021c42b0434f9f5f20eac6"
 	tests := []struct {
 		name      string
 		oldTenant *agentzv1alpha1.Tenant

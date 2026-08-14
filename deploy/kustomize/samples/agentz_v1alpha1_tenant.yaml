@@ -4,6 +4,6 @@ metadata:
   labels:
     app.kubernetes.io/name: agentz
     app.kubernetes.io/managed-by: kustomize
-  name: knox-5c4faf5e91179363e60d78c6127159cb
+  name: org-5c4faf5e91179363e60d78c6127159cb
 spec:
   organizationID: sample

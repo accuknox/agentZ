@@ -18,7 +18,7 @@ Date: 2026-08-14
 - Bob: member of two Organisations and Workspace Admin of
   `workspace-c9b6d0a4-8e75-4063-a63f-53c605a933e2`
 - Zero: accepted a grant-free Role, then had that Membership disabled
-- Workspace namespace: `knox-50150497a9448e64c4c4efe733fd8380`
+- Workspace namespace: `ws-50150497a9448e64c4c4efe733fd8380`
 - Agent: `acceptance-agent`
 
 ## Results

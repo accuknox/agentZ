@@ -92,8 +92,8 @@ export default async function OrganizationLayout({
         >
           <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
             <AdministrationState
-              description="No role or team grants product access."
-              kind="empty"
+              description="You joined this organisation, but no role or team grants product access yet."
+              kind="forbidden"
               title="Access not assigned"
             />
           </div>

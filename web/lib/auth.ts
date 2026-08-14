@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm"
+import { generateId } from "@better-auth/core/utils/id"
+import { and, asc, desc, eq, isNull } from "drizzle-orm"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
 import { APIError, BASE_ERROR_CODES } from "@better-auth/core/error"
@@ -38,10 +39,7 @@ const organizationAccessControl = createAccessControl(defaultStatements)
 const superadminRole = organizationAccessControl.newRole(defaultStatements)
 const memberRole = organizationAccessControl.newRole({
   organization: [],
-  // Native mutation routes are disabled. This permission is used only by the
-  // authenticated admission callback to add the new member to every governed
-  // default Team through Better Auth's idempotent add-team-member endpoint.
-  member: ["update"],
+  member: [],
   invitation: [],
   team: [],
   ac: [],
@@ -606,7 +604,7 @@ async function createSocialAdmissionMembership(
   sessionToken: string,
   state: z.infer<typeof socialOAuthStateSchema>
 ) {
-  const admission = await getDB().transaction(async (tx) => {
+  await getDB().transaction(async (tx) => {
     const [policy] = await tx
       .select({ enabled: schema.socialAdmissionPolicies.enabled })
       .from(schema.socialAdmissionPolicies)
@@ -645,16 +643,18 @@ async function createSocialAdmissionMembership(
       return
     }
 
-    const roles = await tx
-      .select({ roleId: schema.socialAdmissionDefaultRoles.roleId })
-      .from(schema.socialAdmissionDefaultRoles)
-      .where(eq(schema.socialAdmissionDefaultRoles.organizationId, state.organizationId))
-    if (roles.length === 0) {
+    const [organization] = await tx
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, state.organizationId))
+      .limit(1)
+      .for("update")
+    if (!organization) {
       return
     }
 
     const [existing] = await tx
-      .select({ disabledAt: schema.members.disabledAt, id: schema.members.id })
+      .select({ id: schema.members.id })
       .from(schema.members)
       .where(
         and(
@@ -663,98 +663,82 @@ async function createSocialAdmissionMembership(
         )
       )
       .limit(1)
-    if (existing?.disabledAt) {
+    if (existing) {
       return
     }
 
-    const teams = await tx
-      .select({ teamId: schema.socialAdmissionDefaultTeams.teamId })
-      .from(schema.socialAdmissionDefaultTeams)
-      .where(eq(schema.socialAdmissionDefaultTeams.organizationId, state.organizationId))
-    const governedRoles = await tx
-      .select({ roleId: schema.organizationRoles.id })
-      .from(schema.organizationRoles)
-      .where(
+    const roles = await tx
+      .select({ id: schema.organizationRoles.id, role: schema.organizationRoles.role })
+      .from(schema.socialAdmissionDefaultRoles)
+      .innerJoin(
+        schema.organizationRoles,
         and(
-          eq(schema.organizationRoles.organizationId, state.organizationId),
-          inArray(
-            schema.organizationRoles.id,
-            roles.map(({ roleId }) => roleId)
+          eq(schema.organizationRoles.id, schema.socialAdmissionDefaultRoles.roleId),
+          eq(
+            schema.organizationRoles.organizationId,
+            schema.socialAdmissionDefaultRoles.organizationId
           )
         )
       )
-    if (governedRoles.length !== roles.length) {
+      .where(eq(schema.socialAdmissionDefaultRoles.organizationId, organization.id))
+    const teams = await tx
+      .select({ id: schema.teams.id })
+      .from(schema.socialAdmissionDefaultTeams)
+      .innerJoin(
+        schema.teams,
+        and(
+          eq(schema.teams.id, schema.socialAdmissionDefaultTeams.teamId),
+          eq(schema.teams.organizationId, schema.socialAdmissionDefaultTeams.organizationId)
+        )
+      )
+      .where(eq(schema.socialAdmissionDefaultTeams.organizationId, organization.id))
+    if (roles.length + teams.length === 0) {
       return
     }
-    return {
-      memberId: existing?.id,
-      roleIds: governedRoles.map(({ roleId }) => roleId),
-      teams: teams.map(({ teamId }) => teamId),
-    }
-  })
-  if (!admission) {
-    return
-  }
 
-  const sessionHeaders = new Headers({ authorization: `Bearer ${sessionToken}` })
-  let memberId = admission.memberId
-  if (!memberId) {
-    try {
-      const member = await getAuth().api.addMember({
-        body: {
-          organizationId: state.organizationId,
-          role: "member",
-          userId: user.id,
-        },
+    const membershipCount = await tx.$count(
+      schema.members,
+      eq(schema.members.organizationId, organization.id)
+    )
+    if (membershipCount >= organizationMembershipLimit) {
+      throw APIError.from("FORBIDDEN", {
+        code: "ORGANIZATION_MEMBERSHIP_LIMIT_REACHED",
+        message: "Organization membership limit reached",
       })
-      memberId = member.id
-    } catch (error) {
-      if (
-        !(error instanceof APIError) ||
-        error.body?.code !== "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION"
-      ) {
-        throw error
-      }
-      const [member] = await getDB()
-        .select({ id: schema.members.id })
-        .from(schema.members)
-        .where(
-          and(
-            eq(schema.members.organizationId, state.organizationId),
-            eq(schema.members.userId, user.id),
-            isNull(schema.members.disabledAt)
-          )
-        )
-        .limit(1)
-      if (!member) {
-        throw error
-      }
-      memberId = member.id
     }
-  }
 
-  for (const teamId of admission.teams) {
-    await getAuth().api.addTeamMember({
-      headers: sessionHeaders,
-      body: { organizationId: state.organizationId, teamId, userId: user.id },
+    const memberId = generateId()
+    const now = new Date()
+    await tx.insert(schema.members).values({
+      id: memberId,
+      organizationId: organization.id,
+      userId: user.id,
+      role: roles.length ? roles.map(({ role }) => role).join(",") : "member",
+      createdAt: now,
     })
-  }
-
-  await getDB().transaction(async (tx) => {
-    const assignments = await tx
-      .insert(schema.memberRoles)
-      .values(
-        admission.roleIds.map((roleId) => ({
+    if (roles.length) {
+      await tx.insert(schema.memberRoles).values(
+        roles.map(({ id }) => ({
           memberId,
-          organizationId: state.organizationId,
-          roleId,
+          organizationId: organization.id,
+          roleId: id,
         }))
       )
-      .onConflictDoNothing()
-      .returning({ roleId: schema.memberRoles.roleId })
-    if (assignments.length === 0) {
-      return
     }
+    if (teams.length) {
+      await tx.insert(schema.teamMembers).values(
+        teams.map(({ id }) => ({
+          id: generateId(),
+          teamId: id,
+          userId: user.id,
+          createdAt: now,
+        }))
+      )
+    }
+    await tx
+      .update(schema.sessions)
+      .set({ activeOrganizationId: organization.id })
+      .where(eq(schema.sessions.token, sessionToken))
     await tx.insert(schema.eventTrailEvents).values({
       action: "social_admission.accept",
       actorId: user.id,
@@ -762,15 +746,11 @@ async function createSocialAdmissionMembership(
       after: [{ field: "user_id", value: user.id }],
       category: "membership",
       id: `event-trail-${randomUUID()}`,
-      organizationId: state.organizationId,
+      organizationId: organization.id,
       result: "succeeded",
       targetId: user.id,
       targetType: "organization_membership",
     })
-  })
-  await getAuth().api.setActiveOrganization({
-    headers: sessionHeaders,
-    body: { organizationId: state.organizationId },
   })
 }
 

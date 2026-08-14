@@ -2,7 +2,9 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import type { Route } from "next"
 import { notFound } from "next/navigation"
+import { removeMembershipAction } from "@/app/(scoped)/orgs/actions"
 import { AdministrationState } from "@/components/administration"
+import { DestructiveConfirmationDialog } from "@/components/destructive-confirmation-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +18,7 @@ import {
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getEffectiveAccessDetail } from "@/data/access"
 import { getMemberAdministration, type MemberAdministration } from "@/data/members"
+import { getDestructiveImpact } from "@/data/operations"
 import { formatAge } from "@/lib/format"
 import { ResultBadge } from "../../event-trail/event-trail-event"
 
@@ -84,7 +87,24 @@ export default async function UserDetailPage({
   )
 }
 
-function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: string }) {
+async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: string }) {
+  const [disableImpact, removeImpact] = data.self
+    ? [null, null]
+    : await Promise.all([
+        data.member.disabledAt
+          ? null
+          : getDestructiveImpact(orgSlug, {
+              operation: "membership_disable",
+              targetId: data.member.id,
+              targetType: "organization_membership",
+            }),
+        getDestructiveImpact(orgSlug, {
+          operation: "membership_remove",
+          targetId: data.member.id,
+          targetType: "organization_membership",
+        }),
+      ])
+
   return (
     <section className="min-w-0 space-y-3">
       <h2 className="px-4 text-lg font-medium md:px-6">Membership</h2>
@@ -120,33 +140,47 @@ function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug: strin
           </TableBody>
         </Table>
       </div>
-      {data.self ? null : (
-        <div className="space-y-3 px-4 pt-3 md:px-6">
-          <h2 className="text-lg font-medium">Membership actions</h2>
-          <div className="flex flex-wrap gap-2">
-            {data.member.disabledAt ? null : (
-              <Button asChild variant="outline">
-                <Link
-                  href={
-                    `/orgs/${orgSlug}/users/${data.member.id}/remove?operation=membership_disable` as Route
-                  }
-                >
-                  Disable Membership
-                </Link>
-              </Button>
-            )}
-            <Button asChild variant="destructive">
-              <Link
-                href={
-                  `/orgs/${orgSlug}/users/${data.member.id}/remove?operation=membership_remove` as Route
-                }
-              >
-                Remove Membership
-              </Link>
-            </Button>
+      {disableImpact || removeImpact ? (
+        <section className="flex max-w-3xl flex-col gap-4 px-4 pt-3 pb-6 sm:flex-row sm:items-center sm:justify-between md:px-6">
+          <div>
+            <h2 className="font-medium">Membership actions</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Revoke access temporarily or remove this Membership permanently.
+            </p>
           </div>
-        </div>
-      )}
+          <div className="flex flex-wrap gap-2">
+            {disableImpact ? (
+              <DestructiveConfirmationDialog
+                action={removeMembershipAction.bind(
+                  null,
+                  orgSlug,
+                  data.member.id,
+                  "membership_disable"
+                )}
+                confirmation={disableImpact.confirmation}
+                fingerprint={disableImpact.fingerprint}
+                kind="disable"
+                submitLabel="Disable Membership"
+                title={`Disable ${disableImpact.targetLabel}?`}
+              />
+            ) : null}
+            {removeImpact ? (
+              <DestructiveConfirmationDialog
+                action={removeMembershipAction.bind(
+                  null,
+                  orgSlug,
+                  data.member.id,
+                  "membership_remove"
+                )}
+                confirmation={removeImpact.confirmation}
+                fingerprint={removeImpact.fingerprint}
+                submitLabel="Remove Membership"
+                title={`Remove ${removeImpact.targetLabel}?`}
+              />
+            ) : null}
+          </div>
+        </section>
+      ) : null}
     </section>
   )
 }

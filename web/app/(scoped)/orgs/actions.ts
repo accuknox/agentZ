@@ -296,6 +296,7 @@ export async function removeMembershipAction(
   orgSlug: string,
   memberId: string,
   operation: "membership_disable" | "membership_remove",
+  _state: { error?: string; fingerprint?: string },
   formData: FormData
 ) {
   const parsed = z
@@ -304,8 +305,7 @@ export async function removeMembershipAction(
       confirmation: formData.get("confirmation"),
       fingerprint: formData.get("fingerprint"),
     })
-  const root = `/orgs/${orgSlug}/users/${memberId}/remove?operation=${operation}`
-  if (!parsed.success) redirect(`${root}&error=invalid` as Route)
+  if (!parsed.success) return { error: "Enter the Member name exactly as shown." }
 
   const result = await removeMembership(
     orgSlug,
@@ -314,7 +314,31 @@ export async function removeMembershipAction(
     parsed.data.confirmation,
     parsed.data.fingerprint
   )
-  if ("error" in result) redirect(`${root}&error=${result.error}` as Route)
+  if ("error" in result) {
+    if (result.error === "stale-preview") {
+      const impact = await getDestructiveImpact(orgSlug, {
+        operation,
+        targetId: memberId,
+        targetType: "organization_membership",
+      })
+      return {
+        error: "The Membership changed. Review and confirm this action again.",
+        fingerprint: impact?.fingerprint,
+      }
+    }
+    if (result.error === "final-superadmin") {
+      return { error: "The final active Superadmin cannot be disabled or removed." }
+    }
+    if (result.error === "final-team-member") {
+      return { error: "Repair the affected Team membership before continuing." }
+    }
+    if (result.error === "self-removal") {
+      return { error: "Administrators cannot remove their own Membership." }
+    }
+    return { error: "The Membership no longer satisfies this action." }
+  }
+
+  revalidatePath(`/orgs/${orgSlug}/users`, "page")
   redirect(`/orgs/${orgSlug}/users` as Route)
 }
 

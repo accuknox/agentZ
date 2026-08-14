@@ -28,7 +28,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
+      source: "/((?!join|signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
       missing: [{ type: "header", key: "next-action" }],
     },
   ],

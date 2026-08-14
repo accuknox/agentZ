@@ -2,7 +2,7 @@
 
 import { useActionState, useId, useState } from "react"
 import { useFormStatus } from "react-dom"
-import { CircleAlertIcon, Trash2Icon } from "lucide-react"
+import { CircleAlertIcon, ShieldOffIcon, Trash2Icon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +22,7 @@ export function DestructiveConfirmationDialog({
   action,
   confirmation,
   fingerprint,
+  kind = "delete",
   onOpenChange,
   open,
   showTrigger = true,
@@ -34,6 +35,7 @@ export function DestructiveConfirmationDialog({
   ) => Promise<DestructiveConfirmationState>
   confirmation: string
   fingerprint: string
+  kind?: "delete" | "disable"
   onOpenChange?: (open: boolean) => void
   open?: boolean
   showTrigger?: boolean
@@ -44,6 +46,7 @@ export function DestructiveConfirmationDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const [value, setValue] = useState("")
   const [state, formAction] = useActionState(action, {})
+  const Icon = kind === "disable" ? ShieldOffIcon : Trash2Icon
 
   const dialogOpen = open ?? internalOpen
   const setOpen = (nextOpen: boolean) => {
@@ -56,8 +59,8 @@ export function DestructiveConfirmationDialog({
     <Dialog onOpenChange={setOpen} open={dialogOpen}>
       {showTrigger ? (
         <DialogTrigger asChild>
-          <Button type="button" variant="destructive">
-            <Trash2Icon data-icon="inline-start" />
+          <Button type="button" variant={kind === "disable" ? "outline" : "destructive"}>
+            <Icon data-icon="inline-start" />
             {submitLabel}
           </Button>
         </DialogTrigger>
@@ -65,7 +68,11 @@ export function DestructiveConfirmationDialog({
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This action is permanent and cannot be undone.</DialogDescription>
+          <DialogDescription>
+            {kind === "disable"
+              ? "Access is revoked immediately. You can restore this Membership later."
+              : "This action is permanent and cannot be undone."}
+          </DialogDescription>
         </DialogHeader>
 
         <form action={formAction} className="contents">
@@ -73,7 +80,9 @@ export function DestructiveConfirmationDialog({
           {state.error ? (
             <Alert variant="destructive">
               <CircleAlertIcon aria-hidden="true" />
-              <AlertTitle>Deletion failed</AlertTitle>
+              <AlertTitle>
+                {kind === "disable" ? "Membership was not disabled" : "Deletion failed"}
+              </AlertTitle>
               <AlertDescription>{state.error}</AlertDescription>
             </Alert>
           ) : null}
@@ -98,7 +107,7 @@ export function DestructiveConfirmationDialog({
             <Button onClick={() => setOpen(false)} type="button" variant="outline">
               Cancel
             </Button>
-            <ConfirmationSubmit disabled={value !== confirmation} label={submitLabel} />
+            <ConfirmationSubmit disabled={value !== confirmation} kind={kind} label={submitLabel} />
           </DialogFooter>
         </form>
       </DialogContent>
@@ -108,13 +117,22 @@ export function DestructiveConfirmationDialog({
 
 export type DestructiveConfirmationState = { error?: string; fingerprint?: string }
 
-function ConfirmationSubmit({ disabled, label }: { disabled: boolean; label: string }) {
+function ConfirmationSubmit({
+  disabled,
+  kind,
+  label,
+}: {
+  disabled: boolean
+  kind: "delete" | "disable"
+  label: string
+}) {
   const { pending } = useFormStatus()
+  const Icon = kind === "disable" ? ShieldOffIcon : Trash2Icon
 
   return (
     <Button disabled={disabled || pending} type="submit" variant="destructive">
-      {pending ? <Spinner data-icon="inline-start" /> : <Trash2Icon data-icon="inline-start" />}
-      {pending ? "Deleting..." : label}
+      {pending ? <Spinner data-icon="inline-start" /> : <Icon data-icon="inline-start" />}
+      {pending ? (kind === "disable" ? "Disabling..." : "Deleting...") : label}
     </Button>
   )
 }

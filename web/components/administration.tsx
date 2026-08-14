@@ -148,14 +148,14 @@ export function AdministrationState({
     case "forbidden":
       content = {
         description: "Sorry, it seems like you do not have access to perform this action.",
-        icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} />,
+        icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
         title: "",
       }
       break
     case "not-found":
       content = {
         description: "This page does not exist.",
-        icon: <FolderSearch aria-hidden="true" />,
+        icon: <Image alt="" height={112} src="/file-corrupted.svg" width={112} loading="eager" />,
         title: "Page not found",
       }
       break
@@ -169,7 +169,7 @@ export function AdministrationState({
 
   const pending = kind === "provisioning" || kind === "deleting"
   const urgent = kind === "failed" || kind === "forbidden"
-  const illustrated = kind === "failed" || kind === "forbidden"
+  const illustrated = kind === "failed" || kind === "forbidden" || kind === "not-found"
   const stateDescription = description ?? content.description
   const stateTitle = title ?? content.title
 

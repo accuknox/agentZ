@@ -81,14 +81,15 @@ function sortSessions(sessions: readonly AgentSessionListItem[]): AgentSessionLi
 
 export function NavAgents({
   agents,
-  immutableSkills,
-  sandboxes,
+  create,
   workspaceId,
   workspacePath,
 }: {
   agents: ListAgentActionResponse
-  immutableSkills: Skill[]
-  sandboxes: ListSandboxActionResponse
+  create?: {
+    immutableSkills: Skill[]
+    sandboxes: ListSandboxActionResponse
+  }
   workspaceId: string
   workspacePath: string
 }) {
@@ -115,16 +116,22 @@ export function NavAgents({
   }
 
   if (queryAgents.length === 0) {
+    if (!create) return null
+
     return (
       <SidebarMenu>
         <SidebarMenuItem>
           <AgentDialog
             actionScope={{ basePath: workspacePath, workspaceId }}
             mode="create"
-            immutableSkills={immutableSkills}
-            sandboxes={sandboxes.error ? [] : sandboxes.sandboxes}
-            initialHasNextSandboxPage={sandboxes.error ? false : sandboxes.hasNextPage}
-            initialNextSandboxPageToken={sandboxes.error ? "" : sandboxes.nextPageToken}
+            immutableSkills={create.immutableSkills}
+            sandboxes={create.sandboxes.error ? [] : create.sandboxes.sandboxes}
+            initialHasNextSandboxPage={
+              create.sandboxes.error ? false : create.sandboxes.hasNextPage
+            }
+            initialNextSandboxPageToken={
+              create.sandboxes.error ? "" : create.sandboxes.nextPageToken
+            }
             trigger={
               <SidebarMenuButton
                 tooltip="Create"

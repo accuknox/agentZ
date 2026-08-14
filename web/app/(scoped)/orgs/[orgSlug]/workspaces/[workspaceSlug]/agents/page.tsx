@@ -1,7 +1,7 @@
 import type { Route } from "next"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { AgentTable } from "@/app/agent-table"
-import { AdministrationPageHeader } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { deleteAgentFormAction, type AgentActionScope } from "@/data/agent.actions"
@@ -30,14 +30,21 @@ export default async function WorkspaceAgentsPage({
     page_token: Array.isArray(pageToken) ? pageToken[0] : pageToken,
   }
   const workspaceId = scope.workspace.id
-  const [agents, sandboxes, skills] = await Promise.all([
-    listAgentsCachedQuery(query, workspaceId),
+  const agents = await listAgentsCachedQuery(query, workspaceId)
+  if (agents.error) {
+    if (agents.error.code === "forbidden") return <AdministrationState kind="forbidden" />
+
+    return <ErrorPanel message={agents.error.message} />
+  }
+  const canAccessAgents =
+    scope.workspace.can_author_agents ||
+    (scope.workspace.can_use_shared_agents && agents.agents.length > 0)
+  if (!canAccessAgents) return <AdministrationState kind="forbidden" />
+
+  const [sandboxes, skills] = await Promise.all([
     listSandboxesCachedQuery({ limit: 50 }, workspaceId),
     listImmutableSkillsCachedQuery(workspaceId),
   ])
-  if (agents.error) {
-    return <ErrorPanel message={agents.error.message} />
-  }
   if (sandboxes.error) {
     return <ErrorPanel message={sandboxes.error.message} />
   }
@@ -53,14 +60,16 @@ export default async function WorkspaceAgentsPage({
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
         actions={
-          <AgentDialog
-            mode="create"
-            actionScope={actionScope}
-            immutableSkills={skills.skills}
-            sandboxes={sandboxes.sandboxes}
-            initialHasNextSandboxPage={sandboxes.hasNextPage}
-            initialNextSandboxPageToken={sandboxes.nextPageToken}
-          />
+          scope.workspace.can_author_agents ? (
+            <AgentDialog
+              mode="create"
+              actionScope={actionScope}
+              immutableSkills={skills.skills}
+              sandboxes={sandboxes.sandboxes}
+              initialHasNextSandboxPage={sandboxes.hasNextPage}
+              initialNextSandboxPageToken={sandboxes.nextPageToken}
+            />
+          ) : null
         }
         title="Agents"
       />

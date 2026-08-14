@@ -1,6 +1,7 @@
 import Link from "next/link"
+import Image from "next/image"
 import type { ComponentProps, ReactNode } from "react"
-import { Clock3, FolderSearch, LoaderCircle, LockKeyhole, Trash2 } from "lucide-react"
+import { Clock3, FolderSearch, LoaderCircle, Trash2 } from "lucide-react"
 import { BotIcon } from "@/components/bot-icon"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -146,9 +147,9 @@ export function AdministrationState({
       break
     case "forbidden":
       content = {
-        description: "You do not have access to this page.",
-        icon: <LockKeyhole aria-hidden="true" />,
-        title: "Access unavailable",
+        description: "Sorry, it seems like you do not have access to perform this action.",
+        icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} />,
+        title: "",
       }
       break
     case "not-found":
@@ -168,23 +169,27 @@ export function AdministrationState({
 
   const pending = kind === "provisioning" || kind === "deleting"
   const urgent = kind === "failed" || kind === "forbidden"
+  const illustrated = kind === "failed" || kind === "forbidden"
   const stateDescription = description ?? content.description
+  const stateTitle = title ?? content.title
 
   return (
     <Empty
       aria-live={pending ? "polite" : urgent ? "assertive" : undefined}
       className={
-        kind === "failed"
+        illustrated
           ? "min-h-80 gap-5 rounded-none border-0 py-10"
           : "min-h-48 rounded-none border-0"
       }
       role={pending ? "status" : urgent ? "alert" : undefined}
     >
-      <EmptyHeader className={kind === "failed" ? "gap-3" : undefined}>
-        <EmptyMedia className={kind === "failed" ? "mb-1" : undefined}>{content.icon}</EmptyMedia>
-        <EmptyTitle className={kind === "failed" ? "text-base font-semibold" : undefined}>
-          <h2>{title ?? content.title}</h2>
-        </EmptyTitle>
+      <EmptyHeader className={illustrated ? "gap-3" : undefined}>
+        <EmptyMedia className={illustrated ? "mb-1" : undefined}>{content.icon}</EmptyMedia>
+        {stateTitle ? (
+          <EmptyTitle className={illustrated ? "text-base font-semibold" : undefined}>
+            <h2>{stateTitle}</h2>
+          </EmptyTitle>
+        ) : null}
         {stateDescription !== "" ? <EmptyDescription>{stateDescription}</EmptyDescription> : null}
       </EmptyHeader>
       {actions ? <EmptyContent>{actions}</EmptyContent> : null}

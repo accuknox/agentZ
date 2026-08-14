@@ -177,6 +177,8 @@ export const zWorkspace = z.object({
   inference_pool_capabilities: zResourceCapabilities,
   api_key_capabilities: zResourceCapabilities,
   observability_capabilities: zResourceCapabilities,
+  can_author_agents: z.boolean(),
+  can_use_shared_agents: z.boolean(),
   workspace_admin_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),

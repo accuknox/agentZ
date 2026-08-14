@@ -166,6 +166,8 @@ export type Workspace = {
   inference_pool_capabilities: ResourceCapabilities
   api_key_capabilities: ResourceCapabilities
   observability_capabilities: ResourceCapabilities
+  can_author_agents: boolean
+  can_use_shared_agents: boolean
   workspace_admin_count: number
   can_administer: boolean
   created_at: string

@@ -95,22 +95,16 @@ export function AppSidebar({
           />
         ) : null}
         {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
-          <>
-            <WorkspaceNavigation
-              mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
-              inferencePoolCapabilities={scope.inferencePoolCapabilities}
-              inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
-              organization={scope.organization}
-              lensCapabilities={scope.lensCapabilities}
-              skillCapabilities={scope.skillCapabilities}
-              sandboxCapabilities={scope.sandboxCapabilities}
-              workspace={scope.workspace}
-            />
-            <WorkspaceRuntimeNavigation
-              organization={scope.organization}
-              workspace={scope.workspace}
-            />
-          </>
+          <WorkspaceNavigation
+            mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
+            inferencePoolCapabilities={scope.inferencePoolCapabilities}
+            inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
+            organization={scope.organization}
+            lensCapabilities={scope.lensCapabilities}
+            skillCapabilities={scope.skillCapabilities}
+            sandboxCapabilities={scope.sandboxCapabilities}
+            workspace={scope.workspace}
+          />
         ) : null}
       </SidebarContent>
       {user ? (
@@ -127,7 +121,7 @@ export function AppSidebar({
   )
 }
 
-function WorkspaceNavigation({
+async function WorkspaceNavigation({
   mcpConnectionCapabilities,
   inferencePoolCapabilities,
   inferenceProviderCapabilities,
@@ -146,6 +140,19 @@ function WorkspaceNavigation({
   sandboxCapabilities: ResourceCapabilities
   workspace: Workspace
 }) {
+  const workspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route
+  const agents = await listAgentsCachedQuery(undefined, workspace.id)
+  const hasAgents = agents.error === undefined && agents.agents.length > 0
+  const showAgents = workspace.can_author_agents || (workspace.can_use_shared_agents && hasAgents)
+  const create = workspace.can_author_agents
+    ? await Promise.all([
+        listSandboxesCachedQuery({ limit: 50 }, workspace.id),
+        listImmutableSkillsCachedQuery(workspace.id),
+      ]).then(([sandboxes, skills]) => ({
+        immutableSkills: skills.error ? [] : skills.skills,
+        sandboxes,
+      }))
+    : undefined
   const hasResources =
     lensCapabilities.read ||
     skillCapabilities.read ||
@@ -153,67 +160,56 @@ function WorkspaceNavigation({
     sandboxCapabilities.read ||
     inferenceProviderCapabilities.read ||
     inferencePoolCapabilities.read
+  const hasWorkspace = showAgents || organization.superadmin || workspace.can_administer
 
   return (
     <>
-      <SidebarGroup className="px-2 py-2">
-        <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarNavigationLink
-              href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/agents` as Route}
-              label="Agents"
-            >
-              <Bot aria-hidden="true" />
-            </SidebarNavigationLink>
-          </SidebarMenuItem>
-          {organization.superadmin || workspace.can_administer ? (
-            <>
+      {hasWorkspace ? (
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarMenu>
+            {showAgents ? (
               <SidebarMenuItem>
-                <SidebarNavigationLink
-                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/roles` as Route}
-                  label="Roles"
-                >
-                  <ShieldCheck aria-hidden="true" />
+                <SidebarNavigationLink href={`${workspacePath}/agents` as Route} label="Agents">
+                  <Bot aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarNavigationLink
-                  href={
-                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/event-trail` as Route
-                  }
-                  label="Event Trail"
-                >
-                  <Activity aria-hidden="true" />
-                </SidebarNavigationLink>
-              </SidebarMenuItem>
-            </>
-          ) : null}
-        </SidebarMenu>
-      </SidebarGroup>
+            ) : null}
+            {organization.superadmin || workspace.can_administer ? (
+              <>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
+                    <ShieldCheck aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/event-trail` as Route}
+                    label="Event Trail"
+                  >
+                    <Activity aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+              </>
+            ) : null}
+          </SidebarMenu>
+        </SidebarGroup>
+      ) : null}
       {hasResources ? (
         <SidebarGroup className="px-2 py-2">
           <SidebarGroupLabel>Resources</SidebarGroupLabel>
           <SidebarMenu>
-            {lensCapabilities.read ? (
-              <NavLens rootPath={`/orgs/${organization.slug}/workspaces/${workspace.slug}`} />
-            ) : null}
+            {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
             {skillCapabilities.read ? (
               <SidebarMenuItem>
-                <SidebarNavigationLink
-                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/skills` as Route}
-                  label="Skills"
-                >
+                <SidebarNavigationLink href={`${workspacePath}/skills` as Route} label="Skills">
                   <ScrollText aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}
             {mcpConnectionCapabilities.read ? (
               <SidebarMenuItem>
-                <SidebarNavigationLink
-                  href={`/orgs/${organization.slug}/workspaces/${workspace.slug}/mcps` as Route}
-                  label="MCP"
-                >
+                <SidebarNavigationLink href={`${workspacePath}/mcps` as Route} label="MCP">
                   <Cable aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
@@ -221,9 +217,7 @@ function WorkspaceNavigation({
             {sandboxCapabilities.read ? (
               <SidebarMenuItem>
                 <SidebarNavigationLink
-                  href={
-                    `/orgs/${organization.slug}/workspaces/${workspace.slug}/sandboxes` as Route
-                  }
+                  href={`${workspacePath}/sandboxes` as Route}
                   label="Sandboxes"
                 >
                   <Box aria-hidden="true" />
@@ -232,7 +226,7 @@ function WorkspaceNavigation({
             ) : null}
             {inferenceProviderCapabilities.read || inferencePoolCapabilities.read ? (
               <NavInference
-                rootPath={`/orgs/${organization.slug}/workspaces/${workspace.slug}`}
+                rootPath={workspacePath}
                 showPools={inferencePoolCapabilities.read}
                 showProviders={inferenceProviderCapabilities.read}
               />
@@ -240,40 +234,23 @@ function WorkspaceNavigation({
           </SidebarMenu>
         </SidebarGroup>
       ) : null}
-    </>
-  )
-}
-
-async function WorkspaceRuntimeNavigation({
-  organization,
-  workspace,
-}: {
-  organization: OrganizationSummary
-  workspace: Workspace
-}) {
-  const [agents, sandboxes, skills] = await Promise.all([
-    listAgentsCachedQuery(undefined, workspace.id),
-    listSandboxesCachedQuery({ limit: 50 }, workspace.id),
-    listImmutableSkillsCachedQuery(workspace.id),
-  ])
-  const workspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route
-
-  return (
-    <>
-      <SidebarGroup className="gap-y-1 px-2 py-2">
-        <NavSecrets workspacePath={workspacePath} />
-        <NavWorkflows workspacePath={workspacePath} />
-      </SidebarGroup>
-      <SidebarGroup className="px-2 py-2">
-        <SidebarGroupLabel>Agents</SidebarGroupLabel>
-        <NavAgents
-          agents={agents}
-          immutableSkills={skills.skills ?? []}
-          sandboxes={sandboxes}
-          workspaceId={workspace.id}
-          workspacePath={workspacePath}
-        />
-      </SidebarGroup>
+      {showAgents ? (
+        <>
+          <SidebarGroup className="gap-y-1 px-2 py-2">
+            <NavSecrets workspacePath={workspacePath} />
+            <NavWorkflows workspacePath={workspacePath} />
+          </SidebarGroup>
+          <SidebarGroup className="px-2 py-2">
+            <SidebarGroupLabel>Agents</SidebarGroupLabel>
+            <NavAgents
+              agents={agents}
+              create={create}
+              workspaceId={workspace.id}
+              workspacePath={workspacePath}
+            />
+          </SidebarGroup>
+        </>
+      ) : null}
     </>
   )
 }

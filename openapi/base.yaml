@@ -3891,6 +3891,10 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         observability_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
+        can_author_agents:
+          type: boolean
+        can_use_shared_agents:
+          type: boolean
         workspace_admin_count:
           type: integer
           format: int64
@@ -3921,6 +3925,8 @@ components:
       - inference_pool_capabilities
       - api_key_capabilities
       - observability_capabilities
+      - can_author_agents
+      - can_use_shared_agents
 
     ListWorkspacesResponse:
       type: object

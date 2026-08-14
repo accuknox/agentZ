@@ -23449,6 +23449,10 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         can_administer:
           type: boolean
+        can_author_agents:
+          type: boolean
+        can_use_shared_agents:
+          type: boolean
         created_at:
           format: date-time
           type: string
@@ -23505,6 +23509,8 @@ components:
       - inference_pool_capabilities
       - api_key_capabilities
       - observability_capabilities
+      - can_author_agents
+      - can_use_shared_agents
       type: object
     WorkspaceInheritedResource:
       additionalProperties: false

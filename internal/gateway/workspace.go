@@ -858,6 +858,8 @@ func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]
 func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdminister bool, capabilities resourceCapabilitySet) gatewayapi.Workspace {
 	view := gatewayapi.Workspace{
 		CanAdminister:                 canAdminister,
+		CanAuthorAgents:               capabilities.canAuthorAgents,
+		CanUseSharedAgents:            capabilities.canUseSharedAgents,
 		SkillCapabilities:             capabilities.skill,
 		McpConnectionCapabilities:     capabilities.mcp,
 		SandboxCapabilities:           capabilities.sandbox,

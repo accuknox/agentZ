@@ -109,7 +109,7 @@ export function ErrorState({
           <p className="text-muted-foreground font-mono text-xs">Reference: {error.digest}</p>
         ) : null}
       </EmptyHeader>
-      <EmptyContent className="flex-row">
+      <EmptyContent className="flex-row justify-center">
         {onRetry ? (
           <Button onClick={onRetry} type="button">
             <RefreshCw data-icon="inline-start" />

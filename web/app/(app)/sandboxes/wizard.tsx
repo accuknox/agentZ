@@ -227,11 +227,12 @@ type AllowedHostsStepProps = {
 type ModelsStepProps = {
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
-  initialInference?: SandboxInference
+  inference?: SandboxInference
   providersHref: UrlObject
   scope: SandboxActionScope
   onAdvanceAction: () => void
-  onNext: (inference: SandboxInference) => void
+  onChangeAction: (inference?: SandboxInference) => void
+  onNext: () => void
   onPrev: () => void
 }
 
@@ -1209,10 +1210,11 @@ function SkillsStep({
 function ModelsStep({
   inferenceProviders,
   inferencePools,
-  initialInference,
+  inference,
   providersHref,
   scope,
   onAdvanceAction,
+  onChangeAction,
   onNext,
   onPrev,
 }: ModelsStepProps) {
@@ -1220,48 +1222,12 @@ function ModelsStep({
   const [pools, setPools] = React.useState(inferencePools)
   const [refreshError, setRefreshError] = React.useState("")
   const [refreshing, startRefresh] = React.useTransition()
-  const [selected, setSelected] = React.useState<SandboxInferenceModelRef[]>(
-    initialInference?.models ?? []
-  )
-  // The selects only record explicit picks. The effective default derives as
-  // "explicit pick if still selected, else first selected model", so the
-  // draft always has a valid default without a separate validation gate.
-  const [defaultKey, setDefaultKey] = React.useState(() =>
-    initialInference
-      ? JSON.stringify([
-          initialInference.default_model.scope,
-          initialInference.default_model.provider,
-          initialInference.default_model.model,
-        ])
-      : undefined
-  )
-  const [smallKey, setSmallKey] = React.useState(() =>
-    initialInference?.small_model
-      ? JSON.stringify([
-          initialInference.small_model.scope,
-          initialInference.small_model.provider,
-          initialInference.small_model.model,
-        ])
-      : undefined
-  )
-  const [attachmentKey, setAttachmentKey] = React.useState(() =>
-    initialInference?.attachment_model
-      ? JSON.stringify([
-          initialInference.attachment_model.scope,
-          initialInference.attachment_model.provider,
-          initialInference.attachment_model.model,
-        ])
-      : undefined
-  )
   const [invalidSubmit, setInvalidSubmit] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
+  const selected = inference?.models ?? []
 
-  const refs = React.useMemo(
-    () =>
-      new Map(
-        selected.map((ref) => [JSON.stringify([ref.scope, ref.provider, ref.model]), ref] as const)
-      ),
-    [selected]
+  const refs = new Map(
+    selected.map((ref) => [JSON.stringify([ref.scope, ref.provider, ref.model]), ref] as const)
   )
   const providersByReference = React.useMemo(
     () =>
@@ -1271,21 +1237,33 @@ function ModelsStep({
     [providers]
   )
   const poolsById = React.useMemo(() => new Map(pools.map((pool) => [pool.id, pool])), [pools])
-  const selectedCountByProvider = React.useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const ref of selected) {
-      const provider = JSON.stringify([ref.scope, ref.provider])
-      counts.set(provider, (counts.get(provider) ?? 0) + 1)
-    }
-    return counts
-  }, [selected])
+  const selectedCountByProvider = new Map<string, number>()
+  for (const ref of selected) {
+    const provider = JSON.stringify([ref.scope, ref.provider])
+    selectedCountByProvider.set(provider, (selectedCountByProvider.get(provider) ?? 0) + 1)
+  }
 
-  const defaultRef = (defaultKey ? refs.get(defaultKey) : undefined) ?? selected[0]
-  const defaultRefKey = defaultRef
-    ? JSON.stringify([defaultRef.scope, defaultRef.provider, defaultRef.model])
+  const defaultRefKey = inference
+    ? JSON.stringify([
+        inference.default_model.scope,
+        inference.default_model.provider,
+        inference.default_model.model,
+      ])
     : undefined
-  const smallRef = smallKey ? refs.get(smallKey) : undefined
-  const attachmentRef = attachmentKey ? refs.get(attachmentKey) : undefined
+  const smallKey = inference?.small_model
+    ? JSON.stringify([
+        inference.small_model.scope,
+        inference.small_model.provider,
+        inference.small_model.model,
+      ])
+    : undefined
+  const attachmentKey = inference?.attachment_model
+    ? JSON.stringify([
+        inference.attachment_model.scope,
+        inference.attachment_model.provider,
+        inference.attachment_model.model,
+      ])
+    : undefined
   // Accordion reads defaultValue only at mount: open providers that hold a
   // selection (edit mode), or the first provider when starting empty.
   const initiallyOpenProviders = providers.some((provider) =>
@@ -1301,25 +1279,48 @@ function ModelsStep({
   function toggleModel(ref: SandboxInferenceModelRef, checked: boolean) {
     const key = JSON.stringify([ref.scope, ref.provider, ref.model])
     if (checked) {
-      setSelected((current) =>
-        current.some((item) => JSON.stringify([item.scope, item.provider, item.model]) === key)
-          ? current
-          : [...current, ref]
+      onChangeAction(
+        inference
+          ? { ...inference, models: [...selected, ref] }
+          : { models: [ref], default_model: ref }
       )
       setInvalidSubmit(false)
       return
     }
-    setSelected((current) =>
-      current.filter((item) => JSON.stringify([item.scope, item.provider, item.model]) !== key)
+
+    if (!inference) {
+      return
+    }
+
+    const models = selected.filter(
+      (item) => JSON.stringify([item.scope, item.provider, item.model]) !== key
     )
-    if (defaultKey === key) {
-      setDefaultKey(undefined)
+    const [first] = models
+    if (!first) {
+      onChangeAction(undefined)
+      return
     }
-    if (smallKey === key) {
-      setSmallKey(undefined)
+
+    onChangeAction({
+      ...inference,
+      models,
+      default_model: defaultRefKey === key ? first : inference.default_model,
+      small_model: smallKey === key ? undefined : inference.small_model,
+      attachment_model: attachmentKey === key ? undefined : inference.attachment_model,
+    })
+  }
+
+  function setOptionalModel(field: "small_model" | "attachment_model", value: string) {
+    if (!inference) {
+      return
     }
-    if (attachmentKey === key) {
-      setAttachmentKey(undefined)
+    if (value === "none") {
+      onChangeAction({ ...inference, [field]: undefined })
+      return
+    }
+    const model = refs.get(value)
+    if (model) {
+      onChangeAction({ ...inference, [field]: model })
     }
   }
 
@@ -1367,17 +1368,12 @@ function ModelsStep({
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!defaultRef) {
+        if (!inference) {
           setInvalidSubmit(true)
           return
         }
         setSubmitting(true)
-        onNext({
-          models: selected,
-          default_model: defaultRef,
-          ...(smallRef ? { small_model: smallRef } : {}),
-          ...(attachmentRef ? { attachment_model: attachmentRef } : {}),
-        })
+        onNext()
       }}
     >
       {providers.length === 0 && pools.length === 0 ? (
@@ -1694,7 +1690,13 @@ function ModelsStep({
                   <FieldLabel required>Default model</FieldLabel>
                   <Select
                     value={defaultRefKey ?? ""}
-                    onValueChange={setDefaultKey}
+                    onValueChange={(value) => {
+                      const model = refs.get(value)
+                      if (!inference || !model) {
+                        return
+                      }
+                      onChangeAction({ ...inference, default_model: model })
+                    }}
                     disabled={selected.length === 0}
                   >
                     <SelectTrigger className="w-full" aria-label="Default model">
@@ -1710,9 +1712,7 @@ function ModelsStep({
                   <FieldLabel>Attachment model</FieldLabel>
                   <Select
                     value={attachmentKey ?? "none"}
-                    onValueChange={(value) =>
-                      setAttachmentKey(value === "none" ? undefined : value)
-                    }
+                    onValueChange={(value) => setOptionalModel("attachment_model", value)}
                     disabled={attachmentModelOptions.length === 0}
                   >
                     <SelectTrigger className="w-full" aria-label="Attachment model">
@@ -1733,7 +1733,7 @@ function ModelsStep({
                   <FieldLabel>Small model</FieldLabel>
                   <Select
                     value={smallKey ?? "none"}
-                    onValueChange={(value) => setSmallKey(value === "none" ? undefined : value)}
+                    onValueChange={(value) => setOptionalModel("small_model", value)}
                     disabled={selected.length === 0}
                   >
                     <SelectTrigger className="w-full" aria-label="Small model">
@@ -1750,7 +1750,7 @@ function ModelsStep({
                     Optional cheaper model for lightweight background tasks.
                   </FieldDescription>
                 </Field>
-                {invalidSubmit && selected.length === 0 ? (
+                {invalidSubmit && !inference ? (
                   <FieldError errors={[{ message: "Select at least one model to continue." }]} />
                 ) : null}
               </div>
@@ -2143,7 +2143,7 @@ export function SandboxWizard({
         packages: initialPackages,
         mcps: initialMcpConnectionRefs,
         skills: initialSkills,
-        models: initialInference,
+        models: initialInference ?? null,
         allowedHosts: {
           allowedHosts: initialAllowedHosts,
           draft: "",
@@ -2186,7 +2186,12 @@ export function SandboxWizard({
             return
           }
 
-          if (currentStepId === "allowedHosts") {
+          if (
+            currentStepId === "allowedHosts" ||
+            (currentStepId === "models" &&
+              (request.kind === "prev" ||
+                (request.kind === "step" && request.index < currentIndex)))
+          ) {
             pendingNavigationRef.current = undefined
             completeNavigation(request)
             return
@@ -2288,38 +2293,41 @@ export function SandboxWizard({
                 <ModelsStep
                   inferenceProviders={inferenceProviders}
                   inferencePools={inferencePools}
-                  initialInference={data.inference ?? initialInference}
+                  inference={data.inference}
                   providersHref={providersHref}
                   scope={scope}
                   onAdvanceAction={() => {
                     pendingNavigationRef.current = undefined
                   }}
+                  onChangeAction={(inference) => {
+                    stepper.metadata.set("models", inference ?? null)
+                  }}
                   onPrev={() => requestNavigation({ kind: "prev" })}
-                  onNext={(inference) => {
-                    stepper.metadata.set("models", inference)
+                  onNext={() => {
                     completeNavigation(pendingNavigationRef.current)
                     pendingNavigationRef.current = undefined
                   }}
                 />
               ),
-              allowedHosts: () => (
-                <AllowedHostsStep
-                  identity={data.identity!}
-                  initialAllowedHosts={data.allowedHosts?.allowedHosts ?? initialAllowedHosts}
-                  initialDraft={data.allowedHosts?.draft ?? ""}
-                  mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
-                  packages={data.packages ?? initialPackages}
-                  skills={data.skills ?? initialSkills}
-                  inference={data.inference ?? initialInference!}
-                  mode={mode}
-                  scope={scope}
-                  secretHostSuggestions={secretHostSuggestions}
-                  onAllowedHostsChangeAction={(nextData) => {
-                    stepper.metadata.set("allowedHosts", nextData)
-                  }}
-                  onPrev={() => requestNavigation({ kind: "prev" })}
-                />
-              ),
+              allowedHosts: () =>
+                data.identity && data.inference ? (
+                  <AllowedHostsStep
+                    identity={data.identity}
+                    initialAllowedHosts={data.allowedHosts?.allowedHosts ?? initialAllowedHosts}
+                    initialDraft={data.allowedHosts?.draft ?? ""}
+                    mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
+                    packages={data.packages ?? initialPackages}
+                    skills={data.skills ?? initialSkills}
+                    inference={data.inference}
+                    mode={mode}
+                    scope={scope}
+                    secretHostSuggestions={secretHostSuggestions}
+                    onAllowedHostsChangeAction={(nextData) => {
+                      stepper.metadata.set("allowedHosts", nextData)
+                    }}
+                    onPrev={() => requestNavigation({ kind: "prev" })}
+                  />
+                ) : null,
             })}
           </WizardShell>
         )

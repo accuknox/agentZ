@@ -412,6 +412,7 @@ export function SkillsClient({
         selected={activeSelected}
         showAgents={type === "immutable" && agentName === allAgentsValue}
         showImmutable={type === "immutable"}
+        showOrganisation={workspaceId !== undefined}
         setSelected={setSelected}
         onDelete={(key) => setDeleteKeys([key])}
         onEdit={setEditingSkill}

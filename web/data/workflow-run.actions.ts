@@ -1,7 +1,6 @@
 "use server"
 
 import type { Route } from "next"
-import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
 import * as z from "zod"
 import { createWorkflowRun, deleteWorkflowRun, type Error } from "@/lib/gateway/client"
@@ -17,6 +16,7 @@ export type DeleteWorkflowRunActionState = {
 export type TriggerWorkflowRunActionState = {
   success: boolean
   error?: Error
+  href?: Route
 }
 
 const deleteWorkflowRunFormSchema = z.object({
@@ -115,7 +115,8 @@ export async function triggerWorkflowRunAction(
   }
 
   updateTag(workflowRunsTag)
-  redirect(
-    `${scope.basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(workflowName)}&schedule_name=${encodeURIComponent(scheduleName)}` as Route
-  )
+  return {
+    success: true,
+    href: `${scope.basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(workflowName)}&schedule_name=${encodeURIComponent(scheduleName)}` as Route,
+  }
 }

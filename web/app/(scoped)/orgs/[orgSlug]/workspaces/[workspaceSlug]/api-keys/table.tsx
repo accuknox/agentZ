@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { MoreHorizontal, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import type { ColumnDef } from "@tanstack/react-table"
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
@@ -46,7 +47,7 @@ const columnClassName: Record<string, string> = {
   status: "w-28",
   expiresAt: "w-28",
   age: "w-28",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 export function APIKeysTable({
@@ -257,6 +258,7 @@ function DeleteAPIKeyButton({
     if (!state.success) {
       return
     }
+    toast.success("API key revoked")
     React.startTransition(() => router.refresh())
   }, [router, state.success])
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { Fragment, useActionState, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { ArrowRight, CircleAlert, Info, Plus, Save, Shield, UsersRound, X } from "lucide-react"
 import { socialAdmissionAction, type SocialAdmissionFormState } from "@/app/(scoped)/orgs/actions"
@@ -45,7 +46,11 @@ const githubTeamPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; orgSlug: string }) {
   const [state, action, pending] = useActionState<SocialAdmissionFormState, FormData>(
-    socialAdmissionAction.bind(null, orgSlug),
+    async (state, formData) => {
+      const result = await socialAdmissionAction(orgSlug, state, formData)
+      if (result.saved) toast.success("Sign-up settings updated")
+      return result
+    },
     {}
   )
   const [domains, setDomains] = useState(data.googleDomains)

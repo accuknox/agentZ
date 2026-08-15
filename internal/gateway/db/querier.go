@@ -56,7 +56,7 @@ type Querier interface {
 	GatewayGetLastAccessibleContext(ctx context.Context, arg GatewayGetLastAccessibleContextParams) (LastAccessibleContext, error)
 	GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error)
 	GatewayGetRoleScope(ctx context.Context, arg GatewayGetRoleScopeParams) (RoleScope, error)
-	GatewayGetSocialAdmissionPolicy(ctx context.Context, organizationID string) (SocialAdmissionPolicy, error)
+	GatewayGetSocialAdmissionPolicy(ctx context.Context, organizationID string) (GatewayGetSocialAdmissionPolicyRow, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)
 	GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspaceParams) (Workspace, error)
 	GatewayInsertWorkspaceInheritedResources(ctx context.Context, arg GatewayInsertWorkspaceInheritedResourcesParams) (int64, error)
@@ -131,7 +131,7 @@ type Querier interface {
 	GatewayUpdateRoleDisplayName(ctx context.Context, arg GatewayUpdateRoleDisplayNameParams) (RoleScope, error)
 	GatewayUpdateWorkspaceName(ctx context.Context, arg GatewayUpdateWorkspaceNameParams) (Workspace, error)
 	GatewayUpsertLastAccessibleContext(ctx context.Context, arg GatewayUpsertLastAccessibleContextParams) (LastAccessibleContext, error)
-	GatewayUpsertSocialAdmissionPolicy(ctx context.Context, arg GatewayUpsertSocialAdmissionPolicyParams) (SocialAdmissionPolicy, error)
+	GatewayUpsertSocialAdmissionPolicy(ctx context.Context, arg GatewayUpsertSocialAdmissionPolicyParams) (GatewayUpsertSocialAdmissionPolicyRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

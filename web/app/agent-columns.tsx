@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "sonner"
 import { TableRelativeTime } from "@/components/ui/table"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
@@ -199,10 +200,11 @@ function DeleteAgentDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("Agent deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

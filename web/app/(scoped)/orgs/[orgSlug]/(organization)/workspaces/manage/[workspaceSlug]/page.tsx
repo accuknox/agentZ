@@ -44,6 +44,7 @@ export default async function ManageWorkspacePage({
           confirmation={impact.confirmation}
           fingerprint={impact.fingerprint}
           submitLabel="Delete Workspace"
+          successMessage="Workspace deleted"
           title={`Delete ${impact.targetLabel}?`}
         />
       </section>

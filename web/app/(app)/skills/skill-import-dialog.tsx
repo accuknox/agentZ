@@ -301,7 +301,7 @@ export function SkillImportDialog({
             type="button"
             aria-label="Skill file"
             className={cn(
-              "flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dotted p-6 text-center transition-colors outline-none",
+              "flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors outline-none",
               "border-border/70 text-muted-foreground hover:bg-muted/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3",
               dragging && "border-primary bg-primary/10 text-primary",
               error && !dragging && "border-destructive/60 bg-destructive/5 text-destructive"

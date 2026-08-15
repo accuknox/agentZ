@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import * as React from "react"
+import { toast } from "sonner"
 import { CheckCircle2, CircleAlert, CircleDashed, ListTree, XCircle } from "lucide-react"
 import {
   flexRender,
@@ -11,6 +12,8 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
+import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
+import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import {
   replaceWorkspaceInheritanceAction,
   type WorkspaceInheritanceFormState,
@@ -51,12 +54,16 @@ const statusMeta = {
 >
 
 export function InheritedResourceForm({
+  displayNames,
+  iconSources,
   label,
   orgSlug,
   resourceType,
   resources,
   workspaceSlug,
 }: {
+  displayNames?: Record<string, string>
+  iconSources: Record<string, string>
   label: string
   orgSlug: string
   resourceType: InheritedResourceType
@@ -78,11 +85,20 @@ export function InheritedResourceForm({
     setSelectedBaselineKey(serverSelectedKey)
     setSelected(serverSelected)
   }
-  const action = replaceWorkspaceInheritanceAction.bind(null, orgSlug, workspaceSlug, resourceType)
   const [state, formAction, pending] = React.useActionState<
     WorkspaceInheritanceFormState,
     FormData
-  >(action, {})
+  >(async (state, formData) => {
+    const result = await replaceWorkspaceInheritanceAction(
+      orgSlug,
+      workspaceSlug,
+      resourceType,
+      state,
+      formData
+    )
+    if (result.saved) toast.success("Inherited resources updated")
+    return result
+  }, {})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const columns = React.useMemo<ColumnDef<WorkspaceInheritedResource>[]>(
     () => [
@@ -92,12 +108,13 @@ export function InheritedResourceForm({
         enableSorting: false,
         cell: ({ row }) => {
           const resource = row.original
+          const displayName = displayNames ? displayNames[resource.name] : resource.name
           const checked = selected.includes(resource.name)
           const locked =
             checked && (resource.consumers.length > 0 || Boolean(resource.disabled_reason))
           return (
             <Checkbox
-              aria-label={`${checked ? "Unselect" : "Select"} ${resource.name}`}
+              aria-label={`${checked ? "Unselect" : "Select"} ${displayName}`}
               checked={checked}
               disabled={pending || locked}
               onCheckedChange={(next) =>
@@ -112,7 +129,8 @@ export function InheritedResourceForm({
         },
       },
       {
-        accessorKey: "name",
+        id: "name",
+        accessorFn: (resource) => (displayNames ? displayNames[resource.name] : resource.name),
         header: ({ column }) => (
           <Button
             className="px-0"
@@ -125,6 +143,8 @@ export function InheritedResourceForm({
         ),
         cell: ({ row }) => {
           const resource = row.original
+          const displayName = displayNames ? displayNames[resource.name] : resource.name
+          const iconSource = iconSources[resource.name]
           const locked =
             selected.includes(resource.name) &&
             (resource.consumers.length > 0 || Boolean(resource.disabled_reason))
@@ -133,7 +153,18 @@ export function InheritedResourceForm({
             (locked ? "Remove all consumers before unselecting this resource." : undefined)
           return (
             <>
-              <div className="font-medium break-all">{resource.name}</div>
+              <div className="flex min-w-0 items-center gap-2">
+                {resourceType === "mcp_connection" && iconSource
+                  ? renderMcpServerIcon(iconSource, {
+                      "aria-hidden": "true",
+                      className: "size-4 shrink-0",
+                    })
+                  : null}
+                {resourceType === "inference_provider" && iconSource ? (
+                  <ProviderIcon className="size-4 shrink-0" provider={iconSource} />
+                ) : null}
+                <div className="font-medium break-all">{displayName}</div>
+              </div>
               {description ? (
                 <p className="text-muted-foreground mt-1 text-xs">{description}</p>
               ) : null}
@@ -208,7 +239,7 @@ export function InheritedResourceForm({
           ),
       },
     ],
-    [orgSlug, pending, selected, workspaceSlug]
+    [displayNames, iconSources, orgSlug, pending, resourceType, selected, workspaceSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -274,7 +305,7 @@ export function InheritedResourceForm({
       <div className="flex justify-end px-4 pb-6 md:px-6">
         <Button disabled={pending} type="submit">
           {pending ? <Spinner data-icon="inline-start" /> : <ListTree data-icon="inline-start" />}
-          {pending ? "Applying..." : "Apply"}
+          {pending ? "Saving..." : "Save Inheritance"}
         </Button>
       </div>
     </form>

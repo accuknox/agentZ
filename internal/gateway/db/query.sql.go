@@ -1779,9 +1779,16 @@ FROM social_admission_policies
 WHERE organization_id = $1
 `
 
-func (q *Queries) GatewayGetSocialAdmissionPolicy(ctx context.Context, organizationID string) (SocialAdmissionPolicy, error) {
+type GatewayGetSocialAdmissionPolicyRow struct {
+	OrganizationID string             `json:"organization_id"`
+	Enabled        bool               `json:"enabled"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayGetSocialAdmissionPolicy(ctx context.Context, organizationID string) (GatewayGetSocialAdmissionPolicyRow, error) {
 	row := q.db.QueryRow(ctx, gatewayGetSocialAdmissionPolicy, organizationID)
-	var i SocialAdmissionPolicy
+	var i GatewayGetSocialAdmissionPolicyRow
 	err := row.Scan(
 		&i.OrganizationID,
 		&i.Enabled,
@@ -5891,9 +5898,16 @@ type GatewayUpsertSocialAdmissionPolicyParams struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
-func (q *Queries) GatewayUpsertSocialAdmissionPolicy(ctx context.Context, arg GatewayUpsertSocialAdmissionPolicyParams) (SocialAdmissionPolicy, error) {
+type GatewayUpsertSocialAdmissionPolicyRow struct {
+	OrganizationID string             `json:"organization_id"`
+	Enabled        bool               `json:"enabled"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayUpsertSocialAdmissionPolicy(ctx context.Context, arg GatewayUpsertSocialAdmissionPolicyParams) (GatewayUpsertSocialAdmissionPolicyRow, error) {
 	row := q.db.QueryRow(ctx, gatewayUpsertSocialAdmissionPolicy, arg.OrganizationID, arg.Enabled, arg.UpdatedAt)
-	var i SocialAdmissionPolicy
+	var i GatewayUpsertSocialAdmissionPolicyRow
 	err := row.Scan(
 		&i.OrganizationID,
 		&i.Enabled,

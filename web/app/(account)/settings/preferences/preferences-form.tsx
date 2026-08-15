@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { useTheme } from "next-themes"
 import { Monitor, Moon, Sun } from "lucide-react"
 import type { ThemePreference } from "@/data/user-preferences"
@@ -24,7 +25,14 @@ export function PreferencesForm({
   initialState: PreferencesFormState
 }): React.JSX.Element {
   const { setTheme } = useTheme()
-  const [state, action, pending] = React.useActionState(savePreferencesAction, initialState)
+  const [state, action, pending] = React.useActionState(
+    async (state: PreferencesFormState, formData: FormData) => {
+      const result = await savePreferencesAction(state, formData)
+      if (result.saved) toast.success("Preferences updated")
+      return result
+    },
+    initialState
+  )
   const [draft, setDraft] = React.useState(initialState.preferences)
   const preferences = pending ? draft : state.preferences
 

@@ -318,7 +318,7 @@ export function PoolSheet({
         }
         return
       }
-      toast.success(pool ? "Inference Pool updated" : "Inference Pool created")
+      toast.success(pool ? "Inference pool updated" : "Inference pool created")
       onOpenChange(false)
     })
   }

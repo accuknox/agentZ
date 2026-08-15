@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { motion } from "motion/react"
 import { nanoid } from "nanoid"
+import { toast } from "sonner"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -340,6 +341,7 @@ function SessionItem({
   useEffect(() => {
     if (isPending || !pendingState.success) return
 
+    toast.success("Chat session deleted")
     startTransition(() => {
       setOpen(false)
 

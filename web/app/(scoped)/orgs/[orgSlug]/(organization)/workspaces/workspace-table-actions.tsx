@@ -84,6 +84,7 @@ export function WorkspaceTableActions({
           open={deleteOpen}
           showTrigger={false}
           submitLabel="Delete Workspace"
+          successMessage="Workspace deleted"
           title={`Delete ${deleteData.name}?`}
         />
       ) : null}

@@ -27,7 +27,7 @@ import type { DeleteAgentFormState } from "@/data/types"
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
   created_at: "w-32",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 export function AgentTable({

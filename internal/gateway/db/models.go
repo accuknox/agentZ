@@ -1096,6 +1096,8 @@ type SocialAdmissionPolicy struct {
 	Enabled        bool               `json:"enabled"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	GoogleEnabled  bool               `json:"google_enabled"`
+	GithubEnabled  bool               `json:"github_enabled"`
 }
 
 type Team struct {

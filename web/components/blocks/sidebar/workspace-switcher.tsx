@@ -16,7 +16,6 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Separator } from "@/components/ui/separator"
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -96,22 +95,25 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
               className="w-88 max-w-[calc(100vw-2rem)] overflow-hidden p-0"
               sideOffset={8}
             >
-              <div className="border-b px-3 py-2.5">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
-                    <Building2 aria-hidden="true" className="size-4" />
+              <Link
+                aria-current={scope.kind === "organization" ? "page" : undefined}
+                className="hover:bg-muted/50 focus-visible:ring-ring/50 aria-[current=page]:border-primary m-1.5 flex min-w-0 items-center gap-3 rounded-md border border-transparent px-2 py-2.5 outline-none focus-visible:ring-3 aria-[current=page]:border-dashed"
+                href={root as Route}
+                onClick={close}
+              >
+                <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
+                  <Building2 aria-hidden="true" className="size-4" />
+                </span>
+                <span className="min-w-0">
+                  <span
+                    className="block truncate text-sm font-medium"
+                    title={scope.organization.name}
+                  >
+                    {scope.organization.name}
                   </span>
-                  <span className="min-w-0">
-                    <span
-                      className="block truncate text-sm font-medium"
-                      title={scope.organization.name}
-                    >
-                      {scope.organization.name}
-                    </span>
-                    <span className="text-muted-foreground block text-xs">Organisation</span>
-                  </span>
-                </div>
-              </div>
+                  <span className="text-muted-foreground block text-xs">Organisation</span>
+                </span>
+              </Link>
               <Command>
                 <CommandInput placeholder="Search Workspaces..." />
                 <CommandList className="max-h-72">
@@ -119,7 +121,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   <CommandGroup heading="Switch Workspace">
                     {scope.workspaces.map((workspace) => (
                       <CommandItem
-                        className="h-auto cursor-pointer gap-3 rounded-md px-2 py-2.5"
+                        className="data-[checked=true]:border-primary h-auto cursor-pointer gap-3 rounded-md border border-transparent px-2 py-2.5 data-[checked=true]:border-dashed"
                         key={workspace.id}
                         data-checked={workspace.id === active?.id}
                         value={`${workspace.name} ${workspace.slug}`}
@@ -144,24 +146,8 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   </CommandGroup>
                 </CommandList>
               </Command>
-              {scope.canEnterOrganization || scope.canCreateWorkspace ? <Separator /> : null}
-              <div className="flex flex-col gap-1 p-1.5">
-                {scope.canEnterOrganization ? (
-                  <Button asChild className="h-auto justify-start gap-3 px-2 py-2" variant="ghost">
-                    <Link href={`${root}/workspaces` as Route} onClick={close}>
-                      <span className="bg-muted flex size-8 items-center justify-center rounded-md">
-                        <PanelsTopLeft aria-hidden="true" className="size-4" />
-                      </span>
-                      <span className="text-left">
-                        <span className="block">Manage Workspaces</span>
-                        <span className="text-muted-foreground block text-xs font-normal">
-                          Organisation administration
-                        </span>
-                      </span>
-                    </Link>
-                  </Button>
-                ) : null}
-                {scope.canCreateWorkspace ? (
+              {scope.canCreateWorkspace ? (
+                <div className="p-1.5">
                   <Button asChild className="h-auto justify-start gap-3 px-2 py-2" variant="ghost">
                     <Link href={`${root}/workspaces/new` as Route} onClick={close}>
                       <span className="bg-muted flex size-8 items-center justify-center rounded-md">
@@ -170,8 +156,8 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                       Create Workspace
                     </Link>
                   </Button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </PopoverContent>
           </Popover>
         </SidebarMenuItem>

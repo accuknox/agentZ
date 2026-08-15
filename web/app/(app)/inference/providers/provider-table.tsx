@@ -60,13 +60,13 @@ import { ProviderSheet } from "./provider-sheet"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
 
 const columnClassName: Record<string, string> = {
-  display_name: "w-64",
+  display_name: "w-72",
   kind: "w-44",
   state: "w-36",
   model_count: "w-28",
   usage_count: "w-28",
   updated_at: "w-32",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const providerStateMeta = {
@@ -152,6 +152,9 @@ export function InferenceProviderTable({
           <div className="flex min-w-0 items-center gap-2">
             <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
             <span className="min-w-0 truncate font-medium">{row.original.display_name}</span>
+            {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
+              <Badge variant="secondary">Organisation</Badge>
+            ) : null}
           </div>
         ),
       },
@@ -398,7 +401,7 @@ function DeleteProviderDialog({
           </DialogDescription>
         </DialogHeader>
         {error ? (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4">
             <CircleAlert />
             <AlertTitle>Provider could not be deleted</AlertTitle>
             <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>

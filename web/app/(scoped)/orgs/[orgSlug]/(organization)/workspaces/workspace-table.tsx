@@ -89,7 +89,7 @@ export function WorkspaceTable({
                           : header.column.id === "updated_at"
                             ? "w-32"
                             : header.column.id === "actions"
-                              ? "w-14"
+                              ? "w-20"
                               : undefined
                     }
                     key={header.id}

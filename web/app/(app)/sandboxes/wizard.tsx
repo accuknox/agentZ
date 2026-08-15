@@ -1,6 +1,8 @@
 "use client"
 
+import type { Route } from "next"
 import Link from "next/link"
+import { useRouter } from "@bprogress/next/app"
 import type { UrlObject } from "node:url"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
@@ -35,6 +37,7 @@ import {
 } from "lucide-react"
 import * as React from "react"
 import { startTransition, useActionState, useRef, useState } from "react"
+import { toast } from "sonner"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { formatCompactNumber } from "@/lib/format"
 import { WizardShell } from "@/components/blocks/wizard/shell"
@@ -95,6 +98,7 @@ import {
   updateSandboxFormAction,
   type SandboxActionScope,
 } from "@/data/sandbox.actions"
+import type { CreateSandboxFormState } from "@/data/types"
 import { refreshInferenceProvidersAction } from "@/data/inference-provider.actions"
 import { refreshInferencePoolsAction } from "@/data/inference-pool.actions"
 import * as z from "zod"
@@ -426,6 +430,7 @@ function PackageStep({
       />
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
@@ -1026,6 +1031,7 @@ function McpStep({
       </div>
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button
@@ -1192,6 +1198,7 @@ function SkillsStep({
       </div>
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
@@ -1760,6 +1767,7 @@ function ModelsStep({
       )}
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button
@@ -1789,13 +1797,23 @@ function AllowedHostsStep({
   onAllowedHostsChangeAction,
   onPrev,
 }: AllowedHostsStepProps) {
+  const router = useRouter()
   const [draft, setDraft] = React.useState(initialDraft)
   const [draftError, setDraftError] = React.useState<string>()
-  const formAction =
-    mode === "update"
-      ? updateSandboxFormAction.bind(null, scope, identity.name)
-      : createSandboxFormAction.bind(null, scope)
-  const [state, action, pending] = useActionState(formAction, {})
+  const [state, action, pending] = useActionState<CreateSandboxFormState, FormData>(
+    async (state, formData) => {
+      const result =
+        mode === "update"
+          ? await updateSandboxFormAction(scope, identity.name, state, formData)
+          : await createSandboxFormAction(scope, state, formData)
+      if (result.success) {
+        toast.success(mode === "update" ? "Sandbox updated" : "Sandbox created")
+        router.push(scope.basePath as Route)
+      }
+      return result
+    },
+    {}
+  )
   const form = useForm<AllowedHostsStepValues>({
     resolver: zodResolver(allowedHostsStepSchema),
     defaultValues: {
@@ -2056,6 +2074,7 @@ function AllowedHostsStep({
       ) : null}
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev} disabled={pending}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button type="submit" disabled={pending}>

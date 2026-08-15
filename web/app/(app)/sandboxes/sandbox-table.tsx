@@ -24,14 +24,14 @@ import type { DeleteSandboxFormState } from "@/data/types"
 import type { Route } from "next"
 
 const columnClassName: Record<string, string> = {
-  name: "min-w-40",
+  name: "w-64",
   packages: "w-32",
   allowed_hosts: "w-36",
   models: "w-36",
   mcps: "w-28",
   skills: "w-28",
   created_at: "w-32",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 export function SandboxTable({
@@ -40,11 +40,13 @@ export function SandboxTable({
   hasNextPage,
   nextPageToken,
   deleteSandboxAction,
+  showOrganisation,
 }: {
   sandboxes: Sandbox[]
   basePath: string
   hasNextPage: boolean
   nextPageToken: string
+  showOrganisation: boolean
   deleteSandboxAction: (
     name: string,
     state: DeleteSandboxFormState,
@@ -56,8 +58,8 @@ export function SandboxTable({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const router = useRouter()
   const columns = React.useMemo(
-    () => createSandboxColumns(basePath, deleteSandboxAction),
-    [basePath, deleteSandboxAction]
+    () => createSandboxColumns(basePath, deleteSandboxAction, showOrganisation),
+    [basePath, deleteSandboxAction, showOrganisation]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({

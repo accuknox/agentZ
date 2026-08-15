@@ -15,6 +15,7 @@ import { useTokenPagination } from "@/lib/use-token-pagination"
 import { AgentGettingReady } from "@/components/agent-readiness"
 import { TablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -40,13 +41,13 @@ import type { ImmutableSkill, Skill } from "./skills-client"
 
 const columnClassName: Record<string, string> = {
   select: "w-12",
-  name: "min-w-56",
+  name: "min-w-72",
   version: "w-24",
   file_count: "w-24",
   size_bytes: "w-28",
   agents: "w-52",
   modified_at: "w-44",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 export function SkillTable({
@@ -57,6 +58,7 @@ export function SkillTable({
   hasNextPage,
   showAgents,
   showImmutable,
+  showOrganisation,
   loading,
   nextPageToken,
   selected,
@@ -72,6 +74,7 @@ export function SkillTable({
   hasNextPage: boolean
   showAgents: boolean
   showImmutable: boolean
+  showOrganisation: boolean
   loading: boolean
   nextPageToken: string
   selected: Set<string>
@@ -95,6 +98,7 @@ export function SkillTable({
         selected,
         showAgents,
         showImmutable,
+        showOrganisation,
         setSelected,
         onDelete,
         onEdit,
@@ -110,6 +114,7 @@ export function SkillTable({
       onDelete,
       showAgents,
       showImmutable,
+      showOrganisation,
     ]
   )
 
@@ -211,6 +216,7 @@ function createSkillColumns({
   selected,
   showAgents,
   showImmutable,
+  showOrganisation,
   setSelected,
   onDelete,
   onEdit,
@@ -221,6 +227,7 @@ function createSkillColumns({
   selected: Set<string>
   showAgents: boolean
   showImmutable: boolean
+  showOrganisation: boolean
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
   onDelete: (key: string) => void
   onEdit: (skill: ImmutableSkill) => void
@@ -276,9 +283,16 @@ function createSkillColumns({
       accessorKey: "name",
       header: ({ column }) => <SortButton column={column} label="Name" />,
       cell: ({ row }) => (
-        <span className="block min-w-0 truncate font-medium" title={row.original.name}>
-          {row.original.name}
-        </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate font-medium" title={row.original.name}>
+            {row.original.name}
+          </span>
+          {showOrganisation &&
+          row.original.type === "immutable" &&
+          row.original.scope === "Organisation" ? (
+            <Badge variant="secondary">Organisation</Badge>
+          ) : null}
+        </div>
       ),
     },
   ]

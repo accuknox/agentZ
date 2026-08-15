@@ -1,7 +1,8 @@
 "use client"
 
 import { useActionState } from "react"
-import { CircleAlert, CircleCheck, Save } from "lucide-react"
+import { CircleAlert, Save } from "lucide-react"
+import { toast } from "sonner"
 import { updateWorkspaceAction, type UpdateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -18,9 +19,12 @@ export function WorkspaceGeneralForm({
   orgSlug: string
   workspaceId: string
 }) {
-  const action = updateWorkspaceAction.bind(null, orgSlug, workspaceId)
   const [state, formAction, pending] = useActionState<UpdateWorkspaceFormState, FormData>(
-    action,
+    async (state, formData) => {
+      const result = await updateWorkspaceAction(orgSlug, workspaceId, state, formData)
+      if (result.saved) toast.success("Workspace updated")
+      return result
+    },
     {}
   )
 
@@ -31,12 +35,6 @@ export function WorkspaceGeneralForm({
           <CircleAlert aria-hidden="true" />
           <AlertTitle>Workspace not updated</AlertTitle>
           <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {state.saved ? (
-        <Alert>
-          <CircleCheck aria-hidden="true" />
-          <AlertTitle>Workspace updated</AlertTitle>
         </Alert>
       ) : null}
       <FieldGroup>

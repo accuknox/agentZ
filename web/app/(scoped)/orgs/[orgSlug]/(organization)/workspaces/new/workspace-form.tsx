@@ -2,6 +2,7 @@
 
 import type { Route } from "next"
 import Link from "next/link"
+import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
 import { Box, Brain, Cable, CircleAlert, Plus, UserRound, Wrench } from "lucide-react"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
@@ -23,6 +24,7 @@ import { Spinner } from "@/components/ui/spinner"
 import type { WorkspaceMemberCandidate } from "@/lib/gateway/client"
 import type { SelectedOrganizationResources } from "@/lib/gateway/client"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
+import { toast } from "sonner"
 
 export function WorkspaceForm({
   candidates,
@@ -33,6 +35,7 @@ export function WorkspaceForm({
   orgSlug: string
   resources: SelectedOrganizationResources
 }) {
+  const router = useRouter()
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [name, setName] = useState("")
   const [admins, setAdmins] = useState<string[]>([])
@@ -43,9 +46,15 @@ export function WorkspaceForm({
     inference_providers: [],
   })
   const [clientErrors, setClientErrors] = useState<CreateWorkspaceFormState["errors"]>()
-  const action = createWorkspaceAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState<CreateWorkspaceFormState, FormData>(
-    action,
+    async (state, formData) => {
+      const result = await createWorkspaceAction(orgSlug, state, formData)
+      if (result.href) {
+        toast.success("Workspace created")
+        router.push(result.href)
+      }
+      return result
+    },
     {}
   )
 

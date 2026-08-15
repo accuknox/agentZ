@@ -221,45 +221,15 @@ async function WorkspaceNavigation({
     mcpConnectionCapabilities.read ||
     sandboxCapabilities.read ||
     inferenceProviderCapabilities.read ||
-    inferencePoolCapabilities.read
+    inferencePoolCapabilities.read ||
+    showSecrets ||
+    showWorkflows
   const hasWorkspace = showAgents || organization.superadmin || workspace.capabilities.administer
 
   return (
     <>
-      {hasWorkspace ? (
-        <SidebarGroup className="px-2 py-2">
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-          <SidebarMenu>
-            {showAgents ? (
-              <SidebarMenuItem>
-                <SidebarNavigationLink href={`${workspacePath}/agents` as Route} label="Agents">
-                  <Bot aria-hidden="true" />
-                </SidebarNavigationLink>
-              </SidebarMenuItem>
-            ) : null}
-            {organization.superadmin || workspace.capabilities.administer ? (
-              <>
-                <SidebarMenuItem>
-                  <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
-                    <ShieldCheck aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/event-trail` as Route}
-                    label="Event Trail"
-                  >
-                    <Activity aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              </>
-            ) : null}
-          </SidebarMenu>
-        </SidebarGroup>
-      ) : null}
       {hasResources ? (
         <SidebarGroup className="px-2 py-2">
-          <SidebarGroupLabel>Resources</SidebarGroupLabel>
           <SidebarMenu>
             {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
             {skillCapabilities.read ? (
@@ -293,27 +263,52 @@ async function WorkspaceNavigation({
                 showProviders={inferenceProviderCapabilities.read}
               />
             ) : null}
+            {showSecrets ? <NavSecrets workspacePath={workspacePath} /> : null}
+            {showWorkflows ? <NavWorkflows workspacePath={workspacePath} /> : null}
+          </SidebarMenu>
+        </SidebarGroup>
+      ) : null}
+      {hasWorkspace ? (
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarMenu>
+            {showAgents ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink href={`${workspacePath}/agents` as Route} label="Agents">
+                  <Bot aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {organization.superadmin || workspace.capabilities.administer ? (
+              <>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
+                    <ShieldCheck aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/event-trail` as Route}
+                    label="Event Trail"
+                  >
+                    <Activity aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+              </>
+            ) : null}
           </SidebarMenu>
         </SidebarGroup>
       ) : null}
       {showAgents ? (
-        <>
-          {showSecrets || showWorkflows ? (
-            <SidebarGroup className="gap-y-1 px-2 py-2">
-              {showSecrets ? <NavSecrets workspacePath={workspacePath} /> : null}
-              {showWorkflows ? <NavWorkflows workspacePath={workspacePath} /> : null}
-            </SidebarGroup>
-          ) : null}
-          <SidebarGroup className="px-2 py-2">
-            <SidebarGroupLabel>Agents</SidebarGroupLabel>
-            <NavAgents
-              agents={agents}
-              create={create}
-              workspaceId={workspace.id}
-              workspacePath={workspacePath}
-            />
-          </SidebarGroup>
-        </>
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel>Agents</SidebarGroupLabel>
+          <NavAgents
+            agents={agents}
+            create={create}
+            workspaceId={workspace.id}
+            workspacePath={workspacePath}
+          />
+        </SidebarGroup>
       ) : null}
     </>
   )

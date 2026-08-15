@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
 import { CalendarCheck, ListFilter, MinusCircle, Workflow } from "lucide-react"
@@ -169,12 +170,18 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     defaultValues: createDefaults,
     values: initialValues,
   })
-  const formAction =
-    mode === "create"
-      ? props.createWorkflowScheduleAction.bind(null, agentName)
-      : props.putWorkflowScheduleAction.bind(null, agentName)
   const [state, action, isPending] = React.useActionState<ScheduleSheetActionState, FormData>(
-    formAction,
+    async (state, formData) => {
+      const result =
+        mode === "create"
+          ? await props.createWorkflowScheduleAction(agentName, state, formData)
+          : await props.putWorkflowScheduleAction(agentName, state, formData)
+      if (result.success) {
+        toast.success(mode === "create" ? "Schedule created" : "Schedule updated")
+        onOpenChangeAction(false)
+      }
+      return result
+    },
     {}
   )
   const loadWorkflowInputContract = React.useCallback(

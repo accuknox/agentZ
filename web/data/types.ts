@@ -299,10 +299,12 @@ export type SpanDetailActionResponse =
 
 export type CreateAgentFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type DeleteAgentFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type ListSandboxActionResponse =
@@ -321,14 +323,17 @@ export type ListSandboxActionResponse =
 
 export type DeleteSandboxFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type CreateSandboxFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type PutSecretFormState = {
   error?: Error
+  success?: boolean
   status?: "oauth_pending"
   oauth?: {
     flowId: string
@@ -338,6 +343,7 @@ export type PutSecretFormState = {
 
 export type DeleteSecretFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type PutSecretFormAction = (
@@ -373,14 +379,17 @@ export type DeleteAPIKeyFormState = {
 
 export type CreateWorkflowScheduleFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type UpdateWorkflowScheduleFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type DeleteWorkflowScheduleFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type WorkflowInputContractResult =

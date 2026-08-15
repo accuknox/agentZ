@@ -30,7 +30,7 @@ const columnClassName: Record<string, string> = {
   status: "w-28",
   hosts: "min-w-0 w-0",
   age: "w-36",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const watchSecretsQueryOptions = (

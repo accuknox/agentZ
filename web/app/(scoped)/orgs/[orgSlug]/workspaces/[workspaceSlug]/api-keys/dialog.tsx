@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { BotIcon, CheckIcon, Clock3, KeyRound, Webhook } from "lucide-react"
+import { toast } from "sonner"
 import { createAPIKeyFormSchema, type CreateAPIKeyFormValues } from "@/data/api-key.schema"
 import type { CreateAPIKeyFormState } from "@/data/types"
 import { Button } from "@/components/ui/button"
@@ -134,7 +135,14 @@ function CreateAPIKeyDialog({
   workspaceName?: string
 }) {
   const router = useRouter()
-  const [state, action, pending] = React.useActionState(createAPIKeyAction, {})
+  const [state, action, pending] = React.useActionState(
+    async (state: CreateAPIKeyFormState, formData: FormData) => {
+      const result = await createAPIKeyAction(state, formData)
+      if (result.key) toast.success("API key created")
+      return result
+    },
+    {}
+  )
   const [workflowTargets, setWorkflowTargets] = React.useState<WorkflowTarget[]>([])
   const form = useForm<CreateAPIKeyFormValues>({
     resolver: zodResolver(createAPIKeyFormSchema),

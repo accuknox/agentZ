@@ -1,7 +1,9 @@
 "use client"
 
 import { useActionState, useState } from "react"
+import { useRouter } from "@bprogress/next/app"
 import { Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import {
   deleteOrganizationRoleAction,
   type DeleteRoleFormState,
@@ -73,10 +75,20 @@ export function RoleDeleteDialog({
   roleId: string
   workspaceSlug?: string
 }) {
-  const action = workspaceSlug
-    ? deleteWorkspaceRoleAction.bind(null, orgSlug, workspaceSlug, roleId)
-    : deleteOrganizationRoleAction.bind(null, orgSlug, roleId)
-  const [state, formAction, pending] = useActionState<DeleteRoleFormState, FormData>(action, {})
+  const router = useRouter()
+  const [state, formAction, pending] = useActionState<DeleteRoleFormState, FormData>(
+    async (state, formData) => {
+      const result = workspaceSlug
+        ? await deleteWorkspaceRoleAction(orgSlug, workspaceSlug, roleId, state, formData)
+        : await deleteOrganizationRoleAction(orgSlug, roleId, state, formData)
+      if (result.href) {
+        toast.success("Role deleted")
+        router.push(result.href)
+      }
+      return result
+    },
+    {}
+  )
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>

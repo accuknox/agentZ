@@ -1,9 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
-import type { Route } from "next"
 import { updateTag } from "next/cache"
-import { redirect } from "next/navigation"
 import * as z from "zod"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { deleteSecret, putSecret } from "@/lib/gateway/client"
@@ -58,7 +56,7 @@ export async function putSecretFormAction(
 
   updateTag(secretsTag)
   updateTag(agentSecretsTag(agentName))
-  redirect(`${scope.basePath}/secrets?agent_name=${encodeURIComponent(agentName)}` as Route)
+  return { success: true }
 }
 
 export async function startOAuthSecretFormAction(
@@ -194,7 +192,7 @@ export async function deleteSecretFormAction(
 
   updateTag(secretsTag)
   updateTag(agentSecretsTag(agentName))
-  redirect(`${scope.basePath}/secrets?agent_name=${encodeURIComponent(agentName)}` as Route)
+  return { success: true }
 }
 
 function invalidSchemaState(message: string, error: z.ZodError): PutSecretFormState {

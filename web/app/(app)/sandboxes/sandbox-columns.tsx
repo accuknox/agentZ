@@ -6,6 +6,7 @@ import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import type { Sandbox } from "@/lib/gateway/client"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "sonner"
 import type { DeleteSandboxFormState } from "@/data/types"
 import { TableRelativeTime } from "@/components/ui/table"
 
@@ -34,7 +36,8 @@ type DeleteSandboxAction = (
 
 export function createSandboxColumns(
   basePath: string,
-  deleteSandboxAction: DeleteSandboxAction
+  deleteSandboxAction: DeleteSandboxAction,
+  showOrganisation: boolean
 ): ColumnDef<Sandbox>[] {
   return [
     {
@@ -52,7 +55,14 @@ export function createSandboxColumns(
       cell: ({ row }) => {
         const sandbox = row.original
 
-        return <span className="block truncate font-medium">{sandbox.name}</span>
+        return (
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate font-medium">{sandbox.name}</span>
+            {showOrganisation && sandbox.scope === "Organisation" ? (
+              <Badge variant="secondary">Organisation</Badge>
+            ) : null}
+          </div>
+        )
       },
     },
     {
@@ -202,10 +212,11 @@ function DeleteSandboxDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("Sandbox deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

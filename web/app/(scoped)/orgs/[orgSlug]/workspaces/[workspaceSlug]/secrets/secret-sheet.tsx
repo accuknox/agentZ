@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { KeyRound } from "lucide-react"
-import type { PutSecretFormAction } from "@/data/types"
+import type { PutSecretFormAction, PutSecretFormState } from "@/data/types"
 import { secretFormInputSchema } from "@/data/schema"
 import type * as z from "zod"
 import { Button } from "@/components/ui/button"
@@ -41,7 +42,17 @@ export function SecretSheet({
   open: boolean
   onOpenChangeAction: (open: boolean) => void
 }) {
-  const [state, action, isPending] = React.useActionState(putSecretAction.bind(null, agentName), {})
+  const [state, action, isPending] = React.useActionState(
+    async (state: PutSecretFormState, formData: FormData) => {
+      const result = await putSecretAction(agentName, state, formData)
+      if (result.success) {
+        toast.success("Secret created")
+        onOpenChangeAction(false)
+      }
+      return result
+    },
+    {}
+  )
   const {
     clearErrors,
     control,

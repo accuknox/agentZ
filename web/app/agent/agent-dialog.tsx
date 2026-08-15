@@ -37,8 +37,10 @@ import {
 } from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema } from "@/data/schema"
+import type { CreateAgentFormState } from "@/data/types"
 import type { ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
 import type * as z from "zod"
+import { toast } from "sonner"
 
 type Mode = "create" | "update"
 
@@ -209,11 +211,22 @@ export function AgentDialog({
   const dialogOpen = open ?? internalOpen
   const skills = initialSkills ?? []
   const hasSandboxes = sandboxes.length > 0
-  const formAction =
-    mode === "update" && agentName
-      ? updateAgentFormAction.bind(null, actionScope, agentName)
-      : createAgentFormAction.bind(null, actionScope)
-  const [state, action, isPending] = useActionState(formAction, {})
+  const [state, action, isPending] = useActionState<CreateAgentFormState, FormData>(
+    async (state, formData) => {
+      const result =
+        mode === "update" && agentName
+          ? await updateAgentFormAction(actionScope, agentName, state, formData)
+          : await createAgentFormAction(actionScope, state, formData)
+      if (result.success) {
+        toast.success(mode === "update" ? "Agent updated" : "Agent created")
+        onOpenChangeAction?.(false)
+        setInternalOpen(false)
+        router.refresh()
+      }
+      return result
+    },
+    {}
+  )
   const defaultValues: AgentFormValues = {
     name: agentName ?? "",
     sandboxScope: "Organisation",

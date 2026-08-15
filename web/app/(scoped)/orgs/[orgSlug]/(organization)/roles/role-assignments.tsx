@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react"
 import { CircleAlert, Save } from "lucide-react"
+import { toast } from "sonner"
 import {
   assignOrganizationRoleUsersAction,
   assignWorkspaceRoleUsersAction,
@@ -55,10 +56,16 @@ export function RoleAssignments({
     setSelectedBaselineKey(baselineKey)
     setSelected(baseline)
   }
-  const action = workspaceSlug
-    ? assignWorkspaceRoleUsersAction.bind(null, orgSlug, workspaceSlug, roleId)
-    : assignOrganizationRoleUsersAction.bind(null, orgSlug, roleId)
-  const [state, formAction, pending] = useActionState<RoleAssignmentFormState, FormData>(action, {})
+  const [state, formAction, pending] = useActionState<RoleAssignmentFormState, FormData>(
+    async (state, formData) => {
+      const result = workspaceSlug
+        ? await assignWorkspaceRoleUsersAction(orgSlug, workspaceSlug, roleId, state, formData)
+        : await assignOrganizationRoleUsersAction(orgSlug, roleId, state, formData)
+      if (result.saved) toast.success("Role assignments updated")
+      return result
+    },
+    {}
+  )
   const changed =
     selected.some((memberId) => !baseline.includes(memberId)) ||
     baseline.some((memberId) => !selected.includes(memberId))

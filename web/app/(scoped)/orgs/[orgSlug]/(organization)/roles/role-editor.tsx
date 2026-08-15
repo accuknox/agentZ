@@ -2,6 +2,7 @@
 
 import type { Route } from "next"
 import Link from "next/link"
+import { useRouter } from "@bprogress/next/app"
 import { Fragment, startTransition, useActionState, useMemo, useState } from "react"
 import {
   Building2,
@@ -14,6 +15,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react"
+import { toast } from "sonner"
 import {
   organizationRoleFormAction,
   type RoleFormState,
@@ -136,6 +138,7 @@ function expand(
 }
 
 export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEditorData }) {
+  const router = useRouter()
   const role = data.role
   const workspace = "workspace" in data ? data.workspace : undefined
   const immutable = Boolean(role?.immutable)
@@ -163,10 +166,25 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
   const directGrants = [...direct].sort((left, right) => key(left).localeCompare(key(right)))
   const updatedAt = role?.updatedAt
   const previewInput = JSON.stringify({ name, grants: directGrants, updatedAt })
-  const action = workspace
-    ? workspaceRoleFormAction.bind(null, data.organization.slug, workspace.slug, role?.id)
-    : organizationRoleFormAction.bind(null, data.organization.slug, role?.id)
-  const [state, formAction, pending] = useActionState<RoleFormState, FormData>(action, {})
+  const [state, formAction, pending] = useActionState<RoleFormState, FormData>(
+    async (state, formData) => {
+      const result = workspace
+        ? await workspaceRoleFormAction(
+            data.organization.slug,
+            workspace.slug,
+            role?.id,
+            state,
+            formData
+          )
+        : await organizationRoleFormAction(data.organization.slug, role?.id, state, formData)
+      if (result.href) {
+        toast.success(role ? "Role updated" : "Role created")
+        router.push(result.href)
+      }
+      return result
+    },
+    {}
+  )
   const previewValid = state.preview?.input === previewInput
   const impactOpen = Boolean(
     role && previewValid && state.preview && state.preview !== dismissedPreview

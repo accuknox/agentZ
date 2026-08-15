@@ -186,6 +186,7 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
                 fingerprint={disableImpact.fingerprint}
                 kind="disable"
                 submitLabel="Disable Membership"
+                successMessage="User disabled"
                 title={`Disable ${disableImpact.targetLabel}?`}
               />
             ) : null}
@@ -200,6 +201,7 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
                 confirmation={removeImpact.confirmation}
                 fingerprint={removeImpact.fingerprint}
                 submitLabel="Remove Membership"
+                successMessage="User removed"
                 title={`Remove ${removeImpact.targetLabel}?`}
               />
             ) : null}

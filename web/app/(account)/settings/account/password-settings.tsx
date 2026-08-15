@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { KeyRound } from "lucide-react"
@@ -35,7 +36,6 @@ const genericChangePasswordError = "Password could not be changed. Try again."
 export function PasswordSettings() {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState(false)
-  const [success, setSuccess] = React.useState(false)
   const { clearErrors, control, formState, handleSubmit, reset, setError } =
     useForm<ChangePasswordValues>({
       criteriaMode: "all",
@@ -52,7 +52,6 @@ export function PasswordSettings() {
   function submit(values: ChangePasswordValues) {
     setPendingAction(true)
     clearErrors("root")
-    setSuccess(false)
     startTransition(async () => {
       const result = await authClient.changePassword({
         currentPassword: values.currentPassword,
@@ -78,7 +77,7 @@ export function PasswordSettings() {
       }
 
       setPendingAction(false)
-      setSuccess(true)
+      toast.success("Password updated")
       reset()
     })
   }
@@ -168,7 +167,6 @@ export function PasswordSettings() {
             />
           </FieldGroup>
           {rootError ? <FieldError>{rootError}</FieldError> : null}
-          {success ? <p className="text-sm">Password updated.</p> : null}
           <div>
             <Button type="submit" disabled={pendingAction}>
               {pendingAction ? (

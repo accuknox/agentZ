@@ -62,5 +62,5 @@ export async function deleteSessionFormAction(
     }
   }
 
-  redirect("/settings/sessions")
+  return { success: true }
 }

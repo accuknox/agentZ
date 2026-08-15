@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { useRouter } from "@bprogress/next/app"
 import {
   flexRender,
@@ -52,7 +53,7 @@ const columnClassName: Record<string, string> = {
   workflow_name: "min-w-48",
   schedule: "min-w-48",
   created_at: "w-36",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 export function ScheduleTriggersTable({
@@ -414,8 +415,22 @@ function RunScheduleDialog({
     formData: FormData
   ) => Promise<TriggerWorkflowRunActionState>
 }) {
+  const router = useRouter()
   const [state, action, pending] = React.useActionState(
-    triggerWorkflowRunAction.bind(null, agentName, item.workflow_name, item.name),
+    async (state: TriggerWorkflowRunActionState, formData: FormData) => {
+      const result = await triggerWorkflowRunAction(
+        agentName,
+        item.workflow_name,
+        item.name,
+        state,
+        formData
+      )
+      if (result.href) {
+        toast.success("Workflow started")
+        router.push(result.href)
+      }
+      return result
+    },
     { success: false }
   )
 
@@ -476,10 +491,11 @@ function DeleteScheduleDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("Schedule deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useId, useMemo, useState } from "react"
+import { toast } from "sonner"
 import {
   CircleAlert,
   KeyRound,
@@ -91,8 +92,14 @@ export function AgentOwnerForm({
   ownerUserId: string
   users: AgentShareTarget[]
 }) {
-  const action = transferAgentOwnerFormAction.bind(null, actionScope, agentName)
-  const [state, formAction, pending] = useActionState<AgentOwnerFormState, FormData>(action, {})
+  const [state, formAction, pending] = useActionState<AgentOwnerFormState, FormData>(
+    async (state, formData) => {
+      const result = await transferAgentOwnerFormAction(actionScope, agentName, state, formData)
+      if (result.success) toast.success("Agent owner updated")
+      return result
+    },
+    {}
+  )
   const [owner, setOwner] = useState(ownerUserId)
 
   return (
@@ -102,12 +109,6 @@ export function AgentOwnerForm({
         <form action={formAction} className="flex flex-col gap-5">
           {state.error ? (
             <FormError title="Ownership was not transferred" message={state.error} />
-          ) : null}
-          {state.success ? (
-            <Alert>
-              <AlertTitle>Ownership transferred</AlertTitle>
-              <AlertDescription>The Agent access summary was refreshed.</AlertDescription>
-            </Alert>
           ) : null}
           <FieldGroup>
             <Field>
@@ -205,7 +206,10 @@ function AgentShareDialogForm({
   const [state, formAction, pending] = useActionState<AgentShareFormState, FormData>(
     async (previousState, formData) => {
       const nextState = await save(previousState, formData)
-      if (nextState.success) onSuccessAction()
+      if (nextState.success) {
+        toast.success(share ? "Agent access updated" : "Agent access added")
+        onSuccessAction()
+      }
       return nextState
     },
     {}
@@ -463,7 +467,7 @@ export function AgentSharesTable({
               <TableRow key={group.id}>
                 {group.headers.map((header) => (
                   <TableHead
-                    className={header.column.id === "actions" ? "w-16 text-right" : undefined}
+                    className={header.column.id === "actions" ? "w-20 text-right" : undefined}
                     key={header.id}
                   >
                     {flexRender(header.column.columnDef.header, header.getContext())}
@@ -521,8 +525,14 @@ function AgentShareActions({
   teams: AgentShareTarget[]
   users: AgentShareTarget[]
 }) {
-  const action = deleteAgentShareFormAction.bind(null, actionScope, agentName)
-  const [state, formAction, pending] = useActionState<AgentShareFormState, FormData>(action, {})
+  const [state, formAction, pending] = useActionState<AgentShareFormState, FormData>(
+    async (state, formData) => {
+      const result = await deleteAgentShareFormAction(actionScope, agentName, state, formData)
+      if (result.success) toast.success("Agent access removed")
+      return result
+    },
+    {}
+  )
   const formId = useId()
   const [editOpen, setEditOpen] = useState(false)
   const targetExists = share.target_user_id

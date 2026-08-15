@@ -15,6 +15,7 @@ const preferencesFormSchema = z.object({
 export type PreferencesFormState = {
   error?: string
   preferences: UserPreferences
+  saved?: boolean
 }
 
 /**
@@ -37,7 +38,7 @@ export async function savePreferencesAction(
       theme: parsed.data.theme ?? state.preferences.theme,
       updateSandbox: parsed.data.updateSandbox ?? state.preferences.updateSandbox,
     })
-    return { preferences }
+    return { preferences, saved: true }
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Failed to save preferences",

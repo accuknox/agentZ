@@ -83,6 +83,7 @@ export async function createWorkflowScheduleFormAction(
   }
 
   finishWorkflowScheduleMutation(scope, agentName)
+  return { success: true }
 }
 
 export async function getWorkflowInputContractAction(
@@ -152,6 +153,7 @@ export async function updateWorkflowScheduleFormAction(
   }
 
   finishWorkflowScheduleMutation(scope, agentName)
+  return { success: true }
 }
 
 export async function deleteWorkflowScheduleFormAction(
@@ -181,6 +183,7 @@ export async function deleteWorkflowScheduleFormAction(
   }
 
   finishWorkflowScheduleMutation(scope, agentName)
+  return { success: true }
 }
 
 async function parseScheduleForm(

@@ -130,7 +130,7 @@ export function RoleTable({
                               : header.column.id === "updatedAt"
                                 ? "w-32"
                                 : header.column.id === "actions"
-                                  ? "w-14"
+                                  ? "w-20"
                                   : undefined
                     }
                     key={header.id}

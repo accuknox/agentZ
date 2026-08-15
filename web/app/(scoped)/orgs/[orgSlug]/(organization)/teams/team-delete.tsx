@@ -22,6 +22,7 @@ export function TeamDelete({
         confirmation={confirmation}
         fingerprint={fingerprint}
         submitLabel="Delete Team"
+        successMessage="Team deleted"
         title={`Delete ${teamName}?`}
       />
     </section>

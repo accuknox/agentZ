@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import Fuse from "fuse.js"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { queryOptions, useQuery } from "@tanstack/react-query"
@@ -591,6 +592,7 @@ export function OAuthSecretSheet({
         })
 
         if (message.status === "success") {
+          toast.success("Secret created")
           reset(initialFormValues)
           onOpenChangeAction(false)
           router.refresh()

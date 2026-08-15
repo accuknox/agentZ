@@ -87,6 +87,7 @@ async function Sandboxes({
       nextPageToken={result.nextPageToken}
       basePath={basePath}
       deleteSandboxAction={deleteSandboxFormAction.bind(null, { basePath, workspaceId })}
+      showOrganisation={workspaceId !== undefined}
     />
   )
 }

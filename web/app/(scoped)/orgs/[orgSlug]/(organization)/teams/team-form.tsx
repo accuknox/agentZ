@@ -2,6 +2,7 @@
 
 import type { Route } from "next"
 import Link from "next/link"
+import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
 import { CircleAlert, Save, Shield } from "lucide-react"
 import { teamFormAction, type TeamFormState } from "@/app/(scoped)/orgs/actions"
@@ -11,6 +12,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "sonner"
 
 export type TeamFormData = {
   team?: { id: string; name: string; updatedAt: string; memberIds: string[]; roleIds: string[] }
@@ -27,11 +29,21 @@ export function TeamForm({
   embedded?: boolean
   orgSlug: string
 }) {
+  const router = useRouter()
   const [name, setName] = useState(data.team?.name ?? "")
   const [memberIds, setMemberIds] = useState<string[]>(data.team?.memberIds ?? [])
   const [roleIds, setRoleIds] = useState<string[]>(data.team?.roleIds ?? [])
-  const action = teamFormAction.bind(null, orgSlug, data.team?.id)
-  const [state, formAction, pending] = useActionState<TeamFormState, FormData>(action, {})
+  const [state, formAction, pending] = useActionState<TeamFormState, FormData>(
+    async (state, formData) => {
+      const result = await teamFormAction(orgSlug, data.team?.id, state, formData)
+      if (result.href) {
+        toast.success(data.team ? "Team updated" : "Team created")
+        router.push(result.href)
+      }
+      return result
+    },
+    {}
+  )
   const root = `/orgs/${orgSlug}/teams`
   const memberOptions = data.members.map((member) => ({
     image: member.image,

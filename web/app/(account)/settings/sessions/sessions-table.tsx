@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import Bowser from "bowser"
 import {
   Android,
@@ -67,7 +68,7 @@ const columnClassName: Record<string, string> = {
   updatedAt: "w-56",
   os: "w-36",
   browser: "w-36",
-  actions: "w-16",
+  actions: "w-20",
 }
 
 const browserIcons: Record<string, IconComponent> = {
@@ -285,7 +286,17 @@ function DeleteSessionButton({
   session: SessionRow
 }) {
   const [open, setOpen] = React.useState(false)
-  const [state, action, pending] = React.useActionState(deleteSessionAction, {})
+  const [state, action, pending] = React.useActionState(
+    async (state: DeleteSessionFormState, formData: FormData) => {
+      const result = await deleteSessionAction(state, formData)
+      if (result.success) {
+        toast.success("Session revoked")
+        setOpen(false)
+      }
+      return result
+    },
+    {}
+  )
   const isCurrent = session.token === currentToken
 
   return (

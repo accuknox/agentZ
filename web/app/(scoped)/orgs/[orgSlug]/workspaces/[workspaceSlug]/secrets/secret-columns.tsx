@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DeleteSecretFormAction } from "@/data/types"
 
@@ -219,10 +220,11 @@ function DeleteSecretDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("Secret deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

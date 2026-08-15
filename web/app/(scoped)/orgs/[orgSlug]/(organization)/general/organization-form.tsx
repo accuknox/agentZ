@@ -2,6 +2,7 @@
 
 import { useActionState } from "react"
 import { Save } from "lucide-react"
+import { toast } from "sonner"
 import type { OrganizationSummary } from "@/data/organizations"
 import {
   type UpdateOrganizationNameFormState,
@@ -15,7 +16,11 @@ import { Spinner } from "@/components/ui/spinner"
 export function OrganizationForm({ organization }: { organization: OrganizationSummary }) {
   const initialState: UpdateOrganizationNameFormState = { name: organization.name }
   const [state, action, pending] = useActionState(
-    updateOrganizationNameAction.bind(null, organization.id),
+    async (state: UpdateOrganizationNameFormState, formData: FormData) => {
+      const result = await updateOrganizationNameAction(organization.id, state, formData)
+      if (result.saved) toast.success("Organisation updated")
+      return result
+    },
     initialState
   )
 

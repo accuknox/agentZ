@@ -1,8 +1,7 @@
 "use server"
 
-import * as z from "zod"
 import type { Route } from "next"
-import { redirect } from "next/navigation"
+import * as z from "zod"
 import { revalidatePath } from "next/cache"
 import { updateTag } from "next/cache"
 import {
@@ -77,7 +76,7 @@ export async function createAgentFormAction(
 
   updateTag(agentsTag)
   updateTag(skillsTag)
-  redirect(scope.basePath as Route)
+  return { success: true }
 }
 
 export async function updateAgentFormAction(
@@ -110,7 +109,7 @@ export async function updateAgentFormAction(
 
   updateTag(agentsTag)
   updateTag(skillsTag)
-  redirect(scope.basePath as Route)
+  return { success: true }
 }
 
 function invalidAgentFormState(error: z.ZodError): CreateAgentFormState {
@@ -145,7 +144,7 @@ export async function deleteAgentFormAction(
 
   updateTag(agentsTag)
   updateTag(skillsTag)
-  redirect(scope.basePath as Route)
+  return { success: true }
 }
 
 export async function transferAgentOwnerFormAction(

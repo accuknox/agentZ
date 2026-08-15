@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import QRCode from "react-qr-code"
 import { z } from "zod"
 import { ArrowRight, Download, ShieldCheck, ShieldOff, XIcon } from "lucide-react"
+import { toast } from "sonner"
 import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
 import { reauthenticateWithGithub, reauthenticateWithGoogle } from "./actions"
@@ -242,6 +243,7 @@ export function TwoFactorSettings({
       if (result.error) {
         return result.error.message ?? "Invalid code"
       }
+      toast.success("Two-factor authentication enabled")
       close()
       startTransition(() => {
         router.refresh()
@@ -265,6 +267,7 @@ export function TwoFactorSettings({
         setMode("reauth")
         return
       }
+      toast.success("Two-factor authentication disabled")
       close()
       startTransition(() => {
         router.refresh()

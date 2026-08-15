@@ -1302,7 +1302,6 @@ function ChatInner({
                             size="sm"
                             variant="ghost"
                           >
-                            <GaugeIcon className="text-muted-foreground size-4" />
                             <SelectValue placeholder="Reasoning" />
                           </ReasoningSelectTrigger>
                           <SelectContent align="end" position="popper" side="top" sideOffset={8}>

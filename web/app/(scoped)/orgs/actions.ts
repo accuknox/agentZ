@@ -173,7 +173,7 @@ export async function deleteWorkspaceAction(
     return { error: "The Workspace no longer meets the deletion requirements." }
   }
   revalidatePath(`/orgs/${orgSlug}/workspaces`)
-  redirect(`/orgs/${orgSlug}/workspaces` as Route)
+  return { href: `/orgs/${orgSlug}/workspaces` as Route }
 }
 
 export async function prepareWorkspaceDeleteAction(orgSlug: string, workspaceId: string) {
@@ -192,6 +192,7 @@ export async function prepareWorkspaceDeleteAction(orgSlug: string, workspaceId:
 
 export type UpdateOrganizationNameFormState = {
   name: string
+  saved?: boolean
   errors?: {
     form?: string
     name?: string[]
@@ -200,6 +201,7 @@ export type UpdateOrganizationNameFormState = {
 
 export type CreateWorkspaceFormState = {
   error?: string
+  href?: Route
   errors?: {
     admin_member_ids?: string[]
     name?: string[]
@@ -242,6 +244,7 @@ export async function updateWorkspaceAction(
 
 export type RoleFormState = {
   error?: string
+  href?: Route
   errors?: { name?: string[] }
   preview?: {
     fingerprint: string
@@ -253,10 +256,11 @@ export type RoleFormState = {
 
 export type RoleAssignmentFormState = { error?: string; saved?: boolean }
 
-export type DeleteRoleFormState = { error?: string; references?: string[] }
+export type DeleteRoleFormState = { error?: string; href?: Route; references?: string[] }
 
 export type TeamFormState = {
   error?: string
+  href?: Route
   errors?: { name?: string[]; memberIds?: string[]; roleIds?: string[] }
 }
 
@@ -355,7 +359,7 @@ export async function removeMembershipAction(
 
   revalidatePath(`/orgs/${orgSlug}/users/status/active`, "page")
   revalidatePath(`/orgs/${orgSlug}/users/status/disabled`, "page")
-  redirect(`/orgs/${orgSlug}/users/status/active` as Route)
+  return { href: `/orgs/${orgSlug}/users/status/active` as Route }
 }
 
 export async function socialAdmissionAction(
@@ -446,7 +450,7 @@ export async function updateOrganizationNameAction(
   }
 
   revalidatePath("/orgs", "layout")
-  redirect(`/orgs/${result.slug}/general` as Route)
+  return { name: parsed.data, saved: true }
 }
 
 export async function createWorkspaceAction(
@@ -483,7 +487,7 @@ export async function createWorkspaceAction(
   }
 
   revalidatePath(`/orgs/${orgSlug}`, "layout")
-  redirect(`/orgs/${orgSlug}/workspaces/${result.data.slug}` as Route)
+  return { href: `/orgs/${orgSlug}/workspaces/${result.data.slug}` as Route }
 }
 
 export type WorkspaceInheritanceFormState = { error?: string; saved?: boolean }
@@ -624,7 +628,7 @@ export async function organizationRoleFormAction(
   updateTag(`organization:${result.organizationId}:role:${result.roleId}`)
   updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/roles`)
-  redirect(`/orgs/${orgSlug}/roles/${result.roleId}/permissions` as Route)
+  return { href: `/orgs/${orgSlug}/roles/${result.roleId}/permissions` as Route }
 }
 
 export async function assignOrganizationRoleUsersAction(
@@ -676,7 +680,7 @@ export async function deleteOrganizationRoleAction(
   updateTag(`organization:${result.organizationId}:roles`)
   updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/roles`)
-  redirect(`/orgs/${orgSlug}/roles` as Route)
+  return { href: `/orgs/${orgSlug}/roles` as Route }
 }
 
 export async function workspaceRoleFormAction(
@@ -769,9 +773,9 @@ export async function workspaceRoleFormAction(
   )
   updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
-  redirect(
-    `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles/${result.roleId}/permissions` as Route
-  )
+  return {
+    href: `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles/${result.roleId}/permissions` as Route,
+  }
 }
 
 export async function assignWorkspaceRoleUsersAction(
@@ -820,7 +824,7 @@ export async function deleteWorkspaceRoleAction(
   updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
   updateTag(agentsTag)
   revalidatePath(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`)
-  redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles` as Route)
+  return { href: `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles` as Route }
 }
 
 export async function teamFormAction(
@@ -867,7 +871,7 @@ export async function teamFormAction(
     updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
   }
   revalidatePath(`/orgs/${orgSlug}/teams`)
-  redirect(`/orgs/${orgSlug}/teams/${result.teamId}` as Route)
+  return { href: `/orgs/${orgSlug}/teams/${result.teamId}` as Route }
 }
 
 export async function deleteTeamAction(
@@ -910,7 +914,7 @@ export async function deleteTeamAction(
     updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
   }
   revalidatePath(`/orgs/${orgSlug}/teams`)
-  redirect(`/orgs/${orgSlug}/teams` as Route)
+  return { href: `/orgs/${orgSlug}/teams` as Route }
 }
 
 export async function prepareTeamDeleteAction(orgSlug: string, teamId: string) {

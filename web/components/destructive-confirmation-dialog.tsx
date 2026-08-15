@@ -1,8 +1,11 @@
 "use client"
 
+import type { Route } from "next"
 import { useActionState, useId, useState } from "react"
+import { useRouter } from "@bprogress/next/app"
 import { useFormStatus } from "react-dom"
 import { CircleAlertIcon, ShieldOffIcon, Trash2Icon } from "lucide-react"
+import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,6 +30,7 @@ export function DestructiveConfirmationDialog({
   open,
   showTrigger = true,
   submitLabel,
+  successMessage,
   title,
 }: {
   action: (
@@ -40,12 +44,24 @@ export function DestructiveConfirmationDialog({
   open?: boolean
   showTrigger?: boolean
   submitLabel: string
+  successMessage: string
   title: string
 }) {
+  const router = useRouter()
   const id = useId()
   const [internalOpen, setInternalOpen] = useState(false)
   const [value, setValue] = useState("")
-  const [state, formAction] = useActionState(action, {})
+  const [state, formAction] = useActionState<DestructiveConfirmationState, FormData>(
+    async (state, formData) => {
+      const result = await action(state, formData)
+      if (result.href) {
+        toast.success(successMessage)
+        router.push(result.href)
+      }
+      return result
+    },
+    {}
+  )
   const Icon = kind === "disable" ? ShieldOffIcon : Trash2Icon
 
   const dialogOpen = open ?? internalOpen
@@ -115,7 +131,11 @@ export function DestructiveConfirmationDialog({
   )
 }
 
-export type DestructiveConfirmationState = { error?: string; fingerprint?: string }
+export type DestructiveConfirmationState = {
+  error?: string
+  fingerprint?: string
+  href?: Route
+}
 
 function ConfirmationSubmit({
   disabled,

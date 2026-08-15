@@ -1,9 +1,7 @@
 "use server"
 
-import type { Route } from "next"
 import { updateTag } from "next/cache"
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 import {
   createMcpConnection,
   deleteMcpConnection,
@@ -67,6 +65,7 @@ export type SubmitMcpFormAction =
 
 export type DeleteMcpFormState = {
   error?: GatewayError
+  success?: boolean
 }
 
 function invalidMcpFormState(error: {
@@ -255,5 +254,5 @@ export async function deleteScopedMcpFormAction(
   }
 
   updateTag(mcpsTag)
-  redirect(scope.basePath as Route)
+  return { success: true }
 }

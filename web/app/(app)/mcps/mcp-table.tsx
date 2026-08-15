@@ -30,12 +30,12 @@ import { createMcpColumns } from "./mcp-columns"
 import { McpViewSheet } from "./mcp-view-sheet"
 
 const columnClassName: Record<string, string> = {
-  name: "w-40",
+  name: "w-64",
   auth_mode: "w-32",
   status: "w-48",
   endpoint: "min-w-48",
   age: "w-28",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const watchMcpConnectionsQueryOptions = (
@@ -126,9 +126,10 @@ export function McpTable({
     () =>
       createMcpColumns({
         deleteMcpAction,
+        showOrganisation: workspaceId !== undefined,
         onViewAction: setViewConnection,
       }),
-    [deleteMcpAction]
+    [deleteMcpAction, workspaceId]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

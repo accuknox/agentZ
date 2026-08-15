@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { renderMcpServerIcon } from "./catalog"
@@ -62,6 +63,7 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
+  showOrganisation: boolean
   onViewAction: (connection: McpConnectionSummary) => void
   deleteMcpAction: (
     name: string,
@@ -82,7 +84,9 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <McpNameCell connection={row.original} />,
+      cell: ({ row }) => (
+        <McpNameCell connection={row.original} showOrganisation={actions.showOrganisation} />
+      ),
     },
     {
       id: "auth_mode",
@@ -137,7 +141,13 @@ export function createMcpColumns(actions: {
   ]
 }
 
-function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
+function McpNameCell({
+  connection,
+  showOrganisation,
+}: {
+  connection: McpConnectionSummary
+  showOrganisation: boolean
+}) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       {renderMcpServerIcon(connection.endpoint_url, {
@@ -145,6 +155,9 @@ function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
         className: "size-4 shrink-0",
       })}
       <span className="min-w-0 truncate font-medium">{connection.name}</span>
+      {showOrganisation && connection.scope === "Organisation" ? (
+        <Badge variant="secondary">Organisation</Badge>
+      ) : null}
     </div>
   )
 }
@@ -254,10 +267,11 @@ function DeleteMcpDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("MCP connection deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

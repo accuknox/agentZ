@@ -179,7 +179,7 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
       columns={columns}
       nextPageToken={data.nextPageToken}
       headerClassNames={{
-        actions: "w-16 text-right",
+        actions: "w-20 text-right",
         createdAt: "w-48",
         expiresAt: "w-32",
         inviter: "w-56",

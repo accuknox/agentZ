@@ -83,7 +83,7 @@ const columnClassName: Record<string, string> = {
   automatic_failover: "w-40",
   usage_count: "w-24",
   updated_at: "w-28",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const stateMeta = {
@@ -477,7 +477,7 @@ function DeletePoolDialog({
                   return
                 }
                 setOpen(false)
-                toast.success("Inference Pool deleted")
+                toast.success("Inference pool deleted")
               })
             }
           >

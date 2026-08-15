@@ -1922,6 +1922,7 @@ function EntryDialog({
                   {
                     onError: (error) => toast.error(label, { description: error.message }),
                     onSuccess: () => {
+                      toast.success(action.kind === "file" ? "File created" : "Folder created")
                       void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
@@ -1953,6 +1954,9 @@ function EntryDialog({
                   {
                     onError: (error) => toast.error(label, { description: error.message }),
                     onSuccess: () => {
+                      toast.success(
+                        action.entry.type === "directory" ? "Folder renamed" : "File renamed"
+                      )
                       void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
@@ -1979,6 +1983,9 @@ function EntryDialog({
                 {
                   onError: (error) => toast.error(label, { description: error.message }),
                   onSuccess: () => {
+                    toast.success(
+                      action.entry.type === "directory" ? "Folder deleted" : "File deleted"
+                    )
                     void queryClient.invalidateQueries({
                       queryKey: agentFilesQueryOptions(
                         agentName,

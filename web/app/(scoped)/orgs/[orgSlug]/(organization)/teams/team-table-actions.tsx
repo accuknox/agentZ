@@ -98,6 +98,7 @@ export function TeamTableActions({
           open={deleteOpen}
           showTrigger={false}
           submitLabel="Delete Team"
+          successMessage="Team deleted"
           title={`Delete ${deleteData.name}?`}
         />
       ) : null}

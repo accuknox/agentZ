@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
@@ -76,7 +77,7 @@ const columnClassName: Record<string, string> = {
   status: "w-40",
   duration_seconds: "w-28",
   created_at: "w-36",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const runStatusMeta = {
@@ -622,6 +623,7 @@ function DeleteRunDialog({
       return
     }
 
+    toast.success("Workflow run deleted")
     setOpen(false)
     if (isOnlyRow && canGoPrevious) {
       goPrevious()

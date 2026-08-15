@@ -4,6 +4,7 @@ import Link from "next/link"
 import type { Route } from "next"
 import { useActionState, useId, useState, useTransition } from "react"
 import { MoreHorizontal, Send, Shield, ShieldPlus, UsersRound, X } from "lucide-react"
+import { toast } from "sonner"
 import {
   cancelInvitationAction,
   createInvitationAction,
@@ -84,7 +85,12 @@ export function InvitationActions({
       <DropdownMenuContent align="end">
         <DropdownMenuItem
           disabled={pending}
-          onSelect={() => start(() => cancelInvitationAction(orgSlug, invitationId))}
+          onSelect={() =>
+            start(async () => {
+              await cancelInvitationAction(orgSlug, invitationId)
+              toast.success("Invitation cancelled")
+            })
+          }
           variant="destructive"
         >
           {pending ? <Spinner /> : <X />}
@@ -115,7 +121,12 @@ export function MembershipStateButton({
   return (
     <Button
       disabled={pending}
-      onClick={() => start(() => restoreMembershipAction(orgSlug, memberId))}
+      onClick={() =>
+        start(async () => {
+          await restoreMembershipAction(orgSlug, memberId)
+          toast.success("User restored")
+        })
+      }
       size="sm"
       type="button"
       variant="outline"
@@ -139,7 +150,11 @@ function CreateInvitationForm({
   const [roleIds, setRoleIds] = useState<string[]>([])
   const [teamIds, setTeamIds] = useState<string[]>([])
   const [state, submit, pending] = useActionState<InvitationFormState, FormData>(
-    createInvitationAction.bind(null, orgSlug),
+    async (state, formData) => {
+      const result = await createInvitationAction(orgSlug, state, formData)
+      if (result.link) toast.success("Invitation created")
+      return result
+    },
     {}
   )
   const ready = roleIds.length + teamIds.length > 0

@@ -271,11 +271,26 @@ function buildAuth() {
         const state = await getOAuthState()
         const social = socialOAuthStateSchema.safeParse(state)
         if (newSession?.user && social.success) {
-          await createSocialAdmissionMembership(
+          const admission = await createSocialAdmissionMembership(
             newSession.user,
             newSession.session.token,
             social.data
           )
+          if (admission.kind === "unavailable") {
+            throw ctx.redirect("/signin?error=social_admission_unavailable")
+          }
+          if (admission.kind === "disabled") {
+            throw ctx.redirect(`/join/${admission.slug}?error=membership_disabled`)
+          }
+          if (admission.kind === "ineligible") {
+            throw ctx.redirect(`/join/${admission.slug}?error=unable_to_get_user_info`)
+          }
+          if (admission.kind === "limit") {
+            throw ctx.redirect(`/join/${admission.slug}?error=membership_limit`)
+          }
+          if (admission.kind === "provider-unavailable") {
+            throw ctx.redirect(`/join/${admission.slug}?error=provider_unavailable`)
+          }
         }
         if (!newSession?.user.twoFactorEnabled) {
           return
@@ -388,6 +403,7 @@ function buildAuth() {
             github: {
               clientId: env.GITHUB_CLIENT_ID,
               clientSecret: env.GITHUB_CLIENT_SECRET,
+              prompt: "select_account",
               scope: ["user:email", "read:org"],
               getUserInfo: getGithubUserInfo,
             },
@@ -604,21 +620,39 @@ async function createSocialAdmissionMembership(
   sessionToken: string,
   state: z.infer<typeof socialOAuthStateSchema>
 ) {
-  await getDB().transaction(async (tx) => {
+  return getDB().transaction(async (tx) => {
+    const [organization] = await tx
+      .select({ id: schema.organizations.id, slug: schema.organizations.slug })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, state.organizationId))
+      .limit(1)
+      .for("update")
+    if (!organization) {
+      return { kind: "unavailable" as const }
+    }
+
     const [policy] = await tx
-      .select({ enabled: schema.socialAdmissionPolicies.enabled })
+      .select({
+        enabled: schema.socialAdmissionPolicies.enabled,
+        githubEnabled: schema.socialAdmissionPolicies.githubEnabled,
+        googleEnabled: schema.socialAdmissionPolicies.googleEnabled,
+      })
       .from(schema.socialAdmissionPolicies)
       .where(eq(schema.socialAdmissionPolicies.organizationId, state.organizationId))
       .limit(1)
-    if (!policy?.enabled) {
-      return
+    if (
+      !policy?.enabled ||
+      (state.provider === "google" && !policy.googleEnabled) ||
+      (state.provider === "github" && !policy.githubEnabled)
+    ) {
+      return { kind: "provider-unavailable" as const, slug: organization.slug }
     }
 
     let admitted = false
     if (state.provider === "google") {
       const domain = user.email.split("@").pop()?.toLowerCase()
       if (!domain) {
-        return
+        return { kind: "ineligible" as const, slug: organization.slug }
       }
       const [rule] = await tx
         .select({ domain: schema.socialAdmissionGoogleDomains.domain })
@@ -630,31 +664,21 @@ async function createSocialAdmissionMembership(
           )
         )
         .limit(1)
-      admitted = Boolean(rule)
+      admitted = rule !== undefined
     } else {
       const [rule] = await tx
         .select({ id: schema.socialAdmissionGithubRules.id })
         .from(schema.socialAdmissionGithubRules)
         .where(eq(schema.socialAdmissionGithubRules.organizationId, state.organizationId))
         .limit(1)
-      admitted = Boolean(rule)
+      admitted = rule !== undefined
     }
     if (!admitted) {
-      return
-    }
-
-    const [organization] = await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, state.organizationId))
-      .limit(1)
-      .for("update")
-    if (!organization) {
-      return
+      return { kind: "ineligible" as const, slug: organization.slug }
     }
 
     const [existing] = await tx
-      .select({ id: schema.members.id })
+      .select({ disabledAt: schema.members.disabledAt })
       .from(schema.members)
       .where(
         and(
@@ -664,7 +688,10 @@ async function createSocialAdmissionMembership(
       )
       .limit(1)
     if (existing) {
-      return
+      if (existing.disabledAt) {
+        return { kind: "disabled" as const, slug: organization.slug }
+      }
+      return { kind: "member" as const, slug: organization.slug }
     }
 
     const roles = await tx
@@ -693,7 +720,7 @@ async function createSocialAdmissionMembership(
       )
       .where(eq(schema.socialAdmissionDefaultTeams.organizationId, organization.id))
     if (roles.length + teams.length === 0) {
-      return
+      return { kind: "provider-unavailable" as const, slug: organization.slug }
     }
 
     const membershipCount = await tx.$count(
@@ -701,10 +728,7 @@ async function createSocialAdmissionMembership(
       eq(schema.members.organizationId, organization.id)
     )
     if (membershipCount >= organizationMembershipLimit) {
-      throw APIError.from("FORBIDDEN", {
-        code: "ORGANIZATION_MEMBERSHIP_LIMIT_REACHED",
-        message: "Organization membership limit reached",
-      })
+      return { kind: "limit" as const, slug: organization.slug }
     }
 
     const memberId = generateId()
@@ -751,6 +775,7 @@ async function createSocialAdmissionMembership(
       targetId: user.id,
       targetType: "organization_membership",
     })
+    return { kind: "accepted" as const, slug: organization.slug }
   })
 }
 

@@ -100,6 +100,10 @@ export type MemberAdministration = {
 export type SocialAdmission = {
   organization: { id: string; name: string; slug: string }
   enabled: boolean
+  googleEnabled: boolean
+  githubEnabled: boolean
+  googleConfigured: boolean
+  githubConfigured: boolean
   googleDomains: string[]
   githubRules: { id: string; organization: string; team: string | null }[]
   roles: (AssignmentOption & { workspaceIds: string[] })[]
@@ -107,7 +111,7 @@ export type SocialAdmission = {
   workspaces: AssignmentOption[]
   defaultRoleIds: string[]
   defaultTeamIds: string[]
-  joinLinks: { google: string; github: string }
+  joinLink: string
 }
 
 type Actor = {
@@ -1058,7 +1062,11 @@ export async function getSocialAdmission(orgSlug: string): Promise<SocialAdmissi
     teamRoles,
   ] = await Promise.all([
     db
-      .select({ enabled: schema.socialAdmissionPolicies.enabled })
+      .select({
+        enabled: schema.socialAdmissionPolicies.enabled,
+        githubEnabled: schema.socialAdmissionPolicies.githubEnabled,
+        googleEnabled: schema.socialAdmissionPolicies.googleEnabled,
+      })
       .from(schema.socialAdmissionPolicies)
       .where(eq(schema.socialAdmissionPolicies.organizationId, actor.organization.id))
       .limit(1),
@@ -1154,17 +1162,18 @@ export async function getSocialAdmission(orgSlug: string): Promise<SocialAdmissi
     return { ...team, workspaceIds: [...workspaceIds].sort() }
   })
 
-  const root = getEnv().BETTER_AUTH_URL
+  const env = getEnv()
   return {
     defaultRoleIds: defaultRoles.map((role) => role.id),
     defaultTeamIds: defaultTeams.map((team) => team.id),
     enabled: policy[0]?.enabled ?? false,
+    githubConfigured: env.GITHUB_CLIENT_ID !== undefined,
+    githubEnabled: policy[0]?.githubEnabled ?? false,
     githubRules,
+    googleConfigured: env.GOOGLE_CLIENT_ID !== undefined,
+    googleEnabled: policy[0]?.googleEnabled ?? false,
     googleDomains: googleDomains.map((row) => row.domain),
-    joinLinks: {
-      github: `${root}/join/${actor.organization.slug}/github`,
-      google: `${root}/join/${actor.organization.slug}/google`,
-    },
+    joinLink: `${env.BETTER_AUTH_URL}/join/${actor.organization.slug}`,
     organization: actor.organization,
     roles,
     teams,
@@ -1176,6 +1185,8 @@ export async function saveSocialAdmission(
   orgSlug: string,
   input: {
     enabled: boolean
+    googleEnabled: boolean
+    githubEnabled: boolean
     roleIds: string[]
     teamIds: string[]
     googleDomains: string[]
@@ -1192,6 +1203,9 @@ export async function saveSocialAdmission(
   if (input.enabled && roleIds.length + teamIds.length === 0) {
     return { error: "default-access-required" as const }
   }
+  if (input.enabled && !input.googleEnabled && !input.githubEnabled) {
+    return { error: "provider-required" as const }
+  }
 
   const domains = [
     ...new Set(input.googleDomains.map((domain) => domain.trim().toLowerCase()).filter(Boolean)),
@@ -1202,6 +1216,21 @@ export async function saveSocialAdmission(
       team: rule.team?.trim() || undefined,
     }))
     .filter((rule) => rule.organization)
+
+  if (input.enabled && input.googleEnabled && domains.length === 0) {
+    return { error: "google-rule-required" as const }
+  }
+  if (input.enabled && input.githubEnabled && githubRules.length === 0) {
+    return { error: "github-rule-required" as const }
+  }
+
+  const env = getEnv()
+  if (input.enabled && input.googleEnabled && !env.GOOGLE_CLIENT_ID) {
+    return { error: "google-unavailable" as const }
+  }
+  if (input.enabled && input.githubEnabled && !env.GITHUB_CLIENT_ID) {
+    return { error: "github-unavailable" as const }
+  }
 
   return getDB().transaction(async (tx) => {
     await tx
@@ -1244,10 +1273,20 @@ export async function saveSocialAdmission(
 
     await tx
       .insert(schema.socialAdmissionPolicies)
-      .values({ enabled: input.enabled, organizationId: actor.organization.id })
+      .values({
+        enabled: input.enabled,
+        githubEnabled: input.githubEnabled,
+        googleEnabled: input.googleEnabled,
+        organizationId: actor.organization.id,
+      })
       .onConflictDoUpdate({
         target: schema.socialAdmissionPolicies.organizationId,
-        set: { enabled: input.enabled, updatedAt: new Date() },
+        set: {
+          enabled: input.enabled,
+          githubEnabled: input.githubEnabled,
+          googleEnabled: input.googleEnabled,
+          updatedAt: new Date(),
+        },
       })
     await tx
       .delete(schema.socialAdmissionGoogleDomains)
@@ -1296,6 +1335,17 @@ export async function saveSocialAdmission(
       actorType: "user",
       after: [
         { field: "state", value: input.enabled ? "enabled" : "disabled" },
+        {
+          field: "name",
+          value:
+            input.googleEnabled && input.githubEnabled
+              ? "Google, GitHub"
+              : input.googleEnabled
+                ? "Google"
+                : input.githubEnabled
+                  ? "GitHub"
+                  : "None",
+        },
         { field: "role", value: `${roleIds.length} default Roles` },
       ],
       category: "membership",

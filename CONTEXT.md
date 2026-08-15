@@ -96,8 +96,8 @@ _Avoid_: Agent Role, direct permission
 ## Admission, inheritance, and operations
 
 **Social Admission Policy**:
-The per-Organisation Google and GitHub rules used only when social sign-up
-creates an Organisation Membership.
+The global and per-provider gates, Google domains, and GitHub rules used only
+when social sign-up creates an Organisation Membership.
 _Avoid_: SSO policy, login policy
 
 **Inherited Organisation Resource**:

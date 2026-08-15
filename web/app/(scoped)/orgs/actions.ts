@@ -77,6 +77,7 @@ const invitationAccessSchema = z.object({
 const socialAdmissionFormSchema = z
   .object({
     enabled: z.boolean(),
+    githubEnabled: z.boolean(),
     githubOrganizations: z.array(
       z
         .string()
@@ -98,24 +99,43 @@ const socialAdmissionFormSchema = z
         .toLowerCase()
         .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/)
     ),
+    googleEnabled: z.boolean(),
     roleIds: z.array(z.string().min(1)),
     teamIds: z.array(z.string().min(1)),
   })
   .superRefine((data, ctx) => {
-    if (data.githubOrganizations.length !== data.githubTeams.length) {
+    if (data.githubEnabled && data.githubOrganizations.length !== data.githubTeams.length) {
       ctx.addIssue({ code: "custom", message: "GitHub rules are incomplete." })
     }
-    data.githubOrganizations.forEach((organization, index) => {
-      if (!organization) {
+    if (data.githubEnabled) {
+      data.githubOrganizations.forEach((organization, index) => {
+        if (organization) return
         ctx.addIssue({
           code: "custom",
           message: "Enter an Organisation for every GitHub rule.",
           path: ["githubOrganizations", index],
         })
-      }
-    })
+      })
+    }
     if (data.enabled && data.roleIds.length + data.teamIds.length === 0) {
       ctx.addIssue({ code: "custom", message: "Select at least one default Role or Team." })
+    }
+    if (data.enabled && !data.googleEnabled && !data.githubEnabled) {
+      ctx.addIssue({ code: "custom", message: "Enable Google or GitHub." })
+    }
+    if (data.enabled && data.googleEnabled && data.googleDomains.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Add at least one Google email domain.",
+        path: ["googleDomains"],
+      })
+    }
+    if (data.enabled && data.githubEnabled && data.githubOrganizations.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Add at least one GitHub rule.",
+        path: ["githubOrganizations"],
+      })
     }
   })
 
@@ -345,9 +365,11 @@ export async function socialAdmissionAction(
 ): Promise<SocialAdmissionFormState> {
   const parsed = socialAdmissionFormSchema.safeParse({
     enabled: formData.get("enabled") === "on",
+    githubEnabled: formData.get("github_enabled") === "on",
     githubOrganizations: formData.getAll("github_organization"),
     githubTeams: formData.getAll("github_team"),
     googleDomains: formData.getAll("google_domains"),
+    googleEnabled: formData.get("google_enabled") === "on",
     roleIds: formData.getAll("role_ids"),
     teamIds: formData.getAll("team_ids"),
   })
@@ -357,20 +379,32 @@ export async function socialAdmissionAction(
 
   const result = await saveSocialAdmission(orgSlug, {
     enabled: parsed.data.enabled,
+    githubEnabled: parsed.data.githubEnabled,
     githubRules: parsed.data.githubOrganizations.map((organization, index) => ({
       organization,
       team: parsed.data.githubTeams[index],
     })),
     googleDomains: parsed.data.googleDomains,
+    googleEnabled: parsed.data.googleEnabled,
     roleIds: parsed.data.roleIds,
     teamIds: parsed.data.teamIds,
   })
   if ("error" in result) {
-    return {
-      error:
-        result.error === "default-access-required"
-          ? "Enable Social Admission only after selecting at least one default Role or Team."
-          : "Social Admission could not be saved.",
+    switch (result.error) {
+      case "default-access-required":
+        return { error: "Select at least one default Role or Team." }
+      case "provider-required":
+        return { error: "Enable Google or GitHub." }
+      case "google-rule-required":
+        return { error: "Add at least one Google email domain." }
+      case "github-rule-required":
+        return { error: "Add at least one GitHub rule." }
+      case "google-unavailable":
+        return { error: "Google sign-in is not configured for this deployment." }
+      case "github-unavailable":
+        return { error: "GitHub sign-in is not configured for this deployment." }
+      default:
+        return { error: "Social Admission could not be saved." }
     }
   }
 

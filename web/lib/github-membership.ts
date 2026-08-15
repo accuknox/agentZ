@@ -89,7 +89,8 @@ async function matchesSocialAdmissionRule(octokit: Octokit, profile: GithubProfi
           schema.socialAdmissionPolicies.organizationId,
           schema.socialAdmissionGithubRules.organizationId
         ),
-        eq(schema.socialAdmissionPolicies.enabled, true)
+        eq(schema.socialAdmissionPolicies.enabled, true),
+        eq(schema.socialAdmissionPolicies.githubEnabled, true)
       )
     )
     .where(eq(schema.socialAdmissionGithubRules.organizationId, state.data.organizationId))

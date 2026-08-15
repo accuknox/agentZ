@@ -67,7 +67,8 @@ export async function getGoogleUserInfo(token: OAuth2Tokens) {
             schema.socialAdmissionPolicies.organizationId,
             schema.socialAdmissionGoogleDomains.organizationId
           ),
-          eq(schema.socialAdmissionPolicies.enabled, true)
+          eq(schema.socialAdmissionPolicies.enabled, true),
+          eq(schema.socialAdmissionPolicies.googleEnabled, true)
         )
       )
       .where(

@@ -416,6 +416,8 @@ export const socialAdmissionPolicies = pgTable("social_admission_policies", {
     .primaryKey()
     .references(() => organizations.id, { onDelete: "cascade" }),
   enabled: boolean("enabled").default(false).notNull(),
+  googleEnabled: boolean("google_enabled").default(false).notNull(),
+  githubEnabled: boolean("github_enabled").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()

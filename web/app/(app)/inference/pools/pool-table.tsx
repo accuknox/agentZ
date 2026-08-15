@@ -56,13 +56,14 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferencePoolAction } from "@/data/inference-pool.actions"
 import type { InferencePoolActionScope } from "@/data/inference-pool.actions"
-import { formatAge, formatCompactNumber } from "@/lib/format"
+import { formatCompactNumber } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   getInferencePool,
@@ -249,9 +250,7 @@ export function InferencePoolTable({
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{formatAge(row.original.updated_at)}</span>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
       {

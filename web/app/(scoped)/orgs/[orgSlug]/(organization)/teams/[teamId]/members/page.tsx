@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserIdentity } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -10,6 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getTeamDetail } from "@/data/teams"
+
+export const metadata = { title: "Members" }
 
 export default async function TeamMembersPage({
   params,
@@ -34,20 +36,7 @@ export default async function TeamMembersPage({
             team.members.map((member) => (
               <TableRow key={member.id}>
                 <TableCell>
-                  <span className="flex min-w-0 items-center gap-3">
-                    <Avatar size="sm">
-                      <AvatarImage
-                        alt={member.name ?? member.email}
-                        src={member.image ?? undefined}
-                      />
-                      <AvatarFallback>
-                        {(member.name ?? member.email).slice(0, 1).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="truncate font-medium" title={member.name ?? member.email}>
-                      {member.name ?? member.email}
-                    </span>
-                  </span>
+                  <UserIdentity email={member.email} image={member.image} name={member.name} />
                 </TableCell>
                 <TableCell className="max-w-72 truncate" title={member.email}>
                   {member.email}

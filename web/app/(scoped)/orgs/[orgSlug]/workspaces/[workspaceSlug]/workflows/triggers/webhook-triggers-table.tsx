@@ -5,13 +5,13 @@ import { useRouter } from "@bprogress/next/app"
 import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { Badge } from "@/components/ui/badge"
-import { formatAge } from "@/lib/format"
 import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 
@@ -71,9 +71,7 @@ export function WebhookTriggersTable({
         accessorKey: "lastTriggeredAt",
         id: "last_triggered",
         header: "Last Triggered",
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{formatAge(row.original.lastTriggeredAt)}</span>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.lastTriggeredAt} />,
       },
     ],
     []

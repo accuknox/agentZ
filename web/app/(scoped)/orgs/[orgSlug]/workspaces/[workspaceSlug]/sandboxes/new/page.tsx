@@ -2,6 +2,8 @@ import { AdministrationState } from "@/components/administration"
 import { getWorkspaceScope } from "@/data/workspaces"
 import NewSandboxPage from "@/app/(app)/sandboxes/new-sandbox-page"
 
+export const metadata = { title: "New sandbox" }
+
 export default async function NewWorkspaceSandboxPage({
   params,
 }: {

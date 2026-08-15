@@ -31,12 +31,12 @@ import {
   EmptyValue,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { UserAPIKey } from "@/data/api-key.queries"
 import type { DeleteAPIKeyFormState } from "@/data/types"
-import { formatAge } from "@/lib/format"
 
 const columnClassName: Record<string, string> = {
   name: "w-40",
@@ -105,16 +105,12 @@ export function APIKeysTable({
       {
         id: "expiresAt",
         header: "Expires",
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{formatAge(row.original.expiresAt)}</span>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.expiresAt} />,
       },
       {
         id: "age",
         header: "Age",
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{formatAge(row.original.createdAt)}</span>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.createdAt} />,
       },
       {
         id: "actions",

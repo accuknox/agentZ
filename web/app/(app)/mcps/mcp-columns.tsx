@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { formatAge } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
   ArrowUpDown,
@@ -122,7 +122,7 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <span>{formatAge(row.original.created_at)}</span>,
+      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
     },
     {
       id: "actions",

@@ -4,6 +4,8 @@ import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import InferenceProvidersPage from "@/app/(app)/inference/providers/provider-page"
 
+export const metadata = { title: "Providers" }
+
 export default async function OrganizationInferenceProvidersPage({
   params,
   searchParams,

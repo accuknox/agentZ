@@ -5,12 +5,14 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { getTeamDetail } from "@/data/teams"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { formatAge } from "@/lib/format"
+import { UserIdentity } from "@/components/ui/avatar"
 import { ResultBadge } from "../../../event-trail/event-trail-event"
+
+export const metadata = { title: "Activity" }
 
 export default async function TeamActivityPage({
   params,
@@ -36,16 +38,10 @@ export default async function TeamActivityPage({
             team.activity.map((event) => (
               <TableRow key={event.id}>
                 <TableCell>
-                  <time dateTime={event.createdAt}>{formatAge(event.createdAt)}</time>
+                  <TableRelativeTime value={event.createdAt} />
                 </TableCell>
                 <TableCell className="max-w-64" title={event.actorName}>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Avatar size="sm">
-                      <AvatarImage alt="" src={event.actorImage ?? undefined} />
-                      <AvatarFallback>{event.actorName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <span className="truncate">{event.actorName}</span>
-                  </div>
+                  <UserIdentity image={event.actorImage} name={event.actorName} secondary={false} />
                 </TableCell>
                 <TableCell className="font-mono text-sm">{event.action}</TableCell>
                 <TableCell>

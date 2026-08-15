@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import type { DeleteSandboxFormState } from "@/data/types"
-import { formatAge } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
 
 type DeleteSandboxAction = (
   name: string,
@@ -108,7 +108,7 @@ export function createSandboxColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatAge(row.getValue("created_at")),
+      cell: ({ row }) => <TableRelativeTime value={row.getValue("created_at")} />,
     },
     {
       id: "actions",

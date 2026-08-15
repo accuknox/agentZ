@@ -65,7 +65,9 @@ export type InvitationRow = {
   id: string
   expiresAt: string
   createdAt: string
-  inviter: string
+  inviterEmail: string
+  inviterImage: string | null
+  inviterName: string
   roles: string[]
   teams: string[]
   expired: boolean
@@ -247,7 +249,9 @@ export async function getMemberDirectory(
         id: schema.organizationInvitations.id,
         expiresAt: schema.organizationInvitations.expiresAt,
         createdAt: schema.organizationInvitations.createdAt,
-        inviter: schema.users.email,
+        inviterEmail: schema.users.email,
+        inviterImage: schema.users.image,
+        inviterName: schema.users.name,
       })
       .from(schema.organizationInvitations)
       .innerJoin(schema.users, eq(schema.users.id, schema.organizationInvitations.inviterId))

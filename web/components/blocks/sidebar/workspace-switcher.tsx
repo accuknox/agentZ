@@ -150,7 +150,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   <Button asChild className="h-auto justify-start gap-3 px-2 py-2" variant="ghost">
                     <Link href={`${root}/workspaces` as Route} onClick={close}>
                       <span className="bg-muted flex size-8 items-center justify-center rounded-md">
-                        <Building2 aria-hidden="true" className="size-4" />
+                        <PanelsTopLeft aria-hidden="true" className="size-4" />
                       </span>
                       <span className="text-left">
                         <span className="block">Manage Workspaces</span>

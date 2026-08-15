@@ -8,6 +8,7 @@ import {
   CircleAlert,
   KeyRound,
   LockKeyhole,
+  PanelsTopLeft,
   Plus,
   Save,
   ShieldCheck,
@@ -307,7 +308,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                   <SelectGroup>
                     {scopes.map((scope) => (
                       <SelectItem key={scope.id} value={scope.id}>
-                        <Building2 />
+                        {scope.id === "organisation" ? <Building2 /> : <PanelsTopLeft />}
                         {scope.label} · {scope.detail}
                         {dirtyScopes.has(scope.id) ? " · Unsaved changes" : ""}
                       </SelectItem>

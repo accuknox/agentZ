@@ -2,6 +2,8 @@ import { notFound } from "next/navigation"
 import { getRoleEditorData } from "@/data/roles"
 import { RoleEditor } from "../../role-editor"
 
+export const metadata = { title: "Permissions" }
+
 export default async function RolePermissionsPage({
   params,
 }: {

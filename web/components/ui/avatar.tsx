@@ -93,4 +93,55 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<"div">) 
   )
 }
 
-export { Avatar, AvatarImage, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarBadge }
+/** UserIdentity presents a person's avatar, name, and email as one unit. */
+function UserIdentity({
+  className,
+  email,
+  image,
+  name,
+  secondary = true,
+  size = "sm",
+}: {
+  className?: string
+  email?: string | null
+  image?: string | null
+  name?: string | null
+  secondary?: boolean
+  size?: "default" | "sm"
+}) {
+  const label = name || email || "Unknown user"
+  const initials = label
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("")
+
+  return (
+    <span className={cn("flex min-w-0 items-center gap-2", className)}>
+      <Avatar size={size}>
+        <AvatarImage alt={label} src={image ?? undefined} />
+        <AvatarFallback>{initials}</AvatarFallback>
+      </Avatar>
+      <span className="min-w-0 leading-tight">
+        <span className="block truncate font-medium" title={label}>
+          {label}
+        </span>
+        {secondary && name && email ? (
+          <span className="text-muted-foreground block truncate text-xs" title={email}>
+            {email}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  )
+}
+
+export {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarBadge,
+  UserIdentity,
+}

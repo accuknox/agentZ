@@ -21,12 +21,16 @@ export type AgentShareRow = AgentShare & {
   target_email?: string
   target_image?: string
   created_by_label: string
+  created_by_email?: string
+  created_by_image?: string
 }
 
 export type WorkspaceAgentDetail = {
   agent: Agent
   owner: AgentOwner
+  ownerTarget?: AgentAccessTarget
   ownerLabel: string
+  creatorTarget?: AgentAccessTarget
   creatorLabel: string
   ownerCandidates: AgentAccessTarget[]
   users: AgentAccessTarget[]
@@ -99,21 +103,25 @@ export async function getWorkspaceAgentDetail(
 
   const accessTargets = targets?.data.targets ?? []
   const targetsByID = new Map(accessTargets.map((target) => [target.id, target]))
-  const labels = new Map(accessTargets.map((target) => [target.id, target.label]))
   const shareRows = shares?.data.shares ?? []
 
   return {
     agent,
-    creatorLabel: labels.get(owner.data.creator_user_id) ?? owner.data.creator_user_id,
+    creatorTarget: targetsByID.get(owner.data.creator_user_id),
+    creatorLabel: targetsByID.get(owner.data.creator_user_id)?.label ?? owner.data.creator_user_id,
     owner: owner.data,
-    ownerLabel: labels.get(owner.data.owner_user_id) ?? owner.data.owner_user_id,
+    ownerTarget: targetsByID.get(owner.data.owner_user_id),
+    ownerLabel: targetsByID.get(owner.data.owner_user_id)?.label ?? owner.data.owner_user_id,
     ownerCandidates: accessTargets.filter((target) => target.kind === "user" && target.can_own),
     shares: shareRows.map((share) => {
       const targetID = share.target_user_id ?? share.target_team_id
       const target = targetID ? targetsByID.get(targetID) : undefined
+      const creator = targetsByID.get(share.created_by)
       return {
         ...share,
-        created_by_label: labels.get(share.created_by) ?? share.created_by,
+        created_by_email: creator?.email ?? undefined,
+        created_by_image: creator?.image ?? undefined,
+        created_by_label: creator?.label ?? share.created_by,
         target_email: target?.email ?? undefined,
         target_image: target?.image ?? undefined,
         target_label: target?.label ?? targetID ?? "Unknown target",

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { listTeams } from "@/data/teams"
 import { TeamTable } from "./team-table"
 
+export const metadata = { title: "Teams" }
+
 export default async function TeamsPage({
   params,
   searchParams,

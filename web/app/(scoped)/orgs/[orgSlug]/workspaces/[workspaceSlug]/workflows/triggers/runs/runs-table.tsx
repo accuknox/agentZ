@@ -27,7 +27,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react"
-import { formatAge, formatDurationSeconds } from "@/lib/format"
+import { formatDurationSeconds } from "@/lib/format"
 import {
   getWorkflowRun,
   watchWorkflowRuns,
@@ -64,6 +64,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -378,7 +379,7 @@ function createColumns({
       header: "Age",
       sortingFn: "datetime",
       cell: ({ row }) => {
-        return <span className="text-muted-foreground">{formatAge(row.original.created_at)}</span>
+        return <TableRelativeTime value={row.original.created_at} />
       },
     },
     {

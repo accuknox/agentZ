@@ -6,6 +6,8 @@ import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { AgentSharesTable } from "../../agent-access-forms"
 
+export const metadata = { title: "Sharing" }
+
 export default async function AgentSharingPage({
   params,
   searchParams,

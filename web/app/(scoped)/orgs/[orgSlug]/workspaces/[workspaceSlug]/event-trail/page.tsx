@@ -5,6 +5,8 @@ import { eventTrailQuerySchema, listWorkspaceEventTrailEvents } from "@/data/eve
 
 export const unstable_instant = false
 
+export const metadata = { title: "Event trail" }
+
 export default async function WorkspaceEventTrailPage({
   params,
   searchParams,
@@ -26,6 +28,7 @@ export default async function WorkspaceEventTrailPage({
 
   return (
     <EventTrailEvents
+      actorImages={result.actorImages}
       eventTrail={result.eventTrail}
       filters={body.filters}
       workspace={result.workspace}

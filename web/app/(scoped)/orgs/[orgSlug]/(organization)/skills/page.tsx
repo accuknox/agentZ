@@ -7,6 +7,8 @@ import { SkillsClient } from "@/app/(app)/skills/skills-client"
 
 export const unstable_instant = false
 
+export const metadata = { title: "Skills" }
+
 export default async function OrganizationSkillsPage({
   params,
 }: {

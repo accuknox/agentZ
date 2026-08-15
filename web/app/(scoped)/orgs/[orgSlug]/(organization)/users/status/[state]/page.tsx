@@ -6,6 +6,8 @@ import { getMemberDirectory, type MemberTab } from "@/data/members"
 import { CreateInvitationDialog } from "../../member-actions"
 import { UserDirectoryTable } from "../../user-directory-table"
 
+export const metadata = { title: "Users" }
+
 export default async function UserStatePage({
   params,
   searchParams,

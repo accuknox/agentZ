@@ -8,6 +8,7 @@ import type { DateRange } from "react-day-picker"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
 import { Calendar } from "@/components/ui/calendar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -29,10 +30,12 @@ type FilterField = { label: string } & (
 )
 
 export function EventTrailFilters({
+  actorImages,
   filters,
   options,
   hideWorkspace,
 }: {
+  actorImages: Record<string, string>
   filters: EventTrailFilter[]
   options: EventTrailFilterOptions
   hideWorkspace?: boolean
@@ -60,7 +63,14 @@ export function EventTrailFilters({
       kind: "options",
       label: "Actor",
       options: options.actors.flatMap((actor) =>
-        actor.id ? [{ label: actor.name ?? actor.email ?? actor.id, value: actor.id }] : []
+        actor.id
+          ? [
+              {
+                label: actor.name ?? actor.email ?? actor.id,
+                value: actor.id,
+              },
+            ]
+          : []
       ),
     },
     category: {
@@ -186,6 +196,14 @@ export function EventTrailFilters({
                           )
                         }
                       >
+                        {filter.field === "actor_id" ? (
+                          <Avatar size="sm">
+                            <AvatarImage alt={option.label} src={actorImages[option.value]} />
+                            <AvatarFallback>
+                              {option.label.slice(0, 1).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : null}
                         {option.label}
                       </DropdownMenuCheckboxItem>
                     ))}

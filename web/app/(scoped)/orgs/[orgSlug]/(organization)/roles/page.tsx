@@ -8,6 +8,8 @@ import { RoleTable } from "./role-table"
 
 export const unstable_instant = false
 
+export const metadata = { title: "Roles" }
+
 export default async function RolesPage({
   params,
   searchParams,

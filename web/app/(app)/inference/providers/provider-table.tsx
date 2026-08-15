@@ -43,13 +43,13 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferenceProviderAction } from "@/data/inference-provider.actions"
 import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
-import { formatAge } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   watchInferenceProviders,
@@ -178,9 +178,7 @@ export function InferenceProviderTable({
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">{formatAge(row.original.updated_at)}</span>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
       {

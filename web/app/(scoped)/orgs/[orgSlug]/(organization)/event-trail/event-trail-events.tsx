@@ -12,12 +12,14 @@ import { AdministrationPageHeader } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { CodeBlock } from "@/components/ai-elements/code-block"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { UserIdentity } from "@/components/ui/avatar"
 import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import type {
@@ -25,15 +27,16 @@ import type {
   EventTrailFilter,
   ListEventTrailEventsResponse,
 } from "@/lib/gateway/client"
-import { formatAge } from "@/lib/format"
 import { ResultBadge } from "./event-trail-event"
 import { EventTrailFilters } from "./event-trail-filters"
 
 export function EventTrailEvents({
+  actorImages,
   eventTrail,
   filters,
   workspace,
 }: {
+  actorImages: Record<string, string>
   eventTrail: ListEventTrailEventsResponse
   filters: EventTrailFilter[]
   workspace?: { name: string }
@@ -47,27 +50,18 @@ export function EventTrailEvents({
         accessorKey: "created_at",
         header: "Time",
         cell: ({ row }) => (
-          <time className="text-muted-foreground text-xs" dateTime={row.original.created_at}>
-            {formatAge(row.original.created_at)}
-          </time>
+          <TableRelativeTime className="text-xs" value={row.original.created_at} />
         ),
       },
       {
         id: "actor",
         header: "Actor",
         cell: ({ row }) => (
-          <>
-            <span
-              className="block truncate"
-              title={row.original.actor.name ?? row.original.actor.email ?? row.original.actor.id}
-            >
-              {row.original.actor.name ??
-                row.original.actor.email ??
-                row.original.actor.id ??
-                "System"}
-            </span>
-            <span className="text-muted-foreground text-xs">{row.original.actor.type}</span>
-          </>
+          <UserIdentity
+            email={row.original.actor.email}
+            image={row.original.actor.id ? actorImages[row.original.actor.id] : undefined}
+            name={row.original.actor.name ?? row.original.actor.id ?? "System"}
+          />
         ),
       },
       {
@@ -122,7 +116,7 @@ export function EventTrailEvents({
         cell: ({ row }) => <ResultBadge result={row.original.result} />,
       },
     ],
-    [workspace]
+    [actorImages, workspace]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -136,6 +130,7 @@ export function EventTrailEvents({
       <div className="flex min-w-0 flex-col">
         <AdministrationPageHeader title="Event Trail" />
         <EventTrailFilters
+          actorImages={actorImages}
           filters={filters}
           hideWorkspace={Boolean(workspace)}
           options={eventTrail.filter_options}

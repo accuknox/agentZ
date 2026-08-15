@@ -1,4 +1,5 @@
 import type { Route } from "next"
+import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ExternalLink } from "lucide-react"
@@ -6,6 +7,22 @@ import { AdministrationState, StatusBadge } from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { Button } from "@/components/ui/button"
 import { getWorkspaceScope } from "@/data/workspaces"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
+}): Promise<Metadata> {
+  const { orgSlug, workspaceSlug } = await params
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind !== "ready") return { title: "Workspace" }
+  return {
+    title: {
+      default: scope.workspace.name,
+      template: `${scope.workspace.name} - %s | AccuKnox AgentZ`,
+    },
+  }
+}
 
 export default async function ManageWorkspaceLayout({
   children,

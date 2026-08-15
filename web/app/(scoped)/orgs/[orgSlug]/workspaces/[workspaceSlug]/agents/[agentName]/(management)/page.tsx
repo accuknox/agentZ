@@ -5,11 +5,14 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
+import { UserIdentity } from "@/components/ui/avatar"
 import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { formatAge } from "@/lib/format"
+
+export const metadata = { title: "Summary" }
 
 export default async function WorkspaceAgentPage({
   params,
@@ -42,15 +45,13 @@ export default async function WorkspaceAgentPage({
                 {detail.agent.memory.enabled ? "Enabled" : "Disabled"}
               </SummaryRow>
               <SummaryRow label="Created">
-                <span className="text-muted-foreground">{formatAge(detail.agent.created_at)}</span>
+                <TableRelativeTime value={detail.agent.created_at} />
               </SummaryRow>
               <SummaryRow label="Modified">
-                <span className="text-muted-foreground">{formatAge(detail.agent.modified_at)}</span>
+                <TableRelativeTime value={detail.agent.modified_at} />
               </SummaryRow>
               <SummaryRow label="Last activity">
-                <span className="text-muted-foreground">
-                  {formatAge(detail.agent.last_activity)}
-                </span>
+                <TableRelativeTime value={detail.agent.last_activity} />
               </SummaryRow>
             </TableBody>
           </Table>
@@ -70,11 +71,23 @@ export default async function WorkspaceAgentPage({
               <TableBody>
                 <TableRow>
                   <TableCell>Owner</TableCell>
-                  <TableCell className="break-words">{detail.ownerLabel}</TableCell>
+                  <TableCell>
+                    <UserIdentity
+                      email={detail.ownerTarget?.email}
+                      image={detail.ownerTarget?.image}
+                      name={detail.ownerLabel}
+                    />
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Creator</TableCell>
-                  <TableCell className="break-words">{detail.creatorLabel}</TableCell>
+                  <TableCell>
+                    <UserIdentity
+                      email={detail.creatorTarget?.email}
+                      image={detail.creatorTarget?.image}
+                      name={detail.creatorLabel}
+                    />
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -89,7 +102,9 @@ function SummaryRow({ children, label }: { children: React.ReactNode; label: str
   return (
     <TableRow>
       <TableCell className="text-muted-foreground w-40">{label}</TableCell>
-      <TableCell className="flex flex-wrap items-center gap-2 break-words">{children}</TableCell>
+      <TableCell>
+        <span className="flex flex-wrap items-center gap-2 break-words">{children}</span>
+      </TableCell>
     </TableRow>
   )
 }

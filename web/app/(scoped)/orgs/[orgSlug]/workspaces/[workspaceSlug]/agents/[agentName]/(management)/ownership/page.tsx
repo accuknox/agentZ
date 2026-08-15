@@ -6,13 +6,16 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
+import { UserIdentity } from "@/components/ui/avatar"
 import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import type { AgentActionScope } from "@/data/agent.actions"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { formatAge } from "@/lib/format"
 import { AgentOwnerForm } from "../../agent-access-forms"
+
+export const metadata = { title: "Ownership" }
 
 export default async function AgentOwnershipPage({
   params,
@@ -59,11 +62,23 @@ export default async function AgentOwnershipPage({
             <TableBody>
               <TableRow>
                 <TableCell>Owner</TableCell>
-                <TableCell className="break-words">{detail.ownerLabel}</TableCell>
+                <TableCell>
+                  <UserIdentity
+                    email={detail.ownerTarget?.email}
+                    image={detail.ownerTarget?.image}
+                    name={detail.ownerLabel}
+                  />
+                </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Creator</TableCell>
-                <TableCell className="break-words">{detail.creatorLabel}</TableCell>
+                <TableCell>
+                  <UserIdentity
+                    email={detail.creatorTarget?.email}
+                    image={detail.creatorTarget?.image}
+                    name={detail.creatorLabel}
+                  />
+                </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Source</TableCell>
@@ -74,9 +89,7 @@ export default async function AgentOwnershipPage({
               <TableRow>
                 <TableCell>Last transfer</TableCell>
                 <TableCell>
-                  <span className="text-muted-foreground">
-                    {formatAge(detail.owner.updated_at)}
-                  </span>
+                  <TableRelativeTime value={detail.owner.updated_at} />
                 </TableCell>
               </TableRow>
             </TableBody>

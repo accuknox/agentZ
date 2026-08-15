@@ -4,6 +4,8 @@ import { WorkspaceForm } from "./workspace-form"
 
 export const unstable_instant = false
 
+export const metadata = { title: "New workspace" }
+
 export default async function NewWorkspacePage({
   params,
 }: {

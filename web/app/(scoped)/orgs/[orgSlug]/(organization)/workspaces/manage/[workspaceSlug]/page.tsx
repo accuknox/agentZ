@@ -6,6 +6,8 @@ import { getDestructiveImpact } from "@/data/operations"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { WorkspaceGeneralForm } from "./workspace-general-form"
 
+export const metadata = { title: "Summary" }
+
 export default async function ManageWorkspacePage({
   params,
 }: {

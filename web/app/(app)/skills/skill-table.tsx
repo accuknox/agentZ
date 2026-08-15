@@ -32,9 +32,10 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
-import { formatAge, formatByteSize } from "@/lib/format"
+import { formatByteSize } from "@/lib/format"
 import type { ImmutableSkill, Skill } from "./skills-client"
 
 const columnClassName: Record<string, string> = {
@@ -331,7 +332,7 @@ function createSkillColumns({
       header: ({ column }) => <SortButton column={column} label="Modified" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
-          {formatAge(row.original.modified_at)}
+          <TableRelativeTime value={row.original.modified_at} />
         </span>
       ),
       sortingFn: (a, b) => {

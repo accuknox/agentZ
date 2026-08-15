@@ -1,6 +1,8 @@
 import type { Route } from "next"
 import { redirect } from "next/navigation"
 
+export const metadata = { title: "Summary" }
+
 export default async function RolePage({
   params,
 }: {

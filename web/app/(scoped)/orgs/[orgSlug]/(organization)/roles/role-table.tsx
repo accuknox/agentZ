@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { OrganizationRoleSummary } from "@/data/roles"
-import { formatAge } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
 import { RoleTableActions } from "./role-table-actions"
 
 export function RoleTable({
@@ -82,9 +82,7 @@ export function RoleTable({
       {
         accessorKey: "updatedAt",
         header: "Updated",
-        cell: ({ row }) => (
-          <time dateTime={row.original.updatedAt}>{formatAge(row.original.updatedAt)}</time>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.updatedAt} />,
       },
       ...(!workspaceSlug
         ? [

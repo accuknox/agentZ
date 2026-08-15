@@ -1,6 +1,8 @@
 import type { Route } from "next"
 import { redirect } from "next/navigation"
 
+export const metadata = { title: "Lens" }
+
 export default async function LensPage({
   params,
 }: {

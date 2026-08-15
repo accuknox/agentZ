@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react"
 import type { SecretListItem, SecretState } from "@/lib/gateway/client"
-import { formatAge } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -123,9 +123,7 @@ export function createSecretColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => (
-        <span className="whitespace-nowrap">{formatAge(row.original.created_at)}</span>
-      ),
+      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
     },
     {
       id: "actions",

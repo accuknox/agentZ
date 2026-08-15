@@ -9,7 +9,7 @@ import {
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserIdentity } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -103,18 +103,7 @@ export function RoleAssignments({
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Avatar size="sm">
-                        <AvatarImage alt="" src={user.image ?? undefined} />
-                        <AvatarFallback>
-                          {(user.name || user.email).slice(0, 1).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{user.name || user.email}</div>
-                        <div className="text-muted-foreground truncate text-xs">{user.email}</div>
-                      </div>
-                    </div>
+                    <UserIdentity email={user.email} image={user.image} name={user.name} />
                   </TableCell>
                 </TableRow>
               ))

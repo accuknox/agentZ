@@ -8,6 +8,8 @@ import { RoleTable } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/ro
 
 export const unstable_instant = false
 
+export const metadata = { title: "Roles" }
+
 export default async function WorkspaceRolesPage({
   params,
   searchParams,

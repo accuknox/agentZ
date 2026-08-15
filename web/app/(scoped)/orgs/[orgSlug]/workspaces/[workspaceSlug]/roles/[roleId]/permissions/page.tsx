@@ -2,6 +2,8 @@ import { notFound } from "next/navigation"
 import { RoleEditor } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-editor"
 import { getWorkspaceRoleEditorData } from "@/data/roles"
 
+export const metadata = { title: "Permissions" }
+
 export default async function WorkspaceRolePermissionsPage({
   params,
 }: {

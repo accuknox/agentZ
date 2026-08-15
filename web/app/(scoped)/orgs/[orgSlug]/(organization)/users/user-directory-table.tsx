@@ -4,7 +4,7 @@ import type { Route } from "next"
 import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserIdentity } from "@/components/ui/avatar"
 import { RoutedTableRow } from "@/components/routed-table-row"
 import { TokenTablePagination } from "@/components/table-pagination"
 import {
@@ -14,10 +14,10 @@ import {
   EmptyValue,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import type { ActiveMember, InvitationRow, MemberDirectory, MemberTab } from "@/data/members"
-import { formatAge } from "@/lib/format"
 import { InvitationActions, MembershipStateButton } from "./member-actions"
 
 export function UserDirectoryTable({
@@ -54,20 +54,12 @@ function MemberTable({
         id: "user",
         header: "User",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar>
-              <AvatarImage alt={row.original.name} src={row.original.image ?? undefined} />
-              <AvatarFallback>{row.original.name.slice(0, 1).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <div className="truncate font-medium" title={row.original.name}>
-                {row.original.name}
-              </div>
-              <div className="text-muted-foreground truncate text-xs" title={row.original.email}>
-                {row.original.email}
-              </div>
-            </div>
-          </div>
+          <UserIdentity
+            email={row.original.email}
+            image={row.original.image}
+            name={row.original.name}
+            size="default"
+          />
         ),
       },
       {
@@ -85,9 +77,7 @@ function MemberTable({
         header: "Last active",
         cell: ({ row }) =>
           row.original.lastActivity ? (
-            <time className="text-muted-foreground" dateTime={row.original.lastActivity}>
-              {formatAge(row.original.lastActivity)}
-            </time>
+            <TableRelativeTime value={row.original.lastActivity} />
           ) : (
             <EmptyValue />
           ),
@@ -95,11 +85,7 @@ function MemberTable({
       {
         accessorKey: "createdAt",
         header: "Joined",
-        cell: ({ row }) => (
-          <time className="text-muted-foreground" dateTime={row.original.createdAt}>
-            {formatAge(row.original.createdAt)}
-          </time>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.createdAt} />,
       },
       ...(disabled
         ? [
@@ -146,11 +132,7 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
       {
         accessorKey: "createdAt",
         header: "Created",
-        cell: ({ row }) => (
-          <time className="text-muted-foreground" dateTime={row.original.createdAt}>
-            {formatAge(row.original.createdAt)}
-          </time>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.createdAt} />,
       },
       {
         id: "assignments",
@@ -159,15 +141,23 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
           <AssignmentSummary roles={row.original.roles} teams={row.original.teams} />
         ),
       },
-      { accessorKey: "inviter", header: "Inviter" },
+      {
+        id: "inviter",
+        header: "Inviter",
+        cell: ({ row }) => (
+          <UserIdentity
+            email={row.original.inviterEmail}
+            image={row.original.inviterImage}
+            name={row.original.inviterName}
+          />
+        ),
+      },
       {
         accessorKey: "expiresAt",
         header: "Expiry",
         cell: ({ row }) => (
           <>
-            <time className="text-muted-foreground" dateTime={row.original.expiresAt}>
-              {formatAge(row.original.expiresAt)}
-            </time>
+            <TableRelativeTime value={row.original.expiresAt} />
             {row.original.expired ? <Badge variant="destructivePlain">Expired</Badge> : null}
           </>
         ),

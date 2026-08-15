@@ -1,8 +1,25 @@
 import type { Route } from "next"
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getRoleEditorData } from "@/data/roles"
 import { RoleDelete } from "../role-delete"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string; roleId: string }>
+}): Promise<Metadata> {
+  const { orgSlug, roleId } = await params
+  const data = await getRoleEditorData(orgSlug, decodeURIComponent(roleId))
+  if (!data?.role) return { title: "Role" }
+  return {
+    title: {
+      default: data.role.name,
+      template: `${data.role.name} - %s | AccuKnox AgentZ`,
+    },
+  }
+}
 
 export default async function RoleLayout({
   children,

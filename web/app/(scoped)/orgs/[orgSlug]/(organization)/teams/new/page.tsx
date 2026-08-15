@@ -2,6 +2,8 @@ import { getTeamEditorData } from "@/data/teams"
 import { AdministrationState } from "@/components/administration"
 import { TeamForm } from "../team-form"
 
+export const metadata = { title: "New team" }
+
 export default async function NewTeamPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
   const data = await getTeamEditorData(orgSlug)

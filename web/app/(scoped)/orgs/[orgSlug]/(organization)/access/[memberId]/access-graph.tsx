@@ -3,7 +3,7 @@
 import * as React from "react"
 import dagre from "@dagrejs/dagre"
 import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
-import { BotIcon, Building2, Globe2, KeyRoundIcon, UsersIcon } from "lucide-react"
+import { BotIcon, Building2, Globe2, KeyRoundIcon, PanelsTopLeft, UsersIcon } from "lucide-react"
 import type { EdgeTypes, NodeTypes, NodeProps as FlowNodeProps } from "@xyflow/react"
 import { Handle, Position, type Edge as FlowEdge, type Node as FlowNode } from "@xyflow/react"
 import {
@@ -139,7 +139,7 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
                 </SelectItem>
                 {detail.workspaces.map((workspace) => (
                   <SelectItem key={workspace.id} value={workspace.id}>
-                    <Building2 />
+                    <PanelsTopLeft />
                     {workspace.name}
                   </SelectItem>
                 ))}

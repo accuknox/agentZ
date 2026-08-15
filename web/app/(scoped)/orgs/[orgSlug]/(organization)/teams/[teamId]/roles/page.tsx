@@ -7,6 +7,8 @@ const TeamAccessView = dynamic(() =>
   import("./team-access").then((module) => module.TeamAccessView)
 )
 
+export const metadata = { title: "Roles & access" }
+
 export default async function TeamRolesPage({
   params,
 }: {

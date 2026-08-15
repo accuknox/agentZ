@@ -2,6 +2,8 @@ import { notFound } from "next/navigation"
 import { getOrganizationRoleUsers } from "@/data/roles"
 import { RoleAssignments } from "../../role-assignments"
 
+export const metadata = { title: "Assignments" }
+
 export default async function RoleAssignmentsPage({
   params,
 }: {

@@ -4,6 +4,8 @@ import { AdministrationState } from "@/components/administration"
 import { getWorkspaceInheritedResources } from "@/data/workspaces"
 import type { InheritedResourceType } from "@/lib/gateway/client"
 
+export const metadata = { title: "Inherited resources" }
+
 export default async function InheritedResourcePage({
   params,
 }: {

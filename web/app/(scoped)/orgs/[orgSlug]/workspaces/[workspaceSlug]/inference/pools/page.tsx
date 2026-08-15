@@ -2,6 +2,8 @@ import { AdministrationState } from "@/components/administration"
 import { getWorkspaceScope } from "@/data/workspaces"
 import InferencePoolsPage from "@/app/(app)/inference/pools/pool-page"
 
+export const metadata = { title: "Pools" }
+
 export default async function WorkspaceInferencePoolsPage({
   params,
   searchParams,

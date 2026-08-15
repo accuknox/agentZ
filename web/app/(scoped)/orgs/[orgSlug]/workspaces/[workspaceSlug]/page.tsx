@@ -4,6 +4,8 @@ import { AdministrationState } from "@/components/administration"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 
+export const metadata = { title: "Overview" }
+
 export default async function WorkspacePage({
   params,
 }: {

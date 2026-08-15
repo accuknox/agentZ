@@ -2,6 +2,8 @@ import { AdministrationState } from "@/components/administration"
 import { getWorkspaceRoleEditorData } from "@/data/roles"
 import { RoleEditor } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-editor"
 
+export const metadata = { title: "New role" }
+
 export default async function NewWorkspaceRolePage({
   params,
 }: {

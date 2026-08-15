@@ -24,9 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { TableRelativeTime } from "@/components/ui/table"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
-import { formatAge } from "@/lib/format"
 
 type DeleteAgentAction = (
   agentName: string,
@@ -74,7 +74,7 @@ export function createAgentColumns(
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatAge(row.getValue("created_at")),
+      cell: ({ row }) => <TableRelativeTime value={row.getValue("created_at")} />,
     },
     {
       id: "actions",

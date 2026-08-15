@@ -8,6 +8,8 @@ import { WorkspaceTable } from "./workspace-table"
 
 export const unstable_instant = false
 
+export const metadata = { title: "Workspaces" }
+
 export default async function WorkspacesPage({
   params,
   searchParams,

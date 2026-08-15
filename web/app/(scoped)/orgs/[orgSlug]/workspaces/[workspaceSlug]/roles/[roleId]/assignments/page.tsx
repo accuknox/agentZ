@@ -2,6 +2,8 @@ import { notFound } from "next/navigation"
 import { RoleAssignments } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-assignments"
 import { getWorkspaceRoleUsers } from "@/data/roles"
 
+export const metadata = { title: "Assignments" }
+
 export default async function WorkspaceRoleAssignmentsPage({
   params,
 }: {

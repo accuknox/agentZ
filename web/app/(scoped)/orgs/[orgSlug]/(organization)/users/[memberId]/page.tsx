@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic"
+import type { Metadata } from "next"
 import Link from "next/link"
 import type { Route } from "next"
 import { notFound } from "next/navigation"
@@ -15,18 +16,32 @@ import {
   EmptyValue,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getEffectiveAccessDetail } from "@/data/access"
 import { getMemberAdministration, type MemberAdministration } from "@/data/members"
 import { getDestructiveImpact } from "@/data/operations"
-import { formatAge } from "@/lib/format"
 import { ResultBadge } from "../../event-trail/event-trail-event"
 
 const AccessDetailView = dynamic(() =>
   import("../../access/[memberId]/access-graph").then((module) => module.AccessDetailView)
 )
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ memberId: string; orgSlug: string }>
+}): Promise<Metadata> {
+  const { memberId, orgSlug } = await params
+  const data = await getMemberAdministration(orgSlug, memberId)
+  return {
+    title: {
+      absolute: data ? `${data.member.name} - User | AccuKnox AgentZ` : "User | AccuKnox AgentZ",
+    },
+  }
+}
 
 export default async function UserDetailPage({
   params,
@@ -134,16 +149,14 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
             <TableRow>
               <TableHead scope="row">Joined</TableHead>
               <TableCell>
-                <time dateTime={data.member.createdAt}>{formatAge(data.member.createdAt)}</time>
+                <TableRelativeTime value={data.member.createdAt} />
               </TableCell>
             </TableRow>
             <TableRow>
               <TableHead scope="row">Last activity</TableHead>
               <TableCell>
                 {data.member.lastActivity ? (
-                  <time dateTime={data.member.lastActivity}>
-                    {formatAge(data.member.lastActivity)}
-                  </time>
+                  <TableRelativeTime value={data.member.lastActivity} />
                 ) : (
                   <EmptyValue />
                 )}
@@ -236,7 +249,7 @@ function OwnedAgents({ data, orgSlug }: { data: MemberAdministration; orgSlug: s
                 <TableCell className="font-medium">{agent.name}</TableCell>
                 <TableCell>{agent.workspace}</TableCell>
                 <TableCell>
-                  <time dateTime={agent.updatedAt}>{formatAge(agent.updatedAt)}</time>
+                  <TableRelativeTime value={agent.updatedAt} />
                 </TableCell>
                 <TableCell className="text-right">
                   <Button asChild size="sm" variant="outline">
@@ -288,7 +301,7 @@ function APIKeys({ data }: { data: MemberAdministration }) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <time dateTime={key.createdAt}>{formatAge(key.createdAt)}</time>
+                  <TableRelativeTime value={key.createdAt} />
                 </TableCell>
               </TableRow>
             ))
@@ -322,7 +335,7 @@ function Activity({ data }: { data: MemberAdministration }) {
             data.activity.map((event) => (
               <TableRow key={event.id}>
                 <TableCell>
-                  <time dateTime={event.createdAt}>{formatAge(event.createdAt)}</time>
+                  <TableRelativeTime value={event.createdAt} />
                 </TableCell>
                 <TableCell>
                   <div className="flex min-w-0 items-center gap-2">

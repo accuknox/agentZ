@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { Workspace } from "@/lib/gateway/client"
-import { formatAge } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
 import { WorkspaceTableActions } from "./workspace-table-actions"
 
 export function WorkspaceTable({
@@ -52,9 +52,7 @@ export function WorkspaceTable({
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => (
-          <time dateTime={row.original.updated_at}>{formatAge(row.original.updated_at)}</time>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
       },
       {
         id: "actions",

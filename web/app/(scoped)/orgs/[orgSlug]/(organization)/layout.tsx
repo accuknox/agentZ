@@ -1,4 +1,5 @@
 import type { Route } from "next"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import { AdministrationLayout, AdministrationState } from "@/components/administration"
@@ -17,6 +18,22 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
 
 export const unstable_instant = false
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>
+}): Promise<Metadata> {
+  const { orgSlug } = await params
+  const result = await resolveOrganizationSlug(orgSlug)
+  const name = result.kind === "ready" ? result.organization.name : "Organisation"
+  return {
+    title: {
+      default: name,
+      template: `${name} - %s | AccuKnox AgentZ`,
+    },
+  }
+}
 
 export default async function OrganizationLayout({
   children,

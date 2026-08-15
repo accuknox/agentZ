@@ -10,12 +10,8 @@ export const unstable_instant = {
   samples: [
     {
       cookies: [],
-      headers: [
-        ["next-action", null],
-        ["rsc", null],
-        ["x-agentz-pathname", null],
-      ],
-      params: { catchAll: ["event trail"], orgSlug: "sample-organisation" },
+      headers: [],
+      params: { orgSlug: "sample-organisation" },
       searchParams: {
         filters: null,
         page_token: null,
@@ -24,6 +20,8 @@ export const unstable_instant = {
     },
   ],
 }
+
+export const metadata = { title: "Event trail" }
 
 export default async function EventTrailPage({
   params,
@@ -44,5 +42,11 @@ export default async function EventTrailPage({
     return null
   }
 
-  return <EventTrailEvents eventTrail={eventTrail} filters={body.filters} />
+  return (
+    <EventTrailEvents
+      actorImages={eventTrail.actorImages}
+      eventTrail={eventTrail.eventTrail}
+      filters={body.filters}
+    />
+  )
 }

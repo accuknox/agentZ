@@ -1,4 +1,5 @@
 import type { Route } from "next"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { notFound, permanentRedirect, redirect } from "next/navigation"
 import { AdministrationLayout, AdministrationState } from "@/components/administration"
@@ -12,6 +13,22 @@ import { signInURL } from "@/lib/sign-in-redirect"
 import { WorkspaceState } from "./workspace-state"
 
 export const unstable_instant = false
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
+}): Promise<Metadata> {
+  const { orgSlug, workspaceSlug } = await params
+  const result = await getWorkspaceScope(orgSlug, workspaceSlug)
+  const name = result.kind === "ready" ? result.workspace.name : "Workspace"
+  return {
+    title: {
+      default: name,
+      template: `${name} - %s | AccuKnox AgentZ`,
+    },
+  }
+}
 
 export default async function WorkspaceLayout({
   children,

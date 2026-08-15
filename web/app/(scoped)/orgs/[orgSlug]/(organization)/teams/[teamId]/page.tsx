@@ -4,6 +4,8 @@ import { getTeamEditorData } from "@/data/teams"
 import { TeamDelete } from "../team-delete"
 import { TeamForm } from "../team-form"
 
+export const metadata = { title: "Summary" }
+
 export default async function TeamSummaryPage({
   params,
 }: {

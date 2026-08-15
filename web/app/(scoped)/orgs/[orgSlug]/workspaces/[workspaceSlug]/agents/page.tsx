@@ -10,6 +10,8 @@ import { getWorkspaceScope } from "@/data/workspaces"
 
 export const unstable_instant = false
 
+export const metadata = { title: "Agents" }
+
 export default async function WorkspaceAgentsPage({
   params,
   searchParams,

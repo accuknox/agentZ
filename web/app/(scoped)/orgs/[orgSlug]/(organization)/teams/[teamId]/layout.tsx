@@ -1,7 +1,24 @@
 import type { Route } from "next"
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getTeamDetail } from "@/data/teams"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string; teamId: string }>
+}): Promise<Metadata> {
+  const { orgSlug, teamId } = await params
+  const team = await getTeamDetail(orgSlug, teamId)
+  if (!team) return { title: "Team" }
+  return {
+    title: {
+      default: team.name,
+      template: `${team.name} - %s | AccuKnox AgentZ`,
+    },
+  }
+}
 
 export default async function TeamLayout({
   children,

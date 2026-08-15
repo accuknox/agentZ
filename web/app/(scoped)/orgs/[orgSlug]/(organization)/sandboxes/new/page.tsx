@@ -4,6 +4,8 @@ import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import NewSandboxPage from "@/app/(app)/sandboxes/new-sandbox-page"
 
+export const metadata = { title: "New sandbox" }
+
 export default async function NewOrganizationSandboxPage({
   params,
 }: {

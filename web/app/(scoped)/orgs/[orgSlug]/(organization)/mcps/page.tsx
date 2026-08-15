@@ -6,6 +6,8 @@ import { McpPage } from "@/app/(app)/mcps/mcp-page"
 
 export const unstable_instant = false
 
+export const metadata = { title: "MCP connections" }
+
 export default async function OrganizationMcpPage({
   params,
   searchParams,

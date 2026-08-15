@@ -2,6 +2,8 @@ import { AdministrationPageHeader, AdministrationState } from "@/components/admi
 import { getSocialAdmission } from "@/data/members"
 import { SocialAdmissionForm } from "./social-admission-form"
 
+export const metadata = { title: "Social admission" }
+
 export default async function SocialAdmissionPage({
   params,
 }: {

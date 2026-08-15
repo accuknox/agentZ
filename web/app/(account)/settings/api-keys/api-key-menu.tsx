@@ -2,7 +2,7 @@
 
 import type { Route } from "next"
 import Link from "next/link"
-import { Building2, ChevronDown, KeyRound } from "lucide-react"
+import { ChevronDown, KeyRound, PanelsTopLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -35,7 +35,7 @@ export function APIKeyWorkspaceMenu({
           {workspaces.map((workspace) => (
             <DropdownMenuItem asChild key={workspace.id}>
               <Link href={`/settings/api-keys?create=${encodeURIComponent(workspace.id)}` as Route}>
-                <Building2 />
+                <PanelsTopLeft />
                 <span className="truncate" title={workspace.name}>
                   {workspace.name}
                 </span>

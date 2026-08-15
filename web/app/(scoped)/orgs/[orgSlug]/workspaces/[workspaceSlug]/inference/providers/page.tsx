@@ -2,6 +2,8 @@ import { AdministrationState } from "@/components/administration"
 import { getWorkspaceScope } from "@/data/workspaces"
 import InferenceProvidersPage from "@/app/(app)/inference/providers/provider-page"
 
+export const metadata = { title: "Providers" }
+
 export default async function WorkspaceInferenceProvidersPage({
   params,
   searchParams,

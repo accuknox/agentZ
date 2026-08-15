@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { TeamSummary } from "@/data/teams"
-import { formatAge } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
 import { TeamTableActions } from "./team-table-actions"
 
 export function TeamTable({
@@ -46,9 +46,7 @@ export function TeamTable({
       {
         accessorKey: "updatedAt",
         header: "Updated",
-        cell: ({ row }) => (
-          <time dateTime={row.original.updatedAt}>{formatAge(row.original.updatedAt)}</time>
-        ),
+        cell: ({ row }) => <TableRelativeTime value={row.original.updatedAt} />,
       },
       {
         id: "actions",

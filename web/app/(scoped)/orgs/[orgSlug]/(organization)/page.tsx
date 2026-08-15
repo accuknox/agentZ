@@ -5,6 +5,8 @@ import { getWorkspaceDirectory } from "@/data/workspaces"
 
 export const unstable_instant = false
 
+export const metadata = { title: "Overview" }
+
 export default async function OrganizationPage({
   params,
 }: {

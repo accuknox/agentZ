@@ -12,7 +12,6 @@ import {
 } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react"
 import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
-import { formatAge } from "@/lib/format"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,6 +36,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import type {
@@ -282,9 +282,7 @@ function createColumns(
         </Button>
       ),
       sortingFn: "datetime",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">{formatAge(row.original.created_at)}</span>
-      ),
+      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
     },
     {
       id: "actions",

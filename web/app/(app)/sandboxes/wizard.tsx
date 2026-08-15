@@ -36,7 +36,7 @@ import {
 import * as React from "react"
 import { startTransition, useActionState, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { formatAge, formatCompactNumber } from "@/lib/format"
+import { formatCompactNumber } from "@/lib/format"
 import { WizardShell } from "@/components/blocks/wizard/shell"
 import {
   Accordion,
@@ -86,6 +86,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -522,9 +523,7 @@ function createMcpSelectionColumns({
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">{formatAge(row.original.created_at)}</span>
-      ),
+      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
     },
     {
       id: "attach",

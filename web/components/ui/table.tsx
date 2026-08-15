@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { formatAge } from "@/lib/format"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -77,13 +78,36 @@ function TableCell({ children, className, ...props }: React.ComponentProps<"td">
     <td
       data-slot="table-cell"
       className={cn(
-        "[&_time]:text-muted-foreground h-14 px-6 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "h-12 px-4 py-1.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
     >
       {empty ? <span className="text-muted-foreground">_</span> : children}
     </td>
+  )
+}
+
+/** TableRelativeTime renders unavailable or relative table dates consistently. */
+function TableRelativeTime({
+  className,
+  value,
+}: {
+  className?: string
+  value: Date | string | null | undefined
+}) {
+  if (!value) return <EmptyValue />
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return <EmptyValue />
+
+  return (
+    <time
+      className={cn("text-muted-foreground tabular-nums", className)}
+      dateTime={date.toISOString()}
+    >
+      {formatAge(date)}
+    </time>
   )
 }
 
@@ -111,5 +135,6 @@ export {
   TableHead,
   TableRow,
   TableCell,
+  TableRelativeTime,
   TableCaption,
 }

@@ -1,10 +1,25 @@
 import type { Route } from "next"
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import type { AgentActionScope } from "@/data/agent.actions"
 import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { AgentShareDialog } from "../agent-access-forms"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string; agentName: string }>
+}): Promise<Metadata> {
+  const { agentName } = await params
+  return {
+    title: {
+      default: agentName,
+      template: `${agentName} - %s | AccuKnox AgentZ`,
+    },
+  }
+}
 
 export default async function WorkspaceAgentLayout({
   children,

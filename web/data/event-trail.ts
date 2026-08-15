@@ -1,6 +1,8 @@
 import "server-only"
 
+import { inArray } from "drizzle-orm"
 import { z } from "zod"
+import { getDB, schema } from "@/db"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { listEventTrailEvents, type ListEventTrailEventsData } from "@/lib/gateway/client"
@@ -15,6 +17,17 @@ export const eventTrailQuerySchema = z.object({
   page_token: zPageTokenQuery.optional(),
   token_stack: z.string().optional(),
 })
+
+async function getEventTrailActorImages(actorIds: string[]) {
+  if (!actorIds.length) return {}
+
+  const users = await getDB()
+    .select({ id: schema.users.id, image: schema.users.image })
+    .from(schema.users)
+    .where(inArray(schema.users.id, actorIds))
+
+  return Object.fromEntries(users.flatMap((user) => (user.image ? [[user.id, user.image]] : [])))
+}
 
 export async function listOrganizationEventTrailEvents(
   orgSlug: string,
@@ -34,7 +47,12 @@ export async function listOrganizationEventTrailEvents(
     throw new Error(result.error.message)
   }
 
-  return result.data
+  return {
+    actorImages: await getEventTrailActorImages(
+      result.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
+    ),
+    eventTrail: result.data,
+  }
 }
 
 export async function listWorkspaceEventTrailEvents(
@@ -61,6 +79,9 @@ export async function listWorkspaceEventTrailEvents(
   }
 
   return {
+    actorImages: await getEventTrailActorImages(
+      eventTrail.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
+    ),
     eventTrail: eventTrail.data,
     workspace: { name: scope.workspace.name },
   }

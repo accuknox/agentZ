@@ -26,7 +26,7 @@ import type { AgentShareCapability } from "@/lib/gateway/client"
 import { AccessSourceChip } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage, UserIdentity } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -424,7 +424,17 @@ export function AgentSharesTable({
           </div>
         ),
       },
-      { accessorKey: "created_by_label", header: "Created by" },
+      {
+        accessorKey: "created_by_label",
+        header: "Created by",
+        cell: ({ row }) => (
+          <UserIdentity
+            email={row.original.created_by_email}
+            image={row.original.created_by_image}
+            name={row.original.created_by_label}
+          />
+        ),
+      },
       {
         id: "actions",
         header: "Actions",
@@ -520,7 +530,7 @@ function AgentShareActions({
     : teams.some((team) => team.id === share.target_team_id)
 
   return (
-    <div className="inline-flex flex-col items-end gap-2">
+    <div className="flex flex-col items-end gap-2">
       <form action={formAction} id={formId}>
         <input name="share_id" type="hidden" value={share.id} />
       </form>

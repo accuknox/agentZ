@@ -11,6 +11,8 @@ import { getDB, schema } from "@/db"
 import { getAuth } from "@/lib/auth"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
+export const metadata = { title: "Join organisation" }
+
 export default function JoinOrganizationPage({
   params,
   searchParams,

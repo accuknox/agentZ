@@ -39,6 +39,7 @@ import { MessageResponse } from "@/components/ai-elements/message"
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ai-elements/file-tree"
 import { type FileTab, useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ErrorState } from "@/components/error-state"
 import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
@@ -1479,22 +1480,13 @@ function EditorPane({
   if (statQuery.isError || (fileQuery.isError && !unsupportedText)) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <Alert variant="destructive">
-          <AlertTitle>Could not open {filename}</AlertTitle>
-          <AlertDescription className="mt-1">
-            The file may have moved or become unavailable.
-          </AlertDescription>
-          <Button
-            className="mt-3"
-            onClick={() => {
-              void statQuery.refetch()
-              if (readText) void fileQuery.refetch()
-            }}
-            size="sm"
-          >
-            <RefreshCw /> Retry
-          </Button>
-        </Alert>
+        <ErrorState
+          kind="unreadable"
+          onRetry={() => {
+            void statQuery.refetch()
+            if (readText) void fileQuery.refetch()
+          }}
+        />
       </div>
     )
   }

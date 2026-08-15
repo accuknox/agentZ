@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useTheme } from "next-themes"
+import { Monitor, Moon, Sun } from "lucide-react"
 import type { ThemePreference } from "@/data/user-preferences"
 import {
   Select,
@@ -67,9 +68,15 @@ export function PreferencesForm({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value="system">System</SelectItem>
-              <SelectItem value="light">Light</SelectItem>
-              <SelectItem value="dark">Dark</SelectItem>
+              <SelectItem value="system">
+                <Monitor /> System
+              </SelectItem>
+              <SelectItem value="light">
+                <Sun /> Light
+              </SelectItem>
+              <SelectItem value="dark">
+                <Moon /> Dark
+              </SelectItem>
             </SelectGroup>
           </SelectContent>
         </Select>

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import dagre from "@dagrejs/dagre"
-import { KeyRoundIcon, ShieldCheckIcon, UsersIcon } from "lucide-react"
+import { Building2, Globe2, KeyRoundIcon, UsersIcon } from "lucide-react"
 import type { EdgeTypes, NodeTypes, NodeProps as FlowNodeProps } from "@xyflow/react"
 import { Handle, Position, type Edge as FlowEdge, type Node as FlowNode } from "@xyflow/react"
 import {
@@ -11,6 +11,7 @@ import {
   EffectiveAccessFrame,
 } from "@/components/administration"
 import { Canvas } from "@/components/ai-elements/canvas"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
 import {
@@ -34,6 +35,7 @@ import { cn } from "@/lib/utils"
 type TeamNode = FlowNode<
   {
     detail: string
+    image?: string | null
     kind: "member" | "team" | "role" | "permission"
     label: string
     muted: boolean
@@ -91,6 +93,7 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
     for (const member of detail.members) {
       const memberNode = addNode(`member:${member.id}`, {
         detail: member.email,
+        image: member.image,
         kind: "member",
         label: member.name,
         sourceIds: sources.map((source) => source.id),
@@ -201,10 +204,15 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All scopes</SelectItem>
-                <SelectItem value="org">Organisation</SelectItem>
+                <SelectItem value="all">
+                  <Globe2 /> All scopes
+                </SelectItem>
+                <SelectItem value="org">
+                  <Building2 /> Organisation
+                </SelectItem>
                 {detail.workspaces.map((workspace) => (
                   <SelectItem key={workspace.id} value={workspace.id}>
+                    <Building2 />
                     {workspace.name}
                   </SelectItem>
                 ))}
@@ -238,7 +246,10 @@ export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }
 function TeamAccessNode({ data }: FlowNodeProps<TeamNode>) {
   const icon =
     data.kind === "member" ? (
-      <ShieldCheckIcon aria-hidden="true" className="size-4" />
+      <Avatar size="sm">
+        <AvatarImage alt="" src={data.image ?? undefined} />
+        <AvatarFallback>{data.label.slice(0, 1).toUpperCase()}</AvatarFallback>
+      </Avatar>
     ) : data.kind === "team" ? (
       <UsersIcon aria-hidden="true" className="size-4" />
     ) : (
@@ -257,7 +268,7 @@ function TeamAccessNode({ data }: FlowNodeProps<TeamNode>) {
     >
       <Handle position={Position.Left} type="target" />
       <Handle position={Position.Right} type="source" />
-      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal uppercase">
+      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal">
         {icon}
         {data.kind}
       </div>

@@ -127,7 +127,7 @@ export function WorkspaceTable({
             ) : (
               <TableRow>
                 <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  No workspaces
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

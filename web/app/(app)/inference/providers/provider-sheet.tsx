@@ -7,11 +7,14 @@ import {
   Check,
   ChevronsUpDown,
   CircleAlert,
+  Cloud,
   ExternalLink,
   KeyRound,
   Pencil,
   Plus,
   Save,
+  ShieldCheck,
+  ShieldOff,
   Tag,
   Trash2,
   TriangleAlert,
@@ -1383,8 +1386,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="AccessKey">AWS access keys</SelectItem>
-                            <SelectItem value="BearerToken">Bedrock API key</SelectItem>
+                            <SelectItem value="AccessKey">
+                              <KeyRound /> AWS access keys
+                            </SelectItem>
+                            <SelectItem value="BearerToken">
+                              <KeyRound /> Bedrock API key
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1418,8 +1425,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="OpenAI">Azure OpenAI</SelectItem>
-                            <SelectItem value="Foundry">Azure AI Foundry</SelectItem>
+                            <SelectItem value="OpenAI">
+                              <Cloud /> Azure OpenAI
+                            </SelectItem>
+                            <SelectItem value="Foundry">
+                              <Cloud /> Azure AI Foundry
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1481,8 +1492,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="APIKey">API key</SelectItem>
-                            <SelectItem value="ServicePrincipal">Service principal</SelectItem>
+                            <SelectItem value="APIKey">
+                              <KeyRound /> API key
+                            </SelectItem>
+                            <SelectItem value="ServicePrincipal">
+                              <ShieldCheck /> Service principal
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1548,8 +1563,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="APIKey">API key</SelectItem>
-                            <SelectItem value="None">No authentication</SelectItem>
+                            <SelectItem value="APIKey">
+                              <KeyRound /> API key
+                            </SelectItem>
+                            <SelectItem value="None">
+                              <ShieldOff /> No authentication
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -2021,6 +2040,7 @@ export function ProviderSheet({
                       [...models.fields, ...suggestions].map((model) => [
                         model.id,
                         {
+                          icon: Brain,
                           label:
                             model.display_name === model.id
                               ? model.id

@@ -6,11 +6,13 @@ import { removeMembershipAction } from "@/app/(scoped)/orgs/actions"
 import { AdministrationState } from "@/components/administration"
 import { DestructiveConfirmationDialog } from "@/components/destructive-confirmation-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
   TableCell,
+  EmptyValue,
   TableHead,
   TableHeader,
   TableRow,
@@ -52,22 +54,28 @@ export default async function UserDetailPage({
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1
-                className="truncate text-2xl font-semibold tracking-normal"
-                title={data.member.name}
-              >
-                {data.member.name}
-              </h1>
-              <Badge variant={data.member.disabledAt ? "destructivePlain" : "successPlain"}>
-                {data.member.disabledAt ? "Disabled" : "Active"}
-              </Badge>
-              {data.member.superadmin ? <Badge variant="plain">Superadmin</Badge> : null}
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar>
+              <AvatarImage alt="" src={data.member.image ?? undefined} />
+              <AvatarFallback>{data.member.name.slice(0, 1).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1
+                  className="truncate text-2xl font-semibold tracking-normal"
+                  title={data.member.name}
+                >
+                  {data.member.name}
+                </h1>
+                <Badge variant={data.member.disabledAt ? "destructivePlain" : "successPlain"}>
+                  {data.member.disabledAt ? "Disabled" : "Active"}
+                </Badge>
+                {data.member.superadmin ? <Badge variant="plain">Superadmin</Badge> : null}
+              </div>
+              <p className="text-muted-foreground mt-1 truncate text-sm" title={data.member.email}>
+                {data.member.email}
+              </p>
             </div>
-            <p className="text-muted-foreground mt-1 truncate text-sm" title={data.member.email}>
-              {data.member.email}
-            </p>
           </div>
         </div>
         <RouteTabs label="User details" tabs={tabs} />
@@ -113,11 +121,15 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
           <TableBody>
             <TableRow>
               <TableHead scope="row">Roles</TableHead>
-              <TableCell>{data.member.roles.join(", ") || "None"}</TableCell>
+              <TableCell>
+                <AssignmentList values={data.member.roles} />
+              </TableCell>
             </TableRow>
             <TableRow>
               <TableHead scope="row">Teams</TableHead>
-              <TableCell>{data.member.teams.join(", ") || "None"}</TableCell>
+              <TableCell>
+                <AssignmentList values={data.member.teams} />
+              </TableCell>
             </TableRow>
             <TableRow>
               <TableHead scope="row">Joined</TableHead>
@@ -133,7 +145,7 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
                     {formatAge(data.member.lastActivity)}
                   </time>
                 ) : (
-                  "None"
+                  <EmptyValue />
                 )}
               </TableCell>
             </TableRow>
@@ -185,6 +197,19 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
   )
 }
 
+function AssignmentList({ values }: { values: string[] }) {
+  if (!values.length) return <EmptyValue />
+
+  return (
+    <span>
+      {values.slice(0, 3).join(", ")}
+      {values.length > 3 ? (
+        <span className="text-muted-foreground"> · +{values.length - 3}</span>
+      ) : null}
+    </span>
+  )
+}
+
 async function UserAccess({ memberId, orgSlug }: { memberId: string; orgSlug: string }) {
   const detail = await getEffectiveAccessDetail(orgSlug, memberId)
   if (!detail)
@@ -229,7 +254,7 @@ function OwnedAgents({ data, orgSlug }: { data: MemberAdministration; orgSlug: s
           ) : (
             <TableRow>
               <TableCell className="h-24 text-center" colSpan={4}>
-                No owned agents
+                <span className="text-muted-foreground">_</span>
               </TableCell>
             </TableRow>
           )}
@@ -270,7 +295,7 @@ function APIKeys({ data }: { data: MemberAdministration }) {
           ) : (
             <TableRow>
               <TableCell className="h-24 text-center" colSpan={4}>
-                No API keys
+                <span className="text-muted-foreground">_</span>
               </TableCell>
             </TableRow>
           )}
@@ -299,7 +324,15 @@ function Activity({ data }: { data: MemberAdministration }) {
                 <TableCell>
                   <time dateTime={event.createdAt}>{formatAge(event.createdAt)}</time>
                 </TableCell>
-                <TableCell>{event.actor}</TableCell>
+                <TableCell>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Avatar size="sm">
+                      <AvatarImage alt="" src={data.member.image ?? undefined} />
+                      <AvatarFallback>{event.actor.slice(0, 1).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <span className="truncate">{event.actor}</span>
+                  </div>
+                </TableCell>
                 <TableCell className="font-mono text-sm">{event.action}</TableCell>
                 <TableCell>
                   <ResultBadge result={event.result} />
@@ -309,7 +342,7 @@ function Activity({ data }: { data: MemberAdministration }) {
           ) : (
             <TableRow>
               <TableCell className="h-24 text-center" colSpan={4}>
-                No activity
+                <span className="text-muted-foreground">_</span>
               </TableCell>
             </TableRow>
           )}

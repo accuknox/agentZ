@@ -249,7 +249,9 @@ export function InferencePoolTable({
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => formatAge(row.original.updated_at),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{formatAge(row.original.updated_at)}</span>
+        ),
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
       {
@@ -323,7 +325,7 @@ export function InferencePoolTable({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No inference Pools
+                    <span className="text-muted-foreground">_</span>
                   </TableCell>
                 </TableRow>
               )}

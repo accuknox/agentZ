@@ -189,7 +189,7 @@ export function ScheduleTriggersTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No workflow schedules
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}
@@ -282,7 +282,9 @@ function createColumns(
         </Button>
       ),
       sortingFn: "datetime",
-      cell: ({ row }) => formatAge(row.original.created_at),
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{formatAge(row.original.created_at)}</span>
+      ),
     },
     {
       id: "actions",

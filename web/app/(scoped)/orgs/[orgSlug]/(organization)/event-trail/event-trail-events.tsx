@@ -207,7 +207,7 @@ export function EventTrailEvents({
               ) : (
                 <TableRow>
                   <TableCell className="h-24 text-center" colSpan={workspace ? 5 : 6}>
-                    No events found
+                    <span className="text-muted-foreground">_</span>
                   </TableCell>
                 </TableRow>
               )}

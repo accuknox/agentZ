@@ -172,7 +172,7 @@ export function SkillTable({
             {!disabled && !loading && !error && table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No skills
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             ) : null}

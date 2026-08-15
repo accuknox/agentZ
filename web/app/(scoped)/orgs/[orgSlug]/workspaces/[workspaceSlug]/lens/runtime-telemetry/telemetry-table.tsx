@@ -80,7 +80,7 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
   return (
     <section className="flex w-full flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-auto border-b">
-        <Table>
+        <Table aria-label={emptyText}>
           <TableHeader>
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
@@ -111,7 +111,7 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
                   colSpan={columns.length}
                   className="text-muted-foreground h-36 w-full text-center"
                 >
-                  {emptyText}
+                  _
                 </TableCell>
               </TableRow>
             )}
@@ -155,7 +155,7 @@ export function ActionBadge({ action }: { action: string }) {
 
 export function TruncateCell({ value, className }: { value: string; className?: string }) {
   if (!value) {
-    return <span className={cn("font-mono text-xs", className)} />
+    return <span className={cn("text-muted-foreground font-mono text-xs", className)}>_</span>
   }
 
   return (

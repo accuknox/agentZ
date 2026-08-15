@@ -2,7 +2,6 @@ import Link from "next/link"
 import Image from "next/image"
 import type { ComponentProps, ReactNode } from "react"
 import { Clock3, FolderSearch, LoaderCircle, Trash2 } from "lucide-react"
-import { BotIcon } from "@/components/bot-icon"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -140,9 +139,9 @@ export function AdministrationState({
       break
     case "failed":
       content = {
-        description: "Refresh the page.",
-        icon: <BotIcon aria-hidden="true" className="text-primary" size={80} />,
-        title: "Something went wrong",
+        description: "An unexpected problem prevented this page from loading.",
+        icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
+        title: "Page could not load",
       }
       break
     case "forbidden":
@@ -339,10 +338,7 @@ export function ImpactReviewFrame({
           <div className="grid gap-5">
             {[...groups].map(([group, groupItems]) => (
               <section aria-labelledby={`impact-${group}`} className="grid gap-2" key={group}>
-                <h3
-                  className="text-muted-foreground text-xs font-medium uppercase"
-                  id={`impact-${group}`}
-                >
+                <h3 className="text-muted-foreground text-xs font-medium" id={`impact-${group}`}>
                   {group}
                 </h3>
                 <ul className="flex flex-col gap-3">

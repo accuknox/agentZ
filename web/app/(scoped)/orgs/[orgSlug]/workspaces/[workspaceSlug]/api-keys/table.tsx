@@ -28,6 +28,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  EmptyValue,
   TableHead,
   TableHeader,
   TableRow,
@@ -69,7 +70,7 @@ export function APIKeysTable({
         header: "Name",
         cell: ({ row }) => (
           <span className="block truncate" title={row.original.name || undefined}>
-            {row.original.name || "-"}
+            {row.original.name || <EmptyValue />}
           </span>
         ),
       },
@@ -104,12 +105,16 @@ export function APIKeysTable({
       {
         id: "expiresAt",
         header: "Expires",
-        cell: ({ row }) => <span>{formatAge(row.original.expiresAt)}</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{formatAge(row.original.expiresAt)}</span>
+        ),
       },
       {
         id: "age",
         header: "Age",
-        cell: ({ row }) => <span>{formatAge(row.original.createdAt)}</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{formatAge(row.original.createdAt)}</span>
+        ),
       },
       {
         id: "actions",
@@ -161,7 +166,7 @@ export function APIKeysTable({
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">
-                No API keys
+                <span className="text-muted-foreground">_</span>
               </TableCell>
             </TableRow>
           )}
@@ -194,6 +199,8 @@ function APIKeyTargets({ targets }: { targets: UserAPIKey["targets"] }) {
     details.length <= 2
       ? details.join(", ")
       : `${details.slice(0, 2).join(", ")}, +${details.length - 2}`
+
+  if (!details.length) return <EmptyValue />
 
   return (
     <TooltipProvider>

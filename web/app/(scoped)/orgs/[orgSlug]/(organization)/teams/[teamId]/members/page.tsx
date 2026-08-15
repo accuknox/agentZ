@@ -60,7 +60,7 @@ export default async function TeamMembersPage({
           ) : (
             <TableRow>
               <TableCell className="h-24 text-center" colSpan={3}>
-                No members
+                <span className="text-muted-foreground">_</span>
               </TableCell>
             </TableRow>
           )}

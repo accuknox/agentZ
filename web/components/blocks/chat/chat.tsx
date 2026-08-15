@@ -1260,9 +1260,13 @@ function ChatInner({
                           </ReasoningSelectTrigger>
                           <SelectContent align="end" position="popper" side="top" sideOffset={8}>
                             <SelectGroup>
-                              <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
+                              <SelectItem value={DEFAULT_REASONING_LEVEL}>
+                                <GaugeIcon />
+                                Default
+                              </SelectItem>
                               {reasoningVariants.map((variant) => (
                                 <SelectItem key={variant} value={variant}>
+                                  <GaugeIcon />
                                   {variant.length
                                     ? variant[0]?.toUpperCase() + variant.slice(1)
                                     : variant}
@@ -1316,6 +1320,7 @@ function ChatInner({
                                     disabled={inputDisabled}
                                     value={DEFAULT_REASONING_LEVEL}
                                   >
+                                    <GaugeIcon />
                                     Default
                                   </DropdownMenuRadioItem>
                                   {reasoningVariants.map((variant) => (
@@ -1325,6 +1330,7 @@ function ChatInner({
                                       key={variant}
                                       value={variant}
                                     >
+                                      <GaugeIcon />
                                       {variant}
                                     </DropdownMenuRadioItem>
                                   ))}

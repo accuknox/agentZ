@@ -122,7 +122,7 @@ export function TeamTable({
             ) : (
               <TableRow>
                 <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  No teams
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

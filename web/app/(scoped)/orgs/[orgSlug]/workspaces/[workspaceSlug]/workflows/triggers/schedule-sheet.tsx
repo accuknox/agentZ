@@ -3,7 +3,7 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
-import { CalendarCheck } from "lucide-react"
+import { CalendarCheck, ListFilter, MinusCircle, Workflow } from "lucide-react"
 import * as z from "zod"
 import type {
   JsonValue,
@@ -437,6 +437,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       <SelectGroup>
                         {workflows.map((workflow) => (
                           <SelectItem key={workflow.workflow_name} value={workflow.workflow_name}>
+                            <Workflow />
                             {workflow.workflow_name}
                           </SelectItem>
                         ))}
@@ -728,11 +729,16 @@ function WorkflowInputField({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {!input.required ? <SelectItem value="__empty__">Unset</SelectItem> : null}
+                    {!input.required ? (
+                      <SelectItem value="__empty__">
+                        <MinusCircle /> Unset
+                      </SelectItem>
+                    ) : null}
                     {enumValues.map((value) => {
                       const serialized = JSON.stringify(value)
                       return (
                         <SelectItem key={serialized} value={serialized}>
+                          <ListFilter />
                           {value.toString()}
                         </SelectItem>
                       )

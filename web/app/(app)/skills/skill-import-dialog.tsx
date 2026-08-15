@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Check, FileArchive, Replace, TriangleAlert } from "lucide-react"
+import { Bot, Check, FileArchive, Lock, Pencil, Replace, TriangleAlert } from "lucide-react"
 import { Controller, useForm, useWatch, type Control, type FieldErrors } from "react-hook-form"
 import { toast } from "sonner"
 import * as z from "zod"
@@ -382,10 +382,14 @@ export function SkillImportDialog({
                         <SelectContent>
                           <SelectGroup>
                             {workspaceId && agents.length > 0 ? (
-                              <SelectItem value="mutable">Mutable</SelectItem>
+                              <SelectItem value="mutable">
+                                <Pencil /> Mutable
+                              </SelectItem>
                             ) : null}
                             {canImportImmutable ? (
-                              <SelectItem value="immutable">Immutable</SelectItem>
+                              <SelectItem value="immutable">
+                                <Lock /> Immutable
+                              </SelectItem>
                             ) : null}
                           </SelectGroup>
                         </SelectContent>
@@ -405,6 +409,7 @@ export function SkillImportDialog({
                           disabled={pending}
                           options={agents.map((agent) => ({
                             disabled: agent.status !== "IDLE",
+                            icon: Bot,
                             label: agent.name,
                             value: agent.name,
                           }))}
@@ -524,8 +529,12 @@ function ImportPreviewRow({
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="overwrite">Overwrite</SelectItem>
-                <SelectItem value="rename">Rename</SelectItem>
+                <SelectItem value="overwrite">
+                  <Replace /> Overwrite
+                </SelectItem>
+                <SelectItem value="rename">
+                  <Pencil /> Rename
+                </SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>

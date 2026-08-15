@@ -86,6 +86,7 @@ export type EffectiveAccessDetail = {
     id: string
     name: string
     email: string
+    image: string | null
     status: "active" | "disabled" | "zero-access"
   }
   workspaces: { id: string; name: string; slug: string }[]
@@ -95,7 +96,7 @@ export type EffectiveAccessDetail = {
 export type TeamEffectiveAccessDetail = {
   organization: { id: string; name: string; slug: string }
   team: { id: string; name: string }
-  members: { id: string; name: string; email: string }[]
+  members: { id: string; name: string; email: string; image: string | null }[]
   workspaces: { id: string; name: string; slug: string }[]
   sources: Array<{
     id: string
@@ -208,6 +209,7 @@ export async function getEffectiveAccessDetail(orgSlug: string, memberId: string
       userId: schema.members.userId,
       name: schema.users.name,
       email: schema.users.email,
+      image: schema.users.image,
       disabledAt: schema.members.disabledAt,
     })
     .from(schema.members)
@@ -578,6 +580,7 @@ export async function getEffectiveAccessDetail(orgSlug: string, memberId: string
     member: {
       email: member.email,
       id: member.id,
+      image: member.image,
       name: member.name,
       status,
     },
@@ -604,7 +607,12 @@ export async function getTeamEffectiveAccessDetail(orgSlug: string, teamId: stri
 
   const [members, workspaces, grants] = await Promise.all([
     db
-      .select({ id: schema.members.id, name: schema.users.name, email: schema.users.email })
+      .select({
+        email: schema.users.email,
+        id: schema.members.id,
+        image: schema.users.image,
+        name: schema.users.name,
+      })
       .from(schema.teamMembers)
       .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
       .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))

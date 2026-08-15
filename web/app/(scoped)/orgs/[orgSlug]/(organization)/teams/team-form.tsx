@@ -3,7 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useActionState, useState } from "react"
-import { CircleAlert, Save } from "lucide-react"
+import { CircleAlert, Save, Shield } from "lucide-react"
 import { teamFormAction, type TeamFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/spinner"
 
 export type TeamFormData = {
   team?: { id: string; name: string; updatedAt: string; memberIds: string[]; roleIds: string[] }
-  members: { id: string; name: string | null; email: string }[]
+  members: { id: string; name: string | null; email: string; image: string | null }[]
   roles: { id: string; name: string; scope: string }[]
 }
 
@@ -34,10 +34,13 @@ export function TeamForm({
   const [state, formAction, pending] = useActionState<TeamFormState, FormData>(action, {})
   const root = `/orgs/${orgSlug}/teams`
   const memberOptions = data.members.map((member) => ({
+    image: member.image,
+    initials: (member.name ?? member.email).slice(0, 1).toUpperCase(),
     label: member.name ? `${member.name} (${member.email})` : member.email,
     value: member.id,
   }))
   const roleOptions = data.roles.map((role) => ({
+    icon: Shield,
     label: `${role.name} · ${role.scope}`,
     value: role.id,
   }))

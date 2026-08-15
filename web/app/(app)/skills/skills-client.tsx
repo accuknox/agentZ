@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import {
   BotIcon,
   Download,
+  History,
   Lock,
   MoreHorizontal,
   Pencil,
@@ -590,7 +591,7 @@ function EditSkillDialog({
                   <SelectGroup>
                     {versions.map((item) => (
                       <SelectItem key={item} value={String(item)}>
-                        v{item}
+                        <History />v{item}
                       </SelectItem>
                     ))}
                   </SelectGroup>

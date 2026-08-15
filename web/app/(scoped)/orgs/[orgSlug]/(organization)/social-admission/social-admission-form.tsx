@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Fragment, useActionState, useEffect, useMemo, useState } from "react"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
-import { ArrowRight, CircleAlert, Info, Plus, Save, X } from "lucide-react"
+import { ArrowRight, CircleAlert, Info, Plus, Save, Shield, UsersRound, X } from "lucide-react"
 import { socialAdmissionAction, type SocialAdmissionFormState } from "@/app/(scoped)/orgs/actions"
 import type { SocialAdmission } from "@/data/members"
 import type { EventTrailFilter } from "@/lib/gateway/client"
@@ -209,7 +209,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                     if (value.length + teamIds.length > 0) setAccessInvalid(false)
                     setDirty(true)
                   }}
-                  options={data.roles.map((role) => ({ label: role.name, value: role.id }))}
+                  options={data.roles.map((role) => ({
+                    icon: Shield,
+                    label: role.name,
+                    value: role.id,
+                  }))}
                   placeholder="Select default roles"
                   searchPlaceholder="Search roles..."
                   value={roleIds}
@@ -226,7 +230,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                     if (roleIds.length + value.length > 0) setAccessInvalid(false)
                     setDirty(true)
                   }}
-                  options={data.teams.map((team) => ({ label: team.name, value: team.id }))}
+                  options={data.teams.map((team) => ({
+                    icon: UsersRound,
+                    label: team.name,
+                    value: team.id,
+                  }))}
                   placeholder="Select default teams"
                   searchPlaceholder="Search teams..."
                   value={teamIds}
@@ -280,7 +288,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                           className="text-muted-foreground h-24 text-center whitespace-normal"
                           colSpan={2}
                         >
-                          No workspaces are granted by the selected defaults
+                          <span className="text-muted-foreground">_</span>
                         </TableCell>
                       </TableRow>
                     )}

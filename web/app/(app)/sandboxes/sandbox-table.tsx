@@ -131,7 +131,7 @@ export function SandboxTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No sandboxes
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

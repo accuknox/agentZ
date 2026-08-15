@@ -40,6 +40,7 @@ export type TeamDetail = TeamSummary & {
     id: string
     action: string
     actorName: string
+    actorImage: string | null
     result: typeof schema.eventTrailEvents.$inferSelect.result
     createdAt: string
   }[]
@@ -732,6 +733,7 @@ export async function getTeamDetail(orgSlug: string, teamId: string) {
       id: schema.eventTrailEvents.id,
       action: schema.eventTrailEvents.action,
       actorName: schema.users.name,
+      actorImage: schema.users.image,
       result: schema.eventTrailEvents.result,
       createdAt: schema.eventTrailEvents.createdAt,
     })
@@ -750,8 +752,9 @@ export async function getTeamDetail(orgSlug: string, teamId: string) {
     ...summary,
     members: editor.members.filter(({ id }) => selectedMembers.has(id)),
     roles: editor.roles.filter(({ id }) => selectedRoles.has(id)),
-    activity: activity.map(({ actorName, createdAt, ...event }) => ({
+    activity: activity.map(({ actorImage, actorName, createdAt, ...event }) => ({
       ...event,
+      actorImage,
       actorName: actorName ?? "System",
       createdAt: createdAt.toISOString(),
     })),

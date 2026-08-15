@@ -71,7 +71,9 @@ export function WebhookTriggersTable({
         accessorKey: "lastTriggeredAt",
         id: "last_triggered",
         header: "Last Triggered",
-        cell: ({ row }) => <span>{formatAge(row.original.lastTriggeredAt)}</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{formatAge(row.original.lastTriggeredAt)}</span>
+        ),
       },
     ],
     []
@@ -134,7 +136,7 @@ export function WebhookTriggersTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={3} className="h-24 text-center">
-                  No webhook triggers have been used yet
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

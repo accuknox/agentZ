@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { BotIcon, CheckIcon, KeyRound, Webhook } from "lucide-react"
+import { BotIcon, CheckIcon, Clock3, KeyRound, Webhook } from "lucide-react"
 import { createAPIKeyFormSchema, type CreateAPIKeyFormValues } from "@/data/api-key.schema"
 import type { CreateAPIKeyFormState } from "@/data/types"
 import { Button } from "@/components/ui/button"
@@ -288,6 +288,7 @@ function CreateAPIKeyDialog({
                         <SelectGroup>
                           {apiKeyExpiryOptions.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
+                              <Clock3 />
                               {option.label}
                             </SelectItem>
                           ))}
@@ -314,6 +315,7 @@ function CreateAPIKeyDialog({
                         onValueChangeAction={field.onChange}
                         options={
                           agents.map((agent) => ({
+                            icon: BotIcon,
                             label: agent.name,
                             value: agent.name,
                           })) satisfies MultiSelectDropdownOption[]

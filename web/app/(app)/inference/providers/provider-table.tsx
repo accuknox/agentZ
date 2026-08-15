@@ -178,7 +178,9 @@ export function InferenceProviderTable({
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => <span>{formatAge(row.original.updated_at)}</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{formatAge(row.original.updated_at)}</span>
+        ),
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
       {
@@ -251,7 +253,7 @@ export function InferenceProviderTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No inference providers
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

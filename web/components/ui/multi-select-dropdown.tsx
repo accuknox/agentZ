@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ComponentType, type SVGProps } from "react"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Command,
@@ -14,7 +15,19 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-export type MultiSelectDropdownOption = {
+type MultiSelectDropdownOptionIdentity =
+  | {
+      icon: ComponentType<SVGProps<SVGSVGElement>>
+      image?: never
+      initials?: never
+    }
+  | {
+      icon?: never
+      image: string | null
+      initials: string
+    }
+
+export type MultiSelectDropdownOption = MultiSelectDropdownOptionIdentity & {
   label: string
   value: string
   disabled?: boolean
@@ -23,6 +36,7 @@ export type MultiSelectDropdownOption = {
 function MultiSelectDropdown({
   allowCustomValues = false,
   className,
+  closeOnSelect = false,
   disabled,
   emptyMessage = "No options found.",
   id,
@@ -36,6 +50,8 @@ function MultiSelectDropdown({
 }: {
   allowCustomValues?: boolean
   className?: string
+  /** Closes after a choice. Event trail filters use this compact interaction. */
+  closeOnSelect?: boolean
   disabled?: boolean
   emptyMessage?: string
   id?: string
@@ -104,7 +120,9 @@ function MultiSelectDropdown({
                   onSelect={() => {
                     onValueChangeAction([...value, customValue].toSorted())
                     setSearch("")
-                    setOpen(false)
+                    if (closeOnSelect) {
+                      setOpen(false)
+                    }
                   }}
                 >
                   <PlusIcon />
@@ -114,6 +132,7 @@ function MultiSelectDropdown({
             ) : null}
             <CommandGroup>
               {options.map((option) => {
+                const Icon = option.icon
                 const checked = selectedValues.has(option.value)
                 const nextValue = checked
                   ? value.filter((item) => item !== option.value)
@@ -129,10 +148,20 @@ function MultiSelectDropdown({
                         return
                       }
                       onValueChangeAction(nextValue)
-                      setOpen(false)
+                      if (closeOnSelect) {
+                        setOpen(false)
+                      }
                     }}
                   >
                     <Checkbox className="pointer-events-none" checked={checked} />
+                    {option.image !== undefined ? (
+                      <Avatar size="sm">
+                        <AvatarImage alt="" src={option.image ?? undefined} />
+                        <AvatarFallback>{option.initials}</AvatarFallback>
+                      </Avatar>
+                    ) : Icon ? (
+                      <Icon aria-hidden="true" />
+                    ) : null}
                     <span>{option.label}</span>
                   </CommandItem>
                 )

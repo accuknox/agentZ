@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Plus, Save } from "lucide-react"
+import { Box, Plus, Save, Wrench } from "lucide-react"
 import type { Route } from "next"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -169,6 +169,7 @@ function SandboxSelect({
         <SelectGroup>
           {options.map((sandbox) => (
             <SelectItem key={sandbox.name} value={sandbox.name}>
+              <Box />
               {sandbox.name}
             </SelectItem>
           ))}
@@ -407,6 +408,7 @@ export function AgentDialog({
                     id="agent-form-skills"
                     invalid={fieldState.invalid}
                     options={immutableSkills.map((skill) => ({
+                      icon: Wrench,
                       label: skill.name,
                       value: skill.name,
                     }))}

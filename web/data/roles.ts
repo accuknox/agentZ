@@ -1362,6 +1362,7 @@ async function loadRoleUsers(scope: RoleManagement, roleId: string) {
   const users = await getDB()
     .select({
       email: schema.users.email,
+      image: schema.users.image,
       memberId: schema.members.id,
       name: schema.users.name,
       assigned: sql<boolean>`EXISTS (

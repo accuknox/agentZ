@@ -11,7 +11,7 @@ import { CreateAPIKeyButton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[wo
 import { APIKeysTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/api-keys/table"
 import { APIKeyWorkspaceMenu } from "./api-key-menu"
 
-export const metadata: Metadata = { title: "API Keys" }
+export const metadata: Metadata = { title: "API keys" }
 
 export default async function APIKeysPage({
   searchParams,
@@ -26,7 +26,7 @@ export default async function APIKeysPage({
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <header className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">API Keys</h1>
+          <h1 className="text-2xl font-semibold tracking-normal">API keys</h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Personal credentials for Agents and workflow webhooks you can access.
           </p>

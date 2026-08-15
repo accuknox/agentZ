@@ -28,7 +28,9 @@ export async function generateMetadata({
   const { agentName } = await params
 
   return {
-    title: `New Session: ${agentName}`,
+    title: {
+      absolute: `${agentName} - New session | AccuKnox AgentZ`,
+    },
   }
 }
 

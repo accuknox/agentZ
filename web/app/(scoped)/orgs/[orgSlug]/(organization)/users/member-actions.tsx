@@ -3,7 +3,7 @@
 import Link from "next/link"
 import type { Route } from "next"
 import { useActionState, useId, useState, useTransition } from "react"
-import { MoreHorizontal, Send, ShieldPlus, X } from "lucide-react"
+import { MoreHorizontal, Send, Shield, ShieldPlus, UsersRound, X } from "lucide-react"
 import {
   cancelInvitationAction,
   createInvitationAction,
@@ -196,7 +196,7 @@ function CreateInvitationForm({
               emptyMessage="No roles available."
               id={`${formId}-roles`}
               onValueChangeAction={setRoleIds}
-              options={roles.map((role) => ({ label: role.name, value: role.id }))}
+              options={roles.map((role) => ({ icon: Shield, label: role.name, value: role.id }))}
               placeholder="Select direct roles"
               searchPlaceholder="Search roles..."
               value={roleIds}
@@ -208,7 +208,11 @@ function CreateInvitationForm({
               emptyMessage="No teams available."
               id={`${formId}-teams`}
               onValueChangeAction={setTeamIds}
-              options={teams.map((team) => ({ label: team.name, value: team.id }))}
+              options={teams.map((team) => ({
+                icon: UsersRound,
+                label: team.name,
+                value: team.id,
+              }))}
               placeholder="Select teams"
               searchPlaceholder="Search teams..."
               value={teamIds}

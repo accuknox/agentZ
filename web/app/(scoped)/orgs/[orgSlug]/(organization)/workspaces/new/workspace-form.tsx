@@ -3,7 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useActionState, useState } from "react"
-import { CircleAlert, Plus } from "lucide-react"
+import { Box, Brain, Cable, CircleAlert, Plus, UserRound, Wrench } from "lucide-react"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -50,6 +50,7 @@ export function WorkspaceForm({
   )
 
   const options = candidates.map((candidate) => ({
+    icon: UserRound,
     label: candidate.name ? `${candidate.name} (${candidate.email})` : candidate.email,
     value: candidate.member_id,
   }))
@@ -122,7 +123,7 @@ export function WorkspaceForm({
 
           <div className="grid gap-4 pt-2">
             <h3 className="font-medium">Inherited Organisation resources</h3>
-            {inheritanceCategories.map(({ key, label }) => (
+            {inheritanceCategories.map(({ icon, key, label }) => (
               <Field key={key}>
                 <FieldLabel htmlFor={`inherited-${key}`}>{label}</FieldLabel>
                 <MultiSelectDropdown
@@ -130,7 +131,7 @@ export function WorkspaceForm({
                   onValueChangeAction={(value) =>
                     setInherited((current) => ({ ...current, [key]: value }))
                   }
-                  options={resources[key].map((name) => ({ label: name, value: name }))}
+                  options={resources[key].map((name) => ({ icon, label: name, value: name }))}
                   placeholder={`No ${label.toLowerCase()} selected`}
                   searchPlaceholder={`Search ${label.toLowerCase()}...`}
                   value={inherited[key]}
@@ -218,12 +219,18 @@ export function WorkspaceForm({
 }
 
 const inheritanceCategories = [
-  { field: "inherited_skills", key: "skills", label: "Skills" },
-  { field: "inherited_sandboxes", key: "sandboxes", label: "Sandboxes" },
-  { field: "inherited_mcp_connections", key: "mcp_connections", label: "MCP Connections" },
+  { field: "inherited_skills", icon: Wrench, key: "skills", label: "Skills" },
+  { field: "inherited_sandboxes", icon: Box, key: "sandboxes", label: "Sandboxes" },
+  {
+    field: "inherited_mcp_connections",
+    icon: Cable,
+    key: "mcp_connections",
+    label: "MCP connections",
+  },
   {
     field: "inherited_inference_providers",
+    icon: Brain,
     key: "inference_providers",
-    label: "Inference Providers",
+    label: "Inference providers",
   },
 ] as const

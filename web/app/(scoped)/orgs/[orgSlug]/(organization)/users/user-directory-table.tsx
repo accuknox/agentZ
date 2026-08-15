@@ -11,6 +11,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  EmptyValue,
   TableHead,
   TableHeader,
   TableRow,
@@ -84,16 +85,20 @@ function MemberTable({
         header: "Last active",
         cell: ({ row }) =>
           row.original.lastActivity ? (
-            <time dateTime={row.original.lastActivity}>{formatAge(row.original.lastActivity)}</time>
+            <time className="text-muted-foreground" dateTime={row.original.lastActivity}>
+              {formatAge(row.original.lastActivity)}
+            </time>
           ) : (
-            <span className="text-muted-foreground">No session activity</span>
+            <EmptyValue />
           ),
       },
       {
         accessorKey: "createdAt",
         header: "Joined",
         cell: ({ row }) => (
-          <time dateTime={row.original.createdAt}>{formatAge(row.original.createdAt)}</time>
+          <time className="text-muted-foreground" dateTime={row.original.createdAt}>
+            {formatAge(row.original.createdAt)}
+          </time>
         ),
       },
       ...(disabled
@@ -117,7 +122,6 @@ function MemberTable({
       ariaLabel={disabled ? "Disabled Users" : "Active Users"}
       cellClassNames={{ user: "max-w-72" }}
       columns={columns}
-      emptyText={disabled ? "No disabled users" : "No active users"}
       nextPageToken={data.nextPageToken}
       headerClassNames={{
         action: "w-28 text-right",
@@ -143,7 +147,9 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
         accessorKey: "createdAt",
         header: "Created",
         cell: ({ row }) => (
-          <time dateTime={row.original.createdAt}>{formatAge(row.original.createdAt)}</time>
+          <time className="text-muted-foreground" dateTime={row.original.createdAt}>
+            {formatAge(row.original.createdAt)}
+          </time>
         ),
       },
       {
@@ -159,7 +165,9 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
         header: "Expiry",
         cell: ({ row }) => (
           <>
-            <time dateTime={row.original.expiresAt}>{formatAge(row.original.expiresAt)}</time>
+            <time className="text-muted-foreground" dateTime={row.original.expiresAt}>
+              {formatAge(row.original.expiresAt)}
+            </time>
             {row.original.expired ? <Badge variant="destructivePlain">Expired</Badge> : null}
           </>
         ),
@@ -179,7 +187,6 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
       ariaLabel="Pending Invitations"
       cellClassNames={{ inviter: "max-w-56 truncate" }}
       columns={columns}
-      emptyText="No pending invitations"
       nextPageToken={data.nextPageToken}
       headerClassNames={{
         actions: "w-16 text-right",
@@ -196,7 +203,6 @@ function DirectoryTable<T>({
   ariaLabel,
   cellClassNames,
   columns,
-  emptyText,
   headerClassNames,
   nextPageToken,
   rowHref,
@@ -205,7 +211,6 @@ function DirectoryTable<T>({
   ariaLabel: string
   cellClassNames: Record<string, string>
   columns: ColumnDef<T>[]
-  emptyText: string
   headerClassNames: Record<string, string>
   nextPageToken: string
   rowHref?: (row: T) => Route
@@ -258,7 +263,7 @@ function DirectoryTable<T>({
             ) : (
               <TableRow>
                 <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  {emptyText}
+                  <EmptyValue />
                 </TableCell>
               </TableRow>
             )}
@@ -275,12 +280,12 @@ function AssignmentSummary({ roles, teams }: { roles: string[]; teams: string[] 
     ...roles.map((label) => `Role: ${label}`),
     ...teams.map((label) => `Team: ${label}`),
   ]
-  if (!items.length) return <span className="text-muted-foreground">No product access</span>
+  if (!items.length) return <EmptyValue />
   return (
     <span className="text-sm">
       {items.slice(0, 4).join(" · ")}
       {items.length > 4 ? (
-        <span className="text-muted-foreground"> · +{items.length - 4} more</span>
+        <span className="text-muted-foreground"> · +{items.length - 4}</span>
       ) : null}
     </span>
   )

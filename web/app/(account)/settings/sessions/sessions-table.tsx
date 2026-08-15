@@ -137,7 +137,11 @@ export function SessionsTable({
             <ArrowUpDown />
           </Button>
         ),
-        cell: ({ row }) => <span>{formatTimestampWithAge(row.original.createdAt)}</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {formatTimestampWithAge(row.original.createdAt)}
+          </span>
+        ),
       },
       {
         id: "updatedAt",
@@ -152,7 +156,11 @@ export function SessionsTable({
             <ArrowUpDown />
           </Button>
         ),
-        cell: ({ row }) => <span>{formatTimestampWithAge(row.original.updatedAt)}</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {formatTimestampWithAge(row.original.updatedAt)}
+          </span>
+        ),
       },
       {
         id: "os",
@@ -229,7 +237,7 @@ export function SessionsTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No sessions
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}
@@ -243,6 +251,8 @@ export function SessionsTable({
 function SessionUserAgentValue({ kind, value }: { kind: "browser" | "os"; value?: string | null }) {
   const parsed = readUserAgent(value)
   const label = kind === "os" ? parsed.os : parsed.browser
+  if (!label) return <span className="text-muted-foreground">_</span>
+
   const Icon = kind === "os" ? (osIcons[label] ?? Globe) : (browserIcons[label] ?? Globe)
 
   return (
@@ -257,8 +267,8 @@ function readUserAgent(value?: string | null) {
   const parsed = Bowser.parse(value ?? "")
 
   return {
-    os: parsed.os.name?.trim() || "-",
-    browser: parsed.browser.name?.trim() || "-",
+    os: parsed.os.name?.trim() || null,
+    browser: parsed.browser.name?.trim() || null,
   }
 }
 

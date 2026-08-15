@@ -9,6 +9,7 @@ import {
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -20,7 +21,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-type RoleUser = { assigned: boolean; email: string; memberId: string; name: string }
+type RoleUser = {
+  assigned: boolean
+  email: string
+  image: string | null
+  memberId: string
+  name: string
+}
 
 export function RoleAssignments({
   immutable,
@@ -75,7 +82,6 @@ export function RoleAssignments({
             <TableRow>
               <TableHead className="w-20 text-center">Assigned</TableHead>
               <TableHead>User</TableHead>
-              <TableHead>Email</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -96,14 +102,26 @@ export function RoleAssignments({
                       }
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{user.name || "Unnamed User"}</TableCell>
-                  <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                  <TableCell>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar size="sm">
+                        <AvatarImage alt="" src={user.image ?? undefined} />
+                        <AvatarFallback>
+                          {(user.name || user.email).slice(0, 1).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{user.name || user.email}</div>
+                        <div className="text-muted-foreground truncate text-xs">{user.email}</div>
+                      </div>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell className="h-24 text-center" colSpan={3}>
-                  No users
+                <TableCell className="h-24 text-center" colSpan={2}>
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

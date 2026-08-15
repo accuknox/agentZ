@@ -184,7 +184,7 @@ export function InheritedResourceForm({
         enableSorting: false,
         cell: ({ row }) =>
           row.original.consumers.length === 0 ? (
-            <span className="text-muted-foreground">None</span>
+            <span className="text-muted-foreground">_</span>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
               {row.original.consumers.map((consumer) => {
@@ -254,7 +254,7 @@ export function InheritedResourceForm({
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell className="text-muted-foreground py-10 text-center" colSpan={5}>
-                  No Organisation {label.toLowerCase()} are available.
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             ) : (

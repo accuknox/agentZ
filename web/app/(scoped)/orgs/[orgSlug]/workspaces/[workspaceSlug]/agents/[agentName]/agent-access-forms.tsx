@@ -3,6 +3,7 @@
 import { useActionState, useId, useMemo, useState } from "react"
 import {
   CircleAlert,
+  KeyRound,
   MoreHorizontal,
   Pencil,
   RefreshCw,
@@ -74,6 +75,7 @@ const capabilityLabels = {
 } satisfies Record<AgentShareCapability, string>
 
 const capabilityOptions = Object.entries(capabilityLabels).map(([value, label]) => ({
+  icon: KeyRound,
   label,
   value,
 }))
@@ -120,6 +122,10 @@ export function AgentOwnerForm({
                   <SelectGroup>
                     {users.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
+                        <Avatar size="sm">
+                          <AvatarImage alt="" src={user.image ?? undefined} />
+                          <AvatarFallback>{user.label.slice(0, 1).toUpperCase()}</AvatarFallback>
+                        </Avatar>
                         {user.label}
                       </SelectItem>
                     ))}
@@ -480,7 +486,7 @@ export function AgentSharesTable({
             ) : (
               <TableRow>
                 <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  <span className="text-muted-foreground">No shares yet</span>
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

@@ -522,7 +522,9 @@ function createMcpSelectionColumns({
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatAge(row.original.created_at),
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{formatAge(row.original.created_at)}</span>
+      ),
     },
     {
       id: "attach",
@@ -992,7 +994,7 @@ function McpStep({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No MCP connections
+                    <span className="text-muted-foreground">_</span>
                   </TableCell>
                 </TableRow>
               )}
@@ -1158,7 +1160,7 @@ function SkillsStep({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No immutable skills
+                    <span className="text-muted-foreground">_</span>
                   </TableCell>
                 </TableRow>
               )}
@@ -1331,7 +1333,7 @@ function ModelsStep({
     const pool = ref.provider === "agentz-pools" ? poolsById.get(ref.model) : undefined
     return (
       <SelectItem key={key} value={key}>
-        {pool ? <Layers3 className="size-4 shrink-0" /> : null}
+        {pool ? <Layers3 /> : <Brain />}
         <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
         <span className="text-muted-foreground truncate">
           {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
@@ -1351,7 +1353,7 @@ function ModelsStep({
     const key = JSON.stringify([ref.scope, ref.provider, ref.model])
     return [
       <SelectItem key={key} value={key}>
-        {pool ? <Layers3 className="size-4 shrink-0" /> : null}
+        {pool ? <Layers3 /> : <Brain />}
         <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
         <span className="text-muted-foreground truncate">
           {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
@@ -1718,7 +1720,9 @@ function ModelsStep({
                       <SelectValue placeholder="Use capable default model" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Use capable default model</SelectItem>
+                      <SelectItem value="none">
+                        <Brain /> Use capable default model
+                      </SelectItem>
                       {attachmentModelOptions}
                     </SelectContent>
                   </Select>
@@ -1737,7 +1741,9 @@ function ModelsStep({
                       <SelectValue placeholder="Not set" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Not set</SelectItem>
+                      <SelectItem value="none">
+                        <Brain /> Not set
+                      </SelectItem>
                       {modelOptions}
                     </SelectContent>
                   </Select>

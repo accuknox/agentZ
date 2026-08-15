@@ -1,8 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { CircleAlert } from "lucide-react"
 import { AdministrationPageHeader } from "@/components/administration"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ErrorState } from "@/components/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listInferencePoolsPageCachedQuery } from "@/data/inference-pool.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
@@ -48,11 +47,7 @@ async function Pools({
     return (
       <>
         <PageHeader />
-        <Alert variant="destructive" className="mx-4 w-auto md:mx-6">
-          <CircleAlert />
-          <AlertTitle>Could not load inference Pools</AlertTitle>
-          <AlertDescription>{pools.error.message}</AlertDescription>
-        </Alert>
+        <ErrorState message={pools.error.message} />
       </>
     )
   }
@@ -60,11 +55,7 @@ async function Pools({
     return (
       <>
         <PageHeader />
-        <Alert variant="destructive" className="mx-4 w-auto md:mx-6">
-          <CircleAlert />
-          <AlertTitle>Could not load inference providers</AlertTitle>
-          <AlertDescription>{providers.error.message}</AlertDescription>
-        </Alert>
+        <ErrorState message={providers.error.message} />
       </>
     )
   }

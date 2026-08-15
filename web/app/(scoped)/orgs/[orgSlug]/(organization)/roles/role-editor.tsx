@@ -3,7 +3,16 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { Fragment, startTransition, useActionState, useMemo, useState } from "react"
-import { CircleAlert, LockKeyhole, Plus, Save, ShieldCheck, X } from "lucide-react"
+import {
+  Building2,
+  CircleAlert,
+  KeyRound,
+  LockKeyhole,
+  Plus,
+  Save,
+  ShieldCheck,
+  X,
+} from "lucide-react"
 import {
   organizationRoleFormAction,
   type RoleFormState,
@@ -298,6 +307,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                   <SelectGroup>
                     {scopes.map((scope) => (
                       <SelectItem key={scope.id} value={scope.id}>
+                        <Building2 />
                         {scope.label} · {scope.detail}
                         {dirtyScopes.has(scope.id) ? " · Unsaved changes" : ""}
                       </SelectItem>
@@ -472,6 +482,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                           <SelectGroup>
                             {resource.actions.map((actionName) => (
                               <SelectItem key={actionName} value={actionName}>
+                                <KeyRound />
                                 {accessLabel(actionName)}
                               </SelectItem>
                             ))}

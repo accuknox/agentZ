@@ -41,9 +41,17 @@ export default async function WorkspaceAgentPage({
               <SummaryRow label="Memory">
                 {detail.agent.memory.enabled ? "Enabled" : "Disabled"}
               </SummaryRow>
-              <SummaryRow label="Created">{formatAge(detail.agent.created_at)}</SummaryRow>
-              <SummaryRow label="Modified">{formatAge(detail.agent.modified_at)}</SummaryRow>
-              <SummaryRow label="Last activity">{formatAge(detail.agent.last_activity)}</SummaryRow>
+              <SummaryRow label="Created">
+                <span className="text-muted-foreground">{formatAge(detail.agent.created_at)}</span>
+              </SummaryRow>
+              <SummaryRow label="Modified">
+                <span className="text-muted-foreground">{formatAge(detail.agent.modified_at)}</span>
+              </SummaryRow>
+              <SummaryRow label="Last activity">
+                <span className="text-muted-foreground">
+                  {formatAge(detail.agent.last_activity)}
+                </span>
+              </SummaryRow>
             </TableBody>
           </Table>
         </div>

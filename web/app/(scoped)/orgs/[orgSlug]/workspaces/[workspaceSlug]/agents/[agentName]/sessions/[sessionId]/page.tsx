@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { getWorkspaceScope } from "@/data/workspaces"
+import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
 
 type ChatPageParams = Promise<{
   agentName: string
@@ -16,10 +17,22 @@ type ChatPageProps = {
 }
 
 export async function generateMetadata({ params }: ChatPageProps): Promise<Metadata> {
-  const { agentName, sessionId } = await params
+  const { agentName, orgSlug, sessionId, workspaceSlug } = await params
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  let sessionTitle = sessionId
+
+  if (scope.kind === "ready") {
+    const client = await createAgentOpencodeClient(agentName, {
+      workspaceId: scope.workspace.id,
+    })
+    const result = await client.session.get({ path: { id: sessionId } })
+    sessionTitle = result.data?.title?.trim() || sessionId
+  }
 
   return {
-    title: `Session ${sessionId}: ${agentName}`,
+    title: {
+      absolute: `${agentName} - ${sessionTitle} | AccuKnox AgentZ`,
+    },
   }
 }
 

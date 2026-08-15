@@ -3,7 +3,7 @@
 import * as React from "react"
 import dagre from "@dagrejs/dagre"
 import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
-import { BotIcon, KeyRoundIcon, ShieldCheckIcon, UsersIcon } from "lucide-react"
+import { BotIcon, Building2, Globe2, KeyRoundIcon, UsersIcon } from "lucide-react"
 import type { EdgeTypes, NodeTypes, NodeProps as FlowNodeProps } from "@xyflow/react"
 import { Handle, Position, type Edge as FlowEdge, type Node as FlowNode } from "@xyflow/react"
 import {
@@ -12,6 +12,7 @@ import {
   EffectiveAccessFrame,
 } from "@/components/administration"
 import { Canvas } from "@/components/ai-elements/canvas"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Controls } from "@/components/ai-elements/controls"
 import { Edge } from "@/components/ai-elements/edge"
 import {
@@ -34,6 +35,7 @@ import { cn } from "@/lib/utils"
 
 type AccessNodeData = {
   detail: string
+  image?: string | null
   kind: "user" | "source" | "role" | "team" | "agent" | "permission"
   label: string
   muted: boolean
@@ -129,10 +131,15 @@ export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All scopes</SelectItem>
-                <SelectItem value="org">Organisation</SelectItem>
+                <SelectItem value="all">
+                  <Globe2 /> All scopes
+                </SelectItem>
+                <SelectItem value="org">
+                  <Building2 /> Organisation
+                </SelectItem>
                 {detail.workspaces.map((workspace) => (
                   <SelectItem key={workspace.id} value={workspace.id}>
+                    <Building2 />
                     {workspace.name}
                   </SelectItem>
                 ))}
@@ -192,6 +199,7 @@ function accessGraph(
 
   addNode(userNode, {
     detail: detail.member.email,
+    image: detail.member.image,
     kind: "user",
     label: detail.member.name,
     sourceIds: sources.map((source) => source.id),
@@ -334,7 +342,10 @@ function layout(nodes: AccessNode[], edges: AccessEdge[]) {
 function AccessGraphNode({ data }: FlowNodeProps<AccessNode>) {
   const icon =
     data.kind === "user" ? (
-      <ShieldCheckIcon aria-hidden="true" className="size-4" />
+      <Avatar size="sm">
+        <AvatarImage alt="" src={data.image ?? undefined} />
+        <AvatarFallback>{data.label.slice(0, 1).toUpperCase()}</AvatarFallback>
+      </Avatar>
     ) : data.kind === "team" ? (
       <UsersIcon aria-hidden="true" className="size-4" />
     ) : data.kind === "agent" ? (
@@ -356,7 +367,7 @@ function AccessGraphNode({ data }: FlowNodeProps<AccessNode>) {
     >
       <Handle position={Position.Left} type="target" />
       <Handle position={Position.Right} type="source" />
-      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal uppercase">
+      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal">
         {icon}
         {data.kind}
       </div>

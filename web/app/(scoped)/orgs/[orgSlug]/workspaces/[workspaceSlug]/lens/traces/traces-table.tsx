@@ -35,6 +35,7 @@ import type {
   TraceListItem,
 } from "@/data/types"
 import { Badge } from "@/components/ui/badge"
+import { ErrorState } from "@/components/error-state"
 import { CodeBlock } from "@/components/ai-elements/code-block"
 import { TablePagination, TokenTablePagination } from "@/components/table-pagination"
 import { Progress } from "@/components/ui/progress"
@@ -308,11 +309,7 @@ export function TracesTable({
   }
 
   if (error) {
-    return (
-      <div className="bg-destructive/5 text-destructive rounded-md p-4 text-sm">
-        {error.message}
-      </div>
-    )
+    return <ErrorState error={new globalThis.Error(error.message)} />
   }
 
   if (!data) {
@@ -372,7 +369,7 @@ export function TracesTable({
                     colSpan={columns.length}
                     className="text-muted-foreground h-48 text-center"
                   >
-                    No traces
+                    _
                   </TableCell>
                 </TableRow>
               )}
@@ -1218,27 +1215,25 @@ const networkTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
     key: "domain",
     header: "Destination Domain",
     className: "min-w-52",
-    render: (event) => (
-      <span className={telemetryMonoClass}>{networkDestinationDomain(event)}</span>
-    ),
+    render: (event) => <TruncateCell value={networkDestinationDomain(event)} />,
   },
   {
     key: "ip",
     header: "Destination IP",
     className: "min-w-40",
-    render: (event) => <span className={telemetryMonoClass}>{networkDestinationIP(event)}</span>,
+    render: (event) => <TruncateCell value={networkDestinationIP(event)} />,
   },
   {
     key: "port",
     header: "Destination Port",
     className: "min-w-32",
-    render: (event) => <span className="font-mono text-xs">{networkDestinationPort(event)}</span>,
+    render: (event) => <TruncateCell value={networkDestinationPort(event)} />,
   },
   {
     key: "protocol",
     header: "Protocol",
     className: "min-w-32",
-    render: (event) => <span className={telemetryMonoClass}>{networkProtocol(event)}</span>,
+    render: (event) => <TruncateCell value={networkProtocol(event)} />,
   },
   {
     key: "action",
@@ -1286,10 +1281,8 @@ function NetworkTelemetryTable({
 }
 
 function TelemetryTimestamp({ value }: { value: string }) {
-  return <span className="text-sm">{value}</span>
+  return <span className="text-muted-foreground text-sm">{value}</span>
 }
-
-const telemetryMonoClass = "font-mono text-xs"
 
 function networkDestinationDomain(event: RuntimeTelemetryEventItem) {
   const domain = /^(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/

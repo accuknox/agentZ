@@ -133,7 +133,7 @@ export function AgentTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No agents
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

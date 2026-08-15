@@ -4,7 +4,7 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useProgress } from "@bprogress/next"
 import { Controller, useForm } from "react-hook-form"
-import { BotIcon, Webhook, Workflow } from "lucide-react"
+import { BotIcon, CalendarSync, Webhook, Workflow } from "lucide-react"
 import type { Agent, WorkflowSchedule } from "@/lib/gateway/client"
 import {
   workflowRunFiltersFormSchema,
@@ -156,8 +156,12 @@ export function RunsFilters({
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="schedule">Schedule</SelectItem>
-                  <SelectItem value="webhook">Webhook</SelectItem>
+                  <SelectItem value="schedule">
+                    <CalendarSync /> Schedule
+                  </SelectItem>
+                  <SelectItem value="webhook">
+                    <Webhook /> Webhook
+                  </SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>

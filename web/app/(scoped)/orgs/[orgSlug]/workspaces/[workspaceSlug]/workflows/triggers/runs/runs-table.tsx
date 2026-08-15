@@ -304,7 +304,7 @@ export function RunsTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No workflow runs
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}
@@ -378,7 +378,7 @@ function createColumns({
       header: "Age",
       sortingFn: "datetime",
       cell: ({ row }) => {
-        return formatAge(row.original.created_at)
+        return <span className="text-muted-foreground">{formatAge(row.original.created_at)}</span>
       },
     },
     {

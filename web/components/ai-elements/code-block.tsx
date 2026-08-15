@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { CheckIcon, CopyIcon } from "lucide-react"
+import { CheckIcon, Code2Icon, CopyIcon } from "lucide-react"
 import type { ComponentProps, CSSProperties, HTMLAttributes } from "react"
 import {
   createContext,
@@ -531,6 +531,12 @@ export const CodeBlockLanguageSelectorContent = ({
 
 export type CodeBlockLanguageSelectorItemProps = ComponentProps<typeof SelectItem>
 
-export const CodeBlockLanguageSelectorItem = (props: CodeBlockLanguageSelectorItemProps) => (
-  <SelectItem {...props} />
+export const CodeBlockLanguageSelectorItem = ({
+  children,
+  ...props
+}: CodeBlockLanguageSelectorItemProps) => (
+  <SelectItem {...props}>
+    <Code2Icon />
+    {children}
+  </SelectItem>
 )

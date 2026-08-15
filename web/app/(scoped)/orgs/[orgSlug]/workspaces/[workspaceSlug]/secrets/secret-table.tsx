@@ -167,7 +167,7 @@ export function SecretTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No secrets
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

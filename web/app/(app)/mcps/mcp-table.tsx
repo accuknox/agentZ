@@ -196,7 +196,7 @@ export function McpTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No MCP connections
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}

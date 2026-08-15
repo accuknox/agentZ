@@ -70,17 +70,26 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   )
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+function TableCell({ children, className, ...props }: React.ComponentProps<"td">) {
+  const empty = children === null || children === undefined || children === ""
+
   return (
     <td
       data-slot="table-cell"
       className={cn(
-        "h-14 px-6 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "[&_time]:text-muted-foreground h-14 px-6 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
-    />
+    >
+      {empty ? <span className="text-muted-foreground">_</span> : children}
+    </td>
   )
+}
+
+/** EmptyValue renders the standard placeholder for unavailable table data. */
+function EmptyValue() {
+  return <span className="text-muted-foreground">_</span>
 }
 
 function TableCaption({ className, ...props }: React.ComponentProps<"caption">) {
@@ -93,4 +102,14 @@ function TableCaption({ className, ...props }: React.ComponentProps<"caption">) 
   )
 }
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption }
+export {
+  EmptyValue,
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+}

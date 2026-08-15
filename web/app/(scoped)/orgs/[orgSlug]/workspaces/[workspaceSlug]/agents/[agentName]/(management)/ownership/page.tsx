@@ -73,7 +73,11 @@ export default async function AgentOwnershipPage({
               </TableRow>
               <TableRow>
                 <TableCell>Last transfer</TableCell>
-                <TableCell>{formatAge(detail.owner.updated_at)}</TableCell>
+                <TableCell>
+                  <span className="text-muted-foreground">
+                    {formatAge(detail.owner.updated_at)}
+                  </span>
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>

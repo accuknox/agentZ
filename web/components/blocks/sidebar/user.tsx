@@ -146,6 +146,7 @@ export function NavUser({
                       textValue={`${organization.name} ${organization.slug}`}
                       value={organization.id}
                     >
+                      <Building2 />
                       <span className="grid min-w-0 flex-1 text-left leading-tight">
                         <span className="truncate font-medium" title={organization.name}>
                           {organization.name}
@@ -182,7 +183,7 @@ export function NavUser({
               <DropdownMenuItem asChild>
                 <Link href="/settings/api-keys">
                   <KeyRound />
-                  API Keys
+                  API keys
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

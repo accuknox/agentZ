@@ -3,6 +3,7 @@ import { Suspense } from "react"
 import * as z from "zod"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { Mail } from "lucide-react"
+import { ErrorState } from "@/components/error-state"
 import { headers } from "next/headers"
 import { authErrorSchema, socialProviderSchema, type AuthError } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
@@ -212,11 +213,5 @@ function TwoFactorSkeleton() {
 }
 
 function ErrorPanel({ message }: { message: string }) {
-  return (
-    <div className="px-4 md:px-6">
-      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-        {message}
-      </div>
-    </div>
-  )
+  return <ErrorState message={message} />
 }

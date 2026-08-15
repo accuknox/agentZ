@@ -11,13 +11,13 @@ export default async function WorkspaceSandboxesPage({
 }) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
-  if (scope.kind !== "ready" || !scope.workspace.sandbox_capabilities.read)
+  if (scope.kind !== "ready" || !scope.workspace.capabilities.sandboxes.read)
     return <AdministrationState kind="forbidden" />
   const basePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/sandboxes`
   return (
     <SandboxesPage
       basePath={basePath}
-      capabilities={scope.workspace.sandbox_capabilities}
+      capabilities={scope.workspace.capabilities.sandboxes}
       searchParams={searchParams}
       workspaceId={scope.workspace.id}
     />

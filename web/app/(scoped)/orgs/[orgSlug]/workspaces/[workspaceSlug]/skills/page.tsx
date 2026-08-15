@@ -16,15 +16,15 @@ export default async function WorkspaceSkillsPage({
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
   const result = await listAgentsCachedQuery(undefined, scope.workspace.id)
   const agents = result.error ? [] : result.agents
-  if (!scope.workspace.skill_capabilities.read && agents.length === 0) {
+  if (!scope.workspace.capabilities.skills.read && agents.length === 0) {
     return <AdministrationState kind="forbidden" />
   }
   return (
     <Suspense fallback={null}>
       <SkillsClient
         agents={agents}
-        canCreateImmutable={scope.workspace.skill_capabilities.create}
-        canReadImmutable={scope.workspace.skill_capabilities.read}
+        canCreateImmutable={scope.workspace.capabilities.skills.create}
+        canReadImmutable={scope.workspace.capabilities.skills.read}
         workspaceId={scope.workspace.id}
       />
     </Suspense>

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { AccessSourceChip } from "@/components/administration"
+import { AccessSourceChip, AdministrationState } from "@/components/administration"
 import {
   Table,
   TableBody,
@@ -25,13 +25,12 @@ export default async function AgentOwnershipPage({
     notFound()
   }
 
-  const detail = await getWorkspaceAgentDetail(
-    scope.scope.organization.id,
-    scope.workspace.id,
-    agentName
-  )
+  const detail = await getWorkspaceAgentDetail(scope.workspace.id, agentName)
   if (!detail) {
     notFound()
+  }
+  if (!detail.agent.capabilities.manage_ownership) {
+    return <AdministrationState kind="forbidden" />
   }
 
   const actionScope: AgentActionScope = {

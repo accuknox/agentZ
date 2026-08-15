@@ -66,7 +66,8 @@ export function AgentTable({
         sandboxes,
         initialHasNextSandboxPage,
         initialNextSandboxPageToken,
-        actionScope
+        actionScope,
+        agents.some((agent) => agent.capabilities.modify || agent.capabilities.delete)
       ),
     [
       deleteAgentAction,
@@ -75,6 +76,7 @@ export function AgentTable({
       initialHasNextSandboxPage,
       initialNextSandboxPageToken,
       actionScope,
+      agents,
     ]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

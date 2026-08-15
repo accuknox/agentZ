@@ -102,7 +102,7 @@ export function PageBreadcrumb({
   const pathname = usePathname()
   const segments = pathname.split("/").filter(Boolean)
   const pathKey = pathname
-  const agent = segments[4] === "agents" ? segments[5] : undefined
+  const agent = segments[4] === "agents" && segments[6] === "sessions" ? segments[5] : undefined
   const { dirtyAgent, openAgent, toggleAgent } = useFileWorkspace()
   const filesOpen = agent === openAgent
   const filesDirty = agent === dirtyAgent

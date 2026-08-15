@@ -121,52 +121,6 @@ func (q *Queries) GatewayAgentExists(ctx context.Context, arg GatewayAgentExists
 	return exists, err
 }
 
-const gatewayAgentShareCapabilityExists = `-- name: GatewayAgentShareCapabilityExists :one
-SELECT EXISTS(
-  SELECT 1
-  FROM agent_shares
-  JOIN agent_share_grants
-    ON agent_share_grants.share_id = agent_shares.id
-    AND agent_share_grants.capability = $1
-  WHERE agent_shares.organization_id = $2
-    AND agent_shares.workspace_id = $3
-    AND agent_shares.agent_name = $4
-    AND (
-      agent_shares.target_user_id = $5
-      OR EXISTS (
-        SELECT 1
-        FROM team_members
-        JOIN teams
-          ON teams.id = team_members.team_id
-          AND teams.organization_id = agent_shares.organization_id
-        WHERE team_members.team_id = agent_shares.target_team_id
-          AND team_members.user_id = $5
-      )
-    )
-)
-`
-
-type GatewayAgentShareCapabilityExistsParams struct {
-	Capability     AgentShareCapability `json:"capability"`
-	OrganizationID string               `json:"organization_id"`
-	WorkspaceID    string               `json:"workspace_id"`
-	AgentName      string               `json:"agent_name"`
-	UserID         pgtype.Text          `json:"user_id"`
-}
-
-func (q *Queries) GatewayAgentShareCapabilityExists(ctx context.Context, arg GatewayAgentShareCapabilityExistsParams) (bool, error) {
-	row := q.db.QueryRow(ctx, gatewayAgentShareCapabilityExists,
-		arg.Capability,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.AgentName,
-		arg.UserID,
-	)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const gatewayAssignInvitationRole = `-- name: GatewayAssignInvitationRole :exec
 INSERT INTO invitation_roles(invitation_id, role_id, organization_id)
 SELECT invitations.id, role_scopes.role_id, invitations.organization_id
@@ -2204,65 +2158,6 @@ func (q *Queries) GatewayListAPIKeyTargets(ctx context.Context, apiKeyID string)
 	return items, nil
 }
 
-const gatewayListAccessibleAgentNames = `-- name: GatewayListAccessibleAgentNames :many
-SELECT DISTINCT agent_owners.agent_name
-FROM agent_owners
-WHERE agent_owners.organization_id = $1
-  AND agent_owners.workspace_id = $2
-  AND (
-    agent_owners.owner_user_id = $3
-    OR EXISTS (
-      SELECT 1
-      FROM agent_shares
-      JOIN agent_share_grants
-        ON agent_share_grants.share_id = agent_shares.id
-        AND agent_share_grants.capability = 'use_shared'
-      WHERE agent_shares.organization_id = agent_owners.organization_id
-        AND agent_shares.workspace_id = agent_owners.workspace_id
-        AND agent_shares.agent_name = agent_owners.agent_name
-        AND (
-          agent_shares.target_user_id = $3
-          OR EXISTS (
-            SELECT 1
-            FROM team_members
-            JOIN teams
-              ON teams.id = team_members.team_id
-              AND teams.organization_id = agent_shares.organization_id
-            WHERE team_members.team_id = agent_shares.target_team_id
-              AND team_members.user_id = $3
-          )
-        )
-    )
-  )
-ORDER BY agent_owners.agent_name
-`
-
-type GatewayListAccessibleAgentNamesParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	UserID         string `json:"user_id"`
-}
-
-func (q *Queries) GatewayListAccessibleAgentNames(ctx context.Context, arg GatewayListAccessibleAgentNamesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, gatewayListAccessibleAgentNames, arg.OrganizationID, arg.WorkspaceID, arg.UserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var agent_name string
-		if err := rows.Scan(&agent_name); err != nil {
-			return nil, err
-		}
-		items = append(items, agent_name)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const gatewayListAccessibleWorkspaces = `-- name: GatewayListAccessibleWorkspaces :many
 WITH role_assignments AS (
   SELECT member_roles.role_id, member_roles.organization_id
@@ -2458,6 +2353,224 @@ func (q *Queries) GatewayListActiveTeamUserIDs(ctx context.Context, arg GatewayL
 			return nil, err
 		}
 		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAgentAccessTargets = `-- name: GatewayListAgentAccessTargets :many
+WITH assigned_roles AS (
+  SELECT members.user_id, member_roles.role_id
+  FROM members
+  JOIN member_roles
+    ON member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+  WHERE members.organization_id = $1
+    AND members.disabled_at IS NULL
+
+  UNION
+
+  SELECT members.user_id, team_roles.role_id
+  FROM members
+  JOIN team_members ON team_members.user_id = members.user_id
+  JOIN teams
+    ON teams.id = team_members.team_id
+    AND teams.organization_id = members.organization_id
+  JOIN team_roles
+    ON team_roles.team_id = teams.id
+    AND team_roles.organization_id = teams.organization_id
+  JOIN role_scopes
+    ON role_scopes.role_id = team_roles.role_id
+    AND role_scopes.organization_id = team_roles.organization_id
+    AND role_scopes.system_role IS NULL
+  WHERE members.organization_id = $1
+    AND members.disabled_at IS NULL
+), user_targets AS (
+  SELECT DISTINCT
+    'user'::text AS kind,
+    users.id,
+    users.name AS label,
+    users.email,
+    users.image,
+    EXISTS (
+      SELECT 1
+      FROM member_roles AS administrator_roles
+      JOIN role_scopes AS administrator_scopes
+        ON administrator_scopes.role_id = administrator_roles.role_id
+        AND administrator_scopes.organization_id = administrator_roles.organization_id
+      WHERE administrator_roles.member_id = members.id
+        AND administrator_roles.organization_id = members.organization_id
+        AND administrator_scopes.immutable
+        AND (
+          (
+            administrator_scopes.system_role = 'superadmin'
+            AND administrator_scopes.workspace_id IS NULL
+          ) OR (
+            administrator_scopes.system_role = 'workspace_admin'
+            AND administrator_scopes.workspace_id = $2
+          )
+        )
+    ) AS administrator,
+    permission_grants.action
+  FROM members
+  JOIN users ON users.id = members.user_id
+  LEFT JOIN assigned_roles ON assigned_roles.user_id = members.user_id
+  LEFT JOIN role_scopes
+    ON role_scopes.role_id = assigned_roles.role_id
+    AND role_scopes.organization_id = members.organization_id
+  LEFT JOIN permission_grants
+    ON permission_grants.role_id = role_scopes.role_id
+    AND permission_grants.organization_id = role_scopes.organization_id
+    AND permission_grants.workspace_id = $2
+    AND permission_grants.resource = 'agent'
+    AND (
+      role_scopes.workspace_id IS NULL
+      OR permission_grants.workspace_id IS NOT DISTINCT FROM role_scopes.workspace_id
+    )
+  WHERE members.organization_id = $1
+    AND members.disabled_at IS NULL
+), team_targets AS (
+  SELECT DISTINCT
+    'team'::text AS kind,
+    teams.id,
+    teams.name AS label,
+    ''::text AS email,
+    NULL::text AS image,
+    FALSE AS administrator,
+    permission_grants.action
+  FROM teams
+  LEFT JOIN team_roles
+    ON team_roles.team_id = teams.id
+    AND team_roles.organization_id = teams.organization_id
+  LEFT JOIN role_scopes
+    ON role_scopes.role_id = team_roles.role_id
+    AND role_scopes.organization_id = team_roles.organization_id
+    AND role_scopes.system_role IS NULL
+  LEFT JOIN permission_grants
+    ON permission_grants.role_id = role_scopes.role_id
+    AND permission_grants.organization_id = role_scopes.organization_id
+    AND permission_grants.workspace_id = $2
+    AND permission_grants.resource = 'agent'
+    AND (
+      role_scopes.workspace_id IS NULL
+      OR permission_grants.workspace_id IS NOT DISTINCT FROM role_scopes.workspace_id
+    )
+  WHERE teams.organization_id = $1
+)
+SELECT kind, id, label, email, image, administrator, action FROM user_targets
+UNION ALL
+SELECT kind, id, label, email, image, administrator, action FROM team_targets
+ORDER BY kind, label, email, id, action
+`
+
+type GatewayListAgentAccessTargetsParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+}
+
+type GatewayListAgentAccessTargetsRow struct {
+	Kind          string               `json:"kind"`
+	ID            string               `json:"id"`
+	Label         string               `json:"label"`
+	Email         string               `json:"email"`
+	Image         pgtype.Text          `json:"image"`
+	Administrator bool                 `json:"administrator"`
+	Action        NullPermissionAction `json:"action"`
+}
+
+func (q *Queries) GatewayListAgentAccessTargets(ctx context.Context, arg GatewayListAgentAccessTargetsParams) ([]GatewayListAgentAccessTargetsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListAgentAccessTargets, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListAgentAccessTargetsRow{}
+	for rows.Next() {
+		var i GatewayListAgentAccessTargetsRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.ID,
+			&i.Label,
+			&i.Email,
+			&i.Image,
+			&i.Administrator,
+			&i.Action,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListAgentRelationships = `-- name: GatewayListAgentRelationships :many
+SELECT
+  agent_owners.agent_name,
+  agent_owners.owner_user_id,
+  agent_share_grants.capability
+FROM agent_owners
+LEFT JOIN agent_shares
+  ON agent_shares.organization_id = agent_owners.organization_id
+  AND agent_shares.workspace_id = agent_owners.workspace_id
+  AND agent_shares.agent_name = agent_owners.agent_name
+  AND (
+    agent_shares.target_user_id = $1
+    OR EXISTS (
+      SELECT 1
+      FROM team_members
+      JOIN teams
+        ON teams.id = team_members.team_id
+        AND teams.organization_id = agent_shares.organization_id
+      WHERE team_members.team_id = agent_shares.target_team_id
+        AND team_members.user_id = $1
+    )
+  )
+LEFT JOIN agent_share_grants ON agent_share_grants.share_id = agent_shares.id
+WHERE agent_owners.organization_id = $2
+  AND agent_owners.workspace_id = $3
+  AND (
+    $4::text IS NULL
+    OR agent_owners.agent_name = $4
+  )
+ORDER BY agent_owners.agent_name, agent_share_grants.capability
+`
+
+type GatewayListAgentRelationshipsParams struct {
+	UserID         pgtype.Text `json:"user_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	AgentName      pgtype.Text `json:"agent_name"`
+}
+
+type GatewayListAgentRelationshipsRow struct {
+	AgentName   string                   `json:"agent_name"`
+	OwnerUserID string                   `json:"owner_user_id"`
+	Capability  NullAgentShareCapability `json:"capability"`
+}
+
+func (q *Queries) GatewayListAgentRelationships(ctx context.Context, arg GatewayListAgentRelationshipsParams) ([]GatewayListAgentRelationshipsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListAgentRelationships,
+		arg.UserID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.AgentName,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListAgentRelationshipsRow{}
+	for rows.Next() {
+		var i GatewayListAgentRelationshipsRow
+		if err := rows.Scan(&i.AgentName, &i.OwnerUserID, &i.Capability); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -4135,6 +4248,63 @@ func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansPara
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListTeamAgentShareCapabilities = `-- name: GatewayListTeamAgentShareCapabilities :many
+SELECT DISTINCT permission_grants.action
+FROM teams
+JOIN team_roles
+  ON team_roles.team_id = teams.id
+  AND team_roles.organization_id = teams.organization_id
+JOIN role_scopes
+  ON role_scopes.role_id = team_roles.role_id
+  AND role_scopes.organization_id = team_roles.organization_id
+  AND role_scopes.system_role IS NULL
+JOIN permission_grants
+  ON permission_grants.role_id = role_scopes.role_id
+  AND permission_grants.organization_id = role_scopes.organization_id
+  AND (
+    role_scopes.workspace_id IS NULL
+    OR permission_grants.workspace_id IS NOT DISTINCT FROM role_scopes.workspace_id
+  )
+WHERE teams.id = $1
+  AND teams.organization_id = $2
+  AND permission_grants.workspace_id = $3
+  AND permission_grants.resource = 'agent'
+  AND permission_grants.action IN (
+    'share_non_authored',
+    'use_shared',
+    'read_shared_secret',
+    'write_shared_secret',
+    'delete_shared_secret'
+  )
+ORDER BY permission_grants.action
+`
+
+type GatewayListTeamAgentShareCapabilitiesParams struct {
+	TeamID         string      `json:"team_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+}
+
+func (q *Queries) GatewayListTeamAgentShareCapabilities(ctx context.Context, arg GatewayListTeamAgentShareCapabilitiesParams) ([]PermissionAction, error) {
+	rows, err := q.db.Query(ctx, gatewayListTeamAgentShareCapabilities, arg.TeamID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PermissionAction{}
+	for rows.Next() {
+		var action PermissionAction
+		if err := rows.Scan(&action); err != nil {
+			return nil, err
+		}
+		items = append(items, action)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

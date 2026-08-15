@@ -149,6 +149,9 @@ import type {
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookErrors,
   InvokeWorkflowWebhookResponses,
+  ListAgentAccessTargetsData,
+  ListAgentAccessTargetsErrors,
+  ListAgentAccessTargetsResponses,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsErrors,
   ListAgentMutableSkillsResponses,
@@ -800,7 +803,7 @@ export const listAgentShares = <ThrowOnError extends boolean = false>(
 /**
  * Create or replace an Agent Share.
  *
- * Creates or replaces one User or Team Agent Share. UseShared grants full non-secret Agent and workflow control.
+ * Creates or replaces one User or Team Agent Share. UseShared permits Agent sessions, files, and workflows; it does not permit Agent modification, deletion, sharing, ownership, or secret access.
  *
  */
 export const upsertAgentShare = <ThrowOnError extends boolean = false>(
@@ -829,6 +832,22 @@ export const deleteAgentShare = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/agent/{agentName}/share/{shareId}",
+    ...options,
+  })
+
+/**
+ * List Agent access targets and their eligible capabilities.
+ */
+export const listAgentAccessTargets = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentAccessTargetsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListAgentAccessTargetsResponses,
+    ListAgentAccessTargetsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/access-targets",
     ...options,
   })
 

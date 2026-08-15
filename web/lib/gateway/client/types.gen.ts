@@ -159,19 +159,26 @@ export type Workspace = {
   state: WorkspaceState
   provisioning_attempt: number
   failure_reason?: string
-  skill_capabilities: ResourceCapabilities
-  mcp_connection_capabilities: ResourceCapabilities
-  sandbox_capabilities: ResourceCapabilities
-  inference_provider_capabilities: ResourceCapabilities
-  inference_pool_capabilities: ResourceCapabilities
-  api_key_capabilities: ResourceCapabilities
-  observability_capabilities: ResourceCapabilities
-  can_author_agents: boolean
-  can_use_shared_agents: boolean
+  capabilities: WorkspaceCapabilities
   workspace_admin_count: number
-  can_administer: boolean
   created_at: string
   updated_at: string
+}
+
+export type WorkspaceCapabilities = {
+  administer: boolean
+  agents: AgentWorkspaceCapabilities
+  skills: ResourceCapabilities
+  mcp_connections: ResourceCapabilities
+  sandboxes: ResourceCapabilities
+  inference_providers: ResourceCapabilities
+  inference_pools: ResourceCapabilities
+  api_keys: ResourceCapabilities
+  observability: ResourceCapabilities
+}
+
+export type AgentWorkspaceCapabilities = {
+  author: boolean
 }
 
 export type ListWorkspacesResponse = {
@@ -419,6 +426,18 @@ export type Agent = {
   modified_at: string
   skills: Array<ResourceReference>
   status: AgentStatus
+  capabilities: AgentCapabilities
+}
+
+export type AgentCapabilities = {
+  use: boolean
+  modify: boolean
+  delete: boolean
+  share: boolean
+  manage_ownership: boolean
+  read_secrets: boolean
+  write_secrets: boolean
+  delete_secrets: boolean
 }
 
 export type AgentOwner = {
@@ -445,6 +464,22 @@ export type AgentShareCapability =
   | "read_shared_secret"
   | "write_shared_secret"
   | "delete_shared_secret"
+
+export type AgentAccessTargetKind = "user" | "team"
+
+export type AgentAccessTarget = {
+  kind: AgentAccessTargetKind
+  id: string
+  label: string
+  email: string | null
+  image: string | null
+  capabilities: Array<AgentShareCapability>
+  can_own: boolean
+}
+
+export type ListAgentAccessTargetsResponse = {
+  targets: Array<AgentAccessTarget>
+}
 
 export type Skill = {
   name: SkillName
@@ -3435,6 +3470,51 @@ export type DeleteAgentShareResponses = {
 }
 
 export type DeleteAgentShareResponse = DeleteAgentShareResponses[keyof DeleteAgentShareResponses]
+
+export type ListAgentAccessTargetsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/access-targets"
+}
+
+export type ListAgentAccessTargetsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentAccessTargetsError =
+  ListAgentAccessTargetsErrors[keyof ListAgentAccessTargetsErrors]
+
+export type ListAgentAccessTargetsResponses = {
+  /**
+   * Active Users and Teams with their eligible Agent capabilities.
+   */
+  200: ListAgentAccessTargetsResponse
+}
+
+export type ListAgentAccessTargetsResponse2 =
+  ListAgentAccessTargetsResponses[keyof ListAgentAccessTargetsResponses]
 
 export type CreateAgentDirectoryData = {
   body: CreateAgentDirectoryRequest

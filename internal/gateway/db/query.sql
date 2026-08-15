@@ -1468,61 +1468,36 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name);
 
--- name: GatewayAgentShareCapabilityExists :one
-SELECT EXISTS(
-  SELECT 1
-  FROM agent_shares
-  JOIN agent_share_grants
-    ON agent_share_grants.share_id = agent_shares.id
-    AND agent_share_grants.capability = sqlc.arg(capability)
-  WHERE agent_shares.organization_id = sqlc.arg(organization_id)
-    AND agent_shares.workspace_id = sqlc.arg(workspace_id)
-    AND agent_shares.agent_name = sqlc.arg(agent_name)
-    AND (
-      agent_shares.target_user_id = sqlc.arg(user_id)
-      OR EXISTS (
-        SELECT 1
-        FROM team_members
-        JOIN teams
-          ON teams.id = team_members.team_id
-          AND teams.organization_id = agent_shares.organization_id
-        WHERE team_members.team_id = agent_shares.target_team_id
-          AND team_members.user_id = sqlc.arg(user_id)
-      )
-    )
-);
-
--- name: GatewayListAccessibleAgentNames :many
-SELECT DISTINCT agent_owners.agent_name
+-- name: GatewayListAgentRelationships :many
+SELECT
+  agent_owners.agent_name,
+  agent_owners.owner_user_id,
+  agent_share_grants.capability
 FROM agent_owners
+LEFT JOIN agent_shares
+  ON agent_shares.organization_id = agent_owners.organization_id
+  AND agent_shares.workspace_id = agent_owners.workspace_id
+  AND agent_shares.agent_name = agent_owners.agent_name
+  AND (
+    agent_shares.target_user_id = sqlc.arg(user_id)
+    OR EXISTS (
+      SELECT 1
+      FROM team_members
+      JOIN teams
+        ON teams.id = team_members.team_id
+        AND teams.organization_id = agent_shares.organization_id
+      WHERE team_members.team_id = agent_shares.target_team_id
+        AND team_members.user_id = sqlc.arg(user_id)
+    )
+  )
+LEFT JOIN agent_share_grants ON agent_share_grants.share_id = agent_shares.id
 WHERE agent_owners.organization_id = sqlc.arg(organization_id)
   AND agent_owners.workspace_id = sqlc.arg(workspace_id)
   AND (
-    agent_owners.owner_user_id = sqlc.arg(user_id)
-    OR EXISTS (
-      SELECT 1
-      FROM agent_shares
-      JOIN agent_share_grants
-        ON agent_share_grants.share_id = agent_shares.id
-        AND agent_share_grants.capability = 'use_shared'
-      WHERE agent_shares.organization_id = agent_owners.organization_id
-        AND agent_shares.workspace_id = agent_owners.workspace_id
-        AND agent_shares.agent_name = agent_owners.agent_name
-        AND (
-          agent_shares.target_user_id = sqlc.arg(user_id)
-          OR EXISTS (
-            SELECT 1
-            FROM team_members
-            JOIN teams
-              ON teams.id = team_members.team_id
-              AND teams.organization_id = agent_shares.organization_id
-            WHERE team_members.team_id = agent_shares.target_team_id
-              AND team_members.user_id = sqlc.arg(user_id)
-          )
-        )
-    )
+    sqlc.narg(agent_name)::text IS NULL
+    OR agent_owners.agent_name = sqlc.narg(agent_name)
   )
-ORDER BY agent_owners.agent_name;
+ORDER BY agent_owners.agent_name, agent_share_grants.capability;
 
 -- name: GatewayTransferAgentOwner :one
 UPDATE agent_owners
@@ -1662,6 +1637,140 @@ SELECT EXISTS(
   WHERE id = sqlc.arg(team_id)
     AND organization_id = sqlc.arg(organization_id)
 );
+
+-- name: GatewayListTeamAgentShareCapabilities :many
+SELECT DISTINCT permission_grants.action
+FROM teams
+JOIN team_roles
+  ON team_roles.team_id = teams.id
+  AND team_roles.organization_id = teams.organization_id
+JOIN role_scopes
+  ON role_scopes.role_id = team_roles.role_id
+  AND role_scopes.organization_id = team_roles.organization_id
+  AND role_scopes.system_role IS NULL
+JOIN permission_grants
+  ON permission_grants.role_id = role_scopes.role_id
+  AND permission_grants.organization_id = role_scopes.organization_id
+  AND (
+    role_scopes.workspace_id IS NULL
+    OR permission_grants.workspace_id IS NOT DISTINCT FROM role_scopes.workspace_id
+  )
+WHERE teams.id = sqlc.arg(team_id)
+  AND teams.organization_id = sqlc.arg(organization_id)
+  AND permission_grants.workspace_id = sqlc.arg(workspace_id)
+  AND permission_grants.resource = 'agent'
+  AND permission_grants.action IN (
+    'share_non_authored',
+    'use_shared',
+    'read_shared_secret',
+    'write_shared_secret',
+    'delete_shared_secret'
+  )
+ORDER BY permission_grants.action;
+
+-- name: GatewayListAgentAccessTargets :many
+WITH assigned_roles AS (
+  SELECT members.user_id, member_roles.role_id
+  FROM members
+  JOIN member_roles
+    ON member_roles.member_id = members.id
+    AND member_roles.organization_id = members.organization_id
+  WHERE members.organization_id = sqlc.arg(organization_id)
+    AND members.disabled_at IS NULL
+
+  UNION
+
+  SELECT members.user_id, team_roles.role_id
+  FROM members
+  JOIN team_members ON team_members.user_id = members.user_id
+  JOIN teams
+    ON teams.id = team_members.team_id
+    AND teams.organization_id = members.organization_id
+  JOIN team_roles
+    ON team_roles.team_id = teams.id
+    AND team_roles.organization_id = teams.organization_id
+  JOIN role_scopes
+    ON role_scopes.role_id = team_roles.role_id
+    AND role_scopes.organization_id = team_roles.organization_id
+    AND role_scopes.system_role IS NULL
+  WHERE members.organization_id = sqlc.arg(organization_id)
+    AND members.disabled_at IS NULL
+), user_targets AS (
+  SELECT DISTINCT
+    'user'::text AS kind,
+    users.id,
+    users.name AS label,
+    users.email,
+    users.image,
+    EXISTS (
+      SELECT 1
+      FROM member_roles AS administrator_roles
+      JOIN role_scopes AS administrator_scopes
+        ON administrator_scopes.role_id = administrator_roles.role_id
+        AND administrator_scopes.organization_id = administrator_roles.organization_id
+      WHERE administrator_roles.member_id = members.id
+        AND administrator_roles.organization_id = members.organization_id
+        AND administrator_scopes.immutable
+        AND (
+          (
+            administrator_scopes.system_role = 'superadmin'
+            AND administrator_scopes.workspace_id IS NULL
+          ) OR (
+            administrator_scopes.system_role = 'workspace_admin'
+            AND administrator_scopes.workspace_id = sqlc.arg(workspace_id)
+          )
+        )
+    ) AS administrator,
+    permission_grants.action
+  FROM members
+  JOIN users ON users.id = members.user_id
+  LEFT JOIN assigned_roles ON assigned_roles.user_id = members.user_id
+  LEFT JOIN role_scopes
+    ON role_scopes.role_id = assigned_roles.role_id
+    AND role_scopes.organization_id = members.organization_id
+  LEFT JOIN permission_grants
+    ON permission_grants.role_id = role_scopes.role_id
+    AND permission_grants.organization_id = role_scopes.organization_id
+    AND permission_grants.workspace_id = sqlc.arg(workspace_id)
+    AND permission_grants.resource = 'agent'
+    AND (
+      role_scopes.workspace_id IS NULL
+      OR permission_grants.workspace_id IS NOT DISTINCT FROM role_scopes.workspace_id
+    )
+  WHERE members.organization_id = sqlc.arg(organization_id)
+    AND members.disabled_at IS NULL
+), team_targets AS (
+  SELECT DISTINCT
+    'team'::text AS kind,
+    teams.id,
+    teams.name AS label,
+    ''::text AS email,
+    NULL::text AS image,
+    FALSE AS administrator,
+    permission_grants.action
+  FROM teams
+  LEFT JOIN team_roles
+    ON team_roles.team_id = teams.id
+    AND team_roles.organization_id = teams.organization_id
+  LEFT JOIN role_scopes
+    ON role_scopes.role_id = team_roles.role_id
+    AND role_scopes.organization_id = team_roles.organization_id
+    AND role_scopes.system_role IS NULL
+  LEFT JOIN permission_grants
+    ON permission_grants.role_id = role_scopes.role_id
+    AND permission_grants.organization_id = role_scopes.organization_id
+    AND permission_grants.workspace_id = sqlc.arg(workspace_id)
+    AND permission_grants.resource = 'agent'
+    AND (
+      role_scopes.workspace_id IS NULL
+      OR permission_grants.workspace_id IS NOT DISTINCT FROM role_scopes.workspace_id
+    )
+  WHERE teams.organization_id = sqlc.arg(organization_id)
+)
+SELECT * FROM user_targets
+UNION ALL
+SELECT * FROM team_targets
+ORDER BY kind, label, email, id, action;
 
 -- name: GatewayLockTeam :one
 SELECT id

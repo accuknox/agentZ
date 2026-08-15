@@ -12,12 +12,12 @@ export default async function WorkspaceInferencePoolsPage({
   const { orgSlug, workspaceSlug } = await params
   const { page_token } = await searchParams
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
-  if (scope.kind !== "ready" || !scope.workspace.inference_pool_capabilities.read)
+  if (scope.kind !== "ready" || !scope.workspace.capabilities.inference_pools.read)
     return <AdministrationState kind="forbidden" />
   const basePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
   return (
     <InferencePoolsPage
-      capabilities={scope.workspace.inference_pool_capabilities}
+      capabilities={scope.workspace.capabilities.inference_pools}
       pageToken={page_token}
       scope={{ basePath, workspaceId: scope.workspace.id }}
     />

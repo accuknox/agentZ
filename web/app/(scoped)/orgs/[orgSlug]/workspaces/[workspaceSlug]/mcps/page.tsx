@@ -13,13 +13,13 @@ export default async function WorkspaceMcpPage({
 }) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
-  if (scope.kind !== "ready" || !scope.workspace.mcp_connection_capabilities.read)
+  if (scope.kind !== "ready" || !scope.workspace.capabilities.mcp_connections.read)
     return <AdministrationState kind="forbidden" />
   const basePath = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/mcps`
   return (
     <McpPage
       basePath={basePath}
-      canCreate={scope.workspace.mcp_connection_capabilities.create}
+      canCreate={scope.workspace.capabilities.mcp_connections.create}
       organizationId={scope.scope.organization.id}
       searchParams={searchParams}
       workspaceId={scope.workspace.id}

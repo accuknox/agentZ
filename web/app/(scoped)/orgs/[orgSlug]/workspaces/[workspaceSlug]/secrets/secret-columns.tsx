@@ -60,9 +60,10 @@ const secretStatusMeta = {
 
 export function createSecretColumns(
   agentName: string,
-  deleteSecretAction: DeleteSecretFormAction
+  deleteSecretAction: DeleteSecretFormAction,
+  canDelete: boolean
 ): ColumnDef<SecretListItem>[] {
-  return [
+  const columns: ColumnDef<SecretListItem>[] = [
     {
       accessorKey: "key",
       header: ({ column }) => (
@@ -137,6 +138,8 @@ export function createSecretColumns(
       ),
     },
   ]
+  if (!canDelete) columns.pop()
+  return columns
 }
 
 function SecretStatusBadge({ secret }: { secret: SecretListItem }) {

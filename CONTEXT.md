@@ -71,6 +71,17 @@ A User's resulting capability after combining applicable direct Roles, Team
 Roles, and defined implicit authorities.
 _Avoid_: Access level
 
+**Authorization Decision**:
+The allow-or-deny result for one User, action, and resource after evaluating
+all applicable relationships and Permission Grants.
+_Avoid_: UI permission, visibility flag
+
+**Capability Projection**:
+A resource's complete set of Authorization Decisions returned to a caller for
+presentation. It may hide unavailable navigation and actions, but never grants
+authority by itself.
+_Avoid_: Effective permissions, frontend permissions
+
 ## Agent collaboration
 
 **Agent Owner**:

@@ -42,10 +42,10 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 	t.Parallel()
 
 	queries := &permissionQueries{rows: []gatewaydb.GatewayResolvePermissionsRow{
-		permissionRow("", gatewaydb.PermissionActionRead),
-		permissionRow("workspace-a", gatewaydb.PermissionActionCreate),
-		permissionRow("workspace-a", gatewaydb.PermissionActionModify),
-		permissionRow("workspace-b", gatewaydb.PermissionActionDelete),
+		permissionRow(gatewaydb.PermissionResourceSandbox, "", gatewaydb.PermissionActionRead),
+		permissionRow(gatewaydb.PermissionResourceSandbox, "workspace-a", gatewaydb.PermissionActionCreate),
+		permissionRow(gatewaydb.PermissionResourceSandbox, "workspace-a", gatewaydb.PermissionActionModify),
+		permissionRow(gatewaydb.PermissionResourceSandbox, "workspace-b", gatewaydb.PermissionActionDelete),
 	}}
 	effective, err := authorization.New(queries).Resolve(context.Background(), authorization.Subject{
 		UserID:         "user-a",
@@ -247,12 +247,125 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 	}
 }
 
-func permissionRow(workspaceID string, action gatewaydb.PermissionAction) gatewaydb.GatewayResolvePermissionsRow {
+func TestAgentCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		owner           string
+		permissions     []gatewaydb.PermissionAction
+		shares          []gatewaydb.AgentShareCapability
+		want            authorization.AgentCapabilities
+		wantCoversShare bool
+	}{
+		{
+			name:            "shared use does not confer edit authority",
+			owner:           "user-b",
+			permissions:     []gatewaydb.PermissionAction{gatewaydb.PermissionActionUseShared},
+			shares:          []gatewaydb.AgentShareCapability{gatewaydb.AgentShareCapabilityUseShared},
+			want:            authorization.AgentCapabilities{Use: true},
+			wantCoversShare: true,
+		},
+		{
+			name:  "owner controls the Agent but cannot share without Workspace authority",
+			owner: "user-a",
+			permissions: []gatewaydb.PermissionAction{
+				gatewaydb.PermissionActionRead,
+			},
+			want: authorization.AgentCapabilities{
+				Use: true, Modify: true, Delete: true, ManageOwnership: true,
+				ReadSecrets: true, WriteSecrets: true, DeleteSecrets: true,
+			},
+		},
+		{
+			name:  "delegated sharing requires matching Workspace and Share grants",
+			owner: "user-b",
+			permissions: []gatewaydb.PermissionAction{
+				gatewaydb.PermissionActionUseShared,
+				gatewaydb.PermissionActionShareNonAuthored,
+			},
+			shares: []gatewaydb.AgentShareCapability{
+				gatewaydb.AgentShareCapabilityShareNonAuthored,
+			},
+			want:            authorization.AgentCapabilities{Use: true, Share: true},
+			wantCoversShare: true,
+		},
+		{
+			name:  "secret deletion implies its usable baseline in policy",
+			owner: "user-b",
+			permissions: []gatewaydb.PermissionAction{
+				gatewaydb.PermissionActionUseShared,
+				gatewaydb.PermissionActionReadSharedSecret,
+				gatewaydb.PermissionActionWriteSharedSecret,
+				gatewaydb.PermissionActionDeleteSharedSecret,
+			},
+			shares: []gatewaydb.AgentShareCapability{
+				gatewaydb.AgentShareCapabilityDeleteSharedSecret,
+			},
+			want: authorization.AgentCapabilities{
+				Use: true, ReadSecrets: true, WriteSecrets: true, DeleteSecrets: true,
+			},
+			wantCoversShare: true,
+		},
+		{
+			name:  "secret authority denies when the Workspace baseline is incomplete",
+			owner: "user-b",
+			permissions: []gatewaydb.PermissionAction{
+				gatewaydb.PermissionActionUseShared,
+				gatewaydb.PermissionActionDeleteSharedSecret,
+			},
+			shares: []gatewaydb.AgentShareCapability{
+				gatewaydb.AgentShareCapabilityDeleteSharedSecret,
+			},
+			want: authorization.AgentCapabilities{Use: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rows := make([]gatewaydb.GatewayResolvePermissionsRow, 0, len(tt.permissions))
+			for _, permission := range tt.permissions {
+				rows = append(rows, permissionRow(
+					gatewaydb.PermissionResourceAgent,
+					"workspace-a",
+					permission,
+				))
+			}
+			effective, err := authorization.New(&permissionQueries{rows: rows}).Resolve(
+				context.Background(),
+				authorization.Subject{UserID: "user-a", OrganizationID: "organization-a"},
+			)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			got, err := effective.AgentCapabilities(
+				authorization.Scope{
+					OrganizationID: "organization-a",
+					WorkspaceID:    "workspace-a",
+				},
+				authorization.Agent{
+					Name: "agent-a", OwnerUserID: tt.owner, ShareGrants: tt.shares,
+				},
+			)
+			if err != nil {
+				t.Fatalf("AgentCapabilities() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("AgentCapabilities() = %#v, want %#v", got, tt.want)
+			}
+			if len(tt.shares) > 0 && got.CoversShare(tt.shares) != tt.wantCoversShare {
+				t.Errorf("CoversShare() = %t, want %t", got.CoversShare(tt.shares), tt.wantCoversShare)
+			}
+		})
+	}
+}
+
+func permissionRow(resource gatewaydb.PermissionResource, workspaceID string, action gatewaydb.PermissionAction) gatewaydb.GatewayResolvePermissionsRow {
 	return gatewaydb.GatewayResolvePermissionsRow{
 		Active:      true,
 		WorkspaceID: pgtype.Text{String: workspaceID, Valid: workspaceID != ""},
 		Resource: gatewaydb.NullPermissionResource{
-			PermissionResource: gatewaydb.PermissionResourceSandbox,
+			PermissionResource: resource,
 			Valid:              true,
 		},
 		Action: gatewaydb.NullPermissionAction{

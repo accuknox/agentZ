@@ -21,8 +21,115 @@ import (
 	"context"
 	"fmt"
 
+	cedar "github.com/cedar-policy/cedar-go"
+
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 )
+
+const agentPolicy = `
+permit (principal is User, action, resource is Agent)
+when { resource.administrator };
+
+permit (
+    principal is User,
+    action in [
+        Action::"use",
+        Action::"modify",
+        Action::"delete",
+        Action::"manage_ownership",
+        Action::"read_secrets",
+        Action::"write_secrets",
+        Action::"delete_secrets"
+    ],
+    resource is Agent
+)
+when {
+    principal == resource.owner && resource.workspace_access
+};
+
+permit (
+    principal is User,
+    action == Action::"share",
+    resource is Agent
+)
+when {
+    principal == resource.owner &&
+    resource.workspace_access &&
+    resource.workspace_grants.contains(Action::"share_authored")
+};
+
+permit (
+    principal is User,
+    action == Action::"use",
+    resource is Agent
+)
+when {
+    resource.workspace_grants.contains(Action::"use_shared") &&
+    !resource.share_grants.isEmpty()
+};
+
+permit (
+    principal is User,
+    action == Action::"share",
+    resource is Agent
+)
+when {
+	resource.workspace_grants.contains(Action::"use_shared") &&
+	resource.workspace_grants.contains(Action::"share_non_authored") &&
+	resource.share_grants.contains(Action::"share_non_authored")
+};
+
+permit (
+    principal is User,
+    action == Action::"read_secrets",
+    resource is Agent
+)
+when {
+	resource.workspace_grants.contains(Action::"use_shared") &&
+	resource.workspace_grants.contains(Action::"read_shared_secret") &&
+    (
+        resource.share_grants.contains(Action::"read_shared_secret") ||
+        resource.share_grants.contains(Action::"write_shared_secret") ||
+        resource.share_grants.contains(Action::"delete_shared_secret")
+    )
+};
+
+permit (
+    principal is User,
+    action == Action::"write_secrets",
+    resource is Agent
+)
+when {
+	resource.workspace_grants.contains(Action::"use_shared") &&
+	resource.workspace_grants.contains(Action::"read_shared_secret") &&
+	resource.workspace_grants.contains(Action::"write_shared_secret") &&
+    (
+        resource.share_grants.contains(Action::"write_shared_secret") ||
+        resource.share_grants.contains(Action::"delete_shared_secret")
+    )
+};
+
+permit (
+    principal is User,
+    action == Action::"delete_secrets",
+    resource is Agent
+)
+when {
+	resource.workspace_grants.contains(Action::"use_shared") &&
+	resource.workspace_grants.contains(Action::"read_shared_secret") &&
+	resource.workspace_grants.contains(Action::"write_shared_secret") &&
+	resource.workspace_grants.contains(Action::"delete_shared_secret") &&
+    resource.share_grants.contains(Action::"delete_shared_secret")
+};
+`
+
+var agentPolicies = func() *cedar.PolicySet {
+	policies, err := cedar.NewPolicySetFromBytes("agent.cedar", []byte(agentPolicy))
+	if err != nil {
+		panic(fmt.Sprintf("compile Agent authorization policy: %v", err))
+	}
+	return policies
+}()
 
 // Operation identifies a generated gateway operation.
 type Operation string
@@ -157,6 +264,7 @@ func New(queries Queries) *Resolver {
 
 // Effective is an immutable snapshot of one Subject's effective permissions.
 type Effective struct {
+	userID          string
 	organizationID  string
 	active          bool
 	superadmin      bool
@@ -174,6 +282,7 @@ type grantKey struct {
 // Missing and disabled Memberships resolve to no permissions.
 func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, error) {
 	effective := Effective{
+		userID:          subject.UserID,
 		organizationID:  subject.OrganizationID,
 		workspaceAdmins: map[string]struct{}{},
 		grants:          map[grantKey]struct{}{},
@@ -214,6 +323,182 @@ func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, err
 	}
 
 	return effective, nil
+}
+
+// Agent describes the relationship facts used to authorize one Agent.
+type Agent struct {
+	Name        string
+	OwnerUserID string
+	ShareGrants []gatewaydb.AgentShareCapability
+}
+
+// AgentCapabilities is the complete action projection for one Agent.
+type AgentCapabilities struct {
+	Use             bool
+	Modify          bool
+	Delete          bool
+	Share           bool
+	ManageOwnership bool
+	ReadSecrets     bool
+	WriteSecrets    bool
+	DeleteSecrets   bool
+}
+
+// CoversShare reports whether these effective capabilities contain every action
+// represented by the proposed Agent Share grants.
+func (c AgentCapabilities) CoversShare(grants []gatewaydb.AgentShareCapability) bool {
+	if !c.Use {
+		return false
+	}
+	for _, grant := range grants {
+		switch grant {
+		case gatewaydb.AgentShareCapabilityUseShared:
+		case gatewaydb.AgentShareCapabilityShareNonAuthored:
+			if !c.Share {
+				return false
+			}
+		case gatewaydb.AgentShareCapabilityReadSharedSecret:
+			if !c.ReadSecrets {
+				return false
+			}
+		case gatewaydb.AgentShareCapabilityWriteSharedSecret:
+			if !c.ReadSecrets || !c.WriteSecrets {
+				return false
+			}
+		case gatewaydb.AgentShareCapabilityDeleteSharedSecret:
+			if !c.ReadSecrets || !c.WriteSecrets || !c.DeleteSecrets {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// AgentCapabilities evaluates Workspace grants, ownership, and Agent Shares
+// through the Cedar policy set.
+func (e Effective) AgentCapabilities(scope Scope, agent Agent) (AgentCapabilities, error) {
+	if !e.active || scope.OrganizationID != e.organizationID {
+		return AgentCapabilities{}, nil
+	}
+	principal := cedar.NewEntityUID("User", cedar.String(e.userID))
+	resource := cedar.NewEntityUID("Agent", cedar.String(agent.Name))
+	workspaceGrants := make([]cedar.Value, 0, len(e.grants))
+	for grant := range e.grants {
+		if grant.workspaceID != scope.WorkspaceID || grant.resource != gatewaydb.PermissionResourceAgent {
+			continue
+		}
+		workspaceGrants = append(workspaceGrants, cedar.NewEntityUID(
+			"Action",
+			cedar.String(grant.action),
+		))
+	}
+	shareGrants := make([]cedar.Value, 0, len(agent.ShareGrants))
+	for _, grant := range agent.ShareGrants {
+		shareGrants = append(shareGrants, cedar.NewEntityUID(
+			"Action",
+			cedar.String(grant),
+		))
+	}
+	entities := cedar.EntityMap{
+		principal: {
+			UID:        principal,
+			Parents:    cedar.NewEntityUIDSet(),
+			Attributes: cedar.NewRecord(nil),
+		},
+		resource: {
+			UID:     resource,
+			Parents: cedar.NewEntityUIDSet(),
+			Attributes: cedar.NewRecord(cedar.RecordMap{
+				"administrator":    cedar.Boolean(e.CanAdminister(scope)),
+				"owner":            cedar.NewEntityUID("User", cedar.String(agent.OwnerUserID)),
+				"share_grants":     cedar.NewSet(shareGrants...),
+				"workspace_access": cedar.Boolean(e.HasWorkspaceAccess(scope)),
+				"workspace_grants": cedar.NewSet(workspaceGrants...),
+			}),
+		},
+	}
+
+	allowed := func(action string) (bool, error) {
+		decision, diagnostic := cedar.Authorize(agentPolicies, entities, cedar.Request{
+			Principal: principal,
+			Action:    cedar.NewEntityUID("Action", cedar.String(action)),
+			Resource:  resource,
+			Context:   cedar.NewRecord(nil),
+		})
+		if len(diagnostic.Errors) > 0 {
+			return false, fmt.Errorf("evaluate Agent action %q: %v", action, diagnostic.Errors)
+		}
+		return decision == cedar.Allow, nil
+	}
+
+	var capabilities AgentCapabilities
+	actions := []struct {
+		name    string
+		allowed *bool
+	}{
+		{"use", &capabilities.Use},
+		{"modify", &capabilities.Modify},
+		{"delete", &capabilities.Delete},
+		{"share", &capabilities.Share},
+		{"manage_ownership", &capabilities.ManageOwnership},
+		{"read_secrets", &capabilities.ReadSecrets},
+		{"write_secrets", &capabilities.WriteSecrets},
+		{"delete_secrets", &capabilities.DeleteSecrets},
+	}
+	for _, action := range actions {
+		value, err := allowed(action.name)
+		if err != nil {
+			return AgentCapabilities{}, err
+		}
+		*action.allowed = value
+	}
+	return capabilities, nil
+}
+
+// CanReceiveAgentShare reports whether the subject's Workspace grants support
+// every effective capability in the proposed Agent Share.
+func (e Effective) CanReceiveAgentShare(scope Scope, grants []gatewaydb.AgentShareCapability) (bool, error) {
+	return e.canReceiveAgentShare(scope, grants)
+}
+
+// CanReceiveAgentShare reports whether the supplied Workspace grants support
+// every effective capability in the proposed Agent Share.
+func CanReceiveAgentShare(workspaceID string, workspaceGrants []gatewaydb.PermissionAction, administrator bool, grants []gatewaydb.AgentShareCapability) (bool, error) {
+	effective := Effective{
+		userID:          "recipient",
+		organizationID:  "organization",
+		active:          true,
+		workspaceAdmins: map[string]struct{}{},
+		grants:          map[grantKey]struct{}{},
+	}
+	if administrator {
+		effective.workspaceAdmins[workspaceID] = struct{}{}
+	}
+	for _, action := range workspaceGrants {
+		effective.grants[grantKey{
+			workspaceID: workspaceID,
+			resource:    gatewaydb.PermissionResourceAgent,
+			action:      action,
+		}] = struct{}{}
+	}
+	return effective.canReceiveAgentShare(Scope{
+		OrganizationID: "organization",
+		WorkspaceID:    workspaceID,
+	}, grants)
+}
+
+func (e Effective) canReceiveAgentShare(scope Scope, grants []gatewaydb.AgentShareCapability) (bool, error) {
+	capabilities, err := e.AgentCapabilities(scope, Agent{
+		Name:        "prospective-share",
+		OwnerUserID: "owner",
+		ShareGrants: grants,
+	})
+	if err != nil {
+		return false, err
+	}
+	return capabilities.CoversShare(grants), nil
 }
 
 // Active reports whether the subject has an enabled Membership in the

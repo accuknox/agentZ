@@ -2,7 +2,6 @@ import type { Route } from "next"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { AgentTable } from "@/app/agent-table"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { deleteAgentFormAction, type AgentActionScope } from "@/data/agent.actions"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
@@ -21,7 +20,7 @@ export default async function WorkspaceAgentsPage({
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") {
-    return <ErrorPanel message="Workspace is unavailable" />
+    return <AdministrationState kind="forbidden" />
   }
 
   const pageToken = await searchParams.then((value) => value.page_token)
@@ -34,22 +33,34 @@ export default async function WorkspaceAgentsPage({
   if (agents.error) {
     if (agents.error.code === "forbidden") return <AdministrationState kind="forbidden" />
 
-    return <ErrorPanel message={agents.error.message} />
+    return (
+      <AdministrationState
+        description={agents.error.message}
+        kind="failed"
+        title="Unable to load Agents"
+      />
+    )
   }
-  const canAccessAgents =
-    scope.workspace.can_author_agents ||
-    (scope.workspace.can_use_shared_agents && agents.agents.length > 0)
+  const canAccessAgents = scope.workspace.capabilities.agents.author || agents.agents.length > 0
   if (!canAccessAgents) return <AdministrationState kind="forbidden" />
 
-  const [sandboxes, skills] = await Promise.all([
-    listSandboxesCachedQuery({ limit: 50 }, workspaceId),
-    listImmutableSkillsCachedQuery(workspaceId),
-  ])
-  if (sandboxes.error) {
-    return <ErrorPanel message={sandboxes.error.message} />
-  }
-  if (skills.error) {
-    return <ErrorPanel message={skills.error.message} />
+  const authorResources = scope.workspace.capabilities.agents.author
+    ? await Promise.all([
+        listSandboxesCachedQuery({ limit: 50 }, workspaceId),
+        listImmutableSkillsCachedQuery(workspaceId),
+      ])
+    : undefined
+  const sandboxes = authorResources?.[0]
+  const skills = authorResources?.[1]
+  if (sandboxes?.error || skills?.error) {
+    const error = sandboxes?.error ?? skills?.error
+    return (
+      <AdministrationState
+        description={error?.message}
+        kind={error?.code === "forbidden" ? "forbidden" : "failed"}
+        title={error?.code === "forbidden" ? undefined : "Unable to load Agent resources"}
+      />
+    )
   }
 
   const basePath =
@@ -60,14 +71,14 @@ export default async function WorkspaceAgentsPage({
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
         actions={
-          scope.workspace.can_author_agents ? (
+          scope.workspace.capabilities.agents.author ? (
             <AgentDialog
               mode="create"
               actionScope={actionScope}
-              immutableSkills={skills.skills}
-              sandboxes={sandboxes.sandboxes}
-              initialHasNextSandboxPage={sandboxes.hasNextPage}
-              initialNextSandboxPageToken={sandboxes.nextPageToken}
+              immutableSkills={skills?.skills ?? []}
+              sandboxes={sandboxes?.sandboxes ?? []}
+              initialHasNextSandboxPage={sandboxes?.hasNextPage ?? false}
+              initialNextSandboxPageToken={sandboxes?.nextPageToken ?? ""}
             />
           ) : null
         }
@@ -76,23 +87,14 @@ export default async function WorkspaceAgentsPage({
       <AgentTable
         actionScope={actionScope}
         agents={agents.agents}
-        immutableSkills={skills.skills}
-        sandboxes={sandboxes.sandboxes}
+        immutableSkills={skills?.skills ?? []}
+        sandboxes={sandboxes?.sandboxes ?? []}
         hasNextPage={agents.hasNextPage}
-        initialHasNextSandboxPage={sandboxes.hasNextPage}
-        initialNextSandboxPageToken={sandboxes.nextPageToken}
+        initialHasNextSandboxPage={sandboxes?.hasNextPage ?? false}
+        initialNextSandboxPageToken={sandboxes?.nextPageToken ?? ""}
         nextPageToken={agents.nextPageToken}
         deleteAgentAction={deleteAgentFormAction.bind(null, actionScope)}
       />
     </div>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert variant="destructive">
-      <AlertTitle>Unable to load agents</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }

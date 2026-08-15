@@ -4,7 +4,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Boxes, Building2, ChevronsUpDown, Plus } from "lucide-react"
+import { PanelsTopLeft, Building2, ChevronsUpDown, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -75,7 +75,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 tooltip={active?.name ?? scope.organization.name}
               >
                 <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                  {active ? <Boxes aria-hidden="true" /> : <Building2 aria-hidden="true" />}
+                  {active ? <PanelsTopLeft aria-hidden="true" /> : <Building2 aria-hidden="true" />}
                 </span>
                 <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
                   <span
@@ -129,7 +129,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                         }}
                       >
                         <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
-                          <Boxes aria-hidden="true" className="size-4" />
+                          <PanelsTopLeft aria-hidden="true" className="size-4" />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium" title={workspace.name}>

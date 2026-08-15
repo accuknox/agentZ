@@ -14,22 +14,20 @@ export default async function WorkspacePage({
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
 
   const root = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}` as const
-  if (scope.workspace.can_author_agents) redirect(`${root}/agents` as Route)
-  if (scope.workspace.can_use_shared_agents) {
-    const agents = await listAgentsCachedQuery(undefined, scope.workspace.id)
-    if (!agents.error && agents.agents.length > 0) redirect(`${root}/agents` as Route)
-  }
-  if (scope.scope.organization.superadmin || scope.workspace.can_administer) {
+  if (scope.workspace.capabilities.agents.author) redirect(`${root}/agents` as Route)
+  const agents = await listAgentsCachedQuery(undefined, scope.workspace.id)
+  if (!agents.error && agents.agents.length > 0) redirect(`${root}/agents` as Route)
+  if (scope.scope.organization.superadmin || scope.workspace.capabilities.administer) {
     redirect(`${root}/roles` as Route)
   }
-  if (scope.workspace.observability_capabilities.read) redirect(`${root}/lens/traces` as Route)
-  if (scope.workspace.skill_capabilities.read) redirect(`${root}/skills` as Route)
-  if (scope.workspace.mcp_connection_capabilities.read) redirect(`${root}/mcps` as Route)
-  if (scope.workspace.sandbox_capabilities.read) redirect(`${root}/sandboxes` as Route)
-  if (scope.workspace.inference_provider_capabilities.read) {
+  if (scope.workspace.capabilities.observability.read) redirect(`${root}/lens/traces` as Route)
+  if (scope.workspace.capabilities.skills.read) redirect(`${root}/skills` as Route)
+  if (scope.workspace.capabilities.mcp_connections.read) redirect(`${root}/mcps` as Route)
+  if (scope.workspace.capabilities.sandboxes.read) redirect(`${root}/sandboxes` as Route)
+  if (scope.workspace.capabilities.inference_providers.read) {
     redirect(`${root}/inference/providers` as Route)
   }
-  if (scope.workspace.inference_pool_capabilities.read) {
+  if (scope.workspace.capabilities.inference_pools.read) {
     redirect(`${root}/inference/pools` as Route)
   }
 

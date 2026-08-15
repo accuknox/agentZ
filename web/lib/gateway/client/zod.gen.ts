@@ -160,6 +160,22 @@ export const zTenant = z.object({
 
 export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
 
+export const zAgentWorkspaceCapabilities = z.object({
+  author: z.boolean(),
+})
+
+export const zWorkspaceCapabilities = z.object({
+  administer: z.boolean(),
+  agents: zAgentWorkspaceCapabilities,
+  skills: zResourceCapabilities,
+  mcp_connections: zResourceCapabilities,
+  sandboxes: zResourceCapabilities,
+  inference_providers: zResourceCapabilities,
+  inference_pools: zResourceCapabilities,
+  api_keys: zResourceCapabilities,
+  observability: zResourceCapabilities,
+})
+
 export const zWorkspace = z.object({
   id: z.string(),
   name: z.string(),
@@ -170,19 +186,10 @@ export const zWorkspace = z.object({
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
   failure_reason: z.string().optional(),
-  skill_capabilities: zResourceCapabilities,
-  mcp_connection_capabilities: zResourceCapabilities,
-  sandbox_capabilities: zResourceCapabilities,
-  inference_provider_capabilities: zResourceCapabilities,
-  inference_pool_capabilities: zResourceCapabilities,
-  api_key_capabilities: zResourceCapabilities,
-  observability_capabilities: zResourceCapabilities,
-  can_author_agents: z.boolean(),
-  can_use_shared_agents: z.boolean(),
+  capabilities: zWorkspaceCapabilities,
   workspace_admin_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  can_administer: z.boolean(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })
@@ -441,6 +448,17 @@ export const zPatchWorkflowRunNodeStatusRequest = z.object({
   message: z.string().max(4096).optional(),
 })
 
+export const zAgentCapabilities = z.object({
+  use: z.boolean(),
+  modify: z.boolean(),
+  delete: z.boolean(),
+  share: z.boolean(),
+  manage_ownership: z.boolean(),
+  read_secrets: z.boolean(),
+  write_secrets: z.boolean(),
+  delete_secrets: z.boolean(),
+})
+
 export const zAgentOwner = z.object({
   agent_name: zAgentName,
   creator_user_id: z.string(),
@@ -470,6 +488,22 @@ export const zAgentShare = z.object({
 export const zListAgentSharesResponse = z.object({
   shares: z.array(zAgentShare),
   next_page_token: z.string(),
+})
+
+export const zAgentAccessTargetKind = z.enum(["user", "team"])
+
+export const zAgentAccessTarget = z.object({
+  kind: zAgentAccessTargetKind,
+  id: z.string(),
+  label: z.string(),
+  email: z.string().nullable(),
+  image: z.string().nullable(),
+  capabilities: z.array(zAgentShareCapability),
+  can_own: z.boolean(),
+})
+
+export const zListAgentAccessTargetsResponse = z.object({
+  targets: z.array(zAgentAccessTarget),
 })
 
 export const zSkill = z.object({
@@ -622,6 +656,7 @@ export const zAgent = z.object({
   modified_at: z.iso.datetime(),
   skills: z.array(zResourceReference),
   status: zAgentStatus,
+  capabilities: zAgentCapabilities,
 })
 
 export const zListAgentsResponse = z.object({
@@ -2428,6 +2463,11 @@ export const zUpsertAgentShareResponse = zAgentShare
  * Agent Share deleted.
  */
 export const zDeleteAgentShareResponse = z.void()
+
+/**
+ * Active Users and Teams with their eligible Agent capabilities.
+ */
+export const zListAgentAccessTargetsResponse2 = zListAgentAccessTargetsResponse
 
 /**
  * Directory created.

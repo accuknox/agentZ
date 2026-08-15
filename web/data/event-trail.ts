@@ -46,7 +46,7 @@ export async function listWorkspaceEventTrailEvents(
   if (
     scope.scope.kind !== "ready" ||
     scope.kind !== "ready" ||
-    (!scope.scope.organization.superadmin && !scope.workspace.can_administer)
+    (!scope.scope.organization.superadmin && !scope.workspace.capabilities.administer)
   ) {
     return
   }

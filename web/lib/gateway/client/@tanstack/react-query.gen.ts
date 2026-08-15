@@ -51,6 +51,7 @@ import {
   importImmutableSkills,
   importMutableSkills,
   invokeWorkflowWebhook,
+  listAgentAccessTargets,
   listAgentMutableSkills,
   listAgents,
   listAgentShares,
@@ -249,6 +250,9 @@ import type {
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookError,
   InvokeWorkflowWebhookResponse,
+  ListAgentAccessTargetsData,
+  ListAgentAccessTargetsError,
+  ListAgentAccessTargetsResponse2,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsError,
   ListAgentMutableSkillsResponse,
@@ -1149,7 +1153,7 @@ export const listAgentSharesOptions = (options: Options<ListAgentSharesData>) =>
 /**
  * Create or replace an Agent Share.
  *
- * Creates or replaces one User or Team Agent Share. UseShared grants full non-secret Agent and workflow control.
+ * Creates or replaces one User or Team Agent Share. UseShared permits Agent sessions, files, and workflows; it does not permit Agent modification, deletion, sharing, ownership, or secret access.
  *
  */
 export const upsertAgentShareMutation = (
@@ -1202,6 +1206,31 @@ export const deleteAgentShareMutation = (
   }
   return mutationOptions
 }
+
+export const listAgentAccessTargetsQueryKey = (options: Options<ListAgentAccessTargetsData>) =>
+  createQueryKey("listAgentAccessTargets", options)
+
+/**
+ * List Agent access targets and their eligible capabilities.
+ */
+export const listAgentAccessTargetsOptions = (options: Options<ListAgentAccessTargetsData>) =>
+  queryOptions<
+    ListAgentAccessTargetsResponse2,
+    ListAgentAccessTargetsError,
+    ListAgentAccessTargetsResponse2,
+    ReturnType<typeof listAgentAccessTargetsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentAccessTargets({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentAccessTargetsQueryKey(options),
+  })
 
 /**
  * Create a directory in the agent workspace.

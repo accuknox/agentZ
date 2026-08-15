@@ -195,8 +195,18 @@ async function WorkspaceNavigation({
   const workspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route
   const agents = await listAgentsCachedQuery(undefined, workspace.id)
   const hasAgents = agents.error === undefined && agents.agents.length > 0
-  const showAgents = workspace.can_author_agents || (workspace.can_use_shared_agents && hasAgents)
-  const create = workspace.can_author_agents
+  const showSecrets =
+    agents.error === undefined &&
+    agents.agents.some(
+      (agent) =>
+        agent.capabilities.read_secrets ||
+        agent.capabilities.write_secrets ||
+        agent.capabilities.delete_secrets
+    )
+  const showWorkflows =
+    agents.error === undefined && agents.agents.some((agent) => agent.capabilities.use)
+  const showAgents = workspace.capabilities.agents.author || hasAgents
+  const create = workspace.capabilities.agents.author
     ? await Promise.all([
         listSandboxesCachedQuery({ limit: 50 }, workspace.id),
         listImmutableSkillsCachedQuery(workspace.id),
@@ -208,12 +218,11 @@ async function WorkspaceNavigation({
   const hasResources =
     lensCapabilities.read ||
     skillCapabilities.read ||
-    hasAgents ||
     mcpConnectionCapabilities.read ||
     sandboxCapabilities.read ||
     inferenceProviderCapabilities.read ||
     inferencePoolCapabilities.read
-  const hasWorkspace = showAgents || organization.superadmin || workspace.can_administer
+  const hasWorkspace = showAgents || organization.superadmin || workspace.capabilities.administer
 
   return (
     <>
@@ -228,7 +237,7 @@ async function WorkspaceNavigation({
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}
-            {organization.superadmin || workspace.can_administer ? (
+            {organization.superadmin || workspace.capabilities.administer ? (
               <>
                 <SidebarMenuItem>
                   <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
@@ -253,7 +262,7 @@ async function WorkspaceNavigation({
           <SidebarGroupLabel>Resources</SidebarGroupLabel>
           <SidebarMenu>
             {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
-            {skillCapabilities.read || hasAgents ? (
+            {skillCapabilities.read ? (
               <SidebarMenuItem>
                 <SidebarNavigationLink href={`${workspacePath}/skills` as Route} label="Skills">
                   <ScrollText aria-hidden="true" />
@@ -289,10 +298,12 @@ async function WorkspaceNavigation({
       ) : null}
       {showAgents ? (
         <>
-          <SidebarGroup className="gap-y-1 px-2 py-2">
-            <NavSecrets workspacePath={workspacePath} />
-            <NavWorkflows workspacePath={workspacePath} />
-          </SidebarGroup>
+          {showSecrets || showWorkflows ? (
+            <SidebarGroup className="gap-y-1 px-2 py-2">
+              {showSecrets ? <NavSecrets workspacePath={workspacePath} /> : null}
+              {showWorkflows ? <NavWorkflows workspacePath={workspacePath} /> : null}
+            </SidebarGroup>
+          ) : null}
           <SidebarGroup className="px-2 py-2">
             <SidebarGroupLabel>Agents</SidebarGroupLabel>
             <NavAgents

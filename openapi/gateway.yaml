@@ -329,6 +329,8 @@ components:
     Agent:
       additionalProperties: false
       properties:
+        capabilities:
+          $ref: '#/components/schemas/AgentCapabilities'
         created_at:
           format: date-time
           type: string
@@ -359,6 +361,74 @@ components:
       - modified_at
       - skills
       - status
+      - capabilities
+      type: object
+    AgentAccessTarget:
+      additionalProperties: false
+      properties:
+        can_own:
+          type: boolean
+        capabilities:
+          items:
+            $ref: '#/components/schemas/AgentShareCapability'
+          type: array
+        email:
+          nullable: true
+          type: string
+        id:
+          type: string
+        image:
+          nullable: true
+          type: string
+        kind:
+          $ref: '#/components/schemas/AgentAccessTargetKind'
+        label:
+          type: string
+      required:
+      - kind
+      - id
+      - label
+      - email
+      - image
+      - capabilities
+      - can_own
+      type: object
+    AgentAccessTargetKind:
+      enum:
+      - user
+      - team
+      type: string
+      x-enum-varnames:
+      - AgentAccessTargetKindUser
+      - AgentAccessTargetKindTeam
+    AgentCapabilities:
+      additionalProperties: false
+      properties:
+        delete:
+          type: boolean
+        delete_secrets:
+          type: boolean
+        manage_ownership:
+          type: boolean
+        modify:
+          type: boolean
+        read_secrets:
+          type: boolean
+        share:
+          type: boolean
+        use:
+          type: boolean
+        write_secrets:
+          type: boolean
+      required:
+      - use
+      - modify
+      - delete
+      - share
+      - manage_ownership
+      - read_secrets
+      - write_secrets
+      - delete_secrets
       type: object
     AgentFile:
       allOf:
@@ -515,6 +585,14 @@ components:
       - DELETED
       - IDLE
       type: string
+    AgentWorkspaceCapabilities:
+      additionalProperties: false
+      properties:
+        author:
+          type: boolean
+      required:
+      - author
+      type: object
     AnthropicCompatibleInferenceProviderRead:
       properties:
         anthropic_compatible:
@@ -2325,6 +2403,16 @@ components:
       - additionalProperties:
           $ref: '#/components/schemas/JSONValue'
         type: object
+    ListAgentAccessTargetsResponse:
+      additionalProperties: false
+      properties:
+        targets:
+          items:
+            $ref: '#/components/schemas/AgentAccessTarget'
+          type: array
+      required:
+      - targets
+      type: object
     ListAgentSharesResponse:
       additionalProperties: false
       properties:
@@ -23493,14 +23581,8 @@ components:
     Workspace:
       additionalProperties: false
       properties:
-        api_key_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        can_administer:
-          type: boolean
-        can_author_agents:
-          type: boolean
-        can_use_shared_agents:
-          type: boolean
+        capabilities:
+          $ref: '#/components/schemas/WorkspaceCapabilities'
         created_at:
           format: date-time
           type: string
@@ -23508,26 +23590,14 @@ components:
           type: string
         id:
           type: string
-        inference_pool_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        inference_provider_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        mcp_connection_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
         name:
           type: string
         namespace:
           type: string
-        observability_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
         provisioning_attempt:
           format: int64
           minimum: 1
           type: integer
-        sandbox_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        skill_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
         slug:
           type: string
         state:
@@ -23547,18 +23617,41 @@ components:
       - state
       - provisioning_attempt
       - workspace_admin_count
-      - can_administer
+      - capabilities
       - created_at
       - updated_at
-      - skill_capabilities
-      - mcp_connection_capabilities
-      - sandbox_capabilities
-      - inference_provider_capabilities
-      - inference_pool_capabilities
-      - api_key_capabilities
-      - observability_capabilities
-      - can_author_agents
-      - can_use_shared_agents
+      type: object
+    WorkspaceCapabilities:
+      additionalProperties: false
+      properties:
+        administer:
+          type: boolean
+        agents:
+          $ref: '#/components/schemas/AgentWorkspaceCapabilities'
+        api_keys:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_pools:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_providers:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        mcp_connections:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        observability:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        sandboxes:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        skills:
+          $ref: '#/components/schemas/ResourceCapabilities'
+      required:
+      - administer
+      - agents
+      - skills
+      - mcp_connections
+      - sandboxes
+      - inference_providers
+      - inference_pools
+      - api_keys
+      - observability
       type: object
     WorkspaceInheritedResource:
       additionalProperties: false
@@ -23760,6 +23853,32 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Update an Agent resource.
+      tags:
+      - agents
+  /api/agent/{agentName}/access-targets:
+    get:
+      operationId: listAgentAccessTargets
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAgentAccessTargetsResponse'
+          description: Active Users and Teams with their eligible Agent capabilities.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: List Agent access targets and their eligible capabilities.
       tags:
       - agents
   /api/agent/{agentName}/fs/directory:
@@ -24135,7 +24254,7 @@ paths:
       - agents
     post:
       description: |
-        Creates or replaces one User or Team Agent Share. UseShared grants full non-secret Agent and workflow control.
+        Creates or replaces one User or Team Agent Share. UseShared permits Agent sessions, files, and workflows; it does not permit Agent modification, deletion, sharing, ownership, or secret access.
       operationId: upsertAgentShare
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'

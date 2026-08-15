@@ -1,7 +1,16 @@
 "use client"
 
-import { useActionState, useMemo, useState } from "react"
-import { CircleAlert, RefreshCw, Share2, Trash2 } from "lucide-react"
+import { useActionState, useId, useMemo, useState } from "react"
+import {
+  CircleAlert,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Share2,
+  Trash2,
+  UserRound,
+  UsersRound,
+} from "lucide-react"
 import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import {
   deleteAgentShareFormAction,
@@ -16,9 +25,28 @@ import type { AgentShareCapability } from "@/lib/gateway/client"
 import { AccessSourceChip } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Select,
   SelectContent,
@@ -37,31 +65,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-const capabilities = [
-  {
-    value: "use_shared",
-    label: "Use shared Agent",
-  },
-  {
-    value: "share_non_authored",
-    label: "Delegate sharing",
-  },
-  {
-    value: "read_shared_secret",
-    label: "Read secret metadata",
-  },
-  {
-    value: "write_shared_secret",
-    label: "Write secrets",
-  },
-  {
-    value: "delete_shared_secret",
-    label: "Delete secrets",
-  },
-] as const satisfies readonly {
-  value: AgentShareCapability
-  label: string
-}[]
+const capabilityLabels = {
+  use_shared: "Use shared Agent",
+  share_non_authored: "Delegate sharing",
+  read_shared_secret: "Read secret metadata",
+  write_shared_secret: "Write secrets",
+  delete_shared_secret: "Delete secrets",
+} satisfies Record<AgentShareCapability, string>
+
+const capabilityOptions = Object.entries(capabilityLabels).map(([value, label]) => ({
+  label,
+  value,
+}))
 
 export function AgentOwnerForm({
   actionScope,
@@ -79,10 +94,10 @@ export function AgentOwnerForm({
   const [owner, setOwner] = useState(ownerUserId)
 
   return (
-    <section className="max-w-3xl min-w-0 space-y-3">
+    <section className="flex max-w-3xl min-w-0 flex-col gap-3">
       <h2 className="px-4 text-lg font-medium md:px-6">Transfer ownership</h2>
       <div className="border-b px-4 pb-6 md:px-6">
-        <form action={formAction} className="space-y-5">
+        <form action={formAction} className="flex flex-col gap-5">
           {state.error ? (
             <FormError title="Ownership was not transferred" message={state.error} />
           ) : null}
@@ -125,154 +140,264 @@ export function AgentOwnerForm({
   )
 }
 
-export function AgentShareForm({
+export function AgentShareDialog({
   actionScope,
   agentName,
-  shares,
-  sharesNextPageToken,
   teams,
   users,
 }: {
   actionScope: AgentActionScope
   agentName: string
-  shares: AgentShareRow[]
-  sharesNextPageToken: string
   teams: AgentShareTarget[]
   users: AgentShareTarget[]
 }) {
-  const action = upsertAgentShareFormAction.bind(null, actionScope, agentName)
-  const [state, formAction, pending] = useActionState<AgentShareFormState, FormData>(action, {})
-  const [targetKind, setTargetKind] = useState<"user" | "team">("user")
-  const [targetId, setTargetId] = useState("")
-  const targets = targetKind === "user" ? users : teams
+  const [open, setOpen] = useState(false)
+  const [flow, setFlow] = useState(0)
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <section className="min-w-0 space-y-3">
-        <h2 className="px-4 text-lg font-medium md:px-6">Current shares</h2>
-        <AgentSharesTable
-          actionScope={actionScope}
-          agentName={agentName}
-          nextPageToken={sharesNextPageToken}
-          shares={shares}
-        />
-      </section>
-      <section className="max-w-3xl min-w-0 space-y-3">
-        <h2 className="px-4 text-lg font-medium md:px-6">Add or replace share</h2>
-        <div className="border-b px-4 pb-6 md:px-6">
-          <form action={formAction} className="space-y-5">
-            {state.error ? <FormError title="Share was not saved" message={state.error} /> : null}
-            {state.success ? (
-              <Alert>
-                <AlertTitle>Share saved</AlertTitle>
-                <AlertDescription>The Agent share list was refreshed.</AlertDescription>
-              </Alert>
-            ) : null}
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="share-target-kind" required>
-                  Target type
-                </FieldLabel>
-                <Select
-                  name="target_kind"
-                  value={targetKind}
-                  onValueChange={(value) => {
-                    setTargetKind(value as "user" | "team")
-                    setTargetId("")
-                  }}
-                >
-                  <SelectTrigger id="share-target-kind" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="team">Team</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="share-target-id" required>
-                  Target
-                </FieldLabel>
-                <Select name="target_id" value={targetId} onValueChange={setTargetId}>
-                  <SelectTrigger id="share-target-id" className="w-full">
-                    <SelectValue placeholder={`Choose a ${targetKind}`} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {targets.map((target) => (
-                        <SelectItem key={target.id} value={target.id}>
-                          {target.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel required>Capabilities</FieldLabel>
-                <p className="text-muted-foreground text-sm">
-                  Every share grants Use Shared. Secret and delegation capabilities add to that
-                  baseline and require matching Workspace permissions for the recipient.
-                </p>
-                <div className="grid gap-3">
-                  {capabilities.map((capability) => (
-                    <label
-                      className="hover:bg-muted/40 flex items-start gap-3 py-2"
-                      key={capability.value}
-                    >
-                      <Checkbox
-                        aria-label={capability.label}
-                        name="capabilities"
-                        value={capability.value}
-                      />
-                      <span className="font-medium">{capability.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </Field>
-              <Field orientation="horizontal">
-                <Checkbox
-                  aria-label="Acknowledge full non-secret control"
-                  id="acknowledge-use-shared"
-                  name="acknowledge_use_shared"
-                />
-                <div className="grid gap-1">
-                  <FieldLabel htmlFor="acknowledge-use-shared">
-                    I understand that every share grants full non-secret Agent control
-                  </FieldLabel>
-                </div>
-              </Field>
-            </FieldGroup>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={pending || !targetId}>
-                {pending ? <Spinner /> : <Share2 />}
-                Save share
-              </Button>
-            </div>
-          </form>
-        </div>
-      </section>
-    </div>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) setFlow((value) => value + 1)
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button>
+          <Share2 data-icon="inline-start" />
+          Share Agent
+        </Button>
+      </DialogTrigger>
+      <AgentShareDialogForm
+        actionScope={actionScope}
+        agentName={agentName}
+        key={flow}
+        onSuccessAction={() => setOpen(false)}
+        teams={teams}
+        users={users}
+      />
+    </Dialog>
   )
 }
 
-function AgentSharesTable({
+function AgentShareDialogForm({
+  actionScope,
+  agentName,
+  onSuccessAction,
+  share,
+  teams,
+  users,
+}: {
+  actionScope: AgentActionScope
+  agentName: string
+  onSuccessAction: () => void
+  share?: AgentShareRow
+  teams: AgentShareTarget[]
+  users: AgentShareTarget[]
+}) {
+  const save = upsertAgentShareFormAction.bind(null, actionScope, agentName)
+  const [state, formAction, pending] = useActionState<AgentShareFormState, FormData>(
+    async (previousState, formData) => {
+      const nextState = await save(previousState, formData)
+      if (nextState.success) onSuccessAction()
+      return nextState
+    },
+    {}
+  )
+  const formId = useId()
+  const editing = Boolean(share)
+  const [targetKind, setTargetKind] = useState(share?.target_user_id ? "user" : "team")
+  const [targetId, setTargetId] = useState(share?.target_user_id ?? share?.target_team_id ?? "")
+  const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>(
+    share?.capabilities ?? []
+  )
+  const targets = targetKind === "user" ? users : teams
+  const target = targets.find((candidate) => candidate.id === targetId)
+  const allowedCapabilities = new Set<string>(target?.capabilities)
+
+  return (
+    <DialogContent className="sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>
+          {editing ? "Edit" : "Share"} {agentName}
+        </DialogTitle>
+        <DialogDescription>
+          {editing
+            ? "Change the capabilities granted by this share."
+            : "Add access for a user or team. Saving replaces an existing share for the same target."}
+        </DialogDescription>
+      </DialogHeader>
+      <form action={formAction} className="flex flex-col gap-5">
+        {selectedCapabilities.map((capability) => (
+          <input key={capability} name="capabilities" type="hidden" value={capability} />
+        ))}
+        <input name="target_kind" type="hidden" value={targetKind} />
+        <input name="target_id" type="hidden" value={targetId} />
+        {state.error ? <FormError title="Share was not saved" message={state.error} /> : null}
+        <FieldGroup className="grid sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${formId}-target-kind`} required>
+              Target type
+            </FieldLabel>
+            <Select
+              disabled={editing}
+              value={targetKind}
+              onValueChange={(value) => {
+                setTargetKind(value)
+                setTargetId("")
+                setSelectedCapabilities([])
+              }}
+            >
+              <SelectTrigger id={`${formId}-target-kind`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="user">
+                    <UserRound aria-hidden="true" />
+                    User
+                  </SelectItem>
+                  <SelectItem value="team">
+                    <UsersRound aria-hidden="true" />
+                    Team
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-target-id`} required>
+              Target
+            </FieldLabel>
+            <Select
+              disabled={editing}
+              value={targetId}
+              onValueChange={(value) => {
+                setTargetId(value)
+                setSelectedCapabilities([])
+              }}
+            >
+              <SelectTrigger id={`${formId}-target-id`} className="w-full">
+                <SelectValue placeholder={`Choose a ${targetKind}`} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {targets.map((target) => (
+                    <SelectItem
+                      disabled={target.capabilities.length === 0}
+                      key={target.id}
+                      value={target.id}
+                    >
+                      {targetKind === "user" ? (
+                        <Avatar size="sm">
+                          <AvatarImage alt={target.label} src={target.image ?? undefined} />
+                          <AvatarFallback>{target.label.slice(0, 1).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      ) : (
+                        <UsersRound aria-hidden="true" />
+                      )}
+                      <span className="truncate">{target.label}</span>
+                      {target.capabilities.length === 0 ? (
+                        <span className="text-muted-foreground">No eligible permissions</span>
+                      ) : null}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field className="sm:col-span-2">
+            <FieldLabel htmlFor={`${formId}-capabilities`} required>
+              Capabilities
+            </FieldLabel>
+            <MultiSelectDropdown
+              emptyMessage="No capabilities available."
+              disabled={!target}
+              id={`${formId}-capabilities`}
+              onValueChangeAction={setSelectedCapabilities}
+              options={capabilityOptions.filter((option) => allowedCapabilities.has(option.value))}
+              placeholder="Select capabilities"
+              searchPlaceholder="Search capabilities..."
+              value={selectedCapabilities}
+            />
+            <FieldDescription>
+              Only capabilities backed by the target&apos;s effective Workspace permissions are
+              available.
+            </FieldDescription>
+          </Field>
+        </FieldGroup>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button
+            data-dialog-submit
+            type="submit"
+            disabled={pending || !targetId || selectedCapabilities.length === 0}
+          >
+            {pending ? <Spinner /> : <Share2 data-icon="inline-start" />}
+            {pending ? "Saving..." : editing ? "Save changes" : "Save share"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  )
+}
+
+export function AgentSharesTable({
   actionScope,
   agentName,
   nextPageToken,
   shares,
+  teams,
+  users,
 }: {
   actionScope: AgentActionScope
   agentName: string
   nextPageToken: string
   shares: AgentShareRow[]
+  teams: AgentShareTarget[]
+  users: AgentShareTarget[]
 }) {
   "use no memo"
 
   const columns = useMemo<ColumnDef<AgentShareRow>[]>(
     () => [
-      { accessorKey: "target_label", header: "Target" },
+      {
+        accessorKey: "target_label",
+        header: "Target",
+        cell: ({ row }) => (
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar>
+              {row.original.target_user_id ? (
+                <AvatarImage alt={row.original.target_label} src={row.original.target_image} />
+              ) : null}
+              <AvatarFallback>
+                {row.original.target_user_id ? (
+                  row.original.target_label.slice(0, 1).toUpperCase()
+                ) : (
+                  <UsersRound aria-hidden className="size-4" />
+                )}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <div className="truncate font-medium" title={row.original.target_label}>
+                {row.original.target_label}
+              </div>
+              {row.original.target_email ? (
+                <div
+                  className="text-muted-foreground truncate text-xs"
+                  title={row.original.target_email}
+                >
+                  {row.original.target_email}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ),
+      },
       {
         id: "source",
         header: "Source",
@@ -283,23 +408,32 @@ function AgentSharesTable({
       {
         accessorKey: "capabilities",
         header: "Capabilities",
-        cell: ({ row }) =>
-          row.original.capabilities.map((capability) => capability.replaceAll("_", " ")).join(", "),
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.capabilities.map((capability) => (
+              <Badge key={capability} variant="secondary">
+                {capabilityLabels[capability]}
+              </Badge>
+            ))}
+          </div>
+        ),
       },
       { accessorKey: "created_by_label", header: "Created by" },
       {
         id: "actions",
         header: "Actions",
         cell: ({ row }) => (
-          <DeleteShareButton
+          <AgentShareActions
             actionScope={actionScope}
             agentName={agentName}
-            shareId={row.original.id}
+            share={row.original}
+            teams={teams}
+            users={users}
           />
         ),
       },
     ],
-    [actionScope, agentName]
+    [actionScope, agentName, teams, users]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({ columns, data: shares, getCoreRowModel: getCoreRowModel() })
@@ -346,7 +480,7 @@ function AgentSharesTable({
             ) : (
               <TableRow>
                 <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  No shares
+                  <span className="text-muted-foreground">No shares yet</span>
                 </TableCell>
               </TableRow>
             )}
@@ -358,32 +492,72 @@ function AgentSharesTable({
   )
 }
 
-function DeleteShareButton({
+function AgentShareActions({
   actionScope,
   agentName,
-  shareId,
+  share,
+  teams,
+  users,
 }: {
   actionScope: AgentActionScope
   agentName: string
-  shareId: string
+  share: AgentShareRow
+  teams: AgentShareTarget[]
+  users: AgentShareTarget[]
 }) {
   const action = deleteAgentShareFormAction.bind(null, actionScope, agentName)
   const [state, formAction, pending] = useActionState<AgentShareFormState, FormData>(action, {})
+  const formId = useId()
+  const [editOpen, setEditOpen] = useState(false)
+  const targetExists = share.target_user_id
+    ? users.some((user) => user.id === share.target_user_id)
+    : teams.some((team) => team.id === share.target_team_id)
 
   return (
-    <form action={formAction} className="inline-flex flex-col items-end gap-2">
-      <input name="share_id" type="hidden" value={shareId} />
-      <Button
-        aria-label="Delete share"
-        size="icon"
-        type="submit"
-        variant="ghost"
-        disabled={pending}
-      >
-        {pending ? <Spinner /> : <Trash2 />}
-      </Button>
+    <div className="inline-flex flex-col items-end gap-2">
+      <form action={formAction} id={formId}>
+        <input name="share_id" type="hidden" value={share.id} />
+      </form>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button aria-label="Share actions" disabled={pending} size="icon" variant="ghost">
+            {pending ? <Spinner /> : <MoreHorizontal />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            {targetExists ? (
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault()
+                  setEditOpen(true)
+                }}
+              >
+                <Pencil />
+                Edit share
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem asChild variant="destructive">
+              <button form={formId} type="submit">
+                <Trash2 />
+                Remove share
+              </button>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <AgentShareDialogForm
+          actionScope={actionScope}
+          agentName={agentName}
+          onSuccessAction={() => setEditOpen(false)}
+          share={share}
+          teams={teams}
+          users={users}
+        />
+      </Dialog>
       {state.error ? <span className="text-destructive text-xs">{state.error}</span> : null}
-    </form>
+    </div>
   )
 }
 

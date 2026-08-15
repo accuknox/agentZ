@@ -12,11 +12,11 @@ export default async function WorkspaceInferenceProvidersPage({
   const { orgSlug, workspaceSlug } = await params
   const { page_token } = await searchParams
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
-  if (scope.kind !== "ready" || !scope.workspace.inference_provider_capabilities.read)
+  if (scope.kind !== "ready" || !scope.workspace.capabilities.inference_providers.read)
     return <AdministrationState kind="forbidden" />
   return (
     <InferenceProvidersPage
-      capabilities={scope.workspace.inference_provider_capabilities}
+      capabilities={scope.workspace.capabilities.inference_providers}
       pageToken={page_token}
       scope={{ workspaceId: scope.workspace.id }}
     />

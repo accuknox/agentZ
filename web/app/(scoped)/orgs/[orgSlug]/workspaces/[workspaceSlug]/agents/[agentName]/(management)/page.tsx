@@ -22,11 +22,7 @@ export default async function WorkspaceAgentPage({
     notFound()
   }
 
-  const detail = await getWorkspaceAgentDetail(
-    scope.scope.organization.id,
-    scope.workspace.id,
-    agentName
-  )
+  const detail = await getWorkspaceAgentDetail(scope.workspace.id, agentName)
   if (!detail) {
     notFound()
   }
@@ -52,29 +48,31 @@ export default async function WorkspaceAgentPage({
           </Table>
         </div>
       </section>
-      <section className="min-w-0 space-y-3">
-        <h2 className="px-4 text-lg font-medium md:px-6">Access</h2>
-        <div className="w-full min-w-0 border-b">
-          <Table aria-label={`${detail.agent.name} access summary`}>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Source</TableHead>
-                <TableHead>Principal</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell>Owner</TableCell>
-                <TableCell className="break-words">{detail.ownerLabel}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Creator</TableCell>
-                <TableCell className="break-words">{detail.creatorLabel}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </section>
+      {detail.agent.capabilities.share || detail.agent.capabilities.manage_ownership ? (
+        <section className="min-w-0 space-y-3">
+          <h2 className="px-4 text-lg font-medium md:px-6">Access</h2>
+          <div className="w-full min-w-0 border-b">
+            <Table aria-label={`${detail.agent.name} access summary`}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Principal</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell>Owner</TableCell>
+                  <TableCell className="break-words">{detail.ownerLabel}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Creator</TableCell>
+                  <TableCell className="break-words">{detail.creatorLabel}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

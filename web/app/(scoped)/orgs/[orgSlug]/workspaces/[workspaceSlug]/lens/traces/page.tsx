@@ -87,7 +87,7 @@ export default async function TracesPage({
   if (workspace.kind !== "ready") {
     return <ErrorPanel message="Workspace is unavailable" />
   }
-  if (!workspace.workspace.observability_capabilities.read) {
+  if (!workspace.workspace.capabilities.observability.read) {
     return <ErrorPanel message="You do not have Lens access in this Workspace" />
   }
 

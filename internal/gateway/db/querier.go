@@ -16,7 +16,6 @@ type Querier interface {
 	GatewayAddSocialAdmissionDefaultTeam(ctx context.Context, arg GatewayAddSocialAdmissionDefaultTeamParams) error
 	GatewayAddSocialAdmissionGoogleDomain(ctx context.Context, arg GatewayAddSocialAdmissionGoogleDomainParams) error
 	GatewayAgentExists(ctx context.Context, arg GatewayAgentExistsParams) (bool, error)
-	GatewayAgentShareCapabilityExists(ctx context.Context, arg GatewayAgentShareCapabilityExistsParams) (bool, error)
 	GatewayAssignInvitationRole(ctx context.Context, arg GatewayAssignInvitationRoleParams) error
 	GatewayAssignInvitationTeam(ctx context.Context, arg GatewayAssignInvitationTeamParams) error
 	GatewayAssignTeamRole(ctx context.Context, arg GatewayAssignTeamRoleParams) error
@@ -65,9 +64,10 @@ type Querier interface {
 	GatewayIsActiveSuperadmin(ctx context.Context, arg GatewayIsActiveSuperadminParams) (bool, error)
 	GatewayListAPIKeyScopes(ctx context.Context, arg GatewayListAPIKeyScopesParams) ([]ApiKeyScope, error)
 	GatewayListAPIKeyTargets(ctx context.Context, apiKeyID string) ([]GatewayListAPIKeyTargetsRow, error)
-	GatewayListAccessibleAgentNames(ctx context.Context, arg GatewayListAccessibleAgentNamesParams) ([]string, error)
 	GatewayListAccessibleWorkspaces(ctx context.Context, arg GatewayListAccessibleWorkspacesParams) ([]GatewayListAccessibleWorkspacesRow, error)
 	GatewayListActiveTeamUserIDs(ctx context.Context, arg GatewayListActiveTeamUserIDsParams) ([]string, error)
+	GatewayListAgentAccessTargets(ctx context.Context, arg GatewayListAgentAccessTargetsParams) ([]GatewayListAgentAccessTargetsRow, error)
+	GatewayListAgentRelationships(ctx context.Context, arg GatewayListAgentRelationshipsParams) ([]GatewayListAgentRelationshipsRow, error)
 	GatewayListAgentShareGrants(ctx context.Context, arg GatewayListAgentShareGrantsParams) ([]AgentShareGrant, error)
 	GatewayListAgentShares(ctx context.Context, arg GatewayListAgentSharesParams) ([]AgentShare, error)
 	GatewayListAgents(ctx context.Context, arg GatewayListAgentsParams) ([]Agent, error)
@@ -94,6 +94,7 @@ type Querier interface {
 	GatewayListSocialAdmissionGithubRules(ctx context.Context, organizationID string) ([]SocialAdmissionGithubRule, error)
 	GatewayListSocialAdmissionGoogleDomains(ctx context.Context, organizationID string) ([]SocialAdmissionGoogleDomain, error)
 	GatewayListSpans(ctx context.Context, arg GatewayListSpansParams) ([]GatewayListSpansRow, error)
+	GatewayListTeamAgentShareCapabilities(ctx context.Context, arg GatewayListTeamAgentShareCapabilitiesParams) ([]PermissionAction, error)
 	GatewayListTeamRoles(ctx context.Context, arg GatewayListTeamRolesParams) ([]TeamRole, error)
 	GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]GatewayListTraceSessionsRow, error)
 	GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]GatewayListTracesRow, error)

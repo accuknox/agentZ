@@ -62,8 +62,8 @@ export async function getWorkspaceAPIKeyAccess(
   }
 
   return {
-    canAdminister: result.data.can_administer,
-    capabilities: result.data.api_key_capabilities,
+    canAdminister: result.data.capabilities.administer,
+    capabilities: result.data.capabilities.api_keys,
   }
 }
 

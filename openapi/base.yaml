@@ -760,8 +760,9 @@ paths:
       operationId: upsertAgentShare
       summary: Create or replace an Agent Share.
       description: >
-        Creates or replaces one User or Team Agent Share. UseShared grants full
-        non-secret Agent and workflow control.
+        Creates or replaces one User or Team Agent Share. UseShared permits
+        Agent sessions, files, and workflows; it does not permit Agent
+        modification, deletion, sharing, ownership, or secret access.
       tags: [agents]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -804,6 +805,29 @@ paths:
       responses:
         '204':
           description: Agent Share deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/access-targets:
+    get:
+      operationId: listAgentAccessTargets
+      summary: List Agent access targets and their eligible capabilities.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        '200':
+          description: Active Users and Teams with their eligible Agent capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAgentAccessTargetsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':
@@ -3986,30 +4010,12 @@ components:
           minimum: 1
         failure_reason:
           type: string
-        skill_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        mcp_connection_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        sandbox_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        inference_provider_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        inference_pool_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        api_key_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        observability_capabilities:
-          $ref: '#/components/schemas/ResourceCapabilities'
-        can_author_agents:
-          type: boolean
-        can_use_shared_agents:
-          type: boolean
+        capabilities:
+          $ref: '#/components/schemas/WorkspaceCapabilities'
         workspace_admin_count:
           type: integer
           format: int64
           minimum: 0
-        can_administer:
-          type: boolean
         created_at:
           type: string
           format: date-time
@@ -4024,18 +4030,50 @@ components:
       - state
       - provisioning_attempt
       - workspace_admin_count
-      - can_administer
+      - capabilities
       - created_at
       - updated_at
-      - skill_capabilities
-      - mcp_connection_capabilities
-      - sandbox_capabilities
-      - inference_provider_capabilities
-      - inference_pool_capabilities
-      - api_key_capabilities
-      - observability_capabilities
-      - can_author_agents
-      - can_use_shared_agents
+
+    WorkspaceCapabilities:
+      type: object
+      additionalProperties: false
+      properties:
+        administer:
+          type: boolean
+        agents:
+          $ref: '#/components/schemas/AgentWorkspaceCapabilities'
+        skills:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        mcp_connections:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        sandboxes:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_providers:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_pools:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        api_keys:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        observability:
+          $ref: '#/components/schemas/ResourceCapabilities'
+      required:
+      - administer
+      - agents
+      - skills
+      - mcp_connections
+      - sandboxes
+      - inference_providers
+      - inference_pools
+      - api_keys
+      - observability
+
+    AgentWorkspaceCapabilities:
+      type: object
+      additionalProperties: false
+      properties:
+        author:
+          type: boolean
+      required: [author]
 
     ListWorkspacesResponse:
       type: object
@@ -4612,6 +4650,8 @@ components:
             $ref: '#/components/schemas/ResourceReference'
         status:
           $ref: '#/components/schemas/AgentStatus'
+        capabilities:
+          $ref: '#/components/schemas/AgentCapabilities'
       required:
       - name
       - sandbox
@@ -4621,6 +4661,37 @@ components:
       - modified_at
       - skills
       - status
+      - capabilities
+
+    AgentCapabilities:
+      type: object
+      additionalProperties: false
+      properties:
+        use:
+          type: boolean
+        modify:
+          type: boolean
+        delete:
+          type: boolean
+        share:
+          type: boolean
+        manage_ownership:
+          type: boolean
+        read_secrets:
+          type: boolean
+        write_secrets:
+          type: boolean
+        delete_secrets:
+          type: boolean
+      required:
+      - use
+      - modify
+      - delete
+      - share
+      - manage_ownership
+      - read_secrets
+      - write_secrets
+      - delete_secrets
 
     AgentOwner:
       type: object
@@ -4691,6 +4762,47 @@ components:
       - AgentShareCapabilityReadSharedSecret
       - AgentShareCapabilityWriteSharedSecret
       - AgentShareCapabilityDeleteSharedSecret
+
+    AgentAccessTargetKind:
+      type: string
+      enum: [user, team]
+      x-enum-varnames:
+      - AgentAccessTargetKindUser
+      - AgentAccessTargetKindTeam
+
+    AgentAccessTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: '#/components/schemas/AgentAccessTargetKind'
+        id:
+          type: string
+        label:
+          type: string
+        email:
+          type: string
+          nullable: true
+        image:
+          type: string
+          nullable: true
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentShareCapability'
+        can_own:
+          type: boolean
+      required: [kind, id, label, email, image, capabilities, can_own]
+
+    ListAgentAccessTargetsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentAccessTarget'
+      required: [targets]
 
     Skill:
       type: object

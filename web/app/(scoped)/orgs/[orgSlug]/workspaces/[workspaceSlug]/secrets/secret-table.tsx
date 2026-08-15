@@ -97,6 +97,7 @@ export function SecretTable({
   hasNextPage,
   nextPageToken,
   deleteSecretAction,
+  canDelete,
   workspaceId,
 }: {
   agentName: string
@@ -104,6 +105,7 @@ export function SecretTable({
   hasNextPage: boolean
   nextPageToken: string
   deleteSecretAction: DeleteSecretFormAction
+  canDelete: boolean
   workspaceId: string
 }) {
   "use no memo"
@@ -112,8 +114,8 @@ export function SecretTable({
   const query = useQuery(watchSecretsQueryOptions(agentName, workspaceId, secrets))
   const rows = query.data ?? secrets
   const columns = React.useMemo(
-    () => createSecretColumns(agentName, deleteSecretAction),
-    [agentName, deleteSecretAction]
+    () => createSecretColumns(agentName, deleteSecretAction, canDelete),
+    [agentName, deleteSecretAction, canDelete]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.

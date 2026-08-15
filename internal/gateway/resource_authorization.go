@@ -194,15 +194,14 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 }
 
 type resourceCapabilitySet struct {
-	skill              gatewayapi.ResourceCapabilities
-	mcp                gatewayapi.ResourceCapabilities
-	sandbox            gatewayapi.ResourceCapabilities
-	inferenceProvider  gatewayapi.ResourceCapabilities
-	inferencePool      gatewayapi.ResourceCapabilities
-	apiKey             gatewayapi.ResourceCapabilities
-	observability      gatewayapi.ResourceCapabilities
-	canAuthorAgents    bool
-	canUseSharedAgents bool
+	skill             gatewayapi.ResourceCapabilities
+	mcp               gatewayapi.ResourceCapabilities
+	sandbox           gatewayapi.ResourceCapabilities
+	inferenceProvider gatewayapi.ResourceCapabilities
+	inferencePool     gatewayapi.ResourceCapabilities
+	apiKey            gatewayapi.ResourceCapabilities
+	observability     gatewayapi.ResourceCapabilities
+	canAuthorAgents   bool
 }
 
 func resourceScope(workspaceID string) gatewayapi.ResourceScope {
@@ -253,10 +252,6 @@ func resourceCapabilities(effective authorization.Effective, organizationID, wor
 		capabilities.canAuthorAgents = effective.Allows(
 			scope,
 			authorization.OperationCreateAgent,
-		)
-		capabilities.canUseSharedAgents = effective.Allows(
-			scope,
-			authorization.OperationUseSharedAgent,
 		)
 		capabilities.inferencePool = gatewayapi.ResourceCapabilities{
 			Read:   effective.Allows(scope, authorization.OperationListInferencePools),

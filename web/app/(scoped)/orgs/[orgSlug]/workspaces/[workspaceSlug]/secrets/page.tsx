@@ -1,9 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { Suspense } from "react"
 import * as z from "zod"
-import { Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { AdministrationState } from "@/components/administration"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import {
   deleteSecretFormAction,
@@ -11,7 +9,6 @@ import {
   startOAuthSecretFormAction,
 } from "@/data/secret.actions"
 import { listSecretsCachedQuery } from "@/data/secret.queries"
-import type { DeleteSecretFormAction, PutSecretFormAction } from "@/data/types"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
@@ -32,8 +29,6 @@ type SearchParams = {
   agent_name?: SearchParamStringInput
 }
 
-type ResolvedSearchParams = z.output<typeof secretsSearchParamsSchema>
-
 export default async function SecretsPage({
   params,
   searchParams,
@@ -46,7 +41,41 @@ export default async function SecretsPage({
   if (workspace.kind !== "ready") {
     notFound()
   }
+  const agents = await listAgentsCachedQuery(undefined, workspace.workspace.id)
+  if (agents.error) {
+    return (
+      <AdministrationState
+        description={agents.error.message}
+        kind={agents.error.code === "forbidden" ? "forbidden" : "failed"}
+        title={agents.error.code === "forbidden" ? undefined : "Unable to load Agents"}
+      />
+    )
+  }
+  const readableAgents = agents.agents.filter((agent) => agent.capabilities.read_secrets)
+  const firstReadableAgent = readableAgents[0]
+  if (!firstReadableAgent) {
+    return <AdministrationState kind="forbidden" />
+  }
   const parsed = secretsSearchParamsSchema.parse(search)
+  const selectedAgent =
+    readableAgents.find((agent) => agent.name === parsed.agent_name) ?? firstReadableAgent
+  const writableAgent =
+    readableAgents.find(
+      (agent) => agent.name === parsed.agent_name && agent.capabilities.write_secrets
+    ) ?? readableAgents.find((agent) => agent.capabilities.write_secrets)
+  const result = await listSecretsCachedQuery(selectedAgent.name, workspace.workspace.id, {
+    limit: 50,
+    page_token: parsed.page_token,
+  })
+  if (result.error) {
+    return (
+      <AdministrationState
+        description={result.error.code === "forbidden" ? undefined : result.error.message}
+        kind={result.error.code === "forbidden" ? "forbidden" : "failed"}
+        title={result.error.code === "forbidden" ? undefined : "Unable to load secrets"}
+      />
+    )
+  }
   const actionScope = {
     basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
     workspaceId: workspace.workspace.id,
@@ -58,170 +87,25 @@ export default async function SecretsPage({
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-normal">Secrets</h1>
         </div>
-        <Suspense
-          fallback={
-            <Button disabled>
-              <Plus />
-              Create
-            </Button>
-          }
-        >
-          <NewSecretButtonShell
-            searchParams={parsed}
+        {writableAgent ? (
+          <NewSecretButton
+            key={writableAgent.name}
+            agentName={writableAgent.name}
             putSecretAction={putSecretFormAction.bind(null, actionScope)}
             startOAuthAction={startOAuthSecretFormAction.bind(null, actionScope)}
-            workspaceId={workspace.workspace.id}
           />
-        </Suspense>
+        ) : null}
       </div>
-      <Suspense fallback={<FiltersSkeleton />}>
-        <Filters searchParams={parsed} workspaceId={workspace.workspace.id} />
-      </Suspense>
-      <Suspense fallback={<TableSkeleton />}>
-        <Secrets
-          searchParams={parsed}
-          deleteSecretAction={deleteSecretFormAction.bind(null, actionScope)}
-          workspaceId={workspace.workspace.id}
-        />
-      </Suspense>
+      <SecretsFilters agents={readableAgents} selectedAgentName={selectedAgent.name} />
+      <SecretTable
+        agentName={selectedAgent.name}
+        secrets={result.items}
+        hasNextPage={result.hasNextPage}
+        nextPageToken={result.nextPageToken}
+        deleteSecretAction={deleteSecretFormAction.bind(null, actionScope)}
+        canDelete={selectedAgent.capabilities.delete_secrets}
+        workspaceId={workspace.workspace.id}
+      />
     </main>
-  )
-}
-
-async function NewSecretButtonShell({
-  searchParams,
-  putSecretAction,
-  startOAuthAction,
-  workspaceId,
-}: {
-  searchParams: ResolvedSearchParams
-  putSecretAction: PutSecretFormAction
-  startOAuthAction: PutSecretFormAction
-  workspaceId: string
-}) {
-  const agents = listAgentsCachedQuery(undefined, workspaceId)
-  const agentName = searchParams.agent_name
-  const result = await agents
-  if (result.error || !result.agents || result.agents.length === 0) {
-    return (
-      <Button disabled>
-        <Plus />
-        Create
-      </Button>
-    )
-  }
-
-  const firstAgent = result.agents[0]
-  if (!firstAgent) {
-    return (
-      <Button disabled>
-        <Plus />
-        Create
-      </Button>
-    )
-  }
-
-  const selectedAgent = result.agents.find((agent) => agent.name === agentName) ?? firstAgent
-
-  return (
-    <NewSecretButton
-      key={selectedAgent.name}
-      agentName={selectedAgent.name}
-      putSecretAction={putSecretAction}
-      startOAuthAction={startOAuthAction}
-    />
-  )
-}
-
-async function Filters({
-  searchParams,
-  workspaceId,
-}: {
-  searchParams: ResolvedSearchParams
-  workspaceId: string
-}) {
-  const agents = listAgentsCachedQuery(undefined, workspaceId)
-  const agentName = searchParams.agent_name
-  const result = await agents
-  if (result.error) {
-    return <ErrorPanel message={result.error.message} />
-  }
-
-  const selectedAgent = result.agents.find((agent) => agent.name === agentName) ?? result.agents[0]
-
-  return <SecretsFilters agents={result.agents} selectedAgentName={selectedAgent?.name} />
-}
-
-async function Secrets({
-  searchParams,
-  deleteSecretAction,
-  workspaceId,
-}: {
-  searchParams: ResolvedSearchParams
-  deleteSecretAction: DeleteSecretFormAction
-  workspaceId: string
-}) {
-  const agents = listAgentsCachedQuery(undefined, workspaceId)
-  const agentName = searchParams.agent_name
-  const pageToken = searchParams.page_token
-  const agentsResult = await agents
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents.find((agent) => agent.name === agentName) ?? agentsResult.agents[0]
-  if (!selectedAgent) {
-    return <EmptyState message="No agents available" />
-  }
-
-  const result = await listSecretsCachedQuery(selectedAgent.name, workspaceId, {
-    limit: 50,
-    page_token: pageToken,
-  })
-
-  if (result.error) {
-    return <ErrorPanel message={result.error.message} />
-  }
-
-  return (
-    <SecretTable
-      agentName={selectedAgent.name}
-      secrets={result.items}
-      hasNextPage={result.hasNextPage}
-      nextPageToken={result.nextPageToken}
-      deleteSecretAction={deleteSecretAction}
-      workspaceId={workspaceId}
-    />
-  )
-}
-
-function FiltersSkeleton() {
-  return <div className="bg-muted/20 h-15 border-b" />
-}
-
-function TableSkeleton() {
-  return (
-    <div className="flex flex-1 flex-col gap-4 p-4">
-      <div className="bg-muted/20 h-8 w-full rounded" />
-      <div className="bg-muted/20 h-8 w-full rounded" />
-      <div className="bg-muted/20 h-8 w-full rounded" />
-      <div className="bg-muted/20 h-8 w-full rounded" />
-      <div className="bg-muted/20 h-8 w-full rounded" />
-    </div>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">{message}</div>
-  )
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
-      {message}
-    </div>
   )
 }

@@ -12,12 +12,12 @@ import {
   transferAgentOwner,
   updateAgent,
   upsertAgentShare,
-  type AgentShareCapability,
 } from "@/lib/gateway/client"
 import type { CreateAgentFormState, DeleteAgentFormState } from "@/data/types"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { zAgentShareCapability } from "@/lib/gateway/client/zod.gen"
 
 export type AgentActionScope = {
   basePath: string
@@ -38,25 +38,11 @@ const transferAgentOwnerFormSchema = z.object({
   owner_user_id: z.string().min(1, "Choose a new owner"),
 })
 
-const agentShareCapabilities = [
-  "share_non_authored",
-  "use_shared",
-  "read_shared_secret",
-  "write_shared_secret",
-  "delete_shared_secret",
-] as const satisfies readonly AgentShareCapability[]
-
-const upsertAgentShareFormSchema = z
-  .object({
-    target_kind: z.enum(["user", "team"]),
-    target_id: z.string().min(1, "Choose a share target"),
-    capabilities: z.array(z.enum(agentShareCapabilities)).min(1, "Choose at least one capability"),
-    acknowledge_use_shared: z.boolean(),
-  })
-  .refine((value) => value.acknowledge_use_shared, {
-    message: "Acknowledge the control granted by Use Shared",
-    path: ["acknowledge_use_shared"],
-  })
+const upsertAgentShareFormSchema = z.object({
+  target_kind: z.enum(["user", "team"]),
+  target_id: z.string().min(1, "Choose a share target"),
+  capabilities: z.array(zAgentShareCapability).min(1, "Choose at least one capability"),
+})
 
 const deleteAgentShareFormSchema = z.object({
   share_id: z.string().min(1, "Choose a share"),
@@ -195,7 +181,6 @@ export async function upsertAgentShareFormAction(
   const parsed = upsertAgentShareFormSchema.safeParse({
     ...Object.fromEntries(formData),
     capabilities: formData.getAll("capabilities"),
-    acknowledge_use_shared: formData.has("acknowledge_use_shared"),
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid share" }

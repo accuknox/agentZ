@@ -11,7 +11,7 @@ export default async function UpdateWorkspaceSandboxPage({
 }) {
   const values = await params
   const scope = await getWorkspaceScope(values.orgSlug, values.workspaceSlug)
-  if (scope.kind !== "ready" || !scope.workspace.sandbox_capabilities.read)
+  if (scope.kind !== "ready" || !scope.workspace.capabilities.sandboxes.read)
     return <AdministrationState kind="forbidden" />
   const basePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/sandboxes`
   return (

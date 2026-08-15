@@ -40,9 +40,10 @@ export function createAgentColumns(
   sandboxes: Sandbox[],
   initialHasNextSandboxPage: boolean,
   initialNextSandboxPageToken: string,
-  actionScope: AgentActionScope
+  actionScope: AgentActionScope,
+  showActions: boolean
 ): ColumnDef<Agent>[] {
-  return [
+  const columns: ColumnDef<Agent>[] = [
     {
       accessorKey: "name",
       header: ({ column }) => (
@@ -94,6 +95,8 @@ export function createAgentColumns(
       },
     },
   ]
+  if (!showActions) columns.pop()
+  return columns
 }
 
 function AgentActions({
@@ -132,41 +135,49 @@ function AgentActions({
               Settings
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setEditOpen(true)
-            }}
-          >
-            <Pencil />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
+          {agent.capabilities.modify ? (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setEditOpen(true)
+              }}
+            >
+              <Pencil />
+              Edit
+            </DropdownMenuItem>
+          ) : null}
+          {agent.capabilities.delete ? (
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+              <Trash2 />
+              Delete
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      <AgentDialog
-        mode="update"
-        actionScope={actionScope}
-        agentName={agent.name}
-        initialSandboxName={agent.sandbox.name}
-        initialMemoryEnabled={agent.memory.enabled}
-        initialSkills={agent.skills.map((skill) => skill.name)}
-        immutableSkills={immutableSkills}
-        sandboxes={sandboxes}
-        initialHasNextSandboxPage={initialHasNextSandboxPage}
-        initialNextSandboxPageToken={initialNextSandboxPageToken}
-        open={editOpen}
-        onOpenChangeAction={setEditOpen}
-      />
-      <DeleteAgentDialog
-        agent={agent}
-        deleteAgentAction={deleteAgentAction}
-        open={deleteOpen}
-        setOpen={setDeleteOpen}
-      />
+      {agent.capabilities.modify ? (
+        <AgentDialog
+          mode="update"
+          actionScope={actionScope}
+          agentName={agent.name}
+          initialSandboxName={agent.sandbox.name}
+          initialMemoryEnabled={agent.memory.enabled}
+          initialSkills={agent.skills.map((skill) => skill.name)}
+          immutableSkills={immutableSkills}
+          sandboxes={sandboxes}
+          initialHasNextSandboxPage={initialHasNextSandboxPage}
+          initialNextSandboxPageToken={initialNextSandboxPageToken}
+          open={editOpen}
+          onOpenChangeAction={setEditOpen}
+        />
+      ) : null}
+      {agent.capabilities.delete ? (
+        <DeleteAgentDialog
+          agent={agent}
+          deleteAgentAction={deleteAgentAction}
+          open={deleteOpen}
+          setOpen={setDeleteOpen}
+        />
+      ) : null}
     </div>
   )
 }

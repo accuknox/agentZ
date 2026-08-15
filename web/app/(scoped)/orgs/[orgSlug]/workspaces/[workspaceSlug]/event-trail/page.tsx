@@ -17,7 +17,7 @@ export default async function WorkspaceEventTrailPage({
   const [{ orgSlug, workspaceSlug }, raw] = await Promise.all([params, searchParams])
   const search = eventTrailQuerySchema.parse(raw)
   const body = {
-    filters: search.filters ?? [],
+    filters: search.filters,
     limit: 50,
     page_token: search.page_token,
   } satisfies ListEventTrailEventsData["body"]
@@ -29,6 +29,7 @@ export default async function WorkspaceEventTrailPage({
   return (
     <EventTrailEvents
       actorImages={result.actorImages}
+      chart={result.chart}
       eventTrail={result.eventTrail}
       filters={body.filters}
       workspace={result.workspace}

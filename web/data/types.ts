@@ -151,21 +151,21 @@ export type NetworkTelemetryRow = {
 
 export type ProcessTelemetryActionData = {
   rows: ProcessTelemetryRow[]
-  chart: TraceChartActionData
+  chart: EventsChartData
   nextPageToken: string
   hasNextPage: boolean
 }
 
 export type FileTelemetryActionData = {
   rows: FileTelemetryRow[]
-  chart: TraceChartActionData
+  chart: EventsChartData
   nextPageToken: string
   hasNextPage: boolean
 }
 
 export type NetworkTelemetryActionData = {
   rows: NetworkTelemetryRow[]
-  chart: TraceChartActionData
+  chart: EventsChartData
   nextPageToken: string
   hasNextPage: boolean
 }
@@ -182,17 +182,14 @@ export type NetworkTelemetryActionResponse =
   | { data: NetworkTelemetryActionData; error: undefined }
   | { data: undefined; error: Error }
 
-export type TraceChartPoint = {
+export type EventsChartPoint = {
   label: string
   count: number
-  startedAfter: string
-  startedBefore: string
 }
 
-export type TraceChartActionData = {
-  points: TraceChartPoint[]
+export type EventsChartData = {
+  points: EventsChartPoint[]
   total: number
-  granularity: string
 }
 
 export type ListTracesActionResponse =
@@ -205,9 +202,9 @@ export type ListTracesActionResponse =
       error: Error
     }
 
-export type TraceChartActionResponse =
+export type EventsChartActionResponse =
   | {
-      data: TraceChartActionData
+      data: EventsChartData
       error: undefined
     }
   | {

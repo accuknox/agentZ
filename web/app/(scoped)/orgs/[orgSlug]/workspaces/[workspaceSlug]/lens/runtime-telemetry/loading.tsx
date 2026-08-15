@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
 import { AdministrationPageHeader } from "@/components/administration"
-import { TelemetryChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-chart-skeleton"
+import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table-skeleton"
 
 export default function Loading() {
@@ -25,7 +25,7 @@ export default function Loading() {
           </div>
           <div className="flex flex-1 flex-col">
             <TabsContent value="process" className="m-0 flex flex-1 flex-col">
-              <TelemetryChartSkeleton />
+              <EventsChartSkeleton />
               <TelemetryTableSkeleton
                 headers={["Process", "Command", "Action", "Occurrences", "Last Seen"]}
               />

@@ -33,7 +33,7 @@ export default async function EventTrailPage({
   const [{ orgSlug }, raw] = await Promise.all([params, searchParams])
   const search = eventTrailQuerySchema.parse(raw)
   const body = {
-    filters: search.filters ?? [],
+    filters: search.filters,
     limit: 50,
     page_token: search.page_token,
   } satisfies ListEventTrailEventsData["body"]
@@ -45,6 +45,7 @@ export default async function EventTrailPage({
   return (
     <EventTrailEvents
       actorImages={eventTrail.actorImages}
+      chart={eventTrail.chart}
       eventTrail={eventTrail.eventTrail}
       filters={body.filters}
     />

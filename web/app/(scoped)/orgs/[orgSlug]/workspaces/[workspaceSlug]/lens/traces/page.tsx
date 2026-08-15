@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
+import { EventsChart } from "@/components/events-chart"
+import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import {
@@ -10,8 +12,6 @@ import {
   listTraceSessionsAction,
 } from "@/data/lens.actions"
 import type { ListAgentActionResponse, TraceSessionFilterItem } from "@/data/types"
-import { TracesChart } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-chart"
-import { TracesChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-chart-skeleton"
 import { TracesFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-filters"
 import {
   parseLimitParam,
@@ -109,7 +109,7 @@ export default async function TracesPage({
         >
           <Filters searchParams={resolved} workspaceId={workspaceId} />
         </Suspense>
-        <Suspense fallback={<TracesChartSkeleton />}>
+        <Suspense fallback={<EventsChartSkeleton />}>
           <Chart searchParams={resolved} workspaceId={workspaceId} />
         </Suspense>
         <Suspense fallback={<TracesSkeleton />}>
@@ -181,7 +181,7 @@ async function Chart({
     return <ErrorPanel message={result.error.message} />
   }
 
-  return <TracesChart data={result.data} />
+  return <EventsChart data={result.data} label="Traces" />
 }
 
 async function Traces({

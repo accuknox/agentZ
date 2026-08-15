@@ -1,5 +1,7 @@
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
+import { EventsChart } from "@/components/events-chart"
+import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import * as z from "zod"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -9,8 +11,6 @@ import type {
   NetworkTelemetryActionResponse,
   ProcessTelemetryActionResponse,
 } from "@/data/types"
-import { TelemetryChart } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-chart"
-import { TelemetryChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-chart-skeleton"
 import { TelemetryFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-filters"
 import {
   telemetryDateRange,
@@ -147,7 +147,7 @@ async function TelemetryContent<TData extends TelemetryPageData>({
     <>
       <Suspense
         key={`chart-${config.value}-${agentName}-${range.eventTimeAfter}-${range.eventTimeBefore}`}
-        fallback={<TelemetryChartSkeleton />}
+        fallback={<EventsChartSkeleton />}
       >
         <Chart config={config} agentName={agentName} range={range} workspaceId={workspaceId} />
       </Suspense>
@@ -189,7 +189,7 @@ async function Chart<TData extends TelemetryPageData>({
     return <ErrorPanel message={result.error.message} />
   }
 
-  return <TelemetryChart data={result.data.chart} />
+  return <EventsChart data={result.data.chart} />
 }
 
 async function Table<TData extends TelemetryPageData>({

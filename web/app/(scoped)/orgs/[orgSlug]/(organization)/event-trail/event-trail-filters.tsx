@@ -282,16 +282,18 @@ export function EventTrailFilters({
               <span className="text-primary">{field.label}:</span>
               <span className="truncate font-medium">{value}</span>
             </Button>
-            <Button
-              aria-label={`Remove ${field.label} filter`}
-              className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
-              onClick={() => setFilter(filter.field, [])}
-              size="icon-sm"
-              type="button"
-              variant="outline"
-            >
-              <X />
-            </Button>
+            {field.kind === "options" ? (
+              <Button
+                aria-label={`Remove ${field.label} filter`}
+                className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
+                onClick={() => setFilter(filter.field, [])}
+                size="icon-sm"
+                type="button"
+                variant="outline"
+              >
+                <X />
+              </Button>
+            ) : null}
           </ButtonGroup>
         )
       })}

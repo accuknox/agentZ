@@ -43,9 +43,9 @@ import type {
   SpanDetailActionResponse,
   SpanDetailPayloadSection,
   SpanListItem,
-  TraceChartActionData,
-  TraceChartActionResponse,
-  TraceChartPoint,
+  EventsChartActionResponse,
+  EventsChartData,
+  EventsChartPoint,
   TraceListItem,
   TraceSessionFilterActionResponse,
   TraceSessionFilterItem,
@@ -107,7 +107,7 @@ export async function getTraceChartAction(
   path: ListTraceSessionsData["path"],
   query: ListTraceSessionsData["query"] | undefined,
   workspaceId: string
-): Promise<TraceChartActionResponse> {
+): Promise<EventsChartActionResponse> {
   const result = await listTraceSessions({
     client: getGatewayServerClient(workspaceId),
     path,
@@ -123,7 +123,6 @@ export async function getTraceChartAction(
     data: {
       points,
       total: result.data.trace_sessions.length,
-      granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
     },
     error: undefined,
   }
@@ -411,16 +410,14 @@ function networkTelemetryEvent(event: NetworkObservabilityEventAggregated): Netw
   }
 }
 
-function computeTelemetryChartFromAggregated(
-  events: AggregatedTelemetryEvent[]
-): TraceChartActionData {
+function computeTelemetryChartFromAggregated(events: AggregatedTelemetryEvent[]): EventsChartData {
   if (events.length === 0) {
-    return { points: [], total: 0, granularity: "no data" }
+    return { points: [], total: 0 }
   }
 
   const [firstEvent, ...restEvents] = events
   if (!firstEvent) {
-    return { points: [], total: 0, granularity: "no data" }
+    return { points: [], total: 0 }
   }
 
   let minTime = dayjs(firstEvent.last_seen)
@@ -446,12 +443,9 @@ function computeTelemetryChartFromAggregated(
         {
           label: from.format("MMM D, h:mm A"),
           count: events.length,
-          startedAfter: from.toISOString(),
-          startedBefore: to.toISOString(),
         },
       ],
       total: events.length,
-      granularity: "single point",
     }
   }
 
@@ -474,8 +468,6 @@ function computeTelemetryChartFromAggregated(
       return {
         label: chartPointLabel(bucketStart, bucketEnd),
         count,
-        startedAfter: bucketStart.toISOString(),
-        startedBefore: bucketEnd.toISOString(),
       }
     })
     .filter((p) => p.count > 0)
@@ -483,7 +475,6 @@ function computeTelemetryChartFromAggregated(
   return {
     points,
     total: events.reduce((sum, event) => sum + event.occurrences, 0),
-    granularity: points.length === 1 ? "single bucket" : `${points.length} buckets`,
   }
 }
 
@@ -622,7 +613,7 @@ export async function getNetworkTelemetryAction({
   }
 }
 
-function traceChartPoints(traces: readonly TraceSummary[]): TraceChartPoint[] {
+function traceChartPoints(traces: readonly TraceSummary[]): EventsChartPoint[] {
   if (traces.length === 0) {
     return []
   }
@@ -636,17 +627,10 @@ function traceChartPoints(traces: readonly TraceSummary[]): TraceChartPoint[] {
   return [...minuteBuckets.entries()]
     .sort(([left], [right]) => left - right)
     .slice(0, maxChartPoints)
-    .map(([minuteMs, count]) => {
-      const startedAfter = dayjs(minuteMs)
-      const startedBefore = startedAfter.endOf("minute")
-
-      return {
-        label: chartPointLabel(startedAfter, startedBefore),
-        count,
-        startedAfter: startedAfter.toISOString(),
-        startedBefore: startedBefore.toISOString(),
-      }
-    })
+    .map(([minuteMs, count]) => ({
+      label: dayjs(minuteMs).format("MMM D, h:mm A"),
+      count,
+    }))
 }
 
 function chartPointLabel(startedAfter: DayjsDate, startedBefore: DayjsDate) {

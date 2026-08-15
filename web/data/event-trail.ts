@@ -4,16 +4,41 @@ import { inArray } from "drizzle-orm"
 import { z } from "zod"
 import { getDB, schema } from "@/db"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
+import type { EventsChartData } from "@/data/types"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { listEventTrailEvents, type ListEventTrailEventsData } from "@/lib/gateway/client"
-import { zEventTrailFilter, zPageTokenQuery } from "@/lib/gateway/client/zod.gen"
+import {
+  listEventTrailEvents,
+  type EventTrailEvent,
+  type ListEventTrailEventsData,
+} from "@/lib/gateway/client"
+import {
+  zEventTrailFilter,
+  zEventTrailFilterField,
+  zPageTokenQuery,
+} from "@/lib/gateway/client/zod.gen"
+import { dayjs } from "@/lib/format"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+
+const chartSourceLimit = 100
+const maxChartPoints = 25
 
 export const eventTrailQuerySchema = z.object({
   filters: z
     .string()
     .transform((value) => z.array(zEventTrailFilter).parse(JSON.parse(value)))
-    .optional(),
+    .optional()
+    .default(() => {
+      const now = dayjs()
+      return [
+        {
+          field: zEventTrailFilterField.enum.created_at,
+          values: [
+            now.subtract(24, "hour").startOf("day").toISOString(),
+            now.endOf("day").toISOString(),
+          ],
+        },
+      ]
+    }),
   page_token: zPageTokenQuery.optional(),
   token_stack: z.string().optional(),
 })
@@ -39,19 +64,27 @@ export async function listOrganizationEventTrailEvents(
   }
 
   await activateOrganization(scope.organization.id)
-  const result = await listEventTrailEvents({
-    body,
-    client: getGatewayServerClient(),
-  })
-  if (result.error) {
-    throw new Error(result.error.message)
+  const client = getGatewayServerClient()
+  const [page, chart] = await Promise.all([
+    listEventTrailEvents({ body, client }),
+    listEventTrailEvents({
+      body: { filters: body.filters, limit: chartSourceLimit },
+      client,
+    }),
+  ])
+  if (page.error) {
+    throw new Error(page.error.message)
+  }
+  if (chart.error) {
+    throw new Error(chart.error.message)
   }
 
   return {
     actorImages: await getEventTrailActorImages(
-      result.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
+      page.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
     ),
-    eventTrail: result.data,
+    chart: eventTrailChart(chart.data.events),
+    eventTrail: page.data,
   }
 }
 
@@ -69,20 +102,48 @@ export async function listWorkspaceEventTrailEvents(
     return
   }
 
-  const eventTrail = await listEventTrailEvents({
-    body,
-    client: getGatewayServerClient(scope.workspace.id),
-    headers: { "X-AgentZ-Workspace-ID": scope.workspace.id },
-  })
-  if (eventTrail.error) {
-    throw new Error(eventTrail.error.message)
+  const client = getGatewayServerClient(scope.workspace.id)
+  const headers = { "X-AgentZ-Workspace-ID": scope.workspace.id }
+  const [page, chart] = await Promise.all([
+    listEventTrailEvents({ body, client, headers }),
+    listEventTrailEvents({
+      body: { filters: body.filters, limit: chartSourceLimit },
+      client,
+      headers,
+    }),
+  ])
+  if (page.error) {
+    throw new Error(page.error.message)
+  }
+  if (chart.error) {
+    throw new Error(chart.error.message)
   }
 
   return {
     actorImages: await getEventTrailActorImages(
-      eventTrail.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
+      page.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
     ),
-    eventTrail: eventTrail.data,
+    chart: eventTrailChart(chart.data.events),
+    eventTrail: page.data,
     workspace: { name: scope.workspace.name },
+  }
+}
+
+function eventTrailChart(events: EventTrailEvent[]): EventsChartData {
+  const buckets = new Map<number, number>()
+  for (const event of events) {
+    const minute = dayjs(event.created_at).startOf("minute").valueOf()
+    buckets.set(minute, (buckets.get(minute) ?? 0) + 1)
+  }
+
+  return {
+    points: [...buckets.entries()]
+      .sort(([left], [right]) => left - right)
+      .slice(0, maxChartPoints)
+      .map(([minute, count]) => ({
+        label: dayjs(minute).format("MMM D, h:mm A"),
+        count,
+      })),
+    total: events.length,
   }
 }

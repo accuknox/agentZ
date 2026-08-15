@@ -1,6 +1,6 @@
 import { AdministrationPageHeader } from "@/components/administration"
+import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TracesChartSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-chart-skeleton"
 import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-skeleton"
 
 export default function Loading() {
@@ -13,7 +13,7 @@ export default function Loading() {
           <Skeleton className="h-8 w-full sm:w-72" />
           <Skeleton className="h-8 w-full sm:w-72" />
         </div>
-        <TracesChartSkeleton />
+        <EventsChartSkeleton />
         <TracesSkeleton />
       </div>
     </main>

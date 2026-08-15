@@ -9,6 +9,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { AdministrationPageHeader } from "@/components/administration"
+import { EventsChart } from "@/components/events-chart"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { CodeBlock } from "@/components/ai-elements/code-block"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -27,16 +28,19 @@ import type {
   EventTrailFilter,
   ListEventTrailEventsResponse,
 } from "@/lib/gateway/client"
+import type { EventsChartData } from "@/data/types"
 import { ResultBadge } from "./event-trail-event"
 import { EventTrailFilters } from "./event-trail-filters"
 
 export function EventTrailEvents({
   actorImages,
+  chart,
   eventTrail,
   filters,
   workspace,
 }: {
   actorImages: Record<string, string>
+  chart: EventsChartData
   eventTrail: ListEventTrailEventsResponse
   filters: EventTrailFilter[]
   workspace?: { name: string }
@@ -135,6 +139,7 @@ export function EventTrailEvents({
           hideWorkspace={Boolean(workspace)}
           options={eventTrail.filter_options}
         />
+        <EventsChart data={chart} />
         <div className="w-full min-w-0">
           <Table
             aria-label={

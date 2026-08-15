@@ -29,9 +29,20 @@ type authContextKey struct{}
 
 type tenantContextKey struct{}
 
+type requestActorType string
+
+const (
+	requestActorUser   requestActorType = "user"
+	requestActorAPIKey requestActorType = "api_key"
+	requestActorSystem requestActorType = "system"
+)
+
 type requestAuth struct {
 	claims          *gatewayClaims
 	apiKeyID        string
+	actorType       requestActorType
+	actorID         string
+	actorName       string
 	organizationID  string
 	workspaceID     string
 	tenantName      string
@@ -449,7 +460,12 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 				errors.New("bearer subject has no active Organisation Membership"),
 			)
 		}
-		return requestAuth{claims: &claims}, nil
+		return requestAuth{
+			claims:    &claims,
+			actorType: requestActorUser,
+			actorID:   claims.UserID,
+			actorName: claims.UserName,
+		}, nil
 	}
 
 	auth, reviewErr := s.resolveAgentRequestAuth(r, token)
@@ -627,6 +643,9 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 
 	return requestAuth{
 		tenantNamespace: agt.Namespace,
+		actorType:       requestActorSystem,
+		actorID:         user.namespace + ":" + user.name,
+		actorName:       user.name,
 	}, nil
 }
 

@@ -19,7 +19,7 @@ const (
 	baseSpecPath      = "openapi/base.yaml"
 	outputSpecPath    = "openapi/gateway.yaml"
 	routeManifestPath = "internal/gateway/opencode.routes.gen.go"
-	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/refs/tags/v1.18.11/packages/sdk/openapi.json"
+	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/refs/tags/v1.18.16/packages/sdk/openapi.json"
 	opencodePrefix    = "/api/opencode/{agentName}"
 	opencodeNS        = "Opencode"
 )
@@ -176,7 +176,9 @@ func run() error {
 	}
 
 	rewriteOpenAPI31Keywords(upstream)
-	applyOAPICodegenFixups(upstream)
+	if err := applyOAPICodegenFixups(upstream); err != nil {
+		return err
+	}
 	rewritten, manifest, err := rewriteOpenCode(upstream)
 	if err != nil {
 		return err
@@ -409,12 +411,13 @@ func buildRefMap(components map[string]any) map[string]string {
 func rewriteRefs(value any, refs map[string]string) {
 	switch node := value.(type) {
 	case map[string]any:
-		if raw, ok := node["$ref"].(string); ok {
-			if next, found := refs[raw]; found {
-				node["$ref"] = next
+		for key, child := range node {
+			if raw, ok := child.(string); ok {
+				if next, found := refs[raw]; found {
+					node[key] = next
+					continue
+				}
 			}
-		}
-		for _, child := range node {
 			rewriteRefs(child, refs)
 		}
 	case []any:
@@ -738,14 +741,84 @@ func samePrimitiveUnion(items []any) (string, bool) {
 	return primitiveType, true
 }
 
-func applyOAPICodegenFixups(doc map[string]any) {
-	schemas := componentBucket(ensureMap(doc, "components"), "schemas")
+func applyOAPICodegenFixups(doc map[string]any) error {
+	components, ok := doc["components"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no components")
+	}
+	schemas, ok := components["schemas"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no schemas")
+	}
+	schemas["PromptPartInput"] = map[string]any{
+		"discriminator": map[string]any{
+			"propertyName": "type",
+			"mapping": map[string]any{
+				"text":    "#/components/schemas/TextPartInput",
+				"file":    "#/components/schemas/FilePartInput",
+				"agent":   "#/components/schemas/AgentPartInput",
+				"subtask": "#/components/schemas/SubtaskPartInput",
+			},
+		},
+		"oneOf": []any{
+			map[string]any{"$ref": "#/components/schemas/TextPartInput"},
+			map[string]any{"$ref": "#/components/schemas/FilePartInput"},
+			map[string]any{"$ref": "#/components/schemas/AgentPartInput"},
+			map[string]any{"$ref": "#/components/schemas/SubtaskPartInput"},
+		},
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no paths")
+	}
+	for _, path := range []string{
+		"/session/{sessionID}/message",
+		"/session/{sessionID}/prompt_async",
+	} {
+		item, ok := paths[path].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream spec has no %s path", path)
+		}
+		post, ok := item["post"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream spec has no POST %s operation", path)
+		}
+		requestBody, ok := post["requestBody"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no request body", path)
+		}
+		content, ok := requestBody["content"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no request content", path)
+		}
+		jsonBody, ok := content["application/json"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no JSON request body", path)
+		}
+		schema, ok := jsonBody["schema"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no request schema", path)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s request has no properties", path)
+		}
+		parts, ok := properties["parts"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s request has no parts", path)
+		}
+		parts["items"] = map[string]any{
+			"$ref": "#/components/schemas/PromptPartInput",
+		}
+	}
 
 	renameSchema(schemas, "EventTuiCommandExecute", "OpencodeTUICommandExecuteEvent")
 	renameSchema(schemas, "EventTuiPromptAppend", "OpencodeTUIPromptAppendEvent")
 	renameSchema(schemas, "EventTuiSessionSelect", "OpencodeTUISessionSelectEvent")
 	renameSchema(schemas, "EventTuiToastShow", "OpencodeTUIToastShowEvent")
 	renameSchema(schemas, "EventTuiToastShow1", "OpencodeTUIToastShowAltEvent")
+	return nil
 }
 
 func renameSchema(schemas map[string]any, name string, goName string) {

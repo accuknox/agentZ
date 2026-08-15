@@ -764,6 +764,7 @@ type gatewayClaims struct {
 	ScopeType            gatewayScopeType      `json:"scope_type"`
 	ScopeID              string                `json:"scope_id"`
 	UserID               string                `json:"user_id"`
+	UserName             string                `json:"user_name"`
 	Capabilities         *[]string             `json:"capabilities"`
 	AdministrativeBypass *bool                 `json:"administrative_bypass"`
 	AgentACL             *[]gatewayAgentAccess `json:"agent_acl"`

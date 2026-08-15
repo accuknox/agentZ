@@ -1,23 +1,31 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 const (
 	opencodePrefix              = "/api/opencode"
 	opencodeProxyBodyLimitBytes = 16 * 1024 * 1024
+	opencodeActorMetadataKey    = "agentz.dev/actor"
+	opencodeSessionPromptPath   = "/api/opencode/{agentName}/session/{sessionID}/message"
+	opencodeSessionAsyncPath    = "/api/opencode/{agentName}/session/{sessionID}/prompt_async"
 )
 
 var opencodeProxyBodyLimitedMethods = map[string]struct{}{
@@ -60,6 +68,13 @@ type opencodeRouteMatch struct {
 type opencodeSessionDeleteTarget struct {
 	agentName string
 	sessionID string
+}
+
+type opencodeMessageActor struct {
+	Version int              `json:"version"`
+	Type    requestActorType `json:"type"`
+	ID      string           `json:"id"`
+	Name    string           `json:"name"`
 }
 
 type sessionTraceStore interface {
@@ -139,6 +154,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
 	}
+	auth, _ := requestAuthState(r.Context())
+	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"bad_request",
+			"invalid OpenCode prompt",
+			err,
+		))
+		return
+	}
 
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(preq *httputil.ProxyRequest) {
@@ -182,6 +207,97 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxy.ServeHTTP(w, r)
+}
+
+// attributeOpenCodePrompt binds the authenticated gateway principal to legacy
+// OpenCode prompts without changing unrecognized or synthetic ingress routes.
+func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth requestAuth) error {
+	if r.Method != http.MethodPost ||
+		(route.Path != opencodeSessionPromptPath && route.Path != opencodeSessionAsyncPath) ||
+		auth.actorID == "" {
+		return nil
+	}
+
+	var body gatewayapi.SessionPromptJSONBody
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&body); err != nil {
+		return fmt.Errorf("decode prompt: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("decode prompt: expected one JSON value")
+	}
+
+	name := auth.actorName
+	if name == "" {
+		name = auth.actorID
+	}
+	actor := opencodeMessageActor{
+		Version: 1,
+		Type:    auth.actorType,
+		ID:      auth.actorID,
+		Name:    name,
+	}
+	attached := false
+	for i := range body.Parts {
+		partType, err := body.Parts[i].Discriminator()
+		if err != nil {
+			return fmt.Errorf("read prompt part type: %w", err)
+		}
+		if partType != string(gatewayapi.OpencodeTextPartInputTypeText) {
+			continue
+		}
+
+		part, err := body.Parts[i].AsOpencodeTextPartInput()
+		if err != nil {
+			return fmt.Errorf("decode text prompt part: %w", err)
+		}
+		metadata := make(map[string]interface{})
+		if part.Metadata != nil {
+			metadata = *part.Metadata
+		}
+		if attached {
+			if _, exists := metadata[opencodeActorMetadataKey]; !exists {
+				continue
+			}
+			delete(metadata, opencodeActorMetadataKey)
+		} else {
+			metadata[opencodeActorMetadataKey] = actor
+			attached = true
+		}
+		part.Metadata = &metadata
+		if err := body.Parts[i].FromOpencodeTextPartInput(part); err != nil {
+			return fmt.Errorf("encode text prompt part: %w", err)
+		}
+	}
+	if !attached {
+		metadata := map[string]interface{}{opencodeActorMetadataKey: actor}
+		ignored := true
+		synthetic := true
+		part := gatewayapi.OpencodeTextPartInput{
+			Ignored:   &ignored,
+			Metadata:  &metadata,
+			Synthetic: &synthetic,
+			Text:      "",
+			Type:      gatewayapi.OpencodeTextPartInputTypeText,
+		}
+		var input gatewayapi.OpencodePromptPartInput
+		if err := input.FromOpencodeTextPartInput(part); err != nil {
+			return fmt.Errorf("encode actor prompt part: %w", err)
+		}
+		body.Parts = append(body.Parts, input)
+	}
+
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("encode prompt: %w", err)
+	}
+	if err := r.Body.Close(); err != nil {
+		return fmt.Errorf("close prompt body: %w", err)
+	}
+	r.Body = io.NopCloser(bytes.NewReader(encoded))
+	r.ContentLength = int64(len(encoded))
+	r.Header.Set("Content-Length", strconv.Itoa(len(encoded)))
+	return nil
 }
 
 // openCodeModifyResponse applies gateway-owned response cleanup and optional

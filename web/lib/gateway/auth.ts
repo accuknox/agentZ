@@ -10,6 +10,7 @@ export type GatewayAuthContext = {
   organizationId: string
   sessionId: string
   userId: string
+  userName: string
 }
 
 type GatewayAgentAccess = {
@@ -35,6 +36,7 @@ async function resolveGatewayAuthState(): Promise<GatewayAuthContext> {
     organizationId: organization.id,
     sessionId: organizationSession.session.session.id,
     userId: organizationSession.session.user.id,
+    userName: organizationSession.session.user.name,
   }
 }
 
@@ -44,6 +46,7 @@ export async function currentGatewayAuthContext(): Promise<GatewayAuthContext> {
     organizationId: state.organizationId,
     sessionId: state.sessionId,
     userId: state.userId,
+    userName: state.userName,
   }
 }
 
@@ -275,6 +278,7 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
         scope_type: scopeType,
         sub: state.userId,
         user_id: state.userId,
+        user_name: state.userName,
       },
     },
   })

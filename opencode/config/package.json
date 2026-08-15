@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.17.11",
+    "@opencode-ai/plugin": "1.18.16",
     "clawpdf": "0.3.0",
     "gray-matter": "^4.0.3",
     "officeparser": "7.3.0",

@@ -9,6 +9,18 @@ import type {
 import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
 import { type OptimisticUserMessage } from "@/components/blocks/chat/use-opencode-chat"
 import { describeMessageError } from "@/components/blocks/chat/errors"
+import { z } from "zod"
+
+const messageActorSchema = z
+  .object({
+    version: z.literal(1),
+    type: z.enum(["user", "api_key", "system"]),
+    id: z.string().min(1),
+    name: z.string().min(1),
+  })
+  .strict()
+
+type MessageActor = z.infer<typeof messageActorSchema>
 
 export type RenderEntry =
   | { content: string; key: string; type: "text" }
@@ -18,6 +30,7 @@ export type RenderEntry =
 export type TimelineRow =
   | { key: string; message: OptimisticUserMessage; type: "local" }
   | {
+      actor?: MessageActor
       attachments: ChatAttachment[]
       createdAt: number
       key: string
@@ -317,11 +330,23 @@ export function projectTimeline(input: ProjectInput): {
         return attachment ? [attachment] : []
       })
     const compacted = userParts.some((part) => part.type === "compaction")
+    let actor: MessageActor | undefined
+    for (const part of userParts) {
+      if (part.type !== "text") {
+        continue
+      }
+      const parsed = messageActorSchema.safeParse(part.metadata?.["agentz.dev/actor"])
+      if (parsed.success) {
+        actor = parsed.data
+        break
+      }
+    }
 
     if (item.local) {
       out.push({ key: item.local.id, message: item.local, type: "local" })
     } else {
       out.push({
+        actor,
         attachments,
         createdAt: turn.user.time.created,
         key: `user:${turn.user.id}`,

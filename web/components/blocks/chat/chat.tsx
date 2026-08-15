@@ -52,6 +52,7 @@ import {
 import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
@@ -116,6 +117,7 @@ import {
 import { motion } from "motion/react"
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import { z } from "zod"
 import { useStickToBottomContext } from "use-stick-to-bottom"
 import {
   ModelSelector,
@@ -163,6 +165,17 @@ type ChatProps = {
 
 type AuthSession = typeof authClient.$Infer.Session
 type AuthUser = AuthSession["user"]
+
+const messageActorProfilesSchema = z
+  .object({
+    profiles: z.array(
+      z
+        .object({ id: z.string().min(1), image: z.string().nullable(), name: z.string().min(1) })
+        .strict()
+    ),
+  })
+  .strict()
+type MessageActorProfile = z.infer<typeof messageActorProfilesSchema>["profiles"][number]
 
 const DEFAULT_REASONING_LEVEL = "__default__"
 const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
@@ -1062,6 +1075,39 @@ function ChatInner({
       textByPart,
     ]
   )
+  const actorUserIDs = useMemo(
+    () =>
+      [
+        ...new Set(
+          rows.flatMap((row) =>
+            row.type === "user" && row.actor?.type === "user" ? [row.actor.id] : []
+          )
+        ),
+      ].sort(),
+    [rows]
+  )
+  const actorProfilesQuery = useQuery(
+    queryOptions({
+      enabled: actorUserIDs.length > 0,
+      queryKey: ["message-actors", ...actorUserIDs],
+      queryFn: async () => {
+        const response = await fetch("/api/message-actors", {
+          body: JSON.stringify({ userIds: actorUserIDs }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        })
+        if (!response.ok) {
+          throw new Error("Failed to load message senders")
+        }
+        return messageActorProfilesSchema.parse(await response.json())
+      },
+      staleTime: 60_000,
+    })
+  )
+  const actorProfiles = useMemo(
+    () => new Map(actorProfilesQuery.data?.profiles.map((profile) => [profile.id, profile]) ?? []),
+    [actorProfilesQuery.data]
+  )
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
@@ -1097,6 +1143,7 @@ function ChatInner({
                 {rows.map((row) => (
                   <TimelineRowView
                     agentName={agentName}
+                    actorProfiles={actorProfiles}
                     isBusy={isBusy}
                     isLastBlock={rows.at(-1)?.key === row.key}
                     key={row.key}
@@ -1438,26 +1485,40 @@ function MessageActionBar({ className, children }: { className?: string; childre
   )
 }
 
-function UserMessageAvatar({ user }: { user?: AuthUser }) {
-  const name = user?.name.trim() || "User"
-  const initials = name
+function UserMessageAvatar({
+  image,
+  name,
+  label,
+}: {
+  image?: string | null
+  name: string
+  label: string
+}) {
+  const displayName = name.trim() || "User"
+  const initials = displayName
     .split(/\s+/)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("")
 
   return (
-    <MessageAvatar>
-      <Avatar>
-        <AvatarImage alt={name} src={user?.image ?? undefined} />
-        <AvatarFallback>{initials || "U"}</AvatarFallback>
-      </Avatar>
-    </MessageAvatar>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <MessageAvatar aria-label={label}>
+          <Avatar>
+            <AvatarImage alt={displayName} src={image ?? undefined} />
+            <AvatarFallback>{initials || "U"}</AvatarFallback>
+          </Avatar>
+        </MessageAvatar>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
 function TimelineRowView({
   agentName,
+  actorProfiles,
   isBusy,
   isLastBlock,
   onRevert,
@@ -1467,6 +1528,7 @@ function TimelineRowView({
   workspacePath,
 }: {
   agentName: string
+  actorProfiles: Map<string, MessageActorProfile>
   isBusy: boolean
   isLastBlock: boolean
   onRevert: (messageID: string) => void
@@ -1487,7 +1549,11 @@ function TimelineRowView({
     case "local": {
       return (
         <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
-          <UserMessageAvatar user={user} />
+          <UserMessageAvatar
+            image={user?.image}
+            label={user?.name ?? "You"}
+            name={user?.name ?? "You"}
+          />
           <MessageContent>
             <AIMessageContent
               className={cn(
@@ -1515,9 +1581,18 @@ function TimelineRowView({
 
     case "user": {
       const isEmpty = row.text.length === 0 && row.attachments.length === 0
+      const profile = row.actor?.type === "user" ? actorProfiles.get(row.actor.id) : undefined
+      const name = profile?.name ?? row.actor?.name
+      const label = row.actor
+        ? `${name} · ${
+            row.actor.type === "user" ? "User" : row.actor.type === "api_key" ? "API key" : "System"
+          }`
+        : undefined
       return (
         <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
-          {isEmpty ? null : <UserMessageAvatar user={user} />}
+          {isEmpty || !name || !label ? null : (
+            <UserMessageAvatar image={profile?.image} label={label} name={name} />
+          )}
           <MessageContent className={isEmpty ? "hidden" : undefined}>
             <AIMessageContent className={row.attachments.length > 0 ? "space-y-3" : undefined}>
               {row.attachments.length > 0 ? (

@@ -557,6 +557,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
 		corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
 		corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+		corev1.EnvVar{Name: "OPENCODE_DISABLE_SHARE", Value: "1"},
 		corev1.EnvVar{Name: "AGENTZ_IMMUTABLE_SKILLS_PATH", Value: opencodeImmutableSkillsPath},
 	)
 	var telemetryURL string

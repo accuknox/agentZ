@@ -62,8 +62,15 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 			fmt.Errorf("api key %q is not authorized for agent %q", key.ID, agentName),
 		)
 	}
+	actorName := key.ID
+	if key.Name.Valid {
+		actorName = key.Name.String
+	}
 	return requestAuth{
 		apiKeyID:        key.ID,
+		actorType:       requestActorAPIKey,
+		actorID:         key.ID,
+		actorName:       actorName,
 		organizationID:  key.ReferenceID,
 		workspaceID:     scope.WorkspaceID,
 		tenantNamespace: scope.TenantNamespace,

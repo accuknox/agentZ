@@ -52,8 +52,10 @@ export function TeamForm({
     value: member.id,
   }))
   const roleOptions = data.roles.map((role) => ({
+    badge: role.scope,
+    group: role.scope,
     icon: Shield,
-    label: `${role.name} · ${role.scope}`,
+    label: role.name,
     value: role.id,
   }))
   return (

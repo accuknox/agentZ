@@ -4,6 +4,7 @@ import { useState, type ComponentType, type SVGProps } from "react"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Command,
@@ -28,6 +29,8 @@ type MultiSelectDropdownOptionIdentity =
     }
 
 export type MultiSelectDropdownOption = MultiSelectDropdownOptionIdentity & {
+  badge?: string
+  group?: string
   label: string
   value: string
   disabled?: boolean
@@ -67,6 +70,15 @@ function MultiSelectDropdown({
   const [search, setSearch] = useState("")
   const selectedValues = new Set(value)
   const customValue = search.trim()
+  const groups = new Map<string | undefined, MultiSelectDropdownOption[]>()
+  for (const option of options) {
+    const group = groups.get(option.group)
+    if (group) {
+      group.push(option)
+      continue
+    }
+    groups.set(option.group, [option])
+  }
   const canCreate =
     allowCustomValues &&
     customValue.length > 0 &&
@@ -77,7 +89,11 @@ function MultiSelectDropdown({
       ? placeholder
       : value.length <= 2
         ? value
-            .map((item) => options.find((option) => option.value === item)?.label ?? item)
+            .map((item) => {
+              const option = options.find((option) => option.value === item)
+              if (!option) return item
+              return option.badge ? `${option.label} · ${option.badge}` : option.label
+            })
             .join(", ")
         : `${value.length} selected`
 
@@ -130,43 +146,46 @@ function MultiSelectDropdown({
                 </CommandItem>
               </CommandGroup>
             ) : null}
-            <CommandGroup>
-              {options.map((option) => {
-                const Icon = option.icon
-                const checked = selectedValues.has(option.value)
-                const nextValue = checked
-                  ? value.filter((item) => item !== option.value)
-                  : [...value, option.value].toSorted()
+            {[...groups].map(([group, groupOptions]) => (
+              <CommandGroup heading={group} key={group ?? "options"}>
+                {groupOptions.map((option) => {
+                  const Icon = option.icon
+                  const checked = selectedValues.has(option.value)
+                  const nextValue = checked
+                    ? value.filter((item) => item !== option.value)
+                    : [...value, option.value].toSorted()
 
-                return (
-                  <CommandItem
-                    key={option.value}
-                    value={`${option.label} ${option.value}`}
-                    disabled={option.disabled}
-                    onSelect={() => {
-                      if (option.disabled) {
-                        return
-                      }
-                      onValueChangeAction(nextValue)
-                      if (closeOnSelect) {
-                        setOpen(false)
-                      }
-                    }}
-                  >
-                    <Checkbox className="pointer-events-none" checked={checked} />
-                    {option.image !== undefined ? (
-                      <Avatar size="sm">
-                        <AvatarImage alt="" src={option.image ?? undefined} />
-                        <AvatarFallback>{option.initials}</AvatarFallback>
-                      </Avatar>
-                    ) : Icon ? (
-                      <Icon aria-hidden="true" />
-                    ) : null}
-                    <span>{option.label}</span>
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      value={`${option.label} ${option.badge ?? ""} ${option.value}`}
+                      disabled={option.disabled}
+                      onSelect={() => {
+                        if (option.disabled) return
+                        onValueChangeAction(nextValue)
+                        if (closeOnSelect) setOpen(false)
+                      }}
+                    >
+                      <Checkbox className="pointer-events-none" checked={checked} />
+                      {option.image !== undefined ? (
+                        <Avatar size="sm">
+                          <AvatarImage alt="" src={option.image ?? undefined} />
+                          <AvatarFallback>{option.initials}</AvatarFallback>
+                        </Avatar>
+                      ) : Icon ? (
+                        <Icon aria-hidden="true" />
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                      {option.badge ? (
+                        <Badge className="max-w-40 shrink-0 truncate" variant="secondary">
+                          {option.badge}
+                        </Badge>
+                      ) : null}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

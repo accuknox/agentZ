@@ -11,7 +11,7 @@ import {
   restoreMembershipAction,
   type InvitationFormState,
 } from "@/app/(scoped)/orgs/actions"
-import type { AssignmentOption } from "@/data/members"
+import type { AssignmentOption, ScopedAssignmentOption } from "@/data/members"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
@@ -41,7 +41,7 @@ export function CreateInvitationDialog({
   teams,
 }: {
   orgSlug: string
-  roles: AssignmentOption[]
+  roles: ScopedAssignmentOption[]
   teams: AssignmentOption[]
 }) {
   const [open, setOpen] = useState(false)
@@ -143,7 +143,7 @@ function CreateInvitationForm({
   teams,
 }: {
   orgSlug: string
-  roles: AssignmentOption[]
+  roles: ScopedAssignmentOption[]
   teams: AssignmentOption[]
 }) {
   const formId = useId()
@@ -211,7 +211,13 @@ function CreateInvitationForm({
               emptyMessage="No roles available."
               id={`${formId}-roles`}
               onValueChangeAction={setRoleIds}
-              options={roles.map((role) => ({ icon: Shield, label: role.name, value: role.id }))}
+              options={roles.map((role) => ({
+                badge: role.scope,
+                group: role.scope,
+                icon: Shield,
+                label: role.name,
+                value: role.id,
+              }))}
               placeholder="Select direct roles"
               searchPlaceholder="Search roles..."
               value={roleIds}

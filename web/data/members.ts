@@ -40,7 +40,7 @@ export type MemberDirectory = {
   active: ActiveMember[]
   disabled: ActiveMember[]
   invited: InvitationRow[]
-  roles: AssignmentOption[]
+  roles: ScopedAssignmentOption[]
   teams: AssignmentOption[]
   nextPageToken: string
 }
@@ -75,6 +75,7 @@ export type InvitationRow = {
 }
 
 export type AssignmentOption = { id: string; name: string }
+export type ScopedAssignmentOption = { id: string; name: string; scope: string }
 
 export type MessageActorProfile = { id: string; image: string | null; name: string }
 
@@ -129,7 +130,7 @@ export type SocialAdmission = {
   githubConfigured: boolean
   googleDomains: string[]
   githubRules: { id: string; organization: string; team: string | null }[]
-  roles: (AssignmentOption & { workspaceIds: string[] })[]
+  roles: { id: string; name: string; scope: string; workspaceIds: string[] }[]
   teams: (AssignmentOption & { workspaceIds: string[] })[]
   workspaces: AssignmentOption[]
   defaultRoleIds: string[]
@@ -307,10 +308,25 @@ export async function getMemberDirectory(
       )
       .limit(page ? 51 : 500),
     db
-      .select({ id: schema.roleScopes.roleId, name: schema.roleScopes.displayName })
+      .select({
+        id: schema.roleScopes.roleId,
+        name: schema.roleScopes.displayName,
+        workspace: schema.workspaces.name,
+      })
       .from(schema.roleScopes)
+      .leftJoin(
+        schema.workspaces,
+        and(
+          eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+          eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
+        )
+      )
       .where(eq(schema.roleScopes.organizationId, actor.organization.id))
-      .orderBy(asc(schema.roleScopes.displayName), asc(schema.roleScopes.roleId))
+      .orderBy(
+        sql`${schema.workspaces.name} ASC NULLS FIRST`,
+        asc(schema.roleScopes.displayName),
+        asc(schema.roleScopes.roleId)
+      )
       .limit(500),
     db
       .select({ id: schema.teams.id, name: schema.teams.name })
@@ -467,7 +483,10 @@ export async function getMemberDirectory(
     })),
     organization: actor.organization,
     nextPageToken,
-    roles: roleRows,
+    roles: roleRows.map(({ workspace, ...role }) => ({
+      ...role,
+      scope: workspace === null ? "Organisation" : `Workspace · ${workspace}`,
+    })),
     teams: teamRows,
   }
 }
@@ -1113,10 +1132,22 @@ export async function getSocialAdmission(orgSlug: string): Promise<SocialAdmissi
         name: schema.roleScopes.displayName,
         systemRole: schema.roleScopes.systemRole,
         workspaceId: schema.roleScopes.workspaceId,
+        workspace: schema.workspaces.name,
       })
       .from(schema.roleScopes)
+      .leftJoin(
+        schema.workspaces,
+        and(
+          eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+          eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
+        )
+      )
       .where(eq(schema.roleScopes.organizationId, actor.organization.id))
-      .orderBy(asc(schema.roleScopes.displayName)),
+      .orderBy(
+        sql`${schema.workspaces.name} ASC NULLS FIRST`,
+        asc(schema.roleScopes.displayName),
+        asc(schema.roleScopes.roleId)
+      ),
     db
       .select({ id: schema.teams.id, name: schema.teams.name })
       .from(schema.teams)
@@ -1171,9 +1202,10 @@ export async function getSocialAdmission(orgSlug: string): Promise<SocialAdmissi
   for (const grant of workspaceGrants) {
     if (grant.workspaceId) roleWorkspaceIds.get(grant.roleId)?.add(grant.workspaceId)
   }
-  const roles = roleRows.map(({ id, name }) => ({
+  const roles = roleRows.map(({ id, name, workspace }) => ({
     id,
     name,
+    scope: workspace === null ? "Organisation" : `Workspace · ${workspace}`,
     workspaceIds: [...(roleWorkspaceIds.get(id) ?? [])].sort(),
   }))
   const teams = teamRows.map((team) => {

@@ -238,6 +238,8 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                     setDirty(true)
                   }}
                   options={data.roles.map((role) => ({
+                    badge: role.scope,
+                    group: role.scope,
                     icon: Shield,
                     label: role.name,
                     value: role.id,

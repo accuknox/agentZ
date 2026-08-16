@@ -241,13 +241,17 @@ export async function getTeamEditorData(
         or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
       )
     )
-    .orderBy(asc(schema.workspaces.name), asc(schema.roleScopes.displayName))
+    .orderBy(
+      sql`${schema.workspaces.name} ASC NULLS FIRST`,
+      asc(schema.roleScopes.displayName),
+      asc(schema.roleScopes.roleId)
+    )
   const data: TeamEditorData = {
     organizationId: actor.organizationId,
     members,
     roles: roles.map(({ workspace, ...role }) => ({
       ...role,
-      scope: workspace ?? "Organisation",
+      scope: workspace === null ? "Organisation" : `Workspace · ${workspace}`,
     })),
   }
   if (!teamId) return data

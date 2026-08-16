@@ -70,12 +70,7 @@ export async function createWorkflowScheduleFormAction(
     },
     body: {
       name: parsed.data.name,
-      schedule: parsed.data.schedule,
-      time_zone: parsed.data.time_zone,
-      timeout_seconds: parsed.data.timeout_seconds,
-      successful_runs_history_limit: parsed.data.successful_runs_history_limit,
-      failed_runs_history_limit: parsed.data.failed_runs_history_limit,
-      inputs: parsed.inputs,
+      ...workflowScheduleBody(parsed),
     },
   })
   if (result.error) {
@@ -139,14 +134,7 @@ export async function updateWorkflowScheduleFormAction(
       workflowName: parsed.data.workflow_name,
       scheduleName: nameResult.data.name,
     },
-    body: {
-      schedule: parsed.data.schedule,
-      time_zone: parsed.data.time_zone,
-      timeout_seconds: parsed.data.timeout_seconds,
-      successful_runs_history_limit: parsed.data.successful_runs_history_limit,
-      failed_runs_history_limit: parsed.data.failed_runs_history_limit,
-      inputs: parsed.inputs,
-    },
+    body: workflowScheduleBody(parsed),
   })
   if (result.error) {
     return { error: result.error }
@@ -154,6 +142,17 @@ export async function updateWorkflowScheduleFormAction(
 
   finishWorkflowScheduleMutation(scope, agentName)
   return { success: true }
+}
+
+function workflowScheduleBody(parsed: ParsedScheduleForm) {
+  return {
+    failed_runs_history_limit: parsed.data.failed_runs_history_limit,
+    inputs: parsed.inputs,
+    schedule: parsed.data.schedule,
+    successful_runs_history_limit: parsed.data.successful_runs_history_limit,
+    time_zone: parsed.data.time_zone,
+    timeout_seconds: parsed.data.timeout_seconds,
+  }
 }
 
 export async function deleteWorkflowScheduleFormAction(

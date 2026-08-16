@@ -124,3 +124,24 @@ export function ErrorState({
     </Empty>
   )
 }
+
+type RouteErrorProps = {
+  error: Error & { digest?: string }
+  unstable_retry: () => void
+}
+
+export function PageError({ error, unstable_retry }: RouteErrorProps) {
+  return (
+    <main className="flex w-full min-w-0 flex-1 items-center justify-center p-4 md:p-6">
+      <ErrorState error={error} onRetry={unstable_retry} />
+    </main>
+  )
+}
+
+export function NestedPageError({ error, unstable_retry }: RouteErrorProps) {
+  return (
+    <div className="flex w-full min-w-0 flex-1 items-center justify-center p-4 md:p-6">
+      <ErrorState error={error} onRetry={unstable_retry} />
+    </div>
+  )
+}

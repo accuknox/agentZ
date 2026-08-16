@@ -361,20 +361,7 @@ export async function createSandboxFormAction(
     headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     body: {
       name: parsed.data.name,
-      packages: parsed.data.packages,
-      allowed_hosts: parsed.data.allowedHosts,
-      mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
-        (ref): McpConnectionRef => ({
-          scope: ref.scope,
-          name: ref.name,
-          tools: ref.tools.map((tool) => ({
-            name: tool.name,
-            require_consent: tool.requireConsent,
-          })),
-        })
-      ),
-      skills: parsed.data.skills,
-      inference: parsed.data.inference,
+      ...sandboxRequestBody(parsed.data),
     },
   })
 
@@ -413,22 +400,7 @@ export async function updateSandboxFormAction(
     client: getGatewayServerClient(scope.workspaceId),
     headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     path: { sandboxName: sandboxName.data },
-    body: {
-      packages: parsed.data.packages,
-      allowed_hosts: parsed.data.allowedHosts,
-      mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
-        (ref): McpConnectionRef => ({
-          scope: ref.scope,
-          name: ref.name,
-          tools: ref.tools.map((tool) => ({
-            name: tool.name,
-            require_consent: tool.requireConsent,
-          })),
-        })
-      ),
-      skills: parsed.data.skills,
-      inference: parsed.data.inference,
-    },
+    body: sandboxRequestBody(parsed.data),
   })
 
   if (result.error) {
@@ -438,6 +410,25 @@ export async function updateSandboxFormAction(
   updateTag(sandboxesTag)
   updateTag(skillsTag)
   return { success: true }
+}
+
+function sandboxRequestBody(values: SandboxFormValues) {
+  return {
+    allowed_hosts: values.allowedHosts,
+    inference: values.inference,
+    mcp_connection_refs: values.mcpConnectionRefs.map(
+      (ref): McpConnectionRef => ({
+        name: ref.name,
+        scope: ref.scope,
+        tools: ref.tools.map((tool) => ({
+          name: tool.name,
+          require_consent: tool.requireConsent,
+        })),
+      })
+    ),
+    packages: values.packages,
+    skills: values.skills,
+  }
 }
 
 function invalidSandboxFormState(error: z.ZodError): CreateSandboxFormState {

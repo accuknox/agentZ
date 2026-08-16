@@ -11,8 +11,8 @@ import {
   McpGraph,
   McpGraphSkeleton,
 } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/mcp/mcp-graph"
-import { McpFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/mcp/mcp-filters"
-import { mcpDateRange } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/mcp/search-params"
+import { LensFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
+import { lensDateRange } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/search-params"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
 
@@ -106,7 +106,7 @@ async function Filters({
   }
 
   return (
-    <McpFilters
+    <LensFilters
       agents={scope.agents}
       selectedAgentName={scope.selectedAgentName}
       from={range.from}
@@ -172,7 +172,7 @@ async function Graph({
 
 type ResolvedMcpSearchParams = {
   agentName?: string
-  range: ReturnType<typeof mcpDateRange>
+  range: ReturnType<typeof lensDateRange>
 }
 
 async function resolveMcpSearchParams(
@@ -182,7 +182,7 @@ async function resolveMcpSearchParams(
 
   return {
     agentName: params.agent_name,
-    range: mcpDateRange(params.from, params.to),
+    range: lensDateRange(params.from, params.to),
   }
 }
 

@@ -48,12 +48,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { oauthSecretFormInputSchema } from "@/data/schema"
 import type { PutSecretFormAction, PutSecretFormState } from "@/data/types"
-import {
-  oauthBroadcastChannelName,
-  oauthWindowMessageSource,
-  parseOAuthPopupMessage,
-  type OAuthPopupMessage,
-} from "@/lib/mcp-oauth-shared"
+import { useOAuthPopup } from "@/lib/use-oauth-popup"
 import {
   findOAuthSecretCatalogByServerURL,
   oauthSecretCatalog,
@@ -297,7 +292,11 @@ export function OAuthSecretSheet({
     defaultValues: initialFormValues,
   })
   const [clientSubmitError, setClientSubmitError] = React.useState<string>()
-  const [oauthPopupFlowID, setOAuthPopupFlowID] = React.useState<string>()
+  const {
+    cleanup: cleanupPopupFlow,
+    flowId: oauthPopupFlowId,
+    open: openOAuthPopup,
+  } = useOAuthPopup("oauth-secret")
   const [dismissedDiscoveryWarningKey, setDismissedDiscoveryWarningKey] = React.useState<string>()
   const [discoveryURLOverride, setDiscoveryURLOverride] = React.useState<string>()
   const [hasTriggeredDiscovery, setHasTriggeredDiscovery] = React.useState(false)
@@ -305,11 +304,6 @@ export function OAuthSecretSheet({
   const [catalogQuery, setCatalogQuery] = React.useState("")
   const deferredCatalogQuery = React.useDeferredValue(catalogQuery.trim())
   const [userExpandedAccordions, setUserExpandedAccordions] = React.useState<string[]>([])
-  const popupRef = React.useRef<Window | null>(null)
-  const popupPollRef = React.useRef<number | null>(null)
-  const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
-  const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
-  const handledPopupFlowIDRef = React.useRef<string | undefined>(undefined)
   const previousRequiredConditionalFieldsRef = React.useRef("")
   const catalogFieldRef = React.useRef<HTMLDivElement | null>(null)
   const catalogPopoverRef = React.useRef<HTMLDivElement | null>(null)
@@ -513,145 +507,6 @@ export function OAuthSecretSheet({
     void trigger(requiredConditionalFields)
   }, [requiredConditionalFields, trigger])
 
-  const cleanupPopupFlow = React.useCallback(
-    (options?: { closePopup?: boolean; cancelPending?: boolean; resetState?: boolean }) => {
-      const handler = messageHandlerRef.current
-      if (handler) {
-        window.removeEventListener("message", handler)
-        messageHandlerRef.current = null
-      }
-
-      broadcastChannelRef.current?.close()
-      broadcastChannelRef.current = null
-
-      if (popupPollRef.current !== null) {
-        window.clearInterval(popupPollRef.current)
-        popupPollRef.current = null
-      }
-
-      if (options?.closePopup && popupRef.current && !popupRef.current.closed) {
-        popupRef.current.close()
-      }
-      popupRef.current = null
-
-      if (options?.resetState !== false) {
-        setOAuthPopupFlowID(undefined)
-      }
-
-      if (!options?.cancelPending) {
-        return
-      }
-
-      void fetch("/mcps/oauth/pending", {
-        method: "POST",
-        keepalive: true,
-      }).catch(() => {})
-    },
-    []
-  )
-
-  React.useEffect(() => {
-    return () => {
-      cleanupPopupFlow({
-        closePopup: true,
-        resetState: false,
-      })
-    }
-  }, [cleanupPopupFlow])
-
-  const openOAuthPopup = React.useCallback(
-    (oauth: { flowId: string; url: string }) => {
-      if (handledPopupFlowIDRef.current === oauth.flowId) {
-        return
-      }
-
-      handledPopupFlowIDRef.current = oauth.flowId
-      setClientSubmitError(undefined)
-      setServerError(undefined)
-      let completed = false
-
-      function acknowledgePopup(flowID: string) {
-        const ack: OAuthPopupMessage = {
-          source: oauthWindowMessageSource,
-          kind: "ack",
-          flowId: flowID,
-        }
-        broadcastChannelRef.current?.postMessage(ack)
-      }
-
-      function handlePopupMessage(data: unknown) {
-        const message = parseOAuthPopupMessage(data)
-        if (!message || message.kind !== "result" || message.flowId !== oauth.flowId) {
-          return
-        }
-
-        completed = true
-        acknowledgePopup(message.flowId)
-        cleanupPopupFlow({
-          closePopup: true,
-        })
-
-        if (message.status === "success") {
-          toast.success("Secret created")
-          reset(initialFormValues)
-          onOpenChangeAction(false)
-          router.refresh()
-          return
-        }
-
-        setClientSubmitError(message.message)
-      }
-
-      function onWindowMessage(event: MessageEvent<unknown>) {
-        if (event.origin !== window.location.origin) {
-          return
-        }
-        handlePopupMessage(event.data)
-      }
-
-      messageHandlerRef.current = onWindowMessage
-      window.addEventListener("message", onWindowMessage)
-
-      if (typeof BroadcastChannel !== "undefined") {
-        const channel = new BroadcastChannel(oauthBroadcastChannelName)
-        channel.onmessage = (event: MessageEvent<OAuthPopupMessage>) => {
-          handlePopupMessage(event.data)
-        }
-        broadcastChannelRef.current = channel
-      }
-
-      const popup = window.open(
-        oauth.url,
-        `oauth-secret-${oauth.flowId}`,
-        "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes"
-      )
-      if (!popup) {
-        cleanupPopupFlow({
-          cancelPending: true,
-        })
-        setClientSubmitError("OAuth popup was blocked by the browser. Allow popups and try again.")
-        return
-      }
-
-      popupRef.current = popup
-      setOAuthPopupFlowID(oauth.flowId)
-
-      popupPollRef.current = window.setInterval(() => {
-        if (!popupRef.current?.closed) {
-          return
-        }
-        if (completed) {
-          return
-        }
-        cleanupPopupFlow({
-          cancelPending: true,
-        })
-        setClientSubmitError("OAuth popup was closed before authentication completed.")
-      }, 400)
-    },
-    [cleanupPopupFlow, onOpenChangeAction, reset, router]
-  )
-
   function isInCatalogField(target: EventTarget | null) {
     if (!(target instanceof Node)) {
       return false
@@ -703,9 +558,8 @@ export function OAuthSecretSheet({
     if (!nextOpen) {
       cleanupPopupFlow({
         closePopup: true,
-        cancelPending: Boolean(oauthPopupFlowID),
+        cancelPending: Boolean(oauthPopupFlowId),
       })
-      setOAuthPopupFlowID(undefined)
       resetOAuthSheet()
     }
     onOpenChangeAction(nextOpen)
@@ -748,7 +602,15 @@ export function OAuthSecretSheet({
       }
 
       if (result.status === "oauth_pending" && result.oauth) {
-        openOAuthPopup(result.oauth)
+        openOAuthPopup(result.oauth, {
+          onError: setClientSubmitError,
+          onSuccess() {
+            toast.success("Secret created")
+            reset(initialFormValues)
+            onOpenChangeAction(false)
+            router.refresh()
+          },
+        })
       }
     } catch (error) {
       setClientSubmitError(
@@ -778,18 +640,18 @@ export function OAuthSecretSheet({
       <SheetContent
         className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!"
         onPointerDownOutside={(event) => {
-          if (!oauthPopupFlowID) {
+          if (!oauthPopupFlowId) {
             return
           }
           event.preventDefault()
         }}
         onEscapeKeyDown={(event) => {
-          if (!oauthPopupFlowID) {
+          if (!oauthPopupFlowId) {
             return
           }
           event.preventDefault()
         }}
-        showCloseButton={oauthPopupFlowID === undefined}
+        showCloseButton={oauthPopupFlowId === undefined}
       >
         <SheetHeader className="shrink-0">
           <SheetTitle>New OAuth secret</SheetTitle>
@@ -1114,11 +976,11 @@ export function OAuthSecretSheet({
             <Button
               type="submit"
               disabled={
-                isSubmitting || oauthPopupFlowID !== undefined || isDiscoveryPendingForCurrentURL
+                isSubmitting || oauthPopupFlowId !== undefined || isDiscoveryPendingForCurrentURL
               }
             >
-              {isSubmitting || oauthPopupFlowID ? <Spinner /> : <Cable data-icon="inline-start" />}
-              {oauthPopupFlowID ? "Waiting for OAuth" : isSubmitting ? "Connecting" : "Connect"}
+              {isSubmitting || oauthPopupFlowId ? <Spinner /> : <Cable data-icon="inline-start" />}
+              {oauthPopupFlowId ? "Waiting for OAuth" : isSubmitting ? "Connecting" : "Connect"}
             </Button>
           </div>
         </form>

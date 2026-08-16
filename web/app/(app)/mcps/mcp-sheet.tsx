@@ -64,12 +64,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { type McpFormState, type SubmitMcpFormAction } from "@/data/mcp.actions"
 import { mcpFormSchema, type McpFormInput, type McpFormValues } from "@/data/mcp.schema"
-import {
-  oauthBroadcastChannelName,
-  oauthWindowMessageSource,
-  parseOAuthPopupMessage,
-  type OAuthPopupMessage,
-} from "@/lib/mcp-oauth-shared"
+import { useOAuthPopup } from "@/lib/use-oauth-popup"
 
 type SubmitMcpAction = (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
 
@@ -374,7 +369,7 @@ function generalErrorMessage(error: McpFormState["error"]) {
   return hasGeneralError ? error.message : undefined
 }
 
-const ServerURLField = React.memo(function ServerURLField({
+function ServerURLField({
   control,
   authMode,
   endpointError,
@@ -611,7 +606,7 @@ const ServerURLField = React.memo(function ServerURLField({
       {endpointError ? <FieldError errors={[endpointError]} /> : null}
     </Field>
   )
-})
+}
 
 export function McpSheet({
   open,
@@ -668,17 +663,16 @@ export function McpSheet({
     oauthAuthorizationEndpoint = defaultFormValues.oauth_authorization_endpoint,
     oauthTokenEndpoint = defaultFormValues.oauth_token_endpoint,
   ] = oauthFields
-  const [oauthPopupFlowId, setOauthPopupFlowId] = React.useState<string>()
   const [clientSubmitError, setClientSubmitError] = React.useState<string>()
+  const {
+    cleanup: cleanupPopupFlow,
+    flowId: oauthPopupFlowId,
+    open: openOAuthPopup,
+  } = useOAuthPopup("mcp-oauth")
   const [userExpandedAccordions, dispatchAccordion] = React.useReducer(accordionReducer, [])
   const [dismissedDiscoveryWarningKey, setDismissedDiscoveryWarningKey] = React.useState<string>()
   const [discoveryURLOverride, setDiscoveryURLOverride] = React.useState<string>()
   const [hasTriggeredDiscovery, setHasTriggeredDiscovery] = React.useState(true)
-  const popupRef = React.useRef<Window | null>(null)
-  const popupPollRef = React.useRef<number | null>(null)
-  const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
-  const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
-  const handledPopupFlowIdRef = React.useRef<string | undefined>(undefined)
   const shouldResetSubmitStateRef = React.useRef(false)
   const endpointURL = useWatch({
     control: form.control,
@@ -755,55 +749,14 @@ export function McpSheet({
             ? "success"
             : "idle"
 
-  const cancelPendingOAuthFlow = React.useCallback(() => {
-    void fetch("/mcps/oauth/pending", {
-      method: "POST",
-      keepalive: true,
-    }).catch(() => {})
-  }, [])
-
   const resetSubmitState = React.useCallback(() => {
     shouldResetSubmitStateRef.current = false
-    handledPopupFlowIdRef.current = undefined
     startTransition(() => {
       submitAction({
         type: "reset",
       })
     })
   }, [startTransition, submitAction])
-
-  const cleanupPopupFlow = React.useCallback(
-    (options?: { closePopup?: boolean; cancelPending?: boolean }) => {
-      const handler = messageHandlerRef.current
-      if (handler) {
-        window.removeEventListener("message", handler)
-        messageHandlerRef.current = null
-      }
-      broadcastChannelRef.current?.close()
-      broadcastChannelRef.current = null
-      if (popupPollRef.current !== null) {
-        window.clearInterval(popupPollRef.current)
-        popupPollRef.current = null
-      }
-      if (options?.closePopup && popupRef.current && !popupRef.current.closed) {
-        popupRef.current.close()
-      }
-      popupRef.current = null
-      setOauthPopupFlowId(undefined)
-      if (options?.cancelPending) {
-        cancelPendingOAuthFlow()
-      }
-    },
-    [cancelPendingOAuthFlow]
-  )
-
-  React.useEffect(() => {
-    return () => {
-      cleanupPopupFlow({
-        closePopup: true,
-      })
-    }
-  }, [cleanupPopupFlow])
 
   React.useLayoutEffect(() => {
     return () => {
@@ -879,94 +832,6 @@ export function McpSheet({
     })
   }, [currentDiscoveryState, form, oauthDiscoveryState])
 
-  const openOAuthPopup = React.useCallback(
-    (oauth: { flowId: string; url: string }) => {
-      setClientSubmitError(undefined)
-      let completed = false
-
-      function finishPopupFlow() {
-        cleanupPopupFlow()
-      }
-
-      function acknowledgePopup(flowId: string) {
-        const ack: OAuthPopupMessage = {
-          source: oauthWindowMessageSource,
-          kind: "ack",
-          flowId,
-        }
-        broadcastChannelRef.current?.postMessage(ack)
-      }
-
-      function handlePopupMessage(data: unknown) {
-        const message = parseOAuthPopupMessage(data)
-        if (!message || message.kind !== "result" || message.flowId !== oauth.flowId) {
-          return
-        }
-
-        completed = true
-        acknowledgePopup(message.flowId)
-        finishPopupFlow()
-
-        if (message.status === "success") {
-          toast.success("MCP connection created")
-          setClientSubmitError(undefined)
-          form.reset(defaultFormValues)
-          onOpenChangeAction(false)
-          startTransition(() => {
-            router.refresh()
-          })
-          return
-        }
-
-        setClientSubmitError(message.message)
-      }
-
-      function onWindowMessage(event: MessageEvent<unknown>) {
-        if (event.origin !== window.location.origin) {
-          return
-        }
-        handlePopupMessage(event.data)
-      }
-
-      messageHandlerRef.current = onWindowMessage
-      window.addEventListener("message", onWindowMessage)
-      if (typeof BroadcastChannel !== "undefined") {
-        const channel = new BroadcastChannel(oauthBroadcastChannelName)
-        channel.onmessage = (event: MessageEvent<OAuthPopupMessage>) => {
-          handlePopupMessage(event.data)
-        }
-        broadcastChannelRef.current = channel
-      }
-
-      const popup = window.open(
-        oauth.url,
-        `mcp-oauth-${oauth.flowId}`,
-        "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes"
-      )
-      if (!popup) {
-        finishPopupFlow()
-        setClientSubmitError("OAuth popup was blocked by the browser. Allow popups and try again.")
-        return
-      }
-
-      popupRef.current = popup
-      setOauthPopupFlowId(oauth.flowId)
-
-      popupPollRef.current = window.setInterval(() => {
-        if (!popupRef.current || !popupRef.current.closed) {
-          return
-        }
-        if (completed) {
-          return
-        }
-        finishPopupFlow()
-        cancelPendingOAuthFlow()
-        setClientSubmitError("OAuth popup was closed before authentication completed.")
-      }, 400)
-    },
-    [cancelPendingOAuthFlow, cleanupPopupFlow, form, onOpenChangeAction, router]
-  )
-
   React.useEffect(() => {
     if (!open) {
       return
@@ -980,13 +845,19 @@ export function McpSheet({
     }
 
     if (submitState.oauth) {
-      if (handledPopupFlowIdRef.current === submitState.oauth.flowId) {
-        return
-      }
-
-      handledPopupFlowIdRef.current = submitState.oauth.flowId
       shouldResetSubmitStateRef.current = true
-      openOAuthPopup(submitState.oauth)
+      openOAuthPopup(submitState.oauth, {
+        onError: setClientSubmitError,
+        onSuccess() {
+          toast.success("MCP connection created")
+          setClientSubmitError(undefined)
+          form.reset(defaultFormValues)
+          onOpenChangeAction(false)
+          startTransition(() => {
+            router.refresh()
+          })
+        },
+      })
       return
     }
 

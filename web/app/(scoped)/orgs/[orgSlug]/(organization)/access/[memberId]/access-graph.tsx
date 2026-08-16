@@ -1,15 +1,12 @@
 "use client"
 
-import dagre from "@dagrejs/dagre"
-import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
-import { BotIcon, KeyRoundIcon, UsersIcon } from "lucide-react"
-import type { NodeTypes, NodeProps as FlowNodeProps } from "@xyflow/react"
-import { Handle, Position, type Edge as FlowEdge, type Node as FlowNode } from "@xyflow/react"
+import type { NodeTypes, Edge as FlowEdge, Node as FlowNode } from "@xyflow/react"
 import { AccessSourceChip, AdministrationState } from "@/components/administration"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   EffectiveAccessGraph,
+  EffectiveAccessNode,
   type EffectiveAccessNodeData,
+  layoutEffectiveAccessNodes,
 } from "@/components/effective-access-graph"
 import {
   Table,
@@ -20,21 +17,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { EffectiveAccessDetail, EffectiveAccessSource } from "@/data/access"
-import { cn } from "@/lib/utils"
 
 type AccessNodeData = EffectiveAccessNodeData & {
-  detail: string
-  image?: string | null
   kind: "user" | "source" | "role" | "team" | "agent" | "permission"
-  label: string
 }
 
 type AccessNode = FlowNode<AccessNodeData, "access">
 type AccessEdge = FlowEdge<Record<string, never>, "static">
 
-const nodeTypes = { access: AccessGraphNode } satisfies NodeTypes
-const nodeWidth = 220
-const nodeHeight = 94
+const nodeTypes = { access: EffectiveAccessNode } satisfies NodeTypes
 
 export function AccessDetailView({ detail }: { detail: EffectiveAccessDetail }) {
   return (
@@ -190,73 +181,11 @@ function accessGraph(
     addEdge(agentNode, permissionNode)
   }
 
-  return { edges: [...edges.values()], nodes: layout([...nodes.values()], [...edges.values()]) }
-}
-
-function layout(nodes: AccessNode[], edges: AccessEdge[]) {
-  const graph = new dagre.graphlib.Graph<DagreGraphLabel, DagreNodeLabel>()
-  graph.setDefaultEdgeLabel(() => ({}))
-  graph.setGraph({ marginx: 24, marginy: 24, nodesep: 42, rankdir: "LR", ranksep: 136 })
-  for (const node of nodes) {
-    graph.setNode(node.id, {
-      height: node.measured?.height ?? nodeHeight,
-      width: node.measured?.width ?? nodeWidth,
-    })
+  const flowEdges = [...edges.values()]
+  return {
+    edges: flowEdges,
+    nodes: layoutEffectiveAccessNodes([...nodes.values()], flowEdges),
   }
-  for (const edge of edges) graph.setEdge(edge.source, edge.target)
-  dagre.layout(graph)
-  return nodes.map((node) => {
-    const position = graph.node(node.id) as DagreNodeLabel & { x: number; y: number }
-    return {
-      ...node,
-      position: {
-        x: position.x - (node.measured?.width ?? nodeWidth) / 2,
-        y: position.y - (node.measured?.height ?? nodeHeight) / 2,
-      },
-    }
-  })
-}
-
-function AccessGraphNode({ data }: FlowNodeProps<AccessNode>) {
-  const icon =
-    data.kind === "user" ? (
-      <Avatar size="sm">
-        <AvatarImage alt="" src={data.image ?? undefined} />
-        <AvatarFallback>{data.label.slice(0, 1).toUpperCase()}</AvatarFallback>
-      </Avatar>
-    ) : data.kind === "team" ? (
-      <UsersIcon aria-hidden="true" className="size-4" />
-    ) : data.kind === "agent" ? (
-      <BotIcon aria-hidden="true" className="size-4" />
-    ) : (
-      <KeyRoundIcon aria-hidden="true" className="size-4" />
-    )
-
-  return (
-    <div
-      aria-label={`${data.kind}: ${data.label}`}
-      className={cn(
-        "bg-card text-card-foreground relative grid min-h-20 w-[220px] gap-1 rounded-xl border p-3 text-left shadow-sm transition-opacity motion-reduce:transition-none",
-        data.kind === "permission" && "border-primary/30",
-        data.selected && "ring-primary ring-2",
-        data.muted && "opacity-25"
-      )}
-      role="group"
-    >
-      <Handle position={Position.Left} type="target" />
-      <Handle position={Position.Right} type="source" />
-      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal">
-        {icon}
-        {data.kind}
-      </div>
-      <div className="truncate text-sm font-semibold" title={data.label}>
-        {data.label}
-      </div>
-      <div className="text-muted-foreground truncate text-xs" title={data.detail}>
-        {data.detail}
-      </div>
-    </div>
-  )
 }
 
 function AccessSourceTable({ sources }: { sources: EffectiveAccessSource[] }) {

@@ -11,11 +11,11 @@ import type {
   NetworkTelemetryActionResponse,
   ProcessTelemetryActionResponse,
 } from "@/data/types"
-import { TelemetryFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-filters"
+import { LensFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
 import {
-  telemetryDateRange,
-  type TelemetryDateRange,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/search-params"
+  lensDateRange,
+  type LensDateRange,
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/search-params"
 import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table-skeleton"
 import { TelemetryTabs } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-tabs"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -146,13 +146,13 @@ async function TelemetryContent<TData extends TelemetryPageData>({
   return (
     <>
       <Suspense
-        key={`chart-${config.value}-${agentName}-${range.eventTimeAfter}-${range.eventTimeBefore}`}
+        key={`chart-${config.value}-${agentName}-${range.after}-${range.before}`}
         fallback={<EventsChartSkeleton />}
       >
         <Chart config={config} agentName={agentName} range={range} workspaceId={workspaceId} />
       </Suspense>
       <Suspense
-        key={`table-${config.value}-${agentName}-${range.eventTimeAfter}-${range.eventTimeBefore}-${pageToken ?? ""}`}
+        key={`table-${config.value}-${agentName}-${range.after}-${range.before}-${pageToken ?? ""}`}
         fallback={<TelemetryTableSkeleton headers={config.headers} />}
       >
         <Table
@@ -175,13 +175,13 @@ async function Chart<TData extends TelemetryPageData>({
 }: {
   config: TelemetryPageConfig<TData>
   agentName: string
-  range: TelemetryDateRange
+  range: LensDateRange
   workspaceId: string
 }) {
   const result = await config.loadAction({
     agent_name: agentName,
-    event_time_after: range.eventTimeAfter,
-    event_time_before: range.eventTimeBefore,
+    event_time_after: range.after,
+    event_time_before: range.before,
     workspace_id: workspaceId,
   })
 
@@ -201,14 +201,14 @@ async function Table<TData extends TelemetryPageData>({
 }: {
   config: TelemetryPageConfig<TData>
   agentName: string
-  range: TelemetryDateRange
+  range: LensDateRange
   pageToken?: string
   workspaceId: string
 }) {
   const result = await config.loadAction({
     agent_name: agentName,
-    event_time_after: range.eventTimeAfter,
-    event_time_before: range.eventTimeBefore,
+    event_time_after: range.after,
+    event_time_before: range.before,
     page_token: pageToken,
     workspace_id: workspaceId,
   })
@@ -237,7 +237,7 @@ async function Filters({
   }
 
   return (
-    <TelemetryFilters
+    <LensFilters
       agents={agents}
       selectedAgentName={selectedAgentName}
       from={range.from}
@@ -265,19 +265,19 @@ type TelemetryPageState = {
   agents: NonNullable<Awaited<ReturnType<typeof listAgentsCachedQuery>>["agents"]>
   error?: Error
   pageToken?: string
-  range: TelemetryDateRange
+  range: LensDateRange
   selectedAgentName?: string
 }
 
 type ResolvedTelemetrySearchParams = z.output<typeof telemetrySearchParamsSchema> & {
-  range: TelemetryDateRange
+  range: LensDateRange
 }
 
 async function resolveTelemetrySearchParams(
   searchParams: Promise<TelemetrySearchParams>
 ): Promise<ResolvedTelemetrySearchParams> {
   const search = telemetrySearchParamsSchema.parse(await searchParams)
-  const range = telemetryDateRange(search.from, search.to)
+  const range = lensDateRange(search.from, search.to)
 
   return {
     ...search,

@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Suspense } from "react"
+import { cache, Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
 import { EventsChart } from "@/components/events-chart"
@@ -12,12 +12,11 @@ import {
   listTraceSessionsAction,
 } from "@/data/lens.actions"
 import type { ListAgentActionResponse, TraceSessionFilterItem } from "@/data/types"
-import { TracesFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-filters"
+import { LensFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
 import {
-  parseLimitParam,
-  type TraceDateRange,
-  traceDateRange,
-} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/search-params"
+  lensDateRange,
+  type LensDateRange,
+} from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/search-params"
 import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-skeleton"
 import { TracesTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
@@ -26,6 +25,8 @@ import { getWorkspaceScope } from "@/data/workspaces"
 export const metadata: Metadata = {
   title: "Traces",
 }
+
+const defaultTraceLimit = 25
 
 const tracesSearchParamsSchema = z.object({
   agent_name: searchParamStringSchema,
@@ -134,7 +135,7 @@ async function Filters({
   }
 
   return (
-    <TracesFilters
+    <LensFilters
       agents={scope.agents}
       sessions={scope.sessions}
       selectedAgentName={scope.selectedAgentName}
@@ -172,8 +173,8 @@ async function Chart({
       sessionID,
     },
     {
-      started_after: params.range.startedAfter,
-      started_before: params.range.startedBefore,
+      started_after: params.range.after,
+      started_before: params.range.before,
     },
     workspaceId
   )
@@ -215,8 +216,8 @@ async function Traces({
     {
       limit: params.limit,
       page_token: params.pageToken,
-      started_after: params.range.startedAfter,
-      started_before: params.range.startedBefore,
+      started_after: params.range.after,
+      started_before: params.range.before,
     },
     workspaceId
   )
@@ -228,18 +229,21 @@ type ResolvedTracesSearchParams = {
   agentName?: string
   limit: number
   pageToken?: string
-  range: TraceDateRange
+  range: LensDateRange
   sessionID?: string
 }
 
-async function getTraceScopeForParams(params: ResolvedTracesSearchParams, workspaceId: string) {
+const getTraceScopeForParams = cache(function getTraceScopeForParams(
+  params: ResolvedTracesSearchParams,
+  workspaceId: string
+) {
   return getTraceScope({
     agents: listAgentsCachedQuery(undefined, workspaceId),
     agentName: params.agentName,
     sessionID: params.sessionID,
     workspaceId,
   })
-}
+})
 
 async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParams>) {
   const params = tracesSearchParamsSchema.parse(await searchParams)
@@ -248,9 +252,14 @@ async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParam
     agentName: params.agent_name,
     limit: parseLimitParam(params.limit),
     pageToken: params.page_token,
-    range: traceDateRange(params.from, params.to),
+    range: lensDateRange(params.from, params.to),
     sessionID: params.session_id,
   } satisfies ResolvedTracesSearchParams
+}
+
+function parseLimitParam(value?: string) {
+  const limit = Number(value)
+  return Number.isInteger(limit) && limit >= 1 && limit <= 100 ? limit : defaultTraceLimit
 }
 
 function ErrorPanel({ message }: { message: string }) {

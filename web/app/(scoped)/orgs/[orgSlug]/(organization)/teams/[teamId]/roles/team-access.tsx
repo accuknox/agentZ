@@ -1,14 +1,12 @@
 "use client"
 
-import dagre from "@dagrejs/dagre"
-import { KeyRoundIcon, UsersIcon } from "lucide-react"
-import type { NodeTypes, NodeProps as FlowNodeProps } from "@xyflow/react"
-import { Handle, Position, type Edge as FlowEdge, type Node as FlowNode } from "@xyflow/react"
+import type { NodeTypes, Edge as FlowEdge, Node as FlowNode } from "@xyflow/react"
 import { AccessSourceChip, AdministrationState } from "@/components/administration"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   EffectiveAccessGraph,
+  EffectiveAccessNode,
   type EffectiveAccessNodeData,
+  layoutEffectiveAccessNodes,
 } from "@/components/effective-access-graph"
 import {
   Table,
@@ -19,22 +17,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { TeamEffectiveAccessDetail } from "@/data/access"
-import { cn } from "@/lib/utils"
 
 type TeamNode = FlowNode<
   EffectiveAccessNodeData & {
-    detail: string
-    image?: string | null
     kind: "member" | "team" | "role" | "permission"
-    label: string
   },
   "team-access"
 >
 type TeamEdge = FlowEdge<Record<string, never>, "static">
 
-const nodeTypes = { "team-access": TeamAccessNode } satisfies NodeTypes
-const nodeWidth = 220
-const nodeHeight = 94
+const nodeTypes = { "team-access": EffectiveAccessNode } satisfies NodeTypes
 
 export function TeamAccessView({ detail }: { detail: TeamEffectiveAccessDetail }) {
   return (
@@ -113,63 +105,10 @@ function teamAccessGraph(
     addEdge(roleNode, permissionNode)
   }
   const flowEdges = [...edges.values()]
-  const layout = new dagre.graphlib.Graph()
-  layout.setDefaultEdgeLabel(() => ({}))
-  layout.setGraph({ marginx: 24, marginy: 24, nodesep: 42, rankdir: "LR", ranksep: 136 })
-  for (const node of nodes.values()) {
-    layout.setNode(node.id, { height: nodeHeight, width: nodeWidth })
-  }
-  for (const edge of flowEdges) layout.setEdge(edge.source, edge.target)
-  dagre.layout(layout)
   return {
     edges: flowEdges,
-    nodes: [...nodes.values()].map((node) => {
-      const position = layout.node(node.id)
-      return {
-        ...node,
-        position: { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 },
-      }
-    }),
+    nodes: layoutEffectiveAccessNodes([...nodes.values()], flowEdges),
   }
-}
-
-function TeamAccessNode({ data }: FlowNodeProps<TeamNode>) {
-  const icon =
-    data.kind === "member" ? (
-      <Avatar size="sm">
-        <AvatarImage alt="" src={data.image ?? undefined} />
-        <AvatarFallback>{data.label.slice(0, 1).toUpperCase()}</AvatarFallback>
-      </Avatar>
-    ) : data.kind === "team" ? (
-      <UsersIcon aria-hidden="true" className="size-4" />
-    ) : (
-      <KeyRoundIcon aria-hidden="true" className="size-4" />
-    )
-  return (
-    <div
-      aria-label={`${data.kind}: ${data.label}`}
-      className={cn(
-        "bg-card text-card-foreground relative grid min-h-20 w-[220px] gap-1 rounded-xl border p-3 text-left shadow-sm transition-opacity motion-reduce:transition-none",
-        data.kind === "permission" && "border-primary/30",
-        data.selected && "ring-primary ring-2",
-        data.muted && "opacity-25"
-      )}
-      role="group"
-    >
-      <Handle position={Position.Left} type="target" />
-      <Handle position={Position.Right} type="source" />
-      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal">
-        {icon}
-        {data.kind}
-      </div>
-      <div className="truncate text-sm font-semibold" title={data.label}>
-        {data.label}
-      </div>
-      <div className="text-muted-foreground truncate text-xs" title={data.detail}>
-        {data.detail}
-      </div>
-    </div>
-  )
 }
 
 function TeamAccessTable({

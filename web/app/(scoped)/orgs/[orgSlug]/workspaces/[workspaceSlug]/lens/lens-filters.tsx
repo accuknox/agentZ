@@ -5,8 +5,6 @@ import { BotIcon, CalendarIcon, MessageSquareQuote } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { useRouter } from "@bprogress/next/app"
 import { usePathname, useSearchParams } from "next/navigation"
-import type { Agent } from "@/lib/gateway/client"
-import type { TraceSessionFilterItem } from "@/data/types"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -18,23 +16,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { TraceSessionFilterItem } from "@/data/types"
 import { dayjs, formatDateParam } from "@/lib/format"
+import type { Agent } from "@/lib/gateway/client"
 
-export function TracesFilters({
-  agents,
-  sessions,
-  selectedAgentName,
-  selectedSessionId,
-  from,
-  to,
-}: {
+type LensFiltersProps = {
   agents: Agent[]
-  sessions: TraceSessionFilterItem[]
+  from?: string
   selectedAgentName?: string
   selectedSessionId?: string
-  from?: string
+  sessions?: TraceSessionFilterItem[]
   to?: string
-}) {
+}
+
+export function LensFilters({
+  agents,
+  from,
+  selectedAgentName,
+  selectedSessionId,
+  sessions,
+  to,
+}: LensFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -46,10 +48,9 @@ export function TracesFilters({
     for (const [key, value] of Object.entries(values)) {
       if (value) {
         params.set(key, value)
-        continue
+      } else {
+        params.delete(key)
       }
-
-      params.delete(key)
     }
 
     startTransition(() => {
@@ -83,26 +84,34 @@ export function TracesFilters({
             </SelectGroup>
           </SelectContent>
         </Select>
-        <Select
-          value={selectedSessionId}
-          onValueChange={(sessionID) => update({ session_id: sessionID })}
-          disabled={sessions.length === 0}
-        >
-          <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52">
-            <SelectValue placeholder="Session" className="truncate" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {sessions.map((session) => (
-                <SelectItem key={session.sessionId} value={session.sessionId}>
-                  <MessageSquareQuote className="inline-block" />
-                  <span className="block min-w-0 flex-1 truncate">{session.title}</span>
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <DateRangeControl key={`${from ?? ""}-${to ?? ""}`} from={from} to={to} update={update} />
+        {sessions ? (
+          <Select
+            value={selectedSessionId}
+            onValueChange={(sessionID) => update({ session_id: sessionID })}
+            disabled={sessions.length === 0}
+          >
+            <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52">
+              <SelectValue placeholder="Session" className="truncate" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {sessions.map((session) => (
+                  <SelectItem key={session.sessionId} value={session.sessionId}>
+                    <MessageSquareQuote className="inline-block" />
+                    <span className="block min-w-0 flex-1 truncate">{session.title}</span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        ) : null}
+        <DateRangeControl
+          key={`${from ?? ""}-${to ?? ""}`}
+          from={from}
+          to={to}
+          update={update}
+          resetSession={sessions !== undefined}
+        />
       </div>
     </div>
   )
@@ -110,22 +119,19 @@ export function TracesFilters({
 
 function DateRangeControl({
   from,
+  resetSession,
   to,
   update,
 }: {
   from?: string
+  resetSession: boolean
   to?: string
   update: (values: Record<string, string | undefined>) => void
 }) {
-  const selectedRange = React.useMemo<DateRange | undefined>(() => {
-    const selectedFrom = parseParamDate(from)
-    const selectedTo = parseParamDate(to)
-    if (!selectedFrom && !selectedTo) {
-      return undefined
-    }
-
-    return { from: selectedFrom, to: selectedTo ?? selectedFrom }
-  }, [from, to])
+  const selectedFrom = parseParamDate(from)
+  const selectedTo = parseParamDate(to)
+  const selectedRange =
+    selectedFrom || selectedTo ? { from: selectedFrom, to: selectedTo ?? selectedFrom } : undefined
   const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(selectedRange)
 
   return (
@@ -154,7 +160,7 @@ function DateRangeControl({
             update({
               from: formatDateParam(range.from),
               to: formatDateParam(range.to),
-              session_id: undefined,
+              ...(resetSession ? { session_id: undefined } : {}),
             })
           }}
         />
@@ -169,11 +175,9 @@ function rangeLabel(from?: string, to?: string) {
   if (fromDate && toDate) {
     return `${fromDate.format("MMM D, YYYY")} - ${toDate.format("MMM D, YYYY")}`
   }
-
   if (fromDate) {
     return fromDate.format("MMM D, YYYY")
   }
-
   return "Date range"
 }
 

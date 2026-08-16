@@ -262,6 +262,7 @@ export const zWorkspaceMemberCandidate = z.object({
   user_id: z.string(),
   name: z.string(),
   email: z.email(),
+  image: z.string().nullable(),
 })
 
 export const zListWorkspaceMemberCandidatesResponse = z.object({

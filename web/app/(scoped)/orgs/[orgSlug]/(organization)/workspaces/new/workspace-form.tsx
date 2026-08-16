@@ -4,7 +4,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
-import { Box, Brain, Cable, CircleAlert, Plus, UserRound, Wrench } from "lucide-react"
+import { Box, Brain, Cable, CircleAlert, Plus, Wrench } from "lucide-react"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -59,7 +59,8 @@ export function WorkspaceForm({
   )
 
   const options = candidates.map((candidate) => ({
-    icon: UserRound,
+    image: candidate.image,
+    initials: (candidate.name || candidate.email).slice(0, 1).toUpperCase(),
     label: candidate.name ? `${candidate.name} (${candidate.email})` : candidate.email,
     value: candidate.member_id,
   }))

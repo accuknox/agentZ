@@ -4233,7 +4233,10 @@ components:
         email:
           type: string
           format: email
-      required: [member_id, user_id, name, email]
+        image:
+          type: string
+          nullable: true
+      required: [member_id, user_id, name, email, image]
 
     ListWorkspaceMemberCandidatesResponse:
       type: object

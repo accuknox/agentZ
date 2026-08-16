@@ -40,7 +40,11 @@ export function RoleTable({
       {
         accessorKey: "name",
         header: "Name",
-        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+        cell: ({ row }) => (
+          <span className="block truncate font-medium" title={row.original.name}>
+            {row.original.name}
+          </span>
+        ),
       },
       ...(workspaceSlug
         ? [
@@ -111,7 +115,7 @@ export function RoleTable({
       <div className="w-full min-w-0 border-b">
         <Table
           aria-label={workspaceSlug ? "Workspace Roles" : "Organisation Roles"}
-          className="w-full min-w-4xl table-fixed"
+          className="w-full min-w-3xl table-fixed"
         >
           <TableHeader>
             {table.getHeaderGroups().map((group) => (
@@ -120,18 +124,22 @@ export function RoleTable({
                   <TableHead
                     className={
                       header.column.id === "name"
-                        ? "w-64"
-                        : header.column.id === "scope" || header.column.id === "immutable"
-                          ? "w-28"
-                          : header.column.id === "users" || header.column.id === "teams"
-                            ? "w-20 text-right"
-                            : header.column.id === "permissions"
-                              ? "w-28 text-right"
-                              : header.column.id === "updatedAt"
-                                ? "w-32"
-                                : header.column.id === "actions"
-                                  ? "w-20"
-                                  : undefined
+                        ? undefined
+                        : header.column.id === "scope"
+                          ? "w-24"
+                          : header.column.id === "immutable"
+                            ? "w-20"
+                            : header.column.id === "users" || header.column.id === "teams"
+                              ? "w-16 text-right"
+                              : header.column.id === "permissions"
+                                ? "w-28 text-right"
+                                : header.column.id === "dependencyState"
+                                  ? "w-32"
+                                  : header.column.id === "updatedAt"
+                                    ? "w-28"
+                                    : header.column.id === "actions"
+                                      ? "w-16"
+                                      : undefined
                     }
                     key={header.id}
                   >
@@ -152,9 +160,11 @@ export function RoleTable({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       className={
-                        ["users", "teams", "permissions"].includes(cell.column.id)
-                          ? "text-right tabular-nums"
-                          : undefined
+                        cell.column.id === "name"
+                          ? "min-w-0"
+                          : ["users", "teams", "permissions"].includes(cell.column.id)
+                            ? "text-right tabular-nums"
+                            : undefined
                       }
                       key={cell.id}
                     >

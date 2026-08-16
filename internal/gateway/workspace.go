@@ -142,12 +142,16 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 	}
 	members := make([]gatewayapi.WorkspaceMemberCandidate, 0, len(rows))
 	for _, row := range rows {
-		members = append(members, gatewayapi.WorkspaceMemberCandidate{
+		member := gatewayapi.WorkspaceMemberCandidate{
 			Email:    openapi_types.Email(row.Email),
 			MemberId: row.MemberID,
 			Name:     row.Name,
 			UserId:   row.UserID,
-		})
+		}
+		if row.Image.Valid {
+			member.Image = &row.Image.String
+		}
+		members = append(members, member)
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.ListWorkspaceMemberCandidatesResponse{
 		Members: members,

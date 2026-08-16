@@ -3954,6 +3954,25 @@ components:
         delete:
           type: boolean
 
+    ResourceActor:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        image:
+          type: string
+          nullable: true
+      required: [id, name, email, image]
+
     Tenant:
       type: object
       required: [organization_id, namespace, ready, phase, conditions, skill_capabilities, mcp_connection_capabilities, sandbox_capabilities, inference_provider_capabilities, inference_pool_capabilities]
@@ -4633,6 +4652,10 @@ components:
           $ref: '#/components/schemas/AgentName'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         last_activity:
           type: string
           format: date-time
@@ -4655,6 +4678,8 @@ components:
       required:
       - name
       - sandbox
+      - created_by
+      - last_modified_by
       - last_activity
       - memory
       - created_at
@@ -4812,6 +4837,10 @@ components:
           $ref: '#/components/schemas/SkillName'
         scope:
           $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         description:
           type: string
           minLength: 1
@@ -4841,6 +4870,8 @@ components:
       required:
       - name
       - scope
+      - created_by
+      - last_modified_by
       - description
       - version
       - storage_path
@@ -4881,6 +4912,10 @@ components:
         properties:
           description:
             type: string
+          created_by:
+            $ref: '#/components/schemas/ResourceActor'
+          last_modified_by:
+            $ref: '#/components/schemas/ResourceActor'
           scope:
             $ref: '#/components/schemas/ResourceScope'
           can_modify:
@@ -4899,7 +4934,7 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/SandboxName'
-        required: [description, scope, version, agents, sandboxes, can_modify, can_delete]
+        required: [description, created_by, last_modified_by, scope, version, agents, sandboxes, can_modify, can_delete]
 
     DeleteSkillsRequest:
       type: object
@@ -6636,6 +6671,10 @@ components:
       properties:
         key:
           $ref: '#/components/schemas/SecretKey'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         type:
           $ref: '#/components/schemas/SecretType'
         hosts:
@@ -6659,7 +6698,7 @@ components:
         token_expiry_time:
           type: string
           format: date-time
-      required: [key, type, hosts, status, reason, message, created_at]
+      required: [key, type, hosts, status, reason, message, created_at, created_by, last_modified_by]
 
     PutSecretsResponse:
       type: object
@@ -6720,6 +6759,10 @@ components:
           $ref: '#/components/schemas/SandboxName'
         scope:
           $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         packages:
           type: array
           items:
@@ -6766,7 +6809,7 @@ components:
             referenced_by_agent:
               type: boolean
           required: [package_count, allowed_host_count, skill_count, referenced_by_agent]
-      required: [name, scope, packages, allowed_hosts, mcp_connection_refs, skills, inference, created_at, can_modify, can_delete, metadata]
+      required: [name, scope, created_by, last_modified_by, packages, allowed_hosts, mcp_connection_refs, skills, inference, created_at, can_modify, can_delete, metadata]
 
     ListSandboxesResponse:
       type: object
@@ -7335,6 +7378,8 @@ components:
         properties:
           id: {$ref: '#/components/schemas/InferenceProviderName'}
           scope: {$ref: '#/components/schemas/ResourceScope'}
+          created_by: {$ref: '#/components/schemas/ResourceActor'}
+          last_modified_by: {$ref: '#/components/schemas/ResourceActor'}
           resource_version: {type: string}
           state: {type: string, enum: [Accepted, Ready, Degraded]}
           conditions:
@@ -7346,7 +7391,7 @@ components:
           can_delete: {type: boolean}
           created_at: {type: string, format: date-time}
           updated_at: {type: string, format: date-time}
-        required: [id, scope, resource_version, state, conditions, model_count, usage_count, can_modify, can_delete, created_at, updated_at]
+        required: [id, scope, created_by, last_modified_by, resource_version, state, conditions, model_count, usage_count, can_modify, can_delete, created_at, updated_at]
 
     ListInferenceProvidersResponse:
       type: object
@@ -7625,6 +7670,10 @@ components:
           $ref: '#/components/schemas/MCPConnectionName'
         scope:
           $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         endpoint:
           $ref: '#/components/schemas/MCPConnectionEndpoint'
         auth:
@@ -7644,7 +7693,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MCPConnectionTool'
-      required: [name, scope, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools, can_delete]
+      required: [name, scope, created_by, last_modified_by, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools, can_delete]
 
     MCPConnectionSummary:
       type: object
@@ -7657,6 +7706,10 @@ components:
           $ref: '#/components/schemas/MCPConnectionName'
         scope:
           $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         auth_mode:
           type: string
         endpoint_url:
@@ -7676,7 +7729,7 @@ components:
           type: integer
           format: int64
           minimum: 0
-      required: [name, scope, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count, can_delete]
+      required: [name, scope, created_by, last_modified_by, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count, can_delete]
 
     MCPConnectionEndpoint:
       type: object

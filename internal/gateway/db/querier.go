@@ -98,6 +98,7 @@ type Querier interface {
 	GatewayListTeamRoles(ctx context.Context, arg GatewayListTeamRolesParams) ([]TeamRole, error)
 	GatewayListTraceSessions(ctx context.Context, arg GatewayListTraceSessionsParams) ([]GatewayListTraceSessionsRow, error)
 	GatewayListTraces(ctx context.Context, arg GatewayListTracesParams) ([]GatewayListTracesRow, error)
+	GatewayListUsersByID(ctx context.Context, userIds []string) ([]GatewayListUsersByIDRow, error)
 	GatewayListWorkspaceAdminCandidates(ctx context.Context, arg GatewayListWorkspaceAdminCandidatesParams) ([]GatewayListWorkspaceAdminCandidatesRow, error)
 	GatewayListWorkspaceInheritedResources(ctx context.Context, arg GatewayListWorkspaceInheritedResourcesParams) ([]GatewayListWorkspaceInheritedResourcesRow, error)
 	GatewayListWorkspacesSelectingOrganizationResource(ctx context.Context, arg GatewayListWorkspacesSelectingOrganizationResourceParams) ([]Workspace, error)

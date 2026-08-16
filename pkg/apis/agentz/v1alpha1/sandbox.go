@@ -83,13 +83,9 @@ type SandboxInference struct {
 
 // SandboxSpec defines the desired state of Sandbox.
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 32)",message="skill names must not exceed 32 characters"
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)",message="creatorUserID is immutable"
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type SandboxSpec struct {
-	// CreatorUserID is the immutable Better Auth User ID that created the Sandbox.
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=128
-	// +optional
-	CreatorUserID string `json:"creatorUserID,omitempty"`
+	ResourceAudit `json:",inline"`
 
 	// Inference defines the model policy inherited by referencing Agents.
 	Inference SandboxInference `json:"inference"`

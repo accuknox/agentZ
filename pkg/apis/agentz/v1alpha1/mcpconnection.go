@@ -34,14 +34,9 @@ const (
 type MCPConnectionState string
 
 // MCPConnectionSpec defines the desired state of MCPConnection.
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)",message="creatorUserID is immutable"
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type MCPConnectionSpec struct {
-	// CreatorUserID is the immutable Better Auth User ID that created the
-	// MCPConnection.
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=128
-	// +optional
-	CreatorUserID string `json:"creatorUserID,omitempty"`
+	ResourceAudit `json:",inline"`
 
 	// Endpoint defines the remote MCP server endpoint and transport settings.
 	Endpoint MCPConnectionEndpoint `json:"endpoint"`

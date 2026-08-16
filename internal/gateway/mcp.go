@@ -60,7 +60,7 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 		return
 	}
 
-	items, err := s.listMCPConnectionSummaries(access, nil)
+	items, err := s.listMCPConnectionSummaries(r.Context(), access, nil)
 	if err != nil {
 		writeMCPInternalError(w, r, err)
 		return
@@ -113,7 +113,7 @@ func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, acces
 		agentzv1alpha1.ResourceScopeOrganisation,
 		access.claims.OrganizationID,
 	)
-	items, err := s.listMCPConnectionSummaries(organizationAccess, nil)
+	items, err := s.listMCPConnectionSummaries(ctx, organizationAccess, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +244,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 	}
 
 	writeChanges := func() bool {
-		items, err := s.listMCPConnectionSummaries(access, names)
+		items, err := s.listMCPConnectionSummaries(r.Context(), access, names)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
@@ -265,7 +265,9 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 				prevItem.Reason == item.Reason &&
 				prevItem.Message == item.Message &&
 				prevItem.ToolCatalogReady == item.ToolCatalogReady &&
-				prevItem.ToolCount == item.ToolCount
+				prevItem.ToolCount == item.ToolCount &&
+				prevItem.CreatedBy.Id == item.CreatedBy.Id &&
+				prevItem.LastModifiedBy.Id == item.LastModifiedBy.Id
 			if unchanged {
 				continue
 			}
@@ -403,7 +405,10 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 	conn.Spec = spec
-	conn.Spec.CreatorUserID = access.claims.UserID
+	conn.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+		CreatedByUserID:      access.claims.UserID,
+		LastModifiedByUserID: access.claims.UserID,
+	}
 	setMCPConnectionSecretRef(ns, name, &conn.Spec)
 
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
@@ -440,8 +445,16 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 
+	actors, err := s.resourceActors(
+		r.Context(), conn.Spec.CreatedByUserID,
+		conn.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, s.mcpConnectionDetail(
-		access, resourceScope(access.workspaceID), *conn,
+		access, resourceScope(access.workspaceID), *conn, actors,
 	))
 }
 
@@ -473,7 +486,15 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(access, params.Scope, *conn))
+	actors, err := s.resourceActors(
+		r.Context(), conn.Spec.CreatedByUserID,
+		conn.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(access, params.Scope, *conn, actors))
 }
 
 // DeleteMCPConnection handles DELETE /api/mcp-connection/{name}.
@@ -610,18 +631,30 @@ func (s *Service) listMCPConnections(namespace string) ([]agentzv1alpha1.MCPConn
 	return items, nil
 }
 
-func (s *Service) listMCPConnectionSummaries(access resourceAccess, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
+func (s *Service) listMCPConnectionSummaries(ctx context.Context, access resourceAccess, names []string) ([]gatewayapi.MCPConnectionSummary, error) {
 	items, err := s.listMCPConnections(access.namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	summaries := make([]gatewayapi.MCPConnectionSummary, 0, len(items))
+	connections := make([]agentzv1alpha1.MCPConnection, 0, len(items))
+	userIDs := make([]string, 0, len(items)*2)
 	for _, conn := range items {
 		if len(names) > 0 && !slices.Contains(names, conn.Name) {
 			continue
 		}
-		summaries = append(summaries, s.mcpConnectionSummary(access, conn))
+		connections = append(connections, conn)
+		userIDs = append(userIDs, conn.Spec.CreatedByUserID,
+			conn.Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(ctx, userIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]gatewayapi.MCPConnectionSummary, 0, len(connections))
+	for _, conn := range connections {
+		summaries = append(summaries, s.mcpConnectionSummary(access, conn, actors))
 	}
 	slices.SortFunc(summaries, func(a, b gatewayapi.MCPConnectionSummary) int {
 		return strings.Compare(a.Name, b.Name)
@@ -629,7 +662,7 @@ func (s *Service) listMCPConnectionSummaries(access resourceAccess, names []stri
 	return summaries, nil
 }
 
-func (s *Service) mcpConnectionSummary(access resourceAccess, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionSummary {
+func (s *Service) mcpConnectionSummary(access resourceAccess, conn agentzv1alpha1.MCPConnection, actors map[string]gatewayapi.ResourceActor) gatewayapi.MCPConnectionSummary {
 	status, reason, message := s.mcpConnectionStatus(conn)
 	return gatewayapi.MCPConnectionSummary{
 		Scope:            resourceScope(access.workspaceID),
@@ -643,10 +676,12 @@ func (s *Service) mcpConnectionSummary(access resourceAccess, conn agentzv1alpha
 		Message:          message,
 		ToolCatalogReady: conn.Status.ToolCatalogReady,
 		ToolCount:        int64(len(conn.Status.Tools)),
+		CreatedBy:        actors[conn.Spec.CreatedByUserID],
+		LastModifiedBy:   actors[conn.Spec.LastModifiedByUserID],
 	}
 }
 
-func (s *Service) mcpConnectionDetail(access resourceAccess, scope gatewayapi.ResourceScope, conn agentzv1alpha1.MCPConnection) gatewayapi.MCPConnectionDetail {
+func (s *Service) mcpConnectionDetail(access resourceAccess, scope gatewayapi.ResourceScope, conn agentzv1alpha1.MCPConnection, actors map[string]gatewayapi.ResourceActor) gatewayapi.MCPConnectionDetail {
 	headers := map[string]string{}
 	maps.Copy(headers, conn.Spec.Endpoint.Headers)
 
@@ -717,6 +752,8 @@ func (s *Service) mcpConnectionDetail(access resourceAccess, scope gatewayapi.Re
 		Message:          message,
 		ToolCatalogReady: conn.Status.ToolCatalogReady,
 		Tools:            tools,
+		CreatedBy:        actors[conn.Spec.CreatedByUserID],
+		LastModifiedBy:   actors[conn.Spec.LastModifiedByUserID],
 	}
 }
 
@@ -728,7 +765,7 @@ func mcpCanDelete(access resourceAccess, conn agentzv1alpha1.MCPConnection) bool
 	if access.effective.Allows(scope, authorization.OperationDeleteMCPConnection) {
 		return true
 	}
-	return conn.Spec.CreatorUserID == access.claims.UserID &&
+	return conn.Spec.CreatedByUserID == access.claims.UserID &&
 		access.effective.Allows(scope, authorization.OperationCreateMCPConnection)
 }
 

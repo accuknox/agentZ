@@ -31,7 +31,7 @@ export default function JoinOrganizationPage({
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-svh items-center justify-center" role="status">
+        <main className="flex min-h-svh w-full flex-1 items-center justify-center" role="status">
           <LoaderCircle
             aria-label="Preparing organisation invitation"
             className="text-muted-foreground size-5 animate-spin"
@@ -204,7 +204,7 @@ async function JoinOrganizationContent({
   const available = googleAvailable || githubAvailable
 
   return (
-    <main className="relative flex min-h-svh items-center justify-center overflow-hidden px-6 py-12">
+    <main className="relative flex min-h-svh w-full flex-1 items-center justify-center overflow-hidden px-6 py-6">
       <div
         aria-hidden="true"
         className="bg-primary/5 absolute inset-x-0 top-0 h-72 [mask-image:linear-gradient(to_bottom,black,transparent)]"
@@ -220,7 +220,7 @@ async function JoinOrganizationContent({
           alt=""
           width={176}
           height={176}
-          className="mt-8 size-40 drop-shadow-sm"
+          className="mt-6 size-40 drop-shadow-sm"
           priority
         />
 
@@ -231,9 +231,9 @@ async function JoinOrganizationContent({
           </AvatarFallback>
         </Avatar>
 
-        <p className="text-primary mt-5 text-sm font-semibold">Organisation invitation</p>
+        <p className="text-primary mt-4 text-sm font-semibold">Organisation invitation</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance">Join {org.name}</h1>
-        <p className="text-muted-foreground mt-3 max-w-sm leading-6 text-balance">
+        <p className="text-muted-foreground mt-2 max-w-sm leading-6 text-balance">
           Choose an account to verify that you’re eligible. Your access is granted only after
           verification succeeds.
         </p>
@@ -249,7 +249,7 @@ async function JoinOrganizationContent({
         ) : null}
 
         {available ? (
-          <div className="mt-7 flex w-full flex-col gap-3">
+          <div className="mt-5 flex w-full flex-col gap-3">
             {googleAvailable ? (
               <form action={joinOrganization.bind(null, "google")}>
                 <Button className="h-11 w-full gap-3" type="submit" variant="outline">
@@ -273,7 +273,7 @@ async function JoinOrganizationContent({
             </p>
           </div>
         ) : (
-          <div className="mt-7 w-full rounded-xl border px-4 py-4 text-sm">
+          <div className="mt-5 w-full rounded-xl border px-4 py-4 text-sm">
             <p className="font-medium">Social sign up is not available</p>
             <p className="text-muted-foreground mt-1">
               Ask an Organisation administrator for another way to join.
@@ -281,7 +281,7 @@ async function JoinOrganizationContent({
           </div>
         )}
 
-        <Button asChild className="mt-5" variant="ghost">
+        <Button asChild className="mt-3" variant="ghost">
           <Link href="/signin">
             <ArrowLeft aria-hidden="true" data-icon="inline-start" />
             Return to sign in

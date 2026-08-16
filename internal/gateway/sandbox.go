@@ -69,10 +69,19 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		writeInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
 		return
 	}
+	userIDs := make([]string, 0, len(sandboxList.Items)*2)
+	for _, sandbox := range sandboxList.Items {
+		userIDs = append(userIDs, sandbox.Spec.CreatedByUserID, sandbox.Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(r.Context(), userIDs...)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 
 	items := make([]gatewayapi.Sandbox, 0, len(sandboxList.Items))
 	for _, sb := range sandboxList.Items {
-		items = append(items, sandboxFromCRD(sb, refs[sb.Name], access))
+		items = append(items, sandboxFromCRD(sb, refs[sb.Name], access, actors))
 	}
 	if workspaceID != "" {
 		inherited, err := s.listInheritedSandboxes(r.Context(), access, refs)
@@ -127,12 +136,23 @@ func (s *Service) listInheritedSandboxes(ctx context.Context, access resourceAcc
 	}
 	organizationAccess := access
 	organizationAccess.workspaceID = ""
+	userIDs := make([]string, 0, len(sandboxes.Items)*2)
+	for _, sandbox := range sandboxes.Items {
+		if _, ok := selected[sandbox.Name]; !ok {
+			continue
+		}
+		userIDs = append(userIDs, sandbox.Spec.CreatedByUserID, sandbox.Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(ctx, userIDs...)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]gatewayapi.Sandbox, 0, len(sandboxes.Items))
 	for _, sb := range sandboxes.Items {
 		if _, ok := selected[sb.Name]; !ok {
 			continue
 		}
-		item := sandboxFromCRD(sb, refs[sb.Name], organizationAccess)
+		item := sandboxFromCRD(sb, refs[sb.Name], organizationAccess, actors)
 		item.CanModify = false
 		item.CanDelete = false
 		items = append(items, item)
@@ -339,7 +359,10 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			OwnerReferences: []metav1.OwnerReference{access.owner},
 		},
 		Spec: agentzv1alpha1.SandboxSpec{
-			CreatorUserID:     access.claims.UserID,
+			ResourceAudit: agentzv1alpha1.ResourceAudit{
+				CreatedByUserID:      access.claims.UserID,
+				LastModifiedByUserID: access.claims.UserID,
+			},
 			Packages:          packages,
 			AllowedHosts:      allowedHosts,
 			MCPConnectionRefs: mcpConnectionRefs,
@@ -404,7 +427,14 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, sandboxFromCRD(*sandbox, false, access))
+	actors, err := s.resourceActors(
+		r.Context(), sandbox.Spec.CreatedByUserID, sandbox.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, sandboxFromCRD(*sandbox, false, access, actors))
 }
 
 // DeleteSandbox handles DELETE /api/sandbox/{sandboxName}.
@@ -754,6 +784,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
 		sandbox.Spec.Skills = resourceReferencesToCRD(skills)
 		sandbox.Spec.Inference = desiredInference
+		sandbox.Spec.LastModifiedByUserID = access.claims.UserID
 
 		if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
 			return updateErr
@@ -804,10 +835,17 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0, access))
+	actors, err := s.resourceActors(
+		r.Context(), updated.Spec.CreatedByUserID, updated.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0, access, actors))
 }
 
-func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceAccess) gatewayapi.Sandbox {
+func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceAccess, actors map[string]gatewayapi.ResourceActor) gatewayapi.Sandbox {
 	packages := []string{}
 	if sb.Spec.Packages != nil {
 		packages = sb.Spec.Packages
@@ -837,6 +875,8 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceA
 	out := gatewayapi.Sandbox{
 		Scope:             resourceScope(access.workspaceID),
 		Name:              sb.Name,
+		CreatedBy:         actors[sb.Spec.CreatedByUserID],
+		LastModifiedBy:    actors[sb.Spec.LastModifiedByUserID],
 		Packages:          packages,
 		AllowedHosts:      allowedHosts,
 		McpConnectionRefs: mcpConnectionRefs,
@@ -848,7 +888,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceA
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
-	creator := sb.Spec.CreatorUserID == access.claims.UserID &&
+	creator := sb.Spec.CreatedByUserID == access.claims.UserID &&
 		access.effective.Allows(scope, authorization.OperationCreateSandbox)
 	out.CanModify = access.effective.Allows(scope, authorization.OperationUpdateSandbox) || creator
 	out.CanDelete = access.effective.Allows(scope, authorization.OperationDeleteSandbox) || creator
@@ -1158,18 +1198,22 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 
 func (s *Service) validateSandboxDependencies(ctx context.Context, access resourceAccess, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.FieldError, error) {
 	fields := []gatewayapi.FieldError{}
-	allows := func(scope agentzv1alpha1.ResourceScope, operation authorization.Operation) bool {
-		workspaceID := ""
+	workspaceScope := authorization.Scope{
+		OrganizationID: access.claims.OrganizationID,
+		WorkspaceID:    access.workspaceID,
+	}
+	organizationScope := authorization.Scope{
+		OrganizationID: access.claims.OrganizationID,
+	}
+	allowsRead := func(scope agentzv1alpha1.ResourceScope, operation authorization.Operation) bool {
 		if scope == agentzv1alpha1.ResourceScopeWorkspace {
-			workspaceID = access.workspaceID
+			return access.workspaceID != "" && access.effective.Allows(workspaceScope, operation)
 		}
-		return access.effective.Allows(authorization.Scope{
-			OrganizationID: access.claims.OrganizationID,
-			WorkspaceID:    workspaceID,
-		}, operation)
+		return access.effective.Allows(workspaceScope, operation) ||
+			access.effective.Allows(organizationScope, operation)
 	}
 	for i, ref := range sandbox.Spec.Skills {
-		if allows(ref.Scope, authorization.OperationListSkills) {
+		if allowsRead(ref.Scope, authorization.OperationListSkills) {
 			continue
 		}
 		fields = append(fields, gatewayapi.FieldError{
@@ -1178,7 +1222,7 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 		})
 	}
 	for i, ref := range sandbox.Spec.MCPConnectionRefs {
-		if allows(ref.Scope, authorization.OperationGetMCPConnection) {
+		if allowsRead(ref.Scope, authorization.OperationGetMCPConnection) {
 			continue
 		}
 		fields = append(fields, gatewayapi.FieldError{
@@ -1196,7 +1240,11 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 			continue
 		}
 		if ref.Provider == agentzv1alpha1.InferencePoolProvider {
-			if !allows(ref.Scope, authorization.OperationGetInferencePool) {
+			poolScope := organizationScope
+			if ref.Scope == agentzv1alpha1.ResourceScopeWorkspace {
+				poolScope = workspaceScope
+			}
+			if !access.effective.Allows(poolScope, authorization.OperationGetInferencePool) {
 				fields = append(fields, gatewayapi.FieldError{
 					Field:   fmt.Sprintf("inference.models[%d]", i),
 					Message: "effective Inference Pool read permission is required in the referenced scope",
@@ -1234,7 +1282,7 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 			})
 			continue
 		}
-		if !allows(ref.Scope, authorization.OperationGetInferenceProvider) {
+		if !allowsRead(ref.Scope, authorization.OperationGetInferenceProvider) {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("inference.models[%d]", i),
 				Message: "effective Inference Provider read permission is required in the referenced scope",

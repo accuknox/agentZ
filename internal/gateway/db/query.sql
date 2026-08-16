@@ -791,6 +791,11 @@ RETURNING
   created_at,
   updated_at;
 
+-- name: GatewayListUsersByID :many
+SELECT id, name, email, image
+FROM users
+WHERE id = ANY(sqlc.arg(user_ids)::text[]);
+
 -- name: GatewayListWorkspaceAdminCandidates :many
 SELECT
   members.id AS member_id,

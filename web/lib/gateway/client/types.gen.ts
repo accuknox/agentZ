@@ -136,6 +136,13 @@ export type ResourceCapabilities = {
   delete: boolean
 }
 
+export type ResourceActor = {
+  id: string
+  name: string | null
+  email: string | null
+  image: string | null
+}
+
 export type Tenant = {
   organization_id: string
   namespace: string
@@ -420,6 +427,8 @@ export type ListWorkflowWebhookTriggersResponse = {
 export type Agent = {
   name: AgentName
   sandbox: ResourceReference
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   last_activity: string
   memory: AgentMemoryConfig
   created_at: string
@@ -484,6 +493,8 @@ export type ListAgentAccessTargetsResponse = {
 export type Skill = {
   name: SkillName
   scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   description: string
   version: number
   storage_path: string
@@ -505,6 +516,8 @@ export type MutableSkillSummary = SkillFileSummary
 
 export type ImmutableSkillSummary = SkillFileSummary & {
   description: string
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   scope: ResourceScope
   can_modify: boolean
   can_delete: boolean
@@ -1147,6 +1160,8 @@ export type CreateSecretRequest = {
 
 export type SecretListItem = {
   key: SecretKey
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   type: SecretType
   hosts: Array<SecretHost>
   provider?: string
@@ -1182,6 +1197,8 @@ export type WatchSecretsEvent = {
 export type Sandbox = {
   name: SandboxName
   scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
@@ -1581,6 +1598,8 @@ export type InferenceProvider = InferenceProviderReadFields &
   InferenceProviderReadDiscriminator & {
     id: InferenceProviderName
     scope: ResourceScope
+    created_by: ResourceActor
+    last_modified_by: ResourceActor
     resource_version: string
     state: "Accepted" | "Ready" | "Degraded"
     conditions: Array<InferenceProviderCondition>
@@ -1742,6 +1761,8 @@ export type McpConnectionDetail = {
   can_delete: boolean
   name: McpConnectionName
   scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   endpoint: McpConnectionEndpoint
   auth: McpConnectionAuth
   created_at: string
@@ -1759,6 +1780,8 @@ export type McpConnectionSummary = {
   can_delete: boolean
   name: McpConnectionName
   scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   auth_mode: string
   endpoint_url: string
   created_at: string

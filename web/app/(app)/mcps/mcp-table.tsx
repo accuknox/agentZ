@@ -30,10 +30,12 @@ import { createMcpColumns } from "./mcp-columns"
 import { McpViewSheet } from "./mcp-view-sheet"
 
 const columnClassName: Record<string, string> = {
-  name: "w-64",
-  auth_mode: "w-32",
-  status: "w-48",
-  endpoint: "min-w-48",
+  name: "w-56",
+  auth_mode: "w-24",
+  status: "w-32",
+  endpoint: "min-w-40",
+  created_by: "hidden lg:table-cell w-24",
+  last_modified_by: "hidden lg:table-cell w-24",
   age: "w-28",
   actions: "w-20",
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -51,6 +52,35 @@ type resourceAccessRequest struct {
 	operation       authorization.Operation
 	creatorFallback authorization.Operation
 	isCreator       func(context.Context, string, string) (bool, error)
+}
+
+func (s *Service) resourceActors(ctx context.Context, userIDs ...string) (map[string]gatewayapi.ResourceActor, error) {
+	actors := make(map[string]gatewayapi.ResourceActor, len(userIDs))
+	for _, userID := range userIDs {
+		actors[userID] = gatewayapi.ResourceActor{Id: userID}
+	}
+	if len(actors) == 0 {
+		return actors, nil
+	}
+
+	ids := make([]string, 0, len(actors))
+	for userID := range actors {
+		ids = append(ids, userID)
+	}
+	rows, err := s.queries.GatewayListUsersByID(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list resource actors: %w", err)
+	}
+	for _, row := range rows {
+		name := row.Name
+		email := openapi_types.Email(row.Email)
+		actor := gatewayapi.ResourceActor{Id: row.ID, Name: &name, Email: &email}
+		if row.Image.Valid {
+			actor.Image = &row.Image.String
+		}
+		actors[row.ID] = actor
+	}
+	return actors, nil
 }
 
 func (a resourceAccess) failureResult() gatewaydb.EventTrailResult {

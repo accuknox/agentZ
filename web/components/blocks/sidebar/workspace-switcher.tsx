@@ -28,6 +28,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
   const router = useRouter()
   const { isMobile, setOpenMobile } = useSidebar()
   const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState("")
 
   if (scope.kind === "no-access") {
     return (
@@ -66,7 +67,15 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
-          <Popover onOpenChange={setOpen} open={open}>
+          <Popover
+            onOpenChange={(nextOpen) => {
+              setOpen(nextOpen)
+              if (nextOpen) {
+                setSelected(active?.id ?? `organization:${scope.organization.id}`)
+              }
+            }}
+            open={open}
+          >
             <PopoverTrigger asChild>
               <SidebarMenuButton
                 aria-label="Choose Workspace"
@@ -114,7 +123,11 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   <span className="text-muted-foreground block text-xs">Organisation</span>
                 </span>
               </Link>
-              <Command className="border-border/60 rounded-none! border-t [&_[data-slot=command-input-wrapper]]:pt-0">
+              <Command
+                className="border-border/60 rounded-none! border-t [&_[data-slot=command-input-wrapper]]:pt-0"
+                onValueChange={setSelected}
+                value={selected}
+              >
                 <CommandInput placeholder="Search Workspaces..." />
                 <CommandList className="max-h-72">
                   <CommandEmpty>No matching Workspaces.</CommandEmpty>
@@ -124,7 +137,8 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                         className="data-[checked=true]:bg-muted/70 h-auto cursor-pointer gap-2.5 rounded-lg px-2 py-2"
                         key={workspace.id}
                         data-checked={workspace.id === active?.id}
-                        value={`${workspace.name} ${workspace.slug}`}
+                        keywords={[workspace.name, workspace.slug]}
+                        value={workspace.id}
                         onSelect={() => {
                           close()
                           router.push(`${root}/workspaces/${workspace.slug}` as Route)

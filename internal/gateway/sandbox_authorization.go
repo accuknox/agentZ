@@ -40,7 +40,7 @@ func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandbox
 		isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
 			sandbox := &agentzv1alpha1.Sandbox{}
 			err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: sandboxName, Namespace: namespace}, sandbox)
-			return sandbox.Spec.CreatorUserID == userID, err
+			return sandbox.Spec.CreatedByUserID == userID, err
 		}
 	}
 	access, apiErr := s.resolveResourceAccess(ctx, resourceAccessRequest{

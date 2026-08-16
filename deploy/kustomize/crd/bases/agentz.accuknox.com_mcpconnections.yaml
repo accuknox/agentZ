@@ -195,10 +195,8 @@ spec:
                         type: string
                     type: object
                 type: object
-              creatorUserID:
-                description: |-
-                  CreatorUserID is the immutable Better Auth User ID that created the
-                  MCPConnection.
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
                 maxLength: 128
                 minLength: 1
                 type: string
@@ -222,12 +220,19 @@ spec:
                 required:
                 - url
                 type: object
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
             required:
+            - createdByUserID
             - endpoint
+            - lastModifiedByUserID
             type: object
             x-kubernetes-validations:
-            - message: creatorUserID is immutable
-              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)'
+            - message: createdByUserID is immutable
+              rule: self.createdByUserID == oldSelf.createdByUserID
           status:
             description: Status defines the observed state of MCPConnection.
             properties:

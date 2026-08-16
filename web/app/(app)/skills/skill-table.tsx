@@ -15,6 +15,7 @@ import { useTokenPagination } from "@/lib/use-token-pagination"
 import { AgentGettingReady } from "@/components/agent-readiness"
 import { TablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
+import { UserAvatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -46,6 +47,8 @@ const columnClassName: Record<string, string> = {
   file_count: "w-24",
   size_bytes: "w-28",
   agents: "w-52",
+  created_by: "hidden lg:table-cell w-28",
+  last_modified_by: "hidden lg:table-cell w-28",
   modified_at: "w-44",
   actions: "w-20",
 }
@@ -298,16 +301,32 @@ function createSkillColumns({
   ]
 
   if (showImmutable) {
-    columns.push({
-      accessorKey: "version",
-      header: ({ column }) => <SortButton column={column} label="Version" />,
-      cell: ({ row }) => {
-        const skill = row.original
-        return skill.type === "immutable" ? (
-          <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
-        ) : null
+    columns.push(
+      {
+        accessorKey: "version",
+        header: ({ column }) => <SortButton column={column} label="Version" />,
+        cell: ({ row }) => {
+          const skill = row.original
+          return skill.type === "immutable" ? (
+            <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
+          ) : null
+        },
       },
-    })
+      {
+        id: "created_by",
+        header: "Created",
+        cell: ({ row }) =>
+          row.original.type === "immutable" ? <UserAvatar {...row.original.created_by} /> : null,
+      },
+      {
+        id: "last_modified_by",
+        header: "Modified",
+        cell: ({ row }) =>
+          row.original.type === "immutable" ? (
+            <UserAvatar {...row.original.last_modified_by} />
+          ) : null,
+      }
+    )
   }
 
   columns.push(
@@ -343,7 +362,7 @@ function createSkillColumns({
   columns.push(
     {
       accessorKey: "modified_at",
-      header: ({ column }) => <SortButton column={column} label="Modified" />,
+      header: ({ column }) => <SortButton column={column} label="Modified at" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
           <TableRelativeTime value={row.original.modified_at} />

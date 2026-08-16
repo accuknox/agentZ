@@ -66,8 +66,8 @@ spec:
                 items:
                   type: string
                 type: array
-              creatorUserID:
-                description: CreatorUserID is the immutable Better Auth User ID that created the Sandbox.
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
                 maxLength: 128
                 minLength: 1
                 type: string
@@ -195,6 +195,11 @@ spec:
                   rule: '!has(self.smallModel) || self.models.exists(m, m.scope == self.smallModel.scope && m.provider == self.smallModel.provider && m.model == self.smallModel.model)'
                 - message: attachment model must belong to the allowlist
                   rule: '!has(self.attachmentModel) || self.models.exists(m, m.scope == self.attachmentModel.scope && m.provider == self.attachmentModel.provider && m.model == self.attachmentModel.model)'
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
               mcpConnectionRefs:
                 description: |-
                   MCPConnectionRefs lists external MCP connections exposed in this
@@ -278,13 +283,15 @@ spec:
                 - name
                 x-kubernetes-list-type: map
             required:
+            - createdByUserID
             - inference
+            - lastModifiedByUserID
             type: object
             x-kubernetes-validations:
             - message: skill names must not exceed 32 characters
               rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 32)'
-            - message: creatorUserID is immutable
-              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)'
+            - message: createdByUserID is immutable
+              rule: self.createdByUserID == oldSelf.createdByUserID
           status:
             description: status defines the observed state of Sandbox
             properties:

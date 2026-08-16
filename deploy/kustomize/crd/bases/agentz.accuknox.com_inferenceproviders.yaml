@@ -202,10 +202,8 @@ spec:
                 x-kubernetes-validations:
                 - message: catalog provider is immutable
                   rule: self == oldSelf
-              creatorUserID:
-                description: |-
-                  CreatorUserID is the immutable Better Auth User ID that created the
-                  InferenceProvider.
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
                 maxLength: 128
                 minLength: 1
                 type: string
@@ -236,6 +234,11 @@ spec:
                 - Bedrock
                 - VertexAI
                 - Azure
+                type: string
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                maxLength: 128
+                minLength: 1
                 type: string
               models:
                 description: Models lists the explicitly enabled upstream models.
@@ -476,8 +479,10 @@ spec:
                 type: object
             required:
             - catalogProvider
+            - createdByUserID
             - displayName
             - kind
+            - lastModifiedByUserID
             - models
             type: object
             x-kubernetes-validations:
@@ -501,8 +506,8 @@ spec:
               rule: 'self.kind == ''Azure'' ? has(self.azure) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) : true'
             - message: subscription provider kinds do not accept endpoint configuration
               rule: 'self.kind == ''OpenAICodex'' || self.kind == ''GitHubCopilot'' ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true'
-            - message: creatorUserID is immutable
-              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)'
+            - message: createdByUserID is immutable
+              rule: self.createdByUserID == oldSelf.createdByUserID
           status:
             description: Status describes the observed provider runtime.
             properties:

@@ -4601,6 +4601,44 @@ func (q *Queries) GatewayListTraces(ctx context.Context, arg GatewayListTracesPa
 	return items, nil
 }
 
+const gatewayListUsersByID = `-- name: GatewayListUsersByID :many
+SELECT id, name, email, image
+FROM users
+WHERE id = ANY($1::text[])
+`
+
+type GatewayListUsersByIDRow struct {
+	ID    string      `json:"id"`
+	Name  string      `json:"name"`
+	Email string      `json:"email"`
+	Image pgtype.Text `json:"image"`
+}
+
+func (q *Queries) GatewayListUsersByID(ctx context.Context, userIds []string) ([]GatewayListUsersByIDRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListUsersByID, userIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListUsersByIDRow{}
+	for rows.Next() {
+		var i GatewayListUsersByIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.Image,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListWorkspaceAdminCandidates = `-- name: GatewayListWorkspaceAdminCandidates :many
 SELECT
   members.id AS member_id,

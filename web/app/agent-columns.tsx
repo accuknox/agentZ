@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { UserAvatar } from "@/components/ui/avatar"
 import { toast } from "sonner"
 import { TableRelativeTime } from "@/components/ui/table"
 import type { AgentActionScope } from "@/data/agent.actions"
@@ -64,6 +65,16 @@ export function createAgentColumns(
       },
     },
     {
+      accessorKey: "created_by",
+      header: "Created",
+      cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+    },
+    {
+      accessorKey: "last_modified_by",
+      header: "Modified",
+      cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button
@@ -71,7 +82,7 @@ export function createAgentColumns(
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Created
+          Created at
           <ArrowUpDown />
         </Button>
       ),

@@ -57,7 +57,7 @@ func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string
 			if err != nil {
 				return false, err
 			}
-			return conn.Spec.CreatorUserID == userID, nil
+			return conn.Spec.CreatedByUserID == userID, nil
 		},
 	})
 }

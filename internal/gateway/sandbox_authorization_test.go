@@ -26,6 +26,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,6 +65,12 @@ func (q *sandboxQueries) GatewayGetWorkspace(_ context.Context, arg gatewaydb.Ga
 
 func (q *sandboxQueries) GatewayListWorkspaceInheritedResources(context.Context, gatewaydb.GatewayListWorkspaceInheritedResourcesParams) ([]gatewaydb.GatewayListWorkspaceInheritedResourcesRow, error) {
 	return []gatewaydb.GatewayListWorkspaceInheritedResourcesRow{}, nil
+}
+
+func (q *sandboxQueries) GatewayListUsersByID(context.Context, []string) ([]gatewaydb.GatewayListUsersByIDRow, error) {
+	return []gatewaydb.GatewayListUsersByIDRow{{
+		ID: testUserID, Name: "Test User", Email: "test@example.com",
+	}}, nil
 }
 
 func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
@@ -228,29 +235,139 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 	}
 }
 
+func TestValidateSandboxDependenciesAllowsWorkspaceReadForInheritedResources(t *testing.T) {
+	t.Parallel()
+
+	read := func(resource gatewaydb.PermissionResource) gatewaydb.GatewayResolvePermissionsRow {
+		return gatewaydb.GatewayResolvePermissionsRow{
+			Active: true,
+			WorkspaceID: pgtype.Text{
+				String: testWorkspaceID,
+				Valid:  true,
+			},
+			Resource: gatewaydb.NullPermissionResource{
+				PermissionResource: resource,
+				Valid:              true,
+			},
+			Action: gatewaydb.NullPermissionAction{
+				PermissionAction: gatewaydb.PermissionActionRead,
+				Valid:            true,
+			},
+		}
+	}
+	queries := &sandboxQueries{
+		permissions: []gatewaydb.GatewayResolvePermissionsRow{
+			read(gatewaydb.PermissionResourceSkill),
+			read(gatewaydb.PermissionResourceMcpConnection),
+			read(gatewaydb.PermissionResourceInferenceProvider),
+		},
+	}
+	effective, err := authorization.New(queries).Resolve(
+		context.Background(),
+		authorization.Subject{
+			UserID:         testUserID,
+			OrganizationID: testOrganizationID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolve permissions: %v", err)
+	}
+
+	svc := sandboxTestService(t, queries)
+	ctx := context.Background()
+	sandbox := &agentzv1alpha1.Sandbox{Spec: agentzv1alpha1.SandboxSpec{
+		Skills: []agentzv1alpha1.ResourceReference{{
+			Scope: agentzv1alpha1.ResourceScopeOrganisation,
+			Name:  "skill",
+		}},
+		MCPConnectionRefs: []agentzv1alpha1.MCPConnectionRef{{
+			ResourceReference: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScopeOrganisation,
+				Name:  "mcp",
+			},
+		}},
+		Inference: agentzv1alpha1.SandboxInference{
+			Models: []agentzv1alpha1.InferenceModelRef{{
+				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+				Provider: "provider",
+				Model:    "model",
+			}},
+		},
+	}}
+	access := resourceAccess{
+		claims: gatewayClaims{
+			OrganizationID: testOrganizationID,
+			UserID:         testUserID,
+		},
+		effective:   effective,
+		namespace:   testWorkspaceNS,
+		workspaceID: testWorkspaceID,
+	}
+	fields, err := svc.validateSandboxDependencies(ctx, access, sandbox)
+	if err != nil {
+		t.Fatalf("validate Sandbox dependencies: %v", err)
+	}
+	if len(fields) != 0 {
+		t.Fatalf("dependency errors = %#v, want none", fields)
+	}
+}
+
 func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add core scheme: %v", err)
+	}
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("add AgentZ scheme: %v", err)
 	}
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		testOrganizationID,
+	)
 	objects := []ctrlclient.Object{
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+			Name: organizationNamespace,
+			Labels: map[string]string{
+				agentzv1alpha1.TenantNameLabel: organizationNamespace,
+			},
+		}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+			Name: testWorkspaceNS,
+			Labels: map[string]string{
+				agentzv1alpha1.WorkspaceNameLabel:        testWorkspaceNS,
+				agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
+			},
+		}},
 		&agentzv1alpha1.Sandbox{ObjectMeta: metav1.ObjectMeta{
 			Name:      "organization-sandbox",
 			Namespace: testOrgNamespace,
-		}, Spec: agentzv1alpha1.SandboxSpec{CreatorUserID: testUserID}},
+		}, Spec: agentzv1alpha1.SandboxSpec{ResourceAudit: agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: testUserID, LastModifiedByUserID: testUserID,
+		}}},
 		&agentzv1alpha1.Sandbox{ObjectMeta: metav1.ObjectMeta{
 			Name:      "workspace-sandbox",
 			Namespace: testWorkspaceNS,
-		}},
+		}, Spec: agentzv1alpha1.SandboxSpec{ResourceAudit: agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: testUserID, LastModifiedByUserID: testUserID,
+		}}},
 		&agentzv1alpha1.Workspace{
 			ObjectMeta: metav1.ObjectMeta{Name: testWorkspaceNS},
 			Spec: agentzv1alpha1.WorkspaceSpec{
 				WorkspaceID:    testWorkspaceID,
 				OrganizationID: testOrganizationID,
+				SelectedOrganizationResources: agentzv1alpha1.SelectedOrganizationResources{
+					InferenceProviders: []string{"provider"},
+				},
 			},
 			Status: agentzv1alpha1.WorkspaceStatus{Namespace: testWorkspaceNS},
+		},
+		&agentzv1alpha1.InferenceProvider{
+			ObjectMeta: metav1.ObjectMeta{Name: "provider", Namespace: organizationNamespace},
+			Spec: agentzv1alpha1.InferenceProviderSpec{
+				Models: []agentzv1alpha1.InferenceModel{{ID: "model"}},
+			},
 		},
 	}
 	return &Service{

@@ -27,6 +27,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
 import type { DeleteSandboxFormState } from "@/data/types"
 import { TableRelativeTime } from "@/components/ui/table"
+import { UserAvatar } from "@/components/ui/avatar"
 
 type DeleteSandboxAction = (
   name: string,
@@ -69,19 +70,13 @@ export function createSandboxColumns(
       accessorFn: (sandbox) => sandbox.metadata.package_count,
       id: "packages",
       header: "Packages",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("packages")
-        return `${count} package${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("packages"),
     },
     {
       accessorFn: (sandbox) => sandbox.metadata.allowed_host_count,
       id: "allowed_hosts",
       header: "Allowed hosts",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("allowed_hosts")
-        return `${count} host${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("allowed_hosts"),
     },
     {
       accessorFn: (sandbox) => sandbox.inference.models.length,
@@ -92,19 +87,23 @@ export function createSandboxColumns(
       accessorFn: (sandbox) => sandbox.mcp_connection_refs.length,
       id: "mcps",
       header: "MCP",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("mcps")
-        return `${count} MCP${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("mcps"),
     },
     {
       accessorFn: (sandbox) => sandbox.metadata.skill_count,
       id: "skills",
       header: "Skills",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("skills")
-        return `${count} skill${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("skills"),
+    },
+    {
+      accessorKey: "created_by",
+      header: "Created",
+      cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+    },
+    {
+      accessorKey: "last_modified_by",
+      header: "Modified",
+      cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
     },
     {
       accessorKey: "created_at",
@@ -114,7 +113,7 @@ export function createSandboxColumns(
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Created
+          Created at
           <ArrowUpDown />
         </Button>
       ),

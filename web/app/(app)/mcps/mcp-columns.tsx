@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
+import { UserAvatar } from "@/components/ui/avatar"
 import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DeleteMcpFormState } from "@/data/mcp.actions"
@@ -112,6 +113,16 @@ export function createMcpColumns(actions: {
           {row.original.endpoint_url}
         </span>
       ),
+    },
+    {
+      accessorKey: "created_by",
+      header: "Created",
+      cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+    },
+    {
+      accessorKey: "last_modified_by",
+      header: "Modified",
+      cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
     },
     {
       id: "age",

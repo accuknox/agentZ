@@ -67,7 +67,10 @@ const (
 
 // AgentSpec defines the desired state of Agent.
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 32)",message="skill names must not exceed 32 characters"
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type AgentSpec struct {
+	ResourceAudit `json:",inline"`
+
 	// Image is the container image used for the Agent runtime.
 	// +optional
 	Image string `json:"image,omitempty"`

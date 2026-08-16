@@ -109,7 +109,7 @@ func (s *Service) resolveInferenceProviderAccess(ctx context.Context, workspaceI
 		req.isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
 			item := &agentzv1alpha1.InferenceProvider{}
 			err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: name, Namespace: namespace}, item)
-			return item.Spec.CreatorUserID == userID, err
+			return item.Spec.CreatedByUserID == userID, err
 		}
 	}
 	return s.resolveResourceAccess(ctx, req)
@@ -400,14 +400,26 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 			addUsage(model.Provider, sandboxes.Items[i].Name)
 		}
 	}
-	items := make([]gatewayapi.InferenceProvider, 0, len(providers.Items))
+	selected := make([]*agentzv1alpha1.InferenceProvider, 0, len(providers.Items))
+	userIDs := make([]string, 0, len(providers.Items)*2)
 	for i := range providers.Items {
 		if filter != nil {
 			if _, ok := filter[providers.Items[i].Name]; !ok {
 				continue
 			}
 		}
-		item, err := providerToAPI(&providers.Items[i], len(usage[providers.Items[i].Name]), access)
+		selected = append(selected, &providers.Items[i])
+		userIDs = append(userIDs, providers.Items[i].Spec.CreatedByUserID,
+			providers.Items[i].Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(ctx, userIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]gatewayapi.InferenceProvider, 0, len(selected))
+	for _, provider := range selected {
+		item, err := providerToAPI(provider, len(usage[provider.Name]), access, actors)
 		if err != nil {
 			return nil, err
 		}
@@ -662,7 +674,10 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	provider := providerFromInput(ns, name, input)
-	provider.Spec.CreatorUserID = access.claims.UserID
+	provider.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+		CreatedByUserID:      access.claims.UserID,
+		LastModifiedByUserID: access.claims.UserID,
+	}
 	fields := inference.ValidateProvider(provider.Spec)
 	if len(fields) > 0 {
 		writeInferenceIssues(w, r, fields)
@@ -758,7 +773,15 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeInternalError(w, r, err)
 		return
 	}
-	item, err := providerToAPI(provider, 0, access)
+	actors, err := s.resourceActors(
+		r.Context(), provider.Spec.CreatedByUserID,
+		provider.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	item, err := providerToAPI(provider, 0, access, actors)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -783,7 +806,15 @@ func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, p
 	if !ok {
 		return
 	}
-	item, err := providerToAPI(provider, len(usage.sandboxes), access)
+	actors, err := s.resourceActors(
+		r.Context(), provider.Spec.CreatedByUserID,
+		provider.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	item, err := providerToAPI(provider, len(usage.sandboxes), access, actors)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -976,7 +1007,10 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	desired := providerFromInput(ns, current.Name, input)
-	desired.Spec.CreatorUserID = current.Spec.CreatorUserID
+	desired.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+		CreatedByUserID:      current.Spec.CreatedByUserID,
+		LastModifiedByUserID: access.claims.UserID,
+	}
 	if desired.Spec.Kind != current.Spec.Kind {
 		writeInferenceIssues(w, r, []inference.Issue{{
 			Field: "kind", Message: "provider kind is immutable",
@@ -1089,7 +1123,15 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	item, err := providerToAPI(current, len(usage.sandboxes), access)
+	actors, err := s.resourceActors(
+		r.Context(), current.Spec.CreatedByUserID,
+		current.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	item, err := providerToAPI(current, len(usage.sandboxes), access, actors)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -1605,7 +1647,7 @@ func providerFromInput(namespace, name string, input providerInput) *agentzv1alp
 	return provider
 }
 
-func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access resourceAccess) (gatewayapi.InferenceProvider, error) {
+func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access resourceAccess, actors map[string]gatewayapi.ResourceActor) (gatewayapi.InferenceProvider, error) {
 	state := gatewayapi.InferenceProviderState(provider.Status.State)
 	if state == "" {
 		state = gatewayapi.InferenceProviderStateAccepted
@@ -1627,7 +1669,7 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
-	creator := provider.Spec.CreatorUserID == access.claims.UserID &&
+	creator := provider.Spec.CreatedByUserID == access.claims.UserID &&
 		access.effective.Allows(scope, authorization.OperationCreateInferenceProvider)
 	out := gatewayapi.InferenceProvider{
 		Scope: resourceScope(access.workspaceID),
@@ -1644,6 +1686,8 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 			scope, authorization.OperationDeleteInferenceProvider,
 		) || creator,
 		CreatedAt: provider.CreationTimestamp.Time, UpdatedAt: updatedAt,
+		CreatedBy:      actors[provider.Spec.CreatedByUserID],
+		LastModifiedBy: actors[provider.Spec.LastModifiedByUserID],
 	}
 	switch provider.Spec.Kind {
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:

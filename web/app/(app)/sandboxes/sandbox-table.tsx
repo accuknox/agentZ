@@ -24,13 +24,15 @@ import type { DeleteSandboxFormState } from "@/data/types"
 import type { Route } from "next"
 
 const columnClassName: Record<string, string> = {
-  name: "w-64",
-  packages: "w-32",
-  allowed_hosts: "w-36",
-  models: "w-36",
-  mcps: "w-28",
-  skills: "w-28",
-  created_at: "w-32",
+  name: "w-52",
+  packages: "w-24",
+  allowed_hosts: "w-24",
+  models: "w-32",
+  mcps: "w-16",
+  skills: "w-20",
+  created_by: "hidden lg:table-cell w-28",
+  last_modified_by: "hidden lg:table-cell w-28",
+  created_at: "w-28",
   actions: "w-20",
 }
 

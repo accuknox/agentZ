@@ -777,6 +777,7 @@ export type {
   ResolveWorkspaceSlugErrors,
   ResolveWorkspaceSlugResponse,
   ResolveWorkspaceSlugResponses,
+  ResourceActor,
   ResourceCapabilities,
   ResourceLifecycle,
   ResourceReference,

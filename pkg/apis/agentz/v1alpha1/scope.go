@@ -32,6 +32,19 @@ const (
 	ResourceScopeWorkspace ResourceScope = "Workspace"
 )
 
+// ResourceAudit records the users responsible for a resource's configuration.
+type ResourceAudit struct {
+	// CreatedByUserID is the immutable Better Auth User ID that created the resource.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	CreatedByUserID string `json:"createdByUserID"`
+
+	// LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	LastModifiedByUserID string `json:"lastModifiedByUserID"`
+}
+
 // ResourceReference identifies a resource by scope and metadata name.
 type ResourceReference struct {
 	// Scope selects the current Organisation or Workspace namespace.

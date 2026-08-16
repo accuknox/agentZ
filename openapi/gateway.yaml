@@ -334,9 +334,13 @@ components:
         created_at:
           format: date-time
           type: string
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
         last_activity:
           format: date-time
           type: string
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         memory:
           $ref: '#/components/schemas/AgentMemoryConfig'
         modified_at:
@@ -355,6 +359,8 @@ components:
       required:
       - name
       - sandbox
+      - created_by
+      - last_modified_by
       - last_activity
       - memory
       - created_at
@@ -1683,8 +1689,12 @@ components:
             type: boolean
           can_modify:
             type: boolean
+          created_by:
+            $ref: '#/components/schemas/ResourceActor'
           description:
             type: string
+          last_modified_by:
+            $ref: '#/components/schemas/ResourceActor'
           sandboxes:
             items:
               $ref: '#/components/schemas/SandboxName'
@@ -1697,6 +1707,8 @@ components:
             type: integer
         required:
         - description
+        - created_by
+        - last_modified_by
         - scope
         - version
         - agents
@@ -2041,8 +2053,12 @@ components:
           created_at:
             format: date-time
             type: string
+          created_by:
+            $ref: '#/components/schemas/ResourceActor'
           id:
             $ref: '#/components/schemas/InferenceProviderName'
+          last_modified_by:
+            $ref: '#/components/schemas/ResourceActor'
           model_count:
             minimum: 0
             type: integer
@@ -2065,6 +2081,8 @@ components:
         required:
         - id
         - scope
+        - created_by
+        - last_modified_by
         - resource_version
         - state
         - conditions
@@ -2838,8 +2856,12 @@ components:
         created_at:
           format: date-time
           type: string
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
         endpoint:
           $ref: '#/components/schemas/MCPConnectionEndpoint'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         message:
           type: string
         name:
@@ -2859,6 +2881,8 @@ components:
       required:
       - name
       - scope
+      - created_by
+      - last_modified_by
       - endpoint
       - auth
       - created_at
@@ -3006,8 +3030,12 @@ components:
         created_at:
           format: date-time
           type: string
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
         endpoint_url:
           type: string
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         message:
           type: string
         name:
@@ -3027,6 +3055,8 @@ components:
       required:
       - name
       - scope
+      - created_by
+      - last_modified_by
       - auth_mode
       - endpoint_url
       - created_at
@@ -21987,6 +22017,28 @@ components:
       required:
       - names
       type: object
+    ResourceActor:
+      additionalProperties: false
+      properties:
+        email:
+          format: email
+          nullable: true
+          type: string
+        id:
+          minLength: 1
+          type: string
+        image:
+          nullable: true
+          type: string
+        name:
+          nullable: true
+          type: string
+      required:
+      - id
+      - name
+      - email
+      - image
+      type: object
     ResourceCapabilities:
       additionalProperties: false
       properties:
@@ -22046,8 +22098,12 @@ components:
         created_at:
           format: date-time
           type: string
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
         inference:
           $ref: '#/components/schemas/SandboxInference'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         mcp_connection_refs:
           items:
             $ref: '#/components/schemas/MCPConnectionRef'
@@ -22091,6 +22147,8 @@ components:
       required:
       - name
       - scope
+      - created_by
+      - last_modified_by
       - packages
       - allowed_hosts
       - mcp_connection_refs
@@ -22160,12 +22218,16 @@ components:
         created_at:
           format: date-time
           type: string
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
         hosts:
           items:
             $ref: '#/components/schemas/SecretHost'
           type: array
         key:
           $ref: '#/components/schemas/SecretKey'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         last_refresh_time:
           format: date-time
           type: string
@@ -22190,6 +22252,8 @@ components:
       - reason
       - message
       - created_at
+      - created_by
+      - last_modified_by
       type: object
     SecretOAuthConfig:
       additionalProperties: false
@@ -22309,10 +22373,14 @@ components:
         created_at:
           format: date-time
           type: string
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
         description:
           maxLength: 1024
           minLength: 1
           type: string
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         name:
           $ref: '#/components/schemas/SkillName'
         sandboxes:
@@ -22331,6 +22399,8 @@ components:
       required:
       - name
       - scope
+      - created_by
+      - last_modified_by
       - description
       - version
       - storage_path

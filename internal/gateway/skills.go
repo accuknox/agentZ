@@ -41,7 +41,7 @@ func (s *Service) resolveSkillAccess(ctx context.Context, workspaceID, name stri
 		req.isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
 			item := &agentzv1alpha1.Skill{}
 			err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: name, Namespace: namespace}, item)
-			return item.Spec.CreatorUserID == userID, err
+			return item.Spec.CreatedByUserID == userID, err
 		}
 	}
 	return s.resolveResourceAccess(ctx, req)
@@ -120,6 +120,15 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 	}
 
 	items := make([]gatewayapi.Skill, 0, len(skillList.Items))
+	userIDs := make([]string, 0, len(skillList.Items)*2)
+	for _, item := range skillList.Items {
+		userIDs = append(userIDs, item.Spec.CreatedByUserID, item.Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(r.Context(), userIDs...)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	localScope := agentzv1alpha1.ResourceScope(resourceScope(access.workspaceID))
 	for _, item := range skillList.Items {
 		if params.AgentName != nil {
@@ -129,7 +138,7 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 			}
 		}
 		ref := agentzv1alpha1.ResourceReference{Scope: localScope, Name: item.Name}
-		items = append(items, skillFromCRD(item, refsBySkill[ref], access))
+		items = append(items, skillFromCRD(item, refsBySkill[ref], access, actors))
 	}
 	if workspaceID != "" {
 		organizationItems, err := s.listInheritedSkills(
@@ -186,6 +195,17 @@ func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess
 	items := make([]gatewayapi.Skill, 0, len(skills.Items))
 	organizationAccess := access
 	organizationAccess.workspaceID = ""
+	userIDs := make([]string, 0, len(skills.Items)*2)
+	for _, item := range skills.Items {
+		if _, ok := selected[item.Name]; !ok {
+			continue
+		}
+		userIDs = append(userIDs, item.Spec.CreatedByUserID, item.Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(ctx, userIDs...)
+	if err != nil {
+		return nil, err
+	}
 	for _, item := range skills.Items {
 		if _, ok := selected[item.Name]; !ok {
 			continue
@@ -199,7 +219,7 @@ func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess
 				continue
 			}
 		}
-		skill := skillFromCRD(item, refs[ref], organizationAccess)
+		skill := skillFromCRD(item, refs[ref], organizationAccess, actors)
 		skill.CanModify = false
 		skill.CanDelete = false
 		items = append(items, skill)
@@ -257,10 +277,13 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request, params gat
 			OwnerReferences: []metav1.OwnerReference{access.owner},
 		},
 		Spec: agentzv1alpha1.SkillSpec{
-			CreatorUserID: access.claims.UserID,
-			Description:   req.Description,
-			Version:       req.Version,
-			StoragePath:   req.StoragePath,
+			ResourceAudit: agentzv1alpha1.ResourceAudit{
+				CreatedByUserID:      access.claims.UserID,
+				LastModifiedByUserID: access.claims.UserID,
+			},
+			Description: req.Description,
+			Version:     req.Version,
+			StoragePath: req.StoragePath,
 		},
 	}
 	if err := s.k8sClient.Create(r.Context(), skill); err != nil {
@@ -286,7 +309,14 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request, params gat
 		Name:  skill.Name,
 	}
 	refs := refsBySkill[ref]
-	writeJSON(w, http.StatusCreated, skillFromCRD(*skill, refs, access))
+	actors, err := s.resourceActors(
+		r.Context(), skill.Spec.CreatedByUserID, skill.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, skillFromCRD(*skill, refs, access, actors))
 }
 
 // UpdateSkill handles PUT /api/skill/{skillName}.
@@ -353,6 +383,7 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		}
 		current.Spec.Version = req.Version
 		current.Spec.StoragePath = storagePath
+		current.Spec.LastModifiedByUserID = access.claims.UserID
 		if req.Description != nil {
 			current.Spec.Description = *req.Description
 		}
@@ -385,7 +416,14 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		Name:  updated.Name,
 	}
 	refs := refsBySkill[ref]
-	writeJSON(w, http.StatusOK, skillFromCRD(*updated, refs, access))
+	actors, err := s.resourceActors(
+		r.Context(), updated.Spec.CreatedByUserID, updated.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, skillFromCRD(*updated, refs, access, actors))
 }
 
 // DeleteSkill handles DELETE /api/skill/{skillName}.
@@ -491,25 +529,27 @@ func (s *Service) GetSkillReferences(w http.ResponseWriter, r *http.Request, ski
 	writeJSON(w, http.StatusOK, refs)
 }
 
-func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences, access resourceAccess) gatewayapi.Skill {
+func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences, access resourceAccess, actors map[string]gatewayapi.ResourceActor) gatewayapi.Skill {
 	refs = skillReferencesOrEmpty(refs)
 	scope := authorization.Scope{
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
-	creator := skill.Spec.CreatorUserID == access.claims.UserID &&
+	creator := skill.Spec.CreatedByUserID == access.claims.UserID &&
 		access.effective.Allows(scope, authorization.OperationCreateSkill)
 	return gatewayapi.Skill{
-		Scope:       resourceScope(access.workspaceID),
-		Name:        skill.Name,
-		CanModify:   access.effective.Allows(scope, authorization.OperationUpdateSkill) || creator,
-		CanDelete:   access.effective.Allows(scope, authorization.OperationDeleteSkill) || creator,
-		Description: skill.Spec.Description,
-		Version:     skill.Spec.Version,
-		StoragePath: skill.Spec.StoragePath,
-		Agents:      refs.Agents,
-		Sandboxes:   refs.Sandboxes,
-		CreatedAt:   skill.CreationTimestamp.Time,
+		Scope:          resourceScope(access.workspaceID),
+		Name:           skill.Name,
+		CreatedBy:      actors[skill.Spec.CreatedByUserID],
+		LastModifiedBy: actors[skill.Spec.LastModifiedByUserID],
+		CanModify:      access.effective.Allows(scope, authorization.OperationUpdateSkill) || creator,
+		CanDelete:      access.effective.Allows(scope, authorization.OperationDeleteSkill) || creator,
+		Description:    skill.Spec.Description,
+		Version:        skill.Spec.Version,
+		StoragePath:    skill.Spec.StoragePath,
+		Agents:         refs.Agents,
+		Sandboxes:      refs.Sandboxes,
+		CreatedAt:      skill.CreationTimestamp.Time,
 	}
 }
 
@@ -1060,7 +1100,7 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 				errBadRequest,
 			)
 		}
-		if action == skill.DecisionOverwrite && !canModify && current.Spec.CreatorUserID != access.claims.UserID {
+		if action == skill.DecisionOverwrite && !canModify && current.Spec.CreatedByUserID != access.claims.UserID {
 			eventTrailAccess := access
 			eventTrailAccess.operation = authorization.OperationUpdateSkill
 			if err := s.createSkillEventTrail(ctx, eventTrailAccess, tree.Name, gatewaydb.EventTrailResultDenied); err != nil {
@@ -1133,10 +1173,13 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 					OwnerReferences: []metav1.OwnerReference{access.owner},
 				},
 				Spec: agentzv1alpha1.SkillSpec{
-					CreatorUserID: access.claims.UserID,
-					Description:   plan.tree.Description,
-					Version:       plan.version,
-					StoragePath:   storagePath,
+					ResourceAudit: agentzv1alpha1.ResourceAudit{
+						CreatedByUserID:      access.claims.UserID,
+						LastModifiedByUserID: access.claims.UserID,
+					},
+					Description: plan.tree.Description,
+					Version:     plan.version,
+					StoragePath: storagePath,
 				},
 			}
 			if err := s.k8sClient.Create(ctx, item); err != nil {
@@ -1165,6 +1208,7 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 			item.Spec.Description = plan.tree.Description
 			item.Spec.Version = plan.version
 			item.Spec.StoragePath = storagePath
+			item.Spec.LastModifiedByUserID = access.claims.UserID
 			return s.k8sClient.Update(ctx, item)
 		})
 		if err != nil {
@@ -1672,6 +1716,15 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 		writeInternalError(w, r, err)
 		return
 	}
+	userIDs := make([]string, 0, len(local.Items)*2)
+	for _, item := range local.Items {
+		userIDs = append(userIDs, item.Spec.CreatedByUserID, item.Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(r.Context(), userIDs...)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	items := make([]gatewayapi.ImmutableSkillSummary, 0, len(local.Items))
 	authorizationScope := authorization.Scope{
 		OrganizationID: access.claims.OrganizationID,
@@ -1696,20 +1749,22 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			return
 		}
 		references := skillReferencesOrEmpty(refs[ref])
-		creator := item.Spec.CreatorUserID == access.claims.UserID &&
+		creator := item.Spec.CreatedByUserID == access.claims.UserID &&
 			access.effective.Allows(authorizationScope, authorization.OperationCreateSkill)
 		items = append(items, gatewayapi.ImmutableSkillSummary{
-			Name:        item.Name,
-			Scope:       gatewayapi.ResourceScope(localScope),
-			CanModify:   access.effective.Allows(authorizationScope, authorization.OperationUpdateSkill) || creator,
-			CanDelete:   access.effective.Allows(authorizationScope, authorization.OperationDeleteSkill) || creator,
-			Description: item.Spec.Description,
-			Version:     item.Spec.Version,
-			Agents:      references.Agents,
-			Sandboxes:   references.Sandboxes,
-			FileCount:   summary.FileCount,
-			SizeBytes:   summary.SizeBytes,
-			ModifiedAt:  summary.Modified,
+			Name:           item.Name,
+			Scope:          gatewayapi.ResourceScope(localScope),
+			CreatedBy:      actors[item.Spec.CreatedByUserID],
+			LastModifiedBy: actors[item.Spec.LastModifiedByUserID],
+			CanModify:      access.effective.Allows(authorizationScope, authorization.OperationUpdateSkill) || creator,
+			CanDelete:      access.effective.Allows(authorizationScope, authorization.OperationDeleteSkill) || creator,
+			Description:    item.Spec.Description,
+			Version:        item.Spec.Version,
+			Agents:         references.Agents,
+			Sandboxes:      references.Sandboxes,
+			FileCount:      summary.FileCount,
+			SizeBytes:      summary.SizeBytes,
+			ModifiedAt:     summary.Modified,
 		})
 	}
 	if access.workspaceID != "" {
@@ -1732,6 +1787,18 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			r.Context(), inherited, ctrlclient.InNamespace(organizationNamespace),
 		); err != nil {
 			writeInternalError(w, r, fmt.Errorf("list inherited Organisation Skills: %w", err))
+			return
+		}
+		userIDs = make([]string, 0, len(inherited.Items)*2)
+		for _, item := range inherited.Items {
+			if _, ok := selected[item.Name]; !ok {
+				continue
+			}
+			userIDs = append(userIDs, item.Spec.CreatedByUserID, item.Spec.LastModifiedByUserID)
+		}
+		actors, err = s.resourceActors(r.Context(), userIDs...)
+		if err != nil {
+			writeInternalError(w, r, err)
 			return
 		}
 		for _, item := range inherited.Items {
@@ -1759,17 +1826,19 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			}
 			references := skillReferencesOrEmpty(refs[ref])
 			items = append(items, gatewayapi.ImmutableSkillSummary{
-				Name:        item.Name,
-				Scope:       gatewayapi.ResourceScopeOrganisation,
-				CanModify:   false,
-				CanDelete:   false,
-				Description: item.Spec.Description,
-				Version:     item.Spec.Version,
-				Agents:      references.Agents,
-				Sandboxes:   references.Sandboxes,
-				FileCount:   summary.FileCount,
-				SizeBytes:   summary.SizeBytes,
-				ModifiedAt:  summary.Modified,
+				Name:           item.Name,
+				Scope:          gatewayapi.ResourceScopeOrganisation,
+				CreatedBy:      actors[item.Spec.CreatedByUserID],
+				LastModifiedBy: actors[item.Spec.LastModifiedByUserID],
+				CanModify:      false,
+				CanDelete:      false,
+				Description:    item.Spec.Description,
+				Version:        item.Spec.Version,
+				Agents:         references.Agents,
+				Sandboxes:      references.Sandboxes,
+				FileCount:      summary.FileCount,
+				SizeBytes:      summary.SizeBytes,
+				ModifiedAt:     summary.Modified,
 			})
 		}
 	}

@@ -102,7 +102,10 @@ type SecretOAuthSpec struct {
 }
 
 // SecretSpec defines the desired Secret state.
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type SecretSpec struct {
+	ResourceAudit `json:",inline"`
+
 	// AgentRef identifies the owning Agent.
 	AgentRef SecretAgentRef `json:"agentRef"`
 

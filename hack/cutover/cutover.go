@@ -681,7 +681,9 @@ func desiredKubernetesObjects(ctx context.Context, cfg Config, k8s ctrlclient.Cl
 	}
 	for i := range skills.Items {
 		item := &skills.Items[i]
-		item.Spec.CreatorUserID = owner
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		item.Spec.StoragePath = (skill.Config{Bucket: cfg.S3Bucket}).StoragePath(
 			target,
 			item.Name,
@@ -696,7 +698,9 @@ func desiredKubernetesObjects(ctx context.Context, cfg Config, k8s ctrlclient.Cl
 		return nil, fmt.Errorf("list InferenceProviders: %w", err)
 	}
 	for i := range providers.Items {
-		providers.Items[i].Spec.CreatorUserID = owner
+		providers.Items[i].Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		if err := add("InferenceProvider", providers.Items[i].Name, providers.Items[i].Spec); err != nil {
 			return nil, err
 		}
@@ -707,7 +711,9 @@ func desiredKubernetesObjects(ctx context.Context, cfg Config, k8s ctrlclient.Cl
 	}
 	for i := range mcps.Items {
 		item := &mcps.Items[i]
-		item.Spec.CreatorUserID = owner
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		if item.Spec.Auth != nil && item.Spec.Auth.Bearer != nil && item.Spec.Auth.Bearer.SecretRef != nil {
 			item.Spec.Auth.Bearer.SecretRef.Path = internalmcp.SecretPath(target, item.Name)
 		}
@@ -738,7 +744,9 @@ func desiredKubernetesObjects(ctx context.Context, cfg Config, k8s ctrlclient.Cl
 	}
 	for i := range sandboxes.Items {
 		item := &sandboxes.Items[i]
-		item.Spec.CreatorUserID = owner
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		for j := range item.Spec.Skills {
 			item.Spec.Skills[j].Scope = agentzv1alpha1.ResourceScopeWorkspace
 		}
@@ -765,6 +773,9 @@ func desiredKubernetesObjects(ctx context.Context, cfg Config, k8s ctrlclient.Cl
 	}
 	for i := range agents.Items {
 		item := &agents.Items[i]
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		item.Spec.SandboxRef.Scope = agentzv1alpha1.ResourceScopeWorkspace
 		for j := range item.Spec.Skills {
 			item.Spec.Skills[j].Scope = agentzv1alpha1.ResourceScopeWorkspace
@@ -778,6 +789,9 @@ func desiredKubernetesObjects(ctx context.Context, cfg Config, k8s ctrlclient.Cl
 		return nil, fmt.Errorf("list Secrets: %w", err)
 	}
 	for i := range secrets.Items {
+		secrets.Items[i].Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		if err := add("Secret", secrets.Items[i].Name, secrets.Items[i].Spec); err != nil {
 			return nil, err
 		}
@@ -1201,7 +1215,9 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	}
 	for i := range skills.Items {
 		item := skills.Items[i].DeepCopy()
-		item.Spec.CreatorUserID = owner
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		item.Spec.StoragePath = (skill.Config{Bucket: cfg.S3Bucket}).StoragePath(target, item.Name, item.Spec.Version)
 		if err := create(item); err != nil {
 			return fmt.Errorf("copy Skill %q: %w", item.Name, err)
@@ -1214,7 +1230,9 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	for i := range providers.Items {
 		item := providers.Items[i].DeepCopy()
 		item.Status = agentzv1alpha1.InferenceProviderStatus{}
-		item.Spec.CreatorUserID = owner
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		if err := create(item); err != nil {
 			return fmt.Errorf("copy InferenceProvider %q: %w", item.Name, err)
 		}
@@ -1226,7 +1244,9 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	for i := range mcps.Items {
 		item := mcps.Items[i].DeepCopy()
 		item.Status = agentzv1alpha1.MCPConnectionStatus{}
-		item.Spec.CreatorUserID = owner
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		if item.Spec.Auth != nil && item.Spec.Auth.Bearer != nil && item.Spec.Auth.Bearer.SecretRef != nil {
 			item.Spec.Auth.Bearer.SecretRef.Path = internalmcp.SecretPath(target, item.Name)
 		}
@@ -1259,7 +1279,9 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	for i := range sandboxes.Items {
 		item := sandboxes.Items[i].DeepCopy()
 		item.Status = agentzv1alpha1.SandboxStatus{}
-		item.Spec.CreatorUserID = owner
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		for j := range item.Spec.Skills {
 			item.Spec.Skills[j].Scope = agentzv1alpha1.ResourceScopeWorkspace
 		}
@@ -1287,6 +1309,9 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	for i := range agents.Items {
 		item := agents.Items[i].DeepCopy()
 		item.Status = agentzv1alpha1.AgentStatus{}
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		item.Spec.SandboxRef.Scope = agentzv1alpha1.ResourceScopeWorkspace
 		for j := range item.Spec.Skills {
 			item.Spec.Skills[j].Scope = agentzv1alpha1.ResourceScopeWorkspace
@@ -1302,6 +1327,9 @@ func copyKubernetes(ctx context.Context, cfg Config, k8s ctrlclient.Client, inve
 	for i := range secrets.Items {
 		item := secrets.Items[i].DeepCopy()
 		item.Status = agentzv1alpha1.SecretStatus{}
+		item.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+			CreatedByUserID: owner, LastModifiedByUserID: owner,
+		}
 		if err := create(item); err != nil {
 			return fmt.Errorf("copy Secret %q: %w", item.Name, err)
 		}

@@ -1,3 +1,4 @@
+import { connection } from "next/server"
 import type { ListEventTrailEventsData } from "@/lib/gateway/client"
 import { eventTrailQuerySchema, listOrganizationEventTrailEvents } from "@/data/event-trail"
 import { EventTrailEvents } from "./event-trail-events"
@@ -31,6 +32,7 @@ export default async function EventTrailPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [{ orgSlug }, raw] = await Promise.all([params, searchParams])
+  await connection()
   const search = eventTrailQuerySchema.parse(raw)
   const body = {
     filters: search.filters,

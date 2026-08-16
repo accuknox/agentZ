@@ -20,6 +20,7 @@ import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { UserAvatar } from "@/components/ui/avatar"
 import {
   Dialog,
   DialogClose,
@@ -60,11 +61,13 @@ import { ProviderSheet } from "./provider-sheet"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
 
 const columnClassName: Record<string, string> = {
-  display_name: "w-72",
-  kind: "w-44",
-  state: "w-36",
-  model_count: "w-28",
-  usage_count: "w-28",
+  display_name: "w-56",
+  kind: "w-32",
+  state: "w-32",
+  model_count: "w-24",
+  usage_count: "w-24",
+  created_by: "hidden lg:table-cell w-24",
+  last_modified_by: "hidden lg:table-cell w-24",
   updated_at: "w-32",
   actions: "w-20",
 }
@@ -177,6 +180,16 @@ export function InferenceProviderTable({
         accessorKey: "usage_count",
         header: "Used by",
         cell: ({ row }) => <span>{row.original.usage_count}</span>,
+      },
+      {
+        accessorKey: "created_by",
+        header: "Created",
+        cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+      },
+      {
+        accessorKey: "last_modified_by",
+        header: "Modified",
+        cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
       },
       {
         accessorKey: "updated_at",

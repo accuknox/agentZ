@@ -53,6 +53,11 @@ spec:
           spec:
             description: spec defines the desired state of Agent.
             properties:
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
               env:
                 description: Env defines environment variables injected into the Agent pod.
                 items:
@@ -210,6 +215,11 @@ spec:
               instruction:
                 description: Instruction defines additional OpenCode instruction content.
                 type: string
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
               memory:
                 description: Memory configures persistent, agent-curated memory.
                 properties:
@@ -341,11 +351,15 @@ spec:
                     type: string
                 type: object
             required:
+            - createdByUserID
+            - lastModifiedByUserID
             - sandboxRef
             type: object
             x-kubernetes-validations:
             - message: skill names must not exceed 32 characters
               rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 32)'
+            - message: createdByUserID is immutable
+              rule: self.createdByUserID == oldSelf.createdByUserID
           status:
             description: status defines the observed state of Agent.
             properties:

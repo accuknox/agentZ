@@ -4,6 +4,7 @@ import * as React from "react"
 import { Avatar as AvatarPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 function Avatar({
   className,
@@ -93,6 +94,14 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<"div">) 
   )
 }
 
+function initialsFromLabel(label: string) {
+  return label
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("")
+}
+
 /** UserIdentity presents a person's avatar, name, and email as one unit. */
 function UserIdentity({
   className,
@@ -110,17 +119,12 @@ function UserIdentity({
   size?: "default" | "sm"
 }) {
   const label = name || email || "Unknown user"
-  const initials = label
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("")
 
   return (
     <span className={cn("flex min-w-0 items-center gap-2", className)}>
       <Avatar size={size}>
         <AvatarImage alt={label} src={image ?? undefined} />
-        <AvatarFallback>{initials}</AvatarFallback>
+        <AvatarFallback>{initialsFromLabel(label)}</AvatarFallback>
       </Avatar>
       <span className="min-w-0 leading-tight">
         <span className="block truncate font-medium" title={label}>
@@ -136,6 +140,40 @@ function UserIdentity({
   )
 }
 
+/** UserAvatar renders only a person's avatar; hovering reveals their name and email. */
+function UserAvatar({
+  email,
+  id,
+  image,
+  name,
+  size = "sm",
+}: {
+  email?: string | null
+  id?: string
+  image?: string | null
+  name?: string | null
+  size?: "default" | "sm"
+}) {
+  const label = name || email || id || "Unknown user"
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Avatar size={size}>
+          <AvatarImage alt={label} src={image ?? undefined} />
+          <AvatarFallback>{initialsFromLabel(label)}</AvatarFallback>
+        </Avatar>
+      </TooltipTrigger>
+      <TooltipContent sideOffset={4}>
+        <span className="max-w-64 truncate">
+          {label}
+          {email && email !== label ? <span className="text-background/60"> · {email}</span> : null}
+        </span>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 export {
   Avatar,
   AvatarImage,
@@ -143,5 +181,6 @@ export {
   AvatarGroup,
   AvatarGroupCount,
   AvatarBadge,
+  UserAvatar,
   UserIdentity,
 }

@@ -25,11 +25,13 @@ import { createSecretColumns } from "./secret-columns"
 import type { DeleteSecretFormAction } from "@/data/types"
 
 const columnClassName: Record<string, string> = {
-  key: "w-56",
+  key: "w-48",
   type: "w-24",
   status: "w-28",
   hosts: "min-w-0 w-0",
-  age: "w-36",
+  created_by: "hidden lg:table-cell w-28",
+  last_modified_by: "hidden lg:table-cell w-28",
+  age: "w-28",
   actions: "w-20",
 }
 

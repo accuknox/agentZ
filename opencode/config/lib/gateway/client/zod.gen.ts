@@ -145,6 +145,13 @@ export const zResourceCapabilities = z.object({
   delete: z.boolean(),
 })
 
+export const zResourceActor = z.object({
+  id: z.string().min(1),
+  name: z.string().nullable(),
+  email: z.email().nullable(),
+  image: z.string().nullable(),
+})
+
 export const zTenant = z.object({
   organization_id: z.string(),
   namespace: z.string(),
@@ -509,6 +516,8 @@ export const zListAgentAccessTargetsResponse = z.object({
 export const zSkill = z.object({
   name: zSkillName,
   scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   description: z.string().min(1).max(1024),
   version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
@@ -545,6 +554,8 @@ export const zListMutableSkillsResponse = z.object({
 export const zImmutableSkillSummary = zSkillFileSummary.and(
   z.object({
     description: z.string(),
+    created_by: zResourceActor,
+    last_modified_by: zResourceActor,
     scope: zResourceScope,
     can_modify: z.boolean(),
     can_delete: z.boolean(),
@@ -650,6 +661,8 @@ export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "D
 export const zAgent = z.object({
   name: zAgentName,
   sandbox: zResourceReference,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   last_activity: z.iso.datetime(),
   memory: zAgentMemoryConfig,
   created_at: z.iso.datetime(),
@@ -1331,6 +1344,8 @@ export const zCreateSecretRequest = z.object({
 
 export const zSecretListItem = z.object({
   key: zSecretKey,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   type: zSecretType,
   hosts: z.array(zSecretHost),
   provider: z.string().optional(),
@@ -1703,6 +1718,8 @@ export const zInferenceProvider = zInferenceProviderReadFields
     z.object({
       id: zInferenceProviderName,
       scope: zResourceScope,
+      created_by: zResourceActor,
+      last_modified_by: zResourceActor,
       resource_version: z.string(),
       state: z.enum(["Accepted", "Ready", "Degraded"]),
       conditions: z.array(zInferenceProviderCondition),
@@ -1866,6 +1883,8 @@ export const zMcpConnectionRef = z.object({
 export const zSandbox = z.object({
   name: zSandboxName,
   scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
@@ -1977,6 +1996,8 @@ export const zMcpConnectionDetail = z.object({
   can_delete: z.boolean(),
   name: zMcpConnectionName,
   scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   endpoint: zMcpConnectionEndpoint,
   auth: zMcpConnectionAuth,
   created_at: z.iso.datetime(),
@@ -1991,6 +2012,8 @@ export const zMcpConnectionSummary = z.object({
   can_delete: z.boolean(),
   name: zMcpConnectionName,
   scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   auth_mode: z.string(),
   endpoint_url: z.string(),
   created_at: z.iso.datetime(),

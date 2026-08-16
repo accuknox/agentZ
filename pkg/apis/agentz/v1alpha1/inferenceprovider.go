@@ -392,14 +392,9 @@ type CompatibleProviderConfig struct {
 // +kubebuilder:validation:XValidation:rule="self.kind == 'VertexAI' ? has(self.vertexAI) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.azure) : true",message="VertexAI kind requires only vertexAI configuration"
 // +kubebuilder:validation:XValidation:rule="self.kind == 'Azure' ? has(self.azure) && !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) : true",message="Azure kind requires only azure configuration"
 // +kubebuilder:validation:XValidation:rule="self.kind == 'OpenAICodex' || self.kind == 'GitHubCopilot' ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="subscription provider kinds do not accept endpoint configuration"
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)",message="creatorUserID is immutable"
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type InferenceProviderSpec struct {
-	// CreatorUserID is the immutable Better Auth User ID that created the
-	// InferenceProvider.
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=128
-	// +optional
-	CreatorUserID string `json:"creatorUserID,omitempty"`
+	ResourceAudit `json:",inline"`
 
 	// CatalogProvider is the immutable OpenCode provider ID or custom.
 	// +kubebuilder:validation:MinLength=1

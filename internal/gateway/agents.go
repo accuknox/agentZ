@@ -382,6 +382,10 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agt := s.agentFromCreateRequest(req, ns, access.owner, name)
+	agt.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
+		CreatedByUserID:      access.claims.UserID,
+		LastModifiedByUserID: access.claims.UserID,
+	}
 	_, err = s.resolver.client.AgentzV1alpha1().Agents(ns).Create(
 		r.Context(),
 		agt,
@@ -421,17 +425,27 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actors, err := s.resourceActors(
+		r.Context(), agt.Spec.CreatedByUserID,
+		agt.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, gatewayapi.Agent{
 		Name:    row.AgentName,
 		Sandbox: req.Sandbox,
 		Memory: gatewayapi.AgentMemoryConfig{
 			Enabled: agt.Spec.Memory.Enabled,
 		},
-		Skills:       skills,
-		CreatedAt:    row.CreatedAt,
-		ModifiedAt:   row.UpdatedAt,
-		LastActivity: row.UpdatedAt,
-		Status:       gatewayapi.PROGRESSING,
+		Skills:         skills,
+		CreatedAt:      row.CreatedAt,
+		ModifiedAt:     row.UpdatedAt,
+		LastActivity:   row.UpdatedAt,
+		Status:         gatewayapi.PROGRESSING,
+		CreatedBy:      actors[agt.Spec.CreatedByUserID],
+		LastModifiedBy: actors[agt.Spec.LastModifiedByUserID],
 	})
 }
 
@@ -533,6 +547,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		}
 		before = agt.DeepCopy()
 		applyUpdateAgentRequest(agt, req)
+		agt.Spec.LastModifiedByUserID = access.claims.UserID
 		updated, getErr = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(
 			r.Context(),
 			agt,
@@ -584,17 +599,27 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	if view := statusFromAgent(updated); view != nil {
 		status = statusFromView(view)
 	}
+	actors, err := s.resourceActors(
+		r.Context(), updated.Spec.CreatedByUserID,
+		updated.Spec.LastModifiedByUserID,
+	)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, gatewayapi.Agent{
 		Name:    row.AgentName,
 		Sandbox: resourceReferenceFromCRD(updated.Spec.SandboxRef),
 		Memory: gatewayapi.AgentMemoryConfig{
 			Enabled: updated.Spec.Memory.Enabled,
 		},
-		CreatedAt:    row.CreatedAt,
-		ModifiedAt:   row.UpdatedAt,
-		LastActivity: row.UpdatedAt,
-		Status:       status,
-		Skills:       resourceReferencesFromCRD(updated.Spec.Skills),
+		CreatedAt:      row.CreatedAt,
+		ModifiedAt:     row.UpdatedAt,
+		LastActivity:   row.UpdatedAt,
+		Status:         status,
+		Skills:         resourceReferencesFromCRD(updated.Spec.Skills),
+		CreatedBy:      actors[updated.Spec.CreatedByUserID],
+		LastModifiedBy: actors[updated.Spec.LastModifiedByUserID],
 	})
 }
 
@@ -1346,6 +1371,8 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				prevItem.ModifiedAt.Equal(item.ModifiedAt) &&
 				prevItem.Status == item.Status &&
 				prevItem.Capabilities == item.Capabilities &&
+				prevItem.CreatedBy.Id == item.CreatedBy.Id &&
+				prevItem.LastModifiedBy.Id == item.LastModifiedBy.Id &&
 				slices.Equal(prevItem.Skills, item.Skills)
 			if unchanged {
 				continue
@@ -1962,52 +1989,48 @@ func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []st
 		return nil, "", err
 	}
 
-	items := make([]gatewayapi.Agent, 0, limit)
 	var next string
-	for _, row := range rows {
-		if len(items) == limit {
-			next = encodeOffsetToken(offset + limit)
-			continue
-		}
+	if len(rows) > limit {
+		next = encodeOffsetToken(offset + limit)
+		rows = rows[:limit]
+	}
 
-		status := gatewayapi.UNSPECIFIED
-		sandbox := gatewayapi.ResourceReference{
-			Scope: gatewayapi.ResourceScope(agentzv1alpha1.ResourceScopeOrganisation),
-		}
+	agents := make(map[string]*agentzv1alpha1.Agent, len(rows))
+	userIDs := make([]string, 0, len(rows)*2)
+	for _, row := range rows {
 		resolved, resolveErr := s.resolver.resolveAgent(ctx, ns, row.AgentName)
 		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
 		}
-		if resolved != nil && resolved.Agent != nil {
-			status = statusFromView(statusFromAgent(resolved.Agent))
-			sandbox = resourceReferenceFromCRD(resolved.Agent.Spec.SandboxRef)
-			skills := resourceReferencesFromCRD(resolved.Agent.Spec.Skills)
-			items = append(items, gatewayapi.Agent{
-				Name:         row.AgentName,
-				Sandbox:      sandbox,
-				Capabilities: capabilities[row.AgentName],
-				Memory: gatewayapi.AgentMemoryConfig{
-					Enabled: resolved.Agent.Spec.Memory.Enabled,
-				},
-				LastActivity: row.UpdatedAt,
-				CreatedAt:    row.CreatedAt,
-				ModifiedAt:   row.UpdatedAt,
-				Status:       status,
-				Skills:       skills,
-			})
-			continue
+		if resolved == nil || resolved.Agent == nil {
+			return nil, "", fmt.Errorf("resolve agent %q: %w", row.AgentName, errAgentNotFound)
 		}
+		agents[row.AgentName] = resolved.Agent
+		userIDs = append(userIDs, resolved.Agent.Spec.CreatedByUserID,
+			resolved.Agent.Spec.LastModifiedByUserID)
+	}
+	actors, err := s.resourceActors(ctx, userIDs...)
+	if err != nil {
+		return nil, "", err
+	}
 
+	items := make([]gatewayapi.Agent, 0, len(rows))
+	for _, row := range rows {
+		agt := agents[row.AgentName]
 		items = append(items, gatewayapi.Agent{
 			Name:         row.AgentName,
-			Sandbox:      sandbox,
+			Sandbox:      resourceReferenceFromCRD(agt.Spec.SandboxRef),
 			Capabilities: capabilities[row.AgentName],
-			Memory:       gatewayapi.AgentMemoryConfig{},
-			LastActivity: row.UpdatedAt,
-			CreatedAt:    row.CreatedAt,
-			ModifiedAt:   row.UpdatedAt,
-			Status:       status,
-			Skills:       []gatewayapi.ResourceReference{},
+			Memory: gatewayapi.AgentMemoryConfig{
+				Enabled: agt.Spec.Memory.Enabled,
+			},
+			LastActivity:   row.UpdatedAt,
+			CreatedAt:      row.CreatedAt,
+			ModifiedAt:     row.UpdatedAt,
+			Status:         statusFromView(statusFromAgent(agt)),
+			Skills:         resourceReferencesFromCRD(agt.Spec.Skills),
+			CreatedBy:      actors[agt.Spec.CreatedByUserID],
+			LastModifiedBy: actors[agt.Spec.LastModifiedByUserID],
 		})
 	}
 	return items, next, nil

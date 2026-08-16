@@ -92,10 +92,10 @@ export function AppSidebar({
         {scope.kind === "settings" && scope.hasAppDestination ? (
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild size="lg" tooltip="Back to app">
+              <SidebarMenuButton asChild size="lg" tooltip="Back to top">
                 <Link href="/">
                   <ArrowLeft aria-hidden="true" />
-                  <span>Back to app</span>
+                  <span>Back to top</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

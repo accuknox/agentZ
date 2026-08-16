@@ -92,17 +92,17 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
             </PopoverTrigger>
             <PopoverContent
               align="start"
-              className="w-88 max-w-[calc(100vw-2rem)] overflow-hidden p-0"
+              className="w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-xl p-0"
               sideOffset={8}
             >
               <Link
                 aria-current={scope.kind === "organization" ? "page" : undefined}
-                className="hover:bg-muted/50 focus-visible:ring-ring/50 aria-[current=page]:border-primary m-1.5 flex min-w-0 items-center gap-3 rounded-md border border-transparent px-2 py-2.5 outline-none focus-visible:ring-3 aria-[current=page]:border-dashed"
+                className="hover:bg-muted/60 focus-visible:ring-ring/50 aria-[current=page]:bg-muted/60 mx-1 mt-1 flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 outline-none focus-visible:ring-3"
                 href={root as Route}
                 onClick={close}
               >
-                <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
-                  <Building2 aria-hidden="true" className="size-4" />
+                <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                  <Building2 aria-hidden="true" className="size-3.5" />
                 </span>
                 <span className="min-w-0">
                   <span
@@ -114,14 +114,14 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   <span className="text-muted-foreground block text-xs">Organisation</span>
                 </span>
               </Link>
-              <Command>
+              <Command className="border-border/60 rounded-none! border-t [&_[data-slot=command-input-wrapper]]:pt-0">
                 <CommandInput placeholder="Search Workspaces..." />
                 <CommandList className="max-h-72">
                   <CommandEmpty>No matching Workspaces.</CommandEmpty>
-                  <CommandGroup heading="Switch Workspace">
+                  <CommandGroup heading="Workspaces">
                     {scope.workspaces.map((workspace) => (
                       <CommandItem
-                        className="data-[checked=true]:border-primary h-auto cursor-pointer gap-3 rounded-md border border-transparent px-2 py-2.5 data-[checked=true]:border-dashed"
+                        className="data-[checked=true]:bg-muted/70 h-auto cursor-pointer gap-2.5 rounded-lg px-2 py-2"
                         key={workspace.id}
                         data-checked={workspace.id === active?.id}
                         value={`${workspace.name} ${workspace.slug}`}
@@ -130,8 +130,8 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                           router.push(`${root}/workspaces/${workspace.slug}` as Route)
                         }}
                       >
-                        <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
-                          <PanelsTopLeft aria-hidden="true" className="size-4" />
+                        <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                          <PanelsTopLeft aria-hidden="true" className="size-3.5" />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium" title={workspace.name}>
@@ -147,12 +147,10 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 </CommandList>
               </Command>
               {scope.canCreateWorkspace ? (
-                <div className="p-1.5">
-                  <Button asChild className="h-auto justify-start gap-3 px-2 py-2" variant="ghost">
+                <div className="border-border/60 border-t p-1">
+                  <Button asChild className="h-9 w-full justify-start gap-2.5 px-2" variant="ghost">
                     <Link href={`${root}/workspaces/new` as Route} onClick={close}>
-                      <span className="bg-muted flex size-8 items-center justify-center rounded-md">
-                        <Plus aria-hidden="true" className="size-4" />
-                      </span>
+                      <Plus aria-hidden="true" className="text-muted-foreground size-4" />
                       Create Workspace
                     </Link>
                   </Button>

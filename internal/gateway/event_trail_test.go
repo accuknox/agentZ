@@ -65,8 +65,9 @@ func TestCompileEventTrailFilters(t *testing.T) {
 			if len(clause.actorTypes) != 2 || len(clause.results) != 2 {
 				t.Fatalf("compileEventTrailFilters() clause = %#v", clause)
 			}
-			if clause.createdAfter.Time.Format(time.RFC3339) != from ||
-				clause.createdBefore.Time.Format(time.RFC3339) != to {
+			fromMismatch := clause.createdAfter.Time.Format(time.RFC3339) != from
+			toMismatch := clause.createdBefore.Time.Format(time.RFC3339) != to
+			if fromMismatch || toMismatch {
 				t.Fatalf("compileEventTrailFilters() date range = %#v", clause)
 			}
 		})

@@ -222,11 +222,12 @@ func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, err
 		if !row.Resource.Valid || !row.Action.Valid {
 			continue
 		}
-		effective.grants[grantKey{
+		key := grantKey{
 			workspaceID: row.WorkspaceID.String,
 			resource:    row.Resource.PermissionResource,
 			action:      row.Action.PermissionAction,
-		}] = struct{}{}
+		}
+		effective.grants[key] = struct{}{}
 	}
 
 	return effective, nil
@@ -384,11 +385,12 @@ func CanReceiveAgentShare(workspaceID string, workspaceGrants []gatewaydb.Permis
 		effective.workspaceAdmins[workspaceID] = struct{}{}
 	}
 	for _, action := range workspaceGrants {
-		effective.grants[grantKey{
+		key := grantKey{
 			workspaceID: workspaceID,
 			resource:    gatewaydb.PermissionResourceAgent,
 			action:      action,
-		}] = struct{}{}
+		}
+		effective.grants[key] = struct{}{}
 	}
 	return effective.canReceiveAgentShare(Scope{
 		OrganizationID: "organization",

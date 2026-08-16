@@ -470,10 +470,11 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 		return
 	}
 	scope := agentzv1alpha1.ResourceScope(params.Scope)
-	ns, err := scoperesolver.SelectedNamespace(
-		r.Context(), s.k8sClient, access.namespace, scope,
-		agentzv1alpha1.OrganizationResourceKindMCPConnection, name,
-	)
+	ns, err := scoperesolver.SelectedNamespace(r.Context(), s.k8sClient, access.namespace, scoperesolver.Selection{
+		Scope: scope,
+		Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+		Name:  name,
+	})
 	if err != nil {
 		writeError(w, r, &apiError{
 			Status:  http.StatusNotFound,

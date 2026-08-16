@@ -42,7 +42,8 @@ var opencodeRouteMatcher = newOpenCodeRouteMatcher()
 var opencodeRouteOperations = func() map[opencodeRouteKey]authorization.Operation {
 	operations := make(map[opencodeRouteKey]authorization.Operation, len(opencodeRoutes))
 	for _, route := range opencodeRoutes {
-		operations[opencodeRouteKey{method: route.Method, path: route.Path}] = route.Operation
+		key := opencodeRouteKey{method: route.Method, path: route.Path}
+		operations[key] = route.Operation
 	}
 	return operations
 }()
@@ -212,9 +213,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 // attributeOpenCodePrompt binds the authenticated gateway principal to
 // OpenCode prompts without changing unrecognized or synthetic ingress routes.
 func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth requestAuth) error {
-	if r.Method != http.MethodPost ||
-		(route.Path != opencodeSessionPromptPath && route.Path != opencodeSessionAsyncPath) ||
-		auth.actorID == "" {
+	if r.Method != http.MethodPost || auth.actorID == "" {
+		return nil
+	}
+	if route.Path != opencodeSessionPromptPath && route.Path != opencodeSessionAsyncPath {
 		return nil
 	}
 
@@ -251,7 +253,7 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		if err != nil {
 			return fmt.Errorf("decode text prompt part: %w", err)
 		}
-		metadata := make(map[string]interface{})
+		metadata := make(map[string]any)
 		if part.Metadata != nil {
 			metadata = *part.Metadata
 		}
@@ -260,7 +262,8 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 				continue
 			}
 			delete(metadata, opencodeActorMetadataKey)
-		} else {
+		}
+		if !attached {
 			metadata[opencodeActorMetadataKey] = actor
 			attached = true
 		}
@@ -270,7 +273,7 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		}
 	}
 	if !attached {
-		metadata := map[string]interface{}{opencodeActorMetadataKey: actor}
+		metadata := map[string]any{opencodeActorMetadataKey: actor}
 		ignored := true
 		synthetic := true
 		part := gatewayapi.OpencodeTextPartInput{

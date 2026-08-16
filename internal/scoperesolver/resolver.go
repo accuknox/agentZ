@@ -29,6 +29,13 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+// Selection identifies one explicitly scoped Organisation resource.
+type Selection struct {
+	Scope agentzv1alpha1.ResourceScope
+	Kind  agentzv1alpha1.OrganizationResourceKind
+	Name  string
+}
+
 // Namespace resolves scope from a verified Organisation or Workspace namespace.
 func Namespace(ctx context.Context, c client.Reader, current string, scope agentzv1alpha1.ResourceScope) (string, error) {
 	var ns corev1.Namespace
@@ -72,18 +79,18 @@ func Namespace(ctx context.Context, c client.Reader, current string, scope agent
 
 // SelectedNamespace resolves a scoped resource reference and enforces the
 // Workspace's explicit Organisation selection for the generated resource kind.
-func SelectedNamespace(ctx context.Context, c client.Reader, current string, scope agentzv1alpha1.ResourceScope, kind agentzv1alpha1.OrganizationResourceKind, name string) (string, error) {
-	ns, err := Namespace(ctx, c, current, scope)
-	if err != nil || scope == agentzv1alpha1.ResourceScopeWorkspace || ns == current {
+func SelectedNamespace(ctx context.Context, c client.Reader, current string, selection Selection) (string, error) {
+	ns, err := Namespace(ctx, c, current, selection.Scope)
+	if err != nil || selection.Scope == agentzv1alpha1.ResourceScopeWorkspace || ns == current {
 		return ns, err
 	}
 	workspace := &agentzv1alpha1.Workspace{}
 	if err := c.Get(ctx, client.ObjectKey{Name: current}, workspace); err != nil {
 		return "", fmt.Errorf("get Workspace selection: %w", err)
 	}
-	names := workspace.Spec.SelectedOrganizationResources.Names(kind)
-	if !slices.Contains(names, name) {
-		return "", fmt.Errorf("organisation resource %q is not selected by Workspace", name)
+	names := workspace.Spec.SelectedOrganizationResources.Names(selection.Kind)
+	if !slices.Contains(names, selection.Name) {
+		return "", fmt.Errorf("organisation resource %q is not selected by Workspace", selection.Name)
 	}
 	return ns, nil
 }

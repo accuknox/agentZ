@@ -85,8 +85,21 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 	if !ok {
 		return
 	}
-	startedAfter, startedBefore, ok := traceTimeBounds(w, r, params.StartedAfter, params.StartedBefore)
-	if !ok {
+	startedAfter := time.Unix(0, 0).UTC()
+	startedBefore := maxTime()
+	if params.StartedAfter != nil {
+		startedAfter = (*params.StartedAfter).UTC()
+	}
+	if params.StartedBefore != nil {
+		startedBefore = (*params.StartedBefore).UTC()
+	}
+	if startedAfter.After(startedBefore) {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"started_after must be before or equal to started_before",
+			errBadRequest,
+		))
 		return
 	}
 
@@ -449,14 +462,13 @@ func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	after, before, action, cursor, cursorSet, ok := observabilityListParams(
-		w,
-		r,
-		params.EventTimeAfter,
-		params.EventTimeBefore,
-		params.Action,
-		params.PageToken,
-	)
+	filter, ok := decodeObservabilityQuery(w, r, observabilityQuery{
+		after: params.EventTimeAfter, before: params.EventTimeBefore, action: params.Action,
+	})
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeEventPageToken(w, r, params.PageToken)
 	if !ok {
 		return
 	}
@@ -464,9 +476,9 @@ func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Reques
 	rows, err := s.queries.GatewayListProcessEvents(r.Context(), gatewaydb.GatewayListProcessEventsParams{
 		TenantNamespace: req.namespace,
 		AgentName:       req.agentName,
-		EventTimeAfter:  after,
-		EventTimeBefore: before,
-		Action:          action,
+		EventTimeAfter:  filter.after,
+		EventTimeBefore: filter.before,
+		Action:          filter.action,
 		CursorSet:       cursorSet,
 		CursorEventTime: cursor.EventTime,
 		CursorID:        cursor.ID,
@@ -490,9 +502,9 @@ func (s *Service) ListProcessObservabilitySummary(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	after, before, action, ok := observabilityFilters(
-		w, r, &params.EventTimeAfter, &params.EventTimeBefore, params.Action,
-	)
+	filter, ok := decodeObservabilityQuery(w, r, observabilityQuery{
+		after: &params.EventTimeAfter, before: &params.EventTimeBefore, action: params.Action,
+	})
 	if !ok {
 		return
 	}
@@ -504,9 +516,9 @@ func (s *Service) ListProcessObservabilitySummary(w http.ResponseWriter, r *http
 	rows, err := s.queries.GatewayListProcessEventsAggregated(r.Context(), gatewaydb.GatewayListProcessEventsAggregatedParams{
 		TenantNamespace: req.namespace,
 		AgentName:       req.agentName,
-		EventTimeAfter:  after,
-		EventTimeBefore: before,
-		Action:          action,
+		EventTimeAfter:  filter.after,
+		EventTimeBefore: filter.before,
+		Action:          filter.action,
 		CursorSet:       cursorSet,
 		CursorEventTime: cursor.LastSeen,
 		PageSize:        int32(req.limit + 1),
@@ -537,14 +549,13 @@ func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	after, before, action, cursor, cursorSet, ok := observabilityListParams(
-		w,
-		r,
-		params.EventTimeAfter,
-		params.EventTimeBefore,
-		params.Action,
-		params.PageToken,
-	)
+	filter, ok := decodeObservabilityQuery(w, r, observabilityQuery{
+		after: params.EventTimeAfter, before: params.EventTimeBefore, action: params.Action,
+	})
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeEventPageToken(w, r, params.PageToken)
 	if !ok {
 		return
 	}
@@ -552,9 +563,9 @@ func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, 
 	rows, err := s.queries.GatewayListFileEvents(r.Context(), gatewaydb.GatewayListFileEventsParams{
 		TenantNamespace: req.namespace,
 		AgentName:       req.agentName,
-		EventTimeAfter:  after,
-		EventTimeBefore: before,
-		Action:          action,
+		EventTimeAfter:  filter.after,
+		EventTimeBefore: filter.before,
+		Action:          filter.action,
 		CursorSet:       cursorSet,
 		CursorEventTime: cursor.EventTime,
 		CursorID:        cursor.ID,
@@ -578,9 +589,9 @@ func (s *Service) ListFileObservabilitySummary(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	after, before, action, ok := observabilityFilters(
-		w, r, &params.EventTimeAfter, &params.EventTimeBefore, params.Action,
-	)
+	filter, ok := decodeObservabilityQuery(w, r, observabilityQuery{
+		after: &params.EventTimeAfter, before: &params.EventTimeBefore, action: params.Action,
+	})
 	if !ok {
 		return
 	}
@@ -592,9 +603,9 @@ func (s *Service) ListFileObservabilitySummary(w http.ResponseWriter, r *http.Re
 	rows, err := s.queries.GatewayListFileEventsAggregated(r.Context(), gatewaydb.GatewayListFileEventsAggregatedParams{
 		TenantNamespace: req.namespace,
 		AgentName:       req.agentName,
-		EventTimeAfter:  after,
-		EventTimeBefore: before,
-		Action:          action,
+		EventTimeAfter:  filter.after,
+		EventTimeBefore: filter.before,
+		Action:          filter.action,
 		CursorSet:       cursorSet,
 		CursorEventTime: cursor.LastSeen,
 		PageSize:        int32(req.limit + 1),
@@ -625,14 +636,13 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	after, before, action, cursor, cursorSet, ok := observabilityListParams(
-		w,
-		r,
-		params.EventTimeAfter,
-		params.EventTimeBefore,
-		params.Action,
-		params.PageToken,
-	)
+	filter, ok := decodeObservabilityQuery(w, r, observabilityQuery{
+		after: params.EventTimeAfter, before: params.EventTimeBefore, action: params.Action,
+	})
+	if !ok {
+		return
+	}
+	cursor, cursorSet, ok := decodeEventPageToken(w, r, params.PageToken)
 	if !ok {
 		return
 	}
@@ -640,9 +650,9 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 	rows, err := s.queries.GatewayListNetworkEvents(r.Context(), gatewaydb.GatewayListNetworkEventsParams{
 		TenantNamespace: req.namespace,
 		AgentName:       req.agentName,
-		EventTimeAfter:  after,
-		EventTimeBefore: before,
-		Action:          action,
+		EventTimeAfter:  filter.after,
+		EventTimeBefore: filter.before,
+		Action:          filter.action,
 		CursorSet:       cursorSet,
 		CursorEventTime: cursor.EventTime,
 		CursorID:        cursor.ID,
@@ -666,9 +676,9 @@ func (s *Service) ListNetworkObservabilitySummary(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	after, before, action, ok := observabilityFilters(
-		w, r, &params.EventTimeAfter, &params.EventTimeBefore, params.Action,
-	)
+	filter, ok := decodeObservabilityQuery(w, r, observabilityQuery{
+		after: &params.EventTimeAfter, before: &params.EventTimeBefore, action: params.Action,
+	})
 	if !ok {
 		return
 	}
@@ -680,9 +690,9 @@ func (s *Service) ListNetworkObservabilitySummary(w http.ResponseWriter, r *http
 	rows, err := s.queries.GatewayListNetworkEventsAggregated(r.Context(), gatewaydb.GatewayListNetworkEventsAggregatedParams{
 		TenantNamespace: req.namespace,
 		AgentName:       req.agentName,
-		EventTimeAfter:  after,
-		EventTimeBefore: before,
-		Action:          action,
+		EventTimeAfter:  filter.after,
+		EventTimeBefore: filter.before,
+		Action:          filter.action,
 		CursorSet:       cursorSet,
 		CursorEventTime: cursor.LastSeen,
 		PageSize:        int32(req.limit + 1),

@@ -5,6 +5,7 @@ IMAGE ?= murtazau/agentz:latest
 AGENT_IMAGE ?= murtazau/agentz-agent:latest
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
+POSTGRES_DSN ?= postgresql://postgres:postgres@localhost:5432/postgres
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
 OPENBAO_AUTH_SERVICE_ACCOUNT ?= default
@@ -84,7 +85,7 @@ run-gateway:
 		--addr=0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--filesystem-target-override=localhost:4097 \
-		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
+		--postgres-dsn="$(POSTGRES_DSN)" \
 		--external-jwt-jwks-url=$(BETTER_AUTH_URL)/api/auth/.well-known/jwks.json \
 		--external-jwt-issuer=$(BETTER_AUTH_URL) \
 		--external-jwt-audience=$(GATEWAY_JWT_AUDIENCE) \
@@ -138,7 +139,7 @@ run-manager:
 
 .PHONY: run-observer
 run-observer:
-	go run ./cmd/agentz observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
+	go run ./cmd/agentz observer serve --postgres-dsn "$(POSTGRES_DSN)"
 
 .PHONY: run-extauth
 run-extauth:

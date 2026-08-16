@@ -64,10 +64,11 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 			}
 			continue
 		}
-		ns, err = scoperesolver.SelectedNamespace(
-			ctx, r.Client, sandbox.Namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
-		)
+		ns, err = scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			Name:  ref.Provider,
+		})
 		if err != nil {
 			return false, fmt.Errorf("resolve inference provider scope: %w", err)
 		}
@@ -340,14 +341,16 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 				return fmt.Errorf("resolve inference policy reference scope: %w", err)
 			}
 			if model.Provider != agentzv1alpha1.InferencePoolProvider {
-				ns, err = scoperesolver.SelectedNamespace(
-					ctx, r.Client, namespace, model.Scope,
-					agentzv1alpha1.OrganizationResourceKindInferenceProvider, model.Provider,
-				)
+				ns, err = scoperesolver.SelectedNamespace(ctx, r.Client, namespace, scoperesolver.Selection{
+					Scope: model.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  model.Provider,
+				})
 				if err != nil {
 					return fmt.Errorf("resolve inference policy provider scope: %w", err)
 				}
-				providerKeys[client.ObjectKey{Namespace: ns, Name: model.Provider}] = struct{}{}
+				key := client.ObjectKey{Namespace: ns, Name: model.Provider}
+				providerKeys[key] = struct{}{}
 				continue
 			}
 			pool := &agentzv1alpha1.InferencePool{}
@@ -356,21 +359,19 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 				return fmt.Errorf("get inference policy pool: %w", err)
 			}
 			for _, member := range pool.Spec.Members {
-				memberNamespace, err := scoperesolver.SelectedNamespace(
-					ctx,
-					r.Client,
-					pool.Namespace,
-					member.Scope,
-					agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-					member.Provider,
-				)
+				memberNamespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, pool.Namespace, scoperesolver.Selection{
+					Scope: member.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  member.Provider,
+				})
 				if err != nil {
 					return fmt.Errorf("resolve inference policy pool member scope: %w", err)
 				}
-				providerKeys[client.ObjectKey{
+				key := client.ObjectKey{
 					Namespace: memberNamespace,
 					Name:      member.Provider,
-				}] = struct{}{}
+				}
+				providerKeys[key] = struct{}{}
 			}
 		}
 	}

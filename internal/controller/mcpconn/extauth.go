@@ -66,6 +66,13 @@ type workspaceAccess struct {
 	inference bool
 }
 
+type extAuthScope struct {
+	namespace  string
+	workspaces []workspaceAccess
+	labels     map[string]string
+	ownerRefs  []metav1.OwnerReference
+}
+
 // ExtAuthRuntimeReconciler owns the one shared ext-auth runtime in each tenant
 // namespace that has MCP or subscription-inference consumers.
 type ExtAuthRuntimeReconciler struct {
@@ -186,32 +193,35 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	scope := extAuthScope{
+		namespace: ns.Name, workspaces: workspaces, labels: labels, ownerRefs: ownerRefs,
+	}
 
-	if err := r.reconcileExtAuthServiceAccount(ctx, ns.Name, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthServiceAccount(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthRole(ctx, ns.Name, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthRole(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthRoleBinding(ctx, ns.Name, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthRoleBinding(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthScopeReader(ctx, ns.Name, workspaces, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthScopeReader(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthWorkspaceAccess(ctx, ns.Name, workspaces, labels); err != nil {
+	if err := r.reconcileExtAuthWorkspaceAccess(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileExtAuthOpenBao(ctx, ns.Name); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthService(ctx, ns.Name, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthService(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthPolicy(ctx, ns.Name, workspaces, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthPolicy(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileExtAuthDeployment(ctx, ns.Name, workspaces, labels, ownerRefs); err != nil {
+	if err := r.reconcileExtAuthDeployment(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
@@ -281,7 +291,8 @@ func (r *ExtAuthRuntimeReconciler) workspaceAccess(ctx context.Context, ns *core
 	return access, nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthServiceAccount(ctx context.Context, ns string, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthServiceAccount(ctx context.Context, scope extAuthScope) error {
+	ns, labels, ownerRefs := scope.namespace, scope.labels, scope.ownerRefs
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.ExtAuthServiceName,
@@ -301,7 +312,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthServiceAccount(ctx context.Co
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRole(ctx context.Context, ns string, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRole(ctx context.Context, scope extAuthScope) error {
+	ns, labels, ownerRefs := scope.namespace, scope.labels, scope.ownerRefs
 	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.ExtAuthServiceName,
@@ -343,7 +355,9 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRole(ctx context.Context, ns 
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthScopeReader(ctx context.Context, ns string, workspaces []workspaceAccess, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthScopeReader(ctx context.Context, scope extAuthScope) error {
+	ns, workspaces := scope.namespace, scope.workspaces
+	labels, ownerRefs := scope.labels, scope.ownerRefs
 	name := mcp.ExtAuthOpenBaoName(ns) + "-scope-reader"
 	namespaces := make([]string, 1, len(workspaces)+1)
 	namespaces[0] = ns
@@ -403,7 +417,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthScopeReader(ctx context.Conte
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthWorkspaceAccess(ctx context.Context, org string, workspaces []workspaceAccess, labels map[string]string) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthWorkspaceAccess(ctx context.Context, scope extAuthScope) error {
+	org, workspaces, labels := scope.namespace, scope.workspaces, scope.labels
 	name := mcp.ExtAuthOpenBaoName(org)
 	for _, workspace := range workspaces {
 		role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{
@@ -473,7 +488,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthWorkspaceAccess(ctx context.C
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRoleBinding(ctx context.Context, ns string, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRoleBinding(ctx context.Context, scope extAuthScope) error {
+	ns, labels, ownerRefs := scope.namespace, scope.labels, scope.ownerRefs
 	roleBinding := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.ExtAuthServiceName,
@@ -503,7 +519,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRoleBinding(ctx context.Conte
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthService(ctx context.Context, ns string, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthService(ctx context.Context, scope extAuthScope) error {
+	ns, labels, ownerRefs := scope.namespace, scope.labels, scope.ownerRefs
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.ExtAuthServiceName,
@@ -540,7 +557,9 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthService(ctx context.Context, 
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Context, ns string, workspaces []workspaceAccess, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Context, scope extAuthScope) error {
+	ns, workspaces := scope.namespace, scope.workspaces
+	labels, ownerRefs := scope.labels, scope.ownerRefs
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.ExtAuthServiceName,
@@ -633,7 +652,9 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 	return nil
 }
 
-func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, ns string, workspaces []workspaceAccess, labels map[string]string, ownerRefs []metav1.OwnerReference) error {
+func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, scope extAuthScope) error {
+	ns, workspaces := scope.namespace, scope.workspaces
+	labels, ownerRefs := scope.labels, scope.ownerRefs
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mcp.ExtAuthServiceName,
@@ -698,12 +719,12 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, n
 				policy.Spec.Egress,
 				networkpolicy.ServiceEgress(parts[1], parts[0], openBao.Port)...,
 			)
-		} else {
-			policy.Spec.Egress = append(
-				policy.Spec.Egress,
-				networkpolicy.ExternalEgress([]networkpolicy.Target{openBao})...,
-			)
+			return nil
 		}
+		policy.Spec.Egress = append(
+			policy.Spec.Egress,
+			networkpolicy.ExternalEgress([]networkpolicy.Target{openBao})...,
+		)
 		return nil
 	})
 	if err != nil {

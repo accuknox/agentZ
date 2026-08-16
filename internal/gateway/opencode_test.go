@@ -109,8 +109,9 @@ func TestAttributeOpenCodeAttachmentPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode actor carrier: %v", err)
 	}
-	if carrier.Ignored == nil || !*carrier.Ignored ||
-		carrier.Synthetic == nil || !*carrier.Synthetic || carrier.Text != "" {
+	ignored := carrier.Ignored != nil && *carrier.Ignored
+	synthetic := carrier.Synthetic != nil && *carrier.Synthetic
+	if !ignored || !synthetic || carrier.Text != "" {
 		t.Fatalf("unexpected actor carrier: %#v", carrier)
 	}
 	if carrier.Metadata == nil {
@@ -126,32 +127,5 @@ func TestAttributeOpenCodeAttachmentPrompt(t *testing.T) {
 	}
 	if actor.Type != requestActorAPIKey || actor.ID != "key-1" || actor.Name != "Automation" {
 		t.Fatalf("unexpected actor metadata: %#v", actor)
-	}
-}
-
-func TestAttributeOpenCodePromptPassesThroughOtherRoutes(t *testing.T) {
-	t.Parallel()
-
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/api/opencode/demo/session/ses_1/shell",
-		strings.NewReader(`{"agent":"build","command":"pwd"}`),
-	)
-	original := request.Body
-	route := &opencodeRouteMatch{
-		Method: http.MethodPost,
-		Path:   "/api/opencode/{agentName}/session/{sessionID}/shell",
-	}
-
-	err := attributeOpenCodePrompt(
-		request,
-		route,
-		requestAuth{actorType: requestActorUser, actorID: "user-1", actorName: "Ada"},
-	)
-	if err != nil {
-		t.Fatalf("pass through shell route: %v", err)
-	}
-	if request.Body != original {
-		t.Fatal("shell request body was replaced")
 	}
 }

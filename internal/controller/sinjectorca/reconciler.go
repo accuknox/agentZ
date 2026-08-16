@@ -98,9 +98,10 @@ func Reconcile(ctx context.Context, client cmclientset.Interface, cfg Config) (b
 		}
 		return false, nil
 	}
-	if !apiequality.Semantic.DeepEqual(current.Labels, desired.Labels) ||
-		!apiequality.Semantic.DeepEqual(current.OwnerReferences, desired.OwnerReferences) ||
-		!apiequality.Semantic.DeepEqual(current.Spec, desired.Spec) {
+	labelsChanged := !apiequality.Semantic.DeepEqual(current.Labels, desired.Labels)
+	ownersChanged := !apiequality.Semantic.DeepEqual(current.OwnerReferences, desired.OwnerReferences)
+	specChanged := !apiequality.Semantic.DeepEqual(current.Spec, desired.Spec)
+	if labelsChanged || ownersChanged || specChanged {
 		_, err = certs.Update(ctx, desired, metav1.UpdateOptions{})
 		if err != nil {
 			return false, fmt.Errorf("update sinjector certificate: %w", err)
@@ -108,8 +109,7 @@ func Reconcile(ctx context.Context, client cmclientset.Interface, cfg Config) (b
 		return false, nil
 	}
 	for _, condition := range current.Status.Conditions {
-		if condition.Type == cmapi.CertificateConditionReady &&
-			condition.Status == cmmeta.ConditionTrue {
+		if condition.Type == cmapi.CertificateConditionReady && condition.Status == cmmeta.ConditionTrue {
 			return true, nil
 		}
 	}

@@ -268,10 +268,11 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *agentzv1alp
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	_, err := controllerutil.CreateOrPatch(ctx, r.directClient(), ns, func() error {
 		if ns.UID != "" {
-			if ns.Labels[agentzv1alpha1.TenantManagedByLabel] != agentzv1alpha1.TenantManagedByValue ||
-				ns.Labels[agentzv1alpha1.TenantNameLabel] != tenant.Name ||
-				ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] != tenant.Name ||
-				ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] != tenant.Spec.OrganizationID {
+			managed := ns.Labels[agentzv1alpha1.TenantManagedByLabel] == agentzv1alpha1.TenantManagedByValue
+			tenantOwned := ns.Labels[agentzv1alpha1.TenantNameLabel] == tenant.Name
+			organizationOwned := ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] == tenant.Name
+			identityMatches := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] == tenant.Spec.OrganizationID
+			if !managed || !tenantOwned || !organizationOwned || !identityMatches {
 				return errTenantIdentityConflict
 			}
 			for _, owner := range ns.OwnerReferences {

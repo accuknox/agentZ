@@ -94,10 +94,11 @@ func (r *Reconciler) referencingConsumer(ctx context.Context, skill *agentzv1alp
 	}
 	for i := range agents.Items {
 		for _, ref := range agents.Items[i].Spec.Skills {
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx, r.Client, agents.Items[i].Namespace, ref.Scope,
-				agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, agents.Items[i].Namespace, scoperesolver.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+				Name:  ref.Name,
+			})
 			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
 				return fmt.Sprintf("Agent %q", agents.Items[i].Name), nil
 			}
@@ -110,10 +111,11 @@ func (r *Reconciler) referencingConsumer(ctx context.Context, skill *agentzv1alp
 	}
 	for i := range sandboxes.Items {
 		for _, ref := range sandboxes.Items[i].Spec.Skills {
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx, r.Client, sandboxes.Items[i].Namespace, ref.Scope,
-				agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandboxes.Items[i].Namespace, scoperesolver.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+				Name:  ref.Name,
+			})
 			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
 				return fmt.Sprintf("Sandbox %q", sandboxes.Items[i].Name), nil
 			}

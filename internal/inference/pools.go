@@ -72,10 +72,11 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	providers := make(map[types.NamespacedName]*agentzv1alpha1.InferenceProvider, len(pool.Spec.Members))
 	for i, ref := range pool.Spec.Members {
 		field := fmt.Sprintf("members.%d", i)
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, reader, pool.Namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, reader, pool.Namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			Name:  ref.Provider,
+		})
 		if err != nil {
 			issues = append(issues, Issue{
 				Field:   field + ".scope",

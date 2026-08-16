@@ -345,15 +345,14 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		target.LLM.OpenAI = &agentgatewayv1alpha1.OpenAIConfig{Model: modelRef}
 		target.secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
+		target.LLM.Host = "api.openai.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if provider.Spec.OpenAI.BaseURL != "" {
 			err := applyEndpoint(&target.LLM, target.Policies, provider.Spec.OpenAI.BaseURL, "", "", false)
 			if err != nil {
 				return ProviderTarget{}, err
 			}
-		} else {
-			target.LLM.Host = "api.openai.com"
-			target.LLM.Port = 443
-			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
 		if target.LLM.PathPrefix == "" {
 			target.LLM.PathPrefix = "/v1"
@@ -363,15 +362,14 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		target.secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
 		auth.Location = headerLocation("x-api-key", "")
+		target.LLM.Host = "api.anthropic.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if provider.Spec.Anthropic.BaseURL != "" {
 			err := applyEndpoint(&target.LLM, target.Policies, provider.Spec.Anthropic.BaseURL, "", "", false)
 			if err != nil {
 				return ProviderTarget{}, err
 			}
-		} else {
-			target.LLM.Host = "api.anthropic.com"
-			target.LLM.Port = 443
-			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
 		if target.LLM.PathPrefix == "" {
 			target.LLM.PathPrefix = "/v1"
@@ -381,15 +379,14 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		target.secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
 		auth.Location = headerLocation("x-goog-api-key", "")
+		target.LLM.Host = "generativelanguage.googleapis.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if provider.Spec.Gemini.BaseURL != "" {
 			err := applyEndpoint(&target.LLM, target.Policies, provider.Spec.Gemini.BaseURL, "", "", false)
 			if err != nil {
 				return ProviderTarget{}, err
 			}
-		} else {
-			target.LLM.Host = "generativelanguage.googleapis.com"
-			target.LLM.Port = 443
-			target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		}
 		if target.LLM.PathPrefix == "" {
 			target.LLM.PathPrefix = "/"
@@ -600,6 +597,7 @@ func applyEndpoint(llm *agentgatewayv1alpha1.LLMProvider, policies *agentgateway
 	llm.Path = path
 	llm.PathPrefix = pathPrefix
 	if parsed.Scheme == "http" {
+		policies.TLS = nil
 		return nil
 	}
 	policies.TLS = &agentgatewayv1alpha1.BackendTLS{}

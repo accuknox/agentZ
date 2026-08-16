@@ -243,10 +243,11 @@ func (r *Reconciler) poolsForProvider(ctx context.Context, obj client.Object) []
 			if member.Provider != obj.GetName() {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx, r.Client, pool.Namespace, member.Scope,
-				agentzv1alpha1.OrganizationResourceKindInferenceProvider, member.Provider,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, pool.Namespace, scoperesolver.Selection{
+				Scope: member.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  member.Provider,
+			})
 			if err == nil && ns == obj.GetNamespace() {
 				matched = true
 				break

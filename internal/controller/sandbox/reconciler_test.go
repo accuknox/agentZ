@@ -139,11 +139,12 @@ func TestReconcileDeletionFindsOrganisationSandboxAgentAcrossWorkspaces(t *testi
 	}
 
 	current := &agentzv1alpha1.Sandbox{}
-	if err := k8sClient.Get(
+	err = k8sClient.Get(
 		context.Background(),
 		client.ObjectKeyFromObject(sandbox),
 		current,
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Get(Sandbox) error = %v", err)
 	}
 	if !ctrlutil.ContainsFinalizer(current, mcp.SandboxFinalizer) {

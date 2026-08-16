@@ -33,6 +33,18 @@ type eventPageCursor struct {
 	ID        int64     `json:"id"`
 }
 
+type observabilityQuery struct {
+	after  *gatewayapi.EventTimeAfterQuery
+	before *gatewayapi.EventTimeBeforeQuery
+	action *gatewayapi.ActionQuery
+}
+
+type observabilityFilter struct {
+	after  time.Time
+	before time.Time
+	action string
+}
+
 type workspacePageCursor struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
@@ -132,88 +144,43 @@ func decodeOptionalTraceCursor(w http.ResponseWriter, r *http.Request, raw strin
 	return validTraceID(w, r, raw)
 }
 
-func traceTimeBounds(w http.ResponseWriter, r *http.Request, after *gatewayapi.StartedAfterQuery, before *gatewayapi.StartedBeforeQuery) (time.Time, time.Time, bool) {
-	startedAfter := time.Unix(0, 0).UTC()
-	startedBefore := maxTime()
-	if after != nil {
-		startedAfter = (*after).UTC()
-	}
-	if before != nil {
-		startedBefore = (*before).UTC()
-	}
-	if !startedAfter.After(startedBefore) {
-		return startedAfter, startedBefore, true
-	}
-
-	writeError(w, r, newAPIError(
-		http.StatusBadRequest,
-		"invalid_request",
-		"started_after must be before or equal to started_before",
-		errBadRequest,
-	))
-	return time.Time{}, time.Time{}, false
-}
-
-func observabilityTimeBounds(w http.ResponseWriter, r *http.Request, after *gatewayapi.EventTimeAfterQuery, before *gatewayapi.EventTimeBeforeQuery) (time.Time, time.Time, bool) {
-	eventAfter := time.Unix(0, 0).UTC()
-	eventBefore := maxTime()
-	if after != nil {
-		eventAfter = (*after).UTC()
-	}
-	if before != nil {
-		eventBefore = (*before).UTC()
-	}
-	if !eventAfter.After(eventBefore) {
-		return eventAfter, eventBefore, true
-	}
-
-	writeError(w, r, newAPIError(
-		http.StatusBadRequest,
-		"invalid_request",
-		"event_time_after must be before or equal to event_time_before",
-		errBadRequest,
-	))
-	return time.Time{}, time.Time{}, false
-}
-
 func maxTime() time.Time {
 	return time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 }
 
-func observabilityListParams(w http.ResponseWriter, r *http.Request, after *gatewayapi.EventTimeAfterQuery, before *gatewayapi.EventTimeBeforeQuery, action *gatewayapi.ActionQuery, token *gatewayapi.PageTokenQuery) (time.Time, time.Time, string, eventPageCursor, bool, bool) {
-	eventAfter, eventBefore, actionValue, ok := observabilityFilters(w, r, after, before, action)
-	if !ok {
-		return time.Time{}, time.Time{}, "", eventPageCursor{}, false, false
+func decodeObservabilityQuery(w http.ResponseWriter, r *http.Request, query observabilityQuery) (observabilityFilter, bool) {
+	filter := observabilityFilter{
+		after:  time.Unix(0, 0).UTC(),
+		before: maxTime(),
 	}
-
-	cursor, cursorSet, ok := decodeEventPageToken(w, r, token)
-	if !ok {
-		return time.Time{}, time.Time{}, "", eventPageCursor{}, false, false
+	if query.after != nil {
+		filter.after = (*query.after).UTC()
 	}
-	return eventAfter, eventBefore, actionValue, cursor, cursorSet, true
-}
-
-func observabilityFilters(w http.ResponseWriter, r *http.Request, after *gatewayapi.EventTimeAfterQuery, before *gatewayapi.EventTimeBeforeQuery, action *gatewayapi.ActionQuery) (time.Time, time.Time, string, bool) {
-	eventAfter, eventBefore, ok := observabilityTimeBounds(w, r, after, before)
-	if !ok {
-		return time.Time{}, time.Time{}, "", false
+	if query.before != nil {
+		filter.before = (*query.before).UTC()
 	}
-
-	var actionValue string
-	if action != nil {
-		actionValue = string(*action)
-		if actionValue != "Allowed" && actionValue != "Blocked" {
+	if filter.after.After(filter.before) {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"event_time_after must be before or equal to event_time_before",
+			errBadRequest,
+		))
+		return observabilityFilter{}, false
+	}
+	if query.action != nil {
+		filter.action = string(*query.action)
+		if filter.action != "Allowed" && filter.action != "Blocked" {
 			writeError(w, r, newAPIError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"action must be Allowed or Blocked",
 				errBadRequest,
 			))
-			return time.Time{}, time.Time{}, "", false
+			return observabilityFilter{}, false
 		}
 	}
-
-	return eventAfter, eventBefore, actionValue, true
+	return filter, true
 }
 
 func decodeOffsetPageToken(w http.ResponseWriter, r *http.Request, token *gatewayapi.PageTokenQuery) (int, bool) {

@@ -212,14 +212,11 @@ func (r *Reconciler) referencingAgents(ctx context.Context, sandbox *agentzv1alp
 	matched := make([]agentzv1alpha1.Agent, 0, len(agents.Items))
 	for i := range agents.Items {
 		agt := &agents.Items[i]
-		namespace, err := scoperesolver.SelectedNamespace(
-			ctx,
-			r.Client,
-			agt.Namespace,
-			agt.Spec.SandboxRef.Scope,
-			agentzv1alpha1.OrganizationResourceKindSandbox,
-			agt.Spec.SandboxRef.Name,
-		)
+		namespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+			Scope: agt.Spec.SandboxRef.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+			Name:  agt.Spec.SandboxRef.Name,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("resolve Agent Sandbox scope: %w", err)
 		}
@@ -336,10 +333,11 @@ func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj clie
 			if model.Provider != provider.Name {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx, r.Client, sandbox.Namespace, model.Scope,
-				agentzv1alpha1.OrganizationResourceKindInferenceProvider, model.Provider,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
+				Scope: model.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  model.Provider,
+			})
 			if err == nil && ns == provider.Namespace {
 				matched = true
 				break
@@ -405,14 +403,11 @@ func (r *Reconciler) sandboxForAgent(ctx context.Context, obj client.Object) []r
 	if ref.Name == "" {
 		return nil
 	}
-	namespace, err := scoperesolver.SelectedNamespace(
-		ctx,
-		r.Client,
-		agt.Namespace,
-		ref.Scope,
-		agentzv1alpha1.OrganizationResourceKindSandbox,
-		ref.Name,
-	)
+	namespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+		Scope: ref.Scope,
+		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+		Name:  ref.Name,
+	})
 	if err != nil {
 		slog.ErrorContext(ctx, "resolve Agent Sandbox scope", slog.Any("err", err))
 		return nil
@@ -455,10 +450,11 @@ func (r *Reconciler) sandboxesForMCPConnection(ctx context.Context, obj client.O
 			if ref.Name != conn.Name {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx, r.Client, sandbox.Namespace, ref.Scope,
-				agentzv1alpha1.OrganizationResourceKindMCPConnection, ref.Name,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+				Name:  ref.Name,
+			})
 			if err == nil && ns == conn.Namespace {
 				matched = true
 				break
@@ -1134,14 +1130,11 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 			}
 			for j := range agents.Items {
 				agt := &agents.Items[j]
-				target, err := scoperesolver.SelectedNamespace(
-					ctx,
-					r.Client,
-					agt.Namespace,
-					agt.Spec.SandboxRef.Scope,
-					agentzv1alpha1.OrganizationResourceKindSandbox,
-					agt.Spec.SandboxRef.Name,
-				)
+				target, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+					Scope: agt.Spec.SandboxRef.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+					Name:  agt.Spec.SandboxRef.Name,
+				})
 				if err != nil || target != namespace {
 					continue
 				}

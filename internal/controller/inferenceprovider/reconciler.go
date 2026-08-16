@@ -217,10 +217,11 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			if ref.Provider != provider.Name {
 				continue
 			}
-			ns, resolveErr := scoperesolver.SelectedNamespace(
-				ctx, r.Client, sandboxes.Items[i].Namespace, ref.Scope,
-				agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
-			)
+			ns, resolveErr := scoperesolver.SelectedNamespace(ctx, r.Client, sandboxes.Items[i].Namespace, scoperesolver.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  ref.Provider,
+			})
 			if resolveErr == nil && ns == provider.Namespace {
 				err := fmt.Errorf("provider is still referenced by sandbox %q", sandboxes.Items[i].Name)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
@@ -245,10 +246,11 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			if ref.Provider != provider.Name {
 				continue
 			}
-			ns, resolveErr := scoperesolver.SelectedNamespace(
-				ctx, r.Client, pools.Items[i].Namespace, ref.Scope,
-				agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
-			)
+			ns, resolveErr := scoperesolver.SelectedNamespace(ctx, r.Client, pools.Items[i].Namespace, scoperesolver.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  ref.Provider,
+			})
 			if resolveErr == nil && ns == provider.Namespace {
 				err := fmt.Errorf("provider is still referenced by pool %q", pools.Items[i].Name)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)

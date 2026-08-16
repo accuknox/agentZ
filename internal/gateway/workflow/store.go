@@ -262,7 +262,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 	return nil, nil
 }
 
-// Get reconstructs a stored workflow graph from normalized workflow tables.
+// Get reconstructs a stored workflow graph from its related workflow tables.
 func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtName string, wfName string) (gatewayapi.Workflow, error) {
 	queries := workflowdb.New(pool)
 

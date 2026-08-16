@@ -261,9 +261,11 @@ func compileEventTrailFilters(filters []gatewayapi.EventTrailFilter) (eventTrail
 		case gatewayapi.ActorType:
 			for _, value := range values {
 				actorType := gatewayapi.EventTrailActorType(value)
-				if actorType != gatewayapi.EventTrailActorTypeUser &&
-					actorType != gatewayapi.EventTrailActorTypeApiKey &&
-					actorType != gatewayapi.EventTrailActorTypeSystem {
+				switch actorType {
+				case gatewayapi.EventTrailActorTypeUser,
+					gatewayapi.EventTrailActorTypeApiKey,
+					gatewayapi.EventTrailActorTypeSystem:
+				default:
 					return eventTrailClause{}, fmt.Errorf("invalid actor type %q", value)
 				}
 			}
@@ -297,9 +299,11 @@ func compileEventTrailFilters(filters []gatewayapi.EventTrailFilter) (eventTrail
 		case gatewayapi.Result:
 			for _, value := range values {
 				result := gatewayapi.EventTrailResult(value)
-				if result != gatewayapi.EventTrailResultSucceeded &&
-					result != gatewayapi.EventTrailResultDenied &&
-					result != gatewayapi.EventTrailResultFailed {
+				switch result {
+				case gatewayapi.EventTrailResultSucceeded,
+					gatewayapi.EventTrailResultDenied,
+					gatewayapi.EventTrailResultFailed:
+				default:
 					return eventTrailClause{}, fmt.Errorf("invalid result %q", value)
 				}
 			}
@@ -564,7 +568,8 @@ func (s *Service) runEventTrailRetention(ctx context.Context) {
 		)
 		if err != nil {
 			slog.ErrorContext(ctx, "delete expired event trail events", slog.Any("err", err))
-		} else if deleted > 0 {
+		}
+		if err == nil && deleted > 0 {
 			slog.InfoContext(ctx, "deleted expired event trail events", slog.Int64("count", deleted))
 		}
 

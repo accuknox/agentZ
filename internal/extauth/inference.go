@@ -155,11 +155,11 @@ func (s *Service) authorizeInferenceTarget(ctx context.Context, providerNamespac
 			if model.Provider != providerName {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx, s.kube, sandboxNamespace, model.Scope,
-				agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-				model.Provider,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, s.kube, sandboxNamespace, scoperesolver.Selection{
+				Scope: model.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  model.Provider,
+			})
 			if err == nil && ns == providerNamespace {
 				return nil
 			}
@@ -186,11 +186,11 @@ func (s *Service) authorizeInferenceTarget(ctx context.Context, providerNamespac
 		if member.Provider != providerName {
 			continue
 		}
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, s.kube, sandboxNamespace, member.Scope,
-			agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-			member.Provider,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, s.kube, sandboxNamespace, scoperesolver.Selection{
+			Scope: member.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			Name:  member.Provider,
+		})
 		if err == nil && ns == providerNamespace {
 			return nil
 		}

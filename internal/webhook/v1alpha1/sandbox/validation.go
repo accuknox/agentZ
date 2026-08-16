@@ -185,10 +185,11 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 	}
 
 	for ref, modelIDs := range byProvider {
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, v.client, sandbox.Namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, v.client, sandbox.Namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			Name:  ref.Name,
+		})
 		if err != nil {
 			fields = append(fields, field.Invalid(
 				path.Child("models"), ref,
@@ -239,10 +240,11 @@ func (v *Validator) validateSkillRefs(ctx context.Context, sandbox *agentzv1alph
 	fields := field.ErrorList{}
 	path := field.NewPath("spec").Child("skills")
 	for i, ref := range sandbox.Spec.Skills {
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, v.client, sandbox.Namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, v.client, sandbox.Namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+			Name:  ref.Name,
+		})
 		if err != nil {
 			fields = append(fields, field.Invalid(
 				path.Index(i).Child("scope"), ref.Scope,
@@ -312,10 +314,11 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, sandbox *agen
 		if v.client == nil {
 			continue
 		}
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, v.client, sandbox.Namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindMCPConnection, name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, v.client, sandbox.Namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+			Name:  name,
+		})
 		if err != nil {
 			fields = append(fields, field.Invalid(
 				path.Index(i).Child("scope"), ref.Scope,

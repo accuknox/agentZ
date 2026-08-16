@@ -623,14 +623,11 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 			sandboxName,
 		)
 	}
-	targetNamespace, err := scoperesolver.SelectedNamespace(
-		ctx,
-		s.kube,
-		pod.Namespace,
-		agent.Spec.SandboxRef.Scope,
-		agentzv1alpha1.OrganizationResourceKindSandbox,
-		agent.Spec.SandboxRef.Name,
-	)
+	targetNamespace, err := scoperesolver.SelectedNamespace(ctx, s.kube, pod.Namespace, scoperesolver.Selection{
+		Scope: agent.Spec.SandboxRef.Scope,
+		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+		Name:  agent.Spec.SandboxRef.Name,
+	})
 	if err != nil || targetNamespace != namespace {
 		return "", fmt.Errorf("agent %q Sandbox scope is not authorized", agentName)
 	}

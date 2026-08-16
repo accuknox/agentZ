@@ -288,9 +288,8 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, mapGatewayStoreError("create workspace", err))
 		return
 	}
-	if err := insertWorkspaceResourceSelection(
-		r.Context(), q, id, claims.OrganizationID, selected,
-	); err != nil {
+	err = insertWorkspaceResourceSelection(r.Context(), q, id, claims.OrganizationID, selected)
+	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -986,16 +985,18 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 	if err != nil {
 		return err
 	}
-	if workspace.Spec.WorkspaceID != row.ID ||
-		workspace.Spec.OrganizationID != row.OrganizationID {
+	workspaceMismatch := workspace.Spec.WorkspaceID != row.ID
+	organizationMismatch := workspace.Spec.OrganizationID != row.OrganizationID
+	if workspaceMismatch || organizationMismatch {
 		return fmt.Errorf("workspace resource identity conflicts with database state")
 	}
 	selected, err := s.workspaceResourceSelection(ctx, row.ID, row.OrganizationID)
 	if err != nil {
 		return err
 	}
-	if workspace.Spec.ProvisioningAttempt == row.ProvisioningAttempt &&
-		workspace.Spec.SelectedOrganizationResources.Equal(selected) {
+	attemptCurrent := workspace.Spec.ProvisioningAttempt == row.ProvisioningAttempt
+	selectionCurrent := workspace.Spec.SelectedOrganizationResources.Equal(selected)
+	if attemptCurrent && selectionCurrent {
 		return nil
 	}
 	workspace.Spec.ProvisioningAttempt = row.ProvisioningAttempt

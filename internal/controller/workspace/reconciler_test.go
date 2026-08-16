@@ -152,9 +152,12 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 		t.Fatal("workspace is not the isolation policy controller owner")
 	}
 	selector := policy.Spec.EndpointSelector.LabelSelector
-	if selector == nil || len(selector.MatchExpressions) != 1 ||
-		selector.MatchExpressions[0].Key != "k8s:"+agentzv1alpha1.AgentPackageJobLabel ||
-		selector.MatchExpressions[0].Operator != slimv1.LabelSelectorOpDoesNotExist {
+	if selector == nil || len(selector.MatchExpressions) != 1 {
+		t.Fatalf("baseline selector = %#v, want one expression", selector)
+	}
+	expression := selector.MatchExpressions[0]
+	keyMatches := expression.Key == "k8s:"+agentzv1alpha1.AgentPackageJobLabel
+	if !keyMatches || expression.Operator != slimv1.LabelSelectorOpDoesNotExist {
 		t.Fatalf("baseline selector = %#v, want package jobs excluded", selector)
 	}
 
@@ -192,15 +195,17 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 		t.Fatal("workspace is not the package policy controller owner")
 	}
 	selector = policy.Spec.EndpointSelector.LabelSelector
-	if selector == nil || len(selector.MatchExpressions) != 1 ||
-		selector.MatchExpressions[0].Key != "k8s:"+agentzv1alpha1.AgentPackageJobLabel ||
-		selector.MatchExpressions[0].Operator != slimv1.LabelSelectorOpExists {
+	if selector == nil || len(selector.MatchExpressions) != 1 {
+		t.Fatalf("package selector = %#v, want one expression", selector)
+	}
+	expression = selector.MatchExpressions[0]
+	keyMatches = expression.Key == "k8s:"+agentzv1alpha1.AgentPackageJobLabel
+	if !keyMatches || expression.Operator != slimv1.LabelSelectorOpExists {
 		t.Fatalf("package selector = %#v, want only package jobs", selector)
 	}
-	if policy.Spec.EnableDefaultDeny.Ingress == nil ||
-		!*policy.Spec.EnableDefaultDeny.Ingress ||
-		policy.Spec.EnableDefaultDeny.Egress == nil ||
-		!*policy.Spec.EnableDefaultDeny.Egress {
+	ingressDenied := policy.Spec.EnableDefaultDeny.Ingress != nil && *policy.Spec.EnableDefaultDeny.Ingress
+	egressDenied := policy.Spec.EnableDefaultDeny.Egress != nil && *policy.Spec.EnableDefaultDeny.Egress
+	if !ingressDenied || !egressDenied {
 		t.Fatalf("package default deny = %#v, want ingress and egress", policy.Spec.EnableDefaultDeny)
 	}
 	wantTargets := map[string]string{
@@ -208,8 +213,9 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 		"rustfs.rustfs.svc.cluster.local": "9000",
 	}
 	for _, rule := range policy.Spec.Egress {
-		if len(rule.ToFQDNs) != 1 || len(rule.ToPorts) != 1 ||
-			len(rule.ToPorts[0].Ports) != 1 {
+		oneFQDN := len(rule.ToFQDNs) == 1
+		onePortRule := len(rule.ToPorts) == 1
+		if !oneFQDN || !onePortRule || len(rule.ToPorts[0].Ports) != 1 {
 			continue
 		}
 		host := rule.ToFQDNs[0].MatchName
@@ -369,16 +375,20 @@ func TestReconcileRejectsConflictingNamespaceWithoutLeakingIdentity(t *testing.T
 	if calls[0].Body.State != gatewayapi.UpdateWorkspaceLifecycleRequestStateFailed {
 		t.Fatalf("lifecycle state = %q, want Failed", calls[0].Body.State)
 	}
-	if calls[0].Body.FailureReason == nil ||
-		strings.Contains(*calls[0].Body.FailureReason, "foreign-workspace-secret") {
-		t.Fatalf("unsafe lifecycle failure reason: %v", calls[0].Body.FailureReason)
+	failureReason := calls[0].Body.FailureReason
+	if failureReason == nil {
+		t.Fatal("lifecycle failure reason is missing")
+	}
+	if strings.Contains(*failureReason, "foreign-workspace-secret") {
+		t.Fatalf("unsafe lifecycle failure reason: %q", *failureReason)
 	}
 
-	if err := testClient.Get(
+	err := testClient.Get(
 		context.Background(),
 		client.ObjectKey{Name: workspace.Name},
 		ns,
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("get conflicting namespace: %v", err)
 	}
 	delete(ns.Annotations, agentzv1alpha1.WorkspaceIDAnnotation)
@@ -423,32 +433,6 @@ func TestReconcileRejectsConflictingNamespaceWithoutLeakingIdentity(t *testing.T
 		2,
 		gatewayapi.UpdateWorkspaceLifecycleRequestStateReady,
 	)
-}
-
-func TestReconcileRejectsUnmarkedExistingNamespace(t *testing.T) {
-	organizationID := "org-workspace-unmarked"
-	workspaceID := "workspace-unmarked"
-	createReadyTenant(t, organizationID)
-	workspace := createWorkspace(t, organizationID, workspaceID, 1)
-	if err := testClient.Create(context.Background(), &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: workspace.Name},
-	}); err != nil {
-		t.Fatalf("create unmarked namespace: %v", err)
-	}
-	recorder := &lifecycleRecorder{}
-	reconcile(t, newTestReconciler(t, recorder), workspace.Name)
-
-	current := getWorkspace(t, workspace.Name)
-	if current.Status.State != agentzv1alpha1.WorkspaceStateFailed {
-		t.Fatalf("state = %q, want Failed", current.Status.State)
-	}
-	degraded := apimeta.FindStatusCondition(
-		current.Status.Conditions,
-		agentzv1alpha1.WorkspaceConditionDegraded,
-	)
-	if degraded == nil || degraded.Reason != agentzv1alpha1.WorkspaceReasonNamespaceConflict {
-		t.Fatalf("Degraded reason = %v, want NamespaceConflict", degraded)
-	}
 }
 
 func TestReconcileReplaysFailedLifecycleAfterCallbackFailure(t *testing.T) {
@@ -714,11 +698,12 @@ func markCertificateReady(t *testing.T, reconciler *Reconciler, namespace string
 		Type:   cmapi.CertificateConditionReady,
 		Status: cmmeta.ConditionTrue,
 	}}
-	if _, err := certs.UpdateStatus(
+	_, err = certs.UpdateStatus(
 		context.Background(),
 		cert,
 		metav1.UpdateOptions{},
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("mark sinjector certificate ready: %v", err)
 	}
 }

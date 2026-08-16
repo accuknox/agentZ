@@ -16,7 +16,10 @@ limitations under the License.
 
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	// MCPConnectionStateAccepted means the spec is accepted but runtime state is
@@ -245,22 +248,7 @@ type MCPConnectionTool struct {
 
 // SetCondition adds or updates one MCPConnection condition.
 func (s *MCPConnectionStatus) SetCondition(cond metav1.Condition) {
-	cond.LastTransitionTime = metav1.Now()
-	for i, cur := range s.Conditions {
-		if cur.Type != cond.Type {
-			continue
-		}
-		update := cur.Status == cond.Status &&
-			cur.Reason == cond.Reason &&
-			cur.Message == cond.Message &&
-			cur.ObservedGeneration == cond.ObservedGeneration
-		if update {
-			cond.LastTransitionTime = cur.LastTransitionTime
-		}
-		s.Conditions[i] = cond
-		return
-	}
-	s.Conditions = append(s.Conditions, cond)
+	apimeta.SetStatusCondition(&s.Conditions, cond)
 }
 
 // +genclient

@@ -1008,15 +1008,13 @@ func validateSandboxInferenceScopes(inference gatewayapi.SandboxInference, works
 			Message: "workspace scope is not available in Organisation scope",
 		})
 	}
-	if inference.SmallModel != nil &&
-		inference.SmallModel.Scope != gatewayapi.ResourceScopeOrganisation {
+	if inference.SmallModel != nil && inference.SmallModel.Scope != gatewayapi.ResourceScopeOrganisation {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "inference.small_model.scope",
 			Message: "workspace scope is not available in Organisation scope",
 		})
 	}
-	if inference.AttachmentModel != nil &&
-		inference.AttachmentModel.Scope != gatewayapi.ResourceScopeOrganisation {
+	if inference.AttachmentModel != nil && inference.AttachmentModel.Scope != gatewayapi.ResourceScopeOrganisation {
 		fields = append(fields, gatewayapi.FieldError{
 			Field:   "inference.attachment_model.scope",
 			Message: "workspace scope is not available in Organisation scope",
@@ -1127,10 +1125,11 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef, workspace 
 func (s *Service) validateSandboxMCPConnections(ctx context.Context, current string, refs []agentzv1alpha1.MCPConnectionRef) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
 	for i, ref := range refs {
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, s.k8sClient, current, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindMCPConnection, ref.Name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, s.k8sClient, current, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+			Name:  ref.Name,
+		})
 		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("mcp_connection_refs[%d].scope", i),
@@ -1271,10 +1270,11 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 			}
 			continue
 		}
-		ns, err = scoperesolver.SelectedNamespace(
-			ctx, s.k8sClient, access.namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindInferenceProvider, ref.Provider,
-		)
+		ns, err = scoperesolver.SelectedNamespace(ctx, s.k8sClient, access.namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			Name:  ref.Provider,
+		})
 		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("inference.models[%d].scope", i),

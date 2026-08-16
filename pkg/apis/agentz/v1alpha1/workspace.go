@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"slices"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -210,20 +211,7 @@ type WorkspaceStatus struct {
 
 // SetCondition adds or updates a condition in the status.
 func (s *WorkspaceStatus) SetCondition(cond metav1.Condition) {
-	cond.LastTransitionTime = metav1.Now()
-	for i, cur := range s.Conditions {
-		if cur.Type != cond.Type {
-			continue
-		}
-		if cur.Status == cond.Status && cur.Reason == cond.Reason &&
-			cur.Message == cond.Message &&
-			cur.ObservedGeneration == cond.ObservedGeneration {
-			cond.LastTransitionTime = cur.LastTransitionTime
-		}
-		s.Conditions[i] = cond
-		return
-	}
-	s.Conditions = append(s.Conditions, cond)
+	apimeta.SetStatusCondition(&s.Conditions, cond)
 }
 
 // +genclient

@@ -338,10 +338,11 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		if ref.Name == "" {
 			continue
 		}
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, r.Client, agt.Namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+			Name:  ref.Name,
+		})
 		if err != nil {
 			return sandboxConfig{}, fmt.Errorf("resolve skill %q scope: %w", ref.Name, err)
 		}
@@ -354,14 +355,11 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 
 	ref := agt.Spec.SandboxRef
-	sandboxNamespace, err := scoperesolver.SelectedNamespace(
-		ctx,
-		r.Client,
-		agt.Namespace,
-		ref.Scope,
-		agentzv1alpha1.OrganizationResourceKindSandbox,
-		ref.Name,
-	)
+	sandboxNamespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+		Scope: ref.Scope,
+		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+		Name:  ref.Name,
+	})
 	if err != nil {
 		return sandboxConfig{}, fmt.Errorf("resolve sandbox scope: %w", err)
 	}
@@ -435,14 +433,11 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				},
 			}
 			for _, member := range pool.Spec.Members {
-				memberNamespace, err := scoperesolver.SelectedNamespace(
-					ctx,
-					r.Client,
-					pool.Namespace,
-					member.Scope,
-					agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-					member.Provider,
-				)
+				memberNamespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, pool.Namespace, scoperesolver.Selection{
+					Scope: member.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  member.Provider,
+				})
 				if err != nil {
 					return sandboxConfig{}, fmt.Errorf(
 						"resolve inference pool %q provider scope: %w",
@@ -469,10 +464,11 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			}
 			continue
 		}
-		modelNamespace, err = scoperesolver.SelectedNamespace(
-			ctx, r.Client, sandboxNamespace, modelRef.Scope,
-			agentzv1alpha1.OrganizationResourceKindInferenceProvider, modelRef.Provider,
-		)
+		modelNamespace, err = scoperesolver.SelectedNamespace(ctx, r.Client, sandboxNamespace, scoperesolver.Selection{
+			Scope: modelRef.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			Name:  modelRef.Provider,
+		})
 		if err != nil {
 			return sandboxConfig{}, fmt.Errorf("resolve inference provider scope: %w", err)
 		}
@@ -608,10 +604,11 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		if ref.Name == "" {
 			continue
 		}
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx, r.Client, sandbox.Namespace, ref.Scope,
-			agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+			Name:  ref.Name,
+		})
 		if err != nil {
 			return sandboxConfig{}, fmt.Errorf("resolve skill %q scope: %w", ref.Name, err)
 		}
@@ -723,14 +720,11 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	requests := []reconcile.Request{}
 	for i := range agents.Items {
 		agt := &agents.Items[i]
-		namespace, err := scoperesolver.SelectedNamespace(
-			ctx,
-			r.Client,
-			agt.Namespace,
-			agt.Spec.SandboxRef.Scope,
-			agentzv1alpha1.OrganizationResourceKindSandbox,
-			agt.Spec.SandboxRef.Name,
-		)
+		namespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+			Scope: agt.Spec.SandboxRef.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+			Name:  agt.Spec.SandboxRef.Name,
+		})
 		if err != nil || namespace != sandbox.Namespace {
 			continue
 		}
@@ -769,14 +763,11 @@ func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.
 			if model.Provider != provider.Name {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx,
-				r.Client,
-				sandboxes.Items[i].Namespace,
-				model.Scope,
-				agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-				model.Provider,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandboxes.Items[i].Namespace, scoperesolver.Selection{
+				Scope: model.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  model.Provider,
+			})
 			if err == nil && ns == provider.Namespace {
 				matched = true
 				break
@@ -851,24 +842,22 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 		agt := &agents.Items[i]
 		referenced := false
 		for _, ref := range agt.Spec.Skills {
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx, r.Client, agt.Namespace, ref.Scope,
-				agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+				Name:  ref.Name,
+			})
 			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
 				referenced = true
 				break
 			}
 		}
 		if !referenced {
-			ns, err := scoperesolver.SelectedNamespace(
-				ctx,
-				r.Client,
-				agt.Namespace,
-				agt.Spec.SandboxRef.Scope,
-				agentzv1alpha1.OrganizationResourceKindSandbox,
-				agt.Spec.SandboxRef.Name,
-			)
+			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
+				Scope: agt.Spec.SandboxRef.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+				Name:  agt.Spec.SandboxRef.Name,
+			})
 			if err == nil {
 				sandbox := &agentzv1alpha1.Sandbox{}
 				err = r.Get(ctx, client.ObjectKey{
@@ -877,10 +866,11 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 				}, sandbox)
 				if err == nil {
 					for _, ref := range sandbox.Spec.Skills {
-						skillNamespace, err := scoperesolver.SelectedNamespace(
-							ctx, r.Client, sandbox.Namespace, ref.Scope,
-							agentzv1alpha1.OrganizationResourceKindSkill, ref.Name,
-						)
+						skillNamespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
+							Scope: ref.Scope,
+							Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+							Name:  ref.Name,
+						})
 						if err == nil && skillNamespace == skill.Namespace && ref.Name == skill.Name {
 							referenced = true
 							break

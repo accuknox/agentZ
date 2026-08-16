@@ -618,8 +618,8 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		writeError(w, r, mapOpenBaoError(err))
 		return
 	}
-	if err := s.createInferenceProviderEventTrail(
-		r.Context(), access, id, gatewaydb.EventTrailResultSucceeded); err != nil {
+	err = s.createInferenceProviderEventTrail(r.Context(), access, id, gatewaydb.EventTrailResultSucceeded)
+	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -768,8 +768,8 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, mapKubeHTTPError("create inference provider", err))
 		return
 	}
-	if err := s.createInferenceProviderEventTrail(
-		r.Context(), access, name, gatewaydb.EventTrailResultSucceeded); err != nil {
+	err = s.createInferenceProviderEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultSucceeded)
+	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -1114,8 +1114,8 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, mapKubeHTTPError("update inference provider", err))
 		return
 	}
-	if err := s.createInferenceProviderEventTrail(
-		r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded); err != nil {
+	err = s.createInferenceProviderEventTrail(r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded)
+	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
@@ -1221,8 +1221,8 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, mapKubeHTTPError("delete inference provider", err))
 		return
 	}
-	if err := s.createInferenceProviderEventTrail(
-		r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded); err != nil {
+	err = s.createInferenceProviderEventTrail(r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded)
+	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}

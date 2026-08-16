@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -158,20 +159,7 @@ type AgentStatus struct {
 
 // SetCondition adds or updates a condition in the status.
 func (s *AgentStatus) SetCondition(cond metav1.Condition) {
-	cond.LastTransitionTime = metav1.Now()
-	for i, cur := range s.Conditions {
-		if cur.Type != cond.Type {
-			continue
-		}
-		if cur.Status == cond.Status && cur.Reason == cond.Reason &&
-			cur.Message == cond.Message &&
-			cur.ObservedGeneration == cond.ObservedGeneration {
-			cond.LastTransitionTime = cur.LastTransitionTime
-		}
-		s.Conditions[i] = cond
-		return
-	}
-	s.Conditions = append(s.Conditions, cond)
+	apimeta.SetStatusCondition(&s.Conditions, cond)
 }
 
 // +genclient

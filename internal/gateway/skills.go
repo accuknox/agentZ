@@ -720,14 +720,11 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 		if len(itemFields) > 0 {
 			continue
 		}
-		ns, err := scoperesolver.SelectedNamespace(
-			ctx,
-			s.k8sClient,
-			namespace,
-			agentzv1alpha1.ResourceScope(ref.Scope),
-			agentzv1alpha1.OrganizationResourceKindSkill,
-			name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(ctx, s.k8sClient, namespace, scoperesolver.Selection{
+			Scope: agentzv1alpha1.ResourceScope(ref.Scope),
+			Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+			Name:  name,
+		})
 		if err != nil {
 			fields = append(fields, gatewayapi.FieldError{
 				Field:   fmt.Sprintf("skills[%d].scope", i),
@@ -1783,9 +1780,8 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			access.claims.OrganizationID,
 		)
 		inherited := &agentzv1alpha1.SkillList{}
-		if err := s.k8sClient.List(
-			r.Context(), inherited, ctrlclient.InNamespace(organizationNamespace),
-		); err != nil {
+		err = s.k8sClient.List(r.Context(), inherited, ctrlclient.InNamespace(organizationNamespace))
+		if err != nil {
 			writeInternalError(w, r, fmt.Errorf("list inherited Organisation Skills: %w", err))
 			return
 		}
@@ -1895,12 +1891,11 @@ func (s *Service) ExportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		names[name] = struct{}{}
-		ns, err := scoperesolver.SelectedNamespace(
-			r.Context(), s.k8sClient, access.namespace,
-			agentzv1alpha1.ResourceScope(ref.Scope),
-			agentzv1alpha1.OrganizationResourceKindSkill,
-			name,
-		)
+		ns, err := scoperesolver.SelectedNamespace(r.Context(), s.k8sClient, access.namespace, scoperesolver.Selection{
+			Scope: agentzv1alpha1.ResourceScope(ref.Scope),
+			Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+			Name:  name,
+		})
 		if err != nil {
 			writeError(w, r, resourceForbidden(err))
 			return

@@ -604,8 +604,9 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 		return nil, fmt.Errorf("list inherited resource Sandbox consumers: %w", err)
 	}
 	for _, agent := range agents.Items {
-		if resourceType == gatewayapi.InheritedResourceTypeSandbox &&
-			agent.Spec.SandboxRef.Scope == agentzv1alpha1.ResourceScopeOrganisation {
+		isSandbox := resourceType == gatewayapi.InheritedResourceTypeSandbox
+		usesOrganizationSandbox := agent.Spec.SandboxRef.Scope == agentzv1alpha1.ResourceScopeOrganisation
+		if isSandbox && usesOrganizationSandbox {
 			add(agent.Spec.SandboxRef.Name, "Agent", agent.Name)
 		}
 		if resourceType == gatewayapi.InheritedResourceTypeSkill {

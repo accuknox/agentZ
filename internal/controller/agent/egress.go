@@ -98,10 +98,11 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg san
 	if envCfg.MCPURL != "" {
 		egress = append(egress, serviceEgressRules(envCfg.MCPURL)...)
 	}
+	if envCfg.InferenceURL == "" {
+		egress = append(egress, gatewayEgressRule(agt.Namespace, inference.GatewayName))
+	}
 	if envCfg.InferenceURL != "" {
 		egress = append(egress, serviceEgressRules(envCfg.InferenceURL)...)
-	} else {
-		egress = append(egress, gatewayEgressRule(agt.Namespace, inference.GatewayName))
 	}
 	egress = append(egress, sinjectorEgressRule(agt))
 

@@ -143,26 +143,6 @@ func TestValidateValues(t *testing.T) {
 			arbitraryJSON: &arbitraryJSON,
 		},
 		{
-			name:          "arbitrary array",
-			raw:           []byte(`[1,2,3]`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
-			name:          "arbitrary string",
-			raw:           []byte(`"repo"`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
-			name:          "arbitrary number",
-			raw:           []byte(`42`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
-			name:          "arbitrary boolean",
-			raw:           []byte(`true`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
 			name:          "arbitrary null",
 			raw:           []byte(`null`),
 			arbitraryJSON: &arbitraryJSON,

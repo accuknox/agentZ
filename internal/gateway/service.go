@@ -423,7 +423,9 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 						ctx, "fail cleanup job",
 						slog.String("job_id", job.ID), slog.Any("err", failErr),
 					)
-				} else if updated == 0 {
+					continue
+				}
+				if updated == 0 {
 					slog.WarnContext(ctx, "cleanup job lease lost", slog.String("job_id", job.ID))
 				}
 				continue
@@ -439,7 +441,9 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 			})
 			if retryErr != nil {
 				slog.ErrorContext(ctx, "retry cleanup job", slog.String("job_id", job.ID), slog.Any("err", retryErr))
-			} else if updated == 0 {
+				continue
+			}
+			if updated == 0 {
 				slog.WarnContext(ctx, "cleanup job lease lost", slog.String("job_id", job.ID))
 			}
 			continue
@@ -452,7 +456,9 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 		})
 		if err != nil {
 			slog.ErrorContext(ctx, "complete cleanup job", slog.String("job_id", job.ID), slog.Any("err", err))
-		} else if updated == 0 {
+			continue
+		}
+		if updated == 0 {
 			slog.WarnContext(ctx, "cleanup job lease lost", slog.String("job_id", job.ID))
 		}
 	}
@@ -473,11 +479,13 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 	if job.Operation == gatewaydb.DestructiveOperationWorkspaceDelete {
 		return s.processWorkspaceCleanup(ctx, job, payload)
 	}
-	if job.Operation != gatewaydb.DestructiveOperationMembershipDisable &&
-		job.Operation != gatewaydb.DestructiveOperationMembershipRemove &&
-		job.Operation != gatewaydb.DestructiveOperationTeamDelete &&
-		job.Operation != gatewaydb.DestructiveOperationRoleReduce &&
-		job.Operation != gatewaydb.DestructiveOperationAccessRevoke {
+	switch job.Operation {
+	case gatewaydb.DestructiveOperationMembershipDisable,
+		gatewaydb.DestructiveOperationMembershipRemove,
+		gatewaydb.DestructiveOperationTeamDelete,
+		gatewaydb.DestructiveOperationRoleReduce,
+		gatewaydb.DestructiveOperationAccessRevoke:
+	default:
 		return fmt.Errorf("unsupported cleanup operation %q", job.Operation)
 	}
 

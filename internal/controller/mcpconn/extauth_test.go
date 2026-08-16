@@ -58,10 +58,13 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 
 	labels := map[string]string{"app.kubernetes.io/name": extAuthLabelName}
 	ownerRefs := []metav1.OwnerReference{{APIVersion: "v1", Kind: "Namespace", Name: org}}
-	if err := r.reconcileExtAuthScopeReader(context.Background(), org, access, labels, ownerRefs); err != nil {
+	scope := extAuthScope{
+		namespace: org, workspaces: access, labels: labels, ownerRefs: ownerRefs,
+	}
+	if err := r.reconcileExtAuthScopeReader(context.Background(), scope); err != nil {
 		t.Fatalf("reconcileExtAuthScopeReader() error = %v", err)
 	}
-	if err := r.reconcileExtAuthWorkspaceAccess(context.Background(), org, access, labels); err != nil {
+	if err := r.reconcileExtAuthWorkspaceAccess(context.Background(), scope); err != nil {
 		t.Fatalf("reconcileExtAuthWorkspaceAccess() error = %v", err)
 	}
 

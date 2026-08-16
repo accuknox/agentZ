@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import type { UrlObject } from "node:url"
 import { Suspense } from "react"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
@@ -7,10 +6,6 @@ import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
-
-export const metadata: Metadata = {
-  title: "New Sandbox",
-}
 
 export default function NewSandboxPage({
   basePath,

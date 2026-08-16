@@ -1,8 +1,9 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: workspaces.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -54,7 +55,8 @@ spec:
             description: spec defines the stable Workspace identity.
             properties:
               organizationID:
-                description: OrganizationID is the immutable Better Auth Organisation ID.
+                description: OrganizationID is the immutable Better Auth Organisation
+                  ID.
                 maxLength: 128
                 minLength: 1
                 type: string
@@ -76,25 +78,29 @@ spec:
                   this Workspace may consume live and read-only.
                 properties:
                   inferenceProviders:
-                    description: InferenceProviders contains selected Organisation InferenceProvider names.
+                    description: InferenceProviders contains selected Organisation
+                      InferenceProvider names.
                     items:
                       type: string
                     type: array
                     x-kubernetes-list-type: set
                   mcpConnections:
-                    description: MCPConnections contains selected Organisation MCPConnection names.
+                    description: MCPConnections contains selected Organisation MCPConnection
+                      names.
                     items:
                       type: string
                     type: array
                     x-kubernetes-list-type: set
                   sandboxes:
-                    description: Sandboxes contains selected Organisation Sandbox names.
+                    description: Sandboxes contains selected Organisation Sandbox
+                      names.
                     items:
                       type: string
                     type: array
                     x-kubernetes-list-type: set
                   skills:
-                    description: Skills contains selected immutable Organisation Skill names.
+                    description: Skills contains selected immutable Organisation Skill
+                      names.
                     items:
                       type: string
                     type: array
@@ -117,9 +123,11 @@ spec:
             description: status defines the observed Workspace infrastructure state.
             properties:
               conditions:
-                description: Conditions represent the current Workspace infrastructure state.
+                description: Conditions represent the current Workspace infrastructure
+                  state.
                 items:
-                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -176,7 +184,8 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               namespace:
-                description: Namespace is the isolated Kubernetes namespace for this Workspace.
+                description: Namespace is the isolated Kubernetes namespace for this
+                  Workspace.
                 type: string
               observedAttempt:
                 description: ObservedAttempt is the latest provisioning attempt processed.

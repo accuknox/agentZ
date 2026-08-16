@@ -479,24 +479,11 @@ func inputContractJSON(inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gateway
 
 func decodeInputContract(raw []byte) (*gatewayapi.WorkflowInputs, *gatewayapi.WorkflowArbitraryJSON, error) {
 	var decoded storedInputContract
-	storedErr := json.Unmarshal(raw, &decoded)
-	if storedErr == nil && (decoded.Inputs != nil || decoded.ArbitraryJSON != nil) {
-		return decoded.Inputs, decoded.ArbitraryJSON, nil
+	err := json.Unmarshal(raw, &decoded)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unmarshal workflow input contract: %w", err)
 	}
-
-	var legacy gatewayapi.WorkflowInputs
-	legacyErr := json.Unmarshal(raw, &legacy)
-	if legacyErr == nil && len(legacy) > 0 {
-		return &legacy, nil, nil
-	}
-
-	if storedErr != nil {
-		return nil, nil, fmt.Errorf("unmarshal workflow input contract: %w", storedErr)
-	}
-	if legacyErr != nil {
-		return nil, nil, fmt.Errorf("unmarshal legacy workflow input schema: %w", legacyErr)
-	}
-	return nil, nil, nil
+	return decoded.Inputs, decoded.ArbitraryJSON, nil
 }
 
 func uniqueNames(names []string) []string {

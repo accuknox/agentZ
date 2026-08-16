@@ -71,27 +71,3 @@ sql:
         go_type:
           slice: true
           type: byte
-- engine: postgresql
-  queries: hack/cutover/db/query.sql
-  schema:
-  - internal/session/db/schema.sql
-  - internal/gateway/workflow/db/schema.sql
-  - internal/observer/db/schema.sql
-  - web/drizzle
-  gen:
-    go:
-      package: cutoverdb
-      out: hack/cutover/db
-      sql_package: pgx/v5
-      emit_json_tags: true
-      emit_interface: true
-      emit_empty_slices: true
-      overrides:
-      - db_type: timestamptz
-        go_type:
-          import: time
-          type: Time
-      - db_type: jsonb
-        go_type:
-          slice: true
-          type: byte

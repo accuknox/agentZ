@@ -209,7 +209,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
 
-// attributeOpenCodePrompt binds the authenticated gateway principal to legacy
+// attributeOpenCodePrompt binds the authenticated gateway principal to
 // OpenCode prompts without changing unrecognized or synthetic ingress routes.
 func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth requestAuth) error {
 	if r.Method != http.MethodPost ||

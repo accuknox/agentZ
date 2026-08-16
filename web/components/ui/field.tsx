@@ -130,19 +130,6 @@ function FieldLabel({ className, required = false, children, ...props }: FieldLa
   )
 }
 
-function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="field-label"
-      className={cn(
-        "flex w-fit items-center gap-2 text-sm font-medium group-data-[disabled=true]/field:opacity-50",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
 function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
@@ -263,6 +250,5 @@ export {
   FieldSeparator,
   FieldSet,
   FieldContent,
-  FieldTitle,
   RequiredIndicator,
 }

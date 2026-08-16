@@ -22,7 +22,7 @@ export const secretKeySchema = z
   )
   .pipe(zSecretKey)
 
-export const secretValueSchema = z
+const secretValueSchema = z
   .string({ error: "Secret value is required" })
   .trim()
   .min(1, "Secret value is required")
@@ -35,7 +35,7 @@ export const secretHostSchema = z
   .max(253, "Host must be at most 253 characters")
   .transform(parseSecretHost)
 
-export const secretHostsInputSchema = z
+const secretHostsInputSchema = z
   .string({ error: "Hosts are required" })
   .transform((value) =>
     value
@@ -299,26 +299,27 @@ function parseSandboxHost(value: string, ctx: z.RefinementCtx) {
 function parseHost(value: string, allowIP: boolean) {
   const host = value.trim()
   if (ipaddr.isValidCIDR(host)) {
-    return canonicalCIDR(host)
+    const [address, bits] = ipaddr.parseCIDR(host)
+    return `${address.toString()}/${bits}`
   }
   if (ipaddr.isValid(host)) {
     return allowIP ? host : undefined
   }
   if (host.startsWith("**.")) {
-    const domain = canonicalDomain(host.slice(3))
+    const domain = parseDomain(host.slice(3))
     return domain ? `**.${domain}` : undefined
   }
   if (host.startsWith("*.")) {
-    const domain = canonicalDomain(host.slice(2))
+    const domain = parseDomain(host.slice(2))
     return domain ? `*.${domain}` : undefined
   }
   if (host.includes("*")) {
     return undefined
   }
-  return canonicalDomain(host)
+  return parseDomain(host)
 }
 
-function canonicalDomain(value: string) {
+function parseDomain(value: string) {
   const domain = value.trim().replace(/\.$/, "")
   if (domain.length === 0 || domain.length > 253 || domain.includes("..")) {
     return undefined
@@ -332,14 +333,9 @@ function canonicalDomain(value: string) {
   return domain.toLowerCase()
 }
 
-function canonicalCIDR(value: string) {
-  const [addr, bits] = ipaddr.parseCIDR(value)
-  return `${addr.toString()}/${bits}`
-}
-
-export const agentNameSchema = agentNameInputSchema
+const agentNameSchema = agentNameInputSchema
 export const sandboxNameSchema = sandboxNameInputSchema
-export const skillNameSchema = z
+const skillNameSchema = z
   .string({ error: "Skill name is required" })
   .trim()
   .min(1, "Skill name is required")

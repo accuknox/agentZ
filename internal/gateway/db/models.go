@@ -1094,10 +1094,10 @@ type SocialAdmissionGoogleDomain struct {
 type SocialAdmissionPolicy struct {
 	OrganizationID string             `json:"organization_id"`
 	Enabled        bool               `json:"enabled"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	GoogleEnabled  bool               `json:"google_enabled"`
 	GithubEnabled  bool               `json:"github_enabled"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Team struct {
@@ -1120,22 +1120,6 @@ type TeamRole struct {
 	RoleID         string             `json:"role_id"`
 	OrganizationID string             `json:"organization_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type TenantCutover struct {
-	OrganizationID     string             `json:"organization_id"`
-	SourceNamespace    string             `json:"source_namespace"`
-	WorkspaceID        string             `json:"workspace_id"`
-	TargetNamespace    string             `json:"target_namespace"`
-	OwnerUserID        string             `json:"owner_user_id"`
-	InventoryHash      string             `json:"inventory_hash"`
-	BackupManifestHash string             `json:"backup_manifest_hash"`
-	Checkpoint         string             `json:"checkpoint"`
-	Inventory          []byte             `json:"inventory"`
-	VerifiedAt         pgtype.Timestamptz `json:"verified_at"`
-	ActivatedAt        pgtype.Timestamptz `json:"activated_at"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type TwoFactor struct {

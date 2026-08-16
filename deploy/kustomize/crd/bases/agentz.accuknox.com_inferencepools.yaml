@@ -1,8 +1,9 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: inferencepools.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -31,7 +32,8 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: InferencePool is one tenant-scoped logical model with ordered fallbacks.
+        description: InferencePool is one tenant-scoped logical model with ordered
+          fallbacks.
         properties:
           apiVersion:
             description: |-
@@ -54,7 +56,8 @@ spec:
             description: Spec defines the desired Pool membership and routing behavior.
             properties:
               automaticFailover:
-                description: AutomaticFailover enables passive health eviction between priority groups.
+                description: AutomaticFailover enables passive health eviction between
+                  priority groups.
                 type: boolean
               creatorUserID:
                 description: |-
@@ -71,7 +74,8 @@ spec:
               members:
                 description: Members is the ordered provider-model fallback chain.
                 items:
-                  description: InferencePoolMember references one enabled model on a provider.
+                  description: InferencePoolMember references one enabled model on
+                    a provider.
                   properties:
                     model:
                       description: Model is the exact upstream model identifier.
@@ -79,13 +83,15 @@ spec:
                       minLength: 1
                       type: string
                     provider:
-                      description: Provider is the immutable InferenceProvider metadata name.
+                      description: Provider is the immutable InferenceProvider metadata
+                        name.
                       maxLength: 63
                       minLength: 1
                       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                       type: string
                     scope:
-                      description: Scope selects the current Organisation or Workspace namespace.
+                      description: Scope selects the current Organisation or Workspace
+                        namespace.
                       enum:
                       - Organisation
                       - Workspace
@@ -106,16 +112,19 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: pool members must be unique scoped provider-model references
-              rule: self.members.all(m, self.members.exists_one(n, n.scope == m.scope && n.provider == m.provider && n.model == m.model))
+              rule: self.members.all(m, self.members.exists_one(n, n.scope == m.scope
+                && n.provider == m.provider && n.model == m.model))
             - message: creatorUserID is immutable
-              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)'
+              rule: '!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID
+                == oldSelf.creatorUserID)'
           status:
             description: Status describes derived readiness and compatibility.
             properties:
               conditions:
                 description: Conditions represent Pool readiness dimensions.
                 items:
-                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -182,16 +191,20 @@ spec:
                     - Messages
                     type: string
                   capabilities:
-                    description: Capabilities contains features supported by every member.
+                    description: Capabilities contains features supported by every
+                      member.
                     properties:
                       attachment:
-                        description: Attachment reports whether file attachments are supported.
+                        description: Attachment reports whether file attachments are
+                          supported.
                         type: boolean
                       reasoning:
-                        description: Reasoning reports whether reasoning controls are supported.
+                        description: Reasoning reports whether reasoning controls
+                          are supported.
                         type: boolean
                       temperature:
-                        description: Temperature reports whether temperature controls are supported.
+                        description: Temperature reports whether temperature controls
+                          are supported.
                         type: boolean
                       toolCall:
                         description: ToolCall reports whether tool calls are supported.
@@ -203,7 +216,8 @@ spec:
                     - toolCall
                     type: object
                   limits:
-                    description: Limits contains the minimum safe token limits across members.
+                    description: Limits contains the minimum safe token limits across
+                      members.
                     properties:
                       context:
                         description: Context is the total context-window size.
@@ -233,7 +247,8 @@ spec:
                       input:
                         description: Input lists supported input media.
                         items:
-                          description: InferenceModelModality describes input and output media understood by OpenCode.
+                          description: InferenceModelModality describes input and
+                            output media understood by OpenCode.
                           enum:
                           - text
                           - audio
@@ -248,7 +263,8 @@ spec:
                       output:
                         description: Output lists supported output media.
                         items:
-                          description: InferenceModelModality describes input and output media understood by OpenCode.
+                          description: InferenceModelModality describes input and
+                            output media understood by OpenCode.
                           enum:
                           - text
                           - audio
@@ -273,7 +289,8 @@ spec:
               members:
                 description: Members preserves desired order while reporting readiness.
                 items:
-                  description: InferencePoolMemberStatus reports one member's control-plane readiness.
+                  description: InferencePoolMemberStatus reports one member's control-plane
+                    readiness.
                   properties:
                     message:
                       description: Message provides human-readable readiness detail.
@@ -291,13 +308,15 @@ spec:
                       description: Provider is the referenced InferenceProvider name.
                       type: string
                     ready:
-                      description: Ready reports whether the referenced Provider is Ready.
+                      description: Ready reports whether the referenced Provider is
+                        Ready.
                       type: boolean
                     reason:
                       description: Reason is a stable readiness reason.
                       type: string
                     scope:
-                      description: Scope identifies the referenced provider's infrastructure scope.
+                      description: Scope identifies the referenced provider's infrastructure
+                        scope.
                       enum:
                       - Organisation
                       - Workspace
@@ -324,7 +343,8 @@ spec:
                 - Anthropic
                 type: string
               state:
-                description: State summarizes accepted, ready, partially degraded, or degraded state.
+                description: State summarizes accepted, ready, partially degraded,
+                  or degraded state.
                 enum:
                 - Accepted
                 - Ready
@@ -334,7 +354,8 @@ spec:
               warnings:
                 description: Warnings contains non-degrading compatibility limitations.
                 items:
-                  description: InferencePoolWarning describes a non-degrading compatibility limitation.
+                  description: InferencePoolWarning describes a non-degrading compatibility
+                    limitation.
                   properties:
                     code:
                       description: Code is the stable machine-readable warning identity.

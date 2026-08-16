@@ -4,7 +4,6 @@ CREATE TYPE "public"."cleanup_state" AS ENUM('pending', 'running', 'succeeded', 
 CREATE TYPE "public"."destructive_operation" AS ENUM('membership_disable', 'membership_remove', 'team_delete', 'role_reduce', 'access_revoke', 'workspace_delete');--> statement-breakpoint
 CREATE TYPE "public"."destructive_target" AS ENUM('organization_membership', 'team', 'role', 'workspace_access', 'workspace');--> statement-breakpoint
 CREATE TYPE "public"."event_trail_actor" AS ENUM('user', 'api_key', 'system');--> statement-breakpoint
-CREATE TYPE "public"."event_trail_interface" AS ENUM('web', 'gateway', 'better_auth', 'controller', 'system');--> statement-breakpoint
 CREATE TYPE "public"."event_trail_result" AS ENUM('succeeded', 'denied', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."event_trail_target" AS ENUM('organization', 'organization_membership', 'team', 'mcp_connection', 'inference_provider', 'inference_pool', 'role', 'sandbox', 'skill', 'agent', 'api_key', 'workspace_access', 'workspace');--> statement-breakpoint
 CREATE TYPE "public"."permission_action" AS ENUM('read', 'create', 'modify', 'delete', 'author', 'share_authored', 'share_non_authored', 'use_shared', 'read_shared_secret', 'write_shared_secret', 'delete_shared_secret');--> statement-breakpoint
@@ -104,11 +103,6 @@ CREATE TABLE "event_trail_events" (
 	"result" "event_trail_result" NOT NULL,
 	"before" jsonb,
 	"after" jsonb,
-	"automatic_cascade" boolean DEFAULT false NOT NULL,
-	"cleanup_job_id" text,
-	"interface" "event_trail_interface" NOT NULL,
-	"ip_address" text,
-	"user_agent" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "event_trail_events_actor_ck" CHECK (("event_trail_events"."actor_type" = 'system' AND "event_trail_events"."actor_id" IS NULL) OR
         ("event_trail_events"."actor_type" <> 'system' AND "event_trail_events"."actor_id" IS NOT NULL)),
@@ -147,12 +141,6 @@ CREATE TABLE "member_roles" (
 	"organization_id" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "member_roles_member_id_role_id_pk" PRIMARY KEY("member_id","role_id")
-);
---> statement-breakpoint
-CREATE TABLE "organization_slug_history" (
-	"slug" text PRIMARY KEY NOT NULL,
-	"organization_id" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "permission_grants" (
@@ -216,6 +204,8 @@ CREATE TABLE "social_admission_google_domains" (
 CREATE TABLE "social_admission_policies" (
 	"organization_id" text PRIMARY KEY NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL,
+	"google_enabled" boolean DEFAULT false NOT NULL,
+	"github_enabled" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -226,29 +216,6 @@ CREATE TABLE "team_roles" (
 	"organization_id" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "team_roles_team_id_role_id_pk" PRIMARY KEY("team_id","role_id")
-);
---> statement-breakpoint
-CREATE TABLE "tenant_cutovers" (
-	"organization_id" text PRIMARY KEY NOT NULL,
-	"source_namespace" text NOT NULL,
-	"workspace_id" text NOT NULL,
-	"target_namespace" text NOT NULL,
-	"owner_user_id" text NOT NULL,
-	"inventory_hash" text NOT NULL,
-	"backup_manifest_hash" text NOT NULL,
-	"checkpoint" text DEFAULT 'planned' NOT NULL,
-	"inventory" jsonb NOT NULL,
-	"verified_at" timestamp with time zone,
-	"activated_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "tenant_cutovers_workspace_id_unique" UNIQUE("workspace_id"),
-	CONSTRAINT "tenant_cutovers_target_namespace_unique" UNIQUE("target_namespace"),
-	CONSTRAINT "tenant_cutovers_checkpoint_ck" CHECK ("tenant_cutovers"."checkpoint" IN (
-        'planned', 'sql', 'kubernetes', 'openbao', 's3', 'verified', 'activated'
-      )),
-	CONSTRAINT "tenant_cutovers_activation_ck" CHECK (("tenant_cutovers"."verified_at" IS NOT NULL) = ("tenant_cutovers"."checkpoint" IN ('verified', 'sql', 'activated')) AND
-        ("tenant_cutovers"."activated_at" IS NOT NULL) = ("tenant_cutovers"."checkpoint" = 'activated'))
 );
 --> statement-breakpoint
 CREATE TABLE "workspace_inherited_resources" (
@@ -287,6 +254,19 @@ CREATE TABLE "workspaces" (
 	CONSTRAINT "workspaces_provisioning_attempt_ck" CHECK ("workspaces"."provisioning_attempt" >= 1),
 	CONSTRAINT "workspaces_state_failure_reason_ck" CHECK (("workspaces"."state" = 'failed' AND NULLIF(BTRIM("workspaces"."failure_reason"), '') IS NOT NULL) OR
         ("workspaces"."state" <> 'failed' AND "workspaces"."failure_reason" IS NULL))
+);
+--> statement-breakpoint
+CREATE TABLE "organization_invitations" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"token_hash" text NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"inviter_id" text NOT NULL,
+	"accepted_by" text,
+	"accepted_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "organization_invitations_token_hash_unique" UNIQUE("token_hash")
 );
 --> statement-breakpoint
 CREATE TABLE "organization_roles" (
@@ -339,10 +319,9 @@ ALTER TABLE "api_key_targets" ADD CONSTRAINT "api_key_targets_api_key_id_api_key
 ALTER TABLE "cleanup_jobs" ADD CONSTRAINT "cleanup_jobs_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cleanup_jobs" ADD CONSTRAINT "cleanup_jobs_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "event_trail_events" ADD CONSTRAINT "event_trail_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "event_trail_events" ADD CONSTRAINT "event_trail_events_cleanup_job_organization_fk" FOREIGN KEY ("cleanup_job_id","organization_id") REFERENCES "public"."cleanup_jobs"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_invitation_id_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."invitations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_invitation_id_organization_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."organization_invitations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "invitation_teams" ADD CONSTRAINT "invitation_teams_invitation_id_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."invitations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "invitation_teams" ADD CONSTRAINT "invitation_teams_invitation_id_organization_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."organization_invitations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_teams" ADD CONSTRAINT "invitation_teams_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_teams" ADD CONSTRAINT "invitation_teams_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -350,7 +329,6 @@ ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_
 ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organization_slug_history" ADD CONSTRAINT "organization_slug_history_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -366,13 +344,14 @@ ALTER TABLE "social_admission_google_domains" ADD CONSTRAINT "social_admission_g
 ALTER TABLE "social_admission_policies" ADD CONSTRAINT "social_admission_policies_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_roles" ADD CONSTRAINT "team_roles_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_roles" ADD CONSTRAINT "team_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tenant_cutovers" ADD CONSTRAINT "tenant_cutovers_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tenant_cutovers" ADD CONSTRAINT "tenant_cutovers_owner_user_id_users_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_inherited_resources" ADD CONSTRAINT "workspace_inherited_resources_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_slug_history" ADD CONSTRAINT "workspace_slug_history_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_slug_history" ADD CONSTRAINT "workspace_slug_history_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_slug_history" ADD CONSTRAINT "workspace_slug_history_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_inviter_id_users_id_fk" FOREIGN KEY ("inviter_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_accepted_by_users_id_fk" FOREIGN KEY ("accepted_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_roles" ADD CONSTRAINT "organization_roles_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -398,8 +377,25 @@ CREATE INDEX "workspace_inherited_resources_organization_resource_idx" ON "works
 CREATE INDEX "workspace_slug_history_workspace_idx" ON "workspace_slug_history" USING btree ("workspace_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workspaces_organization_slug_uidx" ON "workspaces" USING btree ("organization_id","slug");--> statement-breakpoint
 CREATE INDEX "workspaces_organization_state_idx" ON "workspaces" USING btree ("organization_id","state");--> statement-breakpoint
+CREATE INDEX "organizationInvitations_organizationId_idx" ON "organization_invitations" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "organizationRoles_organizationId_idx" ON "organization_roles" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "organizationRoles_role_idx" ON "organization_roles" USING btree ("role");--> statement-breakpoint
 CREATE INDEX "teamMembers_teamId_idx" ON "team_members" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "teamMembers_userId_idx" ON "team_members" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "teams_organizationId_idx" ON "teams" USING btree ("organization_id");
+CREATE INDEX "teams_organizationId_idx" ON "teams" USING btree ("organization_id");--> statement-breakpoint
+CREATE FUNCTION prevent_organization_slug_update()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW.slug IS DISTINCT FROM OLD.slug THEN
+		RAISE EXCEPTION 'Organisation slugs are immutable';
+	END IF;
+
+	RETURN NEW;
+END;
+$$;--> statement-breakpoint
+CREATE TRIGGER organizations_slug_immutable
+BEFORE UPDATE OF slug ON organizations
+FOR EACH ROW
+EXECUTE FUNCTION prevent_organization_slug_update();

@@ -239,12 +239,12 @@ func compileSchema(name string, doc any) (*jsonschema.Schema, error) {
 		return nil, fmt.Errorf("encode schema: %w", err)
 	}
 
-	normalized, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	resource, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
 	if err != nil {
 		return nil, fmt.Errorf("decode schema: %w", err)
 	}
 
-	if err := compiler.AddResource(name, normalized); err != nil {
+	if err := compiler.AddResource(name, resource); err != nil {
 		return nil, fmt.Errorf("load schema: %w", err)
 	}
 

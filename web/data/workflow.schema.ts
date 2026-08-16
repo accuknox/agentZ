@@ -8,7 +8,7 @@ export const workflowFiltersFormSchema = z.object({
 export type WorkflowFiltersFormInput = z.input<typeof workflowFiltersFormSchema>
 export type WorkflowFiltersFormValues = z.infer<typeof workflowFiltersFormSchema>
 
-export const workflowTriggerTypeSchema = z.enum(["schedule", "webhook"], {
+const workflowTriggerTypeSchema = z.enum(["schedule", "webhook"], {
   error: "Select a trigger type.",
 })
 

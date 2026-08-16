@@ -1,2 +1,0 @@
-ALTER TABLE "social_admission_policies" ADD COLUMN "google_enabled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "social_admission_policies" ADD COLUMN "github_enabled" boolean DEFAULT false NOT NULL;

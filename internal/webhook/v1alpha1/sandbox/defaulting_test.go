@@ -9,7 +9,7 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func TestDefaulterDefaultCanonicalizesHosts(t *testing.T) {
+func TestDefaulterDefaultParsesAndDeduplicatesHosts(t *testing.T) {
 	t.Parallel()
 
 	sandbox := &agentzv1alpha1.Sandbox{

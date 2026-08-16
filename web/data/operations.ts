@@ -17,7 +17,7 @@ export type DestructiveTarget =
   | { operation: "access_revoke"; targetId: string; targetType: "workspace_access" }
   | { operation: "workspace_delete"; targetId: string; targetType: "workspace" }
 
-export type DestructiveImpactItem = {
+type DestructiveImpactItem = {
   id: string
   detail: string
   group:
@@ -69,7 +69,7 @@ export type AffectedAPIKey = {
   workspaceSlug: string
 }
 
-export async function findWorkspaceAccessLosses(
+async function findWorkspaceAccessLosses(
   db: ImpactDatabase,
   organizationId: string,
   candidates: WorkspaceAccessLoss[],
@@ -197,7 +197,7 @@ export async function findWorkspaceAccessLosses(
   )
 }
 
-export async function findCascadingAgents(
+async function findCascadingAgents(
   db: ImpactDatabase,
   organizationId: string,
   losses: WorkspaceAccessLoss[]
@@ -227,7 +227,7 @@ export async function findCascadingAgents(
   return agents.filter(({ ownerUserId, workspaceId }) => pairs.has(`${ownerUserId}:${workspaceId}`))
 }
 
-export async function findAffectedAPIKeys(
+async function findAffectedAPIKeys(
   db: ImpactDatabase,
   organizationId: string,
   losses: WorkspaceAccessLoss[],

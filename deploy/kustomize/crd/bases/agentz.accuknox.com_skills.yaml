@@ -1,8 +1,9 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: skills.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -39,7 +40,8 @@ spec:
             description: spec defines the desired state of Skill.
             properties:
               createdByUserID:
-                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
+                description: CreatedByUserID is the immutable Better Auth User ID
+                  that created the resource.
                 maxLength: 128
                 minLength: 1
                 type: string
@@ -49,16 +51,19 @@ spec:
                 minLength: 1
                 type: string
               lastModifiedByUserID:
-                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                description: LastModifiedByUserID is the Better Auth User ID that
+                  last changed the resource.
                 maxLength: 128
                 minLength: 1
                 type: string
               storagePath:
-                description: StoragePath is the full object storage directory for the active version.
+                description: StoragePath is the full object storage directory for
+                  the active version.
                 minLength: 1
                 type: string
               version:
-                description: Version is the active stored version for all Agent and Sandbox references.
+                description: Version is the active stored version for all Agent and
+                  Sandbox references.
                 format: int64
                 minimum: 1
                 type: integer

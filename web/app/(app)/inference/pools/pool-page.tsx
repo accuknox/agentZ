@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
 import { ErrorState } from "@/components/error-state"
@@ -9,8 +8,6 @@ import { NewInferencePoolButton } from "./pool-sheet"
 import { InferencePoolTable } from "./pool-table"
 import type { InferencePoolActionScope } from "@/data/inference-pool.actions"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
-
-export const metadata: Metadata = { title: "Pools" }
 
 export default function InferencePoolsPage({
   capabilities,

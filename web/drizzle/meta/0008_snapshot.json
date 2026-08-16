@@ -1,5 +1,5 @@
 {
-  "id": "1151269d-0181-46ed-badd-7ed4b738d11a",
+  "id": "a43f9188-8087-4eaa-902d-3ccbb50626b0",
   "prevId": "dc4385e0-3a22-415f-ba2a-3ae65ca3c605",
   "version": "7",
   "dialect": "postgresql",
@@ -863,38 +863,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "automatic_cascade": {
-          "name": "automatic_cascade",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "cleanup_job_id": {
-          "name": "cleanup_job_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "interface": {
-          "name": "interface",
-          "type": "event_trail_interface",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ip_address": {
-          "name": "ip_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "user_agent": {
-          "name": "user_agent",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -977,15 +945,6 @@
           "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
-        },
-        "event_trail_events_cleanup_job_organization_fk": {
-          "name": "event_trail_events_cleanup_job_organization_fk",
-          "tableFrom": "event_trail_events",
-          "tableTo": "cleanup_jobs",
-          "columnsFrom": ["cleanup_job_id", "organization_id"],
-          "columnsTo": ["id", "organization_id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1035,10 +994,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "invitation_roles_invitation_id_invitations_id_fk": {
-          "name": "invitation_roles_invitation_id_invitations_id_fk",
+        "invitation_roles_invitation_id_organization_invitations_id_fk": {
+          "name": "invitation_roles_invitation_id_organization_invitations_id_fk",
           "tableFrom": "invitation_roles",
-          "tableTo": "invitations",
+          "tableTo": "organization_invitations",
           "columnsFrom": ["invitation_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
@@ -1097,10 +1056,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "invitation_teams_invitation_id_invitations_id_fk": {
-          "name": "invitation_teams_invitation_id_invitations_id_fk",
+        "invitation_teams_invitation_id_organization_invitations_id_fk": {
+          "name": "invitation_teams_invitation_id_organization_invitations_id_fk",
           "tableFrom": "invitation_teams",
-          "tableTo": "invitations",
+          "tableTo": "organization_invitations",
           "columnsFrom": ["invitation_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
@@ -1270,48 +1229,6 @@
           "columns": ["member_id", "role_id"]
         }
       },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.organization_slug_history": {
-      "name": "organization_slug_history",
-      "schema": "",
-      "columns": {
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "organization_slug_history_organization_id_organizations_id_fk": {
-          "name": "organization_slug_history_organization_id_organizations_id_fk",
-          "tableFrom": "organization_slug_history",
-          "tableTo": "organizations",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -1865,6 +1782,20 @@
           "notNull": true,
           "default": false
         },
+        "google_enabled": {
+          "name": "google_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "github_enabled": {
+          "name": "github_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1958,139 +1889,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tenant_cutovers": {
-      "name": "tenant_cutovers",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source_namespace": {
-          "name": "source_namespace",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_namespace": {
-          "name": "target_namespace",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "owner_user_id": {
-          "name": "owner_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inventory_hash": {
-          "name": "inventory_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "backup_manifest_hash": {
-          "name": "backup_manifest_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "checkpoint": {
-          "name": "checkpoint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'planned'"
-        },
-        "inventory": {
-          "name": "inventory",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "verified_at": {
-          "name": "verified_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "activated_at": {
-          "name": "activated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "tenant_cutovers_organization_id_organizations_id_fk": {
-          "name": "tenant_cutovers_organization_id_organizations_id_fk",
-          "tableFrom": "tenant_cutovers",
-          "tableTo": "organizations",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "tenant_cutovers_owner_user_id_users_id_fk": {
-          "name": "tenant_cutovers_owner_user_id_users_id_fk",
-          "tableFrom": "tenant_cutovers",
-          "tableTo": "users",
-          "columnsFrom": ["owner_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "tenant_cutovers_workspace_id_unique": {
-          "name": "tenant_cutovers_workspace_id_unique",
-          "nullsNotDistinct": false,
-          "columns": ["workspace_id"]
-        },
-        "tenant_cutovers_target_namespace_unique": {
-          "name": "tenant_cutovers_target_namespace_unique",
-          "nullsNotDistinct": false,
-          "columns": ["target_namespace"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "tenant_cutovers_checkpoint_ck": {
-          "name": "tenant_cutovers_checkpoint_ck",
-          "value": "\"tenant_cutovers\".\"checkpoint\" IN (\n        'planned', 'sql', 'kubernetes', 'openbao', 's3', 'verified', 'activated'\n      )"
-        },
-        "tenant_cutovers_activation_ck": {
-          "name": "tenant_cutovers_activation_ck",
-          "value": "(\"tenant_cutovers\".\"verified_at\" IS NOT NULL) = (\"tenant_cutovers\".\"checkpoint\" IN ('verified', 'sql', 'activated')) AND\n        (\"tenant_cutovers\".\"activated_at\" IS NOT NULL) = (\"tenant_cutovers\".\"checkpoint\" = 'activated')"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.user_preferences": {
@@ -3069,6 +2867,125 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.organization_invitations": {
+      "name": "organization_invitations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inviter_id": {
+          "name": "inviter_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_by": {
+          "name": "accepted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "organizationInvitations_organizationId_idx": {
+          "name": "organizationInvitations_organizationId_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organization_invitations_organization_id_organizations_id_fk": {
+          "name": "organization_invitations_organization_id_organizations_id_fk",
+          "tableFrom": "organization_invitations",
+          "tableTo": "organizations",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "organization_invitations_inviter_id_users_id_fk": {
+          "name": "organization_invitations_inviter_id_users_id_fk",
+          "tableFrom": "organization_invitations",
+          "tableTo": "users",
+          "columnsFrom": ["inviter_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "organization_invitations_accepted_by_users_id_fk": {
+          "name": "organization_invitations_accepted_by_users_id_fk",
+          "tableFrom": "organization_invitations",
+          "tableTo": "users",
+          "columnsFrom": ["accepted_by"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "organization_invitations_token_hash_unique": {
+          "name": "organization_invitations_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": ["token_hash"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.organization_roles": {
       "name": "organization_roles",
       "schema": "",
@@ -3816,11 +3733,6 @@
       "name": "event_trail_actor",
       "schema": "public",
       "values": ["user", "api_key", "system"]
-    },
-    "public.event_trail_interface": {
-      "name": "event_trail_interface",
-      "schema": "public",
-      "values": ["web", "gateway", "better_auth", "controller", "system"]
     },
     "public.event_trail_result": {
       "name": "event_trail_result",

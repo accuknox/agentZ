@@ -60,6 +60,7 @@ const roleFormSchema = z.object({
   grants: z.array(roleGrantSchema).max(1_000, "This Role has too many Permission Grants."),
   updatedAt: z.string().optional(),
 })
+type RoleFormInput = z.infer<typeof roleFormSchema>
 const teamFormSchema = z.object({
   name: z
     .string()
@@ -252,6 +253,31 @@ export type RoleFormState = {
     items: RoleImpact["items"]
     reduction: boolean
   }
+}
+
+function parseRoleForm(formData: FormData): { data: RoleFormInput } | { state: RoleFormState } {
+  const grants = z.string().safeParse(formData.get("grants"))
+  if (!grants.success) {
+    return { state: { error: "The Permission Grant payload is invalid. Refresh and try again." } }
+  }
+
+  let payload: unknown
+  try {
+    payload = JSON.parse(grants.data)
+  } catch {
+    return { state: { error: "The Permission Grant payload is invalid. Refresh and try again." } }
+  }
+
+  const parsed = roleFormSchema.safeParse({
+    name: formData.get("name"),
+    grants: payload,
+    updatedAt: formData.get("updated_at") || undefined,
+  })
+  if (!parsed.success) {
+    return { state: { errors: { name: z.flattenError(parsed.error).fieldErrors.name } } }
+  }
+
+  return { data: parsed.data }
 }
 
 export type RoleAssignmentFormState = { error?: string; saved?: boolean }
@@ -546,25 +572,8 @@ export async function organizationRoleFormAction(
   _state: RoleFormState,
   formData: FormData
 ): Promise<RoleFormState> {
-  const grants = z.string().safeParse(formData.get("grants"))
-  if (!grants.success) {
-    return { error: "The Permission Grant payload is invalid. Refresh and try again." }
-  }
-  let rawGrants: unknown
-  try {
-    rawGrants = JSON.parse(grants.data)
-  } catch {
-    return { error: "The Permission Grant payload is invalid. Refresh and try again." }
-  }
-
-  const parsed = roleFormSchema.safeParse({
-    name: formData.get("name"),
-    grants: rawGrants,
-    updatedAt: formData.get("updated_at") || undefined,
-  })
-  if (!parsed.success) {
-    return { errors: { name: z.flattenError(parsed.error).fieldErrors.name } }
-  }
+  const parsed = parseRoleForm(formData)
+  if ("state" in parsed) return parsed.state
 
   if (formData.get("intent") === "preview") {
     const previewInput = JSON.stringify(parsed.data)
@@ -690,25 +699,8 @@ export async function workspaceRoleFormAction(
   _state: RoleFormState,
   formData: FormData
 ): Promise<RoleFormState> {
-  const grants = z.string().safeParse(formData.get("grants"))
-  if (!grants.success) {
-    return { error: "The Permission Grant payload is invalid. Refresh and try again." }
-  }
-  let rawGrants: unknown
-  try {
-    rawGrants = JSON.parse(grants.data)
-  } catch {
-    return { error: "The Permission Grant payload is invalid. Refresh and try again." }
-  }
-
-  const parsed = roleFormSchema.safeParse({
-    name: formData.get("name"),
-    grants: rawGrants,
-    updatedAt: formData.get("updated_at") || undefined,
-  })
-  if (!parsed.success) {
-    return { errors: { name: z.flattenError(parsed.error).fieldErrors.name } }
-  }
+  const parsed = parseRoleForm(formData)
+  if ("state" in parsed) return parsed.state
 
   if (formData.get("intent") === "preview") {
     const previewInput = JSON.stringify(parsed.data)

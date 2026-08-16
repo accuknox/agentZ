@@ -11,8 +11,8 @@ import { decodePageToken, encodePageToken } from "@/data/page-token"
 
 const teamPageCursor = z.object({ id: z.string().min(1), name: z.string().min(1) })
 
-export type TeamMember = { id: string; name: string; email: string; image: string | null }
-export type TeamRole = { id: string; name: string; scope: string }
+type TeamMember = { id: string; name: string; email: string; image: string | null }
+type TeamRole = { id: string; name: string; scope: string }
 export type TeamSummary = {
   id: string
   name: string
@@ -33,7 +33,7 @@ export type TeamEditorData = {
   members: TeamMember[]
   roles: TeamRole[]
 }
-export type TeamDetail = TeamSummary & {
+type TeamDetail = TeamSummary & {
   members: TeamMember[]
   roles: TeamRole[]
   activity: {

@@ -263,7 +263,6 @@ func resourceCapabilities(effective authorization.Effective, organizationID, wor
 	capabilities.mcp = gatewayapi.ResourceCapabilities{
 		Read:   effective.Allows(scope, authorization.OperationListMCPConnections),
 		Create: effective.Allows(scope, authorization.OperationCreateMCPConnection),
-		Modify: false,
 		Delete: effective.Allows(scope, authorization.OperationDeleteMCPConnection),
 	}
 	capabilities.sandbox = gatewayapi.ResourceCapabilities{

@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import { Suspense } from "react"
 import Link from "next/link"
 import * as z from "zod"
@@ -11,10 +10,6 @@ import { Button } from "@/components/ui/button"
 import { SandboxTable } from "./sandbox-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
-
-export const metadata: Metadata = {
-  title: "Sandboxes",
-}
 
 const sandboxesSearchParamsSchema = z.object({
   page_token: searchParamStringSchema,

@@ -61,50 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1786595967522,
+      "when": 1786879979519,
       "tag": "0008_organization_workspace_contracts",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1786611879694,
-      "tag": "0009_dashing_whizzer",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1786684116371,
-      "tag": "0010_clear_legacy_invitations",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1786684128639,
-      "tag": "0011_bearer_invitations",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1786700116068,
-      "tag": "0012_remove_organization_slug_history",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1786700119971,
-      "tag": "0013_protect_organization_slug",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1786793327621,
-      "tag": "0014_lively_sunset_bain",
       "breakpoints": true
     }
   ]

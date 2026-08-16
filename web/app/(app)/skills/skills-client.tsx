@@ -70,7 +70,7 @@ const allAgentsValue = "__all_agents__"
 const skillKindSchema = z.enum(["mutable", "immutable"])
 
 type SkillKind = z.infer<typeof skillKindSchema>
-export type MutableSkill = MutableSkillSummary & { key: string; type: "mutable" }
+type MutableSkill = MutableSkillSummary & { key: string; type: "mutable" }
 export type ImmutableSkill = ImmutableSkillSummary & { key: string; type: "immutable" }
 export type Skill = MutableSkill | ImmutableSkill
 

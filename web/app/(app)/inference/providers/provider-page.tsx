@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import { Suspense } from "react"
 import { CircleAlert } from "lucide-react"
 import { AdministrationPageHeader } from "@/components/administration"
@@ -9,8 +8,6 @@ import { NewInferenceProviderButton } from "./new-provider-button"
 import { InferenceProviderTable } from "./provider-table"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
 import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
-
-export const metadata: Metadata = { title: "Providers" }
 
 export default function InferenceProvidersPage({
   capabilities,

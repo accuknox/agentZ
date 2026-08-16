@@ -1,21 +1,8 @@
 import "server-only"
 
-import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
-
-export type EffectiveAccessRow = {
-  memberId: string
-  user: string
-  email: string
-  status: "active" | "disabled" | "zero-access"
-  directRoles: number
-  teamRoles: number
-  teams: number
-  ownedAgents: number
-  sharedAgents: number
-  explanation: string
-}
 
 export type EffectiveAccessSource =
   | {
@@ -115,85 +102,6 @@ async function getAccessOrganization(orgSlug: string) {
     return
   }
   return result.organization
-}
-
-export async function listEffectiveAccess(orgSlug: string) {
-  const org = await getAccessOrganization(orgSlug)
-  if (!org) {
-    return
-  }
-
-  const rows = await getDB()
-    .select({
-      memberId: schema.members.id,
-      user: schema.users.name,
-      email: schema.users.email,
-      disabledAt: schema.members.disabledAt,
-      directRoles: sql<number>`(
-        SELECT count(*)::int FROM ${schema.memberRoles}
-        WHERE ${schema.memberRoles.memberId} = ${sql.raw('"members"."id"')}
-          AND ${schema.memberRoles.organizationId} = ${org.id}
-      )`,
-      teamRoles: sql<number>`(
-        SELECT count(*)::int
-        FROM ${schema.teamMembers}
-        JOIN ${schema.teamRoles} ON ${schema.teamRoles.teamId} = ${schema.teamMembers.teamId}
-        WHERE ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
-          AND ${schema.teamRoles.organizationId} = ${org.id}
-      )`,
-      teams: sql<number>`(
-        SELECT count(*)::int
-        FROM ${schema.teamMembers}
-        JOIN ${schema.teams} ON ${schema.teams.id} = ${schema.teamMembers.teamId}
-        WHERE ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
-          AND ${schema.teams.organizationId} = ${org.id}
-      )`,
-      ownedAgents: sql<number>`(
-        SELECT count(*)::int FROM ${schema.agentOwners}
-        WHERE ${schema.agentOwners.organizationId} = ${org.id}
-          AND ${schema.agentOwners.ownerUserId} = ${sql.raw('"members"."user_id"')}
-      )`,
-      sharedAgents: sql<number>`(
-        SELECT count(DISTINCT ${schema.agentShares.agentName})::int
-        FROM ${schema.agentShares}
-        LEFT JOIN ${schema.teamMembers}
-          ON ${schema.teamMembers.teamId} = ${schema.agentShares.targetTeamId}
-        WHERE ${schema.agentShares.organizationId} = ${org.id}
-          AND (
-            ${schema.agentShares.targetUserId} = ${sql.raw('"members"."user_id"')}
-            OR ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
-          )
-      )`,
-    })
-    .from(schema.members)
-    .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
-    .where(eq(schema.members.organizationId, org.id))
-    .orderBy(asc(schema.users.name), asc(schema.users.email))
-    .limit(200)
-
-  return {
-    organization: org,
-    rows: rows.map((row): EffectiveAccessRow => {
-      const assigned = row.directRoles + row.teamRoles
-      const status = row.disabledAt ? "disabled" : assigned === 0 ? "zero-access" : "active"
-      const sources = [
-        row.directRoles ? `${row.directRoles} direct Role grants` : undefined,
-        row.teamRoles ? `${row.teamRoles} Team Role grants` : undefined,
-        row.ownedAgents ? `${row.ownedAgents} owned Agents` : undefined,
-        row.sharedAgents ? `${row.sharedAgents} shared Agents` : undefined,
-      ].filter(Boolean)
-
-      return {
-        ...row,
-        explanation:
-          sources.join(", ") ||
-          (row.disabledAt
-            ? "Membership is disabled; authentication may succeed but product access is denied."
-            : "No direct or Team Roles currently grant product access."),
-        status,
-      }
-    }),
-  }
 }
 
 export async function getEffectiveAccessDetail(orgSlug: string, memberId: string) {

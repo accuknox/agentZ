@@ -13,21 +13,11 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-
-export type AdministrationScope =
+type AdministrationScope =
   | { kind: "Organisation"; name: string }
   | { kind: "Workspace"; name: string; organisationName: string }
 
-export type AdministrationStatus = "ready" | "provisioning" | "deleting" | "failed"
+type AdministrationStatus = "ready" | "provisioning" | "deleting" | "failed"
 
 export function AdministrationLayout({ children }: { children: ReactNode }) {
   return (
@@ -87,7 +77,7 @@ export function StatusBadge({ status }: { status: AdministrationStatus }) {
   return <Badge variant="destructive">Failed</Badge>
 }
 
-export type AccessSource =
+type AccessSource =
   | "Direct Role"
   | "Team Role"
   | "Superadmin"
@@ -101,7 +91,7 @@ export function AccessSourceChip({ source }: { source: AccessSource }) {
   return <span className="text-muted-foreground">{source}</span>
 }
 
-export type AdministrationStateKind =
+type AdministrationStateKind =
   | "empty"
   | "provisioning"
   | "deleting"
@@ -215,62 +205,6 @@ export function AdministrationLoadingState() {
   )
 }
 
-export type PermissionMatrixColumn = { id: string; label: string }
-export type PermissionMatrixRow = {
-  id: string
-  label: string
-  values: Readonly<Record<string, ReactNode>>
-}
-
-export function PermissionMatrixFrame({
-  caption,
-  columns,
-  rows,
-  title = "Permissions",
-}: {
-  caption: string
-  columns: readonly PermissionMatrixColumn[]
-  rows: readonly PermissionMatrixRow[]
-  title?: string
-}) {
-  return (
-    <section className="min-w-0 space-y-3">
-      <h2 className="px-4 text-lg font-medium md:px-6">{title}</h2>
-      <div className="w-full min-w-0 overflow-x-auto border-b">
-        <Table className="min-w-2xl">
-          <TableCaption className="sr-only">{caption}</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="bg-muted/95 sticky left-0 z-10 h-8 min-w-48 px-4">
-                Resource
-              </TableHead>
-              {columns.map((column) => (
-                <TableHead className="h-8 px-4 text-center" key={column.id} scope="col">
-                  {column.label}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableHead className="bg-background sticky left-0 z-10 h-11 px-4" scope="row">
-                  {row.label}
-                </TableHead>
-                {columns.map((column) => (
-                  <TableCell className="h-11 px-4 py-1.5 text-center" key={column.id}>
-                    {row.values[column.id]}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </section>
-  )
-}
-
 export function EffectiveAccessFrame({
   canvas,
   summary,
@@ -296,7 +230,7 @@ export function EffectiveAccessFrame({
   )
 }
 
-export type ImpactReviewItem = {
+type ImpactReviewItem = {
   id: string
   label: string
   detail?: string

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
@@ -96,9 +97,7 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 	labels := map[string]string{
 		SandboxLabel: sandboxName,
 	}
-	for key, value := range target.Labels {
-		labels[key] = value
-	}
+	maps.Copy(labels, target.Labels)
 	route := &gwv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
 		Spec: gwv1.HTTPRouteSpec{

@@ -76,7 +76,7 @@ export async function getGatewayBaseURL(): Promise<ClientOptions["baseUrl"]> {
  * getGatewayToken returns a freshly minted gateway bearer token for one
  * browser API call.
  */
-export async function getGatewayToken(workspaceId?: string): Promise<string> {
+async function getGatewayToken(workspaceId?: string): Promise<string> {
   const path = workspaceId
     ? `/api/gateway/token?workspace_id=${encodeURIComponent(workspaceId)}`
     : "/api/gateway/token"

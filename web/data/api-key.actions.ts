@@ -255,7 +255,7 @@ export async function createAPIKeyFormAction(
   return { key: { id: keyID, name: parsed.data.name, secret } }
 }
 
-export async function deleteAPIKeyFormAction(
+async function deleteAPIKeyFormAction(
   scope: APIKeyActionScope,
   _: DeleteAPIKeyFormState,
   formData: FormData

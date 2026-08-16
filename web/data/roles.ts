@@ -27,9 +27,9 @@ export type RoleGrantInput = {
   action: RoleAction
 }
 
-export type RoleGrant = RoleGrantInput & { locked: boolean }
+type RoleGrant = RoleGrantInput & { locked: boolean }
 
-export type RoleResourceDefinition = {
+type RoleResourceDefinition = {
   resource: RoleResource
   label: string
   organisation: boolean
@@ -37,7 +37,7 @@ export type RoleResourceDefinition = {
   actions: RoleAction[]
 }
 
-export const roleResourceCatalog: RoleResourceDefinition[] = [
+const roleResourceCatalog: RoleResourceDefinition[] = [
   {
     resource: "skill",
     label: "Immutable Skills",
@@ -82,7 +82,7 @@ export const roleResourceCatalog: RoleResourceDefinition[] = [
   },
 ]
 
-export const agentCapabilityCatalog: { action: RoleAction; label: string }[] = [
+const agentCapabilityCatalog: { action: RoleAction; label: string }[] = [
   { action: "author", label: "Author" },
   { action: "share_authored", label: "Share Authored" },
   { action: "share_non_authored", label: "Share Non-Authored" },
@@ -92,7 +92,7 @@ export const agentCapabilityCatalog: { action: RoleAction; label: string }[] = [
   { action: "delete_shared_secret", label: "Delete Shared Secret" },
 ]
 
-export type RoleWorkspace = { id: string; name: string }
+type RoleWorkspace = { id: string; name: string }
 
 export type OrganizationRoleSummary = {
   id: string
@@ -106,7 +106,7 @@ export type OrganizationRoleSummary = {
   updatedAt: string
 }
 
-export type OrganizationRoleDetail = {
+type OrganizationRoleDetail = {
   id: string
   name: string
   immutable: boolean
@@ -228,7 +228,7 @@ function requiredGrants(grant: RoleGrantInput): RoleGrantInput[] {
   return requirements
 }
 
-export function expandPermissionGrants(inputs: RoleGrantInput[]): RoleGrant[] {
+function expandPermissionGrants(inputs: RoleGrantInput[]): RoleGrant[] {
   const direct = new Map(inputs.map((grant) => [grantKey(grant), grant]))
   const expanded = new Map(direct)
   const implied = new Set<string>()
@@ -663,6 +663,26 @@ function roleScope(scope: RoleManagement) {
   )
 }
 
+function managementAuthority(scope: RoleManagement) {
+  const { actor, workspace } = scope
+  return and(
+    eq(schema.members.organizationId, actor.organization.id),
+    eq(schema.members.userId, actor.userId),
+    isNull(schema.members.disabledAt),
+    eq(schema.memberRoles.organizationId, actor.organization.id),
+    eq(schema.roleScopes.organizationId, actor.organization.id),
+    eq(schema.roleScopes.immutable, true),
+    workspace
+      ? sql`(
+          (${schema.roleScopes.systemRole} = 'superadmin' AND
+            ${schema.roleScopes.workspaceId} IS NULL) OR
+          (${schema.roleScopes.systemRole} = 'workspace_admin' AND
+            ${schema.roleScopes.workspaceId} = ${workspace.id})
+        )`
+      : and(eq(schema.roleScopes.systemRole, "superadmin"), isNull(schema.roleScopes.workspaceId))
+  )
+}
+
 function grantScope(scope: RoleManagement) {
   return and(
     eq(schema.permissionGrants.organizationId, scope.actor.organization.id),
@@ -1018,27 +1038,7 @@ async function saveRole(
       .from(schema.members)
       .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
       .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
-      .where(
-        and(
-          eq(schema.members.organizationId, actor.organization.id),
-          eq(schema.members.userId, actor.userId),
-          isNull(schema.members.disabledAt),
-          eq(schema.memberRoles.organizationId, actor.organization.id),
-          eq(schema.roleScopes.organizationId, actor.organization.id),
-          eq(schema.roleScopes.immutable, true),
-          workspace
-            ? sql`(
-                (${schema.roleScopes.systemRole} = 'superadmin' AND
-                  ${schema.roleScopes.workspaceId} IS NULL) OR
-                (${schema.roleScopes.systemRole} = 'workspace_admin' AND
-                  ${schema.roleScopes.workspaceId} = ${workspace.id})
-              )`
-            : and(
-                eq(schema.roleScopes.systemRole, "superadmin"),
-                isNull(schema.roleScopes.workspaceId)
-              )
-        )
-      )
+      .where(managementAuthority(scope))
       .limit(1)
     if (!authorized) {
       await tx
@@ -1420,25 +1420,7 @@ async function assignRoleUsers(scope: RoleManagement, roleId: string, memberIds:
           eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
         )
       )
-      .where(
-        and(
-          eq(schema.members.organizationId, actor.organization.id),
-          eq(schema.members.userId, actor.userId),
-          isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.immutable, true),
-          workspace
-            ? sql`(
-                (${schema.roleScopes.systemRole} = 'superadmin' AND
-                  ${schema.roleScopes.workspaceId} IS NULL) OR
-                (${schema.roleScopes.systemRole} = 'workspace_admin' AND
-                  ${schema.roleScopes.workspaceId} = ${workspace.id})
-              )`
-            : and(
-                eq(schema.roleScopes.systemRole, "superadmin"),
-                isNull(schema.roleScopes.workspaceId)
-              )
-        )
-      )
+      .where(managementAuthority(scope))
       .orderBy(sql`${schema.roleScopes.systemRole} = 'superadmin' DESC`)
       .limit(1)
     if (
@@ -1626,27 +1608,7 @@ async function removeRole(scope: RoleManagement, roleId: string) {
       .from(schema.members)
       .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
       .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
-      .where(
-        and(
-          eq(schema.members.organizationId, actor.organization.id),
-          eq(schema.members.userId, actor.userId),
-          isNull(schema.members.disabledAt),
-          eq(schema.memberRoles.organizationId, actor.organization.id),
-          eq(schema.roleScopes.organizationId, actor.organization.id),
-          eq(schema.roleScopes.immutable, true),
-          workspace
-            ? sql`(
-                (${schema.roleScopes.systemRole} = 'superadmin' AND
-                  ${schema.roleScopes.workspaceId} IS NULL) OR
-                (${schema.roleScopes.systemRole} = 'workspace_admin' AND
-                  ${schema.roleScopes.workspaceId} = ${workspace.id})
-              )`
-            : and(
-                eq(schema.roleScopes.systemRole, "superadmin"),
-                isNull(schema.roleScopes.workspaceId)
-              )
-        )
-      )
+      .where(managementAuthority(scope))
       .limit(1)
     if (!authorized) {
       await tx

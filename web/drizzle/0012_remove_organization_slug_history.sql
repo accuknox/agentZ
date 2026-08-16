@@ -1,1 +1,0 @@
-DROP TABLE "organization_slug_history" CASCADE;

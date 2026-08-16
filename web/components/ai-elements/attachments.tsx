@@ -85,11 +85,9 @@ function getFileExtension(filename: string) {
 }
 
 export function inferAttachmentMediaType(filename: string, mediaType?: string) {
-  const normalized = mediaType?.trim()
-  if (normalized && normalized !== "application/octet-stream") return normalized
-  return (
-    mediaTypesByExtension[getFileExtension(filename)] ?? normalized ?? "application/octet-stream"
-  )
+  const provided = mediaType?.trim()
+  if (provided && provided !== "application/octet-stream") return provided
+  return mediaTypesByExtension[getFileExtension(filename)] ?? provided ?? "application/octet-stream"
 }
 
 export function getAttachmentMediaCategory(data: AttachmentData): AttachmentMediaCategory {

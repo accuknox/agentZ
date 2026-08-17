@@ -142,6 +142,7 @@ export async function publishOrganizationLogo(
   const publishedKey = `${profilePrefix}${organizationId}/${randomUUID()}.webp`
   await s3.send(
     new PutObjectCommand({
+      ACL: "public-read",
       Bucket: bucket,
       Key: publishedKey,
       Body: output,

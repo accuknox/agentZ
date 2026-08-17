@@ -151,10 +151,16 @@ type MoveOperation = {
 const fileDragType = "application/x-agentz-file-path"
 const maxPreviewBytes = 8 << 20
 
-async function downloadAgentFile(agentName: string, path: string, filename: string): Promise<void> {
+async function downloadAgentFile(
+  agentName: string,
+  workspaceId: string,
+  path: string,
+  filename: string
+): Promise<void> {
   const toastId = toast.loading(`Downloading ${filename}...`)
   try {
     const { data } = await readAgentFileRaw({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
       parseAs: "blob",
       path: { agentName },
       query: { path },
@@ -558,9 +564,13 @@ function WorkspaceBody({
         return
       }
 
-      move({ body: { path, target }, path: { agentName } })
+      move({
+        body: { path, target },
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        path: { agentName },
+      })
     },
-    [agentName, move, movePending]
+    [agentName, move, movePending, workspaceId]
   )
   const setSelectedDraft = React.useCallback(
     (draft: Draft) => {
@@ -888,6 +898,7 @@ function WorkspaceBody({
                     draft={drafts[selected]}
                     path={selected}
                     setDraft={setSelectedDraft}
+                    workspaceId={workspaceId}
                   />
                 ) : (
                   <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
@@ -1158,7 +1169,9 @@ function DirectoryTree({
             </ContextMenuItem>
             {!directory ? (
               <ContextMenuItem
-                onSelect={() => void downloadAgentFile(agentName, entryPath, entry.name)}
+                onSelect={() =>
+                  void downloadAgentFile(agentName, workspaceId, entryPath, entry.name)
+                }
               >
                 <Download /> Save
               </ContextMenuItem>
@@ -1314,18 +1327,21 @@ function EditorPane({
   draft,
   path,
   setDraft,
+  workspaceId,
 }: {
   agentName: string
   draft?: Draft
   path: string
   setDraft: (draft: Draft) => void
+  workspaceId: string
 }) {
   const queryClient = useQueryClient()
   const draftRef = React.useRef(draft)
   const reducedMotion = useReducedMotion()
   const [preview, setPreview] = React.useState(false)
+  const headers = { "X-AgentZ-Workspace-ID": workspaceId }
   const statQuery = useQuery({
-    ...statAgentFileOptions({ path: { agentName }, query: { path } }),
+    ...statAgentFileOptions({ headers, path: { agentName }, query: { path } }),
     refetchInterval: 2_000,
   })
   const mediaType = statQuery.data?.media_type
@@ -1344,7 +1360,7 @@ function EditorPane({
           : undefined
   const readText = mediaType !== undefined && binaryPreview === undefined && !presentation
   const fileQuery = useQuery({
-    ...readAgentFileOptions({ path: { agentName }, query: { path } }),
+    ...readAgentFileOptions({ headers, path: { agentName }, query: { path } }),
     enabled: readText,
     retry: (failures, error) => error.code !== "unsupported_media_type" && failures < 3,
   })
@@ -1377,7 +1393,7 @@ function EditorPane({
         version: metadata.version,
       })
       queryClient.setQueryData(
-        readAgentFileQueryKey({ path: { agentName }, query: { path } }),
+        readAgentFileQueryKey({ headers, path: { agentName }, query: { path } }),
         (current) =>
           current
             ? {
@@ -1389,7 +1405,7 @@ function EditorPane({
             : current
       )
       queryClient.setQueryData(
-        statAgentFileQueryKey({ path: { agentName }, query: { path } }),
+        statAgentFileQueryKey({ headers, path: { agentName }, query: { path } }),
         metadata
       )
       toast.success("File saved")
@@ -1461,6 +1477,7 @@ function EditorPane({
         overwrite,
         path,
       },
+      headers,
       path: { agentName },
     })
   }
@@ -1500,6 +1517,7 @@ function EditorPane({
         presentation={presentation}
         preview={binaryPreview}
         size={statQuery.data.size}
+        workspaceId={workspaceId}
       />
     )
   }
@@ -1556,7 +1574,7 @@ function EditorPane({
           <TooltipTrigger asChild>
             <Button
               aria-label="Download file"
-              onClick={() => void downloadAgentFile(agentName, path, filename)}
+              onClick={() => void downloadAgentFile(agentName, workspaceId, path, filename)}
               size="icon-sm"
               variant="ghost"
             >
@@ -1700,6 +1718,7 @@ function BinaryPane({
   presentation,
   preview,
   size,
+  workspaceId,
 }: {
   agentName: string
   filename: string
@@ -1707,6 +1726,7 @@ function BinaryPane({
   presentation: boolean
   preview?: BinaryPreview
   size: number
+  workspaceId: string
 }) {
   const tooLarge = size > maxPreviewBytes && (preview === "document" || preview === "spreadsheet")
 
@@ -1720,7 +1740,7 @@ function BinaryPane({
           <TooltipTrigger asChild>
             <Button
               aria-label="Download file"
-              onClick={() => void downloadAgentFile(agentName, path, filename)}
+              onClick={() => void downloadAgentFile(agentName, workspaceId, path, filename)}
               size="icon-sm"
               variant="ghost"
             >
@@ -1732,7 +1752,13 @@ function BinaryPane({
       </div>
       <div className="min-h-0 flex-1">
         {preview && !tooLarge ? (
-          <RawPreview agentName={agentName} filename={filename} path={path} preview={preview} />
+          <RawPreview
+            agentName={agentName}
+            filename={filename}
+            path={path}
+            preview={preview}
+            workspaceId={workspaceId}
+          />
         ) : (
           <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
             {presentation ? <Presentation className="size-8" /> : <File className="size-8" />}
@@ -1770,14 +1796,21 @@ function RawPreview({
   filename,
   path,
   preview,
+  workspaceId,
 }: {
   agentName: string
   filename: string
   path: string
   preview: BinaryPreview
+  workspaceId: string
 }) {
   const rawQuery = useQuery({
-    ...readAgentFileRawOptions({ parseAs: "blob", path: { agentName }, query: { path } }),
+    ...readAgentFileRawOptions({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      parseAs: "blob",
+      path: { agentName },
+      query: { path },
+    }),
     gcTime: 0,
   })
   const url = useObjectURL(

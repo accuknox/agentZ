@@ -219,9 +219,10 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 	if err != nil {
 		return fmt.Errorf("resolve api key creator permissions: %w", err)
 	}
-	authScope := authorization.Scope{
-		OrganizationID: scope.OrganizationID,
-		WorkspaceID:    scope.WorkspaceID,
+	access := resourceAccess{
+		claims:      claims,
+		effective:   effective,
+		workspaceID: scope.WorkspaceID,
 	}
 	validatedAgents := make(map[string]struct{}, len(targets))
 	workflows := workflowdb.New(s.db)
@@ -243,12 +244,7 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 				return errors.New(reason)
 			}
 			allowed, err := s.agentOperationAllowed(
-				ctx,
-				claims,
-				effective,
-				authScope,
-				target.AgentName,
-				authorization.OperationUseSharedAgent,
+				ctx, access, target.AgentName, authorization.OperationUseSharedAgent,
 			)
 			if err != nil {
 				return err

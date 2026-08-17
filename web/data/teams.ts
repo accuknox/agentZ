@@ -7,6 +7,8 @@ import { z } from "zod"
 import { getDB, schema } from "@/db"
 import {
   assertActiveSuperadmin,
+  isActiveSuperadmin,
+  lockOrganizationForSuperadmin,
   preserveActiveSuperadmin,
   resolveOrganizationSlug,
 } from "@/data/organizations"
@@ -95,36 +97,26 @@ function teamEventTrail(
   }
 }
 
-async function isSuperadmin(db: TeamDatabase, actor: TeamActor) {
-  const [role] = await db
-    .select({ id: schema.memberRoleAssignments.roleId })
-    .from(schema.memberRoleAssignments)
-    .innerJoin(
-      schema.members,
+async function selectAssignableRoles(db: TeamDatabase, organizationId: string, roleIds: string[]) {
+  if (!roleIds.length) return []
+
+  return db
+    .select({ id: schema.roleScopes.roleId })
+    .from(schema.roleScopes)
+    .leftJoin(
+      schema.workspaces,
       and(
-        eq(schema.memberRoleAssignments.memberId, schema.members.id),
-        eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.roleScopes,
-      and(
-        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
+        eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+        eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
       )
     )
     .where(
       and(
-        eq(schema.members.organizationId, actor.organizationId),
-        eq(schema.members.userId, actor.userId),
-        isNull(schema.members.disabledAt),
-        eq(schema.roleScopes.systemRole, "superadmin"),
-        eq(schema.roleScopes.immutable, true),
-        isNull(schema.roleScopes.workspaceId)
+        eq(schema.roleScopes.organizationId, organizationId),
+        inArray(schema.roleScopes.roleId, roleIds),
+        or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
       )
     )
-    .limit(1)
-  return Boolean(role)
 }
 
 export async function listTeams(orgSlug: string, pageToken?: string) {
@@ -324,12 +316,8 @@ export async function saveTeam(
 
   return preserveActiveSuperadmin(() =>
     getDB().transaction(async (tx) => {
-      await tx
-        .select({ id: schema.organizations.id })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.id, actor.organizationId))
-        .for("update")
-      if (!(await isSuperadmin(tx, actor))) {
+      const authorized = await lockOrganizationForSuperadmin(tx, actor.organizationId, actor.userId)
+      if (!authorized) {
         await tx
           .insert(schema.eventTrailEvents)
           .values(
@@ -403,25 +391,7 @@ export async function saveTeam(
             inArray(schema.members.id, memberIds)
           )
         )
-      const selectedRoles = roleIds.length
-        ? await tx
-            .select({ id: schema.roleScopes.roleId })
-            .from(schema.roleScopes)
-            .leftJoin(
-              schema.workspaces,
-              and(
-                eq(schema.workspaces.id, schema.roleScopes.workspaceId),
-                eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
-              )
-            )
-            .where(
-              and(
-                eq(schema.roleScopes.organizationId, actor.organizationId),
-                inArray(schema.roleScopes.roleId, roleIds),
-                or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
-              )
-            )
-        : []
+      const selectedRoles = await selectAssignableRoles(tx, actor.organizationId, roleIds)
       if (selectedMembers.length !== memberIds.length || selectedRoles.length !== roleIds.length) {
         await attempt("failed")
         return { error: "invalid" as const }
@@ -557,12 +527,10 @@ export async function saveTeamRoles(
   const roleIds = [...new Set(input.roleIds)]
   return preserveActiveSuperadmin(() =>
     getDB().transaction(async (tx) => {
-      await tx
-        .select({ id: schema.organizations.id })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.id, actor.organizationId))
-        .for("update")
-      if (!(await isSuperadmin(tx, actor))) return { error: "forbidden" as const }
+      const authorized = await lockOrganizationForSuperadmin(tx, actor.organizationId, actor.userId)
+      if (!authorized) {
+        return { error: "forbidden" as const }
+      }
 
       const [team] = await tx
         .select({
@@ -582,25 +550,7 @@ export async function saveTeamRoles(
         return { error: "stale" as const }
       }
 
-      const roles = roleIds.length
-        ? await tx
-            .select({ id: schema.roleScopes.roleId })
-            .from(schema.roleScopes)
-            .leftJoin(
-              schema.workspaces,
-              and(
-                eq(schema.workspaces.id, schema.roleScopes.workspaceId),
-                eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
-              )
-            )
-            .where(
-              and(
-                eq(schema.roleScopes.organizationId, actor.organizationId),
-                inArray(schema.roleScopes.roleId, roleIds),
-                or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
-              )
-            )
-        : []
+      const roles = await selectAssignableRoles(tx, actor.organizationId, roleIds)
       if (roles.length !== roleIds.length) return { error: "invalid" as const }
 
       const current = await tx
@@ -696,7 +646,8 @@ export async function deleteTeam(
         .for("update")
         .limit(1)
       if (!team) return { error: "not-found" as const }
-      if (!(await isSuperadmin(tx, actor))) {
+      const authorized = await isActiveSuperadmin(tx, actor.organizationId, actor.userId)
+      if (!authorized) {
         await tx
           .insert(schema.eventTrailEvents)
           .values(teamEventTrail(actor, "team.delete", team.id, "denied"))

@@ -21,6 +21,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import {
   activateOrganization,
   getOrganizationSession,
+  isActiveSuperadmin,
   resolveOrganizationSlug,
 } from "@/data/organizations"
 import { getDB, schema } from "@/db"
@@ -268,33 +269,11 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
       .limit(1)
     if (!workspace) return { error: "not-found" as const }
 
-    const [superadmin] = await tx
-      .select({ memberId: schema.members.id })
-      .from(schema.memberRoleAssignments)
-      .innerJoin(
-        schema.members,
-        and(
-          eq(schema.memberRoleAssignments.memberId, schema.members.id),
-          eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
-        )
-      )
-      .innerJoin(
-        schema.roleScopes,
-        and(
-          eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
-          eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.members.userId, organizationSession.session.user.id),
-          eq(schema.members.organizationId, workspace.organizationId),
-          isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.systemRole, "superadmin"),
-          eq(schema.roleScopes.immutable, true)
-        )
-      )
-      .limit(1)
+    const superadmin = await isActiveSuperadmin(
+      tx,
+      workspace.organizationId,
+      organizationSession.session.user.id
+    )
 
     const eventTrail = {
       action: "workspace.modify",

@@ -8,6 +8,7 @@ import { z } from "zod"
 import { getDB, schema } from "@/db"
 import {
   assertActiveSuperadmin,
+  isActiveSuperadmin,
   preserveActiveSuperadmin,
   resolveOrganizationSlug,
 } from "@/data/organizations"
@@ -335,38 +336,6 @@ async function getDeniedRoleActor(orgSlug: string): Promise<RoleActor | undefine
   }
 }
 
-async function isCurrentSuperadmin(organizationId: string, userId: string) {
-  const [row] = await getDB()
-    .select({ memberId: schema.members.id })
-    .from(schema.memberRoleAssignments)
-    .innerJoin(
-      schema.members,
-      and(
-        eq(schema.memberRoleAssignments.memberId, schema.members.id),
-        eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.roleScopes,
-      and(
-        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
-      )
-    )
-    .where(
-      and(
-        eq(schema.members.organizationId, organizationId),
-        eq(schema.members.userId, userId),
-        isNull(schema.members.disabledAt),
-        eq(schema.roleScopes.systemRole, "superadmin"),
-        eq(schema.roleScopes.immutable, true)
-      )
-    )
-    .limit(1)
-
-  return Boolean(row)
-}
-
 async function validateGrantScopes(organizationId: string, grants: RoleGrantInput[]) {
   const workspaceIds = [
     ...new Set(grants.flatMap(({ workspaceId }) => (workspaceId === null ? [] : [workspaceId]))),
@@ -654,7 +623,11 @@ async function resolveRoleManagement(orgSlug: string, workspaceSlug?: string) {
   }
 
   const actor = await getRoleActor(orgSlug)
-  if (!actor || !(await isCurrentSuperadmin(actor.organization.id, actor.userId))) {
+  if (!actor) {
+    return
+  }
+  const superadmin = await isActiveSuperadmin(getDB(), actor.organization.id, actor.userId)
+  if (!superadmin) {
     return
   }
   return { actor, superadmin: true, workspace: null }

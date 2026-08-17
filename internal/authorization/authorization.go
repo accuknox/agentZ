@@ -138,8 +138,11 @@ const (
 
 // BearerScope returns the generated bearer scope for the operation.
 func (o Operation) BearerScope() (string, bool) {
-	mapping, ok := mapOperation(o)
-	return mapping.bearerScope, ok
+	resource, action, ok := mapOperation(o)
+	if !ok {
+		return "", false
+	}
+	return string(resource) + "." + string(action), true
 }
 
 // Subject identifies a User within one Organisation.
@@ -346,14 +349,14 @@ func (e Effective) AgentCapabilities(scope Scope, agent Agent) (AgentCapabilitie
 		name    string
 		allowed *bool
 	}{
-		{"use", &capabilities.Use},
-		{"modify", &capabilities.Modify},
-		{"delete", &capabilities.Delete},
-		{"share", &capabilities.Share},
-		{"manage_ownership", &capabilities.ManageOwnership},
-		{"read_secrets", &capabilities.ReadSecrets},
-		{"write_secrets", &capabilities.WriteSecrets},
-		{"delete_secrets", &capabilities.DeleteSecrets},
+		{name: "use", allowed: &capabilities.Use},
+		{name: "modify", allowed: &capabilities.Modify},
+		{name: "delete", allowed: &capabilities.Delete},
+		{name: "share", allowed: &capabilities.Share},
+		{name: "manage_ownership", allowed: &capabilities.ManageOwnership},
+		{name: "read_secrets", allowed: &capabilities.ReadSecrets},
+		{name: "write_secrets", allowed: &capabilities.WriteSecrets},
+		{name: "delete_secrets", allowed: &capabilities.DeleteSecrets},
 	}
 	for _, action := range actions {
 		value, err := allowed(action.name)
@@ -418,7 +421,7 @@ func (e Effective) Active() bool {
 
 // Allows reports whether an explicitly mapped operation is allowed in the exact scope.
 func (e Effective) Allows(scope Scope, operation Operation) bool {
-	mapping, mapped := mapOperation(operation)
+	resource, action, mapped := mapOperation(operation)
 	if !mapped || scope.OrganizationID != e.organizationID {
 		return false
 	}
@@ -426,11 +429,12 @@ func (e Effective) Allows(scope Scope, operation Operation) bool {
 		return true
 	}
 
-	_, allowed := e.grants[grantKey{
+	key := grantKey{
 		workspaceID: scope.WorkspaceID,
-		resource:    mapping.resource,
-		action:      mapping.action,
-	}]
+		resource:    resource,
+		action:      action,
+	}
+	_, allowed := e.grants[key]
 	return allowed
 }
 
@@ -467,36 +471,30 @@ func (e Effective) HasWorkspaceAccess(scope Scope) bool {
 	return false
 }
 
-type operationMapping struct {
-	resource    gatewaydb.PermissionResource
-	action      gatewaydb.PermissionAction
-	bearerScope string
-}
-
-func mapOperation(operation Operation) (operationMapping, bool) {
+func mapOperation(operation Operation) (gatewaydb.PermissionResource, gatewaydb.PermissionAction, bool) {
 	switch operation {
 	case OperationListSkills:
-		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionRead, "skill.read"}, true
+		return gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionRead, true
 	case OperationCreateSkill:
-		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionCreate, "skill.create"}, true
+		return gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionCreate, true
 	case OperationUpdateSkill:
-		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionModify, "skill.modify"}, true
+		return gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionModify, true
 	case OperationDeleteSkill:
-		return operationMapping{gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionDelete, "skill.delete"}, true
+		return gatewaydb.PermissionResourceSkill, gatewaydb.PermissionActionDelete, true
 	case OperationListSandboxes:
-		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionRead, "sandbox.read"}, true
+		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionRead, true
 	case OperationCreateSandbox:
-		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionCreate, "sandbox.create"}, true
+		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionCreate, true
 	case OperationUpdateSandbox:
-		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionModify, "sandbox.modify"}, true
+		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionModify, true
 	case OperationDeleteSandbox:
-		return operationMapping{gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionDelete, "sandbox.delete"}, true
+		return gatewaydb.PermissionResourceSandbox, gatewaydb.PermissionActionDelete, true
 	case OperationListMCPConnections, OperationWatchMCPConnections, OperationGetMCPConnection:
-		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionRead, "mcp_connection.read"}, true
+		return gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionRead, true
 	case OperationCreateMCPConnection:
-		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionCreate, "mcp_connection.create"}, true
+		return gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionCreate, true
 	case OperationDeleteMCPConnection:
-		return operationMapping{gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionDelete, "mcp_connection.delete"}, true
+		return gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionDelete, true
 	case OperationListInferenceProviders,
 		OperationWatchInferenceProviders,
 		OperationGetInferenceProvider,
@@ -504,51 +502,51 @@ func mapOperation(operation Operation) (operationMapping, bool) {
 		OperationRefreshInferenceProviderModels,
 		OperationListInferenceProviderCatalog,
 		OperationListInferenceModelSuggestions:
-		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionRead, "inference_provider.read"}, true
+		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionRead, true
 	case OperationCreateInferenceProvider, OperationCreateInferenceProviderOAuthTicket:
-		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionCreate, "inference_provider.create"}, true
+		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionCreate, true
 	case OperationUpdateInferenceProvider:
-		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionModify, "inference_provider.modify"}, true
+		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionModify, true
 	case OperationDeleteInferenceProvider:
-		return operationMapping{gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionDelete, "inference_provider.delete"}, true
+		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionDelete, true
 	case OperationListInferencePools,
 		OperationWatchInferencePools,
 		OperationGetInferencePool,
 		OperationGetInferencePoolUsage:
-		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionRead, "inference_pool.read"}, true
+		return gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionRead, true
 	case OperationCreateInferencePool:
-		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionCreate, "inference_pool.create"}, true
+		return gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionCreate, true
 	case OperationUpdateInferencePool:
-		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionModify, "inference_pool.modify"}, true
+		return gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionModify, true
 	case OperationDeleteInferencePool:
-		return operationMapping{gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionDelete, "inference_pool.delete"}, true
+		return gatewaydb.PermissionResourceInferencePool, gatewaydb.PermissionActionDelete, true
 	case OperationListAgents, OperationWatchAgents:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, "agent.use_shared"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, true
 	case OperationCreateAgent:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionAuthor, "agent.author"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionAuthor, true
 	case OperationUpdateAgent, OperationDeleteAgent:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, "agent.use_shared"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, true
 	case OperationShareAuthoredAgent:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionShareAuthored, "agent.share_authored"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionShareAuthored, true
 	case OperationShareNonAuthoredAgent:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionShareNonAuthored, "agent.share_non_authored"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionShareNonAuthored, true
 	case OperationUseSharedAgent:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, "agent.use_shared"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionUseShared, true
 	case OperationReadSharedSecret:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionReadSharedSecret, "agent.read_shared_secret"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionReadSharedSecret, true
 	case OperationWriteSharedSecret:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionWriteSharedSecret, "agent.write_shared_secret"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionWriteSharedSecret, true
 	case OperationDeleteSharedSecret:
-		return operationMapping{gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionDeleteSharedSecret, "agent.delete_shared_secret"}, true
+		return gatewaydb.PermissionResourceAgent, gatewaydb.PermissionActionDeleteSharedSecret, true
 	case OperationListAPIKeys:
-		return operationMapping{gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionRead, "api_key.read"}, true
+		return gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionRead, true
 	case OperationCreateAPIKey:
-		return operationMapping{gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionCreate, "api_key.create"}, true
+		return gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionCreate, true
 	case OperationDeleteAPIKey:
-		return operationMapping{gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionDelete, "api_key.delete"}, true
+		return gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionDelete, true
 	case OperationReadObservability:
-		return operationMapping{gatewaydb.PermissionResourceObservability, gatewaydb.PermissionActionRead, "observability.read"}, true
+		return gatewaydb.PermissionResourceObservability, gatewaydb.PermissionActionRead, true
 	default:
-		return operationMapping{}, false
+		return "", "", false
 	}
 }

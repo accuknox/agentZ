@@ -61,15 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1786879979519,
+      "when": 1786949115383,
       "tag": "0008_organization_workspace_contracts",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1786945577714,
-      "tag": "0009_illegal_wind_dancer",
       "breakpoints": true
     }
   ]

@@ -257,7 +257,7 @@ function DirectoryTable<T>({
                 ))
                 const href = rowHref?.(row.original)
                 return href ? (
-                  <RoutedTableRow aria-label={`Open ${String(row.id)}`} href={href} key={row.id}>
+                  <RoutedTableRow aria-label={`Open ${row.id}`} href={href} key={row.id}>
                     {cells}
                   </RoutedTableRow>
                 ) : (

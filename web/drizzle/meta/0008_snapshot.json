@@ -1,5 +1,5 @@
 {
-  "id": "a43f9188-8087-4eaa-902d-3ccbb50626b0",
+  "id": "52e0c985-5092-4e0b-b08c-57b00037b78b",
   "prevId": "dc4385e0-3a22-415f-ba2a-3ae65ca3c605",
   "version": "7",
   "dialect": "postgresql",
@@ -3809,7 +3809,47 @@
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
+  "views": {
+    "public.member_role_assignments": {
+      "columns": {
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "definition": "\n  SELECT\n    members.id AS member_id,\n    members.user_id,\n    member_roles.organization_id,\n    member_roles.role_id,\n    NULL::text AS team_id\n  FROM member_roles\n  JOIN members\n    ON members.id = member_roles.member_id\n    AND members.organization_id = member_roles.organization_id\n\n  UNION ALL\n\n  SELECT\n    members.id AS member_id,\n    members.user_id,\n    team_roles.organization_id,\n    team_roles.role_id,\n    teams.id AS team_id\n  FROM team_roles\n  JOIN teams\n    ON teams.id = team_roles.team_id\n    AND teams.organization_id = team_roles.organization_id\n  JOIN team_members\n    ON team_members.team_id = teams.id\n  JOIN members\n    ON members.user_id = team_members.user_id\n    AND members.organization_id = teams.organization_id\n",
+      "name": "member_role_assignments",
+      "schema": "public",
+      "isExisting": false,
+      "materialized": false
+    }
+  },
   "_meta": {
     "columns": {},
     "schemas": {},

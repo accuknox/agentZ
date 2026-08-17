@@ -55,10 +55,14 @@ const githubOrganizationPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])
 const githubTeamPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; orgSlug: string }) {
+  const [dirty, setDirty] = useState(false)
   const [state, action, pending] = useActionState<SocialAdmissionFormState, FormData>(
     async (state, formData) => {
       const result = await socialAdmissionAction(orgSlug, state, formData)
-      if (result.saved) toast.success("Sign-up settings updated")
+      if (result.saved) {
+        setDirty(false)
+        toast.success("Sign-up settings updated")
+      }
       return result
     },
     {}
@@ -72,13 +76,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
   const [githubEnabled, setGithubEnabled] = useState(data.githubEnabled)
   const [roleIds, setRoleIds] = useState(data.defaultRoleIds)
   const [teamIds, setTeamIds] = useState(data.defaultTeamIds)
-  const [dirty, setDirty] = useState(false)
   const [validationVisible, setValidationVisible] = useState(false)
-  const [actionState, setActionState] = useState(state)
-  if (actionState !== state) {
-    setActionState(state)
-    if (state.saved) setDirty(false)
-  }
 
   const githubInvalid = rules.some(
     (rule) =>

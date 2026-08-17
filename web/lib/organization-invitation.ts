@@ -9,6 +9,57 @@ import { getDB, schema } from "@/db"
 export const invitationExpiresIn = 48 * 60 * 60 * 1000
 export const organizationMembershipLimit = 100
 
+type MembershipDatabase = Pick<ReturnType<typeof getDB>, "insert" | "update">
+type MembershipRole = Pick<typeof schema.organizationRoles.$inferSelect, "id" | "role">
+type MembershipTeam = Pick<typeof schema.teams.$inferSelect, "id">
+
+type MembershipInput = {
+  db: MembershipDatabase
+  organizationId: string
+  roles: MembershipRole[]
+  sessionToken: string
+  teams: MembershipTeam[]
+  userId: string
+}
+
+export async function createOrganizationMembership(input: MembershipInput): Promise<Date> {
+  const now = new Date()
+  const memberId = generateId()
+  await input.db.insert(schema.members).values({
+    id: memberId,
+    organizationId: input.organizationId,
+    userId: input.userId,
+    role: input.roles.length ? input.roles.map(({ role }) => role).join(",") : "member",
+    createdAt: now,
+  })
+
+  if (input.roles.length) {
+    await input.db.insert(schema.memberRoles).values(
+      input.roles.map(({ id }) => ({
+        memberId,
+        organizationId: input.organizationId,
+        roleId: id,
+      }))
+    )
+  }
+  if (input.teams.length) {
+    await input.db.insert(schema.teamMembers).values(
+      input.teams.map(({ id }) => ({
+        id: generateId(),
+        teamId: id,
+        userId: input.userId,
+        createdAt: now,
+      }))
+    )
+  }
+
+  await input.db
+    .update(schema.sessions)
+    .set({ activeOrganizationId: input.organizationId })
+    .where(eq(schema.sessions.token, input.sessionToken))
+  return now
+}
+
 export function organizationInvitation() {
   return {
     id: "organization-invitation",
@@ -128,40 +179,14 @@ export function organizationInvitation() {
               return { kind: "unavailable" as const }
             }
 
-            const now = new Date()
-            const memberId = generateId()
-            await tx.insert(schema.members).values({
-              id: memberId,
+            const now = await createOrganizationMembership({
+              db: tx,
               organizationId: organization.id,
               userId: session.user.id,
-              role: roles.length ? roles.map(({ role }) => role).join(",") : "member",
-              createdAt: now,
+              roles,
+              sessionToken: session.session.token,
+              teams,
             })
-
-            if (roles.length) {
-              await tx.insert(schema.memberRoles).values(
-                roles.map(({ id }) => ({
-                  memberId,
-                  organizationId: organization.id,
-                  roleId: id,
-                }))
-              )
-            }
-            if (teams.length) {
-              await tx.insert(schema.teamMembers).values(
-                teams.map(({ id }) => ({
-                  id: generateId(),
-                  teamId: id,
-                  userId: session.user.id,
-                  createdAt: now,
-                }))
-              )
-            }
-
-            await tx
-              .update(schema.sessions)
-              .set({ activeOrganizationId: organization.id })
-              .where(eq(schema.sessions.token, session.session.token))
             await tx
               .update(schema.organizationInvitations)
               .set({ acceptedAt: now, acceptedBy: session.user.id, status: "accepted" })

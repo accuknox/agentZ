@@ -1,5 +1,4 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
-import { generateId } from "@better-auth/core/utils/id"
 import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
@@ -20,7 +19,11 @@ import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config
 import { getEnv } from "@/lib/env"
 import { getGithubUserInfo, socialOAuthStateSchema } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
-import { organizationInvitation, organizationMembershipLimit } from "@/lib/organization-invitation"
+import {
+  createOrganizationMembership,
+  organizationInvitation,
+  organizationMembershipLimit,
+} from "@/lib/organization-invitation"
 import { minPasswordLength } from "@/lib/password-policy"
 import { signInReturnTo } from "@/lib/sign-in-redirect"
 
@@ -796,38 +799,14 @@ async function createSocialAdmissionMembership(
       return { kind: "limit" as const, slug: organization.slug }
     }
 
-    const memberId = generateId()
-    const now = new Date()
-    await tx.insert(schema.members).values({
-      id: memberId,
+    await createOrganizationMembership({
+      db: tx,
       organizationId: organization.id,
       userId: user.id,
-      role: roles.length ? roles.map(({ role }) => role).join(",") : "member",
-      createdAt: now,
+      roles,
+      sessionToken,
+      teams,
     })
-    if (roles.length) {
-      await tx.insert(schema.memberRoles).values(
-        roles.map(({ id }) => ({
-          memberId,
-          organizationId: organization.id,
-          roleId: id,
-        }))
-      )
-    }
-    if (teams.length) {
-      await tx.insert(schema.teamMembers).values(
-        teams.map(({ id }) => ({
-          id: generateId(),
-          teamId: id,
-          userId: user.id,
-          createdAt: now,
-        }))
-      )
-    }
-    await tx
-      .update(schema.sessions)
-      .set({ activeOrganizationId: organization.id })
-      .where(eq(schema.sessions.token, sessionToken))
     await tx.insert(schema.eventTrailEvents).values({
       action: "social_admission.accept",
       actorId: user.id,

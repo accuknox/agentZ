@@ -18,8 +18,8 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
   const searchParams = useSearchParams()
   const current = searchParams.size ? `${pathname}?${searchParams}` : pathname
   const active = tabs.reduce<RouteTab | undefined>((selected, tab) => {
-    const href = String(tab.href)
-    const path = String(tab.activePath ?? tab.href)
+    const href = tab.href
+    const path = tab.activePath ?? tab.href
     const matches = tab.activePath
       ? pathname === path || pathname.startsWith(`${path}/`)
       : href.includes("?")
@@ -29,7 +29,7 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
       return selected
     }
 
-    if (!selected || path.length > String(selected.activePath ?? selected.href).length) {
+    if (!selected || path.length > (selected.activePath ?? selected.href).length) {
       return tab
     }
 

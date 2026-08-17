@@ -21,6 +21,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 const chartSourceLimit = 100
 const maxChartPoints = 25
+type EventTrailOptions = Parameters<typeof listEventTrailEvents>[0]
 
 export const eventTrailQuerySchema = z.object({
   filters: z
@@ -54,56 +55,11 @@ async function getEventTrailActorImages(actorIds: string[]) {
   return Object.fromEntries(users.flatMap((user) => (user.image ? [[user.id, user.image]] : [])))
 }
 
-export async function listOrganizationEventTrailEvents(
-  orgSlug: string,
-  body: ListEventTrailEventsData["body"]
+async function loadEventTrail(
+  body: ListEventTrailEventsData["body"],
+  client: NonNullable<EventTrailOptions["client"]>,
+  headers?: EventTrailOptions["headers"]
 ) {
-  const scope = await resolveOrganizationSlug(orgSlug)
-  if (scope.kind !== "ready") {
-    return
-  }
-
-  await activateOrganization(scope.organization.id)
-  const client = getGatewayServerClient()
-  const [page, chart] = await Promise.all([
-    listEventTrailEvents({ body, client }),
-    listEventTrailEvents({
-      body: { filters: body.filters, limit: chartSourceLimit },
-      client,
-    }),
-  ])
-  if (page.error) {
-    throw new Error(page.error.message)
-  }
-  if (chart.error) {
-    throw new Error(chart.error.message)
-  }
-
-  return {
-    actorImages: await getEventTrailActorImages(
-      page.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
-    ),
-    chart: eventTrailChart(chart.data.events),
-    eventTrail: page.data,
-  }
-}
-
-export async function listWorkspaceEventTrailEvents(
-  orgSlug: string,
-  workspaceSlug: string,
-  body: ListEventTrailEventsData["body"]
-) {
-  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
-  if (
-    scope.scope.kind !== "ready" ||
-    scope.kind !== "ready" ||
-    (!scope.scope.organization.superadmin && !scope.workspace.capabilities.administer)
-  ) {
-    return
-  }
-
-  const client = getGatewayServerClient(scope.workspace.id)
-  const headers = { "X-AgentZ-Workspace-ID": scope.workspace.id }
   const [page, chart] = await Promise.all([
     listEventTrailEvents({ body, client, headers }),
     listEventTrailEvents({
@@ -125,6 +81,41 @@ export async function listWorkspaceEventTrailEvents(
     ),
     chart: eventTrailChart(chart.data.events),
     eventTrail: page.data,
+  }
+}
+
+export async function listOrganizationEventTrailEvents(
+  orgSlug: string,
+  body: ListEventTrailEventsData["body"]
+) {
+  const scope = await resolveOrganizationSlug(orgSlug)
+  if (scope.kind !== "ready") {
+    return
+  }
+
+  await activateOrganization(scope.organization.id)
+  return loadEventTrail(body, getGatewayServerClient())
+}
+
+export async function listWorkspaceEventTrailEvents(
+  orgSlug: string,
+  workspaceSlug: string,
+  body: ListEventTrailEventsData["body"]
+) {
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (
+    scope.scope.kind !== "ready" ||
+    scope.kind !== "ready" ||
+    (!scope.scope.organization.superadmin && !scope.workspace.capabilities.administer)
+  ) {
+    return
+  }
+
+  const headers = { "X-AgentZ-Workspace-ID": scope.workspace.id }
+  const events = await loadEventTrail(body, getGatewayServerClient(scope.workspace.id), headers)
+
+  return {
+    ...events,
     workspace: { name: scope.workspace.name },
   }
 }

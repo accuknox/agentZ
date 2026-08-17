@@ -64,11 +64,7 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	}
 	access.effective = effective
 
-	scope := authorization.Scope{
-		OrganizationID: claims.OrganizationID,
-		WorkspaceID:    claims.WorkspaceID,
-	}
-	allowed, err := s.agentOperationAllowed(ctx, claims, effective, scope, name, operation)
+	allowed, err := s.agentOperationAllowed(ctx, access, name, operation)
 	if err != nil {
 		return access, newAPIError(
 			http.StatusInternalServerError,
@@ -133,17 +129,20 @@ func requireAgentBoundAccess(s *Service) func(http.Handler) http.Handler {
 	}
 }
 
-func (s *Service) agentOperationAllowed(ctx context.Context, claims gatewayClaims, effective authorization.Effective, scope authorization.Scope, name string, operation authorization.Operation) (bool, error) {
+func (s *Service) agentOperationAllowed(ctx context.Context, access resourceAccess, name string, operation authorization.Operation) (bool, error) {
+	scope := authorization.Scope{
+		OrganizationID: access.claims.OrganizationID,
+		WorkspaceID:    access.workspaceID,
+	}
 	if operation == authorization.OperationCreateAgent {
-		return effective.Allows(scope, operation), nil
+		return access.effective.Allows(scope, operation), nil
 	}
 	if operation == authorization.OperationListAgents || operation == authorization.OperationWatchAgents {
-		return effective.HasWorkspaceAccess(scope), nil
+		return access.effective.HasWorkspaceAccess(scope), nil
 	}
-	if name == "" || !effective.HasWorkspaceAccess(scope) {
+	if name == "" || !access.effective.HasWorkspaceAccess(scope) {
 		return false, nil
 	}
-	access := resourceAccess{claims: claims, effective: effective, workspaceID: scope.WorkspaceID}
 	capabilities, err := s.agentCapabilityProjections(ctx, access, name)
 	if err != nil {
 		return false, err
@@ -1555,8 +1554,7 @@ func (s *Service) resolveAgentShareAuthority(ctx context.Context, access resourc
 		return agentShareDenied, nil
 	}
 	allowed, err := s.agentOperationAllowed(
-		ctx, access.claims, access.effective, scope, agentName,
-		authorization.OperationShareNonAuthoredAgent,
+		ctx, access, agentName, authorization.OperationShareNonAuthoredAgent,
 	)
 	if err != nil || !allowed {
 		return agentShareDenied, err

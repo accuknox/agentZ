@@ -24,6 +24,7 @@ import { z } from "zod"
 import { getDB, schema } from "@/db"
 import {
   assertActiveSuperadmin,
+  lockOrganizationForSuperadmin,
   preserveActiveSuperadmin,
   resolveOrganizationSlug,
 } from "@/data/organizations"
@@ -156,43 +157,6 @@ type Actor = {
   organization: { id: string; name: string; slug: string }
   userId: string
 }
-
-type MembershipDatabase = Pick<ReturnType<typeof getDB>, "select">
-
-async function hasActiveSuperadminAuthority(
-  db: MembershipDatabase,
-  organizationId: string,
-  userId: string
-) {
-  const [authority] = await db
-    .select({ memberId: schema.members.id })
-    .from(schema.memberRoleAssignments)
-    .innerJoin(
-      schema.members,
-      and(
-        eq(schema.memberRoleAssignments.memberId, schema.members.id),
-        eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.roleScopes,
-      and(
-        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
-      )
-    )
-    .where(
-      and(
-        eq(schema.members.organizationId, organizationId),
-        eq(schema.members.userId, userId),
-        isNull(schema.members.disabledAt),
-        eq(schema.roleScopes.systemRole, "superadmin")
-      )
-    )
-    .limit(1)
-  return authority !== undefined
-}
-
 async function superadminActor(orgSlug: string): Promise<Actor | undefined> {
   const result = await resolveOrganizationSlug(orgSlug)
   if (result.kind !== "ready" || !result.organization.superadmin) {
@@ -657,12 +621,11 @@ export async function saveMemberAssignments(
 
   return preserveActiveSuperadmin(() =>
     getDB().transaction(async (tx) => {
-      await tx
-        .select({ id: schema.organizations.id })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.id, actor.organization.id))
-        .for("update")
-      const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+      const authorized = await lockOrganizationForSuperadmin(
+        tx,
+        actor.organization.id,
+        actor.userId
+      )
       if (!authorized) return { error: "forbidden" as const }
 
       const [member] = await tx
@@ -889,12 +852,7 @@ export async function createInvitation(orgSlug: string, input: InvitationAccess)
   const token = generateId()
   const tokenHash = createHash("sha256").update(token).digest("hex")
   return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, actor.organization.id))
-      .for("update")
-    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    const authorized = await lockOrganizationForSuperadmin(tx, actor.organization.id, actor.userId)
     if (!authorized) return { error: "forbidden" as const }
 
     const roles = roleIds.length
@@ -973,12 +931,7 @@ export async function cancelInvitation(orgSlug: string, invitationId: string) {
   }
 
   return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, actor.organization.id))
-      .for("update")
-    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    const authorized = await lockOrganizationForSuperadmin(tx, actor.organization.id, actor.userId)
     if (!authorized) return { error: "forbidden" as const }
 
     await tx
@@ -1002,12 +955,7 @@ export async function restoreMembership(orgSlug: string, memberId: string) {
   }
 
   return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, actor.organization.id))
-      .for("update")
-    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    const authorized = await lockOrganizationForSuperadmin(tx, actor.organization.id, actor.userId)
     if (!authorized) return { error: "forbidden" as const }
 
     const [member] = await tx
@@ -1098,12 +1046,7 @@ export async function removeMembership(
   }
 
   return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, actor.organization.id))
-      .for("update")
-    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    const authorized = await lockOrganizationForSuperadmin(tx, actor.organization.id, actor.userId)
     if (!authorized) return { error: "forbidden" as const }
 
     const [member] = await tx
@@ -1597,12 +1540,7 @@ export async function saveSocialAdmission(
   }
 
   return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, actor.organization.id))
-      .for("update")
-    const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+    const authorized = await lockOrganizationForSuperadmin(tx, actor.organization.id, actor.userId)
     if (!authorized) {
       return { error: "forbidden" as const }
     }

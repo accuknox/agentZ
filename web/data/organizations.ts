@@ -59,6 +59,55 @@ export async function assertActiveSuperadmin(db: OrganizationDatabase, organizat
   if (!row?.count) throw new FinalSuperadminError()
 }
 
+export async function isActiveSuperadmin(
+  db: OrganizationDatabase,
+  organizationId: string,
+  userId: string
+): Promise<boolean> {
+  const [role] = await db
+    .select({ id: schema.memberRoleAssignments.roleId })
+    .from(schema.memberRoleAssignments)
+    .innerJoin(
+      schema.members,
+      and(
+        eq(schema.memberRoleAssignments.memberId, schema.members.id),
+        eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.roleScopes,
+      and(
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.members.organizationId, organizationId),
+        eq(schema.members.userId, userId),
+        isNull(schema.members.disabledAt),
+        eq(schema.roleScopes.systemRole, "superadmin"),
+        eq(schema.roleScopes.immutable, true),
+        isNull(schema.roleScopes.workspaceId)
+      )
+    )
+    .limit(1)
+  return role !== undefined
+}
+
+export async function lockOrganizationForSuperadmin(
+  db: OrganizationDatabase,
+  organizationId: string,
+  userId: string
+): Promise<boolean> {
+  await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, organizationId))
+    .for("update")
+  return isActiveSuperadmin(db, organizationId, userId)
+}
+
 export async function getOrganizationSession() {
   const requestHeaders = await headers()
   const auth = getAuth()

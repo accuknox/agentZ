@@ -27,14 +27,14 @@ export function RoutedTableRow({
     return (
       !(target instanceof Node) ||
       !row.contains(target) ||
-      (target instanceof Element && Boolean(target.closest("a,button,input,select,textarea")))
+      (target instanceof Element && target.closest("a,button,input,select,textarea") !== null)
     )
   }
 
   function open(event: MouseEvent<HTMLTableRowElement>) {
     if (blocksRowNavigation(event.target, event.currentTarget)) return
     if (event.metaKey || event.ctrlKey) {
-      window.open(String(href), "_blank", "noopener,noreferrer")
+      window.open(href, "_blank", "noopener,noreferrer")
       return
     }
     router.push(href)
@@ -50,7 +50,7 @@ export function RoutedTableRow({
       )}
       onAuxClick={(event) => {
         if (event.button !== 1 || blocksRowNavigation(event.target, event.currentTarget)) return
-        window.open(String(href), "_blank", "noopener,noreferrer")
+        window.open(href, "_blank", "noopener,noreferrer")
       }}
       onClick={open}
       onKeyDown={(event) => {

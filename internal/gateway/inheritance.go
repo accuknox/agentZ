@@ -19,6 +19,16 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+type organizationResourceSelectionKind struct {
+	kind  agentzv1alpha1.OrganizationResourceKind
+	field string
+}
+
+type workspaceInheritedResourceKind struct {
+	kind     agentzv1alpha1.OrganizationResourceKind
+	resource gatewaydb.PermissionResource
+}
+
 // ListWorkspaceInheritedResources handles GET
 // /api/workspace/{workspaceId}/inherited-resource/{resourceType}.
 func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath, resourceType gatewayapi.InheritedResourceTypePath) {
@@ -31,10 +41,14 @@ func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListWorkspaceInheritedResourcesResponse{
-		ResourceType: resourceType,
-		Resources:    resources,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListWorkspaceInheritedResourcesResponse{
+			ResourceType: resourceType,
+			Resources:    resources,
+		},
+	)
 }
 
 // ReplaceWorkspaceInheritedResources handles PUT
@@ -59,12 +73,16 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	}
 	if invalid {
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"resource names must be non-empty and unique",
-			errBadRequest,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"resource names must be non-empty and unique",
+				errBadRequest,
+			),
+		)
 		return
 	}
 
@@ -83,13 +101,17 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 			continue
 		}
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"selected Organisation resource was not found",
-			errBadRequest,
-			gatewayapi.FieldError{Field: "names", Message: name + " was not found"},
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"selected Organisation resource was not found",
+				errBadRequest,
+				gatewayapi.FieldError{Field: "names", Message: name + " was not found"},
+			),
+		)
 		return
 	}
 	for _, resource := range resources {
@@ -101,16 +123,20 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 			consumerNames = append(consumerNames, consumer.Kind+" "+consumer.Name)
 		}
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"resource_consumed",
-			"an inherited resource is still consumed",
-			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "names",
-				Message: resource.Name + " is consumed by " + strings.Join(consumerNames, ", "),
-			},
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"resource_consumed",
+				"an inherited resource is still consumed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "names",
+					Message: resource.Name + " is consumed by " + strings.Join(consumerNames, ", "),
+				},
+			),
+		)
 		return
 	}
 
@@ -122,10 +148,16 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	next := previous
 	kind, _, mapped := inheritedResourceKind(resourceType)
 	if !mapped {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest, "invalid_request",
-			"unknown inherited resource type", errBadRequest,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"unknown inherited resource type",
+				errBadRequest,
+			),
+		)
 		return
 	}
 	next.Set(kind, names)
@@ -144,10 +176,14 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListWorkspaceInheritedResourcesResponse{
-		ResourceType: resourceType,
-		Resources:    resources,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListWorkspaceInheritedResourcesResponse{
+			ResourceType: resourceType,
+			Resources:    resources,
+		},
+	)
 }
 
 func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.Request, workspaceID, action string) (gatewayClaims, gatewaydb.Workspace, bool) {
@@ -174,18 +210,27 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 	)
 	if !allowed || getErr != nil {
 		if action == "modify" {
-			_ = createWorkspaceEventTrail(r.Context(), s.queries, workspaceEventTrail{
-				organizationID: claims.OrganizationID, workspaceID: workspaceID,
-				actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-				action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultDenied,
-			})
+			_ = createWorkspaceEventTrail(
+				r.Context(),
+				s.queries,
+				workspaceEventTrail{
+					organizationID: claims.OrganizationID, workspaceID: workspaceID,
+					actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+					action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultDenied,
+				},
+			)
 		}
 		if !allowed {
-			writeError(w, r, newAPIError(
-				http.StatusForbidden, "forbidden",
-				"Superadmin authority is required",
-				errors.New("workspace inheritance requires Superadmin authority"),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusForbidden,
+					"forbidden",
+					"Superadmin authority is required",
+					errors.New("workspace inheritance requires Superadmin authority"),
+				),
+			)
 			return gatewayClaims{}, gatewaydb.Workspace{}, false
 		}
 		if errors.Is(getErr, pgx.ErrNoRows) {
@@ -279,9 +324,12 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := gatewaydb.New(tx)
-	_, err = q.GatewayLockActiveWorkspace(ctx, gatewaydb.GatewayLockActiveWorkspaceParams{
-		ID: workspaceID, OrganizationID: claims.OrganizationID,
-	})
+	_, err = q.GatewayLockActiveWorkspace(
+		ctx,
+		gatewaydb.GatewayLockActiveWorkspaceParams{
+			ID: workspaceID, OrganizationID: claims.OrganizationID,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("lock Workspace inheritance: %w", err)
 	}
@@ -308,12 +356,16 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 	if err != nil {
 		return fmt.Errorf("replace Workspace inheritance: %w", err)
 	}
-	err = createWorkspaceEventTrail(ctx, q, workspaceEventTrail{
-		organizationID: claims.OrganizationID, workspaceID: workspaceID,
-		actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-		action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultSucceeded,
-		after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
-	})
+	err = createWorkspaceEventTrail(
+		ctx,
+		q,
+		workspaceEventTrail{
+			organizationID: claims.OrganizationID, workspaceID: workspaceID,
+			actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+			action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultSucceeded,
+			after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -324,12 +376,16 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 }
 
 func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gatewayClaims, workspaceID string, resourceType gatewayapi.InheritedResourceType) {
-	err := createWorkspaceEventTrail(context.WithoutCancel(r.Context()), s.queries, workspaceEventTrail{
-		organizationID: claims.OrganizationID, workspaceID: workspaceID,
-		actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-		action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultFailed,
-		after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
-	})
+	err := createWorkspaceEventTrail(
+		context.WithoutCancel(r.Context()),
+		s.queries,
+		workspaceEventTrail{
+			organizationID: claims.OrganizationID, workspaceID: workspaceID,
+			actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+			action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultFailed,
+			after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+		},
+	)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "event trail failed Workspace inheritance mutation", slog.Any("err", err))
 	}
@@ -341,10 +397,7 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 		organizationID,
 	)
 	fields := []gatewayapi.FieldError{}
-	kinds := []struct {
-		kind  agentzv1alpha1.OrganizationResourceKind
-		field string
-	}{
+	kinds := []organizationResourceSelectionKind{
 		{agentzv1alpha1.OrganizationResourceKindSkill, "selected_organization_resources.skills"},
 		{agentzv1alpha1.OrganizationResourceKindSandbox, "selected_organization_resources.sandboxes"},
 		{agentzv1alpha1.OrganizationResourceKindMCPConnection, "selected_organization_resources.mcp_connections"},
@@ -354,15 +407,21 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 		seen := map[string]struct{}{}
 		for i, name := range selected.Names(item.kind) {
 			if strings.TrimSpace(name) == "" {
-				fields = append(fields, gatewayapi.FieldError{
-					Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "must not be blank",
-				})
+				fields = append(
+					fields,
+					gatewayapi.FieldError{
+						Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "must not be blank",
+					},
+				)
 				continue
 			}
 			if _, duplicate := seen[name]; duplicate {
-				fields = append(fields, gatewayapi.FieldError{
-					Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "must be unique",
-				})
+				fields = append(
+					fields,
+					gatewayapi.FieldError{
+						Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "must be unique",
+					},
+				)
 				continue
 			}
 			seen[name] = struct{}{}
@@ -382,9 +441,12 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 				return nil, fmt.Errorf("validate selected Organisation resource: %w", err)
 			}
 			if err != nil {
-				fields = append(fields, gatewayapi.FieldError{
-					Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "was not found",
-				})
+				fields = append(
+					fields,
+					gatewayapi.FieldError{
+						Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "was not found",
+					},
+				)
 			}
 		}
 	}
@@ -392,10 +454,7 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 }
 
 func insertWorkspaceResourceSelection(ctx context.Context, q gatewaydb.Querier, workspaceID, organizationID string, selected agentzv1alpha1.SelectedOrganizationResources) error {
-	kinds := []struct {
-		kind     agentzv1alpha1.OrganizationResourceKind
-		resource gatewaydb.PermissionResource
-	}{
+	kinds := []workspaceInheritedResourceKind{
 		{agentzv1alpha1.OrganizationResourceKindSkill, gatewaydb.PermissionResourceSkill},
 		{agentzv1alpha1.OrganizationResourceKindSandbox, gatewaydb.PermissionResourceSandbox},
 		{agentzv1alpha1.OrganizationResourceKindMCPConnection, gatewaydb.PermissionResourceMcpConnection},
@@ -547,7 +606,7 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 			case agentzv1alpha1.InferenceProviderStateDegraded:
 				status = gatewayapi.ResourceLifecycleDegraded
 			}
-			message := ""
+			var message string
 			if status == gatewayapi.ResourceLifecycleDegraded {
 				for _, condition := range item.Status.Conditions {
 					if condition.Status == metav1.ConditionFalse {
@@ -579,9 +638,12 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 			resources[i].DisabledReason = &reason
 		}
 	}
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Name < resources[j].Name
-	})
+	sort.Slice(
+		resources,
+		func(i, j int) bool {
+			return resources[i].Name < resources[j].Name
+		},
+	)
 	return resources, nil
 }
 

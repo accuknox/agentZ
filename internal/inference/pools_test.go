@@ -15,6 +15,13 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+type resolvePoolInvalidMembershipCase struct {
+	name      string
+	members   []agentzv1alpha1.InferencePoolMember
+	configure func()
+	field     string
+}
+
 func TestResolvePoolContract(t *testing.T) {
 	t.Parallel()
 
@@ -176,12 +183,7 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	tests := []struct {
-		name      string
-		members   []agentzv1alpha1.InferencePoolMember
-		configure func()
-		field     string
-	}{
+	tests := []resolvePoolInvalidMembershipCase{
 		{name: "empty", field: "members"},
 		{
 			name:    "unavailable workspace scope",
@@ -233,23 +235,26 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if test.configure != nil {
-				test.configure()
-			}
-			reader := poolTestReader(t, scheme, provider.DeepCopy())
-			pool := &agentzv1alpha1.InferencePool{
-				ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
-				Spec:       agentzv1alpha1.InferencePoolSpec{Members: test.members},
-			}
-			_, issues, err := ResolvePool(context.Background(), reader, pool)
-			if err != nil {
-				t.Fatalf("ResolvePool() error = %v", err)
-			}
-			if len(issues) == 0 || issues[0].Field != test.field {
-				t.Fatalf("ResolvePool() issues = %#v, want first field %q", issues, test.field)
-			}
-		})
+		t.Run(
+			test.name,
+			func(t *testing.T) {
+				if test.configure != nil {
+					test.configure()
+				}
+				reader := poolTestReader(t, scheme, provider.DeepCopy())
+				pool := &agentzv1alpha1.InferencePool{
+					ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
+					Spec:       agentzv1alpha1.InferencePoolSpec{Members: test.members},
+				}
+				_, issues, err := ResolvePool(context.Background(), reader, pool)
+				if err != nil {
+					t.Fatalf("ResolvePool() error = %v", err)
+				}
+				if len(issues) == 0 || issues[0].Field != test.field {
+					t.Fatalf("ResolvePool() issues = %#v, want first field %q", issues, test.field)
+				}
+			},
+		)
 	}
 }
 
@@ -341,11 +346,15 @@ func TestRenderPoolBackend(t *testing.T) {
 func TestRenderSandboxPoolTarget(t *testing.T) {
 	t.Parallel()
 
-	runtime := RenderSandboxTarget("default", "sandbox", SandboxTarget{
-		Name: "pool", Backend: "pool", Path: SandboxPoolPath("sandbox", "pool"),
-		Models: []string{"pool"}, Labels: map[string]string{PoolLabel: "pool"},
-		Retries: 1,
-	})
+	runtime := RenderSandboxTarget(
+		"default",
+		"sandbox",
+		SandboxTarget{
+			Name: "pool", Backend: "pool", Path: SandboxPoolPath("sandbox", "pool"),
+			Models: []string{"pool"}, Labels: map[string]string{PoolLabel: "pool"},
+			Retries: 1,
+		},
+	)
 	match := runtime.Route.Spec.Rules[0].Matches[0].Path
 	if match == nil || match.Value == nil || *match.Value != "/sandboxes/sandbox/pools/pool" {
 		t.Fatalf("route path = %#v", match)
@@ -386,14 +395,17 @@ func poolTestReader(t testing.TB, scheme *runtime.Scheme, providers ...*agentzv1
 		t.Fatal(err)
 	}
 	objects := make([]client.Object, 0, len(providers)+1)
-	objects = append(objects, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "default",
-			Labels: map[string]string{
-				agentzv1alpha1.TenantNameLabel: "default",
+	objects = append(
+		objects,
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "default",
+				Labels: map[string]string{
+					agentzv1alpha1.TenantNameLabel: "default",
+				},
 			},
 		},
-	})
+	)
 	for _, provider := range providers {
 		objects = append(objects, provider)
 	}

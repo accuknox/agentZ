@@ -26,7 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -65,11 +65,14 @@ func (v *Validator) ValidateUpdate(ctx context.Context, oldAgt, newAgt *agentzv1
 	allErrs := v.validateAgent(ctx, newAgt)
 	if oldAgt.Spec.NixStoreSize.Cmp(newAgt.Spec.NixStoreSize) != 0 {
 		path := field.NewPath("spec").Child("nixStoreSize")
-		allErrs = append(allErrs, field.Invalid(
-			path,
-			newAgt.Spec.NixStoreSize.String(),
-			"field is immutable",
-		))
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				path,
+				newAgt.Spec.NixStoreSize.String(),
+				"field is immutable",
+			),
+		)
 	}
 	if len(allErrs) == 0 {
 		return nil, nil
@@ -92,31 +95,45 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 	specPath := field.NewPath("spec")
 
 	if agt.Name == agentzv1alpha1.AgentNameMCPConnection {
-		allErrs = append(allErrs, field.Invalid(
-			field.NewPath("metadata").Child("name"),
-			agt.Name,
-			"reserved agent name",
-		))
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				field.NewPath("metadata").Child("name"),
+				agt.Name,
+				"reserved agent name",
+			),
+		)
 	}
 
 	if strings.TrimSpace(agt.Spec.SandboxRef.Name) == "" {
-		allErrs = append(allErrs, field.Required(
-			specPath.Child("sandboxRef").Child("name"),
-			"field is required",
-		))
+		allErrs = append(
+			allErrs,
+			field.Required(
+				specPath.Child("sandboxRef").Child("name"),
+				"field is required",
+			),
+		)
 	}
 	if v.client != nil && agt.Spec.SandboxRef.Name != "" {
-		namespace, err := scoperesolver.SelectedNamespace(ctx, v.client, agt.Namespace, scoperesolver.Selection{
-			Scope: agt.Spec.SandboxRef.Scope,
-			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
-			Name:  agt.Spec.SandboxRef.Name,
-		})
+		namespace, err := scope.SelectedNamespace(
+			ctx,
+			v.client,
+			agt.Namespace,
+			scope.Selection{
+				Scope: agt.Spec.SandboxRef.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+				Name:  agt.Spec.SandboxRef.Name,
+			},
+		)
 		if err != nil {
-			allErrs = append(allErrs, field.Invalid(
-				specPath.Child("sandboxRef").Child("scope"),
-				agt.Spec.SandboxRef.Scope,
-				"scope cannot be resolved from the Agent namespace",
-			))
+			allErrs = append(
+				allErrs,
+				field.Invalid(
+					specPath.Child("sandboxRef").Child("scope"),
+					agt.Spec.SandboxRef.Scope,
+					"scope cannot be resolved from the Agent namespace",
+				),
+			)
 			return allErrs
 		}
 		sandbox := &agentzv1alpha1.Sandbox{}
@@ -124,34 +141,51 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 		err = v.client.Get(ctx, key, sandbox)
 		switch {
 		case apierrors.IsNotFound(err):
-			allErrs = append(allErrs, field.NotFound(
-				specPath.Child("sandboxRef").Child("name"), agt.Spec.SandboxRef.Name,
-			))
+			allErrs = append(
+				allErrs,
+				field.NotFound(
+					specPath.Child("sandboxRef").Child("name"),
+					agt.Spec.SandboxRef.Name,
+				),
+			)
 		case err != nil:
-			allErrs = append(allErrs, field.InternalError(
-				specPath.Child("sandboxRef").Child("name"), fmt.Errorf("get sandbox: %w", err),
-			))
+			allErrs = append(
+				allErrs,
+				field.InternalError(
+					specPath.Child("sandboxRef").Child("name"),
+					fmt.Errorf("get sandbox: %w", err),
+				),
+			)
 		case !sandbox.DeletionTimestamp.IsZero():
-			allErrs = append(allErrs, field.Forbidden(
-				specPath.Child("sandboxRef").Child("name"),
-				"referenced sandbox is terminating",
-			))
+			allErrs = append(
+				allErrs,
+				field.Forbidden(
+					specPath.Child("sandboxRef").Child("name"),
+					"referenced sandbox is terminating",
+				),
+			)
 		}
 	}
 
 	if strings.TrimSpace(agt.Spec.Instruction) == "" && agt.Spec.Instruction != "" {
-		allErrs = append(allErrs, field.Invalid(
-			specPath.Child("instruction"),
-			agt.Spec.Instruction,
-			"instruction must not be empty",
-		))
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				specPath.Child("instruction"),
+				agt.Spec.Instruction,
+				"instruction must not be empty",
+			),
+		)
 	}
 	if len(agt.Spec.Instruction) > 4096 {
-		allErrs = append(allErrs, field.Invalid(
-			specPath.Child("instruction"),
-			agt.Spec.Instruction,
-			"instruction must be at most 4096 characters",
-		))
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				specPath.Child("instruction"),
+				agt.Spec.Instruction,
+				"instruction must be at most 4096 characters",
+			),
+		)
 	}
 	return allErrs
 }

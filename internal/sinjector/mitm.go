@@ -15,9 +15,12 @@ import (
 // leaf certificate for host, signed by the CA. The ALPN is forced to http/1.1
 // so the client cannot negotiate HTTP/2, which we do not inspect.
 func mitmServerConfig(host string, ca *tls.Certificate, cache *certStore) (*tls.Config, error) {
-	cert, err := cache.Get(host, func() (*tls.Certificate, error) {
-		return signHost(*ca, []string{host})
-	})
+	cert, err := cache.Get(
+		host,
+		func() (*tls.Certificate, error) {
+			return signHost(*ca, []string{host})
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

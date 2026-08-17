@@ -52,6 +52,21 @@ type sandboxQueries struct {
 	workspace   gatewaydb.Workspace
 }
 
+type generatedSandboxListCase struct {
+	name         string
+	workspaceID  string
+	permissionNS string
+	wantSandbox  string
+}
+
+type sandboxMutationAuthorizationCase struct {
+	name       string
+	userID     string
+	operation  authorization.Operation
+	action     gatewaydb.PermissionAction
+	wantStatus int
+}
+
 func (q *sandboxQueries) GatewayResolvePermissions(context.Context, gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
 	return q.permissions, nil
 }
@@ -76,12 +91,7 @@ func (q *sandboxQueries) GatewayListUsersByID(context.Context, []string) ([]gate
 func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		workspaceID  string
-		permissionNS string
-		wantSandbox  string
-	}{
+	tests := []generatedSandboxListCase{
 		{
 			name:        "Organisation",
 			wantSandbox: "organization-sandbox",
@@ -94,70 +104,70 @@ func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				t.Parallel()
 
-			queries := &sandboxQueries{
-				permissions: []gatewaydb.GatewayResolvePermissionsRow{{
-					Active: true,
-					WorkspaceID: pgtype.Text{
-						String: tt.permissionNS,
-						Valid:  tt.permissionNS != "",
+				queries := &sandboxQueries{
+					permissions: []gatewaydb.GatewayResolvePermissionsRow{{
+						Active: true,
+						WorkspaceID: pgtype.Text{
+							String: tt.permissionNS,
+							Valid:  tt.permissionNS != "",
+						},
+						Resource: gatewaydb.NullPermissionResource{
+							PermissionResource: gatewaydb.PermissionResourceSandbox,
+							Valid:              true,
+						},
+						Action: gatewaydb.NullPermissionAction{
+							PermissionAction: gatewaydb.PermissionActionRead,
+							Valid:            true,
+						},
+					}},
+					workspace: gatewaydb.Workspace{
+						ID:             testWorkspaceID,
+						OrganizationID: testOrganizationID,
+						Namespace:      testWorkspaceNS,
+						State:          gatewaydb.WorkspaceStateReady,
 					},
-					Resource: gatewaydb.NullPermissionResource{
-						PermissionResource: gatewaydb.PermissionResourceSandbox,
-						Valid:              true,
+				}
+				svc := sandboxTestService(t, queries)
+				router := chi.NewRouter()
+				gatewayapi.HandlerWithOptions(
+					svc,
+					gatewayapi.ChiServerOptions{
+						BaseRouter:  router,
+						Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
 					},
-					Action: gatewaydb.NullPermissionAction{
-						PermissionAction: gatewaydb.PermissionActionRead,
-						Valid:            true,
-					},
-				}},
-				workspace: gatewaydb.Workspace{
-					ID:             testWorkspaceID,
-					OrganizationID: testOrganizationID,
-					Namespace:      testWorkspaceNS,
-					State:          gatewaydb.WorkspaceStateReady,
-				},
-			}
-			svc := sandboxTestService(t, queries)
-			router := chi.NewRouter()
-			gatewayapi.HandlerWithOptions(svc, gatewayapi.ChiServerOptions{
-				BaseRouter:  router,
-				Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
-			})
+				)
 
-			req := httptest.NewRequest(http.MethodGet, "/api/sandbox", nil)
-			if tt.workspaceID != "" {
-				req.Header.Set("X-AgentZ-Workspace-ID", tt.workspaceID)
-			}
-			res := httptest.NewRecorder()
-			router.ServeHTTP(res, req)
-			if res.Code != http.StatusOK {
-				t.Fatalf("status = %d, body = %s", res.Code, res.Body.String())
-			}
+				req := httptest.NewRequest(http.MethodGet, "/api/sandbox", nil)
+				if tt.workspaceID != "" {
+					req.Header.Set("X-AgentZ-Workspace-ID", tt.workspaceID)
+				}
+				res := httptest.NewRecorder()
+				router.ServeHTTP(res, req)
+				if res.Code != http.StatusOK {
+					t.Fatalf("status = %d, body = %s", res.Code, res.Body.String())
+				}
 
-			var body gatewayapi.ListSandboxesResponse
-			if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
-				t.Fatalf("decode response: %v", err)
-			}
-			if len(body.Sandboxes) != 1 || body.Sandboxes[0].Name != tt.wantSandbox {
-				t.Fatalf("sandboxes = %#v, want only %q", body.Sandboxes, tt.wantSandbox)
-			}
-		})
+				var body gatewayapi.ListSandboxesResponse
+				if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+					t.Fatalf("decode response: %v", err)
+				}
+				if len(body.Sandboxes) != 1 || body.Sandboxes[0].Name != tt.wantSandbox {
+					t.Fatalf("sandboxes = %#v, want only %q", body.Sandboxes, tt.wantSandbox)
+				}
+			},
+		)
 	}
 }
 
 func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name       string
-		userID     string
-		operation  authorization.Operation
-		action     gatewaydb.PermissionAction
-		wantStatus int
-	}{
+	tests := []sandboxMutationAuthorizationCase{
 		{
 			name:      "creator with Create may modify",
 			userID:    testUserID,
@@ -207,14 +217,22 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 			}}}
 			svc := sandboxTestService(t, queries)
 			ctx := context.Background()
-			ctx = context.WithValue(ctx, authContextKey{}, requestAuth{claims: &gatewayClaims{
-				OrganizationID: testOrganizationID,
-				UserID:         tt.userID,
-			}})
-			ctx = context.WithValue(ctx, tenantContextKey{}, tenantRequest{tenant: &agentzv1alpha1.Tenant{
-				Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},
-				Status: agentzv1alpha1.TenantStatus{Namespace: testOrgNamespace},
-			}})
+			ctx = context.WithValue(
+				ctx,
+				authContextKey{},
+				requestAuth{claims: &gatewayClaims{
+					OrganizationID: testOrganizationID,
+					UserID:         tt.userID,
+				}},
+			)
+			ctx = context.WithValue(
+				ctx,
+				tenantContextKey{},
+				tenantRequest{tenant: &agentzv1alpha1.Tenant{
+					Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},
+					Status: agentzv1alpha1.TenantStatus{Namespace: testOrgNamespace},
+				}},
+			)
 			scope, ok := tt.operation.BearerScope()
 			if !ok {
 				t.Fatalf("operation %q is not mapped", tt.operation)
@@ -223,7 +241,10 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 			ctx = context.WithValue(ctx, gatewayapi.GatewayBearerScopes, []string{scope}) //nolint:staticcheck
 
 			_, apiErr := svc.resolveSandboxAccess(
-				ctx, "", "organization-sandbox", tt.operation,
+				ctx,
+				"",
+				"organization-sandbox",
+				tt.operation,
 			)
 			if tt.wantStatus == 0 && apiErr != nil {
 				t.Fatalf("error = %#v, want authorized", apiErr)
@@ -379,15 +400,23 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 func sandboxTestAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		workspaceID := r.Header.Get("X-AgentZ-Workspace-ID")
-		ctx := context.WithValue(r.Context(), authContextKey{}, requestAuth{claims: &gatewayClaims{
-			OrganizationID: testOrganizationID,
-			WorkspaceID:    workspaceID,
-			UserID:         testUserID,
-		}})
-		ctx = context.WithValue(ctx, tenantContextKey{}, tenantRequest{tenant: &agentzv1alpha1.Tenant{
-			Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},
-			Status: agentzv1alpha1.TenantStatus{Namespace: testOrgNamespace},
-		}})
+		ctx := context.WithValue(
+			r.Context(),
+			authContextKey{},
+			requestAuth{claims: &gatewayClaims{
+				OrganizationID: testOrganizationID,
+				WorkspaceID:    workspaceID,
+				UserID:         testUserID,
+			}},
+		)
+		ctx = context.WithValue(
+			ctx,
+			tenantContextKey{},
+			tenantRequest{tenant: &agentzv1alpha1.Tenant{
+				Spec:   agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},
+				Status: agentzv1alpha1.TenantStatus{Namespace: testOrgNamespace},
+			}},
+		)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

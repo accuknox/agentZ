@@ -40,7 +40,9 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 	}
 
 	scope, targets, err := s.resolveAPIKeyTargets(
-		r.Context(), key, gatewaydb.ApiKeyTargetTypeAgent,
+		r.Context(),
+		key,
+		gatewaydb.ApiKeyTargetTypeAgent,
 	)
 	if err != nil {
 		return requestAuth{}, invalidAPIKeyAuthError(err)
@@ -50,7 +52,7 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 	if agentName == "" {
 		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
 	}
-	allowed := false
+	var allowed bool
 	for _, target := range targets {
 		if target.AgentName == agentName {
 			allowed = true
@@ -89,7 +91,9 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 	}
 
 	scope, targets, err := s.resolveAPIKeyTargets(
-		r.Context(), key, gatewaydb.ApiKeyTargetTypeWorkflow,
+		r.Context(),
+		key,
+		gatewaydb.ApiKeyTargetTypeWorkflow,
 	)
 	if err != nil {
 		return requestAuth{}, invalidAPIKeyAuthError(err)
@@ -100,7 +104,7 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 	if agentName == "" || workflowName == "" {
 		return requestAuth{}, invalidAPIKeyAuthError(errBadRequest)
 	}
-	allowed := false
+	var allowed bool
 	for _, target := range targets {
 		if target.AgentName == agentName && target.WorkflowName == workflowName {
 			allowed = true
@@ -145,17 +149,23 @@ type apiKeyScope struct {
 }
 
 func (s *Service) apiKeyScope(ctx context.Context, key gatewaydb.GatewayGetAPIKeyByHashRow) (apiKeyScope, error) {
-	scope, err := s.queries.GatewayGetAPIKeyScopeByKey(ctx, gatewaydb.GatewayGetAPIKeyScopeByKeyParams{
-		ApiKeyID:       key.ID,
-		OrganizationID: key.ReferenceID,
-	})
+	scope, err := s.queries.GatewayGetAPIKeyScopeByKey(
+		ctx,
+		gatewaydb.GatewayGetAPIKeyScopeByKeyParams{
+			ApiKeyID:       key.ID,
+			OrganizationID: key.ReferenceID,
+		},
+	)
 	if err != nil {
 		return apiKeyScope{}, fmt.Errorf("resolve api key scope: %w", err)
 	}
-	workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-		ID:             scope.WorkspaceID,
-		OrganizationID: scope.OrganizationID,
-	})
+	workspace, err := s.queries.GatewayGetWorkspace(
+		ctx,
+		gatewaydb.GatewayGetWorkspaceParams{
+			ID:             scope.WorkspaceID,
+			OrganizationID: scope.OrganizationID,
+		},
+	)
 	if err != nil {
 		return apiKeyScope{}, fmt.Errorf("resolve api key workspace: %w", err)
 	}
@@ -212,10 +222,13 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 		UserID:         scope.CreatorUserID,
 		WorkspaceID:    scope.WorkspaceID,
 	}
-	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID:         scope.CreatorUserID,
-		OrganizationID: scope.OrganizationID,
-	})
+	effective, err := authorization.New(s.queries).Resolve(
+		ctx,
+		authorization.Subject{
+			UserID:         scope.CreatorUserID,
+			OrganizationID: scope.OrganizationID,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("resolve api key creator permissions: %w", err)
 	}
@@ -228,11 +241,14 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 	workflows := workflowdb.New(s.db)
 	for _, target := range targets {
 		if _, ok := validatedAgents[target.AgentName]; !ok {
-			_, err := s.queries.GatewayGetAgentOwner(ctx, gatewaydb.GatewayGetAgentOwnerParams{
-				OrganizationID: scope.OrganizationID,
-				WorkspaceID:    scope.WorkspaceID,
-				AgentName:      target.AgentName,
-			})
+			_, err := s.queries.GatewayGetAgentOwner(
+				ctx,
+				gatewaydb.GatewayGetAgentOwnerParams{
+					OrganizationID: scope.OrganizationID,
+					WorkspaceID:    scope.WorkspaceID,
+					AgentName:      target.AgentName,
+				},
+			)
 			if err != nil {
 				if !errors.Is(err, pgx.ErrNoRows) {
 					return fmt.Errorf("resolve api key Agent target: %w", err)
@@ -244,7 +260,10 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 				return errors.New(reason)
 			}
 			allowed, err := s.agentOperationAllowed(
-				ctx, access, target.AgentName, authorization.OperationUseSharedAgent,
+				ctx,
+				access,
+				target.AgentName,
+				authorization.OperationUseSharedAgent,
 			)
 			if err != nil {
 				return err
@@ -262,11 +281,14 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 		if target.TargetType != gatewaydb.ApiKeyTargetTypeWorkflow {
 			continue
 		}
-		_, err := workflows.WorkflowGet(ctx, workflowdb.WorkflowGetParams{
-			TenantNamespace: scope.TenantNamespace,
-			AgentName:       target.AgentName,
-			WorkflowName:    target.WorkflowName,
-		})
+		_, err := workflows.WorkflowGet(
+			ctx,
+			workflowdb.WorkflowGetParams{
+				TenantNamespace: scope.TenantNamespace,
+				AgentName:       target.AgentName,
+				WorkflowName:    target.WorkflowName,
+			},
+		)
 		if err == nil {
 			continue
 		}
@@ -284,15 +306,18 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 
 func (s *Service) revokeAPIKeyScope(ctx context.Context, scope apiKeyScope, reason string) error {
 	now := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
-	_, err := s.queries.GatewayRevokeScopedAPIKey(ctx, gatewaydb.GatewayRevokeScopedAPIKeyParams{
-		ApiKeyID:       scope.ApiKeyID,
-		EventTrailID:   "event-trail-" + uuid.NewString(),
-		OrganizationID: scope.OrganizationID,
-		WorkspaceID:    scope.WorkspaceID,
-		RevokedAt:      now,
-		RevokedReason:  pgtype.Text{String: reason, Valid: true},
-		UpdatedAt:      pgtype.Timestamp{Time: now.Time, Valid: true},
-	})
+	_, err := s.queries.GatewayRevokeScopedAPIKey(
+		ctx,
+		gatewaydb.GatewayRevokeScopedAPIKeyParams{
+			ApiKeyID:       scope.ApiKeyID,
+			EventTrailID:   "event-trail-" + uuid.NewString(),
+			OrganizationID: scope.OrganizationID,
+			WorkspaceID:    scope.WorkspaceID,
+			RevokedAt:      now,
+			RevokedReason:  pgtype.Text{String: reason, Valid: true},
+			UpdatedAt:      pgtype.Timestamp{Time: now.Time, Valid: true},
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("revoke api key scope: %w", err)
 	}

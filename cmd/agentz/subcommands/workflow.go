@@ -66,13 +66,16 @@ var workflowRunScheduleCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return workflow.RunSchedule(ctx, workflow.Config{
-			Namespace:      c.String("namespace"),
-			ScheduleName:   c.String("schedule-name"),
-			AgentName:      c.String("agent-name"),
-			WorkflowName:   c.String("workflow-name"),
-			InputsJSON:     c.String("inputs-json"),
-			TimeoutSeconds: int32(c.Int("timeout-seconds")),
-		})
+		return workflow.RunSchedule(
+			ctx,
+			workflow.Config{
+				Namespace:      c.String("namespace"),
+				ScheduleName:   c.String("schedule-name"),
+				AgentName:      c.String("agent-name"),
+				WorkflowName:   c.String("workflow-name"),
+				InputsJSON:     c.String("inputs-json"),
+				TimeoutSeconds: int32(c.Int("timeout-seconds")),
+			},
+		)
 	},
 }

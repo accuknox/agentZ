@@ -45,9 +45,12 @@ func (s *Service) resolveOAuthAccessToken(ctx context.Context, conn *agentzv1alp
 		return record.Token.AccessToken, auth.Location, false, nil
 	}
 
-	result, err, _ := s.sf.Do(conn.Namespace+"/"+conn.Name, func() (any, error) {
-		return s.refreshOAuthToken(ctx, conn)
-	})
+	result, err, _ := s.sf.Do(
+		conn.Namespace+"/"+conn.Name,
+		func() (any, error) {
+			return s.refreshOAuthToken(ctx, conn)
+		},
+	)
 	if err != nil {
 		return "", nil, true, err
 	}

@@ -92,21 +92,29 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	route, methodAllowed := matchOpenCodeRoute(r.Method, r.URL.Path)
 	if route == nil {
 		if methodAllowed {
-			writeError(w, r, newAPIError(
-				http.StatusMethodNotAllowed,
-				"method_not_allowed",
-				"method is not allowed for this route",
-				nil,
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusMethodNotAllowed,
+					"method_not_allowed",
+					"method is not allowed for this route",
+					nil,
+				),
+			)
 			return
 		}
 
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"route not found",
-			nil,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"route not found",
+				nil,
+			),
+		)
 		return
 	}
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, route.Operation)
@@ -117,12 +125,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	ns := access.namespace
 	resolved, err := s.resolver.resolveAgent(r.Context(), ns, agentName)
 	if err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"agent not found",
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				err,
+			),
+		)
 		return
 	}
 
@@ -134,35 +146,47 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	path, rawPath, err := openCodeUpstreamPath(r.URL, agentName)
 	if err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"route not found",
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"route not found",
+				err,
+			),
+		)
 		return
 	}
 
 	if opencodeProxyBodyLimitEnabled(r.Method) {
 		if r.ContentLength > opencodeProxyBodyLimitBytes {
-			writeError(w, r, newAPIError(
-				http.StatusRequestEntityTooLarge,
-				"request_too_large",
-				"request body exceeds the maximum allowed size",
-				nil,
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusRequestEntityTooLarge,
+					"request_too_large",
+					"request body exceeds the maximum allowed size",
+					nil,
+				),
+			)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
 	}
 	auth, _ := requestAuthState(r.Context())
 	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"bad_request",
-			"invalid OpenCode prompt",
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"bad_request",
+				"invalid OpenCode prompt",
+				err,
+			),
+		)
 		return
 	}
 
@@ -184,12 +208,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		FlushInterval:  -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				writeError(rw, req, newAPIError(
-					http.StatusRequestEntityTooLarge,
-					"request_too_large",
-					"request body exceeds the maximum allowed size",
-					proxyErr,
-				))
+				writeError(
+					rw,
+					req,
+					newAPIError(
+						http.StatusRequestEntityTooLarge,
+						"request_too_large",
+						"request body exceeds the maximum allowed size",
+						proxyErr,
+					),
+				)
 				return
 			}
 
@@ -198,12 +226,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			writeError(rw, req, newAPIError(
-				http.StatusBadGateway,
-				"proxy_error",
-				"request failed",
-				proxyErr,
-			))
+			writeError(
+				rw,
+				req,
+				newAPIError(
+					http.StatusBadGateway,
+					"proxy_error",
+					"request failed",
+					proxyErr,
+				),
+			)
 		},
 	}
 
@@ -239,7 +271,7 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		ID:      auth.actorID,
 		Name:    name,
 	}
-	attached := false
+	var attached bool
 	for i := range body.Parts {
 		partType, err := body.Parts[i].Discriminator()
 		if err != nil {
@@ -370,11 +402,14 @@ func deleteSessionTraces(ctx context.Context, store sessionTraceStore, target op
 		return fmt.Errorf("resolve tenant namespace: %w", err)
 	}
 
-	_, err = store.GatewayDeleteSessionTraces(ctx, gatewaydb.GatewayDeleteSessionTracesParams{
-		TenantNamespace: tenantNamespace,
-		AgentName:       target.agentName,
-		SessionID:       target.sessionID,
-	})
+	_, err = store.GatewayDeleteSessionTraces(
+		ctx,
+		gatewaydb.GatewayDeleteSessionTracesParams{
+			TenantNamespace: tenantNamespace,
+			AgentName:       target.agentName,
+			SessionID:       target.sessionID,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("delete session traces: %w", err)
 	}

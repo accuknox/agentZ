@@ -197,7 +197,11 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 		isSubscription = isSubscription || provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
 		if isSubscription {
 			runtime.AuthPolicy = RenderInferenceAuthPolicy(
-				provider.Namespace, provider.Name, nil, provider.Name, "",
+				provider.Namespace,
+				provider.Name,
+				nil,
+				provider.Name,
+				"",
 			)
 		}
 		return runtime, nil
@@ -207,18 +211,24 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 	path := CredentialPath(provider.Namespace, provider.Name, provider.Spec.Kind)
 	if !target.extractCredentials {
 		for secretKey, property := range target.secretKeys {
-			data = append(data, externalsecretsv1.ExternalSecretData{
-				SecretKey: secretKey,
-				RemoteRef: externalsecretsv1.ExternalSecretDataRemoteRef{
-					Key:      path,
-					Property: property,
+			data = append(
+				data,
+				externalsecretsv1.ExternalSecretData{
+					SecretKey: secretKey,
+					RemoteRef: externalsecretsv1.ExternalSecretDataRemoteRef{
+						Key:      path,
+						Property: property,
+					},
 				},
-			})
+			)
 		}
 	}
-	slices.SortFunc(data, func(a, b externalsecretsv1.ExternalSecretData) int {
-		return strings.Compare(a.SecretKey, b.SecretKey)
-	})
+	slices.SortFunc(
+		data,
+		func(a, b externalsecretsv1.ExternalSecretData) int {
+			return strings.Compare(a.SecretKey, b.SecretKey)
+		},
+	)
 	expected := make([]string, 0, len(target.secretKeys))
 	for key := range target.secretKeys {
 		expected = append(expected, key)
@@ -336,7 +346,12 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			}},
 		}
 		err := applyEndpoint(
-			&target.LLM, target.Policies, "https://chatgpt.com", "", "", false,
+			&target.LLM,
+			target.Policies,
+			"https://chatgpt.com",
+			"",
+			"",
+			false,
 		)
 		if err != nil {
 			return ProviderTarget{}, err
@@ -401,7 +416,12 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			},
 		}
 		err := applyEndpoint(
-			&target.LLM, target.Policies, GitHubCopilotAPIEndpoint, "", "", false,
+			&target.LLM,
+			target.Policies,
+			GitHubCopilotAPIEndpoint,
+			"",
+			"",
+			false,
 		)
 		if err != nil {
 			return ProviderTarget{}, err
@@ -519,7 +539,11 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			Formats: formats,
 		}
 		err := applyEndpoint(
-			&target.LLM, target.Policies, custom.BaseURL, custom.Path, custom.PathPrefix,
+			&target.LLM,
+			target.Policies,
+			custom.BaseURL,
+			custom.Path,
+			custom.PathPrefix,
 			custom.SkipTLSVerify,
 		)
 		if err != nil {
@@ -533,10 +557,13 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		if len(custom.Headers) > 0 {
 			set := make([]agentgatewayv1alpha1.HeaderTransformation, 0, len(custom.Headers))
 			for _, header := range custom.Headers {
-				set = append(set, agentgatewayv1alpha1.HeaderTransformation{
-					Name:  agentgatewayv1alpha1.HeaderName(header.Name),
-					Value: agentgatewayv1alpha1.CELExpression(strconv.Quote(header.Value)),
-				})
+				set = append(
+					set,
+					agentgatewayv1alpha1.HeaderTransformation{
+						Name:  agentgatewayv1alpha1.HeaderName(header.Name),
+						Value: agentgatewayv1alpha1.CELExpression(strconv.Quote(header.Value)),
+					},
+				)
 			}
 			target.Policies.Transformation = &agentgatewayv1alpha1.Transformation{
 				Request: &agentgatewayv1alpha1.Transform{Set: set},

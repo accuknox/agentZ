@@ -33,6 +33,33 @@ type permissionQueries struct {
 	params gatewaydb.GatewayResolvePermissionsParams
 }
 
+type allowsCase struct {
+	name      string
+	scope     authorization.Scope
+	operation authorization.Operation
+	want      bool
+}
+
+type resolveBehaviorCase struct {
+	name         string
+	rows         []gatewaydb.GatewayResolvePermissionsRow
+	queryErr     error
+	organization string
+	operation    authorization.Operation
+	wantActive   bool
+	wantAllowed  bool
+	wantErr      bool
+}
+
+type agentCapabilitiesCase struct {
+	name            string
+	owner           string
+	permissions     []gatewaydb.PermissionAction
+	shares          []gatewaydb.AgentShareCapability
+	want            authorization.AgentCapabilities
+	wantCoversShare bool
+}
+
 func (q *permissionQueries) GatewayResolvePermissions(_ context.Context, params gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
 	q.params = params
 	return q.rows, q.err
@@ -47,10 +74,13 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 		permissionRow(gatewaydb.PermissionResourceSandbox, "workspace-a", gatewaydb.PermissionActionModify),
 		permissionRow(gatewaydb.PermissionResourceSandbox, "workspace-b", gatewaydb.PermissionActionDelete),
 	}}
-	effective, err := authorization.New(queries).Resolve(context.Background(), authorization.Subject{
-		UserID:         "user-a",
-		OrganizationID: "organization-a",
-	})
+	effective, err := authorization.New(queries).Resolve(
+		context.Background(),
+		authorization.Subject{
+			UserID:         "user-a",
+			OrganizationID: "organization-a",
+		},
+	)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
@@ -58,12 +88,7 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 		t.Fatalf("Resolve() query params = %#v", queries.params)
 	}
 
-	tests := []struct {
-		name      string
-		scope     authorization.Scope
-		operation authorization.Operation
-		want      bool
-	}{
+	tests := []allowsCase{
 		{
 			name: "Organisation Read from first Role",
 			scope: authorization.Scope{
@@ -136,18 +161,22 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := effective.Allows(tt.scope, tt.operation); got != tt.want {
-				t.Errorf("Allows() = %t, want %t", got, tt.want)
-			}
-		})
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				t.Parallel()
+				if got := effective.Allows(tt.scope, tt.operation); got != tt.want {
+					t.Errorf("Allows() = %t, want %t", got, tt.want)
+				}
+			},
+		)
 	}
 
-	if effective.HasWorkspaceAccess(authorization.Scope{
+	crossOrganizationScope := authorization.Scope{
 		OrganizationID: "organization-b",
 		WorkspaceID:    "workspace-a",
-	}) {
+	}
+	if effective.HasWorkspaceAccess(crossOrganizationScope) {
 		t.Error("HasWorkspaceAccess() allowed a Workspace in another Organisation")
 	}
 }
@@ -155,16 +184,7 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		rows         []gatewaydb.GatewayResolvePermissionsRow
-		queryErr     error
-		organization string
-		operation    authorization.Operation
-		wantActive   bool
-		wantAllowed  bool
-		wantErr      bool
-	}{
+	tests := []resolveBehaviorCase{
 		{
 			name:         "Missing Membership",
 			rows:         []gatewaydb.GatewayResolvePermissionsRow{{}},
@@ -216,48 +236,44 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			queries := &permissionQueries{rows: tt.rows, err: tt.queryErr}
-			effective, err := authorization.New(queries).Resolve(
-				context.Background(),
-				authorization.Subject{
-					UserID:         "user-a",
-					OrganizationID: "organization-a",
-				},
-			)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("Resolve() error = %v, wantErr %t", err, tt.wantErr)
-			}
-			if err != nil {
-				return
-			}
-			if effective.Active() != tt.wantActive {
-				t.Errorf("Active() = %t, want %t", effective.Active(), tt.wantActive)
-			}
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				t.Parallel()
+				queries := &permissionQueries{rows: tt.rows, err: tt.queryErr}
+				effective, err := authorization.New(queries).Resolve(
+					context.Background(),
+					authorization.Subject{
+						UserID:         "user-a",
+						OrganizationID: "organization-a",
+					},
+				)
+				if (err != nil) != tt.wantErr {
+					t.Fatalf("Resolve() error = %v, wantErr %t", err, tt.wantErr)
+				}
+				if err != nil {
+					return
+				}
+				if effective.Active() != tt.wantActive {
+					t.Errorf("Active() = %t, want %t", effective.Active(), tt.wantActive)
+				}
 
-			allowed := effective.Allows(authorization.Scope{
-				OrganizationID: tt.organization,
-				WorkspaceID:    "workspace-a",
-			}, tt.operation)
-			if allowed != tt.wantAllowed {
-				t.Errorf("Allows() = %t, want %t", allowed, tt.wantAllowed)
-			}
-		})
+				allowed := effective.Allows(authorization.Scope{
+					OrganizationID: tt.organization,
+					WorkspaceID:    "workspace-a",
+				}, tt.operation)
+				if allowed != tt.wantAllowed {
+					t.Errorf("Allows() = %t, want %t", allowed, tt.wantAllowed)
+				}
+			},
+		)
 	}
 }
 
 func TestAgentCapabilities(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name            string
-		owner           string
-		permissions     []gatewaydb.PermissionAction
-		shares          []gatewaydb.AgentShareCapability
-		want            authorization.AgentCapabilities
-		wantCoversShare bool
-	}{
+	tests := []agentCapabilitiesCase{
 		{
 			name:            "shared use does not confer edit authority",
 			owner:           "user-b",
@@ -321,42 +337,48 @@ func TestAgentCapabilities(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			rows := make([]gatewaydb.GatewayResolvePermissionsRow, 0, len(tt.permissions))
-			for _, permission := range tt.permissions {
-				rows = append(rows, permissionRow(
-					gatewaydb.PermissionResourceAgent,
-					"workspace-a",
-					permission,
-				))
-			}
-			effective, err := authorization.New(&permissionQueries{rows: rows}).Resolve(
-				context.Background(),
-				authorization.Subject{UserID: "user-a", OrganizationID: "organization-a"},
-			)
-			if err != nil {
-				t.Fatalf("Resolve() error = %v", err)
-			}
-			got, err := effective.AgentCapabilities(
-				authorization.Scope{
-					OrganizationID: "organization-a",
-					WorkspaceID:    "workspace-a",
-				},
-				authorization.Agent{
-					Name: "agent-a", OwnerUserID: tt.owner, ShareGrants: tt.shares,
-				},
-			)
-			if err != nil {
-				t.Fatalf("AgentCapabilities() error = %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("AgentCapabilities() = %#v, want %#v", got, tt.want)
-			}
-			if len(tt.shares) > 0 && got.CoversShare(tt.shares) != tt.wantCoversShare {
-				t.Errorf("CoversShare() = %t, want %t", got.CoversShare(tt.shares), tt.wantCoversShare)
-			}
-		})
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				t.Parallel()
+				rows := make([]gatewaydb.GatewayResolvePermissionsRow, 0, len(tt.permissions))
+				for _, permission := range tt.permissions {
+					rows = append(
+						rows,
+						permissionRow(
+							gatewaydb.PermissionResourceAgent,
+							"workspace-a",
+							permission,
+						),
+					)
+				}
+				effective, err := authorization.New(&permissionQueries{rows: rows}).Resolve(
+					context.Background(),
+					authorization.Subject{UserID: "user-a", OrganizationID: "organization-a"},
+				)
+				if err != nil {
+					t.Fatalf("Resolve() error = %v", err)
+				}
+				got, err := effective.AgentCapabilities(
+					authorization.Scope{
+						OrganizationID: "organization-a",
+						WorkspaceID:    "workspace-a",
+					},
+					authorization.Agent{
+						Name: "agent-a", OwnerUserID: tt.owner, ShareGrants: tt.shares,
+					},
+				)
+				if err != nil {
+					t.Fatalf("AgentCapabilities() error = %v", err)
+				}
+				if got != tt.want {
+					t.Errorf("AgentCapabilities() = %#v, want %#v", got, tt.want)
+				}
+				if len(tt.shares) > 0 && got.CoversShare(tt.shares) != tt.wantCoversShare {
+					t.Errorf("CoversShare() = %t, want %t", got.CoversShare(tt.shares), tt.wantCoversShare)
+				}
+			},
+		)
 	}
 }
 

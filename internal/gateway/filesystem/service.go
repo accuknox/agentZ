@@ -92,7 +92,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	errCh := make(chan error, 1)
 	go func() {
 		slog.InfoContext(
-			ctx, "starting workspace filesystem server",
+			ctx,
+			"starting workspace filesystem server",
 			slog.String("addr", cfg.Addr),
 			slog.String("root", cfg.Root),
 		)
@@ -237,7 +238,8 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 		err := s.root.Remove(tmp)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			slog.ErrorContext(
-				r.Context(), "remove temporary file",
+				r.Context(),
+				"remove temporary file",
 				slog.String("path", req.Path),
 				slog.Any("err", err),
 			)
@@ -405,7 +407,8 @@ func (s *service) writeRaw(w http.ResponseWriter, r *http.Request) {
 		err := s.root.Remove(tmp)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			slog.ErrorContext(
-				r.Context(), "remove temporary raw file",
+				r.Context(),
+				"remove temporary raw file",
 				slog.String("path", name),
 				slog.Any("err", err),
 			)
@@ -749,7 +752,8 @@ func internalFailure(message string, err error) *failure {
 func writeFailure(w http.ResponseWriter, r *http.Request, ferr *failure) {
 	if ferr.status >= http.StatusInternalServerError {
 		slog.ErrorContext(
-			r.Context(), "filesystem request failed",
+			r.Context(),
+			"filesystem request failed",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.String("code", ferr.code),
@@ -757,17 +761,25 @@ func writeFailure(w http.ResponseWriter, r *http.Request, ferr *failure) {
 		)
 	}
 	if ferr.current != nil {
-		writeJSON(w, ferr.status, gatewayapi.AgentFileConflict{
-			Code:    gatewayapi.FileVersionConflict,
-			Current: *ferr.current,
-			Message: ferr.message,
-		})
+		writeJSON(
+			w,
+			ferr.status,
+			gatewayapi.AgentFileConflict{
+				Code:    gatewayapi.FileVersionConflict,
+				Current: *ferr.current,
+				Message: ferr.message,
+			},
+		)
 		return
 	}
-	writeJSON(w, ferr.status, gatewayapi.Error{
-		Code:    ferr.code,
-		Message: ferr.message,
-	})
+	writeJSON(
+		w,
+		ferr.status,
+		gatewayapi.Error{
+			Code:    ferr.code,
+			Message: ferr.message,
+		},
+	)
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

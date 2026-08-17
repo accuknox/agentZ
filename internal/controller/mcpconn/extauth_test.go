@@ -37,11 +37,12 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	}}
 
 	scheme := runtime.NewScheme()
-	for _, add := range []func(*runtime.Scheme) error{
+	adders := []func(*runtime.Scheme) error{
 		corev1.AddToScheme,
 		rbacv1.AddToScheme,
 		agentzv1alpha1.AddToScheme,
-	} {
+	}
+	for _, add := range adders {
 		if err := add(scheme); err != nil {
 			t.Fatalf("add scheme: %v", err)
 		}

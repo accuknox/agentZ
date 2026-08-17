@@ -19,16 +19,22 @@ func ValidateLookupRequest(agtName string, wfName string) []gatewayapi.FieldErro
 	fields := make([]gatewayapi.FieldError, 0, 2)
 
 	if !isDNSLabel(agtName, 32) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "agentName",
-			Message: "must be a valid DNS label",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "agentName",
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 	if !isDNSLabel(wfName, 32) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "workflowName",
-			Message: "must be a valid DNS label",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "workflowName",
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 
 	return fields
@@ -62,17 +68,23 @@ func ValidateDeleteRequest(agtName string, wfNames []string) []gatewayapi.FieldE
 	fields := make([]gatewayapi.FieldError, 0, len(wfNames)+1)
 
 	if !isDNSLabel(agtName, 32) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "agentName",
-			Message: "must be a valid DNS label",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "agentName",
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 
 	if len(wfNames) == 0 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "workflow_names",
-			Message: "must include at least one workflow name",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "workflow_names",
+				Message: "must include at least one workflow name",
+			},
+		)
 		return fields
 	}
 
@@ -81,10 +93,13 @@ func ValidateDeleteRequest(agtName string, wfNames []string) []gatewayapi.FieldE
 			continue
 		}
 
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   fmt.Sprintf("workflow_names.%d", i),
-			Message: "must be a valid DNS label",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   fmt.Sprintf("workflow_names.%d", i),
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 
 	return fields
@@ -95,44 +110,62 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 	fields := make([]gatewayapi.FieldError, 0)
 
 	if !isDNSLabel(agtName, 32) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "agentName",
-			Message: "must be a valid DNS label",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "agentName",
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 	if !isDNSLabel(req.WorkflowName, 32) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "workflow_name",
-			Message: "must be a valid DNS label",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "workflow_name",
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 	if strings.TrimSpace(req.Title) == "" {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "title",
-			Message: "required",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "title",
+				Message: "required",
+			},
+		)
 	}
 	if strings.TrimSpace(req.Summary) == "" {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "summary",
-			Message: "required",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "summary",
+				Message: "required",
+			},
+		)
 	}
 	inputIssues, err := workflow.ValidateDefinition(req.Inputs, req.ArbitraryJson)
 	if err != nil {
 		return nil, err
 	}
 	for _, issue := range inputIssues {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   issue.Field,
-			Message: issue.Message,
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   issue.Field,
+				Message: issue.Message,
+			},
+		)
 	}
 	if len(req.Nodes) == 0 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "nodes",
-			Message: "must include at least one node",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "nodes",
+				Message: "must include at least one node",
+			},
+		)
 		return fields, nil
 	}
 
@@ -146,17 +179,23 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 		name := node.Name
 		fieldPrefix := "nodes." + strconv.Itoa(nodeIndexValue)
 		if !isDNSLabel(name, 64) {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".name",
-				Message: "must be a valid DNS label",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".name",
+					Message: "must be a valid DNS label",
+				},
+			)
 			continue
 		}
 		if _, exists := nodeIndex[name]; exists {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".name",
-				Message: "must be unique",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".name",
+					Message: "must be unique",
+				},
+			)
 			continue
 		}
 
@@ -167,22 +206,31 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 		undirected[name] = []string{}
 
 		if strings.TrimSpace(node.Instructions) == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".instructions",
-				Message: "required",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".instructions",
+					Message: "required",
+				},
+			)
 		}
 		if strings.TrimSpace(node.Goal) == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".goal",
-				Message: "required",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".goal",
+					Message: "required",
+				},
+			)
 		}
 		if strings.TrimSpace(node.DoneCriteria) == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".done_criteria",
-				Message: "required",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".done_criteria",
+					Message: "required",
+				},
+			)
 		}
 
 		if node.PreferredTools != nil {
@@ -190,17 +238,23 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 			for toolIndex, toolName := range *node.PreferredTools {
 				field := fieldPrefix + ".preferred_tools." + strconv.Itoa(toolIndex)
 				if toolName == "" {
-					fields = append(fields, gatewayapi.FieldError{
-						Field:   field,
-						Message: "must not be empty",
-					})
+					fields = append(
+						fields,
+						gatewayapi.FieldError{
+							Field:   field,
+							Message: "must not be empty",
+						},
+					)
 					continue
 				}
 				if _, exists := seenTools[toolName]; exists {
-					fields = append(fields, gatewayapi.FieldError{
-						Field:   field,
-						Message: "must be unique within the node",
-					})
+					fields = append(
+						fields,
+						gatewayapi.FieldError{
+							Field:   field,
+							Message: "must be unique within the node",
+						},
+					)
 					continue
 				}
 				seenTools[toolName] = struct{}{}
@@ -212,24 +266,33 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 			for skillIndex, skillName := range *node.PreferredSkills {
 				field := fieldPrefix + ".preferred_skills." + strconv.Itoa(skillIndex)
 				if skillName == "" {
-					fields = append(fields, gatewayapi.FieldError{
-						Field:   field,
-						Message: "must not be empty",
-					})
+					fields = append(
+						fields,
+						gatewayapi.FieldError{
+							Field:   field,
+							Message: "must not be empty",
+						},
+					)
 					continue
 				}
 				if skill.ValidateName(skillName) != nil {
-					fields = append(fields, gatewayapi.FieldError{
-						Field:   field,
-						Message: "must be a valid skill name",
-					})
+					fields = append(
+						fields,
+						gatewayapi.FieldError{
+							Field:   field,
+							Message: "must be a valid skill name",
+						},
+					)
 					continue
 				}
 				if _, exists := seenSkills[skillName]; exists {
-					fields = append(fields, gatewayapi.FieldError{
-						Field:   field,
-						Message: "must be unique within the node",
-					})
+					fields = append(
+						fields,
+						gatewayapi.FieldError{
+							Field:   field,
+							Message: "must be unique within the node",
+						},
+					)
 					continue
 				}
 				seenSkills[skillName] = struct{}{}
@@ -243,22 +306,31 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 		target := edge.Target
 
 		if _, exists := nodeIndex[source]; !exists {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".source",
-				Message: "must reference an existing node",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".source",
+					Message: "must reference an existing node",
+				},
+			)
 		}
 		if _, exists := nodeIndex[target]; !exists {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".target",
-				Message: "must reference an existing node",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".target",
+					Message: "must reference an existing node",
+				},
+			)
 		}
 		if source == target && source != "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fieldPrefix + ".target",
-				Message: "must not create a self-loop",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fieldPrefix + ".target",
+					Message: "must not create a self-loop",
+				},
+			)
 		}
 
 		if _, sourceExists := nodeIndex[source]; sourceExists {
@@ -282,28 +354,40 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 	}
 
 	if hasCycle(adjacency, inDegree) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "edges",
-			Message: "must form an acyclic graph",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "edges",
+				Message: "must form an acyclic graph",
+			},
+		)
 	}
 	if !isWeaklyConnected(undirected, req.Nodes[0].Name) {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "nodes",
-			Message: "must form one connected graph",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "nodes",
+				Message: "must form one connected graph",
+			},
+		)
 	}
 	if countTerminalNodes(inDegree) == 0 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "nodes",
-			Message: "must include at least one start node",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "nodes",
+				Message: "must include at least one start node",
+			},
+		)
 	}
 	if countTerminalNodes(outDegree) == 0 {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "nodes",
-			Message: "must include at least one terminal node",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "nodes",
+				Message: "must include at least one terminal node",
+			},
+		)
 	}
 
 	fields = append(fields, validateBranchConditions(req, outDegree)...)
@@ -388,10 +472,13 @@ func validateBranchConditions(req gatewayapi.CreateWorkflowRequest, outDegree ma
 			continue
 		}
 
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "edges." + strconv.Itoa(edgeIndex) + ".condition_summary",
-			Message: "required when the source node has multiple outgoing edges",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "edges." + strconv.Itoa(edgeIndex) + ".condition_summary",
+				Message: "required when the source node has multiple outgoing edges",
+			},
+		)
 	}
 
 	return fields
@@ -426,10 +513,13 @@ func MapDeleteError(err error, missing []string) *apiutil.APIError {
 	if errors.Is(err, ErrWorkflowNotFound) {
 		fields := make([]gatewayapi.FieldError, 0, len(missing))
 		for _, name := range missing {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "workflow_names",
-				Message: fmt.Sprintf("workflow %q was not found", name),
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "workflow_names",
+					Message: fmt.Sprintf("workflow %q was not found", name),
+				},
+			)
 		}
 
 		return apiutil.NewError(

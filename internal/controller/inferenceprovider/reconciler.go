@@ -30,7 +30,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/openbao"
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -93,7 +93,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				corev1.EventTypeWarning,
 				"InvalidConfiguration",
 				"Reconcile",
-				"%s", err.Error(),
+				"%s",
+				err.Error(),
 			)
 		}
 		return ctrl.Result{}, statusErr
@@ -112,14 +113,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	currentBackend := &agentgatewayv1alpha1.AgentgatewayBackend{
 		ObjectMeta: metav1.ObjectMeta{Name: provider.Name, Namespace: provider.Namespace},
 	}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, currentBackend, func() error {
-		if currentBackend.UID != "" && !metav1.IsControlledBy(currentBackend, provider) {
-			return errors.New("inference backend name is already in use")
-		}
-		currentBackend.Labels = runtime.Backend.Labels
-		currentBackend.Spec = runtime.Backend.Spec
-		return ctrlutil.SetControllerReference(provider, currentBackend, r.Scheme)
-	})
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		currentBackend,
+		func() error {
+			if currentBackend.UID != "" && !metav1.IsControlledBy(currentBackend, provider) {
+				return errors.New("inference backend name is already in use")
+			}
+			currentBackend.Labels = runtime.Backend.Labels
+			currentBackend.Spec = runtime.Backend.Spec
+			return ctrlutil.SetControllerReference(provider, currentBackend, r.Scheme)
+		},
+	)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconcile inference backend: %w", err)
 	}
@@ -133,13 +139,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				Name: runtime.AuthPolicy.Name, Namespace: provider.Namespace,
 			},
 		}
-		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, currentPolicy, func() error {
-			if currentPolicy.UID != "" && !metav1.IsControlledBy(currentPolicy, provider) {
-				return errors.New("provider auth policy name is already in use")
-			}
-			currentPolicy.Spec = runtime.AuthPolicy.Spec
-			return ctrlutil.SetControllerReference(provider, currentPolicy, r.Scheme)
-		})
+		_, err = ctrlutil.CreateOrPatch(
+			ctx,
+			r.Client,
+			currentPolicy,
+			func() error {
+				if currentPolicy.UID != "" && !metav1.IsControlledBy(currentPolicy, provider) {
+					return errors.New("provider auth policy name is already in use")
+				}
+				currentPolicy.Spec = runtime.AuthPolicy.Spec
+				return ctrlutil.SetControllerReference(provider, currentPolicy, r.Scheme)
+			},
+		)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("reconcile provider auth policy: %w", err)
 		}
@@ -159,14 +170,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		currentExternalSecret := &externalsecretsv1.ExternalSecret{
 			ObjectMeta: metav1.ObjectMeta{Name: provider.Name, Namespace: provider.Namespace},
 		}
-		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, currentExternalSecret, func() error {
-			if currentExternalSecret.UID != "" && !metav1.IsControlledBy(currentExternalSecret, provider) {
-				return errors.New("provider external secret name is already in use")
-			}
-			currentExternalSecret.Labels = runtime.ExternalSecret.Labels
-			currentExternalSecret.Spec = runtime.ExternalSecret.Spec
-			return ctrlutil.SetControllerReference(provider, currentExternalSecret, r.Scheme)
-		})
+		_, err = ctrlutil.CreateOrPatch(
+			ctx,
+			r.Client,
+			currentExternalSecret,
+			func() error {
+				if currentExternalSecret.UID != "" && !metav1.IsControlledBy(currentExternalSecret, provider) {
+					return errors.New("provider external secret name is already in use")
+				}
+				currentExternalSecret.Labels = runtime.ExternalSecret.Labels
+				currentExternalSecret.Spec = runtime.ExternalSecret.Spec
+				return ctrlutil.SetControllerReference(provider, currentExternalSecret, r.Scheme)
+			},
+		)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("reconcile provider external secret: %w", err)
 		}
@@ -217,11 +233,16 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			if ref.Provider != provider.Name {
 				continue
 			}
-			ns, resolveErr := scoperesolver.SelectedNamespace(ctx, r.Client, sandboxes.Items[i].Namespace, scoperesolver.Selection{
-				Scope: ref.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-				Name:  ref.Provider,
-			})
+			ns, resolveErr := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				scope.Selection{
+					Scope: ref.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  ref.Provider,
+				},
+			)
 			if resolveErr == nil && ns == provider.Namespace {
 				err := fmt.Errorf("provider is still referenced by sandbox %q", sandboxes.Items[i].Name)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
@@ -246,11 +267,16 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			if ref.Provider != provider.Name {
 				continue
 			}
-			ns, resolveErr := scoperesolver.SelectedNamespace(ctx, r.Client, pools.Items[i].Namespace, scoperesolver.Selection{
-				Scope: ref.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-				Name:  ref.Provider,
-			})
+			ns, resolveErr := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				pools.Items[i].Namespace,
+				scope.Selection{
+					Scope: ref.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  ref.Provider,
+				},
+			)
 			if resolveErr == nil && ns == provider.Namespace {
 				err := fmt.Errorf("provider is still referenced by pool %q", pools.Items[i].Name)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
@@ -352,22 +378,28 @@ func (r *Reconciler) blockDeletion(ctx context.Context, provider *agentzv1alpha1
 			message,
 		)
 	}
-	statusErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.InferenceProvider{}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(provider), current); err != nil {
-			return client.IgnoreNotFound(err)
-		}
-		current.Status.State = agentzv1alpha1.InferenceProviderStateDegraded
-		current.Status.ObservedGeneration = current.Generation
-		meta.SetStatusCondition(&current.Status.Conditions, metav1.Condition{
-			Type:               string(agentzv1alpha1.InferenceProviderConditionReady),
-			Status:             metav1.ConditionFalse,
-			Reason:             reason,
-			Message:            message,
-			ObservedGeneration: current.Generation,
-		})
-		return r.Status().Update(ctx, current)
-	})
+	statusErr := retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.InferenceProvider{}
+			if err := r.Get(ctx, client.ObjectKeyFromObject(provider), current); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			current.Status.State = agentzv1alpha1.InferenceProviderStateDegraded
+			current.Status.ObservedGeneration = current.Generation
+			meta.SetStatusCondition(
+				&current.Status.Conditions,
+				metav1.Condition{
+					Type:               string(agentzv1alpha1.InferenceProviderConditionReady),
+					Status:             metav1.ConditionFalse,
+					Reason:             reason,
+					Message:            message,
+					ObservedGeneration: current.Generation,
+				},
+			)
+			return r.Status().Update(ctx, current)
+		},
+	)
 	return statusErr
 }
 
@@ -414,111 +446,117 @@ func (r *Reconciler) deleteCredentialResources(ctx context.Context, provider *ag
 }
 
 func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.InferenceProvider, runtime inference.Runtime, reconcileErr error) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.InferenceProvider{}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(provider), current); err != nil {
-			return client.IgnoreNotFound(err)
-		}
-		status := current.Status
-		status.ObservedGeneration = current.Generation
-		status.ModelCount = len(current.Spec.Models)
-		acceptedStatus := metav1.ConditionTrue
-		acceptedReason := "Accepted"
-		acceptedMessage := "Provider settings are valid"
-		if reconcileErr != nil {
-			acceptedStatus = metav1.ConditionFalse
-			acceptedReason = "InvalidConfiguration"
-			acceptedMessage = "Check the provider settings and try again"
-		}
-		meta.SetStatusCondition(&status.Conditions, metav1.Condition{
-			Type:   string(agentzv1alpha1.InferenceProviderConditionAccepted),
-			Status: acceptedStatus, Reason: acceptedReason, Message: acceptedMessage,
-			ObservedGeneration: current.Generation,
-		})
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.InferenceProvider{}
+			if err := r.Get(ctx, client.ObjectKeyFromObject(provider), current); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			status := current.Status
+			status.ObservedGeneration = current.Generation
+			status.ModelCount = len(current.Spec.Models)
+			acceptedStatus := metav1.ConditionTrue
+			acceptedReason := "Accepted"
+			acceptedMessage := "Provider settings are valid"
+			if reconcileErr != nil {
+				acceptedStatus = metav1.ConditionFalse
+				acceptedReason = "InvalidConfiguration"
+				acceptedMessage = "Check the provider settings and try again"
+			}
+			meta.SetStatusCondition(
+				&status.Conditions,
+				metav1.Condition{
+					Type:   string(agentzv1alpha1.InferenceProviderConditionAccepted),
+					Status: acceptedStatus, Reason: acceptedReason, Message: acceptedMessage,
+					ObservedGeneration: current.Generation,
+				},
+			)
 
-		credentialsReady := reconcileErr == nil && runtime.ExternalSecret == nil
-		credentialsMessage := "Authentication is not required"
-		isCodex := current.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
-		isCopilot := current.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
-		if isCodex || isCopilot {
-			credentialsMessage = "Subscription is connected"
-		}
-		if reconcileErr != nil {
-			credentialsMessage = "Authentication setup is incomplete"
-		}
-		if runtime.ExternalSecret != nil {
-			credentialsReady = externalSecretReady(runtime.ExternalSecret)
-			credentialsMessage = "Authentication is still being prepared"
-			secret := &corev1.Secret{}
-			err := r.Get(ctx, types.NamespacedName{Name: current.Name, Namespace: current.Namespace}, secret)
-			switch {
-			case err == nil:
-				keysReady := hasKeys(secret, runtime.SecretKeys)
-				credentialsReady = credentialsReady && keysReady
-				if !keysReady && r.Recorder != nil {
-					r.Recorder.Eventf(
-						current,
-						nil,
-						corev1.EventTypeWarning,
-						"CredentialKeysMissing",
-						"Reconcile",
-						"Target Secret is missing one or more expected credential keys",
-					)
+			credentialsReady := reconcileErr == nil && runtime.ExternalSecret == nil
+			credentialsMessage := "Authentication is not required"
+			isCodex := current.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+			isCopilot := current.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+			if isCodex || isCopilot {
+				credentialsMessage = "Subscription is connected"
+			}
+			if reconcileErr != nil {
+				credentialsMessage = "Authentication setup is incomplete"
+			}
+			if runtime.ExternalSecret != nil {
+				credentialsReady = externalSecretReady(runtime.ExternalSecret)
+				credentialsMessage = "Authentication is still being prepared"
+				secret := &corev1.Secret{}
+				err := r.Get(ctx, types.NamespacedName{Name: current.Name, Namespace: current.Namespace}, secret)
+				switch {
+				case err == nil:
+					keysReady := hasKeys(secret, runtime.SecretKeys)
+					credentialsReady = credentialsReady && keysReady
+					if !keysReady && r.Recorder != nil {
+						r.Recorder.Eventf(
+							current,
+							nil,
+							corev1.EventTypeWarning,
+							"CredentialKeysMissing",
+							"Reconcile",
+							"Target Secret is missing one or more expected credential keys",
+						)
+					}
+				case !apierrors.IsNotFound(err):
+					return fmt.Errorf("read provider target secret status: %w", err)
+				default:
+					credentialsReady = false
 				}
-			case !apierrors.IsNotFound(err):
-				return fmt.Errorf("read provider target secret status: %w", err)
-			default:
-				credentialsReady = false
+				if credentialsReady {
+					credentialsMessage = "Authentication is ready"
+				}
 			}
-			if credentialsReady {
-				credentialsMessage = "Authentication is ready"
-			}
-		}
-		setReadyCondition(
-			&status.Conditions,
-			string(agentzv1alpha1.InferenceProviderConditionCredentialsReady),
-			credentialsReady,
-			credentialsMessage,
-			current.Generation,
-		)
+			setReadyCondition(
+				&status.Conditions,
+				string(agentzv1alpha1.InferenceProviderConditionCredentialsReady),
+				credentialsReady,
+				credentialsMessage,
+				current.Generation,
+			)
 
-		backendReady := backendAccepted(runtime.Backend)
-		backendMessage := "Provider connection is still being prepared"
-		if backendReady {
-			backendMessage = "Provider connection is ready"
-		}
-		setReadyCondition(
-			&status.Conditions,
-			string(agentzv1alpha1.InferenceProviderConditionBackendReady),
-			backendReady,
-			backendMessage,
-			current.Generation,
-		)
-		ready := reconcileErr == nil && credentialsReady && backendReady
-		message := "Provider is ready"
-		if !ready {
-			message = "Provider setup is still in progress"
-		}
-		setReadyCondition(
-			&status.Conditions,
-			string(agentzv1alpha1.InferenceProviderConditionReady),
-			ready,
-			message,
-			current.Generation,
-		)
-		status.State = agentzv1alpha1.InferenceProviderStateAccepted
-		if ready {
-			status.State = agentzv1alpha1.InferenceProviderStateReady
-		}
-		if reconcileErr != nil {
-			status.State = agentzv1alpha1.InferenceProviderStateDegraded
-		}
-		if reflect.DeepEqual(current.Status, status) {
-			return nil
-		}
-		current.Status = status
-		return r.Status().Update(ctx, current)
-	})
+			backendReady := backendAccepted(runtime.Backend)
+			backendMessage := "Provider connection is still being prepared"
+			if backendReady {
+				backendMessage = "Provider connection is ready"
+			}
+			setReadyCondition(
+				&status.Conditions,
+				string(agentzv1alpha1.InferenceProviderConditionBackendReady),
+				backendReady,
+				backendMessage,
+				current.Generation,
+			)
+			ready := reconcileErr == nil && credentialsReady && backendReady
+			message := "Provider is ready"
+			if !ready {
+				message = "Provider setup is still in progress"
+			}
+			setReadyCondition(
+				&status.Conditions,
+				string(agentzv1alpha1.InferenceProviderConditionReady),
+				ready,
+				message,
+				current.Generation,
+			)
+			status.State = agentzv1alpha1.InferenceProviderStateAccepted
+			if ready {
+				status.State = agentzv1alpha1.InferenceProviderStateReady
+			}
+			if reconcileErr != nil {
+				status.State = agentzv1alpha1.InferenceProviderStateDegraded
+			}
+			if reflect.DeepEqual(current.Status, status) {
+				return nil
+			}
+			current.Status = status
+			return r.Status().Update(ctx, current)
+		},
+	)
 }
 
 func externalSecretReady(secret *externalsecretsv1.ExternalSecret) bool {
@@ -558,10 +596,13 @@ func setReadyCondition(conditions *[]metav1.Condition, conditionType string, rea
 		status = metav1.ConditionTrue
 		reason = "Ready"
 	}
-	meta.SetStatusCondition(conditions, metav1.Condition{
-		Type: conditionType, Status: status, Reason: reason, Message: message,
-		ObservedGeneration: generation,
-	})
+	meta.SetStatusCondition(
+		conditions,
+		metav1.Condition{
+			Type: conditionType, Status: status, Reason: reason, Message: message,
+			ObservedGeneration: generation,
+		},
+	)
 }
 
 func (r *Reconciler) openBaoMetadata(ctx context.Context) (*baoapi.KVv2, error) {
@@ -615,10 +656,13 @@ func (r *Reconciler) providersForSandbox(_ context.Context, obj client.Object) [
 			continue
 		}
 		providers[model.Provider] = struct{}{}
-		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
-			Namespace: sandbox.Namespace,
-			Name:      model.Provider,
-		}})
+		requests = append(
+			requests,
+			reconcile.Request{NamespacedName: types.NamespacedName{
+				Namespace: sandbox.Namespace,
+				Name:      model.Provider,
+			}},
+		)
 	}
 	return requests
 }

@@ -99,8 +99,11 @@ func ParseHostList(raw []string) ([]Host, error) {
 		seen[host.Value] = struct{}{}
 		hosts = append(hosts, host)
 	}
-	slices.SortFunc(hosts, func(a, b Host) int {
-		return strings.Compare(a.Value, b.Value)
-	})
+	slices.SortFunc(
+		hosts,
+		func(a, b Host) int {
+			return strings.Compare(a.Value, b.Value)
+		},
+	)
 	return hosts, nil
 }

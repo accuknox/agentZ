@@ -56,12 +56,17 @@ func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *agentzv1alp
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = name
 	current.Namespace = agt.Namespace
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = resourceLabels(agt)
-		current.Annotations = agt.Annotations
-		current.Spec = spec
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		current,
+		func() error {
+			current.Labels = resourceLabels(agt)
+			current.Annotations = agt.Annotations
+			current.Spec = spec
+			return ctrl.SetControllerReference(agt, current, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch egress policy: %w", err)
 	}
@@ -91,10 +96,13 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg san
 		uniqueHosts(egressHosts),
 		uniqueHosts(dnsHosts),
 	)
-	egress = append(egress, serviceEgressRules(
-		r.Config.GatewayURL,
-		agt.Spec.Telemetry.TraceEndpoint,
-	)...)
+	egress = append(
+		egress,
+		serviceEgressRules(
+			r.Config.GatewayURL,
+			agt.Spec.Telemetry.TraceEndpoint,
+		)...,
+	)
 	if envCfg.MCPURL != "" {
 		egress = append(egress, serviceEgressRules(envCfg.MCPURL)...)
 	}
@@ -141,9 +149,12 @@ func buildHostEgressRules(hosts []sandboxutil.Host, dnsHosts []sandboxutil.Host)
 		egress = append(egress, ciliumapi.EgressRule{ToFQDNs: fqdns})
 	}
 	if len(cidrs) > 0 {
-		egress = append(egress, ciliumapi.EgressRule{
-			EgressCommonRule: ciliumapi.EgressCommonRule{ToCIDRSet: cidrs},
-		})
+		egress = append(
+			egress,
+			ciliumapi.EgressRule{
+				EgressCommonRule: ciliumapi.EgressCommonRule{ToCIDRSet: cidrs},
+			},
+		)
 	}
 	return egress
 }
@@ -375,22 +386,25 @@ func serviceEgressRules(endpoints ...string) []ciliumapi.EgressRule {
 			continue
 		}
 		seen[target] = struct{}{}
-		rules = append(rules, ciliumapi.EgressRule{
-			EgressCommonRule: ciliumapi.EgressCommonRule{
-				ToServices: []ciliumapi.Service{{
-					K8sService: &ciliumapi.K8sServiceNamespace{
-						ServiceName: target.name,
-						Namespace:   target.namespace,
-					},
+		rules = append(
+			rules,
+			ciliumapi.EgressRule{
+				EgressCommonRule: ciliumapi.EgressCommonRule{
+					ToServices: []ciliumapi.Service{{
+						K8sService: &ciliumapi.K8sServiceNamespace{
+							ServiceName: target.name,
+							Namespace:   target.namespace,
+						},
+					}},
+				},
+				ToPorts: ciliumapi.PortRules{{
+					Ports: []ciliumapi.PortProtocol{{
+						Port:     target.port,
+						Protocol: ciliumapi.ProtoTCP,
+					}},
 				}},
 			},
-			ToPorts: ciliumapi.PortRules{{
-				Ports: []ciliumapi.PortProtocol{{
-					Port:     target.port,
-					Protocol: ciliumapi.ProtoTCP,
-				}},
-			}},
-		})
+		)
 	}
 	return rules
 }

@@ -12,14 +12,17 @@ import (
 func TestLookupAgentPodByIPSearchesOnlyAuthorizedNamespaces(t *testing.T) {
 	t.Parallel()
 
-	allowed := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Name:      "allowed-agent",
-		Namespace: "workspace-a",
-		Labels: map[string]string{
-			managedLabelKey: managedLabelValue,
-			appNameLabelKey: appNameAgent,
+	allowed := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "allowed-agent",
+			Namespace: "workspace-a",
+			Labels: map[string]string{
+				managedLabelKey: managedLabelValue,
+				appNameLabelKey: appNameAgent,
+			},
 		},
-	}, Status: corev1.PodStatus{PodIP: "10.0.0.2"}}
+		Status: corev1.PodStatus{PodIP: "10.0.0.2"},
+	}
 	foreign := allowed.DeepCopy()
 	foreign.Name = "foreign-agent"
 	foreign.Namespace = "workspace-b"

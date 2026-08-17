@@ -44,7 +44,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/openbao"
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -140,10 +140,13 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		err = r.updateStatus(ctx, mcpConnectionStatusUpdate{
-			connection: conn, state: agentzv1alpha1.MCPConnectionStateAccepted,
-			extAuth: extAuth,
-		})
+		err = r.updateStatus(
+			ctx,
+			mcpConnectionStatusUpdate{
+				connection: conn, state: agentzv1alpha1.MCPConnectionStateAccepted,
+				extAuth: extAuth,
+			},
+		)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("update accepted status: %w", err)
 		}
@@ -152,13 +155,16 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	if requiresExtAuth && (extAuth == nil || !extAuth.ready) {
 		err = fmt.Errorf("ext auth runtime is not ready")
-		statusErr := r.updateStatus(ctx, mcpConnectionStatusUpdate{
-			connection:  conn,
-			state:       agentzv1alpha1.MCPConnectionStateDegraded,
-			extAuth:     extAuth,
-			requireAuth: requiresExtAuth,
-			err:         err,
-		})
+		statusErr := r.updateStatus(
+			ctx,
+			mcpConnectionStatusUpdate{
+				connection:  conn,
+				state:       agentzv1alpha1.MCPConnectionStateDegraded,
+				extAuth:     extAuth,
+				requireAuth: requiresExtAuth,
+				err:         err,
+			},
+		)
 		if statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("update degraded status: %w", statusErr)
 		}
@@ -167,26 +173,32 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	policy, err := r.reconcileConnectionPolicies(ctx, conn, refs)
 	if err != nil {
-		statusErr := r.updateStatus(ctx, mcpConnectionStatusUpdate{
-			connection:  conn,
-			state:       agentzv1alpha1.MCPConnectionStateDegraded,
-			extAuth:     extAuth,
-			requireAuth: requiresExtAuth,
-			err:         err,
-		})
+		statusErr := r.updateStatus(
+			ctx,
+			mcpConnectionStatusUpdate{
+				connection:  conn,
+				state:       agentzv1alpha1.MCPConnectionStateDegraded,
+				extAuth:     extAuth,
+				requireAuth: requiresExtAuth,
+				err:         err,
+			},
+		)
 		if statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("update degraded status: %w", statusErr)
 		}
 		return ctrl.Result{}, fmt.Errorf("reconcile connection policies: %w", err)
 	}
 
-	err = r.updateStatus(ctx, mcpConnectionStatusUpdate{
-		connection:  conn,
-		state:       agentzv1alpha1.MCPConnectionStateReady,
-		authRef:     policy,
-		extAuth:     extAuth,
-		requireAuth: requiresExtAuth,
-	})
+	err = r.updateStatus(
+		ctx,
+		mcpConnectionStatusUpdate{
+			connection:  conn,
+			state:       agentzv1alpha1.MCPConnectionStateReady,
+			authRef:     policy,
+			extAuth:     extAuth,
+			requireAuth: requiresExtAuth,
+		},
+	)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("update ready status: %w", err)
 	}
@@ -198,24 +210,30 @@ func (r *MCPConnectionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.MCPConnection{}).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.mcpConnectionsForSandbox)).
-		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-			if obj.GetName() != mcp.ExtAuthServiceName {
-				return nil
-			}
-			connections := &agentzv1alpha1.MCPConnectionList{}
-			err := r.List(ctx, connections, client.InNamespace(obj.GetNamespace()))
-			if err != nil {
-				slog.ErrorContext(ctx, "list MCP connections for ext auth deployment", slog.Any("err", err))
-				return nil
-			}
-			requests := make([]reconcile.Request, 0, len(connections.Items))
-			for i := range connections.Items {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: client.ObjectKeyFromObject(&connections.Items[i]),
-				})
-			}
-			return requests
-		})).
+		Watches(
+			&appsv1.Deployment{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+				if obj.GetName() != mcp.ExtAuthServiceName {
+					return nil
+				}
+				connections := &agentzv1alpha1.MCPConnectionList{}
+				err := r.List(ctx, connections, client.InNamespace(obj.GetNamespace()))
+				if err != nil {
+					slog.ErrorContext(ctx, "list MCP connections for ext auth deployment", slog.Any("err", err))
+					return nil
+				}
+				requests := make([]reconcile.Request, 0, len(connections.Items))
+				for i := range connections.Items {
+					requests = append(
+						requests,
+						reconcile.Request{
+							NamespacedName: client.ObjectKeyFromObject(&connections.Items[i]),
+						},
+					)
+				}
+				return requests
+			}),
+		).
 		Named("mcpconnection").
 		Complete(r)
 }
@@ -228,20 +246,28 @@ func (r *MCPConnectionReconciler) mcpConnectionsForSandbox(ctx context.Context, 
 
 	requests := make([]reconcile.Request, 0, len(sandbox.Spec.MCPConnectionRefs))
 	for _, ref := range sandbox.Spec.MCPConnectionRefs {
-		namespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
-			Scope: ref.Scope,
-			Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
-			Name:  ref.Name,
-		})
+		namespace, err := scope.SelectedNamespace(
+			ctx,
+			r.Client,
+			sandbox.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+				Name:  ref.Name,
+			},
+		)
 		if err != nil {
 			continue
 		}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: namespace,
-				Name:      ref.Name,
+		requests = append(
+			requests,
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: namespace,
+					Name:      ref.Name,
+				},
 			},
-		})
+		)
 	}
 	return requests
 }
@@ -262,11 +288,16 @@ func (r *MCPConnectionReconciler) referencingSandboxes(ctx context.Context, name
 			if ref.Name != name {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandboxes.Items[i].Namespace, scoperesolver.Selection{
-				Scope: ref.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
-				Name:  ref.Name,
-			})
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				scope.Selection{
+					Scope: ref.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+					Name:  ref.Name,
+				},
+			)
 			if err == nil && ns == namespace {
 				refs = append(refs, sandboxes.Items[i])
 				break
@@ -331,10 +362,13 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			slices.Sort(names)
 			setHeaders := make([]agentgatewayv1alpha1.HeaderTransformation, 0, len(names))
 			for _, headerName := range names {
-				setHeaders = append(setHeaders, agentgatewayv1alpha1.HeaderTransformation{
-					Name:  agentgatewayv1alpha1.HeaderName(headerName),
-					Value: agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Spec.Endpoint.Headers[headerName])),
-				})
+				setHeaders = append(
+					setHeaders,
+					agentgatewayv1alpha1.HeaderTransformation{
+						Name:  agentgatewayv1alpha1.HeaderName(headerName),
+						Value: agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Spec.Endpoint.Headers[headerName])),
+					},
+				)
 			}
 			transformation = &agentgatewayv1alpha1.Transformation{
 				Request: &agentgatewayv1alpha1.Transform{
@@ -417,10 +451,14 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 		desiredPolicies[client.ObjectKeyFromObject(obj)] = struct{}{}
 	}
 	managed := &agentgatewayv1alpha1.AgentgatewayPolicyList{}
-	err = r.List(ctx, managed, client.MatchingLabels{
-		connectionNameLabel:      conn.Name,
-		connectionNamespaceLabel: conn.Namespace,
-	})
+	err = r.List(
+		ctx,
+		managed,
+		client.MatchingLabels{
+			connectionNameLabel:      conn.Name,
+			connectionNamespaceLabel: conn.Namespace,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list managed auth policies: %w", err)
 	}
@@ -446,96 +484,99 @@ type mcpConnectionStatusUpdate struct {
 }
 
 func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, update mcpConnectionStatusUpdate) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.MCPConnection{}
-		key := types.NamespacedName{Namespace: update.connection.Namespace, Name: update.connection.Name}
-		err := r.Get(ctx, key, current)
-		if err != nil {
-			return client.IgnoreNotFound(err)
-		}
-
-		status := current.Status.DeepCopy()
-		status.ObservedGeneration = current.Generation
-		status.State = update.state
-		status.AuthMode = resolveAuthMode(current.Spec.Auth)
-		status.ServiceRef = nil
-		status.AuthPolicyRef = update.authRef
-		status.ExtAuthServiceRef = nil
-		status.ExtAuthDeploymentRef = nil
-		if update.extAuth != nil {
-			status.ExtAuthServiceRef = update.extAuth.serviceRef
-			status.ExtAuthDeploymentRef = update.extAuth.deploymentRef
-		}
-
-		ready := metav1.ConditionFalse
-		degraded := metav1.ConditionFalse
-		readyReason := reasonAccepted
-		readyMessage := "MCP runtime is accepted"
-		degradedReason := reasonAccepted
-		degradedMessage := "No MCP runtime failure detected"
-		if update.state == agentzv1alpha1.MCPConnectionStateReady {
-			ready = metav1.ConditionTrue
-			readyReason = reasonReady
-			readyMessage = "MCP runtime is ready"
-		}
-		if update.err != nil || update.state == agentzv1alpha1.MCPConnectionStateDegraded {
-			degraded = metav1.ConditionTrue
-			degradedReason = reasonDegraded
-			degradedMessage = "MCP runtime reconcile failed"
-			if update.err != nil {
-				degradedMessage = update.err.Error()
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.MCPConnection{}
+			key := types.NamespacedName{Namespace: update.connection.Namespace, Name: update.connection.Name}
+			err := r.Get(ctx, key, current)
+			if err != nil {
+				return client.IgnoreNotFound(err)
 			}
-		}
 
-		status.SetCondition(metav1.Condition{
-			Type:               conditionAccepted,
-			Status:             metav1.ConditionTrue,
-			Reason:             reasonAccepted,
-			Message:            "MCPConnection spec accepted",
-			ObservedGeneration: current.Generation,
-		})
-		status.SetCondition(metav1.Condition{
-			Type:               conditionReady,
-			Status:             ready,
-			Reason:             readyReason,
-			Message:            readyMessage,
-			ObservedGeneration: current.Generation,
-		})
-		status.SetCondition(metav1.Condition{
-			Type:               conditionDegraded,
-			Status:             degraded,
-			Reason:             degradedReason,
-			Message:            degradedMessage,
-			ObservedGeneration: current.Generation,
-		})
-		extAuthCondition := metav1.Condition{
-			Type:               extAuthConditionType,
-			Status:             metav1.ConditionFalse,
-			Reason:             reasonAccepted,
-			Message:            "Ext auth runtime is not required",
-			ObservedGeneration: current.Generation,
-		}
-		if update.extAuth != nil && update.extAuth.ready {
-			extAuthCondition.Status = metav1.ConditionTrue
-			extAuthCondition.Reason = reasonReady
-			extAuthCondition.Message = "Ext auth runtime is ready"
-		}
-		if update.extAuth != nil && !update.extAuth.ready {
-			extAuthCondition.Reason = "DeploymentNotReady"
-			extAuthCondition.Message = "Ext auth runtime is not ready"
-		}
-		if update.requireAuth && update.extAuth == nil {
-			extAuthCondition.Reason = reasonDegraded
-			extAuthCondition.Message = "Ext auth runtime is unavailable"
-		}
-		status.SetCondition(extAuthCondition)
-		if reflect.DeepEqual(current.Status, *status) {
-			return nil
-		}
-		patch := client.MergeFrom(current.DeepCopy())
-		current.Status = *status
-		return r.Status().Patch(ctx, current, patch)
-	})
+			status := current.Status.DeepCopy()
+			status.ObservedGeneration = current.Generation
+			status.State = update.state
+			status.AuthMode = resolveAuthMode(current.Spec.Auth)
+			status.ServiceRef = nil
+			status.AuthPolicyRef = update.authRef
+			status.ExtAuthServiceRef = nil
+			status.ExtAuthDeploymentRef = nil
+			if update.extAuth != nil {
+				status.ExtAuthServiceRef = update.extAuth.serviceRef
+				status.ExtAuthDeploymentRef = update.extAuth.deploymentRef
+			}
+
+			ready := metav1.ConditionFalse
+			degraded := metav1.ConditionFalse
+			readyReason := reasonAccepted
+			readyMessage := "MCP runtime is accepted"
+			degradedReason := reasonAccepted
+			degradedMessage := "No MCP runtime failure detected"
+			if update.state == agentzv1alpha1.MCPConnectionStateReady {
+				ready = metav1.ConditionTrue
+				readyReason = reasonReady
+				readyMessage = "MCP runtime is ready"
+			}
+			if update.err != nil || update.state == agentzv1alpha1.MCPConnectionStateDegraded {
+				degraded = metav1.ConditionTrue
+				degradedReason = reasonDegraded
+				degradedMessage = "MCP runtime reconcile failed"
+				if update.err != nil {
+					degradedMessage = update.err.Error()
+				}
+			}
+
+			status.SetCondition(metav1.Condition{
+				Type:               conditionAccepted,
+				Status:             metav1.ConditionTrue,
+				Reason:             reasonAccepted,
+				Message:            "MCPConnection spec accepted",
+				ObservedGeneration: current.Generation,
+			})
+			status.SetCondition(metav1.Condition{
+				Type:               conditionReady,
+				Status:             ready,
+				Reason:             readyReason,
+				Message:            readyMessage,
+				ObservedGeneration: current.Generation,
+			})
+			status.SetCondition(metav1.Condition{
+				Type:               conditionDegraded,
+				Status:             degraded,
+				Reason:             degradedReason,
+				Message:            degradedMessage,
+				ObservedGeneration: current.Generation,
+			})
+			extAuthCondition := metav1.Condition{
+				Type:               extAuthConditionType,
+				Status:             metav1.ConditionFalse,
+				Reason:             reasonAccepted,
+				Message:            "Ext auth runtime is not required",
+				ObservedGeneration: current.Generation,
+			}
+			if update.extAuth != nil && update.extAuth.ready {
+				extAuthCondition.Status = metav1.ConditionTrue
+				extAuthCondition.Reason = reasonReady
+				extAuthCondition.Message = "Ext auth runtime is ready"
+			}
+			if update.extAuth != nil && !update.extAuth.ready {
+				extAuthCondition.Reason = "DeploymentNotReady"
+				extAuthCondition.Message = "Ext auth runtime is not ready"
+			}
+			if update.requireAuth && update.extAuth == nil {
+				extAuthCondition.Reason = reasonDegraded
+				extAuthCondition.Message = "Ext auth runtime is unavailable"
+			}
+			status.SetCondition(extAuthCondition)
+			if reflect.DeepEqual(current.Status, *status) {
+				return nil
+			}
+			patch := client.MergeFrom(current.DeepCopy())
+			current.Status = *status
+			return r.Status().Patch(ctx, current, patch)
+		},
+	)
 }
 
 // resolveAuthMode returns a human-readable auth mode string for a given Auth
@@ -555,10 +596,14 @@ func resolveAuthMode(auth *agentzv1alpha1.MCPConnectionAuth) string {
 
 func (r *MCPConnectionReconciler) deleteAuthPolicies(ctx context.Context, conn *agentzv1alpha1.MCPConnection) error {
 	managed := &agentgatewayv1alpha1.AgentgatewayPolicyList{}
-	err := r.List(ctx, managed, client.MatchingLabels{
-		connectionNameLabel:      conn.Name,
-		connectionNamespaceLabel: conn.Namespace,
-	})
+	err := r.List(
+		ctx,
+		managed,
+		client.MatchingLabels{
+			connectionNameLabel:      conn.Name,
+			connectionNamespaceLabel: conn.Namespace,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("list managed auth policies: %w", err)
 	}

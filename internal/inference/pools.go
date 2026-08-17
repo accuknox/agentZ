@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -72,23 +72,34 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	providers := make(map[types.NamespacedName]*agentzv1alpha1.InferenceProvider, len(pool.Spec.Members))
 	for i, ref := range pool.Spec.Members {
 		field := fmt.Sprintf("members.%d", i)
-		ns, err := scoperesolver.SelectedNamespace(ctx, reader, pool.Namespace, scoperesolver.Selection{
-			Scope: ref.Scope,
-			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-			Name:  ref.Provider,
-		})
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			reader,
+			pool.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  ref.Provider,
+			},
+		)
 		if err != nil {
-			issues = append(issues, Issue{
-				Field:   field + ".scope",
-				Message: "scope is not available from the selected Pool scope",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".scope",
+					Message: "scope is not available from the selected Pool scope",
+				},
+			)
 			continue
 		}
 		if _, exists := seen[ref]; exists {
-			issues = append(issues, Issue{
-				Field:   field,
-				Message: "scoped provider-model reference is duplicated",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field,
+					Message: "scoped provider-model reference is duplicated",
+				},
+			)
 			continue
 		}
 		seen[ref] = struct{}{}
@@ -99,10 +110,13 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 			provider = &agentzv1alpha1.InferenceProvider{}
 			err := reader.Get(ctx, key, provider)
 			if apierrors.IsNotFound(err) {
-				issues = append(issues, Issue{
-					Field:   field + ".provider",
-					Message: "provider does not exist",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   field + ".provider",
+						Message: "provider does not exist",
+					},
+				)
 				continue
 			}
 			if err != nil {
@@ -119,34 +133,46 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 			}
 		}
 		if model == nil {
-			issues = append(issues, Issue{
-				Field:   field + ".model",
-				Message: "model is not enabled by provider",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".model",
+					Message: "model is not enabled by provider",
+				},
+			)
 			continue
 		}
 		if !slices.Contains(model.Modalities.Input, agentzv1alpha1.InferenceModelModalityText) {
-			issues = append(issues, Issue{
-				Field:   field + ".model",
-				Message: "model must support text input",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".model",
+					Message: "model must support text input",
+				},
+			)
 		}
 		if !slices.Contains(model.Modalities.Output, agentzv1alpha1.InferenceModelModalityText) {
-			issues = append(issues, Issue{
-				Field:   field + ".model",
-				Message: "model must support text output",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".model",
+					Message: "model must support text output",
+				},
+			)
 		}
 		sum := sha256.Sum256([]byte(ref.Provider + "\x00" + ref.Model))
 		section := fmt.Sprintf("p%d-%s-%s", i+1, ref.Provider, hex.EncodeToString(sum[:5]))
-		resolved = append(resolved, ResolvedPoolMember{
-			Ref:      ref,
-			Provider: provider,
-			Model:    *model,
-			API:      ProviderAPI(provider.Spec.Kind, *model),
-			Protocol: ProviderProtocol(provider.Spec.Kind, *model),
-			Section:  gwv1.SectionName(section),
-		})
+		resolved = append(
+			resolved,
+			ResolvedPoolMember{
+				Ref:      ref,
+				Provider: provider,
+				Model:    *model,
+				API:      ProviderAPI(provider.Spec.Kind, *model),
+				Protocol: ProviderProtocol(provider.Spec.Kind, *model),
+				Section:  gwv1.SectionName(section),
+			},
+		)
 	}
 	if len(issues) > 0 || len(resolved) == 0 {
 		return PoolDefinition{Members: resolved}, issues, nil
@@ -168,10 +194,13 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	}
 	for i, member := range resolved[1:] {
 		if !SupportsPoolAPI(first.API, member.API) {
-			issues = append(issues, Issue{
-				Field:   fmt.Sprintf("members.%d.model", i+1),
-				Message: "These models cannot be used together. Choose a different model combination.",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   fmt.Sprintf("members.%d.model", i+1),
+					Message: "These models cannot be used together. Choose a different model combination.",
+				},
+			)
 			continue
 		}
 		contract.Capabilities.Attachment = contract.Capabilities.Attachment && member.Model.Capabilities.Attachment
@@ -197,10 +226,13 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 		if member.Protocol == first.Protocol {
 			continue
 		}
-		warnings = append(warnings, agentzv1alpha1.InferencePoolWarning{
-			Code:    agentzv1alpha1.InferencePoolWarningMixedProtocols,
-			Message: "cross-family fallback may lose provider-specific fields, reasoning controls, structured-output details, and Anthropic cache annotations",
-		})
+		warnings = append(
+			warnings,
+			agentzv1alpha1.InferencePoolWarning{
+				Code:    agentzv1alpha1.InferencePoolWarningMixedProtocols,
+				Message: "cross-family fallback may lose provider-specific fields, reasoning controls, structured-output details, and Anthropic cache annotations",
+			},
+		)
 		break
 	}
 	return PoolDefinition{
@@ -296,13 +328,16 @@ func RenderPoolBackend(pool *agentzv1alpha1.InferencePool, definition PoolDefini
 		if !hasSecurity && !hasBehavior {
 			policies = nil
 		}
-		groups = append(groups, agentgatewayv1alpha1.PriorityGroup{
-			Providers: []agentgatewayv1alpha1.NamedLLMProvider{{
-				Name:        member.Section,
-				Policies:    policies,
-				LLMProvider: target.LLM,
-			}},
-		})
+		groups = append(
+			groups,
+			agentgatewayv1alpha1.PriorityGroup{
+				Providers: []agentgatewayv1alpha1.NamedLLMProvider{{
+					Name:        member.Section,
+					Policies:    policies,
+					LLMProvider: target.LLM,
+				}},
+			},
+		)
 	}
 	return &agentgatewayv1alpha1.AgentgatewayBackend{
 		TypeMeta: metav1.TypeMeta{
@@ -335,29 +370,39 @@ func RenderPoolBackend(pool *agentzv1alpha1.InferencePool, definition PoolDefini
 
 // IndexPools registers Pool/provider and Sandbox/Pool reference indexes.
 func IndexPools(ctx context.Context, idx client.FieldIndexer) error {
-	err := idx.IndexField(ctx, &agentzv1alpha1.InferencePool{}, PoolByProviderIndex, func(obj client.Object) []string {
-		pool := obj.(*agentzv1alpha1.InferencePool)
-		providers := make([]string, 0, len(pool.Spec.Members))
-		for _, member := range pool.Spec.Members {
-			providers = append(providers, member.Provider)
-		}
-		slices.Sort(providers)
-		return slices.Compact(providers)
-	})
+	err := idx.IndexField(
+		ctx,
+		&agentzv1alpha1.InferencePool{},
+		PoolByProviderIndex,
+		func(obj client.Object) []string {
+			pool := obj.(*agentzv1alpha1.InferencePool)
+			providers := make([]string, 0, len(pool.Spec.Members))
+			for _, member := range pool.Spec.Members {
+				providers = append(providers, member.Provider)
+			}
+			slices.Sort(providers)
+			return slices.Compact(providers)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("index pools by inference provider: %w", err)
 	}
-	return idx.IndexField(ctx, &agentzv1alpha1.Sandbox{}, SandboxByPoolIndex, func(obj client.Object) []string {
-		sandbox := obj.(*agentzv1alpha1.Sandbox)
-		pools := []string{}
-		for _, model := range sandbox.Spec.Inference.Models {
-			if model.Provider == agentzv1alpha1.InferencePoolProvider {
-				pools = append(pools, model.Model)
+	return idx.IndexField(
+		ctx,
+		&agentzv1alpha1.Sandbox{},
+		SandboxByPoolIndex,
+		func(obj client.Object) []string {
+			sandbox := obj.(*agentzv1alpha1.Sandbox)
+			pools := []string{}
+			for _, model := range sandbox.Spec.Inference.Models {
+				if model.Provider == agentzv1alpha1.InferencePoolProvider {
+					pools = append(pools, model.Model)
+				}
 			}
-		}
-		slices.Sort(pools)
-		return slices.Compact(pools)
-	})
+			slices.Sort(pools)
+			return slices.Compact(pools)
+		},
+	)
 }
 
 func modalityIntersection(current, member []agentzv1alpha1.InferenceModelModality) []agentzv1alpha1.InferenceModelModality {

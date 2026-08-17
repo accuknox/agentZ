@@ -664,9 +664,12 @@ var managerCmd = &cli.Command{
 		if len(webhookCertPath) > 0 {
 			setupLog.Info(
 				"initializing webhook certificate watcher using provided certificates",
-				"webhook-cert-path", webhookCertPath,
-				"webhook-cert-name", webhookCertName,
-				"webhook-cert-key", webhookCertKey,
+				"webhook-cert-path",
+				webhookCertPath,
+				"webhook-cert-name",
+				webhookCertName,
+				"webhook-cert-key",
+				webhookCertKey,
 			)
 			webhookServerOptions.CertDir = webhookCertPath
 			webhookServerOptions.CertName = webhookCertName
@@ -706,9 +709,12 @@ var managerCmd = &cli.Command{
 		if len(metricsCertPath) > 0 {
 			setupLog.Info(
 				"initializing metrics certificate watcher using provided certificates",
-				"metrics-cert-path", metricsCertPath,
-				"metrics-cert-name", metricsCertName,
-				"metrics-cert-key", metricsCertKey,
+				"metrics-cert-path",
+				metricsCertPath,
+				"metrics-cert-name",
+				metricsCertName,
+				"metrics-cert-key",
+				metricsCertKey,
 			)
 			metricsServerOptions.CertDir = metricsCertPath
 			metricsServerOptions.CertName = metricsCertName
@@ -764,7 +770,8 @@ var managerCmd = &cli.Command{
 			setupLog.Error(
 				err,
 				"failed to register shared field index",
-				"index", mcp.SandboxByMCPConnectionIndex,
+				"index",
+				mcp.SandboxByMCPConnectionIndex,
 			)
 			os.Exit(1)
 		}
@@ -776,7 +783,8 @@ var managerCmd = &cli.Command{
 			setupLog.Error(
 				err,
 				"failed to register shared field index",
-				"index", sandboxutil.AgentBySandboxIndex,
+				"index",
+				sandboxutil.AgentBySandboxIndex,
 			)
 			os.Exit(1)
 		}
@@ -798,7 +806,8 @@ var managerCmd = &cli.Command{
 			setupLog.Error(
 				err,
 				"failed to register shared field index",
-				"index", workflowschedulecontroller.WorkflowRunByScheduleIndex,
+				"index",
+				workflowschedulecontroller.WorkflowRunByScheduleIndex,
 			)
 			os.Exit(1)
 		}
@@ -808,7 +817,8 @@ var managerCmd = &cli.Command{
 			setupLog.Error(
 				err,
 				"failed to create gateway client",
-				"gatewayURL", gatewayURL,
+				"gatewayURL",
+				gatewayURL,
 			)
 			os.Exit(1)
 		}
@@ -968,9 +978,12 @@ var managerCmd = &cli.Command{
 		}
 
 		if enableWebhooks {
-			err = webhookv1alpha1.SetupAgentWebhookWithManager(mgr, webhookv1alpha1.AgentWebhookConfig{
-				AgentDefaultImage: agentImage,
-			})
+			err = webhookv1alpha1.SetupAgentWebhookWithManager(
+				mgr,
+				webhookv1alpha1.AgentWebhookConfig{
+					AgentDefaultImage: agentImage,
+				},
+			)
 			if err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "Agent")
 				os.Exit(1)

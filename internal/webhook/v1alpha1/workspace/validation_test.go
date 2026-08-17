@@ -9,6 +9,12 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+type validateWorkspaceCreateCase struct {
+	name       string
+	objectName string
+	wantErr    bool
+}
+
 func TestValidatorBindsWorkspaceNameToStableID(t *testing.T) {
 	t.Parallel()
 
@@ -17,11 +23,7 @@ func TestValidatorBindsWorkspaceNameToStableID(t *testing.T) {
 		agentzv1alpha1.ResourceScopeWorkspace,
 		workspaceID,
 	)
-	tests := []struct {
-		name       string
-		objectName string
-		wantErr    bool
-	}{
+	tests := []validateWorkspaceCreateCase{
 		{name: "stable workspace identity", objectName: validName},
 		{
 			name: "organization scope hash",
@@ -35,20 +37,23 @@ func TestValidatorBindsWorkspaceNameToStableID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			obj := &agentzv1alpha1.Workspace{
-				ObjectMeta: metav1.ObjectMeta{Name: tt.objectName},
-				Spec: agentzv1alpha1.WorkspaceSpec{
-					WorkspaceID:    workspaceID,
-					OrganizationID: "organization_01k1qj8ke5vsxg64ns0g13m87v",
-				},
-			}
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				t.Parallel()
+				obj := &agentzv1alpha1.Workspace{
+					ObjectMeta: metav1.ObjectMeta{Name: tt.objectName},
+					Spec: agentzv1alpha1.WorkspaceSpec{
+						WorkspaceID:    workspaceID,
+						OrganizationID: "organization_01k1qj8ke5vsxg64ns0g13m87v",
+					},
+				}
 
-			_, err := (&Validator{}).ValidateCreate(context.Background(), obj)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("ValidateCreate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+				_, err := (&Validator{}).ValidateCreate(context.Background(), obj)
+				if (err != nil) != tt.wantErr {
+					t.Fatalf("ValidateCreate() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			},
+		)
 	}
 }

@@ -134,28 +134,40 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 	initContainers := make([]corev1.Container, 0, 1)
 
 	if len(envCfg.Packages) > 0 {
-		env = append(env, corev1.EnvVar{
-			Name:  nixPkgEnv,
-			Value: strings.Join(envCfg.Packages, ","),
-		})
+		env = append(
+			env,
+			corev1.EnvVar{
+				Name:  nixPkgEnv,
+				Value: strings.Join(envCfg.Packages, ","),
+			},
+		)
 	}
 	if r.Config.SharedNixPVC != "" && len(envCfg.Packages) > 0 {
-		volumes = append(volumes, corev1.Volume{
-			Name: packageJobSharedVolume,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: r.Config.SharedNixPVC,
+		volumes = append(
+			volumes,
+			corev1.Volume{
+				Name: packageJobSharedVolume,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: r.Config.SharedNixPVC,
+					},
 				},
 			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      packageJobSharedVolume,
-			MountPath: "/nix-shared",
-		})
-		env = append(env, corev1.EnvVar{
-			Name:  "NIX_SHARED_PVC",
-			Value: r.Config.SharedNixPVC,
-		})
+		)
+		volumeMounts = append(
+			volumeMounts,
+			corev1.VolumeMount{
+				Name:      packageJobSharedVolume,
+				MountPath: "/nix-shared",
+			},
+		)
+		env = append(
+			env,
+			corev1.EnvVar{
+				Name:  "NIX_SHARED_PVC",
+				Value: r.Config.SharedNixPVC,
+			},
+		)
 	}
 	immutableArgs := []string{"clear-immutable-skills"}
 	immutableMounts := []corev1.VolumeMount{{
@@ -163,23 +175,27 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 	}}
 	if len(envCfg.Skills) > 0 {
 		immutableArgs = []string{"sync-immutable-skills"}
-		volumes = append(volumes, corev1.Volume{
-			Name: configVolume,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: agt.Name,
+		volumes = append(
+			volumes,
+			corev1.Volume{
+				Name: configVolume,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: agt.Name,
+						},
 					},
 				},
 			},
-		}, corev1.Volume{
-			Name: immutableSkillsBucketVolume,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: skill.BucketSecretName,
+			corev1.Volume{
+				Name: immutableSkillsBucketVolume,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: skill.BucketSecretName,
+					},
 				},
 			},
-		})
+		)
 		immutableMounts = append(
 			immutableMounts,
 			corev1.VolumeMount{Name: configVolume, MountPath: opencodeConfigDir, ReadOnly: true},
@@ -188,26 +204,29 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 			},
 		)
 	}
-	initContainers = append(initContainers, corev1.Container{
-		Name:            immutableSkillsInitName,
-		Image:           image,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Args:            immutableArgs,
-		Env: []corev1.EnvVar{{
-			Name:  "AGENTZ_IMMUTABLE_SKILLS_TARGET",
-			Value: nixVolumeRootMount + "/" + immutableSkillsSubPath,
-		}},
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: new(false),
-			RunAsUser:                new(agentRuntimeUID),
-			RunAsGroup:               new(agentRuntimeGID),
-			RunAsNonRoot:             new(true),
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{"ALL"},
+	initContainers = append(
+		initContainers,
+		corev1.Container{
+			Name:            immutableSkillsInitName,
+			Image:           image,
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Args:            immutableArgs,
+			Env: []corev1.EnvVar{{
+				Name:  "AGENTZ_IMMUTABLE_SKILLS_TARGET",
+				Value: nixVolumeRootMount + "/" + immutableSkillsSubPath,
+			}},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: new(false),
+				RunAsUser:                new(agentRuntimeUID),
+				RunAsGroup:               new(agentRuntimeGID),
+				RunAsNonRoot:             new(true),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
 			},
+			VolumeMounts: immutableMounts,
 		},
-		VolumeMounts: immutableMounts,
-	})
+	)
 
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{

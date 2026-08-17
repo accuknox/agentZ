@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -192,11 +192,16 @@ func LoadConnections(ctx context.Context, c client.Reader, env *agentzv1alpha1.S
 		if name == "" {
 			continue
 		}
-		ns, err := scoperesolver.SelectedNamespace(ctx, c, env.Namespace, scoperesolver.Selection{
-			Scope: ref.Scope,
-			Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
-			Name:  ref.Name,
-		})
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			c,
+			env.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+				Name:  ref.Name,
+			},
+		)
 		if err != nil {
 			return nil, fmt.Errorf("resolve mcp connection %q scope: %w", name, err)
 		}

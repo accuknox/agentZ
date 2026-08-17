@@ -26,6 +26,47 @@ import (
 
 const poolUpdatedAtAnnotation = "agentz.accuknox.com/inference-pool-updated-at"
 
+func (s *Service) resolveInferencePoolAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (resourceAccess, *apiError) {
+	if workspaceID == "" {
+		return resourceAccess{operation: operation}, resourceForbidden(errors.New("inference pool requires a Workspace scope"))
+	}
+	req := resourceAccessRequest{
+		resource:    "Inference Pool",
+		workspaceID: workspaceID,
+		operation:   operation,
+	}
+	if name != "" && (operation == authorization.OperationUpdateInferencePool || operation == authorization.OperationDeleteInferencePool) {
+		req.creatorFallback = authorization.OperationCreateInferencePool
+		req.isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
+			pool := &agentzv1alpha1.InferencePool{}
+			err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: name, Namespace: namespace}, pool)
+			return pool.Spec.CreatorUserID == userID, err
+		}
+	}
+	return s.resolveResourceAccess(ctx, req)
+}
+
+func (s *Service) createInferencePoolEventTrail(ctx context.Context, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
+	action := "unmapped"
+	switch access.operation {
+	case authorization.OperationCreateInferencePool:
+		action = "create"
+	case authorization.OperationUpdateInferencePool:
+		action = "modify"
+	case authorization.OperationDeleteInferencePool:
+		action = "delete"
+	}
+	return s.createResourceEventTrail(
+		ctx,
+		access,
+		gatewaydb.EventTrailTargetInferencePool,
+		name,
+		"inference_pool",
+		action,
+		result,
+	)
+}
+
 // ListInferencePools handles GET /api/inference/pool.
 func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferencePoolsParams) {
 	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationListInferencePools)
@@ -52,9 +93,13 @@ func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, par
 	if end < len(items) {
 		next = encodeOffsetToken(end)
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListInferencePoolsResponse{
-		Pools: items[start:end], NextPageToken: next,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListInferencePoolsResponse{
+			Pools: items[start:end], NextPageToken: next,
+		},
+	)
 }
 
 // WatchInferencePools handles POST /api/inference/pool/watch.
@@ -78,12 +123,16 @@ func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request, pa
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(w, r, newAPIError(
-			http.StatusInternalServerError,
-			"internal_error",
-			"streaming is unavailable",
-			nil,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"streaming is unavailable",
+				nil,
+			),
+		)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -119,7 +168,8 @@ func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 	pools, err := s.agentz.AgentzV1alpha1().InferencePools(ns).Watch(
-		r.Context(), metav1.ListOptions{},
+		r.Context(),
+		metav1.ListOptions{},
 	)
 	if err != nil {
 		recordRequestError(w, "internal_error", fmt.Errorf("watch inference pools: %w", err))
@@ -127,7 +177,8 @@ func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request, pa
 	}
 	defer pools.Stop()
 	sandboxes, err := s.agentz.AgentzV1alpha1().Sandboxes(ns).Watch(
-		r.Context(), metav1.ListOptions{},
+		r.Context(),
+		metav1.ListOptions{},
 	)
 	if err != nil {
 		recordRequestError(w, "internal_error", fmt.Errorf("watch pool usage: %w", err))
@@ -158,9 +209,12 @@ func (s *Service) listInferencePoolItems(ctx context.Context, access resourceAcc
 	if err := s.k8sClient.List(ctx, pools, ctrlclient.InNamespace(access.namespace)); err != nil {
 		return nil, fmt.Errorf("list inference pools: %w", err)
 	}
-	slices.SortFunc(pools.Items, func(a, b agentzv1alpha1.InferencePool) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		pools.Items,
+		func(a, b agentzv1alpha1.InferencePool) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	sandboxes := &agentzv1alpha1.SandboxList{}
 	if err := s.usageReader.List(ctx, sandboxes, ctrlclient.InNamespace(access.namespace)); err != nil {
 		return nil, fmt.Errorf("list inference pool usage: %w", err)
@@ -209,15 +263,17 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 		writeError(w, r, apiErr)
 		return
 	}
-	eventTrailed := false
+	var eventTrailed bool
 	defer func() {
 		if eventTrailed {
 			return
 		}
 		err := s.createInferencePoolEventTrail(
-			context.WithoutCancel(r.Context()), access, name,
-			gatewaydb.EventTrailResultFailed)
-
+			context.WithoutCancel(r.Context()),
+			access,
+			name,
+			gatewaydb.EventTrailResultFailed,
+		)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool create", slog.Any("err", err))
 		}
@@ -278,15 +334,17 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 		writeError(w, r, apiErr)
 		return
 	}
-	eventTrailed := false
+	var eventTrailed bool
 	defer func() {
 		if eventTrailed {
 			return
 		}
 		err := s.createInferencePoolEventTrail(
-			context.WithoutCancel(r.Context()), access, poolName,
-			gatewaydb.EventTrailResultFailed)
-
+			context.WithoutCancel(r.Context()),
+			access,
+			poolName,
+			gatewaydb.EventTrailResultFailed,
+		)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool update", slog.Any("err", err))
 		}
@@ -302,16 +360,20 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 		return
 	}
 	if current.ResourceVersion != req.ResourceVersion {
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"conflict",
-			"pool changed since it was loaded",
-			apierrors.NewConflict(
-				agentzv1alpha1.Resource("inferencepools"),
-				current.Name,
-				fmt.Errorf("resource version does not match"),
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"pool changed since it was loaded",
+				apierrors.NewConflict(
+					agentzv1alpha1.Resource("inferencepools"),
+					current.Name,
+					fmt.Errorf("resource version does not match"),
+				),
 			),
-		))
+		)
 		return
 	}
 	desired := poolFromAPI(access.namespace, current.Name, req.Pool)
@@ -364,7 +426,7 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		writeError(w, r, apiErr)
 		return
 	}
-	eventTrailed := false
+	var eventTrailed bool
 	defer func() {
 		if eventTrailed {
 			return
@@ -382,13 +444,17 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		for _, sandbox := range usage {
 			fields = append(fields, gatewayapi.FieldError{Field: "sandboxes", Message: sandbox})
 		}
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"pool_referenced",
-			"pool is referenced by one or more sandboxes",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"pool_referenced",
+				"pool is referenced by one or more sandboxes",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 	if err := s.k8sClient.Delete(r.Context(), pool); err != nil {
@@ -446,11 +512,14 @@ func (s *Service) poolAndUsage(w http.ResponseWriter, r *http.Request, access re
 func poolFromAPI(namespace, name string, input gatewayapi.InferencePoolWrite) *agentzv1alpha1.InferencePool {
 	members := make([]agentzv1alpha1.InferencePoolMember, 0, len(input.Members))
 	for _, member := range input.Members {
-		members = append(members, agentzv1alpha1.InferencePoolMember{
-			Scope:    agentzv1alpha1.ResourceScope(member.Scope),
-			Provider: member.Provider,
-			Model:    member.Model,
-		})
+		members = append(
+			members,
+			agentzv1alpha1.InferencePoolMember{
+				Scope:    agentzv1alpha1.ResourceScope(member.Scope),
+				Provider: member.Provider,
+				Model:    member.Model,
+			},
+		)
 	}
 	return &agentzv1alpha1.InferencePool{
 		TypeMeta: metav1.TypeMeta{
@@ -469,7 +538,7 @@ func poolFromAPI(namespace, name string, input gatewayapi.InferencePoolWrite) *a
 func validateInferencePoolDependencies(access resourceAccess, pool *agentzv1alpha1.InferencePool) []inference.Issue {
 	issues := []inference.Issue{}
 	for i, member := range pool.Spec.Members {
-		workspaceID := ""
+		var workspaceID string
 		if member.Scope == agentzv1alpha1.ResourceScopeWorkspace {
 			workspaceID = access.workspaceID
 		}
@@ -480,10 +549,13 @@ func validateInferencePoolDependencies(access resourceAccess, pool *agentzv1alph
 		if allowed {
 			continue
 		}
-		issues = append(issues, inference.Issue{
-			Field:   fmt.Sprintf("members.%d", i),
-			Message: "effective Inference Provider read permission is required in the referenced scope",
-		})
+		issues = append(
+			issues,
+			inference.Issue{
+				Field:   fmt.Sprintf("members.%d", i),
+				Message: "effective Inference Provider read permission is required in the referenced scope",
+			},
+		)
 	}
 	return issues
 }
@@ -495,36 +567,48 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int, access resourceAcc
 	}
 	members := make([]gatewayapi.InferencePoolMember, 0, len(pool.Spec.Members))
 	for _, member := range pool.Spec.Members {
-		members = append(members, gatewayapi.InferencePoolMember{
-			Scope:    gatewayapi.ResourceScope(member.Scope),
-			Provider: member.Provider,
-			Model:    member.Model,
-		})
+		members = append(
+			members,
+			gatewayapi.InferencePoolMember{
+				Scope:    gatewayapi.ResourceScope(member.Scope),
+				Provider: member.Provider,
+				Model:    member.Model,
+			},
+		)
 	}
 	conditions := make([]gatewayapi.InferenceProviderCondition, 0, len(pool.Status.Conditions))
 	for _, condition := range pool.Status.Conditions {
-		conditions = append(conditions, gatewayapi.InferenceProviderCondition{
-			Type: condition.Type, Status: gatewayapi.InferenceProviderConditionStatus(condition.Status),
-			Reason: condition.Reason, Message: condition.Message,
-		})
+		conditions = append(
+			conditions,
+			gatewayapi.InferenceProviderCondition{
+				Type: condition.Type, Status: gatewayapi.InferenceProviderConditionStatus(condition.Status),
+				Reason: condition.Reason, Message: condition.Message,
+			},
+		)
 	}
 	warnings := make([]gatewayapi.InferencePoolWarning, 0, len(pool.Status.Warnings))
 	for _, warning := range pool.Status.Warnings {
-		warnings = append(warnings, gatewayapi.InferencePoolWarning{
-			Code: gatewayapi.InferencePoolWarningCode(warning.Code), Message: warning.Message,
-		})
+		warnings = append(
+			warnings,
+			gatewayapi.InferencePoolWarning{
+				Code: gatewayapi.InferencePoolWarningCode(warning.Code), Message: warning.Message,
+			},
+		)
 	}
 	statuses := make([]gatewayapi.InferencePoolMemberStatus, 0, len(pool.Status.Members))
 	for _, member := range pool.Status.Members {
-		statuses = append(statuses, gatewayapi.InferencePoolMemberStatus{
-			Scope:    gatewayapi.ResourceScope(member.Scope),
-			Provider: member.Provider,
-			Model:    member.Model,
-			Protocol: gatewayapi.InferenceProtocol(member.Protocol),
-			Ready:    member.Ready,
-			Reason:   member.Reason,
-			Message:  member.Message,
-		})
+		statuses = append(
+			statuses,
+			gatewayapi.InferencePoolMemberStatus{
+				Scope:    gatewayapi.ResourceScope(member.Scope),
+				Provider: member.Provider,
+				Model:    member.Model,
+				Protocol: gatewayapi.InferenceProtocol(member.Protocol),
+				Ready:    member.Ready,
+				Reason:   member.Reason,
+				Message:  member.Message,
+			},
+		)
 	}
 	updatedAt := pool.CreationTimestamp.Time
 	if raw := pool.Annotations[poolUpdatedAtAnnotation]; raw != "" {

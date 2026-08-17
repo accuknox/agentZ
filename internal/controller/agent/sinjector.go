@@ -52,13 +52,17 @@ func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *agentzv1alpha1
 		return fmt.Errorf("openbao provisioner is not configured")
 	}
 	baoName := openBaoSinjectorName(agt)
-	err := r.Bao.ProvisionSinjector(ctx, r.Config, SinjectorOpenBaoOptions{
-		Namespace:          agt.Namespace,
-		ServiceAccountName: sipName,
-		RoleName:           baoName,
-		PolicyName:         baoName,
-		AgentName:          agt.Name,
-	})
+	err := r.Bao.ProvisionSinjector(
+		ctx,
+		r.Config,
+		SinjectorOpenBaoOptions{
+			Namespace:          agt.Namespace,
+			ServiceAccountName: sipName,
+			RoleName:           baoName,
+			PolicyName:         baoName,
+			AgentName:          agt.Name,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -80,23 +84,32 @@ func (r *Reconciler) cleanupSinjector(ctx context.Context, agt *agentzv1alpha1.A
 		return fmt.Errorf("openbao provisioner is not configured")
 	}
 	baoName := openBaoSinjectorName(agt)
-	return r.Bao.CleanupSinjector(ctx, r.Config, SinjectorOpenBaoOptions{
-		Namespace:          agt.Namespace,
-		ServiceAccountName: sinjectorName(agt),
-		RoleName:           baoName,
-		PolicyName:         baoName,
-	})
+	return r.Bao.CleanupSinjector(
+		ctx,
+		r.Config,
+		SinjectorOpenBaoOptions{
+			Namespace:          agt.Namespace,
+			ServiceAccountName: sinjectorName(agt),
+			RoleName:           baoName,
+			PolicyName:         baoName,
+		},
+	)
 }
 
 func (r *Reconciler) reconcileServiceAccount(ctx context.Context, agt *agentzv1alpha1.Agent, name string, labels map[string]string) error {
 	current := &corev1.ServiceAccount{}
 	current.Name = name
 	current.Namespace = agt.Namespace
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = labels
-		current.Annotations = agt.Annotations
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		current,
+		func() error {
+			current.Labels = labels
+			current.Annotations = agt.Annotations
+			return ctrl.SetControllerReference(agt, current, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch serviceaccount: %w", err)
 	}
@@ -107,27 +120,32 @@ func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *agentzv1al
 	role := &rbacv1.Role{}
 	role.Name = agt.Name + gatewayRoleNameSuffix
 	role.Namespace = agt.Namespace
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
-		role.Labels = resourceLabels(agt)
-		role.Annotations = agt.Annotations
-		role.Rules = []rbacv1.PolicyRule{{
-			APIGroups:     []string{agentzv1alpha1.SchemeGroupVersion.Group},
-			Resources:     []string{"agents"},
-			ResourceNames: []string{agt.Name},
-			Verbs: []string{
-				"create-workflow",
-				"create-workflow-schedule",
-				"delete-workflow-schedule",
-				"delete-workflows",
-				"get-workflow",
-				"list-workflow-schedules",
-				"list-workflows",
-				"set-workflowrun-status",
-				"update-workflow-schedule",
-			},
-		}}
-		return ctrl.SetControllerReference(agt, role, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		role,
+		func() error {
+			role.Labels = resourceLabels(agt)
+			role.Annotations = agt.Annotations
+			role.Rules = []rbacv1.PolicyRule{{
+				APIGroups:     []string{agentzv1alpha1.SchemeGroupVersion.Group},
+				Resources:     []string{"agents"},
+				ResourceNames: []string{agt.Name},
+				Verbs: []string{
+					"create-workflow",
+					"create-workflow-schedule",
+					"delete-workflow-schedule",
+					"delete-workflows",
+					"get-workflow",
+					"list-workflow-schedules",
+					"list-workflows",
+					"set-workflowrun-status",
+					"update-workflow-schedule",
+				},
+			}}
+			return ctrl.SetControllerReference(agt, role, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch gateway role: %w", err)
 	}
@@ -135,21 +153,26 @@ func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *agentzv1al
 	binding := &rbacv1.RoleBinding{}
 	binding.Name = agt.Name + gatewayRoleNameSuffix
 	binding.Namespace = agt.Namespace
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, binding, func() error {
-		binding.Labels = resourceLabels(agt)
-		binding.Annotations = agt.Annotations
-		binding.RoleRef = rbacv1.RoleRef{
-			APIGroup: rbacv1.GroupName,
-			Kind:     "Role",
-			Name:     role.Name,
-		}
-		binding.Subjects = []rbacv1.Subject{{
-			Kind:      rbacv1.ServiceAccountKind,
-			Name:      agt.Name,
-			Namespace: agt.Namespace,
-		}}
-		return ctrl.SetControllerReference(agt, binding, r.Scheme)
-	})
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		binding,
+		func() error {
+			binding.Labels = resourceLabels(agt)
+			binding.Annotations = agt.Annotations
+			binding.RoleRef = rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     role.Name,
+			}
+			binding.Subjects = []rbacv1.Subject{{
+				Kind:      rbacv1.ServiceAccountKind,
+				Name:      agt.Name,
+				Namespace: agt.Namespace,
+			}}
+			return ctrl.SetControllerReference(agt, binding, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch gateway rolebinding: %w", err)
 	}
@@ -161,19 +184,24 @@ func (r *Reconciler) reconcileSinjectorService(ctx context.Context, agt *agentzv
 	current := &corev1.Service{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = sinjectorLabels(agt)
-		current.Annotations = agt.Annotations
-		current.Spec.Type = corev1.ServiceTypeClusterIP
-		current.Spec.Selector = sinjectorSelectorLabels(agt)
-		current.Spec.Ports = []corev1.ServicePort{{
-			Name:       "http",
-			Port:       4096,
-			TargetPort: intstr.FromInt32(4096),
-			Protocol:   corev1.ProtocolTCP,
-		}}
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		current,
+		func() error {
+			current.Labels = sinjectorLabels(agt)
+			current.Annotations = agt.Annotations
+			current.Spec.Type = corev1.ServiceTypeClusterIP
+			current.Spec.Selector = sinjectorSelectorLabels(agt)
+			current.Spec.Ports = []corev1.ServicePort{{
+				Name:       "http",
+				Port:       4096,
+				TargetPort: intstr.FromInt32(4096),
+				Protocol:   corev1.ProtocolTCP,
+			}}
+			return ctrl.SetControllerReference(agt, current, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch sinjector service: %w", err)
 	}
@@ -217,23 +245,28 @@ func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *agentzv1
 	role := &rbacv1.Role{}
 	role.Name = sinjectorName(agt)
 	role.Namespace = agt.Namespace
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
-		role.Labels = sinjectorLabels(agt)
-		role.Annotations = agt.Annotations
-		role.Rules = []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
-				Resources: []string{"secrets"},
-				Verbs:     []string{"get", "list", "watch"},
-			},
-			{
-				APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
-				Resources: []string{"secrets/status"},
-				Verbs:     []string{"get", "update", "patch"},
-			},
-		}
-		return ctrl.SetControllerReference(agt, role, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		role,
+		func() error {
+			role.Labels = sinjectorLabels(agt)
+			role.Annotations = agt.Annotations
+			role.Rules = []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
+					Resources: []string{"secrets"},
+					Verbs:     []string{"get", "list", "watch"},
+				},
+				{
+					APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
+					Resources: []string{"secrets/status"},
+					Verbs:     []string{"get", "update", "patch"},
+				},
+			}
+			return ctrl.SetControllerReference(agt, role, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch sinjector role: %w", err)
 	}
@@ -241,21 +274,26 @@ func (r *Reconciler) reconcileSinjectorAccess(ctx context.Context, agt *agentzv1
 	binding := &rbacv1.RoleBinding{}
 	binding.Name = sinjectorName(agt)
 	binding.Namespace = agt.Namespace
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, binding, func() error {
-		binding.Labels = sinjectorLabels(agt)
-		binding.Annotations = agt.Annotations
-		binding.RoleRef = rbacv1.RoleRef{
-			APIGroup: rbacv1.GroupName,
-			Kind:     "Role",
-			Name:     role.Name,
-		}
-		binding.Subjects = []rbacv1.Subject{{
-			Kind:      rbacv1.ServiceAccountKind,
-			Name:      sinjectorName(agt),
-			Namespace: agt.Namespace,
-		}}
-		return ctrl.SetControllerReference(agt, binding, r.Scheme)
-	})
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		binding,
+		func() error {
+			binding.Labels = sinjectorLabels(agt)
+			binding.Annotations = agt.Annotations
+			binding.RoleRef = rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     role.Name,
+			}
+			binding.Subjects = []rbacv1.Subject{{
+				Kind:      rbacv1.ServiceAccountKind,
+				Name:      sinjectorName(agt),
+				Namespace: agt.Namespace,
+			}}
+			return ctrl.SetControllerReference(agt, binding, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch sinjector rolebinding: %w", err)
 	}
@@ -275,50 +313,55 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *agentzv1
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = sinjectorLabels(agt)
-		current.Annotations = agt.Annotations
-		current.Spec = &ciliumapi.Rule{
-			EndpointSelector: ciliumapi.NewESFromLabels(
-				ciliumlabels.NewLabel(
-					"agentz.accuknox.com/sinjector",
-					agt.Name,
-					ciliumlabels.LabelSourceK8s,
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		current,
+		func() error {
+			current.Labels = sinjectorLabels(agt)
+			current.Annotations = agt.Annotations
+			current.Spec = &ciliumapi.Rule{
+				EndpointSelector: ciliumapi.NewESFromLabels(
+					ciliumlabels.NewLabel(
+						"agentz.accuknox.com/sinjector",
+						agt.Name,
+						ciliumlabels.LabelSourceK8s,
+					),
 				),
-			),
-			Ingress: []ciliumapi.IngressRule{{
-				IngressCommonRule: ciliumapi.IngressCommonRule{
-					FromEndpoints: []ciliumapi.EndpointSelector{
-						ciliumapi.NewESFromLabels(
-							ciliumlabels.NewLabel(
-								"io.kubernetes.pod.namespace",
-								agt.Namespace,
-								ciliumlabels.LabelSourceK8s,
+				Ingress: []ciliumapi.IngressRule{{
+					IngressCommonRule: ciliumapi.IngressCommonRule{
+						FromEndpoints: []ciliumapi.EndpointSelector{
+							ciliumapi.NewESFromLabels(
+								ciliumlabels.NewLabel(
+									"io.kubernetes.pod.namespace",
+									agt.Namespace,
+									ciliumlabels.LabelSourceK8s,
+								),
+								ciliumlabels.NewLabel(
+									"io.cilium.k8s.policy.serviceaccount",
+									agt.Name,
+									ciliumlabels.LabelSourceK8s,
+								),
+								ciliumlabels.NewLabel(
+									"agentz.accuknox.com/agent",
+									agt.Name,
+									ciliumlabels.LabelSourceK8s,
+								),
 							),
-							ciliumlabels.NewLabel(
-								"io.cilium.k8s.policy.serviceaccount",
-								agt.Name,
-								ciliumlabels.LabelSourceK8s,
-							),
-							ciliumlabels.NewLabel(
-								"agentz.accuknox.com/agent",
-								agt.Name,
-								ciliumlabels.LabelSourceK8s,
-							),
-						),
+						},
 					},
-				},
-				ToPorts: ciliumapi.PortRules{{
-					Ports: []ciliumapi.PortProtocol{{
-						Port:     "4096",
-						Protocol: ciliumapi.ProtoTCP,
+					ToPorts: ciliumapi.PortRules{{
+						Ports: []ciliumapi.PortProtocol{{
+							Port:     "4096",
+							Protocol: ciliumapi.ProtoTCP,
+						}},
 					}},
 				}},
-			}},
-			Egress: egress,
-		}
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
+				Egress: egress,
+			}
+			return ctrl.SetControllerReference(agt, current, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch cilium network policy: %w", err)
 	}

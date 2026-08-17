@@ -57,23 +57,32 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *agentzv1alpha1
 	current.Name = agt.Name
 	current.Namespace = agt.Namespace
 
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = resourceLabels(agt)
-		current.Annotations = agt.Annotations
-		current.Data = map[string]string{opencodeConfigKey: opencodeCfg}
-		for _, item := range instructionFiles {
-			current.Data[path.Base(item.Path)] = item.Content
-		}
-		raw, err := json.MarshalIndent(skill.Manifest{
-			Namespace: agt.Namespace,
-			Skills:    skills,
-		}, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshal immutable skills manifest: %w", err)
-		}
-		current.Data[immutableSkillsManifestKey] = string(append(raw, '\n'))
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		current,
+		func() error {
+			current.Labels = resourceLabels(agt)
+			current.Annotations = agt.Annotations
+			current.Data = map[string]string{opencodeConfigKey: opencodeCfg}
+			for _, item := range instructionFiles {
+				current.Data[path.Base(item.Path)] = item.Content
+			}
+			raw, err := json.MarshalIndent(
+				skill.Manifest{
+					Namespace: agt.Namespace,
+					Skills:    skills,
+				},
+				"",
+				"  ",
+			)
+			if err != nil {
+				return fmt.Errorf("marshal immutable skills manifest: %w", err)
+			}
+			current.Data[immutableSkillsManifestKey] = string(append(raw, '\n'))
+			return ctrl.SetControllerReference(agt, current, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch configmap: %w", err)
 	}
@@ -86,14 +95,19 @@ func (r *Reconciler) reconcileService(ctx context.Context, agt *agentzv1alpha1.A
 	current.Name = desired.Name
 	current.Namespace = desired.Namespace
 
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = desired.Labels
-		current.Annotations = desired.Annotations
-		current.Spec.Ports = desired.Spec.Ports
-		current.Spec.Selector = desired.Spec.Selector
-		current.Spec.Type = desired.Spec.Type
-		return ctrl.SetControllerReference(agt, current, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		current,
+		func() error {
+			current.Labels = desired.Labels
+			current.Annotations = desired.Annotations
+			current.Spec.Ports = desired.Spec.Ports
+			current.Spec.Selector = desired.Spec.Selector
+			current.Spec.Type = desired.Spec.Type
+			return ctrl.SetControllerReference(agt, current, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch service: %w", err)
 	}
@@ -109,15 +123,20 @@ func (r *Reconciler) reconcileImmutableSkillsBucketSecret(ctx context.Context, a
 	current.Name = skill.BucketSecretName
 	current.Namespace = agt.Namespace
 
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-		current.Labels = map[string]string{
-			"app.kubernetes.io/name":      "agentz-immutable-skills",
-			"agentz.accuknox.com/managed": "true",
-		}
-		current.Type = corev1.SecretTypeOpaque
-		current.Data = r.Config.SkillStore.SecretData()
-		return nil
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		current,
+		func() error {
+			current.Labels = map[string]string{
+				"app.kubernetes.io/name":      "agentz-immutable-skills",
+				"agentz.accuknox.com/managed": "true",
+			}
+			current.Type = corev1.SecretTypeOpaque
+			current.Data = r.Config.SkillStore.SecretData()
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch immutable skills bucket secret: %w", err)
 	}
@@ -231,107 +250,140 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 		agentInitImage = nixInitImage
 	}
 
-	volumes = append(volumes, corev1.Volume{
-		Name: nixAgentVolume,
-		VolumeSource: corev1.VolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: agt.Name + "-nix",
+	volumes = append(
+		volumes,
+		corev1.Volume{
+			Name: nixAgentVolume,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: agt.Name + "-nix",
+				},
 			},
 		},
-	})
-	volumes = append(volumes, corev1.Volume{
-		Name: filesystemTempVolume,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	})
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      nixAgentVolume,
-		MountPath: agentHomeDir,
-		SubPath:   homeStoreSubPath,
-	})
-	initContainers = append(initContainers, corev1.Container{
-		Name:            homeInitName,
-		Image:           agentInitImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Args:            []string{"prepare-home"},
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: new(false),
-			RunAsUser:                new(agentRuntimeUID),
-			RunAsGroup:               new(agentRuntimeGID),
-			RunAsNonRoot:             new(true),
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{"ALL"},
+	)
+	volumes = append(
+		volumes,
+		corev1.Volume{
+			Name: filesystemTempVolume,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
-		VolumeMounts: []corev1.VolumeMount{{
+	)
+	volumeMounts = append(
+		volumeMounts,
+		corev1.VolumeMount{
 			Name:      nixAgentVolume,
-			MountPath: nixVolumeRootMount,
-		}},
-	})
+			MountPath: agentHomeDir,
+			SubPath:   homeStoreSubPath,
+		},
+	)
+	initContainers = append(
+		initContainers,
+		corev1.Container{
+			Name:            homeInitName,
+			Image:           agentInitImage,
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Args:            []string{"prepare-home"},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: new(false),
+				RunAsUser:                new(agentRuntimeUID),
+				RunAsGroup:               new(agentRuntimeGID),
+				RunAsNonRoot:             new(true),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{{
+				Name:      nixAgentVolume,
+				MountPath: nixVolumeRootMount,
+			}},
+		},
+	)
 
 	if mountConfig {
-		volumes = append(volumes, corev1.Volume{
-			Name: configVolume,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: agt.Name,
+		volumes = append(
+			volumes,
+			corev1.Volume{
+				Name: configVolume,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: agt.Name,
+						},
 					},
 				},
 			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      configVolume,
-			MountPath: opencodeConfigDir,
-			ReadOnly:  true,
-		})
+		)
+		volumeMounts = append(
+			volumeMounts,
+			corev1.VolumeMount{
+				Name:      configVolume,
+				MountPath: opencodeConfigDir,
+				ReadOnly:  true,
+			},
+		)
 	}
 
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      nixAgentVolume,
-		MountPath: opencodeImmutableSkillsPath,
-		SubPath:   immutableSkillsSubPath,
-		ReadOnly:  true,
-	})
+	volumeMounts = append(
+		volumeMounts,
+		corev1.VolumeMount{
+			Name:      nixAgentVolume,
+			MountPath: opencodeImmutableSkillsPath,
+			SubPath:   immutableSkillsSubPath,
+			ReadOnly:  true,
+		},
+	)
 
 	bundleKey := r.Config.SinjectorCASecretBundleKey
-	volumes = append(volumes, corev1.Volume{
-		Name: sinjectorCAVolume,
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: r.Config.SinjectorCASecretName,
-				Items: []corev1.KeyToPath{{
-					Key:  bundleKey,
-					Path: "ca.crt",
-				}},
+	volumes = append(
+		volumes,
+		corev1.Volume{
+			Name: sinjectorCAVolume,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: r.Config.SinjectorCASecretName,
+					Items: []corev1.KeyToPath{{
+						Key:  bundleKey,
+						Path: "ca.crt",
+					}},
+				},
 			},
 		},
-	})
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      sinjectorCAVolume,
-		MountPath: sinjectorCAMountPath,
-		ReadOnly:  true,
-	})
-	volumes = append(volumes, corev1.Volume{
-		Name: gatewayTokenVolume,
-		VolumeSource: corev1.VolumeSource{
-			Projected: &corev1.ProjectedVolumeSource{
-				Sources: []corev1.VolumeProjection{{
-					ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
-						Path:              "token",
-						Audience:          r.Config.GatewayTokenAudience,
-						ExpirationSeconds: new(int64(3600)),
-					},
-				}},
+	)
+	volumeMounts = append(
+		volumeMounts,
+		corev1.VolumeMount{
+			Name:      sinjectorCAVolume,
+			MountPath: sinjectorCAMountPath,
+			ReadOnly:  true,
+		},
+	)
+	volumes = append(
+		volumes,
+		corev1.Volume{
+			Name: gatewayTokenVolume,
+			VolumeSource: corev1.VolumeSource{
+				Projected: &corev1.ProjectedVolumeSource{
+					Sources: []corev1.VolumeProjection{{
+						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+							Path:              "token",
+							Audience:          r.Config.GatewayTokenAudience,
+							ExpirationSeconds: new(int64(3600)),
+						},
+					}},
+				},
 			},
 		},
-	})
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      gatewayTokenVolume,
-		MountPath: gatewayTokenMountPath,
-		ReadOnly:  true,
-	})
+	)
+	volumeMounts = append(
+		volumeMounts,
+		corev1.VolumeMount{
+			Name:      gatewayTokenVolume,
+			MountPath: gatewayTokenMountPath,
+			ReadOnly:  true,
+		},
+	)
 
 	if len(packages) > 0 {
 		volumes = append(
@@ -375,27 +427,30 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 				MountPath: nixRuntimeStageMount,
 			}},
 		})
-		initContainers = append(initContainers, corev1.Container{
-			Name:            "nix-runtime-init",
-			Image:           agentInitImage,
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Args:            []string{"stage-runtime"},
-			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: new(false),
-				RunAsUser:                new(int64(0)),
-				RunAsGroup:               new(int64(0)),
-				RunAsNonRoot:             new(false),
-				Capabilities: &corev1.Capabilities{
-					Drop: []corev1.Capability{"ALL"},
+		initContainers = append(
+			initContainers,
+			corev1.Container{
+				Name:            "nix-runtime-init",
+				Image:           agentInitImage,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Args:            []string{"stage-runtime"},
+				SecurityContext: &corev1.SecurityContext{
+					AllowPrivilegeEscalation: new(false),
+					RunAsUser:                new(int64(0)),
+					RunAsGroup:               new(int64(0)),
+					RunAsNonRoot:             new(false),
+					Capabilities: &corev1.Capabilities{
+						Drop: []corev1.Capability{"ALL"},
+					},
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: nixAgentVolume, MountPath: nixVolumeRootMount},
+					{Name: nixAgentVolume, MountPath: nixAgentMount, SubPath: nixStoreSubPath},
+					{Name: nixLinkVolume, MountPath: nixLinkStage},
+					{Name: nixRuntimeStoreVolume, MountPath: nixRuntimeStageMount},
 				},
 			},
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: nixAgentVolume, MountPath: nixVolumeRootMount},
-				{Name: nixAgentVolume, MountPath: nixAgentMount, SubPath: nixStoreSubPath},
-				{Name: nixLinkVolume, MountPath: nixLinkStage},
-				{Name: nixRuntimeStoreVolume, MountPath: nixRuntimeStageMount},
-			},
-		})
+		)
 
 		volumeMounts = append(
 			volumeMounts,
@@ -541,10 +596,13 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 	var forced []corev1.EnvVar
 	noProxy := r.agentNoProxyHosts(agt)
 	if mountConfig {
-		forced = append(forced, corev1.EnvVar{
-			Name:  "OPENCODE_CONFIG",
-			Value: opencodeConfigDir + "/" + opencodeConfigKey,
-		})
+		forced = append(
+			forced,
+			corev1.EnvVar{
+				Name:  "OPENCODE_CONFIG",
+				Value: opencodeConfigDir + "/" + opencodeConfigKey,
+			},
+		)
 	}
 	noProxyValue := strings.Join(noProxy, ",")
 	forced = append(

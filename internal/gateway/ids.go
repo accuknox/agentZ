@@ -79,16 +79,20 @@ func validAgentName(w http.ResponseWriter, r *http.Request, name string, fields 
 	if len(fields) > 0 && fields[0] != "" {
 		field = fields[0]
 	}
-	writeError(w, r, newAPIError(
-		http.StatusBadRequest,
-		"invalid_request",
-		"request validation failed",
-		errBadRequest,
-		gatewayapi.FieldError{
-			Field:   field,
-			Message: "must be a valid agent name",
-		},
-	))
+	writeError(
+		w,
+		r,
+		newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   field,
+				Message: "must be a valid agent name",
+			},
+		),
+	)
 	return "", false
 }
 
@@ -101,12 +105,16 @@ func validLimit(w http.ResponseWriter, r *http.Request, raw *gatewayapi.LimitQue
 		return limit, true
 	}
 
-	writeError(w, r, newAPIError(
-		http.StatusBadRequest,
-		"invalid_request",
-		"limit must be between 1 and 200",
-		errBadRequest,
-	))
+	writeError(
+		w,
+		r,
+		newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		),
+	)
 	return 0, false
 }
 
@@ -122,16 +130,20 @@ func validHexID(w http.ResponseWriter, r *http.Request, raw string, field string
 	raw = strings.TrimSpace(raw)
 	out, err := hex.DecodeString(raw)
 	if err != nil || len(out) != size || raw != strings.ToLower(raw) {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   field,
-				Message: "must be a lowercase hexadecimal identifier",
-			},
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   field,
+					Message: "must be a lowercase hexadecimal identifier",
+				},
+			),
+		)
 		return nil, false
 	}
 	return out, true
@@ -160,23 +172,31 @@ func decodeObservabilityQuery(w http.ResponseWriter, r *http.Request, query obse
 		filter.before = (*query.before).UTC()
 	}
 	if filter.after.After(filter.before) {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"event_time_after must be before or equal to event_time_before",
-			errBadRequest,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"event_time_after must be before or equal to event_time_before",
+				errBadRequest,
+			),
+		)
 		return observabilityFilter{}, false
 	}
 	if query.action != nil {
 		filter.action = string(*query.action)
 		if filter.action != "Allowed" && filter.action != "Blocked" {
-			writeError(w, r, newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"action must be Allowed or Blocked",
-				errBadRequest,
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"action must be Allowed or Blocked",
+					errBadRequest,
+				),
+			)
 			return observabilityFilter{}, false
 		}
 	}
@@ -299,12 +319,16 @@ func decodeCursorPageToken[T any](w http.ResponseWriter, r *http.Request, token 
 }
 
 func writeInvalidPageToken(w http.ResponseWriter, r *http.Request, err error) {
-	writeError(w, r, newAPIError(
-		http.StatusBadRequest,
-		"invalid_request",
-		"page_token is invalid",
-		err,
-	))
+	writeError(
+		w,
+		r,
+		newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"page_token is invalid",
+			err,
+		),
+	)
 }
 
 func encodeOffsetToken(offset int) string {

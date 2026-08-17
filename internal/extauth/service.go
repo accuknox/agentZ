@@ -38,7 +38,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclientset "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
@@ -623,11 +623,16 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 			sandboxName,
 		)
 	}
-	targetNamespace, err := scoperesolver.SelectedNamespace(ctx, s.kube, pod.Namespace, scoperesolver.Selection{
-		Scope: agent.Spec.SandboxRef.Scope,
-		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
-		Name:  agent.Spec.SandboxRef.Name,
-	})
+	targetNamespace, err := scope.SelectedNamespace(
+		ctx,
+		s.kube,
+		pod.Namespace,
+		scope.Selection{
+			Scope: agent.Spec.SandboxRef.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+			Name:  agent.Spec.SandboxRef.Name,
+		},
+	)
 	if err != nil || targetNamespace != namespace {
 		return "", fmt.Errorf("agent %q Sandbox scope is not authorized", agentName)
 	}
@@ -652,9 +657,12 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 		)
 	}
 
-	hasConnection := slices.ContainsFunc(sandbox.Spec.MCPConnectionRefs, func(ref agentzv1alpha1.MCPConnectionRef) bool {
-		return ref.Name == connName
-	})
+	hasConnection := slices.ContainsFunc(
+		sandbox.Spec.MCPConnectionRefs,
+		func(ref agentzv1alpha1.MCPConnectionRef) bool {
+			return ref.Name == connName
+		},
+	)
 	if !hasConnection {
 		return "", fmt.Errorf("sandbox %q does not include mcp connection %q", sandboxName, connName)
 	}

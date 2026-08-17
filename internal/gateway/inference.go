@@ -128,19 +128,27 @@ func (s *Service) createInferenceProviderEventTrail(ctx context.Context, access 
 		action = "delete"
 	}
 	return s.createResourceEventTrail(
-		ctx, access, gatewaydb.EventTrailTargetInferenceProvider, name,
-		"inference_provider", action, result,
+		ctx,
+		access,
+		gatewaydb.EventTrailTargetInferenceProvider,
+		name,
+		"inference_provider",
+		action,
+		result,
 	)
 }
 
 // ListInferenceProviders handles GET /api/inference/provider.
 func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProvidersParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, "", authorization.OperationListInferenceProviders,
+		r.Context(),
+		workspaceID,
+		"",
+		authorization.OperationListInferenceProviders,
 	)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
@@ -152,12 +160,16 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"limit must be between 1 and 200",
-			errBadRequest,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 200",
+				errBadRequest,
+			),
+		)
 		return
 	}
 	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
@@ -177,21 +189,28 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 		}
 		items = append(items, inherited...)
 	}
-	slices.SortFunc(items, func(a, b gatewayapi.InferenceProvider) int {
-		if a.Id != b.Id {
-			return strings.Compare(a.Id, b.Id)
-		}
-		return strings.Compare(string(a.Scope), string(b.Scope))
-	})
+	slices.SortFunc(
+		items,
+		func(a, b gatewayapi.InferenceProvider) int {
+			if a.Id != b.Id {
+				return strings.Compare(a.Id, b.Id)
+			}
+			return strings.Compare(string(a.Scope), string(b.Scope))
+		},
+	)
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
 	var next string
 	if end < len(items) {
 		next = encodeOffsetToken(end)
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListInferenceProvidersResponse{
-		Providers: items[start:end], NextPageToken: next,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListInferenceProvidersResponse{
+			Providers: items[start:end], NextPageToken: next,
+		},
+	)
 }
 
 func (s *Service) listInheritedInferenceProviders(ctx context.Context, access resourceAccess) ([]gatewayapi.InferenceProvider, error) {
@@ -226,12 +245,15 @@ func (s *Service) listInheritedInferenceProviders(ctx context.Context, access re
 
 // WatchInferenceProviders handles POST /api/inference/provider/watch.
 func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request, params gatewayapi.WatchInferenceProvidersParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, "", authorization.OperationWatchInferenceProviders,
+		r.Context(),
+		workspaceID,
+		"",
+		authorization.OperationWatchInferenceProviders,
 	)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
@@ -251,12 +273,16 @@ func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(w, r, newAPIError(
-			http.StatusInternalServerError,
-			"internal_error",
-			"streaming is unavailable",
-			nil,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"streaming is unavailable",
+				nil,
+			),
+		)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -348,9 +374,12 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 	if err := s.k8sClient.List(ctx, providers, ctrlclient.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list inference providers: %w", err)
 	}
-	slices.SortFunc(providers.Items, func(a, b agentzv1alpha1.InferenceProvider) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		providers.Items,
+		func(a, b agentzv1alpha1.InferenceProvider) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	sandboxes := &agentzv1alpha1.SandboxList{}
 	if err := s.usageReader.List(ctx, sandboxes, ctrlclient.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list inference provider usage: %w", err)
@@ -368,7 +397,8 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 			}
 			seen[member.Provider] = struct{}{}
 			poolProviders[pools.Items[i].Name] = append(
-				poolProviders[pools.Items[i].Name], member.Provider,
+				poolProviders[pools.Items[i].Name],
+				member.Provider,
 			)
 		}
 	}
@@ -409,8 +439,11 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 			}
 		}
 		selected = append(selected, &providers.Items[i])
-		userIDs = append(userIDs, providers.Items[i].Spec.CreatedByUserID,
-			providers.Items[i].Spec.LastModifiedByUserID)
+		userIDs = append(
+			userIDs,
+			providers.Items[i].Spec.CreatedByUserID,
+			providers.Items[i].Spec.LastModifiedByUserID,
+		)
 	}
 	actors, err := s.resourceActors(ctx, userIDs...)
 	if err != nil {
@@ -431,18 +464,24 @@ func (s *Service) listInferenceProviderItems(ctx context.Context, namespace stri
 // CreateInferenceProviderOAuthTicket handles POST
 // /api/inference/provider/oauth-ticket.
 func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request, params gatewayapi.CreateInferenceProviderOAuthTicketParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, "", authorization.OperationCreateInferenceProviderOAuthTicket,
+		r.Context(),
+		workspaceID,
+		"",
+		authorization.OperationCreateInferenceProviderOAuthTicket,
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderEventTrail(
-				r.Context(), access, "oauth-ticket", access.failureResult())
-
+				r.Context(),
+				access,
+				"oauth-ticket",
+				access.failureResult(),
+			)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -451,15 +490,17 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceEventTrailed := false
+	var persistenceEventTrailed bool
 	defer func() {
 		if persistenceEventTrailed {
 			return
 		}
 		err := s.createInferenceProviderEventTrail(
-			context.WithoutCancel(r.Context()), access, "oauth-ticket",
-			gatewaydb.EventTrailResultFailed)
-
+			context.WithoutCancel(r.Context()),
+			access,
+			"oauth-ticket",
+			gatewaydb.EventTrailResultFailed,
+		)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Provider OAuth ticket", slog.Any("err", err))
 		}
@@ -467,12 +508,16 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 	ns := access.namespace
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		writeError(w, r, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"oauth tickets require user authentication",
-			errors.New("missing bearer claims"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusUnauthorized,
+				"unauthorized",
+				"oauth tickets require user authentication",
+				errors.New("missing bearer claims"),
+			),
+		)
 		return
 	}
 	var req gatewayapi.CreateInferenceProviderOAuthTicketRequest
@@ -483,21 +528,33 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 	isCodex := kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
 	isCopilot := kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
 	if !isCodex && !isCopilot {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "kind", Message: "provider kind is not subscription-backed",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "kind", Message: "provider kind is not subscription-backed",
+			},
+		)
 		return
 	}
 	if req.Credentials.AccessToken == nil {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "credentials.access_token", Message: "field is required",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "credentials.access_token", Message: "field is required",
+			},
+		)
 		return
 	}
 	if strings.TrimSpace(*req.Credentials.AccessToken) == "" {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "credentials.access_token", Message: "field is required",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "credentials.access_token", Message: "field is required",
+			},
+		)
 		return
 	}
 	accessToken := strings.TrimSpace(*req.Credentials.AccessToken)
@@ -506,9 +563,13 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		refreshToken = strings.TrimSpace(*req.Credentials.RefreshToken)
 	}
 	if isCodex && refreshToken == "" {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "credentials.refresh_token", Message: "field is required",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "credentials.refresh_token", Message: "field is required",
+			},
+		)
 		return
 	}
 	token := &oauth2.Token{
@@ -518,9 +579,13 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		token.Expiry = req.Credentials.ExpiresAt.UTC()
 	}
 	if isCodex && !token.Expiry.After(time.Now().UTC()) {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "credentials.expires_at", Message: "must be in the future",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "credentials.expires_at", Message: "must be in the future",
+			},
+		)
 		return
 	}
 	record := inference.SubscriptionRecord{
@@ -534,22 +599,31 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		}
 		record.AccountID = openAIAccountID(idToken, accessToken)
 		if record.AccountID == "" {
-			writeProviderInputError(w, r, &inference.InputError{
-				Field: "credentials.id_token", Message: "account id claim is required",
-			})
+			writeProviderInputError(
+				w,
+				r,
+				&inference.InputError{
+					Field: "credentials.id_token", Message: "account id claim is required",
+				},
+			)
 			return
 		}
 	}
 	models, provenance, discoveryErr := s.catalog.SubscriptionModels(
-		r.Context(), record,
+		r.Context(),
+		record,
 	)
 	if len(models) == 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadGateway,
-			"model_discovery_failed",
-			"subscription model discovery failed",
-			discoveryErr,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadGateway,
+				"model_discovery_failed",
+				"subscription model discovery failed",
+				discoveryErr,
+			),
+		)
 		return
 	}
 	if discoveryErr != nil {
@@ -586,14 +660,22 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 	}
 	path := ns + "/" + oauthTicketPathDir + "/" + id
 	persistenceEventTrailed = true
-	err = s.baoKV.PutMetadata(r.Context(), path, baoapi.KVMetadataPutInput{
-		CASRequired:        true,
-		DeleteVersionAfter: oauthTicketLifetime,
-		MaxVersions:        1,
-	})
+	err = s.baoKV.PutMetadata(
+		r.Context(),
+		path,
+		baoapi.KVMetadataPutInput{
+			CASRequired:        true,
+			DeleteVersionAfter: oauthTicketLifetime,
+			MaxVersions:        1,
+		},
+	)
 	if err != nil {
 		eventTrailErr := s.createInferenceProviderEventTrail(
-			r.Context(), access, id, gatewaydb.EventTrailResultFailed)
+			r.Context(),
+			access,
+			id,
+			gatewaydb.EventTrailResultFailed,
+		)
 
 		if eventTrailErr != nil {
 			writeInternalError(w, r, errors.Join(err, eventTrailErr))
@@ -609,7 +691,11 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 			err = errors.Join(err, fmt.Errorf("clean up oauth ticket metadata: %w", cleanupErr))
 		}
 		eventTrailErr := s.createInferenceProviderEventTrail(
-			r.Context(), access, id, gatewaydb.EventTrailResultFailed)
+			r.Context(),
+			access,
+			id,
+			gatewaydb.EventTrailResultFailed,
+		)
 
 		if eventTrailErr != nil {
 			writeInternalError(w, r, errors.Join(err, eventTrailErr))
@@ -623,12 +709,16 @@ func (s *Service) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *h
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, gatewayapi.CreateInferenceProviderOAuthTicketResponse{
-		Ticket:     id + "." + secret,
-		ExpiresAt:  expiresAt,
-		Models:     modelSuggestionsToAPI(models),
-		Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
-	})
+	writeJSON(
+		w,
+		http.StatusCreated,
+		gatewayapi.CreateInferenceProviderOAuthTicketResponse{
+			Ticket:     id + "." + secret,
+			ExpiresAt:  expiresAt,
+			Models:     modelSuggestionsToAPI(models),
+			Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
+		},
+	)
 }
 
 // CreateInferenceProvider handles POST /api/inference/provider.
@@ -638,18 +728,24 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	name := "ip-" + strings.ReplaceAll(uuid.NewString()[:13], "-", "")
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, "", authorization.OperationCreateInferenceProvider,
+		r.Context(),
+		workspaceID,
+		"",
+		authorization.OperationCreateInferenceProvider,
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderEventTrail(
-				r.Context(), access, name, access.failureResult())
-
+				r.Context(),
+				access,
+				name,
+				access.failureResult(),
+			)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -658,7 +754,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceEventTrailed := false
+	var persistenceEventTrailed bool
 	defer func() {
 		if persistenceEventTrailed {
 			return
@@ -689,13 +785,20 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	var ticketPath string
 	if isSubscription {
 		if req.OauthTicket == nil {
-			writeProviderInputError(w, r, &inference.InputError{
-				Field: "oauth_ticket", Message: "field is required",
-			})
+			writeProviderInputError(
+				w,
+				r,
+				&inference.InputError{
+					Field: "oauth_ticket", Message: "field is required",
+				},
+			)
 			return
 		}
 		subscription, consumedPath, err := s.consumeInferenceOAuthTicket(
-			r.Context(), ns, *req.OauthTicket, provider,
+			r.Context(),
+			ns,
+			*req.OauthTicket,
+			provider,
 		)
 		if err != nil {
 			writeProviderInputError(w, r, err)
@@ -710,9 +813,13 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	}
 	if !isSubscription {
 		if req.OauthTicket != nil {
-			writeProviderInputError(w, r, &inference.InputError{
-				Field: "oauth_ticket", Message: "field is only valid for subscription providers",
-			})
+			writeProviderInputError(
+				w,
+				r,
+				&inference.InputError{
+					Field: "oauth_ticket", Message: "field is only valid for subscription providers",
+				},
+			)
 			return
 		}
 		record, err = inference.CredentialsForCreate(provider.Spec, input.Credentials)
@@ -724,7 +831,10 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	path := inference.CredentialPath(ns, name, provider.Spec.Kind)
 	if record != nil {
 		_, err := s.baoKV.Put(
-			r.Context(), path, record, baoapi.WithCheckAndSet(0),
+			r.Context(),
+			path,
+			record,
+			baoapi.WithCheckAndSet(0),
 		)
 		if err != nil {
 			writeError(w, r, mapOpenBaoError(err))
@@ -734,12 +844,16 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	if ticketPath != "" {
 		if err := s.baoKV.DeleteMetadata(r.Context(), ticketPath); err != nil {
 			cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
-			writeError(w, r, newAPIError(
-				http.StatusInternalServerError,
-				"oauth_ticket_cleanup_failed",
-				"oauth ticket cleanup failed",
-				errors.Join(err, cleanupErr),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusInternalServerError,
+					"oauth_ticket_cleanup_failed",
+					"oauth ticket cleanup failed",
+					errors.Join(err, cleanupErr),
+				),
+			)
 			return
 		}
 	}
@@ -749,17 +863,25 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		if record != nil {
 			cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
 			if cleanupErr != nil && !errors.Is(cleanupErr, baoapi.ErrSecretNotFound) {
-				writeError(w, r, newAPIError(
-					http.StatusInternalServerError,
-					"compensation_failed",
-					"provider creation failed and credential cleanup also failed",
-					errors.Join(err, cleanupErr),
-				))
+				writeError(
+					w,
+					r,
+					newAPIError(
+						http.StatusInternalServerError,
+						"compensation_failed",
+						"provider creation failed and credential cleanup also failed",
+						errors.Join(err, cleanupErr),
+					),
+				)
 				return
 			}
 		}
 		eventTrailErr := s.createInferenceProviderEventTrail(
-			r.Context(), access, name, gatewaydb.EventTrailResultFailed)
+			r.Context(),
+			access,
+			name,
+			gatewaydb.EventTrailResultFailed,
+		)
 
 		if eventTrailErr != nil {
 			writeInternalError(w, r, errors.Join(err, eventTrailErr))
@@ -774,7 +896,8 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	actors, err := s.resourceActors(
-		r.Context(), provider.Spec.CreatedByUserID,
+		r.Context(),
+		provider.Spec.CreatedByUserID,
 		provider.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
@@ -791,12 +914,15 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 
 // GetInferenceProvider handles GET /api/inference/provider/{providerName}.
 func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.GetInferenceProviderParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, providerName, authorization.OperationGetInferenceProvider,
+		r.Context(),
+		workspaceID,
+		providerName,
+		authorization.OperationGetInferenceProvider,
 	)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
@@ -807,7 +933,8 @@ func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	actors, err := s.resourceActors(
-		r.Context(), provider.Spec.CreatedByUserID,
+		r.Context(),
+		provider.Spec.CreatedByUserID,
 		provider.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
@@ -825,12 +952,14 @@ func (s *Service) GetInferenceProvider(w http.ResponseWriter, r *http.Request, p
 // RefreshInferenceProviderModels handles GET
 // /api/inference/provider/{providerName}/models.
 func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.RefreshInferenceProviderModelsParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, providerName,
+		r.Context(),
+		workspaceID,
+		providerName,
 		authorization.OperationRefreshInferenceProviderModels,
 	)
 	if apiErr != nil {
@@ -844,9 +973,13 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 	isCodex := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
 	isCopilot := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
 	if !isCodex && !isCopilot {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "providerName", Message: "provider is not subscription-backed",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "providerName", Message: "provider is not subscription-backed",
+			},
+		)
 		return
 	}
 	path := inference.CredentialPath(
@@ -861,24 +994,34 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 	}
 	record, err := inference.DecodeSubscriptionRecord(secretRecord.Data)
 	if err != nil || record.Kind != provider.Spec.Kind {
-		writeError(w, r, newAPIError(
-			http.StatusServiceUnavailable,
-			"credentials_unavailable",
-			"subscription credentials are unavailable",
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusServiceUnavailable,
+				"credentials_unavailable",
+				"subscription credentials are unavailable",
+				err,
+			),
+		)
 		return
 	}
 	record, changed, err := inference.RefreshSubscription(
-		r.Context(), s.outboundHTTP, record,
+		r.Context(),
+		s.outboundHTTP,
+		record,
 	)
 	if err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusBadGateway,
-			"oauth_refresh_failed",
-			"subscription credentials could not be refreshed",
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadGateway,
+				"oauth_refresh_failed",
+				"subscription credentials could not be refreshed",
+				err,
+			),
+		)
 		return
 	}
 	if changed {
@@ -916,15 +1059,20 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		}
 	}
 	models, provenance, discoveryErr := s.catalog.SubscriptionModels(
-		r.Context(), record,
+		r.Context(),
+		record,
 	)
 	if len(models) == 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadGateway,
-			"model_discovery_failed",
-			"subscription model discovery failed",
-			discoveryErr,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadGateway,
+				"model_discovery_failed",
+				"subscription model discovery failed",
+				discoveryErr,
+			),
+		)
 		return
 	}
 	if discoveryErr != nil {
@@ -935,10 +1083,14 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 			slog.Any("err", discoveryErr),
 		)
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.InferenceModelSuggestions{
-		Models:     modelSuggestionsToAPI(models),
-		Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.InferenceModelSuggestions{
+			Models:     modelSuggestionsToAPI(models),
+			Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
+		},
+	)
 }
 
 // UpdateInferenceProvider handles PUT /api/inference/provider/{providerName}.
@@ -947,19 +1099,24 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, providerName,
+		r.Context(),
+		workspaceID,
+		providerName,
 		authorization.OperationUpdateInferenceProvider,
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderEventTrail(
-				r.Context(), access, providerName, access.failureResult())
-
+				r.Context(),
+				access,
+				providerName,
+				access.failureResult(),
+			)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -968,15 +1125,17 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceEventTrailed := false
+	var persistenceEventTrailed bool
 	defer func() {
 		if persistenceEventTrailed {
 			return
 		}
 		err := s.createInferenceProviderEventTrail(
-			context.WithoutCancel(r.Context()), access, providerName,
-			gatewaydb.EventTrailResultFailed)
-
+			context.WithoutCancel(r.Context()),
+			access,
+			providerName,
+			gatewaydb.EventTrailResultFailed,
+		)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Provider update", slog.Any("err", err))
 		}
@@ -994,16 +1153,20 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if current.ResourceVersion != req.ResourceVersion {
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"conflict",
-			"provider changed since it was loaded",
-			apierrors.NewConflict(
-				agentzv1alpha1.Resource("inferenceproviders"),
-				current.Name,
-				fmt.Errorf("resource version does not match"),
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"provider changed since it was loaded",
+				apierrors.NewConflict(
+					agentzv1alpha1.Resource("inferenceproviders"),
+					current.Name,
+					fmt.Errorf("resource version does not match"),
+				),
 			),
-		))
+		)
 		return
 	}
 	desired := providerFromInput(ns, current.Name, input)
@@ -1012,15 +1175,23 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		LastModifiedByUserID: access.claims.UserID,
 	}
 	if desired.Spec.Kind != current.Spec.Kind {
-		writeInferenceIssues(w, r, []inference.Issue{{
-			Field: "kind", Message: "provider kind is immutable",
-		}})
+		writeInferenceIssues(
+			w,
+			r,
+			[]inference.Issue{{
+				Field: "kind", Message: "provider kind is immutable",
+			}},
+		)
 		return
 	}
 	if desired.Spec.CatalogProvider != current.Spec.CatalogProvider {
-		writeInferenceIssues(w, r, []inference.Issue{{
-			Field: "catalog_provider", Message: "catalog provider is immutable",
-		}})
+		writeInferenceIssues(
+			w,
+			r,
+			[]inference.Issue{{
+				Field: "catalog_provider", Message: "catalog provider is immutable",
+			}},
+		)
 		return
 	}
 	if fields := inference.ValidateProvider(desired.Spec); len(fields) > 0 {
@@ -1028,7 +1199,10 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	modelIssues, err := inference.ValidateModelRemoval(
-		r.Context(), s.usageReader, current, desired,
+		r.Context(),
+		s.usageReader,
+		current,
+		desired,
 	)
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -1059,15 +1233,23 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	azureAuthChanged := current.Spec.Azure != nil && desired.Spec.Azure != nil && current.Spec.Azure.AuthMode != desired.Spec.Azure.AuthMode
 	bedrockAuthChanged := current.Spec.Bedrock != nil && desired.Spec.Bedrock != nil && current.Spec.Bedrock.AuthMode != desired.Spec.Bedrock.AuthMode
 	if (azureAuthChanged || bedrockAuthChanged) && !rotate {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "credentials", Message: "complete credentials are required when changing authentication mode",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "credentials", Message: "complete credentials are required when changing authentication mode",
+			},
+		)
 		return
 	}
 	if oldNoAuth && !newNoAuth && !rotate {
-		writeProviderInputError(w, r, &inference.InputError{
-			Field: "credentials.api_key", Message: "field is required when enabling authentication",
-		})
+		writeProviderInputError(
+			w,
+			r,
+			&inference.InputError{
+				Field: "credentials.api_key", Message: "field is required when enabling authentication",
+			},
+		)
 		return
 	}
 	path := inference.CredentialPath(ns, current.Name, current.Spec.Kind)
@@ -1093,7 +1275,11 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	persistenceEventTrailed = true
 	if err := s.k8sClient.Update(r.Context(), current); err != nil {
 		eventTrailErr := s.createInferenceProviderEventTrail(
-			r.Context(), access, providerName, gatewaydb.EventTrailResultFailed)
+			r.Context(),
+			access,
+			providerName,
+			gatewaydb.EventTrailResultFailed,
+		)
 
 		if eventTrailErr != nil {
 			writeInternalError(w, r, errors.Join(err, eventTrailErr))
@@ -1124,7 +1310,8 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	actors, err := s.resourceActors(
-		r.Context(), current.Spec.CreatedByUserID,
+		r.Context(),
+		current.Spec.CreatedByUserID,
 		current.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
@@ -1141,19 +1328,24 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 
 // DeleteInferenceProvider handles DELETE /api/inference/provider/{providerName}.
 func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.DeleteInferenceProviderParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, providerName,
+		r.Context(),
+		workspaceID,
+		providerName,
 		authorization.OperationDeleteInferenceProvider,
 	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
 			err := s.createInferenceProviderEventTrail(
-				r.Context(), access, providerName, access.failureResult())
-
+				r.Context(),
+				access,
+				providerName,
+				access.failureResult(),
+			)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -1162,7 +1354,7 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeError(w, r, apiErr)
 		return
 	}
-	persistenceEventTrailed := false
+	var persistenceEventTrailed bool
 	defer func() {
 		if persistenceEventTrailed {
 			return
@@ -1176,7 +1368,8 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	conflict, err := s.selectedOrganizationResourceConflict(
-		r.Context(), access,
+		r.Context(),
+		access,
 		agentzv1alpha1.OrganizationResourceKindInferenceProvider,
 		providerName,
 	)
@@ -1191,28 +1384,42 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 	if len(usage.pools) > 0 || len(usage.sandboxes) > 0 {
 		fields := make([]gatewayapi.FieldError, 0, len(usage.pools)+len(usage.sandboxes))
 		for _, pool := range usage.pools {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "pools", Message: pool,
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field: "pools", Message: pool,
+				},
+			)
 		}
 		for _, sandbox := range usage.sandboxes {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "sandboxes", Message: sandbox,
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field: "sandboxes", Message: sandbox,
+				},
+			)
 		}
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"provider_referenced",
-			"provider is referenced by one or more pools or sandboxes",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"provider_referenced",
+				"provider is referenced by one or more pools or sandboxes",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 	persistenceEventTrailed = true
 	if err := s.k8sClient.Delete(r.Context(), provider); err != nil {
 		eventTrailErr := s.createInferenceProviderEventTrail(
-			r.Context(), access, providerName, gatewaydb.EventTrailResultFailed)
+			r.Context(),
+			access,
+			providerName,
+			gatewaydb.EventTrailResultFailed,
+		)
 
 		if eventTrailErr != nil {
 			writeInternalError(w, r, errors.Join(err, eventTrailErr))
@@ -1231,12 +1438,14 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 
 // GetInferenceProviderUsage handles GET /api/inference/provider/{providerName}/usage.
 func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName gatewayapi.InferenceProviderNamePath, params gatewayapi.GetInferenceProviderUsageParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	access, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, providerName,
+		r.Context(),
+		workspaceID,
+		providerName,
 		authorization.OperationGetInferenceProviderUsage,
 	)
 	if apiErr != nil {
@@ -1247,19 +1456,26 @@ func (s *Service) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.InferenceProviderUsage{
-		Provider: providerName, Pools: usage.pools, Sandboxes: usage.sandboxes,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.InferenceProviderUsage{
+			Provider: providerName, Pools: usage.pools, Sandboxes: usage.sandboxes,
+		},
+	)
 }
 
 // ListInferenceProviderCatalog handles GET /api/inference/provider/catalog.
 func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferenceProviderCatalogParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	_, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, "", authorization.OperationListInferenceProviderCatalog,
+		r.Context(),
+		workspaceID,
+		"",
+		authorization.OperationListInferenceProviderCatalog,
 	)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
@@ -1293,19 +1509,26 @@ func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Re
 		}
 		providers = append(providers, provider)
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.InferenceProviderCatalog{
-		Commit: commit, Providers: providers,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.InferenceProviderCatalog{
+			Commit: commit, Providers: providers,
+		},
+	)
 }
 
 // ListInferenceModelSuggestions handles the provider model-catalog endpoint.
 func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request, catalogProvider string, params gatewayapi.ListInferenceModelSuggestionsParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	_, apiErr := s.resolveInferenceProviderAccess(
-		r.Context(), workspaceID, "", authorization.OperationListInferenceModelSuggestions,
+		r.Context(),
+		workspaceID,
+		"",
+		authorization.OperationListInferenceModelSuggestions,
 	)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
@@ -1326,18 +1549,26 @@ func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.R
 		)
 	}
 	if models == nil {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"unsupported catalog provider and provider kind",
-			errBadRequest,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"unsupported catalog provider and provider kind",
+				errBadRequest,
+			),
+		)
 		return
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.InferenceModelSuggestions{
-		Models:     modelSuggestionsToAPI(models),
-		Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.InferenceModelSuggestions{
+			Models:     modelSuggestionsToAPI(models),
+			Provenance: gatewayapi.InferenceModelSuggestionsProvenance(provenance),
+		},
+	)
 }
 
 func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, namespace, providerName string) (*agentzv1alpha1.InferenceProvider, providerUsage, bool) {
@@ -1629,7 +1860,9 @@ func providerFromInput(namespace, name string, input providerInput) *agentzv1alp
 		}
 		if value.Headers != nil {
 			cfg.Headers = make(
-				[]agentzv1alpha1.InferenceProviderHeader, 0, len(*value.Headers),
+				[]agentzv1alpha1.InferenceProviderHeader,
+				0,
+				len(*value.Headers),
 			)
 			for _, header := range *value.Headers {
 				cfg.Headers = append(
@@ -1654,10 +1887,13 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 	}
 	conditions := make([]gatewayapi.InferenceProviderCondition, 0, len(provider.Status.Conditions))
 	for _, condition := range provider.Status.Conditions {
-		conditions = append(conditions, gatewayapi.InferenceProviderCondition{
-			Type: condition.Type, Status: gatewayapi.InferenceProviderConditionStatus(condition.Status),
-			Reason: condition.Reason, Message: condition.Message,
-		})
+		conditions = append(
+			conditions,
+			gatewayapi.InferenceProviderCondition{
+				Type: condition.Type, Status: gatewayapi.InferenceProviderConditionStatus(condition.Status),
+				Reason: condition.Reason, Message: condition.Message,
+			},
+		)
 	}
 	updatedAt := provider.CreationTimestamp.Time
 	if raw := provider.Annotations[providerUpdatedAtAnnotation]; raw != "" {
@@ -1679,12 +1915,8 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 		Models:          modelsToAPI(provider.Spec.Models),
 		State:           state, Conditions: conditions,
 		ModelCount: len(provider.Spec.Models), UsageCount: usage,
-		CanModify: access.effective.Allows(
-			scope, authorization.OperationUpdateInferenceProvider,
-		) || creator,
-		CanDelete: access.effective.Allows(
-			scope, authorization.OperationDeleteInferenceProvider,
-		) || creator,
+		CanModify: access.effective.Allows(scope, authorization.OperationUpdateInferenceProvider) || creator,
+		CanDelete: access.effective.Allows(scope, authorization.OperationDeleteInferenceProvider) || creator,
 		CreatedAt: provider.CreationTimestamp.Time, UpdatedAt: updatedAt,
 		CreatedBy:      actors[provider.Spec.CreatedByUserID],
 		LastModifiedBy: actors[provider.Spec.LastModifiedByUserID],
@@ -1805,9 +2037,12 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 		config.SkipTlsVerify = &value.SkipTLSVerify
 		headers := make([]gatewayapi.InferenceProviderHeader, 0, len(value.Headers))
 		for _, header := range value.Headers {
-			headers = append(headers, gatewayapi.InferenceProviderHeader{
-				Name: header.Name, Value: header.Value,
-			})
+			headers = append(
+				headers,
+				gatewayapi.InferenceProviderHeader{
+					Name: header.Name, Value: header.Value,
+				},
+			)
 		}
 		config.Headers = &headers
 		var err error
@@ -1896,7 +2131,8 @@ func (s *Service) consumeInferenceOAuthTicket(ctx context.Context, namespace, ra
 	}
 	if err != nil {
 		return inference.SubscriptionRecord{}, "", fmt.Errorf(
-			"read inference oauth ticket: %w", err,
+			"read inference oauth ticket: %w",
+			err,
 		)
 	}
 	if secretRecord.VersionMetadata == nil {
@@ -1927,9 +2163,13 @@ func (s *Service) consumeInferenceOAuthTicket(ctx context.Context, namespace, ra
 		}
 	}
 	for _, selected := range provider.Spec.Models {
-		if !slices.ContainsFunc(ticket.Models, func(available agentzv1alpha1.InferenceModel) bool {
-			return reflect.DeepEqual(selected, available)
-		}) {
+		modelAvailable := slices.ContainsFunc(
+			ticket.Models,
+			func(available agentzv1alpha1.InferenceModel) bool {
+				return reflect.DeepEqual(selected, available)
+			},
+		)
+		if !modelAvailable {
 			return inference.SubscriptionRecord{}, "", &inference.InputError{
 				Field: "models", Message: "model is not available to this subscription",
 			}
@@ -1958,7 +2198,8 @@ func (s *Service) consumeInferenceOAuthTicket(ctx context.Context, namespace, ra
 		)
 		if !isCASMismatch {
 			return inference.SubscriptionRecord{}, "", fmt.Errorf(
-				"claim inference oauth ticket: %w", err,
+				"claim inference oauth ticket: %w",
+				err,
 			)
 		}
 		return inference.SubscriptionRecord{}, "", &inference.InputError{
@@ -2042,11 +2283,14 @@ func modelSuggestionsToAPI(models []agentzv1alpha1.InferenceModel) []gatewayapi.
 		if model.CatalogProvider != nil {
 			catalogProvider = *model.CatalogProvider
 		}
-		suggestions = append(suggestions, gatewayapi.InferenceModelSuggestion{
-			Id: model.Id, DisplayName: model.DisplayName,
-			Capabilities: model.Capabilities, Modalities: model.Modalities,
-			Limits: model.Limits, CatalogProvider: catalogProvider, Api: model.Api,
-		})
+		suggestions = append(
+			suggestions,
+			gatewayapi.InferenceModelSuggestion{
+				Id: model.Id, DisplayName: model.DisplayName,
+				Capabilities: model.Capabilities, Modalities: model.Modalities,
+				Limits: model.Limits, CatalogProvider: catalogProvider, Api: model.Api,
+			},
+		)
 	}
 	return suggestions
 }
@@ -2093,13 +2337,17 @@ func writeInferenceIssues(w http.ResponseWriter, r *http.Request, issues []infer
 	for _, issue := range issues {
 		fields = append(fields, gatewayapi.FieldError{Field: issue.Field, Message: issue.Message})
 	}
-	writeError(w, r, newAPIError(
-		http.StatusBadRequest,
-		"invalid_request",
-		"request validation failed",
-		errBadRequest,
-		fields...,
-	))
+	writeError(
+		w,
+		r,
+		newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		),
+	)
 }
 
 func writeProviderInputError(w http.ResponseWriter, r *http.Request, err error) {
@@ -2108,7 +2356,11 @@ func writeProviderInputError(w http.ResponseWriter, r *http.Request, err error) 
 		writeInternalError(w, r, err)
 		return
 	}
-	writeInferenceIssues(w, r, []inference.Issue{{
-		Field: inputErr.Field, Message: inputErr.Message,
-	}})
+	writeInferenceIssues(
+		w,
+		r,
+		[]inference.Issue{{
+			Field: inputErr.Field, Message: inputErr.Message,
+		}},
+	)
 }

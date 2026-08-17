@@ -131,9 +131,12 @@ func TestReconcileDeletionFindsOrganisationSandboxAgentAcrossWorkspaces(t *testi
 		)
 	}
 
-	_, err = r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: client.ObjectKeyFromObject(sandbox),
-	})
+	_, err = r.Reconcile(
+		context.Background(),
+		ctrl.Request{
+			NamespacedName: client.ObjectKeyFromObject(sandbox),
+		},
+	)
 	if err == nil || !strings.Contains(err.Error(), `agent "organisation-agent"`) {
 		t.Fatalf("Reconcile() error = %v, want Organisation Sandbox reference", err)
 	}

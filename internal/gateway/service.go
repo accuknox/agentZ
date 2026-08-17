@@ -214,15 +214,18 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create k8s client: %w", err)
 	}
-	usageCache, err := ctrlcache.New(kubeCfg, ctrlcache.Options{
-		Scheme:                      scheme,
-		ReaderFailOnMissingInformer: true,
-		ByObject: map[ctrlclient.Object]ctrlcache.ByObject{
-			&agentzv1alpha1.Agent{}:         {},
-			&agentzv1alpha1.Sandbox{}:       {},
-			&agentzv1alpha1.InferencePool{}: {},
+	usageCache, err := ctrlcache.New(
+		kubeCfg,
+		ctrlcache.Options{
+			Scheme:                      scheme,
+			ReaderFailOnMissingInformer: true,
+			ByObject: map[ctrlclient.Object]ctrlcache.ByObject{
+				&agentzv1alpha1.Agent{}:         {},
+				&agentzv1alpha1.Sandbox{}:       {},
+				&agentzv1alpha1.InferencePool{}: {},
+			},
 		},
-	})
+	)
 	if err != nil {
 		return fmt.Errorf("create inference usage cache: %w", err)
 	}
@@ -329,7 +332,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	errCh := make(chan error, 1)
 	go func() {
 		slog.InfoContext(
-			ctx, "starting agent gateway HTTP server",
+			ctx,
+			"starting agent gateway HTTP server",
 			slog.String("addr", cfg.Addr),
 			slog.String("target_override", cfg.TargetOverride),
 		)
@@ -393,11 +397,14 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 	for {
 		now := time.Now()
 		token := fmt.Sprintf("gateway-%d", now.UnixNano())
-		job, err := s.queries.GatewayClaimCleanupJob(ctx, gatewaydb.GatewayClaimCleanupJobParams{
-			LeaseToken:     pgtype.Text{String: token, Valid: true},
-			LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(2 * time.Minute), Valid: true},
-			NowAt:          pgtype.Timestamptz{Time: now, Valid: true},
-		})
+		job, err := s.queries.GatewayClaimCleanupJob(
+			ctx,
+			gatewaydb.GatewayClaimCleanupJobParams{
+				LeaseToken:     pgtype.Text{String: token, Valid: true},
+				LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(2 * time.Minute), Valid: true},
+				NowAt:          pgtype.Timestamptz{Time: now, Valid: true},
+			},
+		)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return
 		}
@@ -420,8 +427,10 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 				)
 				if failErr != nil {
 					slog.ErrorContext(
-						ctx, "fail cleanup job",
-						slog.String("job_id", job.ID), slog.Any("err", failErr),
+						ctx,
+						"fail cleanup job",
+						slog.String("job_id", job.ID),
+						slog.Any("err", failErr),
 					)
 					continue
 				}
@@ -432,13 +441,16 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 			}
 
 			next := now.Add(time.Duration(job.Attempts) * time.Minute)
-			updated, retryErr := s.queries.GatewayRetryCleanupJob(ctx, gatewaydb.GatewayRetryCleanupJobParams{
-				NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},
-				LastError:     pgtype.Text{String: err.Error(), Valid: true},
-				UpdatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
-				ID:            job.ID,
-				LeaseToken:    job.LeaseToken,
-			})
+			updated, retryErr := s.queries.GatewayRetryCleanupJob(
+				ctx,
+				gatewaydb.GatewayRetryCleanupJobParams{
+					NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},
+					LastError:     pgtype.Text{String: err.Error(), Valid: true},
+					UpdatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
+					ID:            job.ID,
+					LeaseToken:    job.LeaseToken,
+				},
+			)
 			if retryErr != nil {
 				slog.ErrorContext(ctx, "retry cleanup job", slog.String("job_id", job.ID), slog.Any("err", retryErr))
 				continue
@@ -449,11 +461,14 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 			continue
 		}
 
-		updated, err := s.queries.GatewayCompleteCleanupJob(ctx, gatewaydb.GatewayCompleteCleanupJobParams{
-			CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-			ID:          job.ID,
-			LeaseToken:  job.LeaseToken,
-		})
+		updated, err := s.queries.GatewayCompleteCleanupJob(
+			ctx,
+			gatewaydb.GatewayCompleteCleanupJobParams{
+				CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				ID:          job.ID,
+				LeaseToken:  job.LeaseToken,
+			},
+		)
 		if err != nil {
 			slog.ErrorContext(ctx, "complete cleanup job", slog.String("job_id", job.ID), slog.Any("err", err))
 			continue
@@ -490,10 +505,13 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 	}
 
 	for _, agent := range payload.OwnedAgents {
-		workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-			ID:             agent.WorkspaceID,
-			OrganizationID: job.OrganizationID,
-		})
+		workspace, err := s.queries.GatewayGetWorkspace(
+			ctx,
+			gatewaydb.GatewayGetWorkspaceParams{
+				ID:             agent.WorkspaceID,
+				OrganizationID: job.OrganizationID,
+			},
+		)
 		if err != nil {
 			return fmt.Errorf("get workspace %q for cleanup: %w", agent.WorkspaceID, err)
 		}
@@ -622,10 +640,13 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			return fmt.Errorf("agent %q secret cleanup is pending", agent.AgentName)
 		}
 
-		_, err = s.queries.GatewayDeleteAgent(ctx, gatewaydb.GatewayDeleteAgentParams{
-			TenantNamespace: workspace.Namespace,
-			AgentName:       agent.AgentName,
-		})
+		_, err = s.queries.GatewayDeleteAgent(
+			ctx,
+			gatewaydb.GatewayDeleteAgentParams{
+				TenantNamespace: workspace.Namespace,
+				AgentName:       agent.AgentName,
+			},
+		)
 		if err != nil {
 			return fmt.Errorf("delete Agent %q row: %w", agent.AgentName, err)
 		}
@@ -637,9 +658,12 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 	if payload.WorkspaceID == "" || payload.WorkspaceID != job.TargetID {
 		return errors.New("workspace cleanup payload does not match its target")
 	}
-	workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-		ID: payload.WorkspaceID, OrganizationID: job.OrganizationID,
-	})
+	workspace, err := s.queries.GatewayGetWorkspace(
+		ctx,
+		gatewaydb.GatewayGetWorkspaceParams{
+			ID: payload.WorkspaceID, OrganizationID: job.OrganizationID,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("get Workspace %q for cleanup: %w", payload.WorkspaceID, err)
 	}
@@ -695,25 +719,32 @@ func (s *Service) routes() http.Handler {
 				if statusErr, ok := converted.(openapi3filter.StatusCoder); ok {
 					status = statusErr.StatusCode()
 				}
-				writeError(w, r, newAPIError(
-					status,
-					"invalid_request",
-					"request is invalid",
-					err,
-				))
+				writeError(
+					w,
+					r,
+					newAPIError(
+						status,
+						"invalid_request",
+						"request is invalid",
+						err,
+					),
+				)
 			},
 			DoNotValidateServers: true,
 		},
 	))
-	gatewayapi.HandlerWithOptions(s, gatewayapi.ChiServerOptions{
-		BaseRouter:       apiRouter,
-		ErrorHandlerFunc: s.handleRouteError,
-		Middlewares: []gatewayapi.MiddlewareFunc{
-			requireExplicitCapability,
-			requireTenantRequest(s),
-			requireAgentBoundAccess(s),
+	gatewayapi.HandlerWithOptions(
+		s,
+		gatewayapi.ChiServerOptions{
+			BaseRouter:       apiRouter,
+			ErrorHandlerFunc: s.handleRouteError,
+			Middlewares: []gatewayapi.MiddlewareFunc{
+				requireExplicitCapability,
+				requireTenantRequest(s),
+				requireAgentBoundAccess(s),
+			},
 		},
-	})
+	)
 	r.Mount("/", apiRouter)
 	return r
 }

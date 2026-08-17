@@ -110,9 +110,12 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 		return access, resourceForbidden(fmt.Errorf("%s operation mapping is missing, ambiguous, or unknown", req.resource))
 	}
 
-	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
-	})
+	effective, err := authorization.New(s.queries).Resolve(
+		ctx,
+		authorization.Subject{
+			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+		},
+	)
 	if err != nil {
 		return access, newAPIError(
 			http.StatusInternalServerError,
@@ -174,9 +177,12 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 		), nil
 	}
 
-	row, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-		ID: workspaceID, OrganizationID: claims.OrganizationID,
-	})
+	row, err := s.queries.GatewayGetWorkspace(
+		ctx,
+		gatewaydb.GatewayGetWorkspaceParams{
+			ID: workspaceID, OrganizationID: claims.OrganizationID,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", metav1.OwnerReference{}, workspaceNotFound(workspaceID)
 	}
@@ -242,9 +248,12 @@ func resourceScope(workspaceID string) gatewayapi.ResourceScope {
 }
 
 func (s *Service) resolveResourceCapabilities(ctx context.Context, claims gatewayClaims, workspaceID string) (resourceCapabilitySet, error) {
-	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
-	})
+	effective, err := authorization.New(s.queries).Resolve(
+		ctx,
+		authorization.Subject{
+			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+		},
+	)
 	if err != nil {
 		return resourceCapabilitySet{}, fmt.Errorf("resolve resource capabilities: %w", err)
 	}

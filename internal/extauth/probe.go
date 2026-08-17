@@ -80,23 +80,26 @@ func (s *Service) runProbeQueue(ctx context.Context) {
 			return
 		}
 
-		_, err, _ := s.sf.Do("probe:"+name, func() (any, error) {
-			conn, getErr := s.mcpConnections.Get(name)
-			if getErr != nil {
-				return nil, ctrlclient.IgnoreNotFound(getErr)
-			}
-			if !conn.DeletionTimestamp.IsZero() {
+		_, err, _ := s.sf.Do(
+			"probe:"+name,
+			func() (any, error) {
+				conn, getErr := s.mcpConnections.Get(name)
+				if getErr != nil {
+					return nil, ctrlclient.IgnoreNotFound(getErr)
+				}
+				if !conn.DeletionTimestamp.IsZero() {
+					return nil, nil
+				}
+				outcome := s.probeMCPConnection(ctx, conn)
+				s.probeTimesMu.Lock()
+				s.probeTimes[name] = outcome.lastProbeTime.Time
+				s.probeTimesMu.Unlock()
+				if writeErr := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); writeErr != nil {
+					return nil, writeErr
+				}
 				return nil, nil
-			}
-			outcome := s.probeMCPConnection(ctx, conn)
-			s.probeTimesMu.Lock()
-			s.probeTimes[name] = outcome.lastProbeTime.Time
-			s.probeTimesMu.Unlock()
-			if writeErr := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); writeErr != nil {
-				return nil, writeErr
-			}
-			return nil, nil
-		})
+			},
+		)
 		s.probeQueue.Done(name)
 		if err == nil {
 			continue
@@ -259,16 +262,22 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *agentzv1alph
 	if err != nil {
 		outcome.reason = classifyProbeError(err, rt.lastStatus)
 		outcome.message = "MCP tools request failed"
-		rt.logHTTPExchange(ctx, slog.LevelWarn, "mcp list_tools http exchange",
+		rt.logHTTPExchange(
+			ctx,
+			slog.LevelWarn,
+			"mcp list_tools http exchange",
 			slog.String("probe_reason", outcome.reason),
 		)
 		return outcome
 	}
 	outcome.tools = make([]agentzv1alpha1.MCPConnectionTool, 0, len(tools.Tools))
 	for _, tool := range tools.Tools {
-		outcome.tools = append(outcome.tools, agentzv1alpha1.MCPConnectionTool{
-			Name: strings.TrimSpace(tool.Name),
-		})
+		outcome.tools = append(
+			outcome.tools,
+			agentzv1alpha1.MCPConnectionTool{
+				Name: strings.TrimSpace(tool.Name),
+			},
+		)
 	}
 
 	outcome.healthy = true
@@ -380,57 +389,60 @@ func isReachabilityError(err error) bool {
 }
 
 func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name string, outcome mcpProbeOutcome) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		conn := &agentzv1alpha1.MCPConnection{}
-		key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
-		if err := s.kube.Get(ctx, key, conn); err != nil {
-			return ctrlclient.IgnoreNotFound(err)
-		}
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			conn := &agentzv1alpha1.MCPConnection{}
+			key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
+			if err := s.kube.Get(ctx, key, conn); err != nil {
+				return ctrlclient.IgnoreNotFound(err)
+			}
 
-		conn.Status.LastProbeTime = &outcome.lastProbeTime
-		conn.Status.ToolCatalogReady = outcome.healthy
-		conn.Status.Tools = outcome.tools
-		status := metav1.ConditionFalse
-		if outcome.healthy {
-			status = metav1.ConditionTrue
-		}
-		if outcome.reason == internalmcp.ReasonProbePending {
-			status = metav1.ConditionUnknown
-		}
-		conn.Status.SetCondition(metav1.Condition{
-			Type:               internalmcp.ConditionProbeHealthy,
-			Status:             status,
-			Reason:             outcome.reason,
-			Message:            outcome.message,
-			ObservedGeneration: conn.Generation,
-		})
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionConnectionUnreachable,
-			outcome.reason == internalmcp.ReasonConnectionUnreachable,
-			outcome,
-		)
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionCredentialsInvalid,
-			outcome.reason == internalmcp.ReasonCredentialsInvalid,
-			outcome,
-		)
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionProtocolError,
-			outcome.reason == internalmcp.ReasonProtocolError,
-			outcome,
-		)
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionInternalError,
-			outcome.reason == internalmcp.ReasonInternalError,
-			outcome,
-		)
+			conn.Status.LastProbeTime = &outcome.lastProbeTime
+			conn.Status.ToolCatalogReady = outcome.healthy
+			conn.Status.Tools = outcome.tools
+			status := metav1.ConditionFalse
+			if outcome.healthy {
+				status = metav1.ConditionTrue
+			}
+			if outcome.reason == internalmcp.ReasonProbePending {
+				status = metav1.ConditionUnknown
+			}
+			conn.Status.SetCondition(metav1.Condition{
+				Type:               internalmcp.ConditionProbeHealthy,
+				Status:             status,
+				Reason:             outcome.reason,
+				Message:            outcome.message,
+				ObservedGeneration: conn.Generation,
+			})
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionConnectionUnreachable,
+				outcome.reason == internalmcp.ReasonConnectionUnreachable,
+				outcome,
+			)
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionCredentialsInvalid,
+				outcome.reason == internalmcp.ReasonCredentialsInvalid,
+				outcome,
+			)
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionProtocolError,
+				outcome.reason == internalmcp.ReasonProtocolError,
+				outcome,
+			)
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionInternalError,
+				outcome.reason == internalmcp.ReasonInternalError,
+				outcome,
+			)
 
-		return s.kube.Status().Update(ctx, conn)
-	})
+			return s.kube.Status().Update(ctx, conn)
+		},
+	)
 }
 
 func setProbeErrorCondition(conn *agentzv1alpha1.MCPConnection, typ string, active bool, outcome mcpProbeOutcome) {

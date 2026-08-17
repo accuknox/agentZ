@@ -171,20 +171,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"workspace namespace is not ready",
 		)
 	}
-	err = gatewayrbac.Reconcile(ctx, r.Direct, gatewayrbac.Config{
-		Namespace:               workspace.Name,
-		ServiceAccountName:      r.GatewayServiceAccountName,
-		ServiceAccountNamespace: r.GatewayServiceAccountNamespace,
-		Labels: map[string]string{
-			agentzv1alpha1.TenantManagedByLabel:      agentzv1alpha1.TenantManagedByValue,
-			agentzv1alpha1.WorkspaceNameLabel:        workspace.Name,
-			agentzv1alpha1.TenantOrganizationIDLabel: tenant.Name,
+	err = gatewayrbac.Reconcile(
+		ctx,
+		r.Direct,
+		gatewayrbac.Config{
+			Namespace:               workspace.Name,
+			ServiceAccountName:      r.GatewayServiceAccountName,
+			ServiceAccountNamespace: r.GatewayServiceAccountNamespace,
+			Labels: map[string]string{
+				agentzv1alpha1.TenantManagedByLabel:      agentzv1alpha1.TenantManagedByValue,
+				agentzv1alpha1.WorkspaceNameLabel:        workspace.Name,
+				agentzv1alpha1.TenantOrganizationIDLabel: tenant.Name,
+			},
+			Owner: *metav1.NewControllerRef(
+				&workspace,
+				agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
+			),
 		},
-		Owner: *metav1.NewControllerRef(
-			&workspace,
-			agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
-		),
-	})
+	)
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, r.markPending(
 			ctx,
@@ -247,20 +251,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"workspace network isolation is not ready",
 		)
 	}
-	certReady, err := sinjectorca.Reconcile(ctx, r.CertClient, sinjectorca.Config{
-		Name:      r.SinjectorCASecretName,
-		Namespace: workspace.Name,
-		Issuer:    r.ClusterIssuerName,
-		Labels: map[string]string{
-			agentzv1alpha1.TenantManagedByLabel:      agentzv1alpha1.TenantManagedByValue,
-			agentzv1alpha1.WorkspaceNameLabel:        workspace.Name,
-			agentzv1alpha1.TenantOrganizationIDLabel: tenant.Name,
+	certReady, err := sinjectorca.Reconcile(
+		ctx,
+		r.CertClient,
+		sinjectorca.Config{
+			Name:      r.SinjectorCASecretName,
+			Namespace: workspace.Name,
+			Issuer:    r.ClusterIssuerName,
+			Labels: map[string]string{
+				agentzv1alpha1.TenantManagedByLabel:      agentzv1alpha1.TenantManagedByValue,
+				agentzv1alpha1.WorkspaceNameLabel:        workspace.Name,
+				agentzv1alpha1.TenantOrganizationIDLabel: tenant.Name,
+			},
+			Owner: *metav1.NewControllerRef(
+				&workspace,
+				agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
+			),
 		},
-		Owner: *metav1.NewControllerRef(
-			&workspace,
-			agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
-		),
-	})
+	)
 	if err != nil {
 		if errors.Is(err, sinjectorca.ErrOwnershipConflict) {
 			return r.failWorkspace(
@@ -390,41 +398,46 @@ func (r *Reconciler) readyTenant(ctx context.Context, organizationID string) (*a
 
 func (r *Reconciler) reconcileNamespace(ctx context.Context, workspace *agentzv1alpha1.Workspace, tenant *agentzv1alpha1.Tenant) error {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: workspace.Name}}
-	_, err := controllerutil.CreateOrPatch(ctx, r.Direct, ns, func() error {
-		if ns.UID != "" {
-			managed := ns.Labels[agentzv1alpha1.TenantManagedByLabel] == agentzv1alpha1.TenantManagedByValue
-			workspaceOwned := ns.Labels[agentzv1alpha1.WorkspaceNameLabel] == workspace.Name
-			organizationOwned := ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] == tenant.Name
-			workspaceMatches := ns.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] == workspace.Spec.WorkspaceID
-			organizationMatches := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] == workspace.Spec.OrganizationID
-			if !managed || !workspaceOwned || !organizationOwned || !workspaceMatches || !organizationMatches {
-				return errNamespaceConflict
-			}
-			for _, owner := range ns.OwnerReferences {
-				if owner.Controller != nil && *owner.Controller && owner.UID != workspace.UID {
+	_, err := controllerutil.CreateOrPatch(
+		ctx,
+		r.Direct,
+		ns,
+		func() error {
+			if ns.UID != "" {
+				managed := ns.Labels[agentzv1alpha1.TenantManagedByLabel] == agentzv1alpha1.TenantManagedByValue
+				workspaceOwned := ns.Labels[agentzv1alpha1.WorkspaceNameLabel] == workspace.Name
+				organizationOwned := ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] == tenant.Name
+				workspaceMatches := ns.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] == workspace.Spec.WorkspaceID
+				organizationMatches := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] == workspace.Spec.OrganizationID
+				if !managed || !workspaceOwned || !organizationOwned || !workspaceMatches || !organizationMatches {
 					return errNamespaceConflict
 				}
+				for _, owner := range ns.OwnerReferences {
+					if owner.Controller != nil && *owner.Controller && owner.UID != workspace.UID {
+						return errNamespaceConflict
+					}
+				}
 			}
-		}
-		if ns.Labels == nil {
-			ns.Labels = map[string]string{}
-		}
-		ns.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
-		ns.Labels[agentzv1alpha1.WorkspaceNameLabel] = workspace.Name
-		ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] = tenant.Name
+			if ns.Labels == nil {
+				ns.Labels = map[string]string{}
+			}
+			ns.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
+			ns.Labels[agentzv1alpha1.WorkspaceNameLabel] = workspace.Name
+			ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] = tenant.Name
 
-		if ns.Annotations == nil {
-			ns.Annotations = map[string]string{}
-		}
-		ns.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] = workspace.Spec.WorkspaceID
-		ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] = workspace.Spec.OrganizationID
+			if ns.Annotations == nil {
+				ns.Annotations = map[string]string{}
+			}
+			ns.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] = workspace.Spec.WorkspaceID
+			ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] = workspace.Spec.OrganizationID
 
-		err := controllerutil.SetControllerReference(workspace, ns, r.Scheme)
-		if err != nil {
-			return fmt.Errorf("%w: controller owner", errNamespaceConflict)
-		}
-		return nil
-	})
+			err := controllerutil.SetControllerReference(workspace, ns, r.Scheme)
+			if err != nil {
+				return fmt.Errorf("%w: controller owner", errNamespaceConflict)
+			}
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("reconcile workspace namespace: %w", err)
 	}
@@ -436,58 +449,63 @@ func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, workspace *agentz
 		Name:      r.NixStorePVCName,
 		Namespace: workspace.Name,
 	}}
-	_, err := controllerutil.CreateOrPatch(ctx, r.Direct, pvc, func() error {
-		if pvc.UID != "" {
-			managed := pvc.Labels[agentzv1alpha1.TenantManagedByLabel] ==
-				agentzv1alpha1.TenantManagedByValue
-			workspaceOwned := pvc.Labels[agentzv1alpha1.WorkspaceNameLabel] ==
-				workspace.Name
-			organizationOwned := pvc.Labels[agentzv1alpha1.TenantOrganizationIDLabel] ==
-				tenant.Name
-			if !managed || !workspaceOwned || !organizationOwned {
-				return errStorageConflict
-			}
-			for _, owner := range pvc.OwnerReferences {
-				if owner.Controller != nil && *owner.Controller && owner.UID != workspace.UID {
+	_, err := controllerutil.CreateOrPatch(
+		ctx,
+		r.Direct,
+		pvc,
+		func() error {
+			if pvc.UID != "" {
+				managed := pvc.Labels[agentzv1alpha1.TenantManagedByLabel] ==
+					agentzv1alpha1.TenantManagedByValue
+				workspaceOwned := pvc.Labels[agentzv1alpha1.WorkspaceNameLabel] ==
+					workspace.Name
+				organizationOwned := pvc.Labels[agentzv1alpha1.TenantOrganizationIDLabel] ==
+					tenant.Name
+				if !managed || !workspaceOwned || !organizationOwned {
+					return errStorageConflict
+				}
+				for _, owner := range pvc.OwnerReferences {
+					if owner.Controller != nil && *owner.Controller && owner.UID != workspace.UID {
+						return errStorageConflict
+					}
+				}
+				if !slices.Equal(pvc.Spec.AccessModes, r.NixStorePVCAccessModes) {
+					return errStorageConflict
+				}
+				storageClassSet := r.NixStorePVCStorageClass != ""
+				storageClassMissing := pvc.Spec.StorageClassName == nil
+				storageClassMismatch := !storageClassMissing && *pvc.Spec.StorageClassName != r.NixStorePVCStorageClass
+				if storageClassSet && (storageClassMissing || storageClassMismatch) {
 					return errStorageConflict
 				}
 			}
-			if !slices.Equal(pvc.Spec.AccessModes, r.NixStorePVCAccessModes) {
-				return errStorageConflict
-			}
-			storageClassSet := r.NixStorePVCStorageClass != ""
-			storageClassMissing := pvc.Spec.StorageClassName == nil
-			storageClassMismatch := !storageClassMissing && *pvc.Spec.StorageClassName != r.NixStorePVCStorageClass
-			if storageClassSet && (storageClassMissing || storageClassMismatch) {
-				return errStorageConflict
-			}
-		}
 
-		if pvc.Labels == nil {
-			pvc.Labels = map[string]string{}
-		}
-		pvc.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
-		pvc.Labels[agentzv1alpha1.WorkspaceNameLabel] = workspace.Name
-		pvc.Labels[agentzv1alpha1.TenantOrganizationIDLabel] = tenant.Name
-		pvc.Spec.AccessModes = append(
-			[]corev1.PersistentVolumeAccessMode{},
-			r.NixStorePVCAccessModes...,
-		)
-		if pvc.Spec.Resources.Requests == nil {
-			pvc.Spec.Resources.Requests = corev1.ResourceList{}
-		}
-		current := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-		if current.Cmp(r.NixStorePVCSize) < 0 {
-			pvc.Spec.Resources.Requests[corev1.ResourceStorage] = r.NixStorePVCSize
-		}
-		if r.NixStorePVCStorageClass != "" {
-			pvc.Spec.StorageClassName = &r.NixStorePVCStorageClass
-		}
-		if err := controllerutil.SetControllerReference(workspace, pvc, r.Scheme); err != nil {
-			return fmt.Errorf("%w: controller owner", errStorageConflict)
-		}
-		return nil
-	})
+			if pvc.Labels == nil {
+				pvc.Labels = map[string]string{}
+			}
+			pvc.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
+			pvc.Labels[agentzv1alpha1.WorkspaceNameLabel] = workspace.Name
+			pvc.Labels[agentzv1alpha1.TenantOrganizationIDLabel] = tenant.Name
+			pvc.Spec.AccessModes = append(
+				[]corev1.PersistentVolumeAccessMode{},
+				r.NixStorePVCAccessModes...,
+			)
+			if pvc.Spec.Resources.Requests == nil {
+				pvc.Spec.Resources.Requests = corev1.ResourceList{}
+			}
+			current := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+			if current.Cmp(r.NixStorePVCSize) < 0 {
+				pvc.Spec.Resources.Requests[corev1.ResourceStorage] = r.NixStorePVCSize
+			}
+			if r.NixStorePVCStorageClass != "" {
+				pvc.Spec.StorageClassName = &r.NixStorePVCStorageClass
+			}
+			if err := controllerutil.SetControllerReference(workspace, pvc, r.Scheme); err != nil {
+				return fmt.Errorf("%w: controller owner", errStorageConflict)
+			}
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("reconcile workspace nix store pvc: %w", err)
 	}
@@ -589,22 +607,27 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 	ready := true
 	for _, policy := range policies {
 		spec := policy.Spec
-		_, err := controllerutil.CreateOrPatch(ctx, r.Direct, policy, func() error {
-			if policy.Labels == nil {
-				policy.Labels = map[string]string{}
-			}
-			policy.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
-			policy.Labels[agentzv1alpha1.WorkspaceNameLabel] = workspace.Name
-			policy.Labels[agentzv1alpha1.TenantOrganizationIDLabel] = tenant.Name
-			policy.Spec = spec
-			policy.Specs = nil
-			return controllerutil.SetControllerReference(workspace, policy, r.Scheme)
-		})
+		_, err := controllerutil.CreateOrPatch(
+			ctx,
+			r.Direct,
+			policy,
+			func() error {
+				if policy.Labels == nil {
+					policy.Labels = map[string]string{}
+				}
+				policy.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
+				policy.Labels[agentzv1alpha1.WorkspaceNameLabel] = workspace.Name
+				policy.Labels[agentzv1alpha1.TenantOrganizationIDLabel] = tenant.Name
+				policy.Spec = spec
+				policy.Specs = nil
+				return controllerutil.SetControllerReference(workspace, policy, r.Scheme)
+			},
+		)
 		if err != nil {
 			return false, fmt.Errorf("reconcile workspace network policy: %w", err)
 		}
 
-		valid := false
+		var valid bool
 		for _, condition := range policy.Status.Conditions {
 			if condition.Type != ciliumv2.PolicyConditionValid {
 				continue
@@ -698,42 +721,45 @@ func (r *Reconciler) reportLifecycleState(ctx context.Context, workspace *agentz
 }
 
 func (r *Reconciler) updateLifecycleStatus(ctx context.Context, name string, attempt int64, state agentzv1alpha1.WorkspaceState, reason, message string) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var workspace agentzv1alpha1.Workspace
-		if err := r.Direct.Get(ctx, client.ObjectKey{Name: name}, &workspace); err != nil {
-			return err
-		}
-		if workspace.Spec.ProvisioningAttempt != attempt {
-			return nil
-		}
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			var workspace agentzv1alpha1.Workspace
+			if err := r.Direct.Get(ctx, client.ObjectKey{Name: name}, &workspace); err != nil {
+				return err
+			}
+			if workspace.Spec.ProvisioningAttempt != attempt {
+				return nil
+			}
 
-		workspace.Status.Namespace = workspace.Name
-		workspace.Status.ObservedGeneration = workspace.Generation
-		workspace.Status.ObservedAttempt = attempt
-		workspace.Status.State = state
-		workspace.Status.SetCondition(workspaceCondition(
-			agentzv1alpha1.WorkspaceConditionProgressing,
-			state == agentzv1alpha1.WorkspaceStateProvisioning,
-			reason,
-			message,
-			workspace.Generation,
-		))
-		workspace.Status.SetCondition(workspaceCondition(
-			agentzv1alpha1.WorkspaceConditionReady,
-			state == agentzv1alpha1.WorkspaceStateReady,
-			reason,
-			message,
-			workspace.Generation,
-		))
-		workspace.Status.SetCondition(workspaceCondition(
-			agentzv1alpha1.WorkspaceConditionDegraded,
-			state == agentzv1alpha1.WorkspaceStateFailed,
-			reason,
-			message,
-			workspace.Generation,
-		))
-		return r.Direct.Status().Update(ctx, &workspace)
-	})
+			workspace.Status.Namespace = workspace.Name
+			workspace.Status.ObservedGeneration = workspace.Generation
+			workspace.Status.ObservedAttempt = attempt
+			workspace.Status.State = state
+			workspace.Status.SetCondition(workspaceCondition(
+				agentzv1alpha1.WorkspaceConditionProgressing,
+				state == agentzv1alpha1.WorkspaceStateProvisioning,
+				reason,
+				message,
+				workspace.Generation,
+			))
+			workspace.Status.SetCondition(workspaceCondition(
+				agentzv1alpha1.WorkspaceConditionReady,
+				state == agentzv1alpha1.WorkspaceStateReady,
+				reason,
+				message,
+				workspace.Generation,
+			))
+			workspace.Status.SetCondition(workspaceCondition(
+				agentzv1alpha1.WorkspaceConditionDegraded,
+				state == agentzv1alpha1.WorkspaceStateFailed,
+				reason,
+				message,
+				workspace.Generation,
+			))
+			return r.Direct.Status().Update(ctx, &workspace)
+		},
+	)
 }
 
 func workspaceCondition(conditionType string, isTrue bool, reason, message string, generation int64) metav1.Condition {

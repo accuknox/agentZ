@@ -76,11 +76,14 @@ func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.Workflow
 func (v *Validator) validateRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
 	var fields field.ErrorList
 	if run.Spec.ScheduleRef != nil && run.Spec.ScheduleRef.Name == "" {
-		fields = append(fields, field.Invalid(
-			field.NewPath("spec").Child("scheduleRef").Child("name"),
-			run.Spec.ScheduleRef.Name,
-			"must not be empty",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				field.NewPath("spec").Child("scheduleRef").Child("name"),
+				run.Spec.ScheduleRef.Name,
+				"must not be empty",
+			),
+		)
 	}
 	if len(fields) == 0 {
 		err := workflow.ValidateInputs(

@@ -65,18 +65,24 @@ func validateTenant(oldObj, newObj *agentzv1alpha1.Tenant) error {
 		if newObj.Name == expectedName {
 			return nil
 		}
-		issues = append(issues, field.Invalid(
-			field.NewPath("metadata").Child("name"),
-			newObj.Name,
-			fmt.Sprintf("must equal %q", expectedName),
-		))
+		issues = append(
+			issues,
+			field.Invalid(
+				field.NewPath("metadata").Child("name"),
+				newObj.Name,
+				fmt.Sprintf("must equal %q", expectedName),
+			),
+		)
 	}
 
 	if oldObj != nil && oldObj.Spec.OrganizationID != newObj.Spec.OrganizationID {
-		issues = append(issues, field.Forbidden(
-			field.NewPath("spec").Child("organizationID"),
-			"is immutable",
-		))
+		issues = append(
+			issues,
+			field.Forbidden(
+				field.NewPath("spec").Child("organizationID"),
+				"is immutable",
+			),
+		)
 	}
 
 	if len(issues) == 0 {

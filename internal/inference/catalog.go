@@ -341,9 +341,12 @@ func (c *Catalog) codexModels(ctx context.Context, record SubscriptionRecord) ([
 	for _, model := range baseline {
 		known[model.ID] = model
 	}
-	slices.SortFunc(response.Models, func(a, b codexModel) int {
-		return cmp.Compare(a.Priority, b.Priority)
-	})
+	slices.SortFunc(
+		response.Models,
+		func(a, b codexModel) int {
+			return cmp.Compare(a.Priority, b.Priority)
+		},
+	)
 	models := make([]agentzv1alpha1.InferenceModel, 0, len(response.Models))
 	for _, remote := range response.Models {
 		model, ok := known[remote.Slug]
@@ -502,9 +505,12 @@ func (c *Catalog) copilotModels(ctx context.Context, accessToken string) ([]agen
 	if len(models) == 0 {
 		return nil, "", fmt.Errorf("github copilot returned no eligible models")
 	}
-	slices.SortFunc(models, func(a, b agentzv1alpha1.InferenceModel) int {
-		return strings.Compare(a.DisplayName, b.DisplayName)
-	})
+	slices.SortFunc(
+		models,
+		func(a, b agentzv1alpha1.InferenceModel) int {
+			return strings.Compare(a.DisplayName, b.DisplayName)
+		},
+	)
 	return models, CatalogProvenanceLive, catalogErr
 }
 
@@ -552,9 +558,12 @@ func modelsFromCatalog(provider catalogProvider, providerID string, providerKind
 		}
 		models = append(models, value)
 	}
-	slices.SortFunc(models, func(a, b agentzv1alpha1.InferenceModel) int {
-		return strings.Compare(a.DisplayName, b.DisplayName)
-	})
+	slices.SortFunc(
+		models,
+		func(a, b agentzv1alpha1.InferenceModel) int {
+			return strings.Compare(a.DisplayName, b.DisplayName)
+		},
+	)
 	return models
 }
 

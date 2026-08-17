@@ -70,14 +70,17 @@ var observerServeCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return observer.Serve(ctx, observer.Config{
-			PostgresDSN:        c.String("postgres-dsn"),
-			KubeArmorRelayAddr: c.String("kubearmor-relay-addr"),
-			HubbleRelayAddr:    c.String("hubble-relay-addr"),
-			OTLPTraceGRPCAddr:  c.String("otlp-trace-grpc-addr"),
-			Namespace:          c.String("namespace"),
-			BatchSize:          c.Int("batch-size"),
-			FlushInterval:      c.Duration("flush-interval"),
-		})
+		return observer.Serve(
+			ctx,
+			observer.Config{
+				PostgresDSN:        c.String("postgres-dsn"),
+				KubeArmorRelayAddr: c.String("kubearmor-relay-addr"),
+				HubbleRelayAddr:    c.String("hubble-relay-addr"),
+				OTLPTraceGRPCAddr:  c.String("otlp-trace-grpc-addr"),
+				Namespace:          c.String("namespace"),
+				BatchSize:          c.Int("batch-size"),
+				FlushInterval:      c.Duration("flush-interval"),
+			},
+		)
 	},
 }

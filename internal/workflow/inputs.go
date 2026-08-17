@@ -71,10 +71,13 @@ func ValidateDefinition(inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gatewa
 		inputField := "inputs." + name
 
 		if strings.TrimSpace(name) == "" {
-			issues = append(issues, Issue{
-				Field:   inputField,
-				Message: "input name must not be empty",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   inputField,
+					Message: "input name must not be empty",
+				},
+			)
 			continue
 		}
 
@@ -97,10 +100,13 @@ func ValidateDefinition(inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gatewa
 			valueSchemaDocument(doc),
 		)
 		if err != nil {
-			issues = append(issues, Issue{
-				Field:   inputField,
-				Message: err.Error(),
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   inputField,
+					Message: err.Error(),
+				},
+			)
 			continue
 		}
 
@@ -320,24 +326,33 @@ func validateSchemaRelationships(schema gatewayapi.WorkflowInputSchema, fieldPre
 	issues := []Issue{}
 
 	if schema.MinLength != nil && schema.MaxLength != nil && *schema.MinLength > *schema.MaxLength {
-		issues = append(issues, Issue{
-			Field:   fieldPrefix,
-			Message: "minLength must be less than or equal to maxLength",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   fieldPrefix,
+				Message: "minLength must be less than or equal to maxLength",
+			},
+		)
 	}
 
 	if schema.Minimum != nil && schema.Maximum != nil && *schema.Minimum > *schema.Maximum {
-		issues = append(issues, Issue{
-			Field:   fieldPrefix,
-			Message: "minimum must be less than or equal to maximum",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   fieldPrefix,
+				Message: "minimum must be less than or equal to maximum",
+			},
+		)
 	}
 
 	if schema.ExclusiveMinimum != nil && schema.ExclusiveMaximum != nil && *schema.ExclusiveMinimum >= *schema.ExclusiveMaximum {
-		issues = append(issues, Issue{
-			Field:   fieldPrefix,
-			Message: "exclusiveMinimum must be less than exclusiveMaximum",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   fieldPrefix,
+				Message: "exclusiveMinimum must be less than exclusiveMaximum",
+			},
+		)
 	}
 
 	return issues
@@ -374,10 +389,13 @@ func validateValue(schema *jsonschema.Schema, value any, fieldPrefix string) []I
 			continue
 		}
 
-		issues = append(issues, Issue{
-			Field:   joinField(fieldPrefix, item.InstanceLocation),
-			Message: item.Error.String(),
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   joinField(fieldPrefix, item.InstanceLocation),
+				Message: item.Error.String(),
+			},
+		)
 	}
 	if len(issues) > 0 {
 		return issues
@@ -388,10 +406,13 @@ func validateValue(schema *jsonschema.Schema, value any, fieldPrefix string) []I
 			continue
 		}
 
-		issues = append(issues, Issue{
-			Field:   joinField(fieldPrefix, item.InstanceLocation),
-			Message: item.Error.String(),
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   joinField(fieldPrefix, item.InstanceLocation),
+				Message: item.Error.String(),
+			},
+		)
 	}
 
 	return issues

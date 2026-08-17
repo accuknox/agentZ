@@ -138,23 +138,27 @@ func IndexWorkflowRunsBySchedule(ctx context.Context, idx client.FieldIndexer) e
 }
 
 func (r *Reconciler) failSchedule(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, err error) error {
-	updateErr := r.updateStatus(ctx, schedule, func(status *agentzv1alpha1.WorkflowScheduleStatus) {
-		status.ObservedGeneration = schedule.Generation
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.WorkflowScheduleConditionReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             agentzv1alpha1.WorkflowScheduleReasonReconcileFailed,
-			Message:            err.Error(),
-			ObservedGeneration: schedule.Generation,
-		})
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.WorkflowScheduleConditionProgressing,
-			Status:             metav1.ConditionFalse,
-			Reason:             agentzv1alpha1.WorkflowScheduleReasonReconcileFailed,
-			Message:            err.Error(),
-			ObservedGeneration: schedule.Generation,
-		})
-	})
+	updateErr := r.updateStatus(
+		ctx,
+		schedule,
+		func(status *agentzv1alpha1.WorkflowScheduleStatus) {
+			status.ObservedGeneration = schedule.Generation
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.WorkflowScheduleConditionReady,
+				Status:             metav1.ConditionFalse,
+				Reason:             agentzv1alpha1.WorkflowScheduleReasonReconcileFailed,
+				Message:            err.Error(),
+				ObservedGeneration: schedule.Generation,
+			})
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.WorkflowScheduleConditionProgressing,
+				Status:             metav1.ConditionFalse,
+				Reason:             agentzv1alpha1.WorkflowScheduleReasonReconcileFailed,
+				Message:            err.Error(),
+				ObservedGeneration: schedule.Generation,
+			})
+		},
+	)
 	if updateErr != nil {
 		return fmt.Errorf("update schedule status: %w", updateErr)
 	}
@@ -163,10 +167,14 @@ func (r *Reconciler) failSchedule(ctx context.Context, schedule *agentzv1alpha1.
 
 func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJobName string) error {
 	cronJob := &batchv1.CronJob{}
-	err := r.Get(ctx, client.ObjectKey{
-		Namespace: schedule.Namespace,
-		Name:      cronJobName,
-	}, cronJob)
+	err := r.Get(
+		ctx,
+		client.ObjectKey{
+			Namespace: schedule.Namespace,
+			Name:      cronJobName,
+		},
+		cronJob,
+	)
 	if err != nil {
 		return fmt.Errorf("get cronjob: %w", err)
 	}
@@ -184,33 +192,37 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1
 		}
 	}
 
-	return r.updateStatus(ctx, schedule, func(status *agentzv1alpha1.WorkflowScheduleStatus) {
-		status.ObservedGeneration = schedule.Generation
-		status.CronJobName = cronJobName
-		status.LastScheduledAt = cronJob.Status.LastScheduleTime
-		status.LastRunName = ""
-		if lastRun != nil {
-			status.LastRunName = lastRun.Name
-		}
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.WorkflowScheduleConditionReady,
-			Status:             metav1.ConditionTrue,
-			Reason:             agentzv1alpha1.WorkflowScheduleReasonCronJobReady,
-			Message:            "cronjob is ready",
-			ObservedGeneration: schedule.Generation,
-		})
-		progressing := metav1.ConditionTrue
-		if schedule.Spec.Suspend {
-			progressing = metav1.ConditionFalse
-		}
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.WorkflowScheduleConditionProgressing,
-			Status:             progressing,
-			Reason:             agentzv1alpha1.WorkflowScheduleReasonCronJobReady,
-			Message:            "cronjob is reconciled",
-			ObservedGeneration: schedule.Generation,
-		})
-	})
+	return r.updateStatus(
+		ctx,
+		schedule,
+		func(status *agentzv1alpha1.WorkflowScheduleStatus) {
+			status.ObservedGeneration = schedule.Generation
+			status.CronJobName = cronJobName
+			status.LastScheduledAt = cronJob.Status.LastScheduleTime
+			status.LastRunName = ""
+			if lastRun != nil {
+				status.LastRunName = lastRun.Name
+			}
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.WorkflowScheduleConditionReady,
+				Status:             metav1.ConditionTrue,
+				Reason:             agentzv1alpha1.WorkflowScheduleReasonCronJobReady,
+				Message:            "cronjob is ready",
+				ObservedGeneration: schedule.Generation,
+			})
+			progressing := metav1.ConditionTrue
+			if schedule.Spec.Suspend {
+				progressing = metav1.ConditionFalse
+			}
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.WorkflowScheduleConditionProgressing,
+				Status:             progressing,
+				Reason:             agentzv1alpha1.WorkflowScheduleReasonCronJobReady,
+				Message:            "cronjob is reconciled",
+				ObservedGeneration: schedule.Generation,
+			})
+		},
+	)
 }
 
 func (r *Reconciler) pruneRuns(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {

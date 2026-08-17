@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -94,11 +94,16 @@ func (r *Reconciler) referencingConsumer(ctx context.Context, skill *agentzv1alp
 	}
 	for i := range agents.Items {
 		for _, ref := range agents.Items[i].Spec.Skills {
-			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, agents.Items[i].Namespace, scoperesolver.Selection{
-				Scope: ref.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
-				Name:  ref.Name,
-			})
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				agents.Items[i].Namespace,
+				scope.Selection{
+					Scope: ref.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+					Name:  ref.Name,
+				},
+			)
 			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
 				return fmt.Sprintf("Agent %q", agents.Items[i].Name), nil
 			}
@@ -111,11 +116,16 @@ func (r *Reconciler) referencingConsumer(ctx context.Context, skill *agentzv1alp
 	}
 	for i := range sandboxes.Items {
 		for _, ref := range sandboxes.Items[i].Spec.Skills {
-			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandboxes.Items[i].Namespace, scoperesolver.Selection{
-				Scope: ref.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
-				Name:  ref.Name,
-			})
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				scope.Selection{
+					Scope: ref.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+					Name:  ref.Name,
+				},
+			)
 			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
 				return fmt.Sprintf("Sandbox %q", sandboxes.Items[i].Name), nil
 			}

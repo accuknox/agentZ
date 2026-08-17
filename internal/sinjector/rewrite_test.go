@@ -12,6 +12,13 @@ type testResolver struct {
 	calls  map[string]int
 }
 
+type secretHostMatchCase struct {
+	name     string
+	target   string
+	hosts    []string
+	expected bool
+}
+
 func (r *testResolver) resolve(_ context.Context, name string) (resolvedSecret, error) {
 	r.calls[name]++
 	value, ok := r.values[name]
@@ -149,12 +156,7 @@ func TestReplacePlaceholdersLeavesMismatchedHostUnchanged(t *testing.T) {
 func TestSecretHostMatchesWildcardDepth(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		target   string
-		hosts    []string
-		expected bool
-	}{
+	tests := []secretHostMatchCase{
 		{
 			name:     "single wildcard matches one label",
 			target:   "foo.example.com:443",
@@ -188,13 +190,16 @@ func TestSecretHostMatchesWildcardDepth(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			tc.name,
+			func(t *testing.T) {
+				t.Parallel()
 
-			got := SecretHostMatches(tc.target, tc.hosts)
-			if got != tc.expected {
-				t.Fatalf("SecretHostMatches(%q, %v) = %v, want %v", tc.target, tc.hosts, got, tc.expected)
-			}
-		})
+				got := SecretHostMatches(tc.target, tc.hosts)
+				if got != tc.expected {
+					t.Fatalf("SecretHostMatches(%q, %v) = %v, want %v", tc.target, tc.hosts, got, tc.expected)
+				}
+			},
+		)
 	}
 }

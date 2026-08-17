@@ -53,9 +53,13 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := fs.ReadDir(s.root.FS(), mutableSkillsRoot)
 	if errors.Is(err, fs.ErrNotExist) {
-		writeJSON(w, http.StatusOK, gatewayapi.ListMutableSkillsResponse{
-			Skills: []gatewayapi.MutableSkillSummary{},
-		})
+		writeJSON(
+			w,
+			http.StatusOK,
+			gatewayapi.ListMutableSkillsResponse{
+				Skills: []gatewayapi.MutableSkillSummary{},
+			},
+		)
 		return
 	}
 	if err != nil {
@@ -111,13 +115,20 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 		if !modified.IsZero() {
 			modifiedAt = &modified
 		}
-		items = append(items, gatewayapi.MutableSkillSummary{
-			Name: name, FileCount: count, SizeBytes: size, ModifiedAt: modifiedAt,
-		})
+		items = append(
+			items,
+			gatewayapi.MutableSkillSummary{
+				Name: name, FileCount: count, SizeBytes: size, ModifiedAt: modifiedAt,
+			},
+		)
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListMutableSkillsResponse{
-		Skills: items, NextPageToken: next,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListMutableSkillsResponse{
+			Skills: items, NextPageToken: next,
+		},
+	)
 }
 
 func (s *service) deleteSkills(w http.ResponseWriter, r *http.Request) {
@@ -169,20 +180,24 @@ func (s *service) exportSkills(w http.ResponseWriter, r *http.Request) {
 			writeFailure(w, r, pathFailure(err))
 			return
 		}
-		err = fs.WalkDir(s.root.FS(), root, func(filePath string, item fs.DirEntry, walkErr error) error {
-			if walkErr != nil || item.IsDir() {
-				return walkErr
-			}
-			info, err := item.Info()
-			if err != nil {
-				return err
-			}
-			if !info.Mode().IsRegular() {
-				return errors.New("mutable skill contains a non-regular file")
-			}
-			files = append(files, filePath)
-			return nil
-		})
+		err = fs.WalkDir(
+			s.root.FS(),
+			root,
+			func(filePath string, item fs.DirEntry, walkErr error) error {
+				if walkErr != nil || item.IsDir() {
+					return walkErr
+				}
+				info, err := item.Info()
+				if err != nil {
+					return err
+				}
+				if !info.Mode().IsRegular() {
+					return errors.New("mutable skill contains a non-regular file")
+				}
+				files = append(files, filePath)
+				return nil
+			},
+		)
 		if err != nil {
 			writeFailure(w, r, internalFailure("inspect mutable skill export", err))
 			return
@@ -282,7 +297,8 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 				slog.ErrorContext(
 					r.Context(),
 					"retain mutable skill transaction for recovery",
-					slog.String("stage", stage), slog.String("backup", backup),
+					slog.String("stage", stage),
+					slog.String("backup", backup),
 				)
 				continue
 			}
@@ -327,17 +343,25 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 		}
 		action := actions[tree.Name]
 		if action == skill.DecisionOverwrite && !exists {
-			writeFailure(w, r, &failure{
-				status: http.StatusConflict, code: "decision_conflict",
-				message: "overwrite destination does not exist",
-			})
+			writeFailure(
+				w,
+				r,
+				&failure{
+					status: http.StatusConflict, code: "decision_conflict",
+					message: "overwrite destination does not exist",
+				},
+			)
 			return
 		}
 		if action != skill.DecisionOverwrite && exists {
-			writeFailure(w, r, &failure{
-				status: http.StatusConflict, code: "decision_conflict",
-				message: "create destination already exists",
-			})
+			writeFailure(
+				w,
+				r,
+				&failure{
+					status: http.StatusConflict, code: "decision_conflict",
+					message: "create destination already exists",
+				},
+			)
 			return
 		}
 	}

@@ -188,6 +188,11 @@ type grantKey struct {
 	action      gatewaydb.PermissionAction
 }
 
+type agentCapabilityCheck struct {
+	name    string
+	allowed *bool
+}
+
 // Resolve returns a fresh union of direct and Team Roles assigned to an active member.
 // Missing and disabled Memberships resolve to no permissions.
 func (r *Resolver) Resolve(ctx context.Context, subject Subject) (Effective, error) {
@@ -300,17 +305,23 @@ func (e Effective) AgentCapabilities(scope Scope, agent Agent) (AgentCapabilitie
 		if grant.workspaceID != scope.WorkspaceID || grant.resource != gatewaydb.PermissionResourceAgent {
 			continue
 		}
-		workspaceGrants = append(workspaceGrants, cedar.NewEntityUID(
-			"Action",
-			cedar.String(grant.action),
-		))
+		workspaceGrants = append(
+			workspaceGrants,
+			cedar.NewEntityUID(
+				"Action",
+				cedar.String(grant.action),
+			),
+		)
 	}
 	shareGrants := make([]cedar.Value, 0, len(agent.ShareGrants))
 	for _, grant := range agent.ShareGrants {
-		shareGrants = append(shareGrants, cedar.NewEntityUID(
-			"Action",
-			cedar.String(grant),
-		))
+		shareGrants = append(
+			shareGrants,
+			cedar.NewEntityUID(
+				"Action",
+				cedar.String(grant),
+			),
+		)
 	}
 	entities := cedar.EntityMap{
 		principal: {
@@ -332,12 +343,16 @@ func (e Effective) AgentCapabilities(scope Scope, agent Agent) (AgentCapabilitie
 	}
 
 	allowed := func(action string) (bool, error) {
-		decision, diagnostic := cedar.Authorize(agentPolicies, entities, cedar.Request{
-			Principal: principal,
-			Action:    cedar.NewEntityUID("Action", cedar.String(action)),
-			Resource:  resource,
-			Context:   cedar.NewRecord(nil),
-		})
+		decision, diagnostic := cedar.Authorize(
+			agentPolicies,
+			entities,
+			cedar.Request{
+				Principal: principal,
+				Action:    cedar.NewEntityUID("Action", cedar.String(action)),
+				Resource:  resource,
+				Context:   cedar.NewRecord(nil),
+			},
+		)
 		if len(diagnostic.Errors) > 0 {
 			return false, fmt.Errorf("evaluate Agent action %q: %v", action, diagnostic.Errors)
 		}
@@ -345,10 +360,7 @@ func (e Effective) AgentCapabilities(scope Scope, agent Agent) (AgentCapabilitie
 	}
 
 	var capabilities AgentCapabilities
-	actions := []struct {
-		name    string
-		allowed *bool
-	}{
+	actions := []agentCapabilityCheck{
 		{name: "use", allowed: &capabilities.Use},
 		{name: "modify", allowed: &capabilities.Modify},
 		{name: "delete", allowed: &capabilities.Delete},
@@ -402,11 +414,14 @@ func CanReceiveAgentShare(workspaceID string, workspaceGrants []gatewaydb.Permis
 }
 
 func (e Effective) canReceiveAgentShare(scope Scope, grants []gatewaydb.AgentShareCapability) (bool, error) {
-	capabilities, err := e.AgentCapabilities(scope, Agent{
-		Name:        "prospective-share",
-		OwnerUserID: "owner",
-		ShareGrants: grants,
-	})
+	capabilities, err := e.AgentCapabilities(
+		scope,
+		Agent{
+			Name:        "prospective-share",
+			OwnerUserID: "owner",
+			ShareGrants: grants,
+		},
+	)
 	if err != nil {
 		return false, err
 	}

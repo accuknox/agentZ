@@ -539,12 +539,15 @@ func (r *lifecycleRecorder) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.calls = append(r.calls, lifecycleCall{
-		Authorization:   req.Header.Get("Authorization"),
-		Body:            body,
-		TenantNamespace: req.Header.Get("X-AgentZ-Tenant-Namespace"),
-		WorkspaceID:     strings.TrimSuffix(strings.TrimPrefix(req.URL.Path, "/api/workspace/"), "/lifecycle"),
-	})
+	r.calls = append(
+		r.calls,
+		lifecycleCall{
+			Authorization:   req.Header.Get("Authorization"),
+			Body:            body,
+			TenantNamespace: req.Header.Get("X-AgentZ-Tenant-Namespace"),
+			WorkspaceID:     strings.TrimSuffix(strings.TrimPrefix(req.URL.Path, "/api/workspace/"), "/lifecycle"),
+		},
+	)
 	status := http.StatusNoContent
 	if len(r.statuses) > 0 {
 		status = r.statuses[0]
@@ -710,10 +713,11 @@ func markCertificateReady(t *testing.T, reconciler *Reconciler, namespace string
 
 func markIsolationPolicyValid(t *testing.T, namespace string) {
 	t.Helper()
-	for _, name := range []string{
+	names := []string{
 		agentzv1alpha1.WorkspaceIsolationPolicyName,
 		agentzv1alpha1.WorkspacePackagePolicyName,
-	} {
+	}
+	for _, name := range names {
 		var policy ciliumv2.CiliumNetworkPolicy
 		key := client.ObjectKey{Name: name, Namespace: namespace}
 		if err := testClient.Get(context.Background(), key, &policy); err != nil {

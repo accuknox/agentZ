@@ -53,7 +53,7 @@ import (
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/sandboxutil"
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -104,10 +104,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 		grants := &gwv1.ReferenceGrantList{}
-		if err := r.List(ctx, grants, client.MatchingLabels{
+		grantLabels := client.MatchingLabels{
 			inference.SandboxLabel: sandbox.Name,
 			sandboxNamespaceLabel:  sandbox.Namespace,
-		}); err != nil {
+		}
+		if err := r.List(ctx, grants, grantLabels); err != nil {
 			return ctrl.Result{}, fmt.Errorf("list inference backend reference grants: %w", err)
 		}
 		for i := range grants.Items {
@@ -212,11 +213,16 @@ func (r *Reconciler) referencingAgents(ctx context.Context, sandbox *agentzv1alp
 	matched := make([]agentzv1alpha1.Agent, 0, len(agents.Items))
 	for i := range agents.Items {
 		agt := &agents.Items[i]
-		namespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
-			Scope: agt.Spec.SandboxRef.Scope,
-			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
-			Name:  agt.Spec.SandboxRef.Name,
-		})
+		namespace, err := scope.SelectedNamespace(
+			ctx,
+			r.Client,
+			agt.Namespace,
+			scope.Selection{
+				Scope: agt.Spec.SandboxRef.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+				Name:  agt.Spec.SandboxRef.Name,
+			},
+		)
 		if err != nil {
 			return nil, fmt.Errorf("resolve Agent Sandbox scope: %w", err)
 		}
@@ -224,36 +230,42 @@ func (r *Reconciler) referencingAgents(ctx context.Context, sandbox *agentzv1alp
 			matched = append(matched, *agt)
 		}
 	}
-	slices.SortFunc(matched, func(a, b agentzv1alpha1.Agent) int {
-		if order := strings.Compare(a.Namespace, b.Namespace); order != 0 {
-			return order
-		}
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		matched,
+		func(a, b agentzv1alpha1.Agent) int {
+			if order := strings.Compare(a.Namespace, b.Namespace); order != 0 {
+				return order
+			}
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	return matched, nil
 }
 
 // updateStatus computes spec-derived counters and persists them to status.
 func (r *Reconciler) updateStatus(ctx context.Context, sandbox *agentzv1alpha1.Sandbox, inferenceReady bool) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.Sandbox{}
-		key := types.NamespacedName{Namespace: sandbox.Namespace, Name: sandbox.Name}
-		if err := r.Get(ctx, key, current); err != nil {
-			return client.IgnoreNotFound(err)
-		}
-		status := current.Status.DeepCopy()
-		status.PackageCount = len(current.Spec.Packages)
-		status.AllowedHostCount = len(current.Spec.AllowedHosts)
-		status.MCPRefCount = len(current.Spec.MCPConnectionRefs)
-		status.ModelCount = len(current.Spec.Inference.Models)
-		status.InferenceReady = inferenceReady
-		if reflect.DeepEqual(current.Status, *status) {
-			return nil
-		}
-		patch := client.MergeFrom(current.DeepCopy())
-		current.Status = *status
-		return r.Status().Patch(ctx, current, patch)
-	})
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.Sandbox{}
+			key := types.NamespacedName{Namespace: sandbox.Namespace, Name: sandbox.Name}
+			if err := r.Get(ctx, key, current); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			status := current.Status.DeepCopy()
+			status.PackageCount = len(current.Spec.Packages)
+			status.AllowedHostCount = len(current.Spec.AllowedHosts)
+			status.MCPRefCount = len(current.Spec.MCPConnectionRefs)
+			status.ModelCount = len(current.Spec.Inference.Models)
+			status.InferenceReady = inferenceReady
+			if reflect.DeepEqual(current.Status, *status) {
+				return nil
+			}
+			patch := client.MergeFrom(current.DeepCopy())
+			current.Status = *status
+			return r.Status().Patch(ctx, current, patch)
+		},
+	)
 }
 
 // SetupWithManager sets up the Sandbox controller with the Manager.
@@ -301,9 +313,12 @@ func (r *Reconciler) inferenceSandboxRequests(ctx context.Context, namespace str
 		if len(sandboxes.Items[i].Spec.Inference.Models) == 0 {
 			continue
 		}
-		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
-			Namespace: namespace, Name: sandboxes.Items[i].Name,
-		}})
+		requests = append(
+			requests,
+			reconcile.Request{NamespacedName: types.NamespacedName{
+				Namespace: namespace, Name: sandboxes.Items[i].Name,
+			}},
+		)
 	}
 	return requests
 }
@@ -328,16 +343,21 @@ func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj clie
 	}
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for _, sandbox := range sandboxes.Items {
-		matched := false
+		var matched bool
 		for _, model := range sandbox.Spec.Inference.Models {
 			if model.Provider != provider.Name {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
-				Scope: model.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-				Name:  model.Provider,
-			})
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				sandbox.Namespace,
+				scope.Selection{
+					Scope: model.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  model.Provider,
+				},
+			)
 			if err == nil && ns == provider.Namespace {
 				matched = true
 				break
@@ -346,9 +366,12 @@ func (r *Reconciler) sandboxesForInferenceProvider(ctx context.Context, obj clie
 		if !matched {
 			continue
 		}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKeyFromObject(&sandbox),
-		})
+		requests = append(
+			requests,
+			reconcile.Request{
+				NamespacedName: client.ObjectKeyFromObject(&sandbox),
+			},
+		)
 	}
 	return requests
 }
@@ -373,12 +396,12 @@ func (r *Reconciler) sandboxesForInferencePool(ctx context.Context, obj client.O
 	}
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for _, sandbox := range sandboxes.Items {
-		matched := false
+		var matched bool
 		for _, model := range sandbox.Spec.Inference.Models {
 			if model.Provider != agentzv1alpha1.InferencePoolProvider || model.Model != pool.Name {
 				continue
 			}
-			ns, err := scoperesolver.Namespace(ctx, r.Client, sandbox.Namespace, model.Scope)
+			ns, err := scope.Namespace(ctx, r.Client, sandbox.Namespace, model.Scope)
 			if err == nil && ns == pool.Namespace {
 				matched = true
 				break
@@ -387,9 +410,12 @@ func (r *Reconciler) sandboxesForInferencePool(ctx context.Context, obj client.O
 		if !matched {
 			continue
 		}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKeyFromObject(&sandbox),
-		})
+		requests = append(
+			requests,
+			reconcile.Request{
+				NamespacedName: client.ObjectKeyFromObject(&sandbox),
+			},
+		)
 	}
 	return requests
 }
@@ -403,11 +429,16 @@ func (r *Reconciler) sandboxForAgent(ctx context.Context, obj client.Object) []r
 	if ref.Name == "" {
 		return nil
 	}
-	namespace, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
-		Scope: ref.Scope,
-		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
-		Name:  ref.Name,
-	})
+	namespace, err := scope.SelectedNamespace(
+		ctx,
+		r.Client,
+		agt.Namespace,
+		scope.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+			Name:  ref.Name,
+		},
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, "resolve Agent Sandbox scope", slog.Any("err", err))
 		return nil
@@ -445,16 +476,21 @@ func (r *Reconciler) sandboxesForMCPConnection(ctx context.Context, obj client.O
 
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for _, sandbox := range sandboxes.Items {
-		matched := false
+		var matched bool
 		for _, ref := range sandbox.Spec.MCPConnectionRefs {
 			if ref.Name != conn.Name {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(ctx, r.Client, sandbox.Namespace, scoperesolver.Selection{
-				Scope: ref.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
-				Name:  ref.Name,
-			})
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				sandbox.Namespace,
+				scope.Selection{
+					Scope: ref.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+					Name:  ref.Name,
+				},
+			)
 			if err == nil && ns == conn.Namespace {
 				matched = true
 				break
@@ -463,12 +499,15 @@ func (r *Reconciler) sandboxesForMCPConnection(ctx context.Context, obj client.O
 		if !matched {
 			continue
 		}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: sandbox.Namespace,
-				Name:      sandbox.Name,
+		requests = append(
+			requests,
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: sandbox.Namespace,
+					Name:      sandbox.Name,
+				},
 			},
-		})
+		)
 	}
 	return requests
 }
@@ -519,12 +558,17 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 	gw := &gwv1.Gateway{}
 	gw.Name = mcp.GatewayName
 	gw.Namespace = namespace
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, gw, func() error {
-		desired := mcp.Gateway(namespace)
-		gw.Spec = desired.Spec
-		gw.OwnerReferences = sandboxOwnerReferences(owners)
-		return nil
-	})
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		gw,
+		func() error {
+			desired := mcp.Gateway(namespace)
+			gw.Spec = desired.Spec
+			gw.OwnerReferences = sandboxOwnerReferences(owners)
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("reconcile gateway: %w", err)
 	}
@@ -588,10 +632,13 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 				)
 			}
 			seenTools[toolName] = struct{}{}
-			tools = append(tools, agentzv1alpha1.SandboxMCPTool{
-				Name:           toolName,
-				RequireConsent: rawTool.RequireConsent,
-			})
+			tools = append(
+				tools,
+				agentzv1alpha1.SandboxMCPTool{
+					Name:           toolName,
+					RequireConsent: rawTool.RequireConsent,
+				},
+			)
 		}
 		refsByName[name] = agentzv1alpha1.MCPConnectionRef{
 			ResourceReference: agentzv1alpha1.ResourceReference{
@@ -679,45 +726,54 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 			policies = nil
 		}
 
-		targets = append(targets, agentgatewayv1alpha1.McpTargetSelector{
-			Name: gwv1.SectionName(conn.Name),
-			Static: &agentgatewayv1alpha1.McpTarget{
-				Host:     &target.Host,
-				Port:     target.Port,
-				Path:     target.Path,
-				Protocol: target.Protocol,
-				Policies: policies,
+		targets = append(
+			targets,
+			agentgatewayv1alpha1.McpTargetSelector{
+				Name: gwv1.SectionName(conn.Name),
+				Static: &agentgatewayv1alpha1.McpTarget{
+					Host:     &target.Host,
+					Port:     target.Port,
+					Path:     target.Path,
+					Protocol: target.Protocol,
+					Policies: policies,
+				},
 			},
-		})
+		)
 
 		ref, ok := refsByName[conn.Name]
 		if !ok {
 			return fmt.Errorf("mcp connection ref %q is missing from sandbox spec", conn.Name)
 		}
 		for _, tool := range ref.Tools {
-			matchExpressions = append(matchExpressions, agentgatewayv1alpha1.CELExpression(
-				fmt.Sprintf(
-					`mcp.tool.target == %q && mcp.tool.name == %q`,
-					conn.Name,
-					tool.Name,
+			matchExpressions = append(
+				matchExpressions,
+				agentgatewayv1alpha1.CELExpression(
+					fmt.Sprintf(
+						`mcp.tool.target == %q && mcp.tool.name == %q`,
+						conn.Name,
+						tool.Name,
+					),
 				),
-			))
+			)
 		}
 	}
 	if len(conns) == 1 {
 		path := agentgatewayv1alpha1.LongString(mcp.ExtAuthMCPPath)
 		protocol := agentgatewayv1alpha1.MCPProtocolStreamableHTTP
-		targets = append(targets, agentgatewayv1alpha1.McpTargetSelector{
-			Name: gwv1.SectionName(mcp.MCPHelperTargetName),
-			Static: &agentgatewayv1alpha1.McpTarget{
-				BackendRef: &corev1.LocalObjectReference{
-					Name: mcp.ExtAuthServiceName,
+		targets = append(
+			targets,
+			agentgatewayv1alpha1.McpTargetSelector{
+				Name: gwv1.SectionName(mcp.MCPHelperTargetName),
+				Static: &agentgatewayv1alpha1.McpTarget{
+					BackendRef: &corev1.LocalObjectReference{
+						Name: mcp.ExtAuthServiceName,
+					},
+					Port:     mcp.ExtAuthMCPPort,
+					Path:     &path,
+					Protocol: &protocol,
 				},
-				Port:     mcp.ExtAuthMCPPort,
-				Path:     &path,
-				Protocol: &protocol,
 			},
-		})
+		)
 	}
 
 	currentSpec := obj.Spec.DeepCopy()
@@ -766,37 +822,42 @@ func (r *Reconciler) reconcileRoute(ctx context.Context, sandbox *agentzv1alpha1
 	route.Name = mcp.SandboxRouteName(sandbox.Name)
 	route.Namespace = sandbox.Namespace
 
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, route, func() error {
-		group := gwv1.Group("agentgateway.dev")
-		kind := gwv1.Kind("AgentgatewayBackend")
-		pathType := gwv1.PathMatchPathPrefix
-		pathValue := mcp.SandboxRoutePath(sandbox.Name)
-		route.Spec = gwv1.HTTPRouteSpec{
-			CommonRouteSpec: gwv1.CommonRouteSpec{
-				ParentRefs: []gwv1.ParentReference{{
-					Name: gwv1.ObjectName(mcp.GatewayName),
-				}},
-			},
-			Rules: []gwv1.HTTPRouteRule{{
-				Matches: []gwv1.HTTPRouteMatch{{
-					Path: &gwv1.HTTPPathMatch{
-						Type:  &pathType,
-						Value: &pathValue,
-					},
-				}},
-				BackendRefs: []gwv1.HTTPBackendRef{{
-					BackendRef: gwv1.BackendRef{
-						BackendObjectReference: gwv1.BackendObjectReference{
-							Group: &group,
-							Kind:  &kind,
-							Name:  gwv1.ObjectName(mcp.SandboxBackendName(sandbox.Name)),
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		route,
+		func() error {
+			group := gwv1.Group("agentgateway.dev")
+			kind := gwv1.Kind("AgentgatewayBackend")
+			pathType := gwv1.PathMatchPathPrefix
+			pathValue := mcp.SandboxRoutePath(sandbox.Name)
+			route.Spec = gwv1.HTTPRouteSpec{
+				CommonRouteSpec: gwv1.CommonRouteSpec{
+					ParentRefs: []gwv1.ParentReference{{
+						Name: gwv1.ObjectName(mcp.GatewayName),
+					}},
+				},
+				Rules: []gwv1.HTTPRouteRule{{
+					Matches: []gwv1.HTTPRouteMatch{{
+						Path: &gwv1.HTTPPathMatch{
+							Type:  &pathType,
+							Value: &pathValue,
 						},
-					},
+					}},
+					BackendRefs: []gwv1.HTTPBackendRef{{
+						BackendRef: gwv1.BackendRef{
+							BackendObjectReference: gwv1.BackendObjectReference{
+								Group: &group,
+								Kind:  &kind,
+								Name:  gwv1.ObjectName(mcp.SandboxBackendName(sandbox.Name)),
+							},
+						},
+					}},
 				}},
-			}},
-		}
-		return ctrl.SetControllerReference(sandbox, route, r.Scheme)
-	})
+			}
+			return ctrl.SetControllerReference(sandbox, route, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("reconcile route: %w", err)
 	}
@@ -845,21 +906,27 @@ func (r *Reconciler) gatewayOwners(ctx context.Context, namespace string) ([]age
 		}
 		owners = append(owners, sandbox)
 	}
-	slices.SortFunc(owners, func(a, b agentzv1alpha1.Sandbox) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		owners,
+		func(a, b agentzv1alpha1.Sandbox) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	return owners, nil
 }
 
 func sandboxOwnerReferences(owners []agentzv1alpha1.Sandbox) []metav1.OwnerReference {
 	refs := make([]metav1.OwnerReference, 0, len(owners))
 	for _, sandbox := range owners {
-		refs = append(refs, metav1.OwnerReference{
-			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
-			Kind:       "Sandbox",
-			Name:       sandbox.Name,
-			UID:        sandbox.UID,
-		})
+		refs = append(
+			refs,
+			metav1.OwnerReference{
+				APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Sandbox",
+				Name:       sandbox.Name,
+				UID:        sandbox.UID,
+			},
+		)
 	}
 	return refs
 }
@@ -978,7 +1045,9 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 
 func (r *Reconciler) deleteTracePolicy(ctx context.Context, namespace string) error {
 	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayPolicies(namespace).Delete(
-		ctx, tracePolicyName, metav1.DeleteOptions{},
+		ctx,
+		tracePolicyName,
+		metav1.DeleteOptions{},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete trace policy: %w", err)
@@ -992,7 +1061,9 @@ func (r *Reconciler) deleteTraceBackend(ctx context.Context, namespace string) e
 
 func (r *Reconciler) deleteNamedTraceBackend(ctx context.Context, namespace, name string) error {
 	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayBackends(namespace).Delete(
-		ctx, name, metav1.DeleteOptions{},
+		ctx,
+		name,
+		metav1.DeleteOptions{},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete trace backend: %w", err)
@@ -1099,95 +1170,111 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 		},
 	}
 
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
-		ingress := make([]ciliumapi.IngressRule, 0, len(owners))
-		targets := []networkpolicy.Target{}
-		for i := range owners {
-			connections, err := mcp.LoadConnections(ctx, r.Client, &owners[i])
-			if err != nil {
-				return fmt.Errorf("load sandbox connections: %w", err)
-			}
-			for j := range connections {
-				target, err := mcp.ParseTarget(&connections[j])
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		policy,
+		func() error {
+			ingress := make([]ciliumapi.IngressRule, 0, len(owners))
+			targets := []networkpolicy.Target{}
+			for i := range owners {
+				connections, err := mcp.LoadConnections(ctx, r.Client, &owners[i])
 				if err != nil {
-					return fmt.Errorf("resolve MCP target: %w", err)
+					return fmt.Errorf("load sandbox connections: %w", err)
 				}
-				targets = append(targets, networkpolicy.Target{
-					Host: target.Host,
-					Port: target.Port,
-				})
-			}
-			agents := &agentzv1alpha1.AgentList{}
-			err = r.List(
-				ctx,
-				agents,
-				client.MatchingFields{
-					sandboxutil.AgentBySandboxIndex: owners[i].Name,
-				},
-			)
-			if err != nil {
-				return fmt.Errorf("find sandbox agents: %w", err)
-			}
-			for j := range agents.Items {
-				agt := &agents.Items[j]
-				target, err := scoperesolver.SelectedNamespace(ctx, r.Client, agt.Namespace, scoperesolver.Selection{
-					Scope: agt.Spec.SandboxRef.Scope,
-					Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
-					Name:  agt.Spec.SandboxRef.Name,
-				})
-				if err != nil || target != namespace {
-					continue
-				}
-				path := "^" + regexp.QuoteMeta(mcp.SandboxRoutePath(owners[i].Name)) + "(/.*)?$"
-				ingress = append(ingress, ciliumapi.IngressRule{
-					IngressCommonRule: ciliumapi.IngressCommonRule{
-						FromEndpoints: []ciliumapi.EndpointSelector{
-							ciliumapi.NewESFromLabels(
-								ciliumlabels.NewLabel(
-									"io.kubernetes.pod.namespace",
-									agt.Namespace,
-									ciliumlabels.LabelSourceK8s,
-								),
-								ciliumlabels.NewLabel(
-									"app.kubernetes.io/name",
-									"agentz-agent",
-									ciliumlabels.LabelSourceK8s,
-								),
-								ciliumlabels.NewLabel(
-									"app.kubernetes.io/instance",
-									agt.Name,
-									ciliumlabels.LabelSourceK8s,
-								),
-								ciliumlabels.NewLabel(
-									"agentz.accuknox.com/agent",
-									agt.Name,
-									ciliumlabels.LabelSourceK8s,
-								),
-							),
+				for j := range connections {
+					target, err := mcp.ParseTarget(&connections[j])
+					if err != nil {
+						return fmt.Errorf("resolve MCP target: %w", err)
+					}
+					targets = append(
+						targets,
+						networkpolicy.Target{
+							Host: target.Host,
+							Port: target.Port,
 						},
+					)
+				}
+				agents := &agentzv1alpha1.AgentList{}
+				err = r.List(
+					ctx,
+					agents,
+					client.MatchingFields{
+						sandboxutil.AgentBySandboxIndex: owners[i].Name,
 					},
-					ToPorts: []ciliumapi.PortRule{{
-						Ports: []ciliumapi.PortProtocol{{
-							Port: "80", Protocol: ciliumapi.ProtoTCP,
-						}},
-						Rules: &ciliumapi.L7Rules{HTTP: ciliumapi.PortRulesHTTP{
-							{Method: "GET", Path: path},
-							{Method: "POST", Path: path},
-							{Method: "DELETE", Path: path},
-						}},
-					}},
-				})
+				)
+				if err != nil {
+					return fmt.Errorf("find sandbox agents: %w", err)
+				}
+				for j := range agents.Items {
+					agt := &agents.Items[j]
+					target, err := scope.SelectedNamespace(
+						ctx,
+						r.Client,
+						agt.Namespace,
+						scope.Selection{
+							Scope: agt.Spec.SandboxRef.Scope,
+							Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+							Name:  agt.Spec.SandboxRef.Name,
+						},
+					)
+					if err != nil || target != namespace {
+						continue
+					}
+					path := "^" + regexp.QuoteMeta(mcp.SandboxRoutePath(owners[i].Name)) + "(/.*)?$"
+					ingress = append(
+						ingress,
+						ciliumapi.IngressRule{
+							IngressCommonRule: ciliumapi.IngressCommonRule{
+								FromEndpoints: []ciliumapi.EndpointSelector{
+									ciliumapi.NewESFromLabels(
+										ciliumlabels.NewLabel(
+											"io.kubernetes.pod.namespace",
+											agt.Namespace,
+											ciliumlabels.LabelSourceK8s,
+										),
+										ciliumlabels.NewLabel(
+											"app.kubernetes.io/name",
+											"agentz-agent",
+											ciliumlabels.LabelSourceK8s,
+										),
+										ciliumlabels.NewLabel(
+											"app.kubernetes.io/instance",
+											agt.Name,
+											ciliumlabels.LabelSourceK8s,
+										),
+										ciliumlabels.NewLabel(
+											"agentz.accuknox.com/agent",
+											agt.Name,
+											ciliumlabels.LabelSourceK8s,
+										),
+									),
+								},
+							},
+							ToPorts: []ciliumapi.PortRule{{
+								Ports: []ciliumapi.PortProtocol{{
+									Port: "80", Protocol: ciliumapi.ProtoTCP,
+								}},
+								Rules: &ciliumapi.L7Rules{HTTP: ciliumapi.PortRulesHTTP{
+									{Method: "GET", Path: path},
+									{Method: "POST", Path: path},
+									{Method: "DELETE", Path: path},
+								}},
+							}},
+						},
+					)
+				}
 			}
-		}
-		policy.OwnerReferences = sandboxOwnerReferences(owners)
-		policy.Spec = gatewayNetworkPolicySpec(namespace, mcp.GatewayName)
-		policy.Spec.Ingress = ingress
-		policy.Spec.Egress = append(
-			policy.Spec.Egress,
-			networkpolicy.ExternalEgress(targets)...,
-		)
-		return nil
-	})
+			policy.OwnerReferences = sandboxOwnerReferences(owners)
+			policy.Spec = gatewayNetworkPolicySpec(namespace, mcp.GatewayName)
+			policy.Spec.Ingress = ingress
+			policy.Spec.Egress = append(
+				policy.Spec.Egress,
+				networkpolicy.ExternalEgress(targets)...,
+			)
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("reconcile gateway network policy: %w", err)
 	}
@@ -1229,11 +1316,14 @@ func gatewayNetworkPolicySpec(namespace, gatewayName string) *ciliumapi.Rule {
 			},
 		}},
 	}
-	rule.Egress = append(rule.Egress, networkpolicy.ServiceEgress(
-		agentGatewayControlPlaneNamespace,
-		agentGatewayControlPlaneName,
-		agentGatewayControlPlanePort,
-	)...)
+	rule.Egress = append(
+		rule.Egress,
+		networkpolicy.ServiceEgress(
+			agentGatewayControlPlaneNamespace,
+			agentGatewayControlPlaneName,
+			agentGatewayControlPlanePort,
+		)...,
+	)
 	return rule
 }
 
@@ -1278,26 +1368,31 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 		return nil
 	}
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := client.Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("get agentgateway parameters for update: %w", err)
-		}
-		if reflect.DeepEqual(current.Spec, desiredSpec) {
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current, err := client.Get(ctx, name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("get agentgateway parameters for update: %w", err)
+			}
+			if reflect.DeepEqual(current.Spec, desiredSpec) {
+				return nil
+			}
+			current.Spec = desiredSpec
+			_, err = client.Update(ctx, current, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("update agentgateway parameters: %w", err)
+			}
 			return nil
-		}
-		current.Spec = desiredSpec
-		_, err = client.Update(ctx, current, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("update agentgateway parameters: %w", err)
-		}
-		return nil
-	})
+		},
+	)
 }
 
 func (r *Reconciler) deleteAgentgatewayParameters(ctx context.Context, namespace, name string) error {
 	err := r.AgentGateway.AgentgatewayAgentgateway().AgentgatewayParameters(namespace).Delete(
-		ctx, name, metav1.DeleteOptions{},
+		ctx,
+		name,
+		metav1.DeleteOptions{},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete agentgateway parameters: %w", err)

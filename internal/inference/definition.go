@@ -125,10 +125,13 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 		}
 	}
 	if !isCatalogEntry {
-		issues = append(issues, Issue{
-			Field:   "catalog_provider",
-			Message: "provider and kind are not supported together",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   "catalog_provider",
+				Message: "provider and kind are not supported together",
+			},
+		)
 	}
 	if strings.TrimSpace(spec.DisplayName) == "" {
 		issues = append(issues, Issue{Field: "display_name", Message: "field is required"})
@@ -169,33 +172,45 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 		expectedArms = 0
 	}
 	if arms != expectedArms {
-		issues = append(issues, Issue{
-			Field:   "kind",
-			Message: "provider configuration does not match kind",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   "kind",
+				Message: "provider configuration does not match kind",
+			},
+		)
 	}
 
 	switch spec.Kind {
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 		if spec.CatalogProvider != "openai" {
-			issues = append(issues, Issue{
-				Field:   "catalog_provider",
-				Message: "openai codex requires the openai catalog",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "catalog_provider",
+					Message: "openai codex requires the openai catalog",
+				},
+			)
 		}
 	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
 		if spec.CatalogProvider != "github-copilot" {
-			issues = append(issues, Issue{
-				Field:   "catalog_provider",
-				Message: "github copilot requires the github-copilot catalog",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "catalog_provider",
+					Message: "github copilot requires the github-copilot catalog",
+				},
+			)
 		}
 	case agentzv1alpha1.InferenceProviderKindOpenAI:
 		if spec.OpenAI == nil || arms != 1 {
-			issues = append(issues, Issue{
-				Field:   "openai",
-				Message: "configuration must match kind",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "openai",
+					Message: "configuration must match kind",
+				},
+			)
 			break
 		}
 		if spec.OpenAI.BaseURL != "" {
@@ -203,10 +218,13 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 		}
 	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		if spec.Anthropic == nil || arms != 1 {
-			issues = append(issues, Issue{
-				Field:   "anthropic",
-				Message: "configuration must match kind",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "anthropic",
+					Message: "configuration must match kind",
+				},
+			)
 			break
 		}
 		if spec.Anthropic.BaseURL != "" {
@@ -214,10 +232,13 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 		}
 	case agentzv1alpha1.InferenceProviderKindGemini:
 		if spec.Gemini == nil || arms != 1 {
-			issues = append(issues, Issue{
-				Field:   "gemini",
-				Message: "configuration must match kind",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "gemini",
+					Message: "configuration must match kind",
+				},
+			)
 			break
 		}
 		if spec.Gemini.BaseURL != "" {
@@ -225,71 +246,101 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 		}
 	case agentzv1alpha1.InferenceProviderKindVertexAI:
 		if spec.VertexAI == nil || arms != 1 {
-			issues = append(issues, Issue{
-				Field:   "vertex_ai",
-				Message: "configuration must match kind",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "vertex_ai",
+					Message: "configuration must match kind",
+				},
+			)
 			break
 		}
 		if strings.TrimSpace(spec.VertexAI.Project) == "" {
-			issues = append(issues, Issue{
-				Field:   "vertex_ai.project",
-				Message: "field is required",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "vertex_ai.project",
+					Message: "field is required",
+				},
+			)
 		}
 		if strings.TrimSpace(spec.VertexAI.Region) == "" {
-			issues = append(issues, Issue{
-				Field:   "vertex_ai.region",
-				Message: "field is required",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "vertex_ai.region",
+					Message: "field is required",
+				},
+			)
 		}
 	case agentzv1alpha1.InferenceProviderKindBedrock:
 		if spec.Bedrock == nil || arms != 1 {
-			issues = append(issues, Issue{
-				Field:   "bedrock",
-				Message: "configuration must match kind",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "bedrock",
+					Message: "configuration must match kind",
+				},
+			)
 			break
 		}
 		if !bedrockRegionPattern.MatchString(spec.Bedrock.Region) {
-			issues = append(issues, Issue{
-				Field:   "bedrock.region",
-				Message: "must be a valid AWS region",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "bedrock.region",
+					Message: "must be a valid AWS region",
+				},
+			)
 		}
 		usesAccessKey := spec.Bedrock.AuthMode == agentzv1alpha1.BedrockAuthModeAccessKey
 		usesBearerToken := spec.Bedrock.AuthMode == agentzv1alpha1.BedrockAuthModeBearerToken
 		if !usesAccessKey && !usesBearerToken {
-			issues = append(issues, Issue{
-				Field:   "bedrock.auth_mode",
-				Message: "unsupported authentication mode",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "bedrock.auth_mode",
+					Message: "unsupported authentication mode",
+				},
+			)
 		}
 	case agentzv1alpha1.InferenceProviderKindAzure:
 		if spec.Azure == nil || arms != 1 {
-			issues = append(issues, Issue{
-				Field:   "azure",
-				Message: "configuration must match kind",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "azure",
+					Message: "configuration must match kind",
+				},
+			)
 			break
 		}
 		if strings.TrimSpace(spec.Azure.ResourceName) == "" {
-			issues = append(issues, Issue{
-				Field:   "azure.resource_name",
-				Message: "field is required",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "azure.resource_name",
+					Message: "field is required",
+				},
+			)
 		}
 		if spec.Azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry && strings.TrimSpace(spec.Azure.Project) == "" {
-			issues = append(issues, Issue{
-				Field:   "azure.project",
-				Message: "field is required for Foundry",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "azure.project",
+					Message: "field is required for Foundry",
+				},
+			)
 		}
 		if spec.Azure.ResourceType == agentzv1alpha1.AzureResourceTypeOpenAI && spec.Azure.Project != "" {
-			issues = append(issues, Issue{
-				Field:   "azure.project",
-				Message: "field is valid only for Foundry",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   "azure.project",
+					Message: "field is valid only for Foundry",
+				},
+			)
 		}
 	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,
 		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
@@ -300,93 +351,132 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 			field = "anthropic_compatible"
 		}
 		if cfg == nil || arms != 1 {
-			issues = append(issues, Issue{
-				Field:   field,
-				Message: "configuration must match kind",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field,
+					Message: "configuration must match kind",
+				},
+			)
 			break
 		}
 		issues = append(issues, validateEndpoint(field+".base_url", cfg.BaseURL, cfg.AllowPrivateEndpoint, cfg.SkipTLSVerify)...)
 		if cfg.Path != "" && cfg.PathPrefix != "" {
-			issues = append(issues, Issue{
-				Field:   field + ".path_prefix",
-				Message: "path and path prefix are mutually exclusive",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".path_prefix",
+					Message: "path and path prefix are mutually exclusive",
+				},
+			)
 		}
 		if cfg.Path != "" && !providerPathPattern.MatchString(cfg.Path) {
-			issues = append(issues, Issue{
-				Field:   field + ".path",
-				Message: "must be an absolute path without query or fragment",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".path",
+					Message: "must be an absolute path without query or fragment",
+				},
+			)
 		}
 		if cfg.PathPrefix != "" && !providerPathPattern.MatchString(cfg.PathPrefix) {
-			issues = append(issues, Issue{
-				Field:   field + ".path_prefix",
-				Message: "must be an absolute path without query or fragment",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".path_prefix",
+					Message: "must be an absolute path without query or fragment",
+				},
+			)
 		}
 		if cfg.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeAPIKey && cfg.AuthHeader == "" {
-			issues = append(issues, Issue{
-				Field:   field + ".auth_header",
-				Message: "field is required",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".auth_header",
+					Message: "field is required",
+				},
+			)
 		}
 		authDisabled := cfg.AuthMode == agentzv1alpha1.CompatibleProviderAuthModeNone
 		hasAuthSettings := cfg.AuthHeader != "" || cfg.AuthPrefix != ""
 		if authDisabled && hasAuthSettings {
-			issues = append(issues, Issue{
-				Field:   field + ".auth_mode",
-				Message: "authentication settings require api-key authentication",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".auth_mode",
+					Message: "authentication settings require api-key authentication",
+				},
+			)
 		}
 		invalidAuthPrefix := strings.IndexFunc(cfg.AuthPrefix, func(r rune) bool { return r == 0x7f || (r < 0x20 && r != '\t') }) >= 0
 		if invalidAuthPrefix {
-			issues = append(issues, Issue{
-				Field:   field + ".auth_prefix",
-				Message: "must not contain invalid header control characters",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".auth_prefix",
+					Message: "must not contain invalid header control characters",
+				},
+			)
 		}
 		if cfg.AuthHeader != "" {
 			if cfg.AuthHeader != strings.ToLower(cfg.AuthHeader) || !headerNamePattern.MatchString(cfg.AuthHeader) {
-				issues = append(issues, Issue{
-					Field:   field + ".auth_header",
-					Message: "must be a valid lowercase header name",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   field + ".auth_header",
+						Message: "must be a valid lowercase header name",
+					},
+				)
 			}
 			if _, forbidden := gatewayControlledHeaders[cfg.AuthHeader]; forbidden {
-				issues = append(issues, Issue{
-					Field:   field + ".auth_header",
-					Message: "header is controlled by the gateway",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   field + ".auth_header",
+						Message: "header is controlled by the gateway",
+					},
+				)
 			}
 		}
 		seen := make(map[string]struct{}, len(cfg.Headers))
 		for i, header := range cfg.Headers {
 			headerField := fmt.Sprintf("%s.headers.%d.name", field, i)
 			if header.Name != strings.ToLower(header.Name) {
-				issues = append(issues, Issue{
-					Field:   headerField,
-					Message: "header name must be lowercase",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   headerField,
+						Message: "header name must be lowercase",
+					},
+				)
 			}
 			if !headerNamePattern.MatchString(header.Name) {
-				issues = append(issues, Issue{
-					Field:   headerField,
-					Message: "must be a valid header name",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   headerField,
+						Message: "must be a valid header name",
+					},
+				)
 			}
 			if len(header.Value) < 1 || len(header.Value) > 1024 {
-				issues = append(issues, Issue{
-					Field:   fmt.Sprintf("%s.headers.%d.value", field, i),
-					Message: "must contain between 1 and 1024 characters",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   fmt.Sprintf("%s.headers.%d.value", field, i),
+						Message: "must contain between 1 and 1024 characters",
+					},
+				)
 			}
 			invalidValue := strings.IndexFunc(header.Value, func(r rune) bool { return r == 0x7f || (r < 0x20 && r != '\t') }) >= 0
 			if invalidValue {
-				issues = append(issues, Issue{
-					Field:   fmt.Sprintf("%s.headers.%d.value", field, i),
-					Message: "must not contain invalid header control characters",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   fmt.Sprintf("%s.headers.%d.value", field, i),
+						Message: "must not contain invalid header control characters",
+					},
+				)
 			}
 			if _, exists := seen[header.Name]; exists {
 				issues = append(issues, Issue{Field: headerField, Message: "header name must be unique"})
@@ -395,95 +485,137 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 			_, controlled := gatewayControlledHeaders[header.Name]
 			_, credential := credentialHeaders[header.Name]
 			if header.Name == cfg.AuthHeader {
-				issues = append(issues, Issue{
-					Field:   headerField,
-					Message: "header conflicts with authentication",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   headerField,
+						Message: "header conflicts with authentication",
+					},
+				)
 				continue
 			}
 			if controlled || credential {
-				issues = append(issues, Issue{
-					Field:   headerField,
-					Message: "header is controlled by the gateway",
-				})
+				issues = append(
+					issues,
+					Issue{
+						Field:   headerField,
+						Message: "header is controlled by the gateway",
+					},
+				)
 			}
 		}
 	default:
-		issues = append(issues, Issue{
-			Field:   "kind",
-			Message: "unsupported provider kind",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   "kind",
+				Message: "unsupported provider kind",
+			},
+		)
 	}
 
 	seenModels := make(map[string]struct{}, len(spec.Models))
 	for i, model := range spec.Models {
 		field := fmt.Sprintf("models.%d", i)
 		if strings.TrimSpace(model.ID) == "" {
-			issues = append(issues, Issue{
-				Field:   field + ".id",
-				Message: "field is required",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".id",
+					Message: "field is required",
+				},
+			)
 		}
 		if _, exists := seenModels[model.ID]; exists {
-			issues = append(issues, Issue{
-				Field:   field + ".id",
-				Message: "model id must be unique",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".id",
+					Message: "model id must be unique",
+				},
+			)
 		}
 		seenModels[model.ID] = struct{}{}
 		if strings.TrimSpace(model.DisplayName) == "" {
-			issues = append(issues, Issue{
-				Field:   field + ".display_name",
-				Message: "field is required",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".display_name",
+					Message: "field is required",
+				},
+			)
 		}
 		if len(model.Modalities.Input) == 0 || len(model.Modalities.Output) == 0 {
-			issues = append(issues, Issue{
-				Field:   field + ".modalities",
-				Message: "input and output are required",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".modalities",
+					Message: "input and output are required",
+				},
+			)
 		}
 		if model.Limits.Context < 1 || model.Limits.Output < 1 {
-			issues = append(issues, Issue{
-				Field:   field + ".limits",
-				Message: "context and output must be positive",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".limits",
+					Message: "context and output must be positive",
+				},
+			)
 		}
 		if model.Limits.Output > model.Limits.Context {
-			issues = append(issues, Issue{
-				Field:   field + ".limits.output",
-				Message: "cannot exceed context",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".limits.output",
+					Message: "cannot exceed context",
+				},
+			)
 		}
 		if model.Limits.Input != nil && *model.Limits.Input > model.Limits.Context {
-			issues = append(issues, Issue{
-				Field:   field + ".limits.input",
-				Message: "cannot exceed context",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".limits.input",
+					Message: "cannot exceed context",
+				},
+			)
 		}
 		if model.Limits.Input != nil && *model.Limits.Input < 1 {
-			issues = append(issues, Issue{
-				Field:   field + ".limits.input",
-				Message: "must be positive",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".limits.input",
+					Message: "must be positive",
+				},
+			)
 		}
 		if model.Catalog != nil && model.Catalog.Provider != spec.CatalogProvider {
-			issues = append(issues, Issue{
-				Field:   field + ".catalog_provider",
-				Message: "must match the provider catalog",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".catalog_provider",
+					Message: "must match the provider catalog",
+				},
+			)
 		}
 		if isSubscription && model.API == nil {
-			issues = append(issues, Issue{
-				Field:   field + ".api",
-				Message: "subscription models require a discovered api",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".api",
+					Message: "subscription models require a discovered api",
+				},
+			)
 		}
 		if !isSubscription && model.API != nil {
-			issues = append(issues, Issue{
-				Field:   field + ".api",
-				Message: "api is managed only for subscription models",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field + ".api",
+					Message: "api is managed only for subscription models",
+				},
+			)
 		}
 	}
 	return issues
@@ -521,12 +653,17 @@ func ValidateModelRemoval(ctx context.Context, reader client.Reader, current, de
 		}
 		if len(poolNames) > 0 {
 			slices.Sort(poolNames)
-			issues = append(issues, Issue{
-				Field: "models",
-				Message: fmt.Sprintf(
-					"model %q is referenced by pools %v", model.ID, poolNames,
-				),
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field: "models",
+					Message: fmt.Sprintf(
+						"model %q is referenced by pools %v",
+						model.ID,
+						poolNames,
+					),
+				},
+			)
 			continue
 		}
 		sandboxes := &agentzv1alpha1.SandboxList{}
@@ -549,12 +686,17 @@ func ValidateModelRemoval(ctx context.Context, reader client.Reader, current, de
 			names = append(names, sandbox.Name)
 		}
 		slices.Sort(names)
-		issues = append(issues, Issue{
-			Field: "models",
-			Message: fmt.Sprintf(
-				"model %q is referenced by sandboxes %v", model.ID, names,
-			),
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field: "models",
+				Message: fmt.Sprintf(
+					"model %q is referenced by sandboxes %v",
+					model.ID,
+					names,
+				),
+			},
+		)
 	}
 	return issues, nil
 }
@@ -566,49 +708,70 @@ func validateEndpoint(field, value string, allowPrivateEndpoint, skipTLSVerify b
 		return []Issue{{Field: field, Message: "must be an absolute endpoint url"}}
 	}
 	if parsed.User != nil {
-		issues = append(issues, Issue{
-			Field:   field,
-			Message: "embedded credentials are forbidden",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   field,
+				Message: "embedded credentials are forbidden",
+			},
+		)
 	}
 	if parsed.Port() != "" {
 		port, err := strconv.Atoi(parsed.Port())
 		if err != nil || port < 1 || port > 65535 {
-			issues = append(issues, Issue{
-				Field:   field,
-				Message: "port must be between 1 and 65535",
-			})
+			issues = append(
+				issues,
+				Issue{
+					Field:   field,
+					Message: "port must be between 1 and 65535",
+				},
+			)
 		}
 	}
 	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		issues = append(issues, Issue{
-			Field:   field,
-			Message: "query and fragment are forbidden",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   field,
+				Message: "query and fragment are forbidden",
+			},
+		)
 	}
 	if parsed.Scheme != "https" && parsed.Scheme != "http" {
-		issues = append(issues, Issue{
-			Field:   field,
-			Message: "scheme must be https or explicitly allowed http",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   field,
+				Message: "scheme must be https or explicitly allowed http",
+			},
+		)
 	}
 	if parsed.Scheme == "http" && !allowPrivateEndpoint {
-		issues = append(issues, Issue{
-			Field:   field,
-			Message: "http requires private endpoint access",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   field,
+				Message: "http requires private endpoint access",
+			},
+		)
 	}
 	if parsed.Scheme == "https" && isPrivateHost(parsed.Hostname()) && !allowPrivateEndpoint {
-		issues = append(issues, Issue{
-			Field:   field,
-			Message: "private endpoints require private endpoint access",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   field,
+				Message: "private endpoints require private endpoint access",
+			},
+		)
 	}
 	if parsed.Scheme == "http" && skipTLSVerify {
-		issues = append(issues, Issue{
-			Field:   field,
-			Message: "tls verification does not apply to http",
-		})
+		issues = append(
+			issues,
+			Issue{
+				Field:   field,
+				Message: "tls verification does not apply to http",
+			},
+		)
 	}
 	return issues
 }

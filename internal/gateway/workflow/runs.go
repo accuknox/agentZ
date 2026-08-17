@@ -155,48 +155,66 @@ func ValidateRunListFilters(params gatewayapi.ListWorkflowRunsParams) []gatewaya
 		switch *params.TriggerType {
 		case gatewayapi.Schedule, gatewayapi.Webhook:
 		default:
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "trigger_type",
-				Message: "must be a valid workflow run trigger type",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "trigger_type",
+					Message: "must be a valid workflow run trigger type",
+				},
+			)
 		}
 	}
 
 	if params.ScheduleName != nil {
 		name := strings.TrimSpace(*params.ScheduleName)
 		if name == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "schedule_name",
-				Message: "required",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "schedule_name",
+					Message: "required",
+				},
+			)
 		}
 		if errs := validation.IsDNS1123Subdomain(name); name != "" && len(errs) > 0 {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "schedule_name",
-				Message: "must be a valid DNS subdomain",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "schedule_name",
+					Message: "must be a valid DNS subdomain",
+				},
+			)
 		}
 		if params.TriggerType == nil || *params.TriggerType != gatewayapi.Schedule {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "schedule_name",
-				Message: "requires trigger_type=Schedule",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "schedule_name",
+					Message: "requires trigger_type=Schedule",
+				},
+			)
 		}
 	}
 
 	if params.WebhookApiKeyId != nil {
 		keyID := strings.TrimSpace(*params.WebhookApiKeyId)
 		if keyID == "" {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "webhook_api_key_id",
-				Message: "required",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "webhook_api_key_id",
+					Message: "required",
+				},
+			)
 		}
 		if params.TriggerType == nil || *params.TriggerType != gatewayapi.Webhook {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "webhook_api_key_id",
-				Message: "requires trigger_type=Webhook",
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "webhook_api_key_id",
+					Message: "requires trigger_type=Webhook",
+				},
+			)
 		}
 	}
 
@@ -212,10 +230,13 @@ func ValidateRunWatchNames(runNames *[]gatewayapi.WorkflowRunName) []gatewayapi.
 	fields := make([]gatewayapi.FieldError, 0, len(*runNames))
 	for i, runName := range *runNames {
 		if errs := ValidateRunName(runName); len(errs) > 0 {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   fmt.Sprintf("run_names.%d", i),
-				Message: errs[0].Message,
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   fmt.Sprintf("run_names.%d", i),
+					Message: errs[0].Message,
+				},
+			)
 		}
 	}
 	return fields
@@ -227,54 +248,57 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	phase := agentzv1alpha1.WorkflowRunPhase(req.Phase)
 	var resultErr error
 
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.WorkflowRun{}
-		if err := k8sClient.Get(ctx, key, current); err != nil {
-			return err
-		}
-		if current.Spec.AgentName != strings.TrimSpace(agtName) {
-			return ErrWorkflowRunScopeMismatch
-		}
-		if current.Spec.WorkflowName != strings.TrimSpace(wfName) {
-			return ErrWorkflowRunScopeMismatch
-		}
+	err := retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.WorkflowRun{}
+			if err := k8sClient.Get(ctx, key, current); err != nil {
+				return err
+			}
+			if current.Spec.AgentName != strings.TrimSpace(agtName) {
+				return ErrWorkflowRunScopeMismatch
+			}
+			if current.Spec.WorkflowName != strings.TrimSpace(wfName) {
+				return ErrWorkflowRunScopeMismatch
+			}
 
-		if current.Status.Phase.Terminal() && current.Status.Phase == phase && current.Status.Message == msg {
+			if current.Status.Phase.Terminal() && current.Status.Phase == phase && current.Status.Message == msg {
+				resultErr = nil
+				return nil
+			}
+			if current.Status.Phase.Terminal() {
+				resultErr = ErrWorkflowRunTerminal
+				return nil
+			}
+			if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
+				resultErr = &RunPhaseConflictError{
+					Current: current.Status.Phase,
+					Target:  phase,
+				}
+				return nil
+			}
+
+			patch := ctrlclient.MergeFrom(current.DeepCopy())
+			now := metav1.Now()
+			current.Status.Phase = phase
+			current.Status.Message = msg
+			current.Status.CompletedAt = &now
+			for i := range current.Status.Nodes {
+				if current.Status.Nodes[i].Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
+					continue
+				}
+				current.Status.Nodes[i].Phase = agentzv1alpha1.WorkflowRunNodePhaseUnacked
+				current.Status.Nodes[i].CompletedAt = &now
+			}
+
+			if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
+				return err
+			}
+
 			resultErr = nil
 			return nil
-		}
-		if current.Status.Phase.Terminal() {
-			resultErr = ErrWorkflowRunTerminal
-			return nil
-		}
-		if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
-			resultErr = &RunPhaseConflictError{
-				Current: current.Status.Phase,
-				Target:  phase,
-			}
-			return nil
-		}
-
-		patch := ctrlclient.MergeFrom(current.DeepCopy())
-		now := metav1.Now()
-		current.Status.Phase = phase
-		current.Status.Message = msg
-		current.Status.CompletedAt = &now
-		for i := range current.Status.Nodes {
-			if current.Status.Nodes[i].Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
-				continue
-			}
-			current.Status.Nodes[i].Phase = agentzv1alpha1.WorkflowRunNodePhaseUnacked
-			current.Status.Nodes[i].CompletedAt = &now
-		}
-
-		if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
-			return err
-		}
-
-		resultErr = nil
-		return nil
-	})
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -292,79 +316,82 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 	phase := agentzv1alpha1.WorkflowRunNodePhase(req.Phase)
 	var resultErr error
 
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.WorkflowRun{}
-		if err := k8sClient.Get(ctx, key, current); err != nil {
-			return err
-		}
-		if current.Spec.AgentName != strings.TrimSpace(agtName) {
-			return ErrWorkflowRunScopeMismatch
-		}
-		if current.Spec.WorkflowName != strings.TrimSpace(wfName) {
-			return ErrWorkflowRunScopeMismatch
-		}
-		if current.Status.Phase.Terminal() {
-			resultErr = ErrWorkflowRunTerminal
-			return nil
-		}
-		if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
-			resultErr = &RunPhaseConflictError{
-				Current: current.Status.Phase,
-				Target:  agentzv1alpha1.WorkflowRunPhaseRunning,
+	err = retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.WorkflowRun{}
+			if err := k8sClient.Get(ctx, key, current); err != nil {
+				return err
 			}
-			return nil
-		}
-
-		nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(workflow.Nodes))
-		existing := make(map[string]agentzv1alpha1.WorkflowRunNodeStatus, len(current.Status.Nodes))
-		for _, node := range current.Status.Nodes {
-			existing[node.Name] = node
-		}
-
-		var found bool
-		for _, node := range workflow.Nodes {
-			next := existing[node.Name]
-			if next.Name == "" {
-				next.Name = node.Name
-				next.Phase = agentzv1alpha1.WorkflowRunNodePhaseDisabled
+			if current.Spec.AgentName != strings.TrimSpace(agtName) {
+				return ErrWorkflowRunScopeMismatch
 			}
-			if node.Name == nodeName {
-				found = true
+			if current.Spec.WorkflowName != strings.TrimSpace(wfName) {
+				return ErrWorkflowRunScopeMismatch
 			}
-			nodes = append(nodes, next)
-		}
-		if !found {
-			resultErr = ErrWorkflowRunNodeNotFound
-			return nil
-		}
+			if current.Status.Phase.Terminal() {
+				resultErr = ErrWorkflowRunTerminal
+				return nil
+			}
+			if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
+				resultErr = &RunPhaseConflictError{
+					Current: current.Status.Phase,
+					Target:  agentzv1alpha1.WorkflowRunPhaseRunning,
+				}
+				return nil
+			}
 
-		now := metav1.Now()
-		nodes, changed, err := applyNodeStatusPatch(
-			nodes,
-			nodeName,
-			phase,
-			msg,
-			now,
-		)
-		if err != nil {
-			resultErr = err
-			return nil
-		}
-		if !changed {
+			nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(workflow.Nodes))
+			existing := make(map[string]agentzv1alpha1.WorkflowRunNodeStatus, len(current.Status.Nodes))
+			for _, node := range current.Status.Nodes {
+				existing[node.Name] = node
+			}
+
+			var found bool
+			for _, node := range workflow.Nodes {
+				next := existing[node.Name]
+				if next.Name == "" {
+					next.Name = node.Name
+					next.Phase = agentzv1alpha1.WorkflowRunNodePhaseDisabled
+				}
+				if node.Name == nodeName {
+					found = true
+				}
+				nodes = append(nodes, next)
+			}
+			if !found {
+				resultErr = ErrWorkflowRunNodeNotFound
+				return nil
+			}
+
+			now := metav1.Now()
+			nodes, changed, err := applyNodeStatusPatch(
+				nodes,
+				nodeName,
+				phase,
+				msg,
+				now,
+			)
+			if err != nil {
+				resultErr = err
+				return nil
+			}
+			if !changed {
+				resultErr = nil
+				return nil
+			}
+
+			patch := ctrlclient.MergeFrom(current.DeepCopy())
+			current.Status.Nodes = nodes
+
+			if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
+				return err
+			}
+
 			resultErr = nil
 			return nil
-		}
-
-		patch := ctrlclient.MergeFrom(current.DeepCopy())
-		current.Status.Nodes = nodes
-
-		if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {
-			return err
-		}
-
-		resultErr = nil
-		return nil
-	})
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -372,9 +399,12 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 }
 
 func applyNodeStatusPatch(nodes []agentzv1alpha1.WorkflowRunNodeStatus, nodeName string, phase agentzv1alpha1.WorkflowRunNodePhase, msg string, now metav1.Time) ([]agentzv1alpha1.WorkflowRunNodeStatus, bool, error) {
-	target := slices.IndexFunc(nodes, func(node agentzv1alpha1.WorkflowRunNodeStatus) bool {
-		return node.Name == nodeName
-	})
+	target := slices.IndexFunc(
+		nodes,
+		func(node agentzv1alpha1.WorkflowRunNodeStatus) bool {
+			return node.Name == nodeName
+		},
+	)
 	if target < 0 {
 		return nil, false, ErrWorkflowRunNodeNotFound
 	}
@@ -583,15 +613,18 @@ func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns st
 		items = append(items, item)
 	}
 
-	slices.SortFunc(items, func(a, b gatewayapi.WorkflowWebhookTrigger) int {
-		if cmp := b.LastTriggeredAt.Compare(a.LastTriggeredAt); cmp != 0 {
-			return cmp
-		}
-		if cmp := strings.Compare(a.WorkflowName, b.WorkflowName); cmp != 0 {
-			return cmp
-		}
-		return strings.Compare(a.ApiKeyId, b.ApiKeyId)
-	})
+	slices.SortFunc(
+		items,
+		func(a, b gatewayapi.WorkflowWebhookTrigger) int {
+			if cmp := b.LastTriggeredAt.Compare(a.LastTriggeredAt); cmp != 0 {
+				return cmp
+			}
+			if cmp := strings.Compare(a.WorkflowName, b.WorkflowName); cmp != 0 {
+				return cmp
+			}
+			return strings.Compare(a.ApiKeyId, b.ApiKeyId)
+		},
+	)
 
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
@@ -647,15 +680,18 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		items = append(items, runSummaryFromCRD(run))
 	}
 
-	slices.SortFunc(items, func(a, b gatewayapi.WorkflowRunSummary) int {
-		if !a.CreatedAt.Equal(b.CreatedAt) {
-			if a.CreatedAt.After(b.CreatedAt) {
-				return -1
+	slices.SortFunc(
+		items,
+		func(a, b gatewayapi.WorkflowRunSummary) int {
+			if !a.CreatedAt.Equal(b.CreatedAt) {
+				if a.CreatedAt.After(b.CreatedAt) {
+					return -1
+				}
+				return 1
 			}
-			return 1
-		}
-		return strings.Compare(a.Name, b.Name)
-	})
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))

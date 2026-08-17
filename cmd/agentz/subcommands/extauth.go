@@ -93,17 +93,20 @@ var extAuthServeCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return extauth.Serve(ctx, extauth.Config{
-			Addr:                    c.String("addr"),
-			Namespace:               c.String("namespace"),
-			SourceNamespaces:        c.StringSlice("source-namespace"),
-			OpenBaoAddr:             c.String("openbao-addr"),
-			OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
-			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
-			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
-			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
-			MCPProbeInterval:        c.Duration("mcp-probe-interval"),
-			MCPProbeTimeout:         c.Duration("mcp-probe-timeout"),
-		})
+		return extauth.Serve(
+			ctx,
+			extauth.Config{
+				Addr:                    c.String("addr"),
+				Namespace:               c.String("namespace"),
+				SourceNamespaces:        c.StringSlice("source-namespace"),
+				OpenBaoAddr:             c.String("openbao-addr"),
+				OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
+				OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
+				OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
+				OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
+				MCPProbeInterval:        c.Duration("mcp-probe-interval"),
+				MCPProbeTimeout:         c.Duration("mcp-probe-timeout"),
+			},
+		)
 	},
 }

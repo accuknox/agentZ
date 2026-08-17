@@ -95,46 +95,52 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *agentzv1alpha1.Secret) error {
 	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.Secret{}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(secret), current); err != nil {
-			return err
-		}
-		observed := current.Status.ObservedGeneration == current.Generation
-		hasRuntime := current.Status.State != "" && current.Status.RuntimeRef != nil
-		if observed && hasRuntime && current.Status.RuntimeRef.Path == path {
-			return nil
-		}
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.Secret{}
+			if err := r.Get(ctx, client.ObjectKeyFromObject(secret), current); err != nil {
+				return err
+			}
+			observed := current.Status.ObservedGeneration == current.Generation
+			hasRuntime := current.Status.State != "" && current.Status.RuntimeRef != nil
+			if observed && hasRuntime && current.Status.RuntimeRef.Path == path {
+				return nil
+			}
 
-		status := current.Status
-		status.ObservedGeneration = current.Generation
-		status.State = agentzv1alpha1.SecretStateAccepted
-		status.RuntimeRef = &agentzv1alpha1.SecretRuntimeRef{Path: path}
-		now := metav1.Now()
-		status.LastRuntimeUpdateTime = &now
-		status.TokenExpiryTime = nil
-		status.LastRefreshFailureReason = ""
-		status.LastRefreshFailureMessage = ""
-		status.LastRefreshFailureTime = nil
-		secretstore.SetCondition(&status, metav1.Condition{
-			Type:               agentzv1alpha1.SecretConditionAccepted,
-			Status:             metav1.ConditionTrue,
-			Reason:             agentzv1alpha1.SecretReasonAccepted,
-			Message:            "Secret runtime is pending",
-			ObservedGeneration: current.Generation,
-		})
+			status := current.Status
+			status.ObservedGeneration = current.Generation
+			status.State = agentzv1alpha1.SecretStateAccepted
+			status.RuntimeRef = &agentzv1alpha1.SecretRuntimeRef{Path: path}
+			now := metav1.Now()
+			status.LastRuntimeUpdateTime = &now
+			status.TokenExpiryTime = nil
+			status.LastRefreshFailureReason = ""
+			status.LastRefreshFailureMessage = ""
+			status.LastRefreshFailureTime = nil
+			secretstore.SetCondition(
+				&status,
+				metav1.Condition{
+					Type:               agentzv1alpha1.SecretConditionAccepted,
+					Status:             metav1.ConditionTrue,
+					Reason:             agentzv1alpha1.SecretReasonAccepted,
+					Message:            "Secret runtime is pending",
+					ObservedGeneration: current.Generation,
+				},
+			)
 
-		oldStatus := current.Status
-		oldStatus.LastRuntimeUpdateTime = nil
-		newStatus := status
-		newStatus.LastRuntimeUpdateTime = nil
-		if apiequality.Semantic.DeepEqual(oldStatus, newStatus) {
-			return nil
-		}
+			oldStatus := current.Status
+			oldStatus.LastRuntimeUpdateTime = nil
+			newStatus := status
+			newStatus.LastRuntimeUpdateTime = nil
+			if apiequality.Semantic.DeepEqual(oldStatus, newStatus) {
+				return nil
+			}
 
-		current.Status = status
-		return r.Status().Update(ctx, current)
-	})
+			current.Status = status
+			return r.Status().Update(ctx, current)
+		},
+	)
 }
 
 func (r *SecretReconciler) deleteRuntime(ctx context.Context, secret *agentzv1alpha1.Secret) error {

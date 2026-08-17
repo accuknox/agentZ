@@ -80,13 +80,17 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 	}
 
 	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName)
-	_, err = p.client.Logical().WriteWithContext(ctx, rolePath, map[string]any{
-		"bound_service_account_names":      opts.ServiceAccountName,
-		"bound_service_account_namespaces": opts.Namespace,
-		"token_policies":                   opts.PolicyName,
-		"token_period":                     "1h",
-		"token_type":                       "service",
-	})
+	_, err = p.client.Logical().WriteWithContext(
+		ctx,
+		rolePath,
+		map[string]any{
+			"bound_service_account_names":      opts.ServiceAccountName,
+			"bound_service_account_namespaces": opts.Namespace,
+			"token_policies":                   opts.PolicyName,
+			"token_period":                     "1h",
+			"token_type":                       "service",
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("put openbao kubernetes role: %w", err)
 	}

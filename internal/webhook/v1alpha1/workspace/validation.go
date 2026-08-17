@@ -63,11 +63,15 @@ func validateWorkspace(obj *agentzv1alpha1.Workspace) error {
 	if obj.Name == expectedName {
 		return nil
 	}
-	return apierrors.NewInvalid(workspaceGroupKind, obj.Name, field.ErrorList{
-		field.Invalid(
-			field.NewPath("metadata").Child("name"),
-			obj.Name,
-			fmt.Sprintf("must equal %q", expectedName),
-		),
-	})
+	return apierrors.NewInvalid(
+		workspaceGroupKind,
+		obj.Name,
+		field.ErrorList{
+			field.Invalid(
+				field.NewPath("metadata").Child("name"),
+				obj.Name,
+				fmt.Sprintf("must equal %q", expectedName),
+			),
+		},
+	)
 }

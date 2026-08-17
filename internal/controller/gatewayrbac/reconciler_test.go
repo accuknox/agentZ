@@ -26,12 +26,16 @@ func TestReconcileGrantsOnlyTargetNamespace(t *testing.T) {
 		UID:        "workspace-uid",
 		Controller: new(true),
 	}
-	err := Reconcile(context.Background(), c, Config{
-		Namespace:               "workspace-a",
-		ServiceAccountName:      "gateway",
-		ServiceAccountNamespace: "agentz-system",
-		Owner:                   owner,
-	})
+	err := Reconcile(
+		context.Background(),
+		c,
+		Config{
+			Namespace:               "workspace-a",
+			ServiceAccountName:      "gateway",
+			ServiceAccountNamespace: "agentz-system",
+			Owner:                   owner,
+		},
+	)
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}

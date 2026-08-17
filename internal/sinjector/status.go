@@ -55,16 +55,19 @@ func (r *resolver) runProbeQueue(ctx context.Context) {
 			return
 		}
 
-		_, err, _ := r.sf.Do("probe:"+name, func() (any, error) {
-			secret, err := r.secrets.Get(name)
-			if err != nil {
-				return nil, ctrlclient.IgnoreNotFound(err)
-			}
-			if !secret.DeletionTimestamp.IsZero() {
-				return nil, nil
-			}
-			return nil, r.probeSecret(ctx, secret)
-		})
+		_, err, _ := r.sf.Do(
+			"probe:"+name,
+			func() (any, error) {
+				secret, err := r.secrets.Get(name)
+				if err != nil {
+					return nil, ctrlclient.IgnoreNotFound(err)
+				}
+				if !secret.DeletionTimestamp.IsZero() {
+					return nil, nil
+				}
+				return nil, r.probeSecret(ctx, secret)
+			},
+		)
 		r.probeQueue.Done(name)
 		if err == nil {
 			continue
@@ -227,47 +230,53 @@ func (r *resolver) secretForKey(key string) (*agentzv1alpha1.Secret, error) {
 }
 
 func (r *resolver) writeSecretStatus(ctx context.Context, namespace, name string, next secretRuntimeStatus) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		secret := &agentzv1alpha1.Secret{}
-		key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
-		if err := r.k8sClient.Get(ctx, key, secret); err != nil {
-			return ctrlclient.IgnoreNotFound(err)
-		}
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			secret := &agentzv1alpha1.Secret{}
+			key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
+			if err := r.k8sClient.Get(ctx, key, secret); err != nil {
+				return ctrlclient.IgnoreNotFound(err)
+			}
 
-		path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
-		now := metav1.NewTime(time.Now().UTC())
-		secret.Status.State = next.state
-		secret.Status.ObservedGeneration = secret.Generation
-		secret.Status.RuntimeRef = &agentzv1alpha1.SecretRuntimeRef{Path: path}
-		secret.Status.LastRuntimeUpdateTime = &now
-		secret.Status.TokenExpiryTime = nil
-		if next.tokenExpiry != nil && !next.tokenExpiry.IsZero() {
-			expiry := metav1.NewTime(next.tokenExpiry.UTC())
-			secret.Status.TokenExpiryTime = &expiry
-		}
-		if next.refreshTime != nil && !next.refreshTime.IsZero() {
-			refreshTime := metav1.NewTime(next.refreshTime.UTC())
-			secret.Status.LastRefreshTime = &refreshTime
-		}
+			path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
+			now := metav1.NewTime(time.Now().UTC())
+			secret.Status.State = next.state
+			secret.Status.ObservedGeneration = secret.Generation
+			secret.Status.RuntimeRef = &agentzv1alpha1.SecretRuntimeRef{Path: path}
+			secret.Status.LastRuntimeUpdateTime = &now
+			secret.Status.TokenExpiryTime = nil
+			if next.tokenExpiry != nil && !next.tokenExpiry.IsZero() {
+				expiry := metav1.NewTime(next.tokenExpiry.UTC())
+				secret.Status.TokenExpiryTime = &expiry
+			}
+			if next.refreshTime != nil && !next.refreshTime.IsZero() {
+				refreshTime := metav1.NewTime(next.refreshTime.UTC())
+				secret.Status.LastRefreshTime = &refreshTime
+			}
 
-		secret.Status.LastRefreshFailureTime = nil
-		secret.Status.LastRefreshFailureReason = ""
-		secret.Status.LastRefreshFailureMessage = ""
-		if next.state == agentzv1alpha1.SecretStateDegraded {
-			secret.Status.LastRefreshFailureTime = &now
-			secret.Status.LastRefreshFailureReason = next.reason
-			secret.Status.LastRefreshFailureMessage = next.message
-		}
+			secret.Status.LastRefreshFailureTime = nil
+			secret.Status.LastRefreshFailureReason = ""
+			secret.Status.LastRefreshFailureMessage = ""
+			if next.state == agentzv1alpha1.SecretStateDegraded {
+				secret.Status.LastRefreshFailureTime = &now
+				secret.Status.LastRefreshFailureReason = next.reason
+				secret.Status.LastRefreshFailureMessage = next.message
+			}
 
-		secretstore.SetCondition(&secret.Status, metav1.Condition{
-			Type:               next.condition,
-			Status:             metav1.ConditionTrue,
-			Reason:             next.reason,
-			Message:            next.message,
-			ObservedGeneration: secret.Generation,
-		})
-		return r.k8sClient.Status().Update(ctx, secret)
-	})
+			secretstore.SetCondition(
+				&secret.Status,
+				metav1.Condition{
+					Type:               next.condition,
+					Status:             metav1.ConditionTrue,
+					Reason:             next.reason,
+					Message:            next.message,
+					ObservedGeneration: secret.Generation,
+				},
+			)
+			return r.k8sClient.Status().Update(ctx, secret)
+		},
+	)
 }
 
 func acceptedSecretStatus() secretRuntimeStatus {

@@ -457,9 +457,12 @@ func packageJobHash(image, nixCacheEndpoint string, store skill.Config, envCfg s
 
 func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructionFile, error) {
 	var philosophy strings.Builder
-	err := philosophyTemplate.Execute(&philosophy, philosophyData{
-		AgentName: agt.Name,
-	})
+	err := philosophyTemplate.Execute(
+		&philosophy,
+		philosophyData{
+			AgentName: agt.Name,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("render agent philosophy: %w", err)
 	}
@@ -470,10 +473,13 @@ func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructio
 	}}
 
 	if instruction := strings.TrimSpace(agt.Spec.Instruction); instruction != "" {
-		files = append(files, opencodeInstructionFile{
-			Path:    opencodeInstructionPath,
-			Content: opencodeInstructionPreamble + "\n\n" + instruction,
-		})
+		files = append(
+			files,
+			opencodeInstructionFile{
+				Path:    opencodeInstructionPath,
+				Content: opencodeInstructionPreamble + "\n\n" + instruction,
+			},
+		)
 	}
 
 	return files, nil

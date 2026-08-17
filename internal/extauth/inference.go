@@ -17,7 +17,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/oauth"
-	"github.com/accuknox/agentz/internal/scoperesolver"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -74,8 +74,12 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 	}
 	attrs.sourceIP = sourceIP
 	err = s.authorizeInferenceTarget(
-		ctx, attrs.namespace, attrs.sandboxNamespace, attrs.sandbox,
-		attrs.provider, attrs.pool,
+		ctx,
+		attrs.namespace,
+		attrs.sandboxNamespace,
+		attrs.sandbox,
+		attrs.provider,
+		attrs.pool,
 	)
 	if err != nil {
 		code := codes.PermissionDenied
@@ -155,11 +159,16 @@ func (s *Service) authorizeInferenceTarget(ctx context.Context, providerNamespac
 			if model.Provider != providerName {
 				continue
 			}
-			ns, err := scoperesolver.SelectedNamespace(ctx, s.kube, sandboxNamespace, scoperesolver.Selection{
-				Scope: model.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-				Name:  model.Provider,
-			})
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				s.kube,
+				sandboxNamespace,
+				scope.Selection{
+					Scope: model.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  model.Provider,
+				},
+			)
 			if err == nil && ns == providerNamespace {
 				return nil
 			}
@@ -186,11 +195,16 @@ func (s *Service) authorizeInferenceTarget(ctx context.Context, providerNamespac
 		if member.Provider != providerName {
 			continue
 		}
-		ns, err := scoperesolver.SelectedNamespace(ctx, s.kube, sandboxNamespace, scoperesolver.Selection{
-			Scope: member.Scope,
-			Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-			Name:  member.Provider,
-		})
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			s.kube,
+			sandboxNamespace,
+			scope.Selection{
+				Scope: member.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  member.Provider,
+			},
+		)
 		if err == nil && ns == providerNamespace {
 			return nil
 		}

@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package scoperesolver maps explicit resource scope to stable namespaces.
-package scoperesolver
+// Package scope maps explicit resource scope to stable namespaces.
+package scope
 
 import (
 	"context"

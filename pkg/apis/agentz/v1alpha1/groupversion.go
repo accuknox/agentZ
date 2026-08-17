@@ -45,11 +45,14 @@ type schemeBuilder struct {
 
 // Register adds objects to the group-version scheme.
 func (b *schemeBuilder) Register(objs ...runtime.Object) error {
-	b.SchemeBuilder = append(b.SchemeBuilder, func(s *runtime.Scheme) error {
-		s.AddKnownTypes(b.GroupVersion, objs...)
-		metav1.AddToGroupVersion(s, b.GroupVersion)
-		return nil
-	})
+	b.SchemeBuilder = append(
+		b.SchemeBuilder,
+		func(s *runtime.Scheme) error {
+			s.AddKnownTypes(b.GroupVersion, objs...)
+			metav1.AddToGroupVersion(s, b.GroupVersion)
+			return nil
+		},
+	)
 	return nil
 }
 

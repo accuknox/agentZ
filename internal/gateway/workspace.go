@@ -59,13 +59,17 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		return
 	}
 	rows, err := s.workspaceAccessPage(
-		r.Context(), claims, cursor, cursorSet, limit+1,
+		r.Context(),
+		claims,
+		cursor,
+		cursorSet,
+		limit+1,
 	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	next := ""
+	var next string
 	if len(rows) > limit {
 		rows = rows[:limit]
 		last := rows[len(rows)-1].Workspace
@@ -75,29 +79,39 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		})
 	}
 	workspaces := make([]gatewayapi.Workspace, 0, len(rows))
-	effective, err := authorization.New(s.queries).Resolve(r.Context(), authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
-	})
+	effective, err := authorization.New(s.queries).Resolve(
+		r.Context(),
+		authorization.Subject{
+			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+		},
+	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("resolve workspace capabilities: %w", err))
 		return
 	}
 	for _, row := range rows {
 		capabilities := resourceCapabilities(effective, claims.OrganizationID, row.Workspace.ID)
-		workspaces = append(workspaces, workspaceView(
-			row.Workspace,
-			row.WorkspaceAdminCount,
-			row.CanAdminister,
-			capabilities,
-		))
+		workspaces = append(
+			workspaces,
+			workspaceView(
+				row.Workspace,
+				row.WorkspaceAdminCount,
+				row.CanAdminister,
+				capabilities,
+			),
+		)
 	}
 
-	writeJSON(w, http.StatusOK, gatewayapi.ListWorkspacesResponse{
-		CanCreate:            canCreate,
-		CanEnterOrganization: canEnter,
-		NextPageToken:        next,
-		Workspaces:           workspaces,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListWorkspacesResponse{
+			CanCreate:            canCreate,
+			CanEnterOrganization: canEnter,
+			NextPageToken:        next,
+			Workspaces:           workspaces,
+		},
+	)
 }
 
 // ListWorkspaceMemberCandidates handles GET /api/workspace/member-candidate.
@@ -120,12 +134,16 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		return
 	}
 	if !allowed {
-		writeError(w, r, newAPIError(
-			http.StatusForbidden,
-			"forbidden",
-			"Superadmin authority is required",
-			errors.New("workspace member list requires Superadmin authority"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"Superadmin authority is required",
+				errors.New("workspace member list requires Superadmin authority"),
+			),
+		)
 		return
 	}
 
@@ -153,9 +171,13 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		}
 		members = append(members, member)
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListWorkspaceMemberCandidatesResponse{
-		Members: members,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListWorkspaceMemberCandidatesResponse{
+			Members: members,
+		},
+	)
 }
 
 // CreateWorkspace handles POST /api/workspace.
@@ -171,13 +193,17 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{Field: "name", Message: "must not be blank"},
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{Field: "name", Message: "must not be blank"},
+			),
+		)
 		return
 	}
 
@@ -217,17 +243,21 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !allowed {
-		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-			organizationID: claims.OrganizationID,
-			workspaceID:    id,
-			actorType:      gatewaydb.EventTrailActorUser,
-			actorID:        claims.UserID,
-			action:         "workspace.create",
-			result:         gatewaydb.EventTrailResultDenied,
-			after: []gatewayapi.EventTrailField{
-				{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
+		err = createWorkspaceEventTrail(
+			r.Context(),
+			q,
+			workspaceEventTrail{
+				organizationID: claims.OrganizationID,
+				workspaceID:    id,
+				actorType:      gatewaydb.EventTrailActorUser,
+				actorID:        claims.UserID,
+				action:         "workspace.create",
+				result:         gatewaydb.EventTrailResultDenied,
+				after: []gatewayapi.EventTrailField{
+					{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
+				},
 			},
-		})
+		)
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
@@ -236,12 +266,16 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			writeInternalError(w, r, fmt.Errorf("commit denied workspace create: %w", err))
 			return
 		}
-		writeError(w, r, newAPIError(
-			http.StatusForbidden,
-			"forbidden",
-			"Superadmin authority is required",
-			errors.New("workspace creation requires Superadmin authority"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"Superadmin authority is required",
+				errors.New("workspace creation requires Superadmin authority"),
+			),
+		)
 		return
 	}
 	selected := agentzv1alpha1.SelectedOrganizationResources{
@@ -251,18 +285,24 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		InferenceProviders: slices.Clone(req.SelectedOrganizationResources.InferenceProviders),
 	}
 	fields, err := s.validateOrganizationResourceSelection(
-		r.Context(), claims.OrganizationID, selected,
+		r.Context(),
+		claims.OrganizationID,
+		selected,
 	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
-		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-			organizationID: claims.OrganizationID, workspaceID: id,
-			actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-			action: "workspace.create", result: gatewaydb.EventTrailResultFailed,
-		})
+		err = createWorkspaceEventTrail(
+			r.Context(),
+			q,
+			workspaceEventTrail{
+				organizationID: claims.OrganizationID, workspaceID: id,
+				actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
+				action: "workspace.create", result: gatewaydb.EventTrailResultFailed,
+			},
+		)
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
@@ -271,23 +311,30 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			writeInternalError(w, r, fmt.Errorf("commit failed workspace create event trail: %w", err))
 			return
 		}
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"selected Organisation resources are invalid",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"selected Organisation resources are invalid",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
-	err = q.GatewayCreateWorkspace(r.Context(), gatewaydb.GatewayCreateWorkspaceParams{
-		ID:             id,
-		OrganizationID: claims.OrganizationID,
-		Name:           req.Name,
-		Slug:           workspaceSlug,
-		Namespace:      namespace,
-	})
+	err = q.GatewayCreateWorkspace(
+		r.Context(),
+		gatewaydb.GatewayCreateWorkspaceParams{
+			ID:             id,
+			OrganizationID: claims.OrganizationID,
+			Name:           req.Name,
+			Slug:           workspaceSlug,
+			Namespace:      namespace,
+		},
+	)
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("create workspace", err))
 		return
@@ -323,31 +370,39 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if assigned != int64(len(req.AdminMemberIds)) {
 		_ = tx.Rollback(r.Context())
-		err = createWorkspaceEventTrail(r.Context(), s.queries, workspaceEventTrail{
-			organizationID: claims.OrganizationID,
-			workspaceID:    id,
-			actorType:      gatewaydb.EventTrailActorUser,
-			actorID:        claims.UserID,
-			action:         "workspace.create",
-			result:         gatewaydb.EventTrailResultDenied,
-			after: []gatewayapi.EventTrailField{
-				{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
+		err = createWorkspaceEventTrail(
+			r.Context(),
+			s.queries,
+			workspaceEventTrail{
+				organizationID: claims.OrganizationID,
+				workspaceID:    id,
+				actorType:      gatewaydb.EventTrailActorUser,
+				actorID:        claims.UserID,
+				action:         "workspace.create",
+				result:         gatewaydb.EventTrailResultDenied,
+				after: []gatewayapi.EventTrailField{
+					{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
+				},
 			},
-		})
+		)
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
 		}
-		writeError(w, r, newAPIError(
-			http.StatusUnprocessableEntity,
-			"invalid_request",
-			"one or more Workspace Admins are not eligible",
-			errors.New("workspace admin selection changed"),
-			gatewayapi.FieldError{
-				Field:   "admin_member_ids",
-				Message: "contains an ineligible member",
-			},
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusUnprocessableEntity,
+				"invalid_request",
+				"one or more Workspace Admins are not eligible",
+				errors.New("workspace admin selection changed"),
+				gatewayapi.FieldError{
+					Field:   "admin_member_ids",
+					Message: "contains an ineligible member",
+				},
+			),
+		)
 		return
 	}
 	projected, err := q.GatewayProjectMemberRoleTransports(
@@ -365,20 +420,24 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, r, errors.New("projected Workspace Admin count changed"))
 		return
 	}
-	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-		organizationID: claims.OrganizationID,
-		workspaceID:    id,
-		actorType:      gatewaydb.EventTrailActorUser,
-		actorID:        claims.UserID,
-		action:         "workspace.create",
-		result:         gatewaydb.EventTrailResultSucceeded,
-		after: []gatewayapi.EventTrailField{
-			{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
-			{Field: gatewayapi.EventTrailFieldSlug, Value: workspaceSlug},
-			{Field: gatewayapi.EventTrailFieldProvisioningAttempt, Value: "1"},
-			{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
+	err = createWorkspaceEventTrail(
+		r.Context(),
+		q,
+		workspaceEventTrail{
+			organizationID: claims.OrganizationID,
+			workspaceID:    id,
+			actorType:      gatewaydb.EventTrailActorUser,
+			actorID:        claims.UserID,
+			action:         "workspace.create",
+			result:         gatewaydb.EventTrailResultSucceeded,
+			after: []gatewayapi.EventTrailField{
+				{Field: gatewayapi.EventTrailFieldName, Value: req.Name},
+				{Field: gatewayapi.EventTrailFieldSlug, Value: workspaceSlug},
+				{Field: gatewayapi.EventTrailFieldProvisioningAttempt, Value: "1"},
+				{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
+			},
 		},
-	})
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -435,12 +494,16 @@ func (s *Service) GetWorkspace(w http.ResponseWriter, r *http.Request, workspace
 				writeInternalError(w, r, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, workspaceView(
-				row.Workspace,
-				row.WorkspaceAdminCount,
-				row.CanAdminister,
-				capabilities,
-			))
+			writeJSON(
+				w,
+				http.StatusOK,
+				workspaceView(
+					row.Workspace,
+					row.WorkspaceAdminCount,
+					row.CanAdminister,
+					capabilities,
+				),
+			)
 			return
 		}
 	}
@@ -482,12 +545,16 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 				writeInternalError(w, r, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, workspaceView(
-				row.Workspace,
-				row.WorkspaceAdminCount,
-				row.CanAdminister,
-				capabilities,
-			))
+			writeJSON(
+				w,
+				http.StatusOK,
+				workspaceView(
+					row.Workspace,
+					row.WorkspaceAdminCount,
+					row.CanAdminister,
+					capabilities,
+				),
+			)
 			return
 		}
 	}
@@ -532,14 +599,18 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		},
 	)
 	if !allowed || getErr != nil || current.State != gatewaydb.WorkspaceStateFailed {
-		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-			organizationID: claims.OrganizationID,
-			workspaceID:    workspaceID,
-			actorType:      gatewaydb.EventTrailActorUser,
-			actorID:        claims.UserID,
-			action:         "workspace.retry",
-			result:         gatewaydb.EventTrailResultDenied,
-		})
+		err = createWorkspaceEventTrail(
+			r.Context(),
+			q,
+			workspaceEventTrail{
+				organizationID: claims.OrganizationID,
+				workspaceID:    workspaceID,
+				actorType:      gatewaydb.EventTrailActorUser,
+				actorID:        claims.UserID,
+				action:         "workspace.retry",
+				result:         gatewaydb.EventTrailResultDenied,
+			},
+		)
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
@@ -550,23 +621,31 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		}
 		switch {
 		case !allowed:
-			writeError(w, r, newAPIError(
-				http.StatusForbidden,
-				"forbidden",
-				"Superadmin authority is required",
-				errors.New("workspace retry requires Superadmin authority"),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusForbidden,
+					"forbidden",
+					"Superadmin authority is required",
+					errors.New("workspace retry requires Superadmin authority"),
+				),
+			)
 		case errors.Is(getErr, pgx.ErrNoRows):
 			writeError(w, r, workspaceNotFound(workspaceID))
 		case getErr != nil:
 			writeInternalError(w, r, fmt.Errorf("get workspace for retry: %w", getErr))
 		default:
-			writeError(w, r, newAPIError(
-				http.StatusConflict,
-				"conflict",
-				"only failed Workspace provisioning can be retried",
-				errors.New("workspace is not failed"),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusConflict,
+					"conflict",
+					"only failed Workspace provisioning can be retried",
+					errors.New("workspace is not failed"),
+				),
+			)
 		}
 		return
 	}
@@ -585,36 +664,44 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		return
 	}
 	if changed != 1 {
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"conflict",
-			"Workspace provisioning state changed",
-			errors.New("workspace retry compare-and-set failed"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"Workspace provisioning state changed",
+				errors.New("workspace retry compare-and-set failed"),
+			),
+		)
 		return
 	}
-	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-		organizationID: claims.OrganizationID,
-		workspaceID:    workspaceID,
-		actorType:      gatewaydb.EventTrailActorUser,
-		actorID:        claims.UserID,
-		action:         "workspace.retry",
-		result:         gatewaydb.EventTrailResultSucceeded,
-		before: []gatewayapi.EventTrailField{
-			{
-				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
-				Value: strconv.FormatInt(current.ProvisioningAttempt, 10),
+	err = createWorkspaceEventTrail(
+		r.Context(),
+		q,
+		workspaceEventTrail{
+			organizationID: claims.OrganizationID,
+			workspaceID:    workspaceID,
+			actorType:      gatewaydb.EventTrailActorUser,
+			actorID:        claims.UserID,
+			action:         "workspace.retry",
+			result:         gatewaydb.EventTrailResultSucceeded,
+			before: []gatewayapi.EventTrailField{
+				{
+					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
+					Value: strconv.FormatInt(current.ProvisioningAttempt, 10),
+				},
+				{Field: gatewayapi.EventTrailFieldState, Value: "failed"},
 			},
-			{Field: gatewayapi.EventTrailFieldState, Value: "failed"},
-		},
-		after: []gatewayapi.EventTrailField{
-			{
-				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
-				Value: strconv.FormatInt(current.ProvisioningAttempt+1, 10),
+			after: []gatewayapi.EventTrailField{
+				{
+					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
+					Value: strconv.FormatInt(current.ProvisioningAttempt+1, 10),
+				},
+				{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
 			},
-			{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
 		},
-	})
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -658,12 +745,16 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 				writeInternalError(w, r, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, workspaceView(
-				current,
-				row.WorkspaceAdminCount,
-				row.CanAdminister,
-				capabilities,
-			))
+			writeJSON(
+				w,
+				http.StatusOK,
+				workspaceView(
+					current,
+					row.WorkspaceAdminCount,
+					row.CanAdminister,
+					capabilities,
+				),
+			)
 			return
 		}
 	}
@@ -674,12 +765,16 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims != nil || auth.tenantNamespace == "" {
-		writeError(w, r, newAPIError(
-			http.StatusForbidden,
-			"forbidden",
-			"Workspace lifecycle is restricted to internal controllers",
-			errors.New("external caller cannot update workspace lifecycle"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"Workspace lifecycle is restricted to internal controllers",
+				errors.New("external caller cannot update workspace lifecycle"),
+			),
+		)
 		return
 	}
 	tenant, err := tenantObject(r.Context())
@@ -696,16 +791,20 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 	reason := pgtype.Text{}
 	if req.State == gatewayapi.UpdateWorkspaceLifecycleRequestStateFailed {
 		if req.FailureReason == nil || strings.TrimSpace(*req.FailureReason) == "" {
-			writeError(w, r, newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"failure_reason is required for a failed Workspace",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "failure_reason",
-					Message: "is required when state is failed",
-				},
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"failure_reason is required for a failed Workspace",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field:   "failure_reason",
+						Message: "is required when state is failed",
+					},
+				),
+			)
 			return
 		}
 		state = gatewaydb.WorkspaceStateFailed
@@ -763,12 +862,64 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
+		err = createWorkspaceEventTrail(
+			r.Context(),
+			q,
+			workspaceEventTrail{
+				organizationID: tenant.Spec.OrganizationID,
+				workspaceID:    workspaceID,
+				actorType:      gatewaydb.EventTrailActorSystem,
+				action:         "workspace.lifecycle",
+				result:         gatewaydb.EventTrailResultDenied,
+				before: []gatewayapi.EventTrailField{
+					{
+						Field: gatewayapi.EventTrailFieldProvisioningAttempt,
+						Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
+					},
+					{Field: gatewayapi.EventTrailFieldState, Value: string(previous.State)},
+				},
+				after: []gatewayapi.EventTrailField{
+					{
+						Field: gatewayapi.EventTrailFieldProvisioningAttempt,
+						Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
+					},
+					{Field: gatewayapi.EventTrailFieldState, Value: string(state)},
+				},
+			},
+		)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			writeInternalError(w, r, fmt.Errorf("commit denied workspace lifecycle: %w", err))
+			return
+		}
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"Workspace provisioning attempt is stale",
+				errors.New("workspace lifecycle compare-and-set failed"),
+			),
+		)
+		return
+	}
+	if previousErr != nil {
+		writeInternalError(w, r, fmt.Errorf("read previous workspace lifecycle: %w", previousErr))
+		return
+	}
+	err = createWorkspaceEventTrail(
+		r.Context(),
+		q,
+		workspaceEventTrail{
 			organizationID: tenant.Spec.OrganizationID,
 			workspaceID:    workspaceID,
 			actorType:      gatewaydb.EventTrailActorSystem,
-			action:         "workspace.lifecycle",
-			result:         gatewaydb.EventTrailResultDenied,
+			action:         "workspace." + string(state),
+			result:         gatewaydb.EventTrailResultSucceeded,
 			before: []gatewayapi.EventTrailField{
 				{
 					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
@@ -783,48 +934,8 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 				},
 				{Field: gatewayapi.EventTrailFieldState, Value: string(state)},
 			},
-		})
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
-		if err := tx.Commit(r.Context()); err != nil {
-			writeInternalError(w, r, fmt.Errorf("commit denied workspace lifecycle: %w", err))
-			return
-		}
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"conflict",
-			"Workspace provisioning attempt is stale",
-			errors.New("workspace lifecycle compare-and-set failed"),
-		))
-		return
-	}
-	if previousErr != nil {
-		writeInternalError(w, r, fmt.Errorf("read previous workspace lifecycle: %w", previousErr))
-		return
-	}
-	err = createWorkspaceEventTrail(r.Context(), q, workspaceEventTrail{
-		organizationID: tenant.Spec.OrganizationID,
-		workspaceID:    workspaceID,
-		actorType:      gatewaydb.EventTrailActorSystem,
-		action:         "workspace." + string(state),
-		result:         gatewaydb.EventTrailResultSucceeded,
-		before: []gatewayapi.EventTrailField{
-			{
-				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
-				Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
-			},
-			{Field: gatewayapi.EventTrailFieldState, Value: string(previous.State)},
 		},
-		after: []gatewayapi.EventTrailField{
-			{
-				Field: gatewayapi.EventTrailFieldProvisioningAttempt,
-				Value: strconv.FormatInt(req.ProvisioningAttempt, 10),
-			},
-			{Field: gatewayapi.EventTrailFieldState, Value: string(state)},
-		},
-	})
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -957,7 +1068,9 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 	err = s.k8sClient.Get(ctx, key, &workspace)
 	if apierrors.IsNotFound(err) {
 		selected, err := s.workspaceResourceSelection(
-			ctx, row.ID, row.OrganizationID,
+			ctx,
+			row.ID,
+			row.OrganizationID,
 		)
 		if err != nil {
 			return err
@@ -1053,27 +1166,31 @@ func (s *Service) failWorkspaceProvisioning(ctx context.Context, row gatewaydb.W
 		return gatewaydb.Workspace{}, fmt.Errorf("fail workspace provisioning: %w", err)
 	}
 	if changed == 1 {
-		err = createWorkspaceEventTrail(ctx, q, workspaceEventTrail{
-			organizationID: row.OrganizationID,
-			workspaceID:    row.ID,
-			actorType:      gatewaydb.EventTrailActorSystem,
-			action:         "workspace.failed",
-			result:         gatewaydb.EventTrailResultFailed,
-			before: []gatewayapi.EventTrailField{
-				{
-					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
-					Value: strconv.FormatInt(row.ProvisioningAttempt, 10),
+		err = createWorkspaceEventTrail(
+			ctx,
+			q,
+			workspaceEventTrail{
+				organizationID: row.OrganizationID,
+				workspaceID:    row.ID,
+				actorType:      gatewaydb.EventTrailActorSystem,
+				action:         "workspace.failed",
+				result:         gatewaydb.EventTrailResultFailed,
+				before: []gatewayapi.EventTrailField{
+					{
+						Field: gatewayapi.EventTrailFieldProvisioningAttempt,
+						Value: strconv.FormatInt(row.ProvisioningAttempt, 10),
+					},
+					{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
 				},
-				{Field: gatewayapi.EventTrailFieldState, Value: "provisioning"},
-			},
-			after: []gatewayapi.EventTrailField{
-				{
-					Field: gatewayapi.EventTrailFieldProvisioningAttempt,
-					Value: strconv.FormatInt(row.ProvisioningAttempt, 10),
+				after: []gatewayapi.EventTrailField{
+					{
+						Field: gatewayapi.EventTrailFieldProvisioningAttempt,
+						Value: strconv.FormatInt(row.ProvisioningAttempt, 10),
+					},
+					{Field: gatewayapi.EventTrailFieldState, Value: "failed"},
 				},
-				{Field: gatewayapi.EventTrailFieldState, Value: "failed"},
 			},
-		})
+		)
 		if err != nil {
 			return gatewaydb.Workspace{}, err
 		}

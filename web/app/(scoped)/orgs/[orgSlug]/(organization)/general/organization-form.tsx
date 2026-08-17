@@ -225,11 +225,11 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
   const busy = pending || photoBusy
   const photoStatus =
     photoPhase === "preparing"
-      ? "Preparing…"
+      ? "Preparing..."
       : photoPhase === "uploading"
-        ? "Uploading…"
+        ? "Uploading..."
         : photoPhase === "saving"
-          ? "Saving…"
+          ? "Saving..."
           : "Use this image"
 
   return (
@@ -296,7 +296,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
                     <DropdownMenuGroup>
                       <DropdownMenuItem onSelect={() => fileInput.current?.click()}>
                         <ImagePlus />
-                        {logo ? "Replace photo…" : "Upload photo…"}
+                        {logo ? "Replace photo..." : "Upload photo..."}
                       </DropdownMenuItem>
                       {logo ? (
                         <DropdownMenuItem onSelect={removeLogo} variant="destructive">
@@ -368,11 +368,11 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
           <div className="flex justify-end pt-5">
             <Button aria-busy={busy} disabled={busy} type="submit">
               {pending ? <Spinner data-icon="inline-start" /> : <Save data-icon="inline-start" />}
-              {pending ? "Saving…" : "Save changes"}
+              {pending ? "Saving..." : "Save changes"}
             </Button>
           </div>
           <p aria-live="polite" className="sr-only">
-            {pending ? "Saving…" : state.saved ? "Organisation profile saved." : ""}
+            {pending ? "Saving..." : state.saved ? "Organisation profile saved." : ""}
           </p>
         </div>
       </form>

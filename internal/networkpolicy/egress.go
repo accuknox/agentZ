@@ -99,12 +99,15 @@ func ServiceEgress(namespace, name string, port int32) []ciliumapi.EgressRule {
 
 // ExternalEgress permits only the supplied FQDN or IP destinations and their ports.
 func ExternalEgress(targets []Target) []ciliumapi.EgressRule {
-	slices.SortFunc(targets, func(a, b Target) int {
-		if a.Host == b.Host {
-			return cmp.Compare(a.Port, b.Port)
-		}
-		return strings.Compare(a.Host, b.Host)
-	})
+	slices.SortFunc(
+		targets,
+		func(a, b Target) int {
+			if a.Host == b.Host {
+				return cmp.Compare(a.Port, b.Port)
+			}
+			return strings.Compare(a.Host, b.Host)
+		},
+	)
 	targets = slices.Compact(targets)
 	rules := make([]ciliumapi.EgressRule, 0, len(targets)+1)
 	dns := ciliumapi.PortRulesDNS{}
@@ -117,34 +120,43 @@ func ExternalEgress(targets []Target) []ciliumapi.EgressRule {
 		}}
 		addr, err := netip.ParseAddr(target.Host)
 		if err == nil {
-			rules = append(rules, ciliumapi.EgressRule{
-				EgressCommonRule: ciliumapi.EgressCommonRule{
-					ToCIDRSet: ciliumapi.CIDRRuleSlice{{
-						Cidr: ciliumapi.CIDR(netip.PrefixFrom(addr, addr.BitLen()).String()),
-					}},
+			rules = append(
+				rules,
+				ciliumapi.EgressRule{
+					EgressCommonRule: ciliumapi.EgressCommonRule{
+						ToCIDRSet: ciliumapi.CIDRRuleSlice{{
+							Cidr: ciliumapi.CIDR(netip.PrefixFrom(addr, addr.BitLen()).String()),
+						}},
+					},
+					ToPorts: port,
 				},
-				ToPorts: port,
-			})
+			)
 			continue
 		}
-		rules = append(rules, ciliumapi.EgressRule{
-			ToFQDNs: ciliumapi.FQDNSelectorSlice{{MatchName: target.Host}},
-			ToPorts: port,
-		})
+		rules = append(
+			rules,
+			ciliumapi.EgressRule{
+				ToFQDNs: ciliumapi.FQDNSelectorSlice{{MatchName: target.Host}},
+				ToPorts: port,
+			},
+		)
 		dns = append(dns, ciliumapi.PortRuleDNS{MatchName: target.Host})
 	}
 	if len(dns) == 0 {
 		return rules
 	}
-	return append(rules, ciliumapi.EgressRule{
-		EgressCommonRule: ciliumapi.EgressCommonRule{
-			ToEndpoints: []ciliumapi.EndpointSelector{dnsEndpointSelector()},
+	return append(
+		rules,
+		ciliumapi.EgressRule{
+			EgressCommonRule: ciliumapi.EgressCommonRule{
+				ToEndpoints: []ciliumapi.EndpointSelector{dnsEndpointSelector()},
+			},
+			ToPorts: ciliumapi.PortRules{{
+				Ports: dnsPorts(),
+				Rules: &ciliumapi.L7Rules{DNS: dns},
+			}},
 		},
-		ToPorts: ciliumapi.PortRules{{
-			Ports: dnsPorts(),
-			Rules: &ciliumapi.L7Rules{DNS: dns},
-		}},
-	})
+	)
 }
 
 func dnsEndpointSelector() ciliumapi.EndpointSelector {

@@ -56,21 +56,28 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
-		TenantNamespace: ns,
-		AgentName:       name,
-	})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"agent not found",
-			errAgentNotFound,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -91,7 +98,11 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 
 	if params.UpdateSandbox != nil && *params.UpdateSandbox {
 		apiErr = s.updateSecretSandboxHosts(
-			r.Context(), ns, name, claims.UserID, secret.Spec.Hosts,
+			r.Context(),
+			ns,
+			name,
+			claims.UserID,
+			secret.Spec.Hosts,
 		)
 		if apiErr != nil {
 			writeError(w, r, apiErr)
@@ -118,16 +129,21 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 	}
 
 	actors, err := s.resourceActors(
-		r.Context(), secret.Spec.CreatedByUserID,
+		r.Context(),
+		secret.Spec.CreatedByUserID,
 		secret.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, gatewayapi.PutSecretsResponse{
-		Secret: s.secretListItem(*secret, actors),
-	})
+	writeJSON(
+		w,
+		http.StatusCreated,
+		gatewayapi.PutSecretsResponse{
+			Secret: s.secretListItem(*secret, actors),
+		},
+	)
 }
 
 func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, userID string, secretHosts []string) *apiError {
@@ -170,48 +186,51 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 		return nil
 	}
 
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		sandbox, err := s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Get(
-			ctx,
-			sandboxName,
-			metav1.GetOptions{},
-		)
-		if err != nil {
+	err = retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			sandbox, err := s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Get(
+				ctx,
+				sandboxName,
+				metav1.GetOptions{},
+			)
+			if err != nil {
+				return err
+			}
+
+			seen := make(map[string]struct{}, len(sandbox.Spec.AllowedHosts)+len(addHosts))
+			merged := make([]string, 0, len(sandbox.Spec.AllowedHosts)+len(addHosts))
+			for _, host := range sandbox.Spec.AllowedHosts {
+				if _, ok := seen[host]; ok {
+					continue
+				}
+				seen[host] = struct{}{}
+				merged = append(merged, host)
+			}
+
+			var changed bool
+			for _, host := range addHosts {
+				if _, ok := seen[host]; ok {
+					continue
+				}
+				seen[host] = struct{}{}
+				merged = append(merged, host)
+				changed = true
+			}
+			if !changed {
+				return nil
+			}
+
+			sandbox.Spec.AllowedHosts = merged
+			sandbox.Spec.LastModifiedByUserID = userID
+			_, err = s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Update(
+				ctx,
+				sandbox,
+				metav1.UpdateOptions{},
+			)
 			return err
-		}
-
-		seen := make(map[string]struct{}, len(sandbox.Spec.AllowedHosts)+len(addHosts))
-		merged := make([]string, 0, len(sandbox.Spec.AllowedHosts)+len(addHosts))
-		for _, host := range sandbox.Spec.AllowedHosts {
-			if _, ok := seen[host]; ok {
-				continue
-			}
-			seen[host] = struct{}{}
-			merged = append(merged, host)
-		}
-
-		var changed bool
-		for _, host := range addHosts {
-			if _, ok := seen[host]; ok {
-				continue
-			}
-			seen[host] = struct{}{}
-			merged = append(merged, host)
-			changed = true
-		}
-		if !changed {
-			return nil
-		}
-
-		sandbox.Spec.AllowedHosts = merged
-		sandbox.Spec.LastModifiedByUserID = userID
-		_, err = s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Update(
-			ctx,
-			sandbox,
-			metav1.UpdateOptions{},
-		)
-		return err
-	})
+		},
+	)
 	if err != nil {
 		return mapKubeHTTPError("update sandbox", err)
 	}
@@ -237,21 +256,28 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
-		TenantNamespace: ns,
-		AgentName:       name,
-	})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"agent not found",
-			errAgentNotFound,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -260,13 +286,17 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 	if len(req.Keys) == 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{Field: "keys", Message: "must contain at least one key"},
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{Field: "keys", Message: "must contain at least one key"},
+			),
+		)
 		return
 	}
 
@@ -285,16 +315,20 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 	for i, rawKey := range req.Keys {
 		key := strings.TrimSpace(rawKey)
 		if key == "" {
-			writeError(w, r, newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   fmt.Sprintf("keys[%d]", i),
-					Message: "required",
-				},
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field:   fmt.Sprintf("keys[%d]", i),
+						Message: "required",
+					},
+				),
+			)
 			return
 		}
 
@@ -334,21 +368,28 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
-		TenantNamespace: ns,
-		AgentName:       name,
-	})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"agent not found",
-			errAgentNotFound,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -358,9 +399,12 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	slices.SortFunc(items, func(a, b agentzv1alpha1.Secret) int {
-		return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
-	})
+	slices.SortFunc(
+		items,
+		func(a, b agentzv1alpha1.Secret) int {
+			return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
+		},
+	)
 
 	start := 0
 	if params.PageToken != nil {
@@ -381,8 +425,11 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	userIDs := make([]string, 0, (end-start)*2)
 	for _, item := range items[start:end] {
-		userIDs = append(userIDs, item.Spec.CreatedByUserID,
-			item.Spec.LastModifiedByUserID)
+		userIDs = append(
+			userIDs,
+			item.Spec.CreatedByUserID,
+			item.Spec.LastModifiedByUserID,
+		)
 	}
 	actors, err := s.resourceActors(r.Context(), userIDs...)
 	if err != nil {
@@ -413,21 +460,28 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{
-		TenantNamespace: ns,
-		AgentName:       name,
-	})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"agent not found",
-			errAgentNotFound,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -441,29 +495,37 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		for i, rawKey := range *req.Keys {
 			key := strings.TrimSpace(rawKey)
 			if key == "" {
-				writeError(w, r, newAPIError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					gatewayapi.FieldError{
-						Field:   fmt.Sprintf("keys[%d]", i),
-						Message: "required",
-					},
-				))
+				writeError(
+					w,
+					r,
+					newAPIError(
+						http.StatusBadRequest,
+						"invalid_request",
+						"request validation failed",
+						errBadRequest,
+						gatewayapi.FieldError{
+							Field:   fmt.Sprintf("keys[%d]", i),
+							Message: "required",
+						},
+					),
+				)
 				return
 			}
 			if !secretKeyPattern.MatchString(key) {
-				writeError(w, r, newAPIError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					gatewayapi.FieldError{
-						Field:   fmt.Sprintf("keys[%d]", i),
-						Message: "must be a valid environment variable name",
-					},
-				))
+				writeError(
+					w,
+					r,
+					newAPIError(
+						http.StatusBadRequest,
+						"invalid_request",
+						"request validation failed",
+						errBadRequest,
+						gatewayapi.FieldError{
+							Field:   fmt.Sprintf("keys[%d]", i),
+							Message: "must be a valid environment variable name",
+						},
+					),
+				)
 				return
 			}
 			keyFilter[strings.ToLower(key)] = struct{}{}
@@ -517,9 +579,12 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 			return false
 		}
 
-		slices.SortFunc(items, func(a, b agentzv1alpha1.Secret) int {
-			return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
-		})
+		slices.SortFunc(
+			items,
+			func(a, b agentzv1alpha1.Secret) int {
+				return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
+			},
+		)
 
 		filtered := make([]agentzv1alpha1.Secret, 0, len(items))
 		userIDs := make([]string, 0, len(items)*2)
@@ -530,8 +595,11 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 				}
 			}
 			filtered = append(filtered, item)
-			userIDs = append(userIDs, item.Spec.CreatedByUserID,
-				item.Spec.LastModifiedByUserID)
+			userIDs = append(
+				userIDs,
+				item.Spec.CreatedByUserID,
+				item.Spec.LastModifiedByUserID,
+			)
 		}
 		actors, err := s.resourceActors(r.Context(), userIDs...)
 		if err != nil {
@@ -909,56 +977,59 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName, userID string, ad
 		removeSet[strings.TrimSpace(key)] = struct{}{}
 	}
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(ctx, agentName, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(ctx, agentName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
 
-		addSet := make(map[string]string, len(add))
-		for _, key := range add {
-			name := strings.TrimSpace(key)
-			addSet[name] = sinjector.PlaceholderPrefix + name
-		}
-		env := make([]corev1.EnvVar, 0, len(agt.Spec.Env)+len(addSet))
-		changed := false
-		for _, item := range agt.Spec.Env {
-			if _, ok := removeSet[item.Name]; ok {
+			addSet := make(map[string]string, len(add))
+			for _, key := range add {
+				name := strings.TrimSpace(key)
+				addSet[name] = sinjector.PlaceholderPrefix + name
+			}
+			env := make([]corev1.EnvVar, 0, len(agt.Spec.Env)+len(addSet))
+			var changed bool
+			for _, item := range agt.Spec.Env {
+				if _, ok := removeSet[item.Name]; ok {
+					changed = true
+					continue
+				}
+				value, ok := addSet[item.Name]
+				if !ok {
+					env = append(env, item)
+					continue
+				}
+				delete(addSet, item.Name)
+				if item.Value == value && item.ValueFrom == nil {
+					env = append(env, item)
+					continue
+				}
 				changed = true
-				continue
+				env = append(env, corev1.EnvVar{Name: item.Name, Value: value})
 			}
-			value, ok := addSet[item.Name]
-			if !ok {
-				env = append(env, item)
-				continue
-			}
-			delete(addSet, item.Name)
-			if item.Value == value && item.ValueFrom == nil {
-				env = append(env, item)
-				continue
-			}
-			changed = true
-			env = append(env, corev1.EnvVar{Name: item.Name, Value: value})
-		}
 
-		keys := make([]string, 0, len(addSet))
-		for key := range addSet {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
-		for _, key := range keys {
-			changed = true
-			env = append(env, corev1.EnvVar{Name: key, Value: addSet[key]})
-		}
-		if !changed {
-			return nil
-		}
+			keys := make([]string, 0, len(addSet))
+			for key := range addSet {
+				keys = append(keys, key)
+			}
+			slices.Sort(keys)
+			for _, key := range keys {
+				changed = true
+				env = append(env, corev1.EnvVar{Name: key, Value: addSet[key]})
+			}
+			if !changed {
+				return nil
+			}
 
-		agt.Spec.Env = env
-		agt.Spec.LastModifiedByUserID = userID
-		_, err = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(ctx, agt, metav1.UpdateOptions{})
-		return err
-	})
+			agt.Spec.Env = env
+			agt.Spec.LastModifiedByUserID = userID
+			_, err = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(ctx, agt, metav1.UpdateOptions{})
+			return err
+		},
+	)
 }
 
 func mapOpenBaoError(err error) *apiError {

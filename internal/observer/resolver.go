@@ -120,10 +120,14 @@ func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string
 	}
 
 	agt := &agentzv1alpha1.Agent{}
-	err := r.client.Get(ctx, ctrlclient.ObjectKey{
-		Namespace: namespace,
-		Name:      agentName,
-	}, agt)
+	err := r.client.Get(
+		ctx,
+		ctrlclient.ObjectKey{
+			Namespace: namespace,
+			Name:      agentName,
+		},
+		agt,
+	)
 	if err != nil {
 		return "", false
 	}

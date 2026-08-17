@@ -55,12 +55,17 @@ func Reconcile(ctx context.Context, c client.Client, cfg Config) error {
 		Name:      accessName,
 		Namespace: cfg.Namespace,
 	}}
-	_, err := controllerutil.CreateOrPatch(ctx, c, role, func() error {
-		role.Labels = maps.Clone(cfg.Labels)
-		role.OwnerReferences = []metav1.OwnerReference{cfg.Owner}
-		role.Rules = rules()
-		return nil
-	})
+	_, err := controllerutil.CreateOrPatch(
+		ctx,
+		c,
+		role,
+		func() error {
+			role.Labels = maps.Clone(cfg.Labels)
+			role.OwnerReferences = []metav1.OwnerReference{cfg.Owner}
+			role.Rules = rules()
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("reconcile gateway role: %w", err)
 	}
@@ -69,21 +74,26 @@ func Reconcile(ctx context.Context, c client.Client, cfg Config) error {
 		Name:      accessName,
 		Namespace: cfg.Namespace,
 	}}
-	_, err = controllerutil.CreateOrPatch(ctx, c, binding, func() error {
-		binding.Labels = maps.Clone(cfg.Labels)
-		binding.OwnerReferences = []metav1.OwnerReference{cfg.Owner}
-		binding.RoleRef = rbacv1.RoleRef{
-			APIGroup: rbacv1.GroupName,
-			Kind:     "Role",
-			Name:     accessName,
-		}
-		binding.Subjects = []rbacv1.Subject{{
-			Kind:      rbacv1.ServiceAccountKind,
-			Name:      cfg.ServiceAccountName,
-			Namespace: cfg.ServiceAccountNamespace,
-		}}
-		return nil
-	})
+	_, err = controllerutil.CreateOrPatch(
+		ctx,
+		c,
+		binding,
+		func() error {
+			binding.Labels = maps.Clone(cfg.Labels)
+			binding.OwnerReferences = []metav1.OwnerReference{cfg.Owner}
+			binding.RoleRef = rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     accessName,
+			}
+			binding.Subjects = []rbacv1.Subject{{
+				Kind:      rbacv1.ServiceAccountKind,
+				Name:      cfg.ServiceAccountName,
+				Namespace: cfg.ServiceAccountNamespace,
+			}}
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("reconcile gateway role binding: %w", err)
 	}

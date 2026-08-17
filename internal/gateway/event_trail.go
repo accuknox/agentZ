@@ -51,26 +51,34 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if req.Limit < 1 || req.Limit > 100 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"limit must be between 1 and 100",
-			errors.New("invalid event trail page size"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 100",
+				errors.New("invalid event trail page size"),
+			),
+		)
 		return
 	}
 	clause, err := compileEventTrailFilters(req.Filters)
 	if err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			err.Error(),
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				err.Error(),
+				err,
+			),
+		)
 		return
 	}
 
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
@@ -80,12 +88,16 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if access.workspaceID.Valid && len(clause.workspaceIDs) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"workspace_id cannot filter a Workspace-scoped request",
-			errors.New("workspace filter duplicates the authorized scope"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"workspace_id cannot filter a Workspace-scoped request",
+				errors.New("workspace filter duplicates the authorized scope"),
+			),
+		)
 		return
 	}
 
@@ -125,7 +137,7 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	nextPageToken := ""
+	var nextPageToken string
 	if len(rows) > int(pageSize) {
 		rows = rows[:pageSize]
 		last := rows[len(rows)-1]
@@ -156,16 +168,20 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	writeJSON(w, http.StatusOK, gatewayapi.ListEventTrailEventsResponse{
-		Events:        events,
-		FilterOptions: filters,
-		NextPageToken: nextPageToken,
-	})
+	writeJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListEventTrailEventsResponse{
+			Events:        events,
+			FilterOptions: filters,
+			NextPageToken: nextPageToken,
+		},
+	)
 }
 
 // GetEventTrailEvent handles GET /api/event-trail-event/{eventId}.
 func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eventID gatewayapi.EventTrailEventIDPath, params gatewayapi.GetEventTrailEventParams) {
-	workspaceID := ""
+	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
@@ -193,12 +209,16 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 		return
 	}
 	if len(rows) == 0 {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"event_trail_event_not_found",
-			"event trail event was not found",
-			fmt.Errorf("event trail event %q was not found", eventID),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"event_trail_event_not_found",
+				"event trail event was not found",
+				fmt.Errorf("event trail event %q was not found", eventID),
+			),
+		)
 		return
 	}
 

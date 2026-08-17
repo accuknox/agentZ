@@ -296,6 +296,9 @@ func TestRenderPoolBackend(t *testing.T) {
 	if auth == nil || auth.SecretRef == nil || string(auth.SecretRef.Name) != "logical-primary" {
 		t.Fatalf("primary credential projection = %#v, want logical-primary", auth)
 	}
+	if auth.SecretRef.Key != nil {
+		t.Fatalf("primary credential key = %q, want Agentgateway default", *auth.SecretRef.Key)
+	}
 	anthropic := groups[1].Providers[0].Anthropic
 	if anthropic == nil || anthropic.Model == nil {
 		t.Fatalf("secondary model override = %#v, want claude", anthropic)

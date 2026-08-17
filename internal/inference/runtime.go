@@ -328,7 +328,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		secretKeys: map[string]string{},
 	}
 	auth := &agentgatewayv1alpha1.BackendAuth{}
-	secretRef := &agentgatewayv1alpha1.LocalSecretObjectRef{
+	secretRef := &agentgatewayv1alpha1.LocalSecretKeyRef{
 		Name: gwv1.ObjectName(provider.Name),
 	}
 	var modelRef *agentgatewayv1alpha1.ShortString
@@ -339,11 +339,13 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 	switch provider.Spec.Kind {
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
+			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
+				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{{
+					Type: agentgatewayv1alpha1.ProviderFormatResponses,
+					Path: "/backend-api/codex/responses",
+				}},
+			},
 			Model: modelRef,
-			Formats: []agentgatewayv1alpha1.ProviderFormatConfig{{
-				Type: agentgatewayv1alpha1.ProviderFormatResponses,
-				Path: "/backend-api/codex/responses",
-			}},
 		}
 		err := applyEndpoint(
 			&target.LLM,
@@ -408,12 +410,14 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		}
 	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
-			Model: modelRef,
-			Formats: []agentgatewayv1alpha1.ProviderFormatConfig{
-				{Type: agentgatewayv1alpha1.ProviderFormatCompletions, Path: "/chat/completions"},
-				{Type: agentgatewayv1alpha1.ProviderFormatResponses, Path: "/responses"},
-				{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"},
+			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
+				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{
+					{Type: agentgatewayv1alpha1.ProviderFormatCompletions, Path: "/chat/completions"},
+					{Type: agentgatewayv1alpha1.ProviderFormatResponses, Path: "/responses"},
+					{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"},
+				},
 			},
+			Model: modelRef,
 		}
 		err := applyEndpoint(
 			&target.LLM,
@@ -432,9 +436,11 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			modelRef = &value
 		}
 		target.LLM.VertexAI = &agentgatewayv1alpha1.VertexAIConfig{
-			Model:     modelRef,
-			ProjectId: provider.Spec.VertexAI.Project,
-			Region:    provider.Spec.VertexAI.Region,
+			VertexAISettings: agentgatewayv1alpha1.VertexAISettings{
+				ProjectId: provider.Spec.VertexAI.Project,
+				Region:    provider.Spec.VertexAI.Region,
+			},
+			Model: modelRef,
 		}
 		target.LLM.PathPrefix = "/"
 		switch provider.Spec.VertexAI.Region {
@@ -467,8 +473,10 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		auth.GCP = &agentgatewayv1alpha1.GcpAuth{Type: &kind, SecretRef: secretRef}
 	case agentzv1alpha1.InferenceProviderKindBedrock:
 		target.LLM.Bedrock = &agentgatewayv1alpha1.BedrockConfig{
-			Region: provider.Spec.Bedrock.Region,
-			Model:  modelRef,
+			BedrockSettings: agentgatewayv1alpha1.BedrockSettings{
+				Region: provider.Spec.Bedrock.Region,
+			},
+			Model: modelRef,
 		}
 		target.LLM.PathPrefix = "/"
 		target.LLM.Host = "bedrock-runtime." + provider.Spec.Bedrock.Region +
@@ -487,13 +495,16 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		target.secretKeys[credentialAccessKey] = credentialAccessKey
 		target.secretKeys[credentialSecretKey] = credentialSecretKey
 		target.extractCredentials = true
-		auth.AWS = &agentgatewayv1alpha1.AwsAuth{SecretRef: secretRef}
+		secretObjRef := secretRef.ObjectRef()
+		auth.AWS = &agentgatewayv1alpha1.AwsAuth{SecretRef: &secretObjRef}
 	case agentzv1alpha1.InferenceProviderKindAzure:
 		azure := provider.Spec.Azure
 		target.LLM.Azure = &agentgatewayv1alpha1.AzureConfig{
-			Model:        modelRef,
-			ResourceName: azure.ResourceName,
-			ResourceType: agentgatewayv1alpha1.AzureResourceType(azure.ResourceType),
+			AzureSettings: agentgatewayv1alpha1.AzureSettings{
+				ResourceName: azure.ResourceName,
+				ResourceType: agentgatewayv1alpha1.AzureResourceType(azure.ResourceType),
+			},
+			Model: modelRef,
 		}
 		target.LLM.PathPrefix = "/"
 		target.LLM.Host = azure.ResourceName + ".openai.azure.com"
@@ -519,7 +530,8 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			target.secretKeys[credentialClientID] = credentialClientID
 			target.secretKeys[credentialTenantID] = credentialTenantID
 			target.secretKeys[credentialClientSecret] = credentialClientSecret
-			auth.Azure = &agentgatewayv1alpha1.AzureAuth{SecretRef: secretRef}
+			secretObjRef := secretRef.ObjectRef()
+			auth.Azure = &agentgatewayv1alpha1.AzureAuth{SecretRef: &secretObjRef}
 		}
 	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,
 		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
@@ -535,8 +547,10 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			}
 		}
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
-			Model:   modelRef,
-			Formats: formats,
+			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
+				Formats: formats,
+			},
+			Model: modelRef,
 		}
 		err := applyEndpoint(
 			&target.LLM,

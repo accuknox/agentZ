@@ -261,6 +261,15 @@ func TestRenderProviderTargetVertexModelNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderProviderTarget() direct error = %v", err)
 	}
+	if direct.LLM.VertexAI.ProjectId != "project" || direct.LLM.VertexAI.Region != "us-central1" {
+		t.Fatalf("RenderProviderTarget() Vertex settings = %#v", direct.LLM.VertexAI)
+	}
+	if direct.Policies.Auth == nil || direct.Policies.Auth.GCP == nil ||
+		direct.Policies.Auth.GCP.SecretRef == nil ||
+		direct.Policies.Auth.GCP.SecretRef.Name != "vertex" ||
+		direct.Policies.Auth.GCP.SecretRef.Key != nil {
+		t.Fatalf("RenderProviderTarget() auth = %#v", direct.Policies.Auth)
+	}
 	got := direct.Policies.AI.ModelAliases["gemini-2.5-flash"]
 	if got != "google/gemini-2.5-flash" {
 		t.Fatalf(
@@ -325,6 +334,60 @@ func TestRenderProviderTargetUsesConcreteDefaultEndpoint(t *testing.T) {
 	if target.Policies.TLS == nil {
 		t.Fatal("RenderProviderTarget() did not enable TLS for the default endpoint")
 	}
+	if target.Policies.Auth == nil || target.Policies.Auth.SecretRef == nil ||
+		target.Policies.Auth.SecretRef.Name != "openai" ||
+		target.Policies.Auth.SecretRef.Key != nil {
+		t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+	}
+}
+
+func TestRenderProviderTargetUsesWholeSecretCredentials(t *testing.T) {
+	t.Parallel()
+
+	t.Run("bedrock", func(t *testing.T) {
+		t.Parallel()
+
+		provider := &agentzv1alpha1.InferenceProvider{
+			ObjectMeta: metav1.ObjectMeta{Name: "bedrock", Namespace: "default"},
+			Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindBedrock),
+		}
+		target, err := RenderProviderTarget(provider, "")
+		if err != nil {
+			t.Fatalf("RenderProviderTarget() error = %v", err)
+		}
+		if target.LLM.Bedrock.Region != "us-east-1" {
+			t.Fatalf("RenderProviderTarget() Bedrock settings = %#v", target.LLM.Bedrock)
+		}
+		if target.Policies.Auth == nil || target.Policies.Auth.AWS == nil ||
+			target.Policies.Auth.AWS.SecretRef == nil ||
+			target.Policies.Auth.AWS.SecretRef.Name != "bedrock" {
+			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+		}
+	})
+
+	t.Run("azure", func(t *testing.T) {
+		t.Parallel()
+
+		spec := providerSpec(agentzv1alpha1.InferenceProviderKindAzure)
+		spec.Azure.AuthMode = agentzv1alpha1.AzureAuthModeServicePrincipal
+		provider := &agentzv1alpha1.InferenceProvider{
+			ObjectMeta: metav1.ObjectMeta{Name: "azure", Namespace: "default"},
+			Spec:       spec,
+		}
+		target, err := RenderProviderTarget(provider, "")
+		if err != nil {
+			t.Fatalf("RenderProviderTarget() error = %v", err)
+		}
+		if target.LLM.Azure.ResourceName != "resource" ||
+			target.LLM.Azure.ResourceType != agentgatewayv1alpha1.AzureResourceTypeOpenAI {
+			t.Fatalf("RenderProviderTarget() Azure settings = %#v", target.LLM.Azure)
+		}
+		if target.Policies.Auth == nil || target.Policies.Auth.Azure == nil ||
+			target.Policies.Auth.Azure.SecretRef == nil ||
+			target.Policies.Auth.Azure.SecretRef.Name != "azure" {
+			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+		}
+	})
 }
 
 func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {

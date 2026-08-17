@@ -4,7 +4,6 @@ import { startTransition, useActionState, useEffect, useEffectEvent, useState } 
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench } from "lucide-react"
-import type { Route } from "next"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -399,7 +398,7 @@ export function AgentDialog({
                         className="text-foreground underline"
                         onClick={() => {
                           onOpenChange(false)
-                          router.push("/sandboxes/new" as Route)
+                          router.push(`${actionScope.workspacePath}/sandboxes/new`)
                         }}
                       >
                         here

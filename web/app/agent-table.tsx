@@ -1,6 +1,5 @@
 "use client"
 
-import type { Route } from "next"
 import * as React from "react"
 import {
   flexRender,
@@ -119,7 +118,7 @@ export function AgentTable({
                 <RoutedTableRow
                   aria-label={`Open ${row.original.name} settings`}
                   data-state={row.getIsSelected() && "selected"}
-                  href={`${actionScope.basePath}/${encodeURIComponent(row.original.name)}` as Route}
+                  href={`${actionScope.workspacePath}/agents/${encodeURIComponent(row.original.name)}`}
                   key={row.id}
                 >
                   {row.getVisibleCells().map((cell) => (

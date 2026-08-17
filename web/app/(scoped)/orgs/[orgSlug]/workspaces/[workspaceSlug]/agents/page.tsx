@@ -1,4 +1,3 @@
-import type { Route } from "next"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { AgentTable } from "@/app/agent-table"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
@@ -65,9 +64,8 @@ export default async function WorkspaceAgentsPage({
     )
   }
 
-  const basePath =
-    `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/agents` as Route
-  const actionScope: AgentActionScope = { basePath, workspaceId }
+  const workspacePath: AgentActionScope["workspacePath"] = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
+  const actionScope: AgentActionScope = { workspaceId, workspacePath }
 
   return (
     <div className="flex min-w-0 flex-col gap-6">

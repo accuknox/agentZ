@@ -1,6 +1,5 @@
 "use client"
 
-import type { Route } from "next"
 import { ChevronRightIcon, Frame, Workflow, Zap } from "lucide-react"
 import Link from "next/link"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -11,20 +10,21 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
+import type { WorkspacePath } from "@/data/types"
 
-export function NavWorkflows({ workspacePath }: { workspacePath: Route }) {
+export function NavWorkflows({ workspacePath }: { workspacePath: WorkspacePath }) {
   const items = [
     {
       title: "Graph",
-      url: `${workspacePath}/workflows/graphs` as Route,
+      url: `${workspacePath}/workflows/graphs` as const,
       icon: Frame,
     },
     {
       title: "Triggers",
-      url: `${workspacePath}/workflows/triggers` as Route,
+      url: `${workspacePath}/workflows/triggers` as const,
       icon: Zap,
     },
-  ] satisfies { title: string; url: Route; icon: typeof Frame }[]
+  ]
   return (
     <Collapsible key="Workflows" asChild className="group/collapsible">
       <SidebarMenuItem>

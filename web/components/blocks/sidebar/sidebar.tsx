@@ -43,6 +43,7 @@ import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { NavSecrets } from "./secrets"
 import { NavWorkflows } from "./workflows"
 import type { OrganizationSummary } from "@/data/organizations"
+import type { WorkspacePath } from "@/data/types"
 import type { ResourceCapabilities, Workspace } from "@/lib/gateway/client"
 
 type WorkspaceNavigationScope = {
@@ -192,7 +193,7 @@ async function WorkspaceNavigation({
   sandboxCapabilities: ResourceCapabilities
   workspace: Workspace
 }) {
-  const workspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}` as Route
+  const workspacePath: WorkspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}`
   const agents = await listAgentsCachedQuery(undefined, workspace.id)
   const hasAgents = agents.error === undefined && agents.agents.length > 0
   const showSecrets =

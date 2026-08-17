@@ -16,13 +16,17 @@ limitations under the License.
 
 package agent
 
-import "testing"
+import (
+	"testing"
+
+	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
+)
 
 func TestServiceEgressRulesUseKubernetesService(t *testing.T) {
 	t.Parallel()
 
 	rules := serviceEgressRules(
-		"http://inference.organisation.svc.cluster.local:80",
+		"http://gateway.agentz-system.svc.cluster.local:8090",
 	)
 	if len(rules) != 1 {
 		t.Fatalf("serviceEgressRules() returned %d rules, want 1", len(rules))
@@ -32,7 +36,15 @@ func TestServiceEgressRulesUseKubernetesService(t *testing.T) {
 		t.Fatalf("serviceEgressRules() services = %#v, want one Kubernetes service", services)
 	}
 	service := services[0].K8sService
-	if service.ServiceName != "inference" || service.Namespace != "organisation" {
-		t.Errorf("serviceEgressRules() service = %#v, want organisation/inference", service)
+	if service.ServiceName != "gateway" || service.Namespace != "agentz-system" {
+		t.Errorf("serviceEgressRules() service = %#v, want agentz-system/gateway", service)
+	}
+	ports := rules[0].ToPorts
+	if len(ports) != 1 || len(ports[0].Ports) != 1 {
+		t.Fatalf("serviceEgressRules() ports = %#v, want one port", ports)
+	}
+	port := ports[0].Ports[0]
+	if port.Port != "8090" || port.Protocol != ciliumapi.ProtoTCP {
+		t.Errorf("serviceEgressRules() port = %#v, want 8090/TCP", port)
 	}
 }

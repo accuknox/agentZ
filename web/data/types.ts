@@ -7,6 +7,8 @@ import type {
   WorkflowInputs,
 } from "@/lib/gateway/client"
 
+export type WorkspacePath = `/orgs/${string}/workspaces/${string}`
+
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
       agents: TAgent[]

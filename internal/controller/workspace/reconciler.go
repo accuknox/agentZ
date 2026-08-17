@@ -520,6 +520,19 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 			Operator: slimv1.LabelSelectorOpDoesNotExist,
 		}}},
 	)
+	workspacePeers := ciliumpolicyapi.NewESFromK8sLabelSelector(
+		ciliumlabels.LabelSourceK8sKeyPrefix,
+		&slimv1.LabelSelector{MatchExpressions: []slimv1.LabelSelectorRequirement{
+			{
+				Key:      agentzv1alpha1.AgentPackageJobLabel,
+				Operator: slimv1.LabelSelectorOpDoesNotExist,
+			},
+			{
+				Key:      "agentz.accuknox.com/agent",
+				Operator: slimv1.LabelSelectorOpDoesNotExist,
+			},
+		}},
+	)
 	packageJobs := ciliumpolicyapi.NewESFromK8sLabelSelector(
 		ciliumlabels.LabelSourceK8sKeyPrefix,
 		&slimv1.LabelSelector{MatchExpressions: []slimv1.LabelSelectorRequirement{{
@@ -527,10 +540,15 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 			Operator: slimv1.LabelSelectorOpExists,
 		}}},
 	)
-	systemServices := ciliumpolicyapi.NewESFromLabels(
+	gateway := ciliumpolicyapi.NewESFromLabels(
 		ciliumlabels.NewLabel(
 			"io.kubernetes.pod.namespace",
-			"agentz-system",
+			r.GatewayServiceAccountNamespace,
+			ciliumlabels.LabelSourceK8s,
+		),
+		ciliumlabels.NewLabel(
+			"io.cilium.k8s.policy.serviceaccount",
+			r.GatewayServiceAccountName,
 			ciliumlabels.LabelSourceK8s,
 		),
 	)
@@ -549,29 +567,30 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 				Namespace: workspace.Name,
 			},
 			Spec: &ciliumpolicyapi.Rule{
-				Description:      "Isolate the Workspace while allowing local traffic and DNS.",
+				Description:      "Isolate Agents while allowing Workspace infrastructure and DNS.",
 				EndpointSelector: nonPackageJobs,
 				Ingress: []ciliumpolicyapi.IngressRule{
 					{
 						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-							FromEndpoints: []ciliumpolicyapi.EndpointSelector{nonPackageJobs},
+							FromEndpoints: []ciliumpolicyapi.EndpointSelector{workspacePeers},
 						},
 					},
 					{
 						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-							FromEndpoints: []ciliumpolicyapi.EndpointSelector{systemServices},
+							FromEndpoints: []ciliumpolicyapi.EndpointSelector{gateway},
 						},
+						ToPorts: []ciliumpolicyapi.PortRule{{
+							Ports: []ciliumpolicyapi.PortProtocol{
+								{Port: "4096", Protocol: ciliumpolicyapi.ProtoTCP},
+								{Port: "4097", Protocol: ciliumpolicyapi.ProtoTCP},
+							},
+						}},
 					},
 				},
 				Egress: []ciliumpolicyapi.EgressRule{
 					{
 						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
-							ToEndpoints: []ciliumpolicyapi.EndpointSelector{nonPackageJobs},
-						},
-					},
-					{
-						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
-							ToEndpoints: []ciliumpolicyapi.EndpointSelector{systemServices},
+							ToEndpoints: []ciliumpolicyapi.EndpointSelector{workspacePeers},
 						},
 					},
 					{

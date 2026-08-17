@@ -6,21 +6,21 @@ import type { ComponentProps, MouseEvent } from "react"
 import { TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-type RoutedTableRowProps = Omit<
+type RoutedTableRowProps<T extends string> = Omit<
   ComponentProps<typeof TableRow>,
   "aria-label" | "onAuxClick" | "onClick" | "onKeyDown" | "role" | "tabIndex"
 > & {
   "aria-label": string
-  href: Route
+  href: Route<T>
 }
 
-export function RoutedTableRow({
+export function RoutedTableRow<T extends string>({
   "aria-label": ariaLabel,
   children,
   className,
   href,
   ...props
-}: RoutedTableRowProps) {
+}: RoutedTableRowProps<T>) {
   const router = useRouter()
 
   function blocksRowNavigation(target: EventTarget | null, row: HTMLTableRowElement) {

@@ -46,6 +46,7 @@ import type {
   DeleteSessionFormState,
   ListAgentActionResponse,
   ListSandboxActionResponse,
+  WorkspacePath,
 } from "@/data/types"
 import { usePathname } from "next/navigation"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -92,7 +93,7 @@ export function NavAgents({
     sandboxes: ListSandboxActionResponse
   }
   workspaceId: string
-  workspacePath: string
+  workspacePath: WorkspacePath
 }) {
   const initialAgents = agents.agents ?? []
   const path = usePathname()
@@ -123,7 +124,7 @@ export function NavAgents({
       <SidebarMenu>
         <SidebarMenuItem>
           <AgentDialog
-            actionScope={{ basePath: workspacePath, workspaceId }}
+            actionScope={{ workspaceId, workspacePath }}
             mode="create"
             immutableSkills={create.immutableSkills}
             sandboxes={create.sandboxes.error ? [] : create.sandboxes.sandboxes}

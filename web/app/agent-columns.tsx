@@ -3,7 +3,6 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import Link from "next/link"
-import type { Route } from "next"
 import { ArrowUpDown, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
@@ -142,7 +141,7 @@ function AgentActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link href={`${actionScope.basePath}/${agent.name}` as Route}>
+            <Link href={`${actionScope.workspacePath}/agents/${encodeURIComponent(agent.name)}`}>
               <Settings />
               Settings
             </Link>

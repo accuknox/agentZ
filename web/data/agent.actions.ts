@@ -1,6 +1,5 @@
 "use server"
 
-import type { Route } from "next"
 import * as z from "zod"
 import { revalidatePath } from "next/cache"
 import { updateTag } from "next/cache"
@@ -12,15 +11,15 @@ import {
   updateAgent,
   upsertAgentShare,
 } from "@/lib/gateway/client"
-import type { CreateAgentFormState, DeleteAgentFormState } from "@/data/types"
+import type { CreateAgentFormState, DeleteAgentFormState, WorkspacePath } from "@/data/types"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { zAgentShareCapability } from "@/lib/gateway/client/zod.gen"
 
 export type AgentActionScope = {
-  basePath: string
   workspaceId: string
+  workspacePath: WorkspacePath
 }
 
 export type AgentOwnerFormState = {
@@ -230,6 +229,6 @@ function refreshAgentRoutes(scope: AgentActionScope, agentName: string) {
   updateTag(agentsTag)
   updateTag(`${agentsTag}:${scope.workspaceId}`)
   updateTag(`${agentsTag}:${scope.workspaceId}:${agentName}`)
-  revalidatePath(scope.basePath as Route)
-  revalidatePath(`${scope.basePath}/${agentName}` as Route)
+  revalidatePath(`${scope.workspacePath}/agents`)
+  revalidatePath(`${scope.workspacePath}/agents/${agentName}`)
 }

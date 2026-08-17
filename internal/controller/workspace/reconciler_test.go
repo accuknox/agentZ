@@ -21,6 +21,7 @@ import (
 	ciliumclient "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/client"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	ciliumpolicyapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -159,6 +160,67 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 	keyMatches := expression.Key == "k8s:"+agentzv1alpha1.AgentPackageJobLabel
 	if !keyMatches || expression.Operator != slimv1.LabelSelectorOpDoesNotExist {
 		t.Fatalf("baseline selector = %#v, want package jobs excluded", selector)
+	}
+	if len(policy.Spec.Ingress) != 2 {
+		t.Fatalf("baseline ingress rules = %d, want 2", len(policy.Spec.Ingress))
+	}
+	localIngress := policy.Spec.Ingress[0].FromEndpoints
+	if len(localIngress) != 1 || localIngress[0].LabelSelector == nil {
+		t.Fatalf("local ingress = %#v, want one peer selector", localIngress)
+	}
+	peerSelector := localIngress[0].LabelSelector
+	if len(peerSelector.MatchExpressions) != 2 {
+		t.Fatalf("local peer selector = %#v, want package job and Agent exclusions", peerSelector)
+	}
+	agentExpression := peerSelector.MatchExpressions[1]
+	agentKeyMatches := agentExpression.Key == "k8s:agentz.accuknox.com/agent"
+	if !agentKeyMatches || agentExpression.Operator != slimv1.LabelSelectorOpDoesNotExist {
+		t.Fatalf("local peer selector = %#v, want Agents excluded", peerSelector)
+	}
+	systemIngress := policy.Spec.Ingress[1]
+	if len(systemIngress.FromEndpoints) != 1 {
+		t.Fatalf("system ingress peers = %#v, want the gateway", systemIngress.FromEndpoints)
+	}
+	systemSelector := systemIngress.FromEndpoints[0].LabelSelector
+	if systemSelector == nil || len(systemSelector.MatchLabels) != 2 {
+		t.Fatalf("system ingress selector = %#v, want namespace and service account", systemSelector)
+	}
+	if systemSelector.MatchLabels["k8s:io.kubernetes.pod.namespace"] != "agentz-system" {
+		t.Fatalf("system ingress selector = %#v, want agentz-system", systemSelector)
+	}
+	if systemSelector.MatchLabels["k8s:io.cilium.k8s.policy.serviceaccount"] != "gateway" {
+		t.Fatalf("system ingress selector = %#v, want gateway service account", systemSelector)
+	}
+	if len(systemIngress.ToPorts) != 1 || len(systemIngress.ToPorts[0].Ports) != 2 {
+		t.Fatalf("system ingress ports = %#v, want Agent service ports", systemIngress.ToPorts)
+	}
+	wantPorts := map[string]struct{}{"4096": {}, "4097": {}}
+	for _, port := range systemIngress.ToPorts[0].Ports {
+		if port.Protocol != ciliumpolicyapi.ProtoTCP {
+			t.Fatalf("system ingress protocol = %q, want TCP", port.Protocol)
+		}
+		delete(wantPorts, port.Port)
+	}
+	if len(wantPorts) != 0 {
+		t.Fatalf("missing system ingress ports: %v", wantPorts)
+	}
+	if len(policy.Spec.Egress) != 2 {
+		t.Fatalf("baseline egress rules = %d, want local traffic and DNS only", len(policy.Spec.Egress))
+	}
+	localEgress := policy.Spec.Egress[0].ToEndpoints
+	if len(localEgress) != 1 || localEgress[0].LabelSelector == nil {
+		t.Fatalf("local egress = %#v, want one peer selector", localEgress)
+	}
+	if len(localEgress[0].LabelSelector.MatchExpressions) != 2 {
+		t.Fatalf("local egress selector = %#v, want package job and Agent exclusions", localEgress[0])
+	}
+	agentExpression = localEgress[0].LabelSelector.MatchExpressions[1]
+	agentKeyMatches = agentExpression.Key == "k8s:agentz.accuknox.com/agent"
+	if !agentKeyMatches || agentExpression.Operator != slimv1.LabelSelectorOpDoesNotExist {
+		t.Fatalf("local egress selector = %#v, want Agents excluded", localEgress[0])
+	}
+	if err := policy.Spec.Sanitize(); err != nil {
+		t.Fatalf("sanitize workspace isolation policy: %v", err)
 	}
 
 	var pvc corev1.PersistentVolumeClaim

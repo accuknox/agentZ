@@ -39,8 +39,8 @@ export default async function WorkspaceAgentLayout({
     notFound()
   }
 
-  const root =
-    `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/agents/${agentName}` as Route
+  const workspacePath: AgentActionScope["workspacePath"] = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
+  const root = `${workspacePath}/agents/${agentName}` as Route
   const tabs: RouteTab[] = [{ href: root, label: "Summary" }]
   if (detail.agent.capabilities.manage_ownership) {
     tabs.push({ href: `${root}/ownership` as Route, label: "Ownership" })
@@ -49,8 +49,8 @@ export default async function WorkspaceAgentLayout({
     tabs.push({ href: `${root}/sharing` as Route, label: "Sharing" })
   }
   const actionScope: AgentActionScope = {
-    basePath: `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/agents`,
     workspaceId: scope.workspace.id,
+    workspacePath,
   }
 
   return (

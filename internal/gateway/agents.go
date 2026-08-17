@@ -36,6 +36,11 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	}
 	auth, ok := requestAuthState(ctx)
 	if ok && auth.apiKeyID != "" {
+		if operation != authorization.OperationUseSharedAgent {
+			return access, resourceForbidden(
+				fmt.Errorf("agent API key does not permit operation %q", operation),
+			)
+		}
 		access.workspaceID = auth.workspaceID
 		access.namespace = auth.tenantNamespace
 		access.authorized = true

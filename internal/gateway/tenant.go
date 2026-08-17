@@ -448,12 +448,14 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 }
 
 func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
-	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-	if strings.HasPrefix(strings.ToLower(authHeader), "basic ") {
-		return s.resolveOpenCodeAPIKeyAuth(r)
-	}
 	if _, ok := r.Context().Value(gatewayapi.GatewayAPIKeyScopes).([]string); ok {
 		return s.resolveWebhookAPIKeyAuth(r)
+	}
+	if _, ok := r.Context().Value(gatewayapi.GatewayBearerScopes).([]string); !ok {
+		authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+		if strings.HasPrefix(strings.ToLower(authHeader), "basic ") {
+			return s.resolveOpenCodeAPIKeyAuth(r)
+		}
 	}
 
 	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)

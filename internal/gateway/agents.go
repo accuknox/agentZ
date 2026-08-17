@@ -35,6 +35,12 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 		return access, resourceForbidden(fmt.Errorf("agent operation %q is unknown", operation))
 	}
 	auth, ok := requestAuthState(ctx)
+	if ok && auth.actorType == requestActorSystem {
+		access.workspaceID = auth.workspaceID
+		access.namespace = auth.tenantNamespace
+		access.authorized = true
+		return access, nil
+	}
 	if ok && auth.apiKeyID != "" {
 		if operation != authorization.OperationUseSharedAgent {
 			return access, resourceForbidden(

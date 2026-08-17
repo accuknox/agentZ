@@ -13,6 +13,12 @@
 {{- if and .Values.secrets.googleClientSecret (not .Values.env.googleClientID) }}
 {{- fail "web.secrets.googleClientSecret requires web.env.googleClientID" }}
 {{- end }}
+{{- if ne (empty .Values.secrets.organizationAssetsS3AccessKeyID) (empty .Values.secrets.organizationAssetsS3SecretAccessKey) }}
+{{- fail "web Organisation asset access key ID and secret must be set together" }}
+{{- end }}
+{{- if and .Values.secrets.organizationAssetsS3SessionToken (not .Values.secrets.organizationAssetsS3AccessKeyID) }}
+{{- fail "web.secrets.organizationAssetsS3SessionToken requires static Organisation asset credentials" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -72,6 +78,14 @@ spec:
                   key: MCP_OAUTH_COOKIE_SECRET
             - name: ENABLE_EMAIL_PASSWORD_AUTH
               value: {{ .Values.env.enableEmailPasswordAuth | quote }}
+            - name: ORGANIZATION_ASSETS_S3_REGION
+              value: {{ required "web.env.organizationAssetsS3Region is required" .Values.env.organizationAssetsS3Region | quote }}
+            - name: ORGANIZATION_ASSETS_S3_BUCKET
+              value: {{ required "web.env.organizationAssetsS3Bucket is required" .Values.env.organizationAssetsS3Bucket | quote }}
+            - name: ORGANIZATION_ASSETS_PUBLIC_BASE_URL
+              value: {{ required "web.env.organizationAssetsPublicBaseURL is required" .Values.env.organizationAssetsPublicBaseURL | quote }}
+            - name: ORGANIZATION_ASSETS_S3_FORCE_PATH_STYLE
+              value: {{ .Values.env.organizationAssetsS3ForcePathStyle | quote }}
             {{- if .Values.env.internalGatewayBaseURL }}
             - name: INTERNAL_GATEWAY_BASE_URL
               value: {{ .Values.env.internalGatewayBaseURL | quote }}
@@ -117,6 +131,29 @@ spec:
             {{- if .Values.env.googleAllowedEmailDomains }}
             - name: GOOGLE_ALLOWED_EMAIL_DOMAINS
               value: {{ .Values.env.googleAllowedEmailDomains | quote }}
+            {{- end }}
+            {{- if .Values.env.organizationAssetsS3Endpoint }}
+            - name: ORGANIZATION_ASSETS_S3_ENDPOINT
+              value: {{ .Values.env.organizationAssetsS3Endpoint | quote }}
+            {{- end }}
+            {{- if .Values.secrets.organizationAssetsS3AccessKeyID }}
+            - name: ORGANIZATION_ASSETS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: ORGANIZATION_ASSETS_S3_ACCESS_KEY_ID
+            - name: ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY
+            {{- end }}
+            {{- if .Values.secrets.organizationAssetsS3SessionToken }}
+            - name: ORGANIZATION_ASSETS_S3_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "web.fullname" . }}
+                  key: ORGANIZATION_ASSETS_S3_SESSION_TOKEN
             {{- end }}
             {{- if .Values.env.nixosSearchESURL }}
             - name: NIXOS_SEARCH_ES_URL

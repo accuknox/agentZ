@@ -8,7 +8,7 @@ import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 import * as z from "zod"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { OrganizationAvatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { getDB, schema } from "@/db"
 import { getAuth } from "@/lib/auth"
@@ -196,11 +196,6 @@ async function JoinOrganizationContent({
       errorMessage = "We couldn’t complete your request. Please try again."
   }
 
-  const initials = org.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase())
-    .join("")
   const available = googleAvailable || githubAvailable
 
   return (
@@ -224,12 +219,11 @@ async function JoinOrganizationContent({
           priority
         />
 
-        <Avatar className="bg-background ring-background -mt-2 size-14 shadow-md ring-4">
-          <AvatarImage alt={org.name} src={org.logo ?? undefined} />
-          <AvatarFallback className="bg-primary/10 text-primary text-base font-semibold">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <OrganizationAvatar
+          className="bg-background ring-background -mt-2 size-14 shadow-md ring-4"
+          logo={org.logo}
+          name={org.name}
+        />
 
         <p className="text-primary mt-4 text-sm font-semibold">Organisation invitation</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance">Join {org.name}</h1>

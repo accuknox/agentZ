@@ -1,6 +1,5 @@
 import "server-only"
 
-import { randomUUID } from "node:crypto"
 import type { Route } from "next"
 import { cache } from "react"
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm"
@@ -10,6 +9,7 @@ import { getAuth } from "@/lib/auth"
 
 export type OrganizationSummary = {
   id: string
+  logo: string | null
   name: string
   slug: string
   superadmin: boolean
@@ -28,6 +28,7 @@ export async function getOrganizationSession() {
   const organizationRows = db
     .select({
       id: schema.organizations.id,
+      logo: schema.organizations.logo,
       name: schema.organizations.name,
       slug: schema.organizations.slug,
     })
@@ -145,6 +146,7 @@ export const resolveOrganizationSlug = cache(async (slug: string) => {
   const [organization] = await db
     .select({
       id: schema.organizations.id,
+      logo: schema.organizations.logo,
       name: schema.organizations.name,
       slug: schema.organizations.slug,
     })
@@ -293,94 +295,6 @@ export async function rememberOrganizationRoute(
         workspaceId,
       },
     })
-}
-
-export type UpdateOrganizationNameResult = { slug: string } | { error: "forbidden" | "not-found" }
-
-export async function updateOrganizationName(
-  organizationId: string,
-  name: string
-): Promise<UpdateOrganizationNameResult> {
-  const organizationSession = await getOrganizationSession()
-  if (!organizationSession) {
-    return { error: "forbidden" }
-  }
-
-  return getDB().transaction(async (tx) => {
-    const [organization] = await tx
-      .select({
-        id: schema.organizations.id,
-        name: schema.organizations.name,
-        slug: schema.organizations.slug,
-      })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, organizationId))
-      .for("update")
-      .limit(1)
-    if (!organization) {
-      return { error: "not-found" as const }
-    }
-
-    const eventTrail = {
-      id: `event-trail-${randomUUID()}`,
-      organizationId: organization.id,
-      actorType: "user",
-      actorId: organizationSession.session.user.id,
-      targetType: "organization",
-      targetId: organization.id,
-      category: "organization",
-      action: "organization.rename",
-      before: [{ field: "name", value: organization.name }],
-      after: [{ field: "name", value: name }],
-    } satisfies Omit<typeof schema.eventTrailEvents.$inferInsert, "result">
-
-    const [member] = await tx
-      .select({ id: schema.members.id })
-      .from(schema.members)
-      .where(
-        and(
-          eq(schema.members.userId, organizationSession.session.user.id),
-          eq(schema.members.organizationId, organization.id),
-          isNull(schema.members.disabledAt)
-        )
-      )
-      .limit(1)
-    if (!member) {
-      return { error: "forbidden" as const }
-    }
-
-    const [superadmin] = await tx
-      .select({ roleId: schema.roleScopes.roleId })
-      .from(schema.memberRoles)
-      .innerJoin(
-        schema.roleScopes,
-        and(
-          eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-          eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.memberRoles.memberId, member.id),
-          eq(schema.memberRoles.organizationId, organization.id),
-          eq(schema.roleScopes.systemRole, "superadmin"),
-          eq(schema.roleScopes.immutable, true)
-        )
-      )
-      .limit(1)
-    if (!superadmin) {
-      await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "denied" })
-      return { error: "forbidden" as const }
-    }
-
-    await tx
-      .update(schema.organizations)
-      .set({ name })
-      .where(eq(schema.organizations.id, organization.id))
-    await tx.insert(schema.eventTrailEvents).values({ ...eventTrail, result: "succeeded" })
-
-    return { slug: organization.slug }
-  })
 }
 
 function organizationDestination(organization: OrganizationSummary, savedRoute?: string): Route {

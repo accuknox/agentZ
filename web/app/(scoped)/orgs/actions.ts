@@ -1,11 +1,13 @@
 "use server"
 
+import { randomUUID } from "node:crypto"
+import { eq } from "drizzle-orm"
 import type { Route } from "next"
 import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } from "@/data/cache"
-import { switchOrganization, updateOrganizationName } from "@/data/organizations"
+import { getOrganizationSession, switchOrganization } from "@/data/organizations"
 import { deleteWorkspace, getDestructiveImpact } from "@/data/operations"
 import {
   acceptInvitation,
@@ -33,11 +35,19 @@ import {
   retryWorkspaceProvisioning,
   updateWorkspaceName,
 } from "@/data/workspaces"
-import { schema } from "@/db"
+import { getDB, schema } from "@/db"
+import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
 import { zReplaceWorkspaceInheritedResourcesRequest } from "@/lib/gateway/client/zod.gen"
 import type { InheritedResourceType } from "@/lib/gateway/client"
+import {
+  createOrganizationLogoUpload,
+  deleteOrganizationLogo,
+  deleteOrganizationLogoUpload,
+  OrganizationAssetsError,
+  publishOrganizationLogo,
+} from "@/lib/organization-assets"
 
 const organizationNameSchema = z
   .string()
@@ -46,6 +56,27 @@ const organizationNameSchema = z
   .refine((name) => name.trim() === name, {
     message: "Remove leading or trailing spaces.",
   })
+const organizationLogoSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("unchanged") }),
+  z.object({ kind: z.literal("remove") }),
+  z.object({
+    kind: z.literal("replace"),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  }),
+])
+const organizationProfileSchema = z.object({
+  logo: organizationLogoSchema,
+  name: organizationNameSchema,
+})
+const organizationLogoUploadSchema = z.object({
+  byteLength: z
+    .number()
+    .int()
+    .min(1)
+    .max(2 * 1024 * 1024),
+  organizationId: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+})
 const roleGrantSchema = z.object({
   workspaceId: z.string().min(1).nullable(),
   resource: z.enum(schema.permissionResource.enumValues),
@@ -191,7 +222,7 @@ export async function prepareWorkspaceDeleteAction(orgSlug: string, workspaceId:
   }
 }
 
-export type UpdateOrganizationNameFormState = {
+export type OrganizationProfileFormState = {
   name: string
   saved?: boolean
   errors?: {
@@ -199,6 +230,8 @@ export type UpdateOrganizationNameFormState = {
     name?: string[]
   }
 }
+
+export type OrganizationProfileInput = z.infer<typeof organizationProfileSchema>
 
 export type CreateWorkspaceFormState = {
   error?: string
@@ -452,31 +485,201 @@ export async function acceptInvitationAction(token: string): Promise<never> {
   redirect(`/orgs/${result.slug}` as Route)
 }
 
-export async function updateOrganizationNameAction(
-  organizationId: string,
-  state: UpdateOrganizationNameFormState,
-  formData: FormData
-): Promise<UpdateOrganizationNameFormState> {
-  const parsed = organizationNameSchema.safeParse(formData.get("name"))
+export async function createOrganizationLogoUploadAction(
+  input: z.infer<typeof organizationLogoUploadSchema>
+): Promise<{ error: string } | { headers: Record<string, string>; uploadUrl: string }> {
+  const parsed = organizationLogoUploadSchema.safeParse(input)
   if (!parsed.success) {
+    return { error: "The prepared image is invalid or too large." }
+  }
+
+  const organizationSession = await getOrganizationSession()
+  const organization = organizationSession?.organizations.find(
+    (candidate) => candidate.id === parsed.data.organizationId
+  )
+  if (!organizationSession || !organization?.superadmin) {
+    return { error: "You can no longer edit this Organisation." }
+  }
+
+  let allowed = false
+  try {
+    allowed = (
+      await getAuth().api.hasPermission({
+        body: {
+          organizationId: organization.id,
+          permissions: { organization: ["update"] },
+        },
+        headers: organizationSession.requestHeaders,
+      })
+    ).success
+  } catch {
+    return { error: "You can no longer edit this Organisation." }
+  }
+  if (!allowed) {
+    return { error: "You can no longer edit this Organisation." }
+  }
+
+  try {
+    return await createOrganizationLogoUpload(
+      organization.id,
+      organizationSession.session.user.id,
+      parsed.data.byteLength,
+      parsed.data.sha256
+    )
+  } catch {
+    return { error: "The image upload could not be prepared. Try again." }
+  }
+}
+
+export async function updateOrganizationProfileAction(
+  organizationId: string,
+  state: OrganizationProfileFormState,
+  input: OrganizationProfileInput
+): Promise<OrganizationProfileFormState> {
+  const parsed = organizationProfileSchema.safeParse(input)
+  if (!parsed.success) {
+    const nameErrors = parsed.error.flatten().fieldErrors.name
     return {
       name: state.name,
-      errors: { name: parsed.error.issues.map((issue) => issue.message) },
+      errors: nameErrors ? { name: nameErrors } : { form: "The profile image is invalid." },
     }
   }
 
-  const result = await updateOrganizationName(organizationId, parsed.data)
-  if ("error" in result) {
+  const organizationSession = await getOrganizationSession()
+  const organization = organizationSession?.organizations.find(
+    (candidate) => candidate.id === organizationId
+  )
+  if (!organizationSession || !organization?.superadmin) {
     return {
-      name: parsed.data,
-      errors: {
-        form: "You no longer have permission to rename this Organisation.",
+      name: parsed.data.name,
+      errors: { form: "You can no longer edit this Organisation." },
+    }
+  }
+
+  let publishedLogo: string | undefined
+  if (parsed.data.logo.kind === "replace") {
+    try {
+      publishedLogo = await publishOrganizationLogo(
+        organization.id,
+        organizationSession.session.user.id,
+        parsed.data.logo.sha256
+      )
+    } catch (error) {
+      const message =
+        error instanceof OrganizationAssetsError && error.code === "public-access-unavailable"
+          ? "The image was uploaded, but it is not publicly accessible. Check the bucket policy."
+          : "The uploaded image could not be verified. Choose it again and retry."
+      return { name: parsed.data.name, errors: { form: message } }
+    } finally {
+      try {
+        await deleteOrganizationLogoUpload(organization.id, organizationSession.session.user.id)
+      } catch {
+        console.error("Organisation profile staging cleanup failed", {
+          actorId: organizationSession.session.user.id,
+          organizationId: organization.id,
+        })
+      }
+    }
+  }
+
+  const nameChanged = parsed.data.name !== organization.name
+  const nextLogo =
+    parsed.data.logo.kind === "replace"
+      ? publishedLogo
+      : parsed.data.logo.kind === "remove"
+        ? null
+        : undefined
+  const logoChanged = nextLogo !== undefined && nextLogo !== organization.logo
+  if (!nameChanged && !logoChanged) {
+    return { name: organization.name, saved: true }
+  }
+
+  try {
+    await getAuth().api.updateOrganization({
+      body: {
+        organizationId: organization.id,
+        data: {
+          ...(nameChanged ? { name: parsed.data.name } : {}),
+          ...(logoChanged ? { logo: nextLogo } : {}),
+        },
       },
+      headers: organizationSession.requestHeaders,
+    })
+  } catch {
+    if (publishedLogo) {
+      try {
+        await deleteOrganizationLogo(publishedLogo)
+      } catch {
+        console.error("Unreferenced Organisation profile image cleanup failed", {
+          actorId: organizationSession.session.user.id,
+          organizationId: organization.id,
+        })
+      }
+    }
+    return {
+      name: parsed.data.name,
+      errors: { form: "The Organisation profile could not be saved. Try again." },
+    }
+  }
+
+  const events: (typeof schema.eventTrailEvents.$inferInsert)[] = []
+  if (nameChanged) {
+    events.push({
+      id: `event-trail-${randomUUID()}`,
+      organizationId: organization.id,
+      actorType: "user",
+      actorId: organizationSession.session.user.id,
+      targetType: "organization",
+      targetId: organization.id,
+      category: "organization",
+      action: "organization.rename",
+      result: "succeeded",
+      before: [{ field: "name", value: organization.name }],
+      after: [{ field: "name", value: parsed.data.name }],
+    })
+  }
+  if (logoChanged) {
+    events.push({
+      id: `event-trail-${randomUUID()}`,
+      organizationId: organization.id,
+      actorType: "user",
+      actorId: organizationSession.session.user.id,
+      targetType: "organization",
+      targetId: organization.id,
+      category: "organization",
+      action: "organization.logo.update",
+      result: "succeeded",
+    })
+  }
+  try {
+    await getDB().insert(schema.eventTrailEvents).values(events)
+  } catch {
+    console.error("Organisation profile audit write failed", {
+      actions: events.map(({ action }) => action),
+      actorId: organizationSession.session.user.id,
+      organizationId: organization.id,
+    })
+  }
+
+  if (logoChanged && organization.logo) {
+    try {
+      const [current] = await getDB()
+        .select({ logo: schema.organizations.logo })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, organization.id))
+      if (current?.logo === nextLogo) {
+        await deleteOrganizationLogo(organization.logo)
+      }
+    } catch {
+      console.error("Previous Organisation profile image cleanup failed", {
+        actorId: organizationSession.session.user.id,
+        organizationId: organization.id,
+      })
     }
   }
 
   revalidatePath("/orgs", "layout")
-  return { name: parsed.data, saved: true }
+  return { name: parsed.data.name, saved: true }
 }
 
 export async function createWorkspaceAction(

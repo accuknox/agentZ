@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   ...(authURL ? { allowedDevOrigins: [new URL(authURL).hostname] } : {}),
   cacheComponents: true,
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/*": ["node_modules/@img/sharp-libvips-*/lib/**/*"],
+  },
   reactCompiler: true,
   typedRoutes: true,
   experimental: {

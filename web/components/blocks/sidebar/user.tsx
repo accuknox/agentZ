@@ -16,7 +16,7 @@ import { useState, useTransition } from "react"
 import { switchOrganizationAction } from "@/app/(scoped)/orgs/actions"
 import { authClient } from "@/lib/auth-client"
 import type { OrganizationSummary } from "@/data/organizations"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage, OrganizationAvatar } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -146,7 +146,11 @@ export function NavUser({
                       textValue={`${organization.name} ${organization.slug}`}
                       value={organization.id}
                     >
-                      <Building2 />
+                      <OrganizationAvatar
+                        className="size-5"
+                        logo={organization.logo}
+                        name={organization.name}
+                      />
                       <span className="grid min-w-0 flex-1 text-left leading-tight">
                         <span className="truncate font-medium" title={organization.name}>
                           {organization.name}

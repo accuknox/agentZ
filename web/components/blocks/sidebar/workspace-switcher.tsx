@@ -4,8 +4,8 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { PanelsTopLeft, Building2, ChevronsUpDown, Plus } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { PanelsTopLeft, ChevronsUpDown, Plus } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage, OrganizationAvatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -39,9 +39,11 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
             size="lg"
             tooltip="No workspace access"
           >
-            <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-              <Building2 aria-hidden="true" />
-            </span>
+            <OrganizationAvatar
+              className="size-8"
+              logo={scope.organization.logo}
+              name={scope.organization.name}
+            />
             <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium" title={scope.organization.name}>
                 {scope.organization.name}
@@ -82,9 +84,17 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 size="lg"
                 tooltip={active?.name ?? scope.organization.name}
               >
-                <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                  {active ? <PanelsTopLeft aria-hidden="true" /> : <Building2 aria-hidden="true" />}
-                </span>
+                {active ? (
+                  <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+                    <PanelsTopLeft aria-hidden="true" />
+                  </span>
+                ) : (
+                  <OrganizationAvatar
+                    className="size-8"
+                    logo={scope.organization.logo}
+                    name={scope.organization.name}
+                  />
+                )}
                 <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
                   <span
                     className="truncate font-medium"
@@ -110,9 +120,11 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 href={root as Route}
                 onClick={close}
               >
-                <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
-                  <Building2 aria-hidden="true" className="size-3.5" />
-                </span>
+                <OrganizationAvatar
+                  className="size-7"
+                  logo={scope.organization.logo}
+                  name={scope.organization.name}
+                />
                 <span className="min-w-0">
                   <span
                     className="block truncate text-sm font-medium"

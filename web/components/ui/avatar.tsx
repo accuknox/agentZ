@@ -132,4 +132,24 @@ function UserAvatar({
   )
 }
 
-export { Avatar, AvatarImage, AvatarFallback, UserAvatar, UserIdentity }
+/** OrganizationAvatar renders a public Organisation image with an initials fallback. */
+function OrganizationAvatar({
+  className,
+  logo,
+  name,
+  size = "default",
+}: {
+  className?: string
+  logo: string | null
+  name: string
+  size?: "default" | "sm" | "lg"
+}) {
+  return (
+    <Avatar className={className} size={size}>
+      <AvatarImage alt={`${name} profile picture`} src={logo ?? undefined} />
+      <AvatarFallback>{initialsFromLabel(name)}</AvatarFallback>
+    </Avatar>
+  )
+}
+
+export { Avatar, AvatarImage, AvatarFallback, OrganizationAvatar, UserAvatar, UserIdentity }

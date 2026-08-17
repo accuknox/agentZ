@@ -436,11 +436,13 @@ function buildAuth() {
           superadmin: superadminRole,
         },
         organizationHooks: {
-          beforeUpdateOrganization: async () => {
-            throw APIError.from("FORBIDDEN", {
-              code: "GOVERNED_ORGANIZATION_MUTATION_REQUIRED",
-              message: "Organisation updates must use the governed product action.",
-            })
+          beforeUpdateOrganization: async ({ organization }) => {
+            if (organization.slug !== undefined || organization.metadata !== undefined) {
+              throw APIError.from("FORBIDDEN", {
+                code: "GOVERNED_ORGANIZATION_MUTATION_REQUIRED",
+                message: "Only governed Organisation profile fields can be updated.",
+              })
+            }
           },
           afterCreateOrganization: async ({ member, organization }) => {
             const roleId = `superadmin:${organization.id}`

@@ -82,7 +82,7 @@ WHERE members.id = ANY($2::text[])
   AND role_scopes.immutable
   AND NOT EXISTS (
     SELECT 1
-    FROM member_roles AS superadmin_roles
+    FROM member_role_assignments AS superadmin_roles
     JOIN role_scopes AS superadmin_role_scopes
       ON superadmin_role_scopes.role_id = superadmin_roles.role_id
       AND superadmin_role_scopes.organization_id = superadmin_roles.organization_id
@@ -1278,13 +1278,13 @@ func (q *Queries) GatewayIsActiveOrganizationMember(ctx context.Context, arg Gat
 const gatewayIsActiveSuperadmin = `-- name: GatewayIsActiveSuperadmin :one
 SELECT EXISTS(
   SELECT 1
-  FROM members
-  JOIN member_roles
-    ON member_roles.member_id = members.id
-    AND member_roles.organization_id = members.organization_id
+  FROM member_role_assignments
+  JOIN members
+    ON members.id = member_role_assignments.member_id
+    AND members.organization_id = member_role_assignments.organization_id
   JOIN role_scopes
-    ON role_scopes.role_id = member_roles.role_id
-    AND role_scopes.organization_id = member_roles.organization_id
+    ON role_scopes.role_id = member_role_assignments.role_id
+    AND role_scopes.organization_id = member_role_assignments.organization_id
   WHERE members.user_id = $1
     AND members.organization_id = $2
     AND members.disabled_at IS NULL
@@ -1339,53 +1339,25 @@ func (q *Queries) GatewayListAPIKeyTargets(ctx context.Context, apiKeyID string)
 }
 
 const gatewayListAccessibleWorkspaces = `-- name: GatewayListAccessibleWorkspaces :many
-WITH role_assignments AS (
-  SELECT member_roles.role_id, member_roles.organization_id
-  FROM members
-  JOIN member_roles
-    ON member_roles.member_id = members.id
-    AND member_roles.organization_id = members.organization_id
-  WHERE members.user_id = $6
-    AND members.organization_id = $1
-    AND members.disabled_at IS NULL
-
-  UNION
-
-  SELECT team_roles.role_id, team_roles.organization_id
-  FROM members
-  JOIN team_members
-    ON team_members.user_id = members.user_id
-  JOIN teams
-    ON teams.id = team_members.team_id
-    AND teams.organization_id = members.organization_id
-  JOIN team_roles
-    ON team_roles.team_id = teams.id
-    AND team_roles.organization_id = teams.organization_id
-  JOIN role_scopes AS team_role_scope
-    ON team_role_scope.role_id = team_roles.role_id
-    AND team_role_scope.organization_id = team_roles.organization_id
-    AND team_role_scope.system_role IS NULL
-  WHERE members.user_id = $6
-    AND members.organization_id = $1
-    AND members.disabled_at IS NULL
-), actor_roles AS (
-  SELECT
-    role_scopes.role_id,
-    role_scopes.organization_id,
-    role_scopes.workspace_id,
-    role_scopes.system_role,
-    role_scopes.immutable
-  FROM role_assignments
+WITH actor_roles AS (
+  SELECT DISTINCT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
+  FROM member_role_assignments
   JOIN role_scopes
-    ON role_scopes.role_id = role_assignments.role_id
-    AND role_scopes.organization_id = role_assignments.organization_id
+    ON role_scopes.role_id = member_role_assignments.role_id
+    AND role_scopes.organization_id = member_role_assignments.organization_id
+  JOIN members
+    ON members.id = member_role_assignments.member_id
+    AND members.organization_id = member_role_assignments.organization_id
+  WHERE members.user_id = $6
+    AND members.organization_id = $1
+    AND members.disabled_at IS NULL
 )
 SELECT
   workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at,
   (
     SELECT COUNT(DISTINCT workspace_admins.member_id)
     FROM role_scopes AS workspace_admin_role
-    JOIN member_roles AS workspace_admins
+    JOIN member_role_assignments AS workspace_admins
       ON workspace_admins.role_id = workspace_admin_role.role_id
       AND workspace_admins.organization_id = workspace_admin_role.organization_id
     JOIN members AS workspace_admin_members
@@ -1503,29 +1475,11 @@ func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg Gatew
 
 const gatewayListAgentAccessTargets = `-- name: GatewayListAgentAccessTargets :many
 WITH assigned_roles AS (
-  SELECT members.user_id, member_roles.role_id
-  FROM members
-  JOIN member_roles
-    ON member_roles.member_id = members.id
-    AND member_roles.organization_id = members.organization_id
-  WHERE members.organization_id = $1
-    AND members.disabled_at IS NULL
-
-  UNION
-
-  SELECT members.user_id, team_roles.role_id
-  FROM members
-  JOIN team_members ON team_members.user_id = members.user_id
-  JOIN teams
-    ON teams.id = team_members.team_id
-    AND teams.organization_id = members.organization_id
-  JOIN team_roles
-    ON team_roles.team_id = teams.id
-    AND team_roles.organization_id = teams.organization_id
-  JOIN role_scopes
-    ON role_scopes.role_id = team_roles.role_id
-    AND role_scopes.organization_id = team_roles.organization_id
-    AND role_scopes.system_role IS NULL
+  SELECT DISTINCT members.user_id, member_role_assignments.role_id
+  FROM member_role_assignments
+  JOIN members
+    ON members.id = member_role_assignments.member_id
+    AND members.organization_id = member_role_assignments.organization_id
   WHERE members.organization_id = $1
     AND members.disabled_at IS NULL
 ), user_targets AS (
@@ -1537,7 +1491,7 @@ WITH assigned_roles AS (
     users.image,
     EXISTS (
       SELECT 1
-      FROM member_roles AS administrator_roles
+      FROM member_role_assignments AS administrator_roles
       JOIN role_scopes AS administrator_scopes
         ON administrator_scopes.role_id = administrator_roles.role_id
         AND administrator_scopes.organization_id = administrator_roles.organization_id
@@ -1579,7 +1533,25 @@ WITH assigned_roles AS (
     teams.name AS label,
     ''::text AS email,
     NULL::text AS image,
-    FALSE AS administrator,
+    EXISTS (
+      SELECT 1
+      FROM team_roles AS administrator_roles
+      JOIN role_scopes AS administrator_scopes
+        ON administrator_scopes.role_id = administrator_roles.role_id
+        AND administrator_scopes.organization_id = administrator_roles.organization_id
+      WHERE administrator_roles.team_id = teams.id
+        AND administrator_roles.organization_id = teams.organization_id
+        AND administrator_scopes.immutable
+        AND (
+          (
+            administrator_scopes.system_role = 'superadmin'
+            AND administrator_scopes.workspace_id IS NULL
+          ) OR (
+            administrator_scopes.system_role = 'workspace_admin'
+            AND administrator_scopes.workspace_id = $2
+          )
+        )
+    ) AS administrator,
     permission_grants.action
   FROM teams
   LEFT JOIN team_roles
@@ -1588,7 +1560,6 @@ WITH assigned_roles AS (
   LEFT JOIN role_scopes
     ON role_scopes.role_id = team_roles.role_id
     AND role_scopes.organization_id = team_roles.organization_id
-    AND role_scopes.system_role IS NULL
   LEFT JOIN permission_grants
     ON permission_grants.role_id = role_scopes.role_id
     AND permission_grants.organization_id = role_scopes.organization_id
@@ -3086,7 +3057,6 @@ JOIN team_roles
 JOIN role_scopes
   ON role_scopes.role_id = team_roles.role_id
   AND role_scopes.organization_id = team_roles.organization_id
-  AND role_scopes.system_role IS NULL
 JOIN permission_grants
   ON permission_grants.role_id = role_scopes.role_id
   AND permission_grants.organization_id = role_scopes.organization_id
@@ -3316,7 +3286,7 @@ WHERE members.organization_id = $1
   AND EXISTS (
     SELECT 1
     FROM members AS actor
-    JOIN member_roles AS actor_roles
+    JOIN member_role_assignments AS actor_roles
       ON actor_roles.member_id = actor.id
       AND actor_roles.organization_id = actor.organization_id
     JOIN role_scopes AS actor_role_scopes
@@ -3331,12 +3301,12 @@ WHERE members.organization_id = $1
   )
   AND NOT EXISTS (
     SELECT 1
-    FROM member_roles
+    FROM member_role_assignments
     JOIN role_scopes
-      ON role_scopes.role_id = member_roles.role_id
-      AND role_scopes.organization_id = member_roles.organization_id
-    WHERE member_roles.member_id = members.id
-      AND member_roles.organization_id = members.organization_id
+      ON role_scopes.role_id = member_role_assignments.role_id
+      AND role_scopes.organization_id = member_role_assignments.organization_id
+    WHERE member_role_assignments.member_id = members.id
+      AND member_role_assignments.organization_id = members.organization_id
       AND role_scopes.workspace_id IS NULL
       AND role_scopes.system_role = 'superadmin'
       AND role_scopes.immutable
@@ -3647,13 +3617,16 @@ func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
 UPDATE members
 SET role = COALESCE((
-  SELECT string_agg(organization_roles.role, ',' ORDER BY organization_roles.role)
-  FROM member_roles
+  SELECT string_agg(
+    DISTINCT organization_roles.role,
+    ',' ORDER BY organization_roles.role
+  )
+  FROM member_role_assignments
   JOIN organization_roles
-    ON organization_roles.id = member_roles.role_id
-    AND organization_roles.organization_id = member_roles.organization_id
-  WHERE member_roles.member_id = members.id
-    AND member_roles.organization_id = members.organization_id
+    ON organization_roles.id = member_role_assignments.role_id
+    AND organization_roles.organization_id = member_role_assignments.organization_id
+  WHERE member_role_assignments.member_id = members.id
+    AND member_role_assignments.organization_id = members.organization_id
 ), 'member')
 WHERE members.id = ANY($1::text[])
   AND members.organization_id = $2
@@ -3680,28 +3653,13 @@ WITH actor AS (
     AND members.organization_id = $2
     AND members.disabled_at IS NULL
 ), assigned_role_ids AS (
-  SELECT member_roles.role_id, member_roles.organization_id
+  SELECT DISTINCT
+    member_role_assignments.role_id,
+    member_role_assignments.organization_id
   FROM actor
-  JOIN member_roles
-    ON member_roles.member_id = actor.id
-    AND member_roles.organization_id = actor.organization_id
-
-  UNION
-
-  SELECT team_roles.role_id, team_roles.organization_id
-  FROM actor
-  JOIN team_members
-    ON team_members.user_id = actor.user_id
-  JOIN teams
-    ON teams.id = team_members.team_id
-    AND teams.organization_id = actor.organization_id
-  JOIN team_roles
-    ON team_roles.team_id = teams.id
-    AND team_roles.organization_id = teams.organization_id
-  JOIN role_scopes AS team_role_scope
-    ON team_role_scope.role_id = team_roles.role_id
-    AND team_role_scope.organization_id = team_roles.organization_id
-    AND team_role_scope.system_role IS NULL
+  JOIN member_role_assignments
+    ON member_role_assignments.member_id = actor.id
+    AND member_role_assignments.organization_id = actor.organization_id
 ), assigned_roles AS (
   SELECT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
   FROM assigned_role_ids
@@ -3800,41 +3758,18 @@ func (q *Queries) GatewayResolvePermissions(ctx context.Context, arg GatewayReso
 }
 
 const gatewayResolveWorkspaceSlug = `-- name: GatewayResolveWorkspaceSlug :one
-WITH role_assignments AS (
-  SELECT member_roles.role_id, member_roles.organization_id
-  FROM members
-  JOIN member_roles
-    ON member_roles.member_id = members.id
-    AND member_roles.organization_id = members.organization_id
-  WHERE members.user_id = $3
-    AND members.organization_id = $1
-    AND members.disabled_at IS NULL
-
-  UNION
-
-  SELECT team_roles.role_id, team_roles.organization_id
-  FROM members
-  JOIN team_members
-    ON team_members.user_id = members.user_id
-  JOIN teams
-    ON teams.id = team_members.team_id
-    AND teams.organization_id = members.organization_id
-  JOIN team_roles
-    ON team_roles.team_id = teams.id
-    AND team_roles.organization_id = teams.organization_id
-  JOIN role_scopes AS team_role_scope
-    ON team_role_scope.role_id = team_roles.role_id
-    AND team_role_scope.organization_id = team_roles.organization_id
-    AND team_role_scope.system_role IS NULL
-  WHERE members.user_id = $3
-    AND members.organization_id = $1
-    AND members.disabled_at IS NULL
-), actor_roles AS (
-  SELECT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
-  FROM role_assignments
+WITH actor_roles AS (
+  SELECT DISTINCT role_scopes.role_id, role_scopes.organization_id, role_scopes.workspace_id, role_scopes.display_name, role_scopes.system_role, role_scopes.immutable, role_scopes.created_at, role_scopes.updated_at
+  FROM member_role_assignments
   JOIN role_scopes
-    ON role_scopes.role_id = role_assignments.role_id
-    AND role_scopes.organization_id = role_assignments.organization_id
+    ON role_scopes.role_id = member_role_assignments.role_id
+    AND role_scopes.organization_id = member_role_assignments.organization_id
+  JOIN members
+    ON members.id = member_role_assignments.member_id
+    AND members.organization_id = member_role_assignments.organization_id
+  WHERE members.user_id = $3
+    AND members.organization_id = $1
+    AND members.disabled_at IS NULL
 )
 SELECT
   workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at

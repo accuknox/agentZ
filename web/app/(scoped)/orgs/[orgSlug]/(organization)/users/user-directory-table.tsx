@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { ActiveMember, InvitationRow, MemberDirectory, MemberTab } from "@/data/members"
-import { InvitationActions, MembershipStateButton } from "./member-actions"
+import { InvitationActions, MembershipStateButton, UserTableActions } from "./member-actions"
 
 export function UserDirectoryTable({
   data,
@@ -97,7 +97,19 @@ function MemberTable({
               ),
             } satisfies ColumnDef<ActiveMember>,
           ]
-        : []),
+        : [
+            {
+              id: "actions",
+              header: () => <span className="sr-only">Actions</span>,
+              cell: ({ row }) => (
+                <UserTableActions
+                  memberId={row.original.id}
+                  name={row.original.name}
+                  orgSlug={orgSlug}
+                />
+              ),
+            } satisfies ColumnDef<ActiveMember>,
+          ]),
     ],
     [disabled, orgSlug]
   )
@@ -111,7 +123,9 @@ function MemberTable({
       nextPageToken={data.nextPageToken}
       headerClassNames={{
         action: "w-28 text-right",
+        actions: "w-20",
         apiKeys: "w-24 text-right",
+        assignments: "w-44",
         createdAt: "w-32",
         lastActivity: "w-32",
         ownedAgents: "w-28 text-right",
@@ -266,17 +280,9 @@ function DirectoryTable<T>({
 }
 
 function AssignmentSummary({ roles, teams }: { roles: string[]; teams: string[] }) {
-  const items = [
-    ...roles.map((label) => `Role: ${label}`),
-    ...teams.map((label) => `Team: ${label}`),
-  ]
-  if (!items.length) return <EmptyValue />
   return (
-    <span className="text-sm">
-      {items.slice(0, 4).join(" · ")}
-      {items.length > 4 ? (
-        <span className="text-muted-foreground"> · +{items.length - 4}</span>
-      ) : null}
+    <span className="text-sm whitespace-nowrap tabular-nums">
+      Roles: {roles.length} <span className="text-muted-foreground">·</span> Teams: {teams.length}
     </span>
   )
 }

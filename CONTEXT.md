@@ -31,8 +31,8 @@ contain zero or more Workspaces.
 _Avoid_: Project, Tenant
 
 **Team**:
-A named group of active Organisation Members that receives Roles and Agent
-Shares as a unit.
+A named group of active Organisation Members. Roles assigned to a Team are
+inherited by every Member of that Team.
 _Avoid_: Group
 
 ## Authorisation
@@ -67,9 +67,15 @@ Workspace scope.
 _Avoid_: Permission, ACL entry
 
 **Effective Permission**:
-A User's resulting capability after combining applicable direct Roles, Team
-Roles, and defined implicit authorities.
+A User's allow-only capability union from direct Roles, Team-inherited Roles,
+and defined implicit authorities. Assignment provenance never changes a Role's
+effect.
 _Avoid_: Access level
+
+**Workspace Access**:
+A User's effective authority within one Workspace, present when their Effective
+Permissions contain at least one capability in that Workspace.
+_Avoid_: Workspace membership
 
 **Authorization Decision**:
 The allow-or-deny result for one User, action, and resource after evaluating

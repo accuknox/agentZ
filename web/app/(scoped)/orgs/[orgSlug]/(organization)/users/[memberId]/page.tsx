@@ -5,6 +5,7 @@ import type { Route } from "next"
 import { notFound } from "next/navigation"
 import { removeMembershipAction } from "@/app/(scoped)/orgs/actions"
 import { AdministrationState } from "@/components/administration"
+import { AssignmentForm } from "@/components/assignment-form"
 import { DestructiveConfirmationDialog } from "@/components/destructive-confirmation-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -59,7 +60,7 @@ export default async function UserDetailPage({
   const root = `/orgs/${orgSlug}/users/${memberId}`
   const tabs = [
     { href: root as Route, label: "Summary" },
-    { href: `${root}?tab=access` as Route, label: "Access" },
+    { href: `${root}?tab=access` as Route, label: "Roles and access" },
     { href: `${root}?tab=agents` as Route, label: `Owned Agents (${data.agents.length})` },
     { href: `${root}?tab=keys` as Route, label: `API Keys (${data.apiKeys.length})` },
     { href: `${root}?tab=activity` as Route, label: "Activity" },
@@ -96,7 +97,7 @@ export default async function UserDetailPage({
         <RouteTabs label="User details" tabs={tabs} />
       </header>
       {activeTab === "access" ? (
-        <UserAccess memberId={memberId} orgSlug={orgSlug} />
+        <UserAccess data={data} orgSlug={orgSlug} />
       ) : activeTab === "agents" ? (
         <OwnedAgents data={data} orgSlug={orgSlug} />
       ) : activeTab === "keys" ? (
@@ -225,11 +226,27 @@ function AssignmentList({ values }: { values: string[] }) {
   )
 }
 
-async function UserAccess({ memberId, orgSlug }: { memberId: string; orgSlug: string }) {
-  const detail = await getEffectiveAccessDetail(orgSlug, memberId)
+async function UserAccess({ data, orgSlug }: { data: MemberAdministration; orgSlug: string }) {
+  const detail = await getEffectiveAccessDetail(orgSlug, data.member.id)
   if (!detail)
     return <AdministrationState kind={detail === undefined ? "forbidden" : "not-found"} />
-  return <AccessDetailView detail={detail} />
+  return (
+    <div className="flex min-w-0 flex-col gap-8 pb-6">
+      {data.member.disabledAt ? null : (
+        <AssignmentForm
+          kind="member"
+          memberId={data.member.id}
+          name={data.member.name}
+          orgSlug={orgSlug}
+          roleIds={data.member.roleIds}
+          roles={data.roles}
+          teamIds={data.member.teamIds}
+          teams={data.teams}
+        />
+      )}
+      <AccessDetailView detail={detail} />
+    </div>
+  )
 }
 
 function OwnedAgents({ data, orgSlug }: { data: MemberAdministration; orgSlug: string }) {

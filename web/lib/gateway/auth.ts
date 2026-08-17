@@ -77,26 +77,26 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
     }
   }
 
-  const directRoles = db
+  const assignedRoles = await db
     .select({
       action: schema.permissionGrants.action,
       resource: schema.permissionGrants.resource,
       systemRole: schema.roleScopes.systemRole,
       workspaceId: schema.roleScopes.workspaceId,
     })
-    .from(schema.members)
+    .from(schema.memberRoleAssignments)
     .innerJoin(
-      schema.memberRoles,
+      schema.members,
       and(
-        eq(schema.memberRoles.memberId, schema.members.id),
-        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+        eq(schema.members.id, schema.memberRoleAssignments.memberId),
+        eq(schema.members.organizationId, schema.memberRoleAssignments.organizationId)
       )
     )
     .innerJoin(
       schema.roleScopes,
       and(
-        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
       )
     )
     .leftJoin(
@@ -122,59 +122,8 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
           : isNull(schema.roleScopes.workspaceId)
       )
     )
-  const teamGrants = db
-    .select({ action: schema.permissionGrants.action, resource: schema.permissionGrants.resource })
-    .from(schema.members)
-    .innerJoin(schema.teamMembers, eq(schema.teamMembers.userId, schema.members.userId))
-    .innerJoin(
-      schema.teams,
-      and(
-        eq(schema.teams.id, schema.teamMembers.teamId),
-        eq(schema.teams.organizationId, schema.members.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.teamRoles,
-      and(
-        eq(schema.teamRoles.teamId, schema.teams.id),
-        eq(schema.teamRoles.organizationId, schema.teams.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.roleScopes,
-      and(
-        eq(schema.roleScopes.roleId, schema.teamRoles.roleId),
-        eq(schema.roleScopes.organizationId, schema.teamRoles.organizationId),
-        isNull(schema.roleScopes.systemRole)
-      )
-    )
-    .innerJoin(
-      schema.permissionGrants,
-      and(
-        eq(schema.permissionGrants.roleId, schema.roleScopes.roleId),
-        eq(schema.permissionGrants.organizationId, schema.roleScopes.organizationId),
-        workspaceId
-          ? eq(schema.permissionGrants.workspaceId, workspaceId)
-          : isNull(schema.permissionGrants.workspaceId)
-      )
-    )
-    .where(
-      and(
-        eq(schema.members.userId, state.userId),
-        eq(schema.members.organizationId, state.organizationId),
-        isNull(schema.members.disabledAt),
-        workspaceId
-          ? or(
-              isNull(schema.roleScopes.workspaceId),
-              eq(schema.roleScopes.workspaceId, workspaceId)
-            )
-          : isNull(schema.roleScopes.workspaceId)
-      )
-    )
-
-  const [assignedRoles, assignedTeamGrants] = await Promise.all([directRoles, teamGrants])
   const capabilities = new Set<string>()
-  for (const grant of [...assignedRoles, ...assignedTeamGrants]) {
+  for (const grant of assignedRoles) {
     if (grant.resource && grant.action) {
       capabilities.add(`${grant.resource}.${grant.action}`)
     }

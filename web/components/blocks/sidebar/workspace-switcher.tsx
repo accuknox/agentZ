@@ -84,17 +84,11 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 size="lg"
                 tooltip={active?.name ?? scope.organization.name}
               >
-                {active ? (
-                  <span className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                    <PanelsTopLeft aria-hidden="true" />
-                  </span>
-                ) : (
-                  <OrganizationAvatar
-                    className="size-8"
-                    logo={scope.organization.logo}
-                    name={scope.organization.name}
-                  />
-                )}
+                <OrganizationAvatar
+                  className="size-8"
+                  logo={scope.organization.logo}
+                  name={scope.organization.name}
+                />
                 <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
                   <span
                     className="truncate font-medium"
@@ -103,7 +97,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                     {active?.name ?? scope.organization.name}
                   </span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {active ? scope.organization.name : "Organisation"}
+                    {active ? "Workspace" : "Organisation"}
                   </span>
                 </span>
                 <ChevronsUpDown aria-hidden="true" className="ml-auto" />

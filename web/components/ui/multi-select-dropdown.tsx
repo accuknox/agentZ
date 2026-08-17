@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ComponentType, type SVGProps } from "react"
+import { Fragment, useState, type ComponentType, type SVGProps } from "react"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -30,6 +30,7 @@ type MultiSelectDropdownOptionIdentity =
 
 export type MultiSelectDropdownOption = MultiSelectDropdownOptionIdentity & {
   badge?: string
+  badgeIcon?: ComponentType<SVGProps<SVGSVGElement>>
   group?: string
   label: string
   value: string
@@ -88,13 +89,31 @@ function MultiSelectDropdown({
     value.length === 0
       ? placeholder
       : value.length <= 2
-        ? value
-            .map((item) => {
-              const option = options.find((option) => option.value === item)
-              if (!option) return item
-              return option.badge ? `${option.label} · ${option.badge}` : option.label
-            })
-            .join(", ")
+        ? value.map((item, index) => {
+            const option = options.find((option) => option.value === item)
+            if (!option) {
+              return (
+                <Fragment key={item}>
+                  {index > 0 ? ", " : null}
+                  {item}
+                </Fragment>
+              )
+            }
+            const BadgeIcon = option.badgeIcon
+            return (
+              <Fragment key={item}>
+                {index > 0 ? ", " : null}
+                {option.label}
+                {option.badge ? (
+                  <span className="text-muted-foreground inline-flex items-center gap-1">
+                    <span aria-hidden="true">·</span>
+                    {BadgeIcon ? <BadgeIcon aria-hidden="true" className="size-3.5" /> : null}
+                    {option.badge}
+                  </span>
+                ) : null}
+              </Fragment>
+            )
+          })
         : `${value.length} selected`
 
   return (
@@ -112,7 +131,7 @@ function MultiSelectDropdown({
             className
           )}
         >
-          <span className="line-clamp-1 text-left">{triggerLabel}</span>
+          <span className="flex min-w-0 items-center gap-1 truncate text-left">{triggerLabel}</span>
           <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0" />
         </button>
       </PopoverTrigger>
@@ -150,6 +169,7 @@ function MultiSelectDropdown({
               <CommandGroup heading={group} key={group ?? "options"}>
                 {groupOptions.map((option) => {
                   const Icon = option.icon
+                  const BadgeIcon = option.badgeIcon
                   const checked = selectedValues.has(option.value)
                   const nextValue = checked
                     ? value.filter((item) => item !== option.value)
@@ -178,6 +198,9 @@ function MultiSelectDropdown({
                       <span className="min-w-0 flex-1 truncate">{option.label}</span>
                       {option.badge ? (
                         <Badge className="max-w-40 shrink-0 truncate" variant="secondary">
+                          {BadgeIcon ? (
+                            <BadgeIcon aria-hidden="true" data-icon="inline-start" />
+                          ) : null}
                           {option.badge}
                         </Badge>
                       ) : null}

@@ -2,7 +2,7 @@ import "server-only"
 
 import type { Route } from "next"
 import { cache } from "react"
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm"
+import { and, asc, countDistinct, eq, isNotNull, isNull, or } from "drizzle-orm"
 import { headers } from "next/headers"
 import { getDB, schema } from "@/db"
 import { getAuth } from "@/lib/auth"
@@ -14,6 +14,49 @@ export type OrganizationSummary = {
   slug: string
   superadmin: boolean
   hasAccess: boolean
+}
+
+type OrganizationDatabase = Pick<ReturnType<typeof getDB>, "select">
+
+class FinalSuperadminError extends Error {}
+
+export async function preserveActiveSuperadmin<T>(mutation: () => Promise<T>) {
+  try {
+    return await mutation()
+  } catch (error) {
+    if (error instanceof FinalSuperadminError) {
+      return { error: "final-superadmin" as const }
+    }
+    throw error
+  }
+}
+
+export async function assertActiveSuperadmin(db: OrganizationDatabase, organizationId: string) {
+  const [row] = await db
+    .select({ count: countDistinct(schema.memberRoleAssignments.memberId) })
+    .from(schema.memberRoleAssignments)
+    .innerJoin(
+      schema.members,
+      and(
+        eq(schema.members.id, schema.memberRoleAssignments.memberId),
+        eq(schema.members.organizationId, schema.memberRoleAssignments.organizationId)
+      )
+    )
+    .innerJoin(
+      schema.roleScopes,
+      and(
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.memberRoleAssignments.organizationId, organizationId),
+        isNull(schema.members.disabledAt),
+        eq(schema.roleScopes.systemRole, "superadmin")
+      )
+    )
+  if (!row?.count) throw new FinalSuperadminError()
 }
 
 export async function getOrganizationSession() {
@@ -36,93 +79,47 @@ export async function getOrganizationSession() {
     .innerJoin(schema.organizations, eq(schema.organizations.id, schema.members.organizationId))
     .where(and(eq(schema.members.userId, session.user.id), isNull(schema.members.disabledAt)))
     .orderBy(asc(schema.organizations.createdAt), asc(schema.organizations.id))
-  const systemRoleRows = db
+  const assignmentRows = db
     .selectDistinct({
       organizationId: schema.members.organizationId,
       systemRole: schema.roleScopes.systemRole,
     })
-    .from(schema.members)
+    .from(schema.memberRoleAssignments)
     .innerJoin(
-      schema.memberRoles,
+      schema.members,
       and(
-        eq(schema.memberRoles.memberId, schema.members.id),
-        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+        eq(schema.members.id, schema.memberRoleAssignments.memberId),
+        eq(schema.members.organizationId, schema.memberRoleAssignments.organizationId)
       )
     )
     .innerJoin(
       schema.roleScopes,
       and(
-        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
+      )
+    )
+    .leftJoin(
+      schema.permissionGrants,
+      and(
+        eq(schema.permissionGrants.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.permissionGrants.organizationId, schema.memberRoleAssignments.organizationId)
       )
     )
     .where(
       and(
         eq(schema.members.userId, session.user.id),
         isNull(schema.members.disabledAt),
-        isNotNull(schema.roleScopes.systemRole)
+        or(isNotNull(schema.permissionGrants.resource), isNotNull(schema.roleScopes.systemRole))
       )
     )
-  const directGrantRows = db
-    .selectDistinct({ organizationId: schema.members.organizationId })
-    .from(schema.members)
-    .innerJoin(
-      schema.memberRoles,
-      and(
-        eq(schema.memberRoles.memberId, schema.members.id),
-        eq(schema.memberRoles.organizationId, schema.members.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.permissionGrants,
-      and(
-        eq(schema.permissionGrants.roleId, schema.memberRoles.roleId),
-        eq(schema.permissionGrants.organizationId, schema.memberRoles.organizationId)
-      )
-    )
-    .where(and(eq(schema.members.userId, session.user.id), isNull(schema.members.disabledAt)))
-  const teamGrantRows = db
-    .selectDistinct({ organizationId: schema.members.organizationId })
-    .from(schema.members)
-    .innerJoin(schema.teamMembers, eq(schema.teamMembers.userId, schema.members.userId))
-    .innerJoin(
-      schema.teams,
-      and(
-        eq(schema.teams.id, schema.teamMembers.teamId),
-        eq(schema.teams.organizationId, schema.members.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.teamRoles,
-      and(
-        eq(schema.teamRoles.teamId, schema.teams.id),
-        eq(schema.teamRoles.organizationId, schema.teams.organizationId)
-      )
-    )
-    .innerJoin(
-      schema.permissionGrants,
-      and(
-        eq(schema.permissionGrants.roleId, schema.teamRoles.roleId),
-        eq(schema.permissionGrants.organizationId, schema.teamRoles.organizationId)
-      )
-    )
-    .where(and(eq(schema.members.userId, session.user.id), isNull(schema.members.disabledAt)))
-  const [rows, systemRoles, directGrants, teamGrants] = await Promise.all([
-    organizationRows,
-    systemRoleRows,
-    directGrantRows,
-    teamGrantRows,
-  ])
+  const [rows, assignments] = await Promise.all([organizationRows, assignmentRows])
   const superadminIds = new Set(
-    systemRoles
+    assignments
       .filter(({ systemRole }) => systemRole === "superadmin")
       .map(({ organizationId }) => organizationId)
   )
-  const accessibleIds = new Set([
-    ...systemRoles.map(({ organizationId }) => organizationId),
-    ...directGrants.map(({ organizationId }) => organizationId),
-    ...teamGrants.map(({ organizationId }) => organizationId),
-  ])
+  const accessibleIds = new Set(assignments.map(({ organizationId }) => organizationId))
   const organizations: OrganizationSummary[] = rows.map((organization) => ({
     ...organization,
     hasAccess: accessibleIds.has(organization.id),

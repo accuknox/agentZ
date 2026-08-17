@@ -6,6 +6,7 @@ import {
   and,
   asc,
   count,
+  countDistinct,
   desc,
   eq,
   exists,
@@ -21,9 +22,13 @@ import { headers } from "next/headers"
 import { cache } from "react"
 import { z } from "zod"
 import { getDB, schema } from "@/db"
-import { resolveOrganizationSlug } from "@/data/organizations"
+import {
+  assertActiveSuperadmin,
+  preserveActiveSuperadmin,
+  resolveOrganizationSlug,
+} from "@/data/organizations"
 import { analyzeDestructiveImpact, type DestructiveTarget } from "@/data/operations"
-import { getAuth } from "@/lib/auth"
+import { getAuth, projectMemberRoleTransports } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { invitationExpiresIn } from "@/lib/organization-invitation"
@@ -54,7 +59,9 @@ export type ActiveMember = {
   createdAt: string
   disabledAt: string | null
   roles: string[]
+  roleIds: string[]
   teams: string[]
+  teamIds: string[]
   ownedAgents: number
   apiKeys: number
   sharedAgents: number
@@ -75,7 +82,12 @@ export type InvitationRow = {
 }
 
 export type AssignmentOption = { id: string; name: string }
-export type ScopedAssignmentOption = { id: string; name: string; scope: string }
+export type ScopedAssignmentOption = {
+  id: string
+  name: string
+  scope: string
+  workspace: string | null
+}
 
 export type MessageActorProfile = { id: string; image: string | null; name: string }
 
@@ -102,6 +114,8 @@ export async function getMessageActorProfiles(userIds: string[]): Promise<Messag
 export type MemberAdministration = {
   organization: { id: string; name: string; slug: string }
   member: ActiveMember
+  roles: ScopedAssignmentOption[]
+  teams: AssignmentOption[]
   self: boolean
   agents: { name: string; workspace: string; workspaceSlug: string; updatedAt: string }[]
   apiKeys: {
@@ -130,7 +144,7 @@ export type SocialAdmission = {
   githubConfigured: boolean
   googleDomains: string[]
   githubRules: { id: string; organization: string; team: string | null }[]
-  roles: { id: string; name: string; scope: string; workspaceIds: string[] }[]
+  roles: (ScopedAssignmentOption & { workspaceIds: string[] })[]
   teams: (AssignmentOption & { workspaceIds: string[] })[]
   workspaces: AssignmentOption[]
   defaultRoleIds: string[]
@@ -152,19 +166,19 @@ async function hasActiveSuperadminAuthority(
 ) {
   const [authority] = await db
     .select({ memberId: schema.members.id })
-    .from(schema.members)
+    .from(schema.memberRoleAssignments)
     .innerJoin(
-      schema.memberRoles,
+      schema.members,
       and(
-        eq(schema.memberRoles.memberId, schema.members.id),
-        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+        eq(schema.memberRoleAssignments.memberId, schema.members.id),
+        eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
       )
     )
     .innerJoin(
       schema.roleScopes,
       and(
-        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
       )
     )
     .where(
@@ -321,7 +335,12 @@ export async function getMemberDirectory(
           eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
         )
       )
-      .where(eq(schema.roleScopes.organizationId, actor.organization.id))
+      .where(
+        and(
+          eq(schema.roleScopes.organizationId, actor.organization.id),
+          or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
+        )
+      )
       .orderBy(
         sql`${schema.workspaces.name} ASC NULLS FIRST`,
         asc(schema.roleScopes.displayName),
@@ -341,81 +360,106 @@ export async function getMemberDirectory(
   const memberIds = memberPage.map((member) => member.id)
   const userIds = memberPage.map((member) => member.userId)
   const invitationIds = invitationPage.map((invitation) => invitation.id)
-  const [memberRoles, memberTeams, invitationRoles, invitationTeams] = await Promise.all([
-    memberIds.length
-      ? db
-          .select({
-            memberId: schema.memberRoles.memberId,
-            name: schema.roleScopes.displayName,
-            systemRole: schema.roleScopes.systemRole,
-          })
-          .from(schema.memberRoles)
-          .innerJoin(
-            schema.roleScopes,
-            and(
-              eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-              eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+  const [memberRoles, memberTeams, invitationRoles, invitationTeams, superadminRoles] =
+    await Promise.all([
+      memberIds.length
+        ? db
+            .select({
+              memberId: schema.memberRoles.memberId,
+              name: schema.roleScopes.displayName,
+              roleId: schema.memberRoles.roleId,
+            })
+            .from(schema.memberRoles)
+            .innerJoin(
+              schema.roleScopes,
+              and(
+                eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
+                eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+              )
             )
-          )
-          .where(
-            and(
-              eq(schema.memberRoles.organizationId, actor.organization.id),
-              inArray(schema.memberRoles.memberId, memberIds)
+            .where(
+              and(
+                eq(schema.memberRoles.organizationId, actor.organization.id),
+                inArray(schema.memberRoles.memberId, memberIds)
+              )
             )
-          )
-      : [],
-    userIds.length
-      ? db
-          .select({ userId: schema.teamMembers.userId, name: schema.teams.name })
-          .from(schema.teamMembers)
-          .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
-          .where(
-            and(
-              eq(schema.teams.organizationId, actor.organization.id),
-              inArray(schema.teamMembers.userId, userIds)
+        : [],
+      userIds.length
+        ? db
+            .select({
+              userId: schema.teamMembers.userId,
+              name: schema.teams.name,
+              teamId: schema.teamMembers.teamId,
+            })
+            .from(schema.teamMembers)
+            .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+            .where(
+              and(
+                eq(schema.teams.organizationId, actor.organization.id),
+                inArray(schema.teamMembers.userId, userIds)
+              )
             )
-          )
-      : [],
-    invitationIds.length
-      ? db
-          .select({
-            invitationId: schema.invitationRoles.invitationId,
-            name: schema.roleScopes.displayName,
-          })
-          .from(schema.invitationRoles)
-          .innerJoin(
-            schema.roleScopes,
-            and(
-              eq(schema.roleScopes.roleId, schema.invitationRoles.roleId),
-              eq(schema.roleScopes.organizationId, schema.invitationRoles.organizationId)
+        : [],
+      invitationIds.length
+        ? db
+            .select({
+              invitationId: schema.invitationRoles.invitationId,
+              name: schema.roleScopes.displayName,
+            })
+            .from(schema.invitationRoles)
+            .innerJoin(
+              schema.roleScopes,
+              and(
+                eq(schema.roleScopes.roleId, schema.invitationRoles.roleId),
+                eq(schema.roleScopes.organizationId, schema.invitationRoles.organizationId)
+              )
             )
-          )
-          .where(inArray(schema.invitationRoles.invitationId, invitationIds))
-      : [],
-    invitationIds.length
-      ? db
-          .select({
-            invitationId: schema.invitationTeams.invitationId,
-            name: schema.teams.name,
-          })
-          .from(schema.invitationTeams)
-          .innerJoin(schema.teams, eq(schema.teams.id, schema.invitationTeams.teamId))
-          .where(inArray(schema.invitationTeams.invitationId, invitationIds))
-      : [],
-  ])
+            .where(inArray(schema.invitationRoles.invitationId, invitationIds))
+        : [],
+      invitationIds.length
+        ? db
+            .select({
+              invitationId: schema.invitationTeams.invitationId,
+              name: schema.teams.name,
+            })
+            .from(schema.invitationTeams)
+            .innerJoin(schema.teams, eq(schema.teams.id, schema.invitationTeams.teamId))
+            .where(inArray(schema.invitationTeams.invitationId, invitationIds))
+        : [],
+      memberIds.length
+        ? db
+            .selectDistinct({ memberId: schema.memberRoleAssignments.memberId })
+            .from(schema.memberRoleAssignments)
+            .innerJoin(
+              schema.roleScopes,
+              and(
+                eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+                eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
+              )
+            )
+            .where(
+              and(
+                eq(schema.memberRoleAssignments.organizationId, actor.organization.id),
+                inArray(schema.memberRoleAssignments.memberId, memberIds),
+                eq(schema.roleScopes.systemRole, "superadmin")
+              )
+            )
+        : [],
+    ])
 
   const rolesByMember = new Map<string, string[]>()
-  const superadminMembers = new Set<string>()
+  const roleIdsByMember = new Map<string, string[]>()
   for (const role of memberRoles) {
     rolesByMember.set(role.memberId, [...(rolesByMember.get(role.memberId) ?? []), role.name])
-    if (role.systemRole === "superadmin") {
-      superadminMembers.add(role.memberId)
-    }
+    roleIdsByMember.set(role.memberId, [...(roleIdsByMember.get(role.memberId) ?? []), role.roleId])
   }
+  const superadminMembers = new Set(superadminRoles.map(({ memberId }) => memberId))
 
   const teamsByUser = new Map<string, string[]>()
+  const teamIdsByUser = new Map<string, string[]>()
   for (const team of memberTeams) {
     teamsByUser.set(team.userId, [...(teamsByUser.get(team.userId) ?? []), team.name])
+    teamIdsByUser.set(team.userId, [...(teamIdsByUser.get(team.userId) ?? []), team.teamId])
   }
 
   const rolesByInvitation = new Map<string, string[]>()
@@ -439,14 +483,14 @@ export async function getMemberDirectory(
   for (const member of memberPage) {
     const row = {
       ...member,
-      apiKeys: member.apiKeys,
       createdAt: member.createdAt.toISOString(),
       disabledAt: member.disabledAt?.toISOString() ?? null,
       lastActivity: member.lastActivity?.toISOString() ?? null,
-      ownedAgents: member.ownedAgents,
+      roleIds: roleIdsByMember.get(member.id) ?? [],
       roles: rolesByMember.get(member.id) ?? [],
       superadmin: superadminMembers.has(member.id),
       teams: teamsByUser.get(member.userId) ?? [],
+      teamIds: teamIdsByUser.get(member.userId) ?? [],
     }
     if (member.disabledAt) {
       disabled.push(row)
@@ -483,9 +527,9 @@ export async function getMemberDirectory(
     })),
     organization: actor.organization,
     nextPageToken,
-    roles: roleRows.map(({ workspace, ...role }) => ({
+    roles: roleRows.map((role) => ({
       ...role,
-      scope: workspace === null ? "Organisation" : `Workspace · ${workspace}`,
+      scope: role.workspace === null ? "Organisation" : `Workspace · ${role.workspace}`,
     })),
     teams: teamRows,
   }
@@ -587,10 +631,245 @@ export const getMemberAdministration = cache(
       })),
       member,
       organization: directory.organization,
+      roles: directory.roles,
       self: directory.actorUserId === member.userId,
+      teams: directory.teams,
     }
   }
 )
+
+export async function saveMemberAssignments(
+  orgSlug: string,
+  memberId: string,
+  input: {
+    roleIds: string[]
+    teamIds: string[]
+    previousRoleIds: string[]
+    previousTeamIds: string[]
+  }
+) {
+  const actor = await superadminActor(orgSlug)
+  if (!actor) return { error: "forbidden" as const }
+
+  const roleIds = [...new Set(input.roleIds)].sort()
+  const teamIds = [...new Set(input.teamIds)].sort()
+  if (roleIds.length + teamIds.length === 0) return { error: "assignment-required" as const }
+
+  return preserveActiveSuperadmin(() =>
+    getDB().transaction(async (tx) => {
+      await tx
+        .select({ id: schema.organizations.id })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, actor.organization.id))
+        .for("update")
+      const authorized = await hasActiveSuperadminAuthority(tx, actor.organization.id, actor.userId)
+      if (!authorized) return { error: "forbidden" as const }
+
+      const [member] = await tx
+        .select({ id: schema.members.id, userId: schema.members.userId })
+        .from(schema.members)
+        .where(
+          and(
+            eq(schema.members.id, memberId),
+            eq(schema.members.organizationId, actor.organization.id),
+            isNull(schema.members.disabledAt)
+          )
+        )
+        .for("update")
+        .limit(1)
+      if (!member) return { error: "not-found" as const }
+
+      const [roles, teams, currentRoles, currentTeams] = await Promise.all([
+        roleIds.length
+          ? tx
+              .select({
+                id: schema.roleScopes.roleId,
+                systemRole: schema.roleScopes.systemRole,
+              })
+              .from(schema.roleScopes)
+              .leftJoin(
+                schema.workspaces,
+                and(
+                  eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+                  eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
+                )
+              )
+              .where(
+                and(
+                  eq(schema.roleScopes.organizationId, actor.organization.id),
+                  inArray(schema.roleScopes.roleId, roleIds),
+                  or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
+                )
+              )
+          : [],
+        teamIds.length
+          ? tx
+              .select({ id: schema.teams.id })
+              .from(schema.teams)
+              .where(
+                and(
+                  eq(schema.teams.organizationId, actor.organization.id),
+                  inArray(schema.teams.id, teamIds)
+                )
+              )
+          : [],
+        tx
+          .select({ roleId: schema.memberRoles.roleId })
+          .from(schema.memberRoles)
+          .innerJoin(
+            schema.roleScopes,
+            and(
+              eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
+              eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+            )
+          )
+          .where(
+            and(
+              eq(schema.memberRoles.memberId, member.id),
+              eq(schema.memberRoles.organizationId, actor.organization.id)
+            )
+          ),
+        tx
+          .select({ teamId: schema.teamMembers.teamId })
+          .from(schema.teamMembers)
+          .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+          .where(
+            and(
+              eq(schema.teamMembers.userId, member.userId),
+              eq(schema.teams.organizationId, actor.organization.id)
+            )
+          ),
+      ])
+      if (roles.length !== roleIds.length || teams.length !== teamIds.length) {
+        return { error: "invalid" as const }
+      }
+
+      const currentRoleIds = currentRoles.map(({ roleId }) => roleId).sort()
+      const currentTeamIds = currentTeams.map(({ teamId }) => teamId).sort()
+      if (
+        currentRoleIds.join("\0") !== [...new Set(input.previousRoleIds)].sort().join("\0") ||
+        currentTeamIds.join("\0") !== [...new Set(input.previousTeamIds)].sort().join("\0")
+      ) {
+        return { error: "stale" as const }
+      }
+
+      const removedRoleIds = currentRoleIds.filter((roleId) => !roleIds.includes(roleId))
+      const addedRoleIds = roleIds.filter((roleId) => !currentRoleIds.includes(roleId))
+      const removedTeamIds = currentTeamIds.filter((teamId) => !teamIds.includes(teamId))
+      const addedTeamIds = teamIds.filter((teamId) => !currentTeamIds.includes(teamId))
+      if (removedTeamIds.length) {
+        const activeTeams = await tx
+          .select({
+            activeMembers: count(),
+            name: schema.teams.name,
+            teamId: schema.teams.id,
+          })
+          .from(schema.teams)
+          .innerJoin(schema.teamMembers, eq(schema.teamMembers.teamId, schema.teams.id))
+          .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
+          .where(
+            and(
+              eq(schema.teams.organizationId, actor.organization.id),
+              eq(schema.members.organizationId, actor.organization.id),
+              inArray(schema.teams.id, removedTeamIds),
+              isNull(schema.members.disabledAt)
+            )
+          )
+          .groupBy(schema.teams.id, schema.teams.name)
+        const finalTeams = activeTeams.filter(({ activeMembers }) => activeMembers === 1)
+        if (finalTeams.length) {
+          return {
+            error: "final-team-member" as const,
+            teams: finalTeams.map(({ name }) => name),
+          }
+        }
+      }
+
+      if (removedRoleIds.length) {
+        await tx
+          .delete(schema.memberRoles)
+          .where(
+            and(
+              eq(schema.memberRoles.memberId, member.id),
+              eq(schema.memberRoles.organizationId, actor.organization.id),
+              inArray(schema.memberRoles.roleId, removedRoleIds)
+            )
+          )
+      }
+      if (addedRoleIds.length) {
+        await tx.insert(schema.memberRoles).values(
+          addedRoleIds.map((roleId) => ({
+            memberId: member.id,
+            organizationId: actor.organization.id,
+            roleId,
+          }))
+        )
+      }
+      if (removedTeamIds.length) {
+        await tx
+          .delete(schema.teamMembers)
+          .where(
+            and(
+              eq(schema.teamMembers.userId, member.userId),
+              inArray(schema.teamMembers.teamId, removedTeamIds)
+            )
+          )
+      }
+      if (addedTeamIds.length) {
+        await tx
+          .insert(schema.teamMembers)
+          .values(
+            addedTeamIds.map((teamId) => ({ id: randomUUID(), teamId, userId: member.userId }))
+          )
+      }
+      const affectedTeamIds = [...removedTeamIds, ...addedTeamIds]
+      if (affectedTeamIds.length) {
+        await tx
+          .update(schema.teams)
+          .set({ updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.teams.organizationId, actor.organization.id),
+              inArray(schema.teams.id, affectedTeamIds)
+            )
+          )
+      }
+      await assertActiveSuperadmin(tx, actor.organization.id)
+      await projectMemberRoleTransports(tx, actor.organization.id, [member.id])
+      await tx.insert(schema.eventTrailEvents).values({
+        action: "membership.assign",
+        actorId: actor.userId,
+        actorType: "user",
+        after: [
+          ...roleIds.map((roleId) => ({ field: "role" as const, value: `Role · ${roleId}` })),
+          ...teamIds.map((teamId) => ({ field: "role" as const, value: `Team · ${teamId}` })),
+        ],
+        before: [
+          ...currentRoleIds.map((roleId) => ({
+            field: "role" as const,
+            value: `Role · ${roleId}`,
+          })),
+          ...currentTeamIds.map((teamId) => ({
+            field: "role" as const,
+            value: `Team · ${teamId}`,
+          })),
+        ],
+        category: "membership",
+        id: `event-trail-${randomUUID()}`,
+        organizationId: actor.organization.id,
+        result: "succeeded",
+        targetId: member.id,
+        targetType: "organization_membership",
+      })
+      return {
+        memberId: member.id,
+        organizationId: actor.organization.id,
+        roleIds: [...new Set([...currentRoleIds, ...roleIds])],
+        teamIds: [...new Set([...currentTeamIds, ...teamIds])],
+      }
+    })
+  )
+}
 
 type InvitationAccess = { roleIds: string[]; teamIds: string[] }
 
@@ -732,7 +1011,11 @@ export async function restoreMembership(orgSlug: string, memberId: string) {
     if (!authorized) return { error: "forbidden" as const }
 
     const [member] = await tx
-      .select({ disabledAt: schema.members.disabledAt, id: schema.members.id })
+      .select({
+        disabledAt: schema.members.disabledAt,
+        id: schema.members.id,
+        userId: schema.members.userId,
+      })
       .from(schema.members)
       .where(
         and(
@@ -748,6 +1031,31 @@ export async function restoreMembership(orgSlug: string, memberId: string) {
     if (!member.disabledAt) {
       return { error: "already-active" as const }
     }
+
+    const [roles, teams] = await Promise.all([
+      tx
+        .select({ id: schema.memberRoles.roleId })
+        .from(schema.memberRoles)
+        .where(
+          and(
+            eq(schema.memberRoles.memberId, member.id),
+            eq(schema.memberRoles.organizationId, actor.organization.id)
+          )
+        )
+        .limit(1),
+      tx
+        .select({ id: schema.teamMembers.teamId })
+        .from(schema.teamMembers)
+        .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+        .where(
+          and(
+            eq(schema.teamMembers.userId, member.userId),
+            eq(schema.teams.organizationId, actor.organization.id)
+          )
+        )
+        .limit(1),
+    ])
+    if (roles.length + teams.length === 0) return { error: "assignment-required" as const }
 
     await tx
       .update(schema.members)
@@ -846,39 +1154,39 @@ export async function removeMembership(
     }
 
     const [superadmin] = await tx
-      .select({ memberId: schema.memberRoles.memberId })
-      .from(schema.memberRoles)
+      .select({ memberId: schema.memberRoleAssignments.memberId })
+      .from(schema.memberRoleAssignments)
       .innerJoin(
         schema.roleScopes,
         and(
-          eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-          eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+          eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+          eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
         )
       )
       .where(
         and(
-          eq(schema.memberRoles.organizationId, actor.organization.id),
-          eq(schema.memberRoles.memberId, member.id),
+          eq(schema.memberRoleAssignments.organizationId, actor.organization.id),
+          eq(schema.memberRoleAssignments.memberId, member.id),
           eq(schema.roleScopes.systemRole, "superadmin")
         )
       )
       .limit(1)
     if (superadmin && !member.disabledAt) {
       const [superadminCount] = await tx
-        .select({ activeSuperadmins: count() })
-        .from(schema.members)
+        .select({ activeSuperadmins: countDistinct(schema.memberRoleAssignments.memberId) })
+        .from(schema.memberRoleAssignments)
         .innerJoin(
-          schema.memberRoles,
+          schema.members,
           and(
-            eq(schema.memberRoles.memberId, schema.members.id),
-            eq(schema.memberRoles.organizationId, schema.members.organizationId)
+            eq(schema.memberRoleAssignments.memberId, schema.members.id),
+            eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
           )
         )
         .innerJoin(
           schema.roleScopes,
           and(
-            eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-            eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+            eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+            eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
           )
         )
         .where(
@@ -1202,11 +1510,12 @@ export async function getSocialAdmission(orgSlug: string): Promise<SocialAdmissi
   for (const grant of workspaceGrants) {
     if (grant.workspaceId) roleWorkspaceIds.get(grant.roleId)?.add(grant.workspaceId)
   }
-  const roles = roleRows.map(({ id, name, workspace }) => ({
-    id,
-    name,
-    scope: workspace === null ? "Organisation" : `Workspace · ${workspace}`,
-    workspaceIds: [...(roleWorkspaceIds.get(id) ?? [])].sort(),
+  const roles = roleRows.map((role) => ({
+    id: role.id,
+    name: role.name,
+    scope: role.workspace === null ? "Organisation" : `Workspace · ${role.workspace}`,
+    workspace: role.workspace,
+    workspaceIds: [...(roleWorkspaceIds.get(role.id) ?? [])].sort(),
   }))
   const teams = teamRows.map((team) => {
     const workspaceIds = new Set<string>()

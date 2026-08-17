@@ -270,19 +270,19 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
 
     const [superadmin] = await tx
       .select({ memberId: schema.members.id })
-      .from(schema.members)
+      .from(schema.memberRoleAssignments)
       .innerJoin(
-        schema.memberRoles,
+        schema.members,
         and(
-          eq(schema.memberRoles.memberId, schema.members.id),
-          eq(schema.memberRoles.organizationId, schema.members.organizationId)
+          eq(schema.memberRoleAssignments.memberId, schema.members.id),
+          eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
         )
       )
       .innerJoin(
         schema.roleScopes,
         and(
-          eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-          eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+          eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+          eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
         )
       )
       .where(

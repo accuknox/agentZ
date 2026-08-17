@@ -4,7 +4,17 @@ import Link from "next/link"
 import { Fragment, useActionState, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
-import { ArrowRight, CircleAlert, Info, Plus, Save, Shield, UsersRound, X } from "lucide-react"
+import {
+  ArrowRight,
+  CircleAlert,
+  Info,
+  PanelsTopLeft,
+  Plus,
+  Save,
+  Shield,
+  UsersRound,
+  X,
+} from "lucide-react"
 import { socialAdmissionAction, type SocialAdmissionFormState } from "@/app/(scoped)/orgs/actions"
 import type { SocialAdmission } from "@/data/members"
 import type { EventTrailFilter } from "@/lib/gateway/client"
@@ -238,7 +248,8 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                     setDirty(true)
                   }}
                   options={data.roles.map((role) => ({
-                    badge: role.scope,
+                    badge: role.workspace ?? role.scope,
+                    badgeIcon: role.workspace ? PanelsTopLeft : undefined,
                     group: role.scope,
                     icon: Shield,
                     label: role.name,

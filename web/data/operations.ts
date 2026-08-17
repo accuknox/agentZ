@@ -2,7 +2,7 @@ import "server-only"
 
 import { createHash, randomUUID } from "node:crypto"
 import type { UrlObject } from "node:url"
-import { and, asc, eq, exists, inArray, isNull, ne, or } from "drizzle-orm"
+import { and, asc, eq, exists, inArray, isNull, ne, not, notInArray, or } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 
@@ -43,6 +43,61 @@ export type DestructiveImpact = {
 
 type ImpactDatabase = Pick<ReturnType<typeof getDB>, "select" | "selectDistinct">
 
+export async function findUnassignedActiveMembers(
+  db: ImpactDatabase,
+  organizationId: string,
+  memberIds: string[],
+  excluded: { roleIds?: string[]; teamIds?: string[] }
+) {
+  if (!memberIds.length) return []
+
+  return db
+    .select({ id: schema.members.id, name: schema.users.name })
+    .from(schema.members)
+    .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
+    .where(
+      and(
+        eq(schema.members.organizationId, organizationId),
+        isNull(schema.members.disabledAt),
+        inArray(schema.members.id, memberIds),
+        not(
+          exists(
+            db
+              .select({ id: schema.memberRoles.memberId })
+              .from(schema.memberRoles)
+              .where(
+                and(
+                  eq(schema.memberRoles.memberId, schema.members.id),
+                  eq(schema.memberRoles.organizationId, organizationId),
+                  excluded.roleIds?.length
+                    ? notInArray(schema.memberRoles.roleId, excluded.roleIds)
+                    : undefined
+                )
+              )
+          )
+        ),
+        not(
+          exists(
+            db
+              .select({ id: schema.teamMembers.id })
+              .from(schema.teamMembers)
+              .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+              .where(
+                and(
+                  eq(schema.teamMembers.userId, schema.members.userId),
+                  eq(schema.teams.organizationId, organizationId),
+                  excluded.teamIds?.length
+                    ? notInArray(schema.teamMembers.teamId, excluded.teamIds)
+                    : undefined
+                )
+              )
+          )
+        )
+      )
+    )
+    .orderBy(asc(schema.users.name), asc(schema.members.id))
+}
+
 export type WorkspaceAccessLoss = {
   memberId: string
   userId: string
@@ -77,119 +132,60 @@ async function findWorkspaceAccessLosses(
 ) {
   const userIds = [...new Set(candidates.map(({ userId }) => userId))]
   if (!userIds.length) return []
-  const [superadmins, directScopes, directGrants, teamScopes, teamGrants] = await Promise.all([
-    db
-      .select({ userId: schema.members.userId })
-      .from(schema.members)
-      .innerJoin(
-        schema.memberRoles,
-        and(
-          eq(schema.memberRoles.memberId, schema.members.id),
-          eq(schema.memberRoles.organizationId, schema.members.organizationId)
-        )
+  const assignments = await db
+    .select({
+      grantWorkspaceId: schema.permissionGrants.workspaceId,
+      roleWorkspaceId: schema.roleScopes.workspaceId,
+      systemRole: schema.roleScopes.systemRole,
+      userId: schema.members.userId,
+    })
+    .from(schema.memberRoleAssignments)
+    .innerJoin(
+      schema.members,
+      and(
+        eq(schema.members.id, schema.memberRoleAssignments.memberId),
+        eq(schema.members.organizationId, schema.memberRoleAssignments.organizationId)
       )
-      .innerJoin(
-        schema.roleScopes,
-        and(
-          eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-          eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.members.organizationId, organizationId),
-          inArray(schema.members.userId, userIds),
-          isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.systemRole, "superadmin"),
-          excluded.roleId ? ne(schema.memberRoles.roleId, excluded.roleId) : undefined
-        )
-      ),
-    db
-      .select({ userId: schema.members.userId, workspaceId: schema.roleScopes.workspaceId })
-      .from(schema.members)
-      .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
-      .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
-      .where(
-        and(
-          eq(schema.members.organizationId, organizationId),
-          eq(schema.memberRoles.organizationId, organizationId),
-          eq(schema.roleScopes.organizationId, organizationId),
-          inArray(schema.members.userId, userIds),
-          isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.systemRole, "workspace_admin"),
-          excluded.roleId ? ne(schema.memberRoles.roleId, excluded.roleId) : undefined
-        )
-      ),
-    db
-      .select({ userId: schema.members.userId, workspaceId: schema.permissionGrants.workspaceId })
-      .from(schema.members)
-      .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
-      .innerJoin(
-        schema.permissionGrants,
-        and(
-          eq(schema.permissionGrants.roleId, schema.memberRoles.roleId),
-          eq(schema.permissionGrants.organizationId, schema.memberRoles.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.members.organizationId, organizationId),
-          eq(schema.memberRoles.organizationId, organizationId),
-          inArray(schema.members.userId, userIds),
-          isNull(schema.members.disabledAt),
-          excluded.roleId ? ne(schema.memberRoles.roleId, excluded.roleId) : undefined
-        )
-      ),
-    db
-      .select({ userId: schema.members.userId, workspaceId: schema.roleScopes.workspaceId })
-      .from(schema.members)
-      .innerJoin(schema.teamMembers, eq(schema.teamMembers.userId, schema.members.userId))
-      .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
-      .innerJoin(schema.teamRoles, eq(schema.teamRoles.teamId, schema.teams.id))
-      .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.teamRoles.roleId))
-      .where(
-        and(
-          eq(schema.members.organizationId, organizationId),
-          eq(schema.teams.organizationId, organizationId),
-          eq(schema.teamRoles.organizationId, organizationId),
-          eq(schema.roleScopes.organizationId, organizationId),
-          inArray(schema.members.userId, userIds),
-          isNull(schema.members.disabledAt),
-          eq(schema.roleScopes.systemRole, "workspace_admin"),
-          excluded.teamId ? ne(schema.teams.id, excluded.teamId) : undefined,
-          excluded.roleId ? ne(schema.teamRoles.roleId, excluded.roleId) : undefined
-        )
-      ),
-    db
-      .select({ userId: schema.members.userId, workspaceId: schema.permissionGrants.workspaceId })
-      .from(schema.members)
-      .innerJoin(schema.teamMembers, eq(schema.teamMembers.userId, schema.members.userId))
-      .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
-      .innerJoin(schema.teamRoles, eq(schema.teamRoles.teamId, schema.teams.id))
-      .innerJoin(
-        schema.permissionGrants,
-        and(
-          eq(schema.permissionGrants.roleId, schema.teamRoles.roleId),
-          eq(schema.permissionGrants.organizationId, schema.teamRoles.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.members.organizationId, organizationId),
-          eq(schema.teams.organizationId, organizationId),
-          eq(schema.teamRoles.organizationId, organizationId),
-          inArray(schema.members.userId, userIds),
-          isNull(schema.members.disabledAt),
-          excluded.teamId ? ne(schema.teams.id, excluded.teamId) : undefined,
-          excluded.roleId ? ne(schema.teamRoles.roleId, excluded.roleId) : undefined
-        )
-      ),
-  ])
-  const administrators = new Set(superadmins.map(({ userId }) => userId))
-  const access = new Set(
-    [...directScopes, ...directGrants, ...teamScopes, ...teamGrants].flatMap(
-      ({ userId, workspaceId }) => (workspaceId ? [`${userId}:${workspaceId}`] : [])
     )
+    .innerJoin(
+      schema.roleScopes,
+      and(
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
+      )
+    )
+    .leftJoin(
+      schema.permissionGrants,
+      and(
+        eq(schema.permissionGrants.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.permissionGrants.organizationId, schema.memberRoleAssignments.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.memberRoleAssignments.organizationId, organizationId),
+        inArray(schema.members.userId, userIds),
+        isNull(schema.members.disabledAt),
+        excluded.roleId ? ne(schema.memberRoleAssignments.roleId, excluded.roleId) : undefined,
+        excluded.teamId
+          ? or(
+              isNull(schema.memberRoleAssignments.teamId),
+              ne(schema.memberRoleAssignments.teamId, excluded.teamId)
+            )
+          : undefined
+      )
+    )
+  const administrators = new Set(
+    assignments.filter(({ systemRole }) => systemRole === "superadmin").map(({ userId }) => userId)
+  )
+  const access = new Set(
+    assignments.flatMap(({ grantWorkspaceId, roleWorkspaceId, systemRole, userId }) => {
+      const workspaceIds = [grantWorkspaceId]
+      if (systemRole === "workspace_admin") workspaceIds.push(roleWorkspaceId)
+      return workspaceIds.flatMap((workspaceId) =>
+        workspaceId ? [`${userId}:${workspaceId}`] : []
+      )
+    })
   )
   return candidates.filter(
     ({ userId, workspaceId }) =>
@@ -1288,15 +1284,18 @@ export async function deleteWorkspace(
       .for("update")
     const [authority] = await tx
       .select({ id: schema.members.id })
-      .from(schema.members)
-      .innerJoin(schema.memberRoles, eq(schema.memberRoles.memberId, schema.members.id))
-      .innerJoin(schema.roleScopes, eq(schema.roleScopes.roleId, schema.memberRoles.roleId))
+      .from(schema.memberRoleAssignments)
+      .innerJoin(schema.members, eq(schema.members.id, schema.memberRoleAssignments.memberId))
+      .innerJoin(
+        schema.roleScopes,
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId)
+      )
       .where(
         and(
           eq(schema.members.organizationId, result.organization.id),
           eq(schema.members.userId, result.organizationSession.session.user.id),
           isNull(schema.members.disabledAt),
-          eq(schema.memberRoles.organizationId, result.organization.id),
+          eq(schema.memberRoleAssignments.organizationId, result.organization.id),
           eq(schema.roleScopes.organizationId, result.organization.id),
           eq(schema.roleScopes.systemRole, "superadmin")
         )
@@ -1330,6 +1329,40 @@ export async function deleteWorkspace(
     if (!impact) return { error: "not-found" as const }
     if (impact.confirmation !== confirmation || impact.fingerprint !== fingerprint) {
       return { error: "stale-preview" as const }
+    }
+
+    const roleIds = await tx
+      .select({ id: schema.roleScopes.roleId })
+      .from(schema.roleScopes)
+      .where(
+        and(
+          eq(schema.roleScopes.organizationId, result.organization.id),
+          eq(schema.roleScopes.workspaceId, workspace.id)
+        )
+      )
+    if (roleIds.length) {
+      const ids = roleIds.map(({ id }) => id)
+      const assignments = await tx
+        .select({ memberId: schema.memberRoles.memberId })
+        .from(schema.memberRoles)
+        .where(
+          and(
+            eq(schema.memberRoles.organizationId, result.organization.id),
+            inArray(schema.memberRoles.roleId, ids)
+          )
+        )
+      const unassigned = await findUnassignedActiveMembers(
+        tx,
+        result.organization.id,
+        [...new Set(assignments.map(({ memberId }) => memberId))],
+        { roleIds: ids }
+      )
+      if (unassigned.length) {
+        return {
+          error: "assignment-required" as const,
+          members: unassigned.map(({ name }) => name),
+        }
+      }
     }
 
     const agents = await tx
@@ -1374,15 +1407,6 @@ export async function deleteWorkspace(
         and(
           eq(schema.agentOwners.organizationId, result.organization.id),
           eq(schema.agentOwners.workspaceId, workspace.id)
-        )
-      )
-    const roleIds = await tx
-      .select({ id: schema.roleScopes.roleId })
-      .from(schema.roleScopes)
-      .where(
-        and(
-          eq(schema.roleScopes.organizationId, result.organization.id),
-          eq(schema.roleScopes.workspaceId, workspace.id)
         )
       )
     if (roleIds.length) {

@@ -4,7 +4,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
-import { CircleAlert, Save, Shield } from "lucide-react"
+import { CircleAlert, PanelsTopLeft, Save, Shield } from "lucide-react"
 import { teamFormAction, type TeamFormState } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,7 @@ import { toast } from "sonner"
 export type TeamFormData = {
   team?: { id: string; name: string; updatedAt: string; memberIds: string[]; roleIds: string[] }
   members: { id: string; name: string | null; email: string; image: string | null }[]
-  roles: { id: string; name: string; scope: string }[]
+  roles: { id: string; name: string; scope: string; workspace: string | null }[]
 }
 
 export function TeamForm({
@@ -52,7 +52,8 @@ export function TeamForm({
     value: member.id,
   }))
   const roleOptions = data.roles.map((role) => ({
-    badge: role.scope,
+    badge: role.workspace ?? role.scope,
+    badgeIcon: role.workspace ? PanelsTopLeft : undefined,
     group: role.scope,
     icon: Shield,
     label: role.name,
@@ -116,9 +117,7 @@ export function TeamForm({
             <FieldError>{state.errors?.memberIds?.[0]}</FieldError>
           </Field>
           <Field data-invalid={Boolean(state.errors?.roleIds)}>
-            <FieldLabel htmlFor="team-roles" required>
-              Roles
-            </FieldLabel>
+            <FieldLabel htmlFor="team-roles">Roles</FieldLabel>
             <MultiSelectDropdown
               id="team-roles"
               invalid={Boolean(state.errors?.roleIds)}
@@ -136,10 +135,7 @@ export function TeamForm({
           <Button asChild variant="outline">
             <Link href={root as Route}>Cancel</Link>
           </Button>
-          <Button
-            disabled={pending || !name.trim() || memberIds.length === 0 || roleIds.length === 0}
-            type="submit"
-          >
+          <Button disabled={pending || !name.trim() || memberIds.length === 0} type="submit">
             {pending ? <Spinner /> : <Save data-icon="inline-start" />}
             {pending ? "Saving..." : data.team ? "Update Team" : "Create Team"}
           </Button>

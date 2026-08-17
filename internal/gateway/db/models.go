@@ -786,6 +786,14 @@ type MemberRole struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type MemberRoleAssignment struct {
+	MemberID       string      `json:"member_id"`
+	UserID         string      `json:"user_id"`
+	OrganizationID string      `json:"organization_id"`
+	RoleID         string      `json:"role_id"`
+	TeamID         pgtype.Text `json:"team_id"`
+}
+
 type ObserverFileEvent struct {
 	ID                int64     `json:"id"`
 	TenantNamespace   string    `json:"tenant_namespace"`

@@ -1,6 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 import { generateId } from "@better-auth/core/utils/id"
-import { and, asc, desc, eq, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
 import { APIError, BASE_ERROR_CODES } from "@better-auth/core/error"
@@ -105,19 +105,19 @@ const disabledAuthPaths = [
 async function listActiveSuperadmins(organizationId: string) {
   return getDB()
     .selectDistinct({ memberId: schema.members.id })
-    .from(schema.members)
+    .from(schema.memberRoleAssignments)
     .innerJoin(
-      schema.memberRoles,
+      schema.members,
       and(
-        eq(schema.memberRoles.memberId, schema.members.id),
-        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+        eq(schema.memberRoleAssignments.memberId, schema.members.id),
+        eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
       )
     )
     .innerJoin(
       schema.roleScopes,
       and(
-        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
       )
     )
     .where(
@@ -127,6 +127,54 @@ async function listActiveSuperadmins(organizationId: string) {
         eq(schema.roleScopes.systemRole, "superadmin")
       )
     )
+}
+
+type AuthDatabase = Pick<ReturnType<typeof getDB>, "selectDistinct" | "update">
+
+export async function projectMemberRoleTransports(
+  db: AuthDatabase,
+  organizationId: string,
+  memberIds: string[]
+) {
+  if (!memberIds.length) return
+
+  const rows = await db
+    .selectDistinct({
+      memberId: schema.memberRoleAssignments.memberId,
+      role: schema.organizationRoles.role,
+    })
+    .from(schema.memberRoleAssignments)
+    .innerJoin(
+      schema.organizationRoles,
+      and(
+        eq(schema.organizationRoles.id, schema.memberRoleAssignments.roleId),
+        eq(schema.organizationRoles.organizationId, schema.memberRoleAssignments.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.memberRoleAssignments.organizationId, organizationId),
+        inArray(schema.memberRoleAssignments.memberId, memberIds)
+      )
+    )
+  const roles = Map.groupBy(rows, ({ memberId }) => memberId)
+  await Promise.all(
+    memberIds.map((memberId) =>
+      db
+        .update(schema.members)
+        .set({
+          role:
+            roles
+              .get(memberId)
+              ?.map(({ role }) => role)
+              .sort()
+              .join(",") || "member",
+        })
+        .where(
+          and(eq(schema.members.id, memberId), eq(schema.members.organizationId, organizationId))
+        )
+    )
+  )
 }
 
 function buildAuth() {
@@ -478,9 +526,7 @@ function buildAuth() {
             })
           },
           beforeRemoveMember: async ({ member, organization }) => {
-            if (member.disabledAt || !member.role.split(",").includes("superadmin")) {
-              return
-            }
+            if (member.disabledAt) return
 
             const superadmins = await listActiveSuperadmins(organization.id)
             if (superadmins.length === 1 && superadmins[0]?.memberId === member.id) {
@@ -491,13 +537,28 @@ function buildAuth() {
             }
           },
           beforeUpdateMemberRole: async ({ member, newRole, organization }) => {
-            if (
-              member.disabledAt ||
-              !member.role.split(",").includes("superadmin") ||
-              newRole.split(",").includes("superadmin")
-            ) {
-              return
-            }
+            if (member.disabledAt || newRole.split(",").includes("superadmin")) return
+
+            const [inherited] = await getDB()
+              .select({ roleId: schema.memberRoleAssignments.roleId })
+              .from(schema.memberRoleAssignments)
+              .innerJoin(
+                schema.roleScopes,
+                and(
+                  eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+                  eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
+                )
+              )
+              .where(
+                and(
+                  eq(schema.memberRoleAssignments.memberId, member.id),
+                  eq(schema.memberRoleAssignments.organizationId, organization.id),
+                  isNotNull(schema.memberRoleAssignments.teamId),
+                  eq(schema.roleScopes.systemRole, "superadmin")
+                )
+              )
+              .limit(1)
+            if (inherited) return
 
             const superadmins = await listActiveSuperadmins(organization.id)
             if (superadmins.length === 1 && superadmins[0]?.memberId === member.id) {
@@ -509,27 +570,29 @@ function buildAuth() {
           },
           afterUpdateMemberRole: async ({ member, organization }) => {
             const roleId = `superadmin:${organization.id}`
-            if (member.role.split(",").includes("superadmin")) {
-              await getDB()
-                .insert(schema.memberRoles)
-                .values({
-                  memberId: member.id,
-                  organizationId: organization.id,
-                  roleId,
-                })
-                .onConflictDoNothing()
-              return
-            }
-
-            await getDB()
-              .delete(schema.memberRoles)
-              .where(
-                and(
-                  eq(schema.memberRoles.memberId, member.id),
-                  eq(schema.memberRoles.organizationId, organization.id),
-                  eq(schema.memberRoles.roleId, roleId)
-                )
-              )
+            await getDB().transaction(async (tx) => {
+              if (member.role.split(",").includes("superadmin")) {
+                await tx
+                  .insert(schema.memberRoles)
+                  .values({
+                    memberId: member.id,
+                    organizationId: organization.id,
+                    roleId,
+                  })
+                  .onConflictDoNothing()
+              } else {
+                await tx
+                  .delete(schema.memberRoles)
+                  .where(
+                    and(
+                      eq(schema.memberRoles.memberId, member.id),
+                      eq(schema.memberRoles.organizationId, organization.id),
+                      eq(schema.memberRoles.roleId, roleId)
+                    )
+                  )
+              }
+              await projectMemberRoleTransports(tx, organization.id, [member.id])
+            })
           },
         },
         schema: {

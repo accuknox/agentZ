@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import {
   assignOrganizationRoleUsersAction,
   assignWorkspaceRoleUsersAction,
-  type RoleAssignmentFormState,
+  type AssignmentFormState,
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -56,7 +56,7 @@ export function RoleAssignments({
     setSelectedBaselineKey(baselineKey)
     setSelected(baseline)
   }
-  const [state, formAction, pending] = useActionState<RoleAssignmentFormState, FormData>(
+  const [state, formAction, pending] = useActionState<AssignmentFormState, FormData>(
     async (state, formData) => {
       const result = workspaceSlug
         ? await assignWorkspaceRoleUsersAction(orgSlug, workspaceSlug, roleId, state, formData)

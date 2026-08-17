@@ -3,7 +3,18 @@
 import Link from "next/link"
 import type { Route } from "next"
 import { useActionState, useId, useState, useTransition } from "react"
-import { MoreHorizontal, Send, Shield, ShieldPlus, UsersRound, X } from "lucide-react"
+import {
+  Activity,
+  Bot,
+  KeyRound,
+  MoreHorizontal,
+  PanelsTopLeft,
+  Send,
+  Shield,
+  ShieldPlus,
+  UsersRound,
+  X,
+} from "lucide-react"
 import { toast } from "sonner"
 import {
   cancelInvitationAction,
@@ -98,6 +109,58 @@ export function InvitationActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+export function UserTableActions({
+  memberId,
+  name,
+  orgSlug,
+}: {
+  memberId: string
+  name: string
+  orgSlug: string
+}) {
+  return (
+    <div
+      className="flex justify-end"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button aria-label={`Actions for ${name}`} size="icon" variant="ghost">
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuItem asChild className="whitespace-nowrap">
+            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=access` as Route}>
+              <Shield />
+              Roles and access
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className="whitespace-nowrap">
+            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=agents` as Route}>
+              <Bot />
+              Owned Agents
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className="whitespace-nowrap">
+            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=keys` as Route}>
+              <KeyRound />
+              API Keys
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className="whitespace-nowrap">
+            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=activity` as Route}>
+              <Activity />
+              Activity
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 
@@ -212,7 +275,8 @@ function CreateInvitationForm({
               id={`${formId}-roles`}
               onValueChangeAction={setRoleIds}
               options={roles.map((role) => ({
-                badge: role.scope,
+                badge: role.workspace ?? role.scope,
+                badgeIcon: role.workspace ? PanelsTopLeft : undefined,
                 group: role.scope,
                 icon: Shield,
                 label: role.name,

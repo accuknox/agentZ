@@ -5,14 +5,23 @@ import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from "drizzle-or
 import { cacheLife, cacheTag } from "next/cache"
 import { z } from "zod"
 import { getDB, schema } from "@/db"
-import { resolveOrganizationSlug } from "@/data/organizations"
-import { analyzeDestructiveImpact, analyzeTeamDeletionEffects } from "@/data/operations"
+import {
+  assertActiveSuperadmin,
+  preserveActiveSuperadmin,
+  resolveOrganizationSlug,
+} from "@/data/organizations"
+import {
+  analyzeDestructiveImpact,
+  analyzeTeamDeletionEffects,
+  findUnassignedActiveMembers,
+} from "@/data/operations"
 import { decodePageToken, encodePageToken } from "@/data/page-token"
+import { projectMemberRoleTransports } from "@/lib/auth"
 
 const teamPageCursor = z.object({ id: z.string().min(1), name: z.string().min(1) })
 
 type TeamMember = { id: string; name: string; email: string; image: string | null }
-type TeamRole = { id: string; name: string; scope: string }
+type TeamRole = { id: string; name: string; scope: string; workspace: string | null }
 export type TeamSummary = {
   id: string
   name: string
@@ -88,20 +97,20 @@ function teamEventTrail(
 
 async function isSuperadmin(db: TeamDatabase, actor: TeamActor) {
   const [role] = await db
-    .select({ id: schema.memberRoles.roleId })
-    .from(schema.members)
+    .select({ id: schema.memberRoleAssignments.roleId })
+    .from(schema.memberRoleAssignments)
     .innerJoin(
-      schema.memberRoles,
+      schema.members,
       and(
-        eq(schema.memberRoles.memberId, schema.members.id),
-        eq(schema.memberRoles.organizationId, schema.members.organizationId)
+        eq(schema.memberRoleAssignments.memberId, schema.members.id),
+        eq(schema.memberRoleAssignments.organizationId, schema.members.organizationId)
       )
     )
     .innerJoin(
       schema.roleScopes,
       and(
-        eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-        eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
+        eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+        eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
       )
     )
     .where(
@@ -236,8 +245,6 @@ export async function getTeamEditorData(
     .where(
       and(
         eq(schema.roleScopes.organizationId, actor.organizationId),
-        eq(schema.roleScopes.immutable, false),
-        isNull(schema.roleScopes.systemRole),
         or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
       )
     )
@@ -249,9 +256,9 @@ export async function getTeamEditorData(
   const data: TeamEditorData = {
     organizationId: actor.organizationId,
     members,
-    roles: roles.map(({ workspace, ...role }) => ({
+    roles: roles.map((role) => ({
       ...role,
-      scope: workspace === null ? "Organisation" : `Workspace · ${workspace}`,
+      scope: role.workspace === null ? "Organisation" : `Workspace · ${role.workspace}`,
     })),
   }
   if (!teamId) return data
@@ -302,50 +309,6 @@ export async function getTeamEditorData(
   }
 }
 
-async function validTeamAccess(
-  db: TeamDatabase,
-  actor: TeamActor,
-  memberIds: string[],
-  roleIds: string[]
-) {
-  const selectedMembers = [...new Set(memberIds)].sort()
-  const selectedRoles = [...new Set(roleIds)].sort()
-  if (!selectedMembers.length || !selectedRoles.length) return
-
-  const [members, roles] = await Promise.all([
-    db
-      .select({ id: schema.members.id })
-      .from(schema.members)
-      .where(
-        and(
-          eq(schema.members.organizationId, actor.organizationId),
-          isNull(schema.members.disabledAt),
-          inArray(schema.members.id, selectedMembers)
-        )
-      ),
-    db
-      .select({ id: schema.roleScopes.roleId })
-      .from(schema.roleScopes)
-      .leftJoin(
-        schema.workspaces,
-        and(
-          eq(schema.workspaces.id, schema.roleScopes.workspaceId),
-          eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.roleScopes.organizationId, actor.organizationId),
-          eq(schema.roleScopes.immutable, false),
-          isNull(schema.roleScopes.systemRole),
-          inArray(schema.roleScopes.roleId, selectedRoles),
-          or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
-        )
-      ),
-  ])
-  return members.length === selectedMembers.length && roles.length === selectedRoles.length
-}
-
 export async function saveTeam(
   orgSlug: string,
   teamId: string | undefined,
@@ -359,55 +322,254 @@ export async function saveTeam(
   const actor = await getTeamActor(orgSlug, false)
   if (!actor) return { error: "forbidden" as const }
 
-  return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, actor.organizationId))
-      .for("update")
-    if (!(await isSuperadmin(tx, actor))) {
+  return preserveActiveSuperadmin(() =>
+    getDB().transaction(async (tx) => {
       await tx
-        .insert(schema.eventTrailEvents)
-        .values(
-          teamEventTrail(actor, teamId ? "team.update" : "team.create", teamId ?? "new", "denied")
+        .select({ id: schema.organizations.id })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, actor.organizationId))
+        .for("update")
+      if (!(await isSuperadmin(tx, actor))) {
+        await tx
+          .insert(schema.eventTrailEvents)
+          .values(
+            teamEventTrail(actor, teamId ? "team.update" : "team.create", teamId ?? "new", "denied")
+          )
+        return { error: "forbidden" as const }
+      }
+      const action = teamId ? "team.update" : "team.create"
+      const attempt = (result: "failed" | "denied") =>
+        tx
+          .insert(schema.eventTrailEvents)
+          .values(teamEventTrail(actor, action, teamId ?? "new", result))
+      const [taken] = await tx
+        .select({ id: schema.teams.id })
+        .from(schema.teams)
+        .where(
+          and(
+            eq(schema.teams.organizationId, actor.organizationId),
+            eq(sql`lower(${schema.teams.name})`, input.name.toLowerCase()),
+            teamId ? ne(schema.teams.id, teamId) : undefined
+          )
         )
-      return { error: "forbidden" as const }
-    }
-    const action = teamId ? "team.update" : "team.create"
-    const attempt = (result: "failed" | "denied") =>
-      tx
-        .insert(schema.eventTrailEvents)
-        .values(teamEventTrail(actor, action, teamId ?? "new", result))
-    const valid = await validTeamAccess(tx, actor, input.memberIds, input.roleIds)
-    if (!valid) {
-      await attempt("failed")
-      return { error: "invalid" as const }
-    }
+        .limit(1)
+      if (taken) {
+        await attempt("failed")
+        return { error: "name-taken" as const }
+      }
 
-    const [taken] = await tx
-      .select({ id: schema.teams.id })
-      .from(schema.teams)
-      .where(
-        and(
-          eq(schema.teams.organizationId, actor.organizationId),
-          eq(sql`lower(${schema.teams.name})`, input.name.toLowerCase()),
-          teamId ? ne(schema.teams.id, teamId) : undefined
+      let team: { id: string; name: string; updatedAt: Date }
+      if (teamId) {
+        const [stored] = await tx
+          .select({
+            id: schema.teams.id,
+            name: schema.teams.name,
+            updatedAt: schema.teams.updatedAt,
+            createdAt: schema.teams.createdAt,
+          })
+          .from(schema.teams)
+          .where(
+            and(eq(schema.teams.id, teamId), eq(schema.teams.organizationId, actor.organizationId))
+          )
+          .for("update")
+          .limit(1)
+        if (!stored) {
+          await attempt("failed")
+          return { error: "not-found" as const }
+        }
+        const updatedAt = stored.updatedAt ?? stored.createdAt
+        if (updatedAt.toISOString() !== input.updatedAt) {
+          await attempt("failed")
+          return { error: "stale" as const }
+        }
+        team = { id: stored.id, name: stored.name, updatedAt }
+      } else {
+        team = { id: randomUUID(), name: input.name, updatedAt: new Date() }
+      }
+
+      const memberIds = [...new Set(input.memberIds)]
+      const roleIds = [...new Set(input.roleIds)]
+      if (!memberIds.length) {
+        await attempt("failed")
+        return { error: "invalid" as const }
+      }
+      const selectedMembers = await tx
+        .select({ id: schema.members.id, userId: schema.members.userId })
+        .from(schema.members)
+        .where(
+          and(
+            eq(schema.members.organizationId, actor.organizationId),
+            isNull(schema.members.disabledAt),
+            inArray(schema.members.id, memberIds)
+          )
+        )
+      const selectedRoles = roleIds.length
+        ? await tx
+            .select({ id: schema.roleScopes.roleId })
+            .from(schema.roleScopes)
+            .leftJoin(
+              schema.workspaces,
+              and(
+                eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+                eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
+              )
+            )
+            .where(
+              and(
+                eq(schema.roleScopes.organizationId, actor.organizationId),
+                inArray(schema.roleScopes.roleId, roleIds),
+                or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
+              )
+            )
+        : []
+      if (selectedMembers.length !== memberIds.length || selectedRoles.length !== roleIds.length) {
+        await attempt("failed")
+        return { error: "invalid" as const }
+      }
+
+      const [currentMembers, currentRoles] = teamId
+        ? await Promise.all([
+            tx
+              .select({ memberId: schema.members.id, userId: schema.teamMembers.userId })
+              .from(schema.teamMembers)
+              .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
+              .where(
+                and(
+                  eq(schema.teamMembers.teamId, team.id),
+                  eq(schema.members.organizationId, actor.organizationId)
+                )
+              ),
+            tx
+              .select({ roleId: schema.teamRoles.roleId })
+              .from(schema.teamRoles)
+              .where(
+                and(
+                  eq(schema.teamRoles.teamId, team.id),
+                  eq(schema.teamRoles.organizationId, actor.organizationId)
+                )
+              ),
+          ])
+        : [[], []]
+
+      const affectedMemberIds = [
+        ...new Set([...memberIds, ...currentMembers.map(({ memberId }) => memberId)]),
+      ]
+      await tx
+        .select({ id: schema.members.id })
+        .from(schema.members)
+        .where(
+          and(
+            eq(schema.members.organizationId, actor.organizationId),
+            inArray(schema.members.id, affectedMemberIds)
+          )
+        )
+        .for("update")
+      const removedMemberIds = currentMembers
+        .map(({ memberId }) => memberId)
+        .filter((memberId) => !memberIds.includes(memberId))
+      const unassigned = await findUnassignedActiveMembers(
+        tx,
+        actor.organizationId,
+        removedMemberIds,
+        { teamIds: [team.id] }
+      )
+      if (unassigned.length) {
+        await attempt("failed")
+        return {
+          error: "assignment-required" as const,
+          members: unassigned.map(({ name }) => name),
+        }
+      }
+
+      if (teamId) {
+        await tx
+          .update(schema.teams)
+          .set({ name: input.name, updatedAt: new Date() })
+          .where(eq(schema.teams.id, team.id))
+      } else {
+        await tx.insert(schema.teams).values({
+          id: team.id,
+          name: input.name,
+          organizationId: actor.organizationId,
+          createdAt: team.updatedAt,
+          updatedAt: team.updatedAt,
+        })
+      }
+
+      await tx.delete(schema.teamMembers).where(eq(schema.teamMembers.teamId, team.id))
+      await tx.delete(schema.teamRoles).where(eq(schema.teamRoles.teamId, team.id))
+      await tx
+        .insert(schema.teamMembers)
+        .values(
+          selectedMembers.map(({ userId }) => ({ id: randomUUID(), teamId: team.id, userId }))
+        )
+      if (roleIds.length) {
+        await tx.insert(schema.teamRoles).values(
+          roleIds.map((roleId) => ({
+            teamId: team.id,
+            roleId,
+            organizationId: actor.organizationId,
+          }))
+        )
+      }
+      await assertActiveSuperadmin(tx, actor.organizationId)
+      await projectMemberRoleTransports(tx, actor.organizationId, affectedMemberIds)
+      await tx.insert(schema.eventTrailEvents).values(
+        teamEventTrail(
+          actor,
+          teamId ? "team.update" : "team.create",
+          team.id,
+          "succeeded",
+          teamId
+            ? [
+                { field: "name", value: team.name },
+                ...currentMembers.map(({ userId }) => ({
+                  field: "user_id" as const,
+                  value: userId,
+                })),
+                ...currentRoles.map(({ roleId }) => ({ field: "role" as const, value: roleId })),
+              ]
+            : undefined,
+          [
+            { field: "name", value: input.name },
+            ...selectedMembers.map(({ userId }) => ({ field: "user_id" as const, value: userId })),
+            ...roleIds.map((roleId) => ({ field: "role" as const, value: roleId })),
+          ]
         )
       )
-      .limit(1)
-    if (taken) {
-      await attempt("failed")
-      return { error: "name-taken" as const }
-    }
+      return {
+        organizationId: actor.organizationId,
+        teamId: team.id,
+        affectedMemberIds,
+      }
+    })
+  )
+}
 
-    let team: { id: string; name: string; updatedAt: Date }
-    if (teamId) {
-      const [stored] = await tx
+export async function saveTeamRoles(
+  orgSlug: string,
+  teamId: string,
+  input: { roleIds: string[]; updatedAt: string }
+) {
+  const actor = await getTeamActor(orgSlug, false)
+  if (!actor) return { error: "forbidden" as const }
+
+  const roleIds = [...new Set(input.roleIds)]
+  return preserveActiveSuperadmin(() =>
+    getDB().transaction(async (tx) => {
+      await tx
+        .select({ id: schema.organizations.id })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, actor.organizationId))
+        .for("update")
+      if (!(await isSuperadmin(tx, actor))) return { error: "forbidden" as const }
+
+      const [team] = await tx
         .select({
+          createdAt: schema.teams.createdAt,
           id: schema.teams.id,
           name: schema.teams.name,
           updatedAt: schema.teams.updatedAt,
-          createdAt: schema.teams.createdAt,
         })
         .from(schema.teams)
         .where(
@@ -415,148 +577,99 @@ export async function saveTeam(
         )
         .for("update")
         .limit(1)
-      if (!stored) {
-        await attempt("failed")
-        return { error: "not-found" as const }
-      }
-      const updatedAt = stored.updatedAt ?? stored.createdAt
-      if (updatedAt.toISOString() !== input.updatedAt) {
-        await attempt("failed")
+      if (!team) return { error: "not-found" as const }
+      if ((team.updatedAt ?? team.createdAt).toISOString() !== input.updatedAt) {
         return { error: "stale" as const }
       }
-      team = { id: stored.id, name: stored.name, updatedAt }
-    } else {
-      team = { id: randomUUID(), name: input.name, updatedAt: new Date() }
-    }
 
-    const memberIds = [...new Set(input.memberIds)]
-    const roleIds = [...new Set(input.roleIds)]
-    const selectedMembers = await tx
-      .select({ id: schema.members.id, userId: schema.members.userId })
-      .from(schema.members)
-      .where(
-        and(
-          eq(schema.members.organizationId, actor.organizationId),
-          isNull(schema.members.disabledAt),
-          inArray(schema.members.id, memberIds)
-        )
-      )
-    const selectedRoles = await tx
-      .select({ id: schema.roleScopes.roleId })
-      .from(schema.roleScopes)
-      .leftJoin(
-        schema.workspaces,
-        and(
-          eq(schema.workspaces.id, schema.roleScopes.workspaceId),
-          eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.roleScopes.organizationId, actor.organizationId),
-          eq(schema.roleScopes.immutable, false),
-          isNull(schema.roleScopes.systemRole),
-          inArray(schema.roleScopes.roleId, roleIds),
-          or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
-        )
-      )
-    if (selectedMembers.length !== memberIds.length || selectedRoles.length !== roleIds.length) {
-      await attempt("failed")
-      return { error: "invalid" as const }
-    }
-
-    const [currentMembers, currentRoles] = teamId
-      ? await Promise.all([
-          tx
-            .select({ memberId: schema.members.id, userId: schema.teamMembers.userId })
-            .from(schema.teamMembers)
-            .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
+      const roles = roleIds.length
+        ? await tx
+            .select({ id: schema.roleScopes.roleId })
+            .from(schema.roleScopes)
+            .leftJoin(
+              schema.workspaces,
+              and(
+                eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+                eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
+              )
+            )
             .where(
               and(
-                eq(schema.teamMembers.teamId, team.id),
-                eq(schema.members.organizationId, actor.organizationId)
+                eq(schema.roleScopes.organizationId, actor.organizationId),
+                inArray(schema.roleScopes.roleId, roleIds),
+                or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
               )
-            ),
-          tx
-            .select({ roleId: schema.teamRoles.roleId })
-            .from(schema.teamRoles)
-            .where(
-              and(
-                eq(schema.teamRoles.teamId, team.id),
-                eq(schema.teamRoles.organizationId, actor.organizationId)
-              )
-            ),
-        ])
-      : [[], []]
+            )
+        : []
+      if (roles.length !== roleIds.length) return { error: "invalid" as const }
 
-    const affectedMemberIds = [
-      ...new Set([...memberIds, ...currentMembers.map(({ memberId }) => memberId)]),
-    ]
-    await tx
-      .select({ id: schema.members.id })
-      .from(schema.members)
-      .where(
-        and(
-          eq(schema.members.organizationId, actor.organizationId),
-          inArray(schema.members.id, affectedMemberIds)
+      const current = await tx
+        .select({ roleId: schema.teamRoles.roleId })
+        .from(schema.teamRoles)
+        .where(
+          and(
+            eq(schema.teamRoles.teamId, team.id),
+            eq(schema.teamRoles.organizationId, actor.organizationId)
+          )
+        )
+      const now = new Date()
+      const currentRoleIds = current.map(({ roleId }) => roleId)
+      const removedRoleIds = currentRoleIds.filter((roleId) => !roleIds.includes(roleId))
+      const addedRoleIds = roleIds.filter((roleId) => !currentRoleIds.includes(roleId))
+      if (removedRoleIds.length) {
+        await tx
+          .delete(schema.teamRoles)
+          .where(
+            and(
+              eq(schema.teamRoles.teamId, team.id),
+              inArray(schema.teamRoles.roleId, removedRoleIds)
+            )
+          )
+      }
+      if (addedRoleIds.length) {
+        await tx.insert(schema.teamRoles).values(
+          addedRoleIds.map((roleId) => ({
+            organizationId: actor.organizationId,
+            roleId,
+            teamId: team.id,
+          }))
+        )
+      }
+      await tx.update(schema.teams).set({ updatedAt: now }).where(eq(schema.teams.id, team.id))
+      await tx.insert(schema.eventTrailEvents).values(
+        teamEventTrail(
+          actor,
+          "team.update",
+          team.id,
+          "succeeded",
+          current.map(({ roleId }) => ({ field: "role" as const, value: roleId })),
+          roleIds.map((roleId) => ({ field: "role" as const, value: roleId }))
         )
       )
-      .for("update")
-
-    if (teamId) {
-      await tx
-        .update(schema.teams)
-        .set({ name: input.name, updatedAt: new Date() })
-        .where(eq(schema.teams.id, team.id))
-    } else {
-      await tx.insert(schema.teams).values({
-        id: team.id,
-        name: input.name,
+      const members = await tx
+        .select({ memberId: schema.members.id })
+        .from(schema.teamMembers)
+        .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
+        .where(
+          and(
+            eq(schema.teamMembers.teamId, team.id),
+            eq(schema.members.organizationId, actor.organizationId)
+          )
+        )
+      await assertActiveSuperadmin(tx, actor.organizationId)
+      await projectMemberRoleTransports(
+        tx,
+        actor.organizationId,
+        members.map(({ memberId }) => memberId)
+      )
+      return {
+        memberIds: members.map(({ memberId }) => memberId),
         organizationId: actor.organizationId,
-        createdAt: team.updatedAt,
-        updatedAt: team.updatedAt,
-      })
-    }
-
-    await tx.delete(schema.teamMembers).where(eq(schema.teamMembers.teamId, team.id))
-    await tx.delete(schema.teamRoles).where(eq(schema.teamRoles.teamId, team.id))
-    await tx
-      .insert(schema.teamMembers)
-      .values(selectedMembers.map(({ userId }) => ({ id: randomUUID(), teamId: team.id, userId })))
-    await tx
-      .insert(schema.teamRoles)
-      .values(
-        roleIds.map((roleId) => ({ teamId: team.id, roleId, organizationId: actor.organizationId }))
-      )
-    await tx.insert(schema.eventTrailEvents).values(
-      teamEventTrail(
-        actor,
-        teamId ? "team.update" : "team.create",
-        team.id,
-        "succeeded",
-        teamId
-          ? [
-              { field: "name", value: team.name },
-              ...currentMembers.map(({ userId }) => ({
-                field: "user_id" as const,
-                value: userId,
-              })),
-              ...currentRoles.map(({ roleId }) => ({ field: "role" as const, value: roleId })),
-            ]
-          : undefined,
-        [
-          { field: "name", value: input.name },
-          ...selectedMembers.map(({ userId }) => ({ field: "user_id" as const, value: userId })),
-          ...roleIds.map((roleId) => ({ field: "role" as const, value: roleId })),
-        ]
-      )
-    )
-    return {
-      organizationId: actor.organizationId,
-      teamId: team.id,
-      affectedMemberIds,
-    }
-  })
+        roleIds: [...new Set([...currentRoleIds, ...roleIds])],
+        teamId: team.id,
+      }
+    })
+  )
 }
 
 export async function deleteTeam(
@@ -567,162 +680,188 @@ export async function deleteTeam(
 ) {
   const actor = await getTeamActor(orgSlug, false)
   if (!actor) return { error: "forbidden" as const }
-  return getDB().transaction(async (tx) => {
-    await tx
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, actor.organizationId))
-      .for("update")
-    const [team] = await tx
-      .select({ id: schema.teams.id, name: schema.teams.name })
-      .from(schema.teams)
-      .where(
-        and(eq(schema.teams.id, teamId), eq(schema.teams.organizationId, actor.organizationId))
-      )
-      .for("update")
-      .limit(1)
-    if (!team) return { error: "not-found" as const }
-    if (!(await isSuperadmin(tx, actor))) {
+  return preserveActiveSuperadmin(() =>
+    getDB().transaction(async (tx) => {
       await tx
-        .insert(schema.eventTrailEvents)
-        .values(teamEventTrail(actor, "team.delete", team.id, "denied"))
-      return { error: "forbidden" as const }
-    }
-    const teamUsers = await tx
-      .select({ userId: schema.teamMembers.userId })
-      .from(schema.teamMembers)
-      .where(eq(schema.teamMembers.teamId, team.id))
-    if (teamUsers.length) {
-      await tx
-        .select({ id: schema.members.id })
-        .from(schema.members)
+        .select({ id: schema.organizations.id })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, actor.organizationId))
+        .for("update")
+      const [team] = await tx
+        .select({ id: schema.teams.id, name: schema.teams.name })
+        .from(schema.teams)
         .where(
-          and(
-            eq(schema.members.organizationId, actor.organizationId),
-            inArray(
-              schema.members.userId,
-              teamUsers.map(({ userId }) => userId)
-            )
-          )
+          and(eq(schema.teams.id, teamId), eq(schema.teams.organizationId, actor.organizationId))
         )
         .for("update")
-    }
-    let effects = await analyzeTeamDeletionEffects(tx, actor.organizationId, team.id)
-    if (!effects) return { error: "not-found" as const }
-    if (effects.agents.length) {
-      await tx
-        .select({ agentName: schema.agentOwners.agentName })
-        .from(schema.agentOwners)
+        .limit(1)
+      if (!team) return { error: "not-found" as const }
+      if (!(await isSuperadmin(tx, actor))) {
+        await tx
+          .insert(schema.eventTrailEvents)
+          .values(teamEventTrail(actor, "team.delete", team.id, "denied"))
+        return { error: "forbidden" as const }
+      }
+      const teamUsers = await tx
+        .select({ memberId: schema.members.id, userId: schema.teamMembers.userId })
+        .from(schema.teamMembers)
+        .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
         .where(
           and(
-            eq(schema.agentOwners.organizationId, actor.organizationId),
-            or(
-              ...effects.agents.map((agent) =>
-                and(
-                  eq(schema.agentOwners.workspaceId, agent.workspaceId),
-                  eq(schema.agentOwners.agentName, agent.agentName)
-                )
+            eq(schema.teamMembers.teamId, team.id),
+            eq(schema.members.organizationId, actor.organizationId)
+          )
+        )
+      if (teamUsers.length) {
+        await tx
+          .select({ id: schema.members.id })
+          .from(schema.members)
+          .where(
+            and(
+              eq(schema.members.organizationId, actor.organizationId),
+              inArray(
+                schema.members.userId,
+                teamUsers.map(({ userId }) => userId)
               )
             )
           )
-        )
-        .for("update")
-      effects = await analyzeTeamDeletionEffects(tx, actor.organizationId, team.id)
+          .for("update")
+      }
+      const unassigned = await findUnassignedActiveMembers(
+        tx,
+        actor.organizationId,
+        teamUsers.map(({ memberId }) => memberId),
+        { teamIds: [team.id] }
+      )
+      if (unassigned.length) {
+        return {
+          error: "assignment-required" as const,
+          members: unassigned.map(({ name }) => name),
+        }
+      }
+      let effects = await analyzeTeamDeletionEffects(tx, actor.organizationId, team.id)
       if (!effects) return { error: "not-found" as const }
-    }
-    const target = { operation: "team_delete", targetId: team.id, targetType: "team" } as const
-    const impact = await analyzeDestructiveImpact(tx, actor.organizationId, orgSlug, target)
-    if (!impact) return { error: "not-found" as const }
-    if (impact.confirmation !== confirmation || impact.fingerprint !== fingerprint) {
-      return { error: "stale-preview" as const }
-    }
-    const now = new Date()
-    if (effects.keys.length) {
-      const keyIds = effects.keys.map(({ id }) => id)
-      await tx
-        .update(schema.apiKeyScopes)
-        .set({ revokedAt: now, revokedReason: `Team ${team.name} deletion removed access.` })
-        .where(
-          and(
-            eq(schema.apiKeyScopes.organizationId, actor.organizationId),
-            inArray(schema.apiKeyScopes.apiKeyId, keyIds),
-            isNull(schema.apiKeyScopes.revokedAt)
-          )
-        )
-      await tx
-        .update(schema.apikeys)
-        .set({ enabled: false, updatedAt: now })
-        .where(
-          and(
-            eq(schema.apikeys.referenceId, actor.organizationId),
-            inArray(schema.apikeys.id, keyIds)
-          )
-        )
-    }
-    if (effects.agents.length) {
-      await tx
-        .delete(schema.agentOwners)
-        .where(
-          and(
-            eq(schema.agentOwners.organizationId, actor.organizationId),
-            or(
-              ...effects.agents.map((agent) =>
-                and(
-                  eq(schema.agentOwners.workspaceId, agent.workspaceId),
-                  eq(schema.agentOwners.agentName, agent.agentName)
+      if (effects.agents.length) {
+        await tx
+          .select({ agentName: schema.agentOwners.agentName })
+          .from(schema.agentOwners)
+          .where(
+            and(
+              eq(schema.agentOwners.organizationId, actor.organizationId),
+              or(
+                ...effects.agents.map((agent) =>
+                  and(
+                    eq(schema.agentOwners.workspaceId, agent.workspaceId),
+                    eq(schema.agentOwners.agentName, agent.agentName)
+                  )
                 )
               )
             )
           )
+          .for("update")
+        effects = await analyzeTeamDeletionEffects(tx, actor.organizationId, team.id)
+        if (!effects) return { error: "not-found" as const }
+      }
+      const target = { operation: "team_delete", targetId: team.id, targetType: "team" } as const
+      const impact = await analyzeDestructiveImpact(tx, actor.organizationId, orgSlug, target)
+      if (!impact) return { error: "not-found" as const }
+      if (impact.confirmation !== confirmation || impact.fingerprint !== fingerprint) {
+        return { error: "stale-preview" as const }
+      }
+      const now = new Date()
+      if (effects.keys.length) {
+        const keyIds = effects.keys.map(({ id }) => id)
+        await tx
+          .update(schema.apiKeyScopes)
+          .set({ revokedAt: now, revokedReason: `Team ${team.name} deletion removed access.` })
+          .where(
+            and(
+              eq(schema.apiKeyScopes.organizationId, actor.organizationId),
+              inArray(schema.apiKeyScopes.apiKeyId, keyIds),
+              isNull(schema.apiKeyScopes.revokedAt)
+            )
+          )
+        await tx
+          .update(schema.apikeys)
+          .set({ enabled: false, updatedAt: now })
+          .where(
+            and(
+              eq(schema.apikeys.referenceId, actor.organizationId),
+              inArray(schema.apikeys.id, keyIds)
+            )
+          )
+      }
+      if (effects.agents.length) {
+        await tx
+          .delete(schema.agentOwners)
+          .where(
+            and(
+              eq(schema.agentOwners.organizationId, actor.organizationId),
+              or(
+                ...effects.agents.map((agent) =>
+                  and(
+                    eq(schema.agentOwners.workspaceId, agent.workspaceId),
+                    eq(schema.agentOwners.agentName, agent.agentName)
+                  )
+                )
+              )
+            )
+          )
+      }
+      await tx
+        .delete(schema.invitationTeams)
+        .where(
+          and(
+            eq(schema.invitationTeams.organizationId, actor.organizationId),
+            eq(schema.invitationTeams.teamId, team.id)
+          )
         )
-    }
-    await tx
-      .delete(schema.invitationTeams)
-      .where(
-        and(
-          eq(schema.invitationTeams.organizationId, actor.organizationId),
-          eq(schema.invitationTeams.teamId, team.id)
+      await tx
+        .delete(schema.socialAdmissionDefaultTeams)
+        .where(
+          and(
+            eq(schema.socialAdmissionDefaultTeams.organizationId, actor.organizationId),
+            eq(schema.socialAdmissionDefaultTeams.teamId, team.id)
+          )
         )
+      await tx.delete(schema.teams).where(eq(schema.teams.id, team.id))
+      await assertActiveSuperadmin(tx, actor.organizationId)
+      await projectMemberRoleTransports(
+        tx,
+        actor.organizationId,
+        teamUsers.map(({ memberId }) => memberId)
       )
-    await tx
-      .delete(schema.socialAdmissionDefaultTeams)
-      .where(
-        and(
-          eq(schema.socialAdmissionDefaultTeams.organizationId, actor.organizationId),
-          eq(schema.socialAdmissionDefaultTeams.teamId, team.id)
-        )
-      )
-    await tx.delete(schema.teams).where(eq(schema.teams.id, team.id))
-    const cleanupId = `cleanup-${randomUUID()}`
-    await tx.insert(schema.cleanupJobs).values({
-      id: cleanupId,
-      operation: "team_delete",
-      organizationId: actor.organizationId,
-      payload: {
-        api_key_count: effects.keys.length,
+      const cleanupId = `cleanup-${randomUUID()}`
+      await tx.insert(schema.cleanupJobs).values({
+        id: cleanupId,
         operation: "team_delete",
-        owned_agent_count: effects.agents.length,
-        owned_agents: effects.agents.map((agent) => ({
-          agent_name: agent.agentName,
-          workspace_id: agent.workspaceId,
-        })),
-        revokes_authorization_first: true,
-        team_id: team.id,
-      },
-      targetId: team.id,
-      targetType: "team",
+        organizationId: actor.organizationId,
+        payload: {
+          api_key_count: effects.keys.length,
+          operation: "team_delete",
+          owned_agent_count: effects.agents.length,
+          owned_agents: effects.agents.map((agent) => ({
+            agent_name: agent.agentName,
+            workspace_id: agent.workspaceId,
+          })),
+          revokes_authorization_first: true,
+          team_id: team.id,
+        },
+        targetId: team.id,
+        targetType: "team",
+      })
+      await tx.insert(schema.eventTrailEvents).values({
+        ...teamEventTrail(actor, "team.delete", team.id, "succeeded", [
+          { field: "name", value: team.name },
+        ]),
+      })
+      return {
+        cleanupId,
+        organizationId: actor.organizationId,
+        affectedMemberIds: effects.members.map(({ memberId }) => memberId),
+      }
     })
-    await tx.insert(schema.eventTrailEvents).values({
-      ...teamEventTrail(actor, "team.delete", team.id, "succeeded", [
-        { field: "name", value: team.name },
-      ]),
-    })
-    return {
-      cleanupId,
-      organizationId: actor.organizationId,
-      affectedMemberIds: effects.members.map(({ memberId }) => memberId),
-    }
-  })
+  )
 }
 
 export async function getTeamDetail(orgSlug: string, teamId: string) {

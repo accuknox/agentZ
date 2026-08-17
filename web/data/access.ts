@@ -1,28 +1,10 @@
 import "server-only"
 
-import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm"
+import { and, asc, eq, isNull, ne } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
 
 export type EffectiveAccessSource =
-  | {
-      id: string
-      action: "administer"
-      resource: "administration"
-      role: string
-      scope: string
-      source: "Superadmin"
-      workspaceId: string | null
-    }
-  | {
-      id: string
-      action: "administer"
-      resource: "administration"
-      role: string
-      scope: string
-      source: "Workspace Admin"
-      workspaceId: string | null
-    }
   | {
       id: string
       action: string
@@ -30,6 +12,7 @@ export type EffectiveAccessSource =
       role: string
       scope: string
       source: "Direct Role"
+      systemRole: typeof schema.roleScopes.$inferSelect.systemRole
       workspaceId: string | null
     }
   | {
@@ -39,6 +22,7 @@ export type EffectiveAccessSource =
       role: string
       scope: string
       source: "Team Role"
+      systemRole: typeof schema.roleScopes.$inferSelect.systemRole
       team: string
       workspaceId: string | null
     }
@@ -92,6 +76,7 @@ export type TeamEffectiveAccessDetail = {
     role: string
     scope: string
     source: "Team Role"
+    systemRole: typeof schema.roleScopes.$inferSelect.systemRole
     workspaceId: string | null
   }>
 }
@@ -140,256 +125,220 @@ export async function getEffectiveAccessDetail(orgSlug: string, memberId: string
     .limit(500)
 
   const workspaceNames = new Map(workspaces.map((workspace) => [workspace.id, workspace.name]))
-  const [builtInRoles, directRoles, teamRoles, ownedAgents, directShares, teamShares] =
-    await Promise.all([
-      db
-        .select({
-          roleId: schema.roleScopes.roleId,
-          role: schema.roleScopes.displayName,
-          systemRole: schema.roleScopes.systemRole,
-          workspaceId: schema.roleScopes.workspaceId,
-        })
-        .from(schema.memberRoles)
-        .innerJoin(
-          schema.roleScopes,
-          and(
-            eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-            eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
-          )
+  const [directRoles, teamRoles, ownedAgents, directShares, teamShares] = await Promise.all([
+    db
+      .select({
+        action: schema.permissionGrants.action,
+        grantWorkspaceId: schema.permissionGrants.workspaceId,
+        resource: schema.permissionGrants.resource,
+        roleId: schema.roleScopes.roleId,
+        role: schema.roleScopes.displayName,
+        roleWorkspaceId: schema.roleScopes.workspaceId,
+        systemRole: schema.roleScopes.systemRole,
+      })
+      .from(schema.memberRoleAssignments)
+      .innerJoin(
+        schema.roleScopes,
+        and(
+          eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+          eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
         )
-        .where(
-          and(
-            eq(schema.memberRoles.organizationId, org.id),
-            eq(schema.memberRoles.memberId, member.id),
-            eq(schema.roleScopes.immutable, true),
-            inArray(schema.roleScopes.systemRole, ["superadmin", "workspace_admin"])
-          )
+      )
+      .leftJoin(
+        schema.permissionGrants,
+        and(
+          eq(schema.permissionGrants.roleId, schema.memberRoleAssignments.roleId),
+          eq(schema.permissionGrants.organizationId, schema.memberRoleAssignments.organizationId),
+          ne(schema.permissionGrants.resource, "api_key")
         )
-        .orderBy(asc(schema.roleScopes.workspaceId), asc(schema.roleScopes.displayName))
-        .limit(2000),
-      db
-        .select({
-          roleId: schema.roleScopes.roleId,
-          role: schema.roleScopes.displayName,
-          workspaceId: schema.permissionGrants.workspaceId,
-          resource: schema.permissionGrants.resource,
-          action: schema.permissionGrants.action,
-        })
-        .from(schema.memberRoles)
-        .innerJoin(
-          schema.roleScopes,
-          and(
-            eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-            eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
-          )
+      )
+      .where(
+        and(
+          eq(schema.memberRoleAssignments.organizationId, org.id),
+          eq(schema.memberRoleAssignments.memberId, member.id),
+          isNull(schema.memberRoleAssignments.teamId)
         )
-        .innerJoin(
-          schema.permissionGrants,
-          and(
-            eq(schema.permissionGrants.roleId, schema.roleScopes.roleId),
-            eq(schema.permissionGrants.organizationId, schema.roleScopes.organizationId)
-          )
+      )
+      .orderBy(asc(schema.roleScopes.displayName), asc(schema.permissionGrants.resource))
+      .limit(2000),
+    db
+      .select({
+        teamId: schema.teams.id,
+        team: schema.teams.name,
+        action: schema.permissionGrants.action,
+        grantWorkspaceId: schema.permissionGrants.workspaceId,
+        resource: schema.permissionGrants.resource,
+        roleId: schema.roleScopes.roleId,
+        role: schema.roleScopes.displayName,
+        roleWorkspaceId: schema.roleScopes.workspaceId,
+        systemRole: schema.roleScopes.systemRole,
+      })
+      .from(schema.memberRoleAssignments)
+      .innerJoin(
+        schema.teams,
+        and(
+          eq(schema.teams.id, schema.memberRoleAssignments.teamId),
+          eq(schema.teams.organizationId, schema.memberRoleAssignments.organizationId)
         )
-        .where(
-          and(
-            eq(schema.memberRoles.organizationId, org.id),
-            eq(schema.memberRoles.memberId, member.id),
-            ne(schema.permissionGrants.resource, "api_key")
-          )
+      )
+      .innerJoin(
+        schema.roleScopes,
+        and(
+          eq(schema.roleScopes.roleId, schema.memberRoleAssignments.roleId),
+          eq(schema.roleScopes.organizationId, schema.memberRoleAssignments.organizationId)
         )
-        .orderBy(asc(schema.roleScopes.displayName), asc(schema.permissionGrants.resource))
-        .limit(2000),
-      db
-        .select({
-          teamId: schema.teams.id,
-          team: schema.teams.name,
-          roleId: schema.roleScopes.roleId,
-          role: schema.roleScopes.displayName,
-          workspaceId: schema.permissionGrants.workspaceId,
-          resource: schema.permissionGrants.resource,
-          action: schema.permissionGrants.action,
-        })
-        .from(schema.teamMembers)
-        .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
-        .innerJoin(
-          schema.teamRoles,
-          and(
-            eq(schema.teamRoles.teamId, schema.teams.id),
-            eq(schema.teamRoles.organizationId, schema.teams.organizationId)
-          )
+      )
+      .leftJoin(
+        schema.permissionGrants,
+        and(
+          eq(schema.permissionGrants.roleId, schema.memberRoleAssignments.roleId),
+          eq(schema.permissionGrants.organizationId, schema.memberRoleAssignments.organizationId),
+          ne(schema.permissionGrants.resource, "api_key")
         )
-        .innerJoin(
-          schema.roleScopes,
-          and(
-            eq(schema.roleScopes.roleId, schema.teamRoles.roleId),
-            eq(schema.roleScopes.organizationId, schema.teamRoles.organizationId)
-          )
+      )
+      .where(
+        and(
+          eq(schema.memberRoleAssignments.organizationId, org.id),
+          eq(schema.memberRoleAssignments.memberId, member.id)
         )
-        .innerJoin(
-          schema.permissionGrants,
-          and(
-            eq(schema.permissionGrants.roleId, schema.roleScopes.roleId),
-            eq(schema.permissionGrants.organizationId, schema.roleScopes.organizationId)
-          )
+      )
+      .orderBy(asc(schema.teams.name), asc(schema.roleScopes.displayName))
+      .limit(2000),
+    db
+      .select({
+        workspaceId: schema.agentOwners.workspaceId,
+        agent: schema.agentOwners.agentName,
+      })
+      .from(schema.agentOwners)
+      .where(
+        and(
+          eq(schema.agentOwners.organizationId, org.id),
+          eq(schema.agentOwners.ownerUserId, member.userId)
         )
-        .where(
-          and(
-            eq(schema.teams.organizationId, org.id),
-            eq(schema.teamMembers.userId, member.userId),
-            ne(schema.permissionGrants.resource, "api_key")
-          )
+      )
+      .orderBy(asc(schema.agentOwners.workspaceId), asc(schema.agentOwners.agentName))
+      .limit(2000),
+    db
+      .select({
+        id: schema.agentShares.id,
+        workspaceId: schema.agentShares.workspaceId,
+        agent: schema.agentShares.agentName,
+        capability: schema.agentShareGrants.capability,
+      })
+      .from(schema.agentShares)
+      .innerJoin(
+        schema.agentShareGrants,
+        eq(schema.agentShareGrants.shareId, schema.agentShares.id)
+      )
+      .where(
+        and(
+          eq(schema.agentShares.organizationId, org.id),
+          eq(schema.agentShares.targetUserId, member.userId)
         )
-        .orderBy(asc(schema.teams.name), asc(schema.roleScopes.displayName))
-        .limit(2000),
-      db
-        .select({
-          workspaceId: schema.agentOwners.workspaceId,
-          agent: schema.agentOwners.agentName,
-        })
-        .from(schema.agentOwners)
-        .where(
-          and(
-            eq(schema.agentOwners.organizationId, org.id),
-            eq(schema.agentOwners.ownerUserId, member.userId)
-          )
+      )
+      .orderBy(asc(schema.agentShares.agentName), asc(schema.agentShareGrants.capability))
+      .limit(2000),
+    db
+      .select({
+        id: schema.agentShares.id,
+        workspaceId: schema.agentShares.workspaceId,
+        agent: schema.agentShares.agentName,
+        capability: schema.agentShareGrants.capability,
+        team: schema.teams.name,
+      })
+      .from(schema.agentShares)
+      .innerJoin(
+        schema.agentShareGrants,
+        eq(schema.agentShareGrants.shareId, schema.agentShares.id)
+      )
+      .innerJoin(schema.teamMembers, eq(schema.teamMembers.teamId, schema.agentShares.targetTeamId))
+      .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+      .where(
+        and(
+          eq(schema.agentShares.organizationId, org.id),
+          eq(schema.teamMembers.userId, member.userId),
+          eq(schema.teams.organizationId, org.id)
         )
-        .orderBy(asc(schema.agentOwners.workspaceId), asc(schema.agentOwners.agentName))
-        .limit(2000),
-      db
-        .select({
-          id: schema.agentShares.id,
-          workspaceId: schema.agentShares.workspaceId,
-          agent: schema.agentShares.agentName,
-          capability: schema.agentShareGrants.capability,
-        })
-        .from(schema.agentShares)
-        .innerJoin(
-          schema.agentShareGrants,
-          eq(schema.agentShareGrants.shareId, schema.agentShares.id)
-        )
-        .where(
-          and(
-            eq(schema.agentShares.organizationId, org.id),
-            eq(schema.agentShares.targetUserId, member.userId)
-          )
-        )
-        .orderBy(asc(schema.agentShares.agentName), asc(schema.agentShareGrants.capability))
-        .limit(2000),
-      db
-        .select({
-          id: schema.agentShares.id,
-          workspaceId: schema.agentShares.workspaceId,
-          agent: schema.agentShares.agentName,
-          capability: schema.agentShareGrants.capability,
-          team: schema.teams.name,
-        })
-        .from(schema.agentShares)
-        .innerJoin(
-          schema.agentShareGrants,
-          eq(schema.agentShareGrants.shareId, schema.agentShares.id)
-        )
-        .innerJoin(
-          schema.teamMembers,
-          eq(schema.teamMembers.teamId, schema.agentShares.targetTeamId)
-        )
-        .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
-        .where(
-          and(
-            eq(schema.agentShares.organizationId, org.id),
-            eq(schema.teamMembers.userId, member.userId),
-            eq(schema.teams.organizationId, org.id)
-          )
-        )
-        .orderBy(asc(schema.teams.name), asc(schema.agentShares.agentName))
-        .limit(2000),
-    ])
+      )
+      .orderBy(asc(schema.teams.name), asc(schema.agentShares.agentName))
+      .limit(2000),
+  ])
 
   const roleSources: EffectiveAccessSource[] = [
-    ...builtInRoles.flatMap((row): EffectiveAccessSource[] => {
-      if (row.systemRole === "superadmin" && row.workspaceId === null) {
+    ...[
+      ...directRoles.map((role) => ({ ...role, source: "Direct Role" as const })),
+      ...teamRoles.map((role) => ({ ...role, source: "Team Role" as const })),
+    ].flatMap((row): EffectiveAccessSource[] => {
+      if (row.systemRole === "superadmin" && row.roleWorkspaceId === null) {
+        const prefix = row.source === "Team Role" ? `team:${row.teamId}` : "direct"
         return [
-          {
+          { scope: "Organisation", workspaceId: null },
+          ...workspaces.map(({ id, name }) => ({ scope: name, workspaceId: id })),
+        ].map(({ scope, workspaceId }): EffectiveAccessSource => {
+          const source = {
             action: "administer",
-            id: `superadmin:${row.roleId}:org`,
+            id: `${prefix}:${row.roleId}:${workspaceId ?? "org"}:administration:administer`,
             resource: "administration",
             role: row.role,
-            scope: "Organisation",
-            source: "Superadmin",
-            workspaceId: null,
-          },
-          ...workspaces.map(
-            (workspace): EffectiveAccessSource => ({
-              action: "administer",
-              id: `superadmin:${row.roleId}:${workspace.id}`,
-              resource: "administration",
-              role: row.role,
-              scope: workspace.name,
-              source: "Superadmin",
-              workspaceId: workspace.id,
-            })
-          ),
-        ]
+            scope,
+            systemRole: row.systemRole,
+            workspaceId,
+          }
+          return row.source === "Team Role"
+            ? { ...source, source: row.source, team: row.team }
+            : { ...source, source: row.source }
+        })
       }
-      if (row.systemRole !== "workspace_admin" || !row.workspaceId) {
-        return []
-      }
-      const workspace = workspaces.find((candidate) => candidate.id === row.workspaceId)
-      if (!workspace) {
-        return []
-      }
-      return [
-        {
+      if (row.systemRole === "workspace_admin" && row.roleWorkspaceId) {
+        const workspace = workspaceNames.get(row.roleWorkspaceId)
+        if (!workspace) return []
+        const prefix = row.source === "Team Role" ? `team:${row.teamId}` : "direct"
+        const source = {
           action: "administer",
-          id: `workspace-admin:${row.roleId}:${workspace.id}`,
+          id: `${prefix}:${row.roleId}:${row.roleWorkspaceId}:administration:administer`,
           resource: "administration",
           role: row.role,
-          scope: workspace.name,
-          source: "Workspace Admin",
-          workspaceId: workspace.id,
-        },
-      ]
-    }),
-    ...directRoles.flatMap((row): EffectiveAccessSource[] => {
-      const scope = row.workspaceId ? workspaceNames.get(row.workspaceId) : "Organisation"
-      if (!scope) {
+          scope: workspace,
+          systemRole: row.systemRole,
+          workspaceId: row.roleWorkspaceId,
+        }
+        return row.source === "Team Role"
+          ? [{ ...source, source: row.source, team: row.team }]
+          : [{ ...source, source: row.source }]
+      }
+      if (!row.resource || !row.action) {
         return []
       }
-      return [
-        {
-          action: row.action,
-          id: `direct:${row.roleId}:${row.workspaceId ?? "org"}:${row.resource}:${row.action}`,
-          resource: row.resource,
-          role: row.role,
-          scope,
-          source: "Direct Role",
-          workspaceId: row.workspaceId,
-        },
-      ]
-    }),
-    ...teamRoles.flatMap((row): EffectiveAccessSource[] => {
-      const scope = row.workspaceId ? workspaceNames.get(row.workspaceId) : "Organisation"
-      if (!scope) {
-        return []
+      const scope = row.grantWorkspaceId ? workspaceNames.get(row.grantWorkspaceId) : "Organisation"
+      if (!scope) return []
+      const prefix = row.source === "Team Role" ? `team:${row.teamId}` : "direct"
+      const source = {
+        action: row.action,
+        id: `${prefix}:${row.roleId}:${row.grantWorkspaceId ?? "org"}:${row.resource}:${row.action}`,
+        resource: row.resource,
+        role: row.role,
+        scope,
+        systemRole: null,
+        workspaceId: row.grantWorkspaceId,
       }
-      return [
-        {
-          action: row.action,
-          id: `team:${row.teamId}:${row.roleId}:${row.workspaceId ?? "org"}:${row.resource}:${row.action}`,
-          resource: row.resource,
-          role: row.role,
-          scope,
-          source: "Team Role",
-          team: row.team,
-          workspaceId: row.workspaceId,
-        },
-      ]
+      return row.source === "Team Role"
+        ? [{ ...source, source: row.source, team: row.team }]
+        : [{ ...source, source: row.source }]
     }),
   ]
 
-  const superadmin = roleSources.some((source) => source.source === "Superadmin")
+  const superadmin = roleSources.some(
+    (source) =>
+      (source.source === "Direct Role" || source.source === "Team Role") &&
+      source.systemRole === "superadmin"
+  )
   const workspaceAdmins = new Set(
     roleSources.flatMap((source) =>
-      source.source === "Workspace Admin" && source.workspaceId ? [source.workspaceId] : []
+      (source.source === "Direct Role" || source.source === "Team Role") &&
+      source.systemRole === "workspace_admin" &&
+      source.workspaceId
+        ? [source.workspaceId]
+        : []
     )
   )
   const accessibleWorkspaces = new Set(
@@ -545,11 +494,13 @@ export async function getTeamEffectiveAccessDetail(orgSlug: string, teamId: stri
       .limit(500),
     db
       .select({
+        action: schema.permissionGrants.action,
+        grantWorkspaceId: schema.permissionGrants.workspaceId,
+        resource: schema.permissionGrants.resource,
         roleId: schema.roleScopes.roleId,
         role: schema.roleScopes.displayName,
-        workspaceId: schema.permissionGrants.workspaceId,
-        resource: schema.permissionGrants.resource,
-        action: schema.permissionGrants.action,
+        roleWorkspaceId: schema.roleScopes.workspaceId,
+        systemRole: schema.roleScopes.systemRole,
       })
       .from(schema.teamRoles)
       .innerJoin(
@@ -559,20 +510,15 @@ export async function getTeamEffectiveAccessDetail(orgSlug: string, teamId: stri
           eq(schema.roleScopes.organizationId, schema.teamRoles.organizationId)
         )
       )
-      .innerJoin(
+      .leftJoin(
         schema.permissionGrants,
         and(
           eq(schema.permissionGrants.roleId, schema.teamRoles.roleId),
-          eq(schema.permissionGrants.organizationId, schema.teamRoles.organizationId)
-        )
-      )
-      .where(
-        and(
-          eq(schema.teamRoles.teamId, team.id),
-          eq(schema.teamRoles.organizationId, org.id),
+          eq(schema.permissionGrants.organizationId, schema.teamRoles.organizationId),
           ne(schema.permissionGrants.resource, "api_key")
         )
       )
+      .where(and(eq(schema.teamRoles.teamId, team.id), eq(schema.teamRoles.organizationId, org.id)))
       .orderBy(asc(schema.roleScopes.displayName), asc(schema.permissionGrants.resource))
       .limit(2000),
   ])
@@ -582,23 +528,53 @@ export async function getTeamEffectiveAccessDetail(orgSlug: string, teamId: stri
     organization: org,
     team,
     members,
-    sources: grants.flatMap((grant) => {
-      if (grant.workspaceId && !workspaceNames.has(grant.workspaceId)) {
-        return []
+    sources: grants.flatMap((grant): TeamEffectiveAccessDetail["sources"] => {
+      if (grant.systemRole === "superadmin" && grant.roleWorkspaceId === null) {
+        return [
+          { scope: "Organisation", workspaceId: null },
+          ...workspaces.map(({ id, name }) => ({ scope: name, workspaceId: id })),
+        ].map(({ scope, workspaceId }) => ({
+          action: "administer",
+          id: `team:${team.id}:${grant.roleId}:${workspaceId ?? "org"}:administration:administer`,
+          resource: "administration",
+          role: grant.role,
+          scope,
+          source: "Team Role",
+          systemRole: grant.systemRole,
+          workspaceId,
+        }))
       }
-      const scope = grant.workspaceId ? workspaceNames.get(grant.workspaceId) : "Organisation"
-      if (!scope) {
-        return []
+      if (grant.systemRole === "workspace_admin" && grant.roleWorkspaceId) {
+        const scope = workspaceNames.get(grant.roleWorkspaceId)
+        if (!scope) return []
+        return [
+          {
+            action: "administer",
+            id: `team:${team.id}:${grant.roleId}:${grant.roleWorkspaceId}:administration:administer`,
+            resource: "administration",
+            role: grant.role,
+            scope,
+            source: "Team Role",
+            systemRole: grant.systemRole,
+            workspaceId: grant.roleWorkspaceId,
+          },
+        ]
       }
+      if (!grant.resource || !grant.action) return []
+      const scope = grant.grantWorkspaceId
+        ? workspaceNames.get(grant.grantWorkspaceId)
+        : "Organisation"
+      if (!scope) return []
       return [
         {
           action: grant.action,
-          id: `team:${team.id}:${grant.roleId}:${grant.workspaceId ?? "org"}:${grant.resource}:${grant.action}`,
+          id: `team:${team.id}:${grant.roleId}:${grant.grantWorkspaceId ?? "org"}:${grant.resource}:${grant.action}`,
           resource: grant.resource,
           role: grant.role,
           scope,
-          source: "Team Role" as const,
-          workspaceId: grant.workspaceId,
+          source: "Team Role",
+          systemRole: null,
+          workspaceId: grant.grantWorkspaceId,
         },
       ]
     }),

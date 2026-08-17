@@ -74,28 +74,6 @@ function accessGraph(
     sourceIds: sources.map((source) => source.id),
   })
   for (const source of sources) {
-    if (source.source === "Superadmin" || source.source === "Workspace Admin") {
-      const roleNode = addNode(`admin:${source.source}:${source.workspaceId ?? "org"}`, {
-        detail: source.scope,
-        kind: "role",
-        label: source.role,
-        sourceIds: [source.id],
-      })
-      const permissionNode = addNode(
-        combinePermissions
-          ? `permission:${source.workspaceId ?? "org"}:administration:administer`
-          : `permission:${source.id}`,
-        {
-          detail: source.scope,
-          kind: "permission",
-          label: "administration.administer",
-          sourceIds: [source.id],
-        }
-      )
-      addEdge(userNode, roleNode, source.source)
-      addEdge(roleNode, permissionNode)
-      continue
-    }
     if (source.source === "Direct Role" || source.source === "Team Role") {
       const parentNode =
         source.source === "Team Role"
@@ -213,10 +191,7 @@ function AccessSourceTable({ sources }: { sources: EffectiveAccessSource[] }) {
           {sources.map((source) => {
             let path: string
             let grant: string
-            if (source.source === "Superadmin" || source.source === "Workspace Admin") {
-              path = `User -> ${source.role}`
-              grant = `${source.resource}.${source.action}`
-            } else if (source.source === "Direct Role") {
+            if (source.source === "Direct Role") {
               path = `User -> ${source.role}`
               grant = `${source.resource}.${source.action}`
             } else if (source.source === "Team Role") {

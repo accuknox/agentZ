@@ -15,6 +15,7 @@ import {
   createInvitation,
   removeMembership,
   restoreMembership,
+  saveMemberAssignments,
   saveSocialAdmission,
 } from "@/data/members"
 import {
@@ -28,7 +29,7 @@ import {
   saveWorkspaceRole,
   type RoleImpact,
 } from "@/data/roles"
-import { deleteTeam, saveTeam } from "@/data/teams"
+import { deleteTeam, saveTeam, saveTeamRoles } from "@/data/teams"
 import {
   provisionWorkspace,
   replaceWorkspaceInheritedResourceSelection,
@@ -97,12 +98,16 @@ const teamFormSchema = z.object({
     .max(100, "Use 100 characters or fewer.")
     .refine((name) => name.trim() === name, "Remove leading or trailing spaces."),
   memberIds: z.array(z.string().min(1)).min(1, "Select at least one active Member.").max(1_000),
-  roleIds: z.array(z.string().min(1)).min(1, "Select at least one Role.").max(1_000),
+  roleIds: z.array(z.string().min(1)).max(1_000),
   updatedAt: z.string().optional(),
 })
 const invitationAccessSchema = z.object({
   roleIds: z.array(z.string().min(1)),
   teamIds: z.array(z.string().min(1)),
+})
+const memberAssignmentSchema = invitationAccessSchema.extend({
+  previousRoleIds: z.array(z.string().min(1)),
+  previousTeamIds: z.array(z.string().min(1)),
 })
 const socialAdmissionFormSchema = z
   .object({
@@ -189,6 +194,11 @@ export async function deleteWorkspaceAction(
     parsed.data.fingerprint
   )
   if ("error" in result) {
+    if (result.error === "assignment-required") {
+      return {
+        error: `${result.members.join(", ")} must keep at least one direct Role or Team.`,
+      }
+    }
     if (result.error === "stale-preview") {
       const impact = await getDestructiveImpact(orgSlug, {
         operation: "workspace_delete",
@@ -309,7 +319,7 @@ function parseRoleForm(formData: FormData): { data: RoleFormInput } | { state: R
   return { data: parsed.data }
 }
 
-export type RoleAssignmentFormState = { error?: string; saved?: boolean }
+export type AssignmentFormState = { error?: string; saved?: boolean }
 
 export type DeleteRoleFormState = { error?: string; href?: Route; references?: string[] }
 
@@ -350,6 +360,55 @@ export async function createInvitationAction(
   return { link: `${getEnv().BETTER_AUTH_URL}/accept-invitation/${result.token}` }
 }
 
+export async function saveMemberAssignmentsAction(
+  orgSlug: string,
+  memberId: string,
+  _state: AssignmentFormState,
+  formData: FormData
+): Promise<AssignmentFormState> {
+  const parsed = memberAssignmentSchema.safeParse({
+    previousRoleIds: formData.getAll("previous_role_ids"),
+    previousTeamIds: formData.getAll("previous_team_ids"),
+    roleIds: formData.getAll("role_ids"),
+    teamIds: formData.getAll("team_ids"),
+  })
+  if (!parsed.success || parsed.data.roleIds.length + parsed.data.teamIds.length === 0) {
+    return { error: "Select at least one direct Role or Team." }
+  }
+
+  const result = await saveMemberAssignments(orgSlug, memberId, parsed.data)
+  if ("error" in result) {
+    if (result.error === "assignment-required") {
+      return { error: "Select at least one direct Role or Team." }
+    }
+    if (result.error === "final-superadmin") {
+      return { error: "The final active Superadmin cannot be removed." }
+    }
+    if (result.error === "final-team-member") {
+      return { error: `Add another active Member to ${result.teams.join(", ")} first.` }
+    }
+    if (result.error === "stale") {
+      return { error: "Assignments changed while you were editing. Refresh and try again." }
+    }
+    return { error: "The Membership assignments could not be saved." }
+  }
+
+  updateTag(`organization:${result.organizationId}:roles`)
+  updateTag(`organization:${result.organizationId}:teams`)
+  updateTag(`organization:${result.organizationId}:member:${result.memberId}:access`)
+  updateTag(agentsTag)
+  for (const roleId of result.roleIds) {
+    updateTag(`organization:${result.organizationId}:role:${roleId}`)
+  }
+  for (const teamId of result.teamIds) {
+    updateTag(`organization:${result.organizationId}:team:${teamId}`)
+  }
+  revalidatePath(`/orgs/${orgSlug}/users/${memberId}`)
+  revalidatePath(`/orgs/${orgSlug}/users/status/active`, "page")
+  revalidatePath(`/orgs/${orgSlug}/teams`)
+  return { saved: true }
+}
+
 export async function cancelInvitationAction(orgSlug: string, invitationId: string) {
   const result = await cancelInvitation(orgSlug, invitationId)
   if ("error" in result) throw new Error("Invitation could not be cancelled.")
@@ -359,7 +418,11 @@ export async function cancelInvitationAction(orgSlug: string, invitationId: stri
 export async function restoreMembershipAction(orgSlug: string, memberId: string) {
   const result = await restoreMembership(orgSlug, memberId)
   if ("error" in result) {
-    throw new Error("Membership could not be restored.")
+    throw new Error(
+      result.error === "assignment-required"
+        ? "Assign at least one direct Role or Team before restoring this Membership."
+        : "Membership could not be restored."
+    )
   }
 
   revalidatePath(`/orgs/${orgSlug}/users/status/active`, "page")
@@ -875,9 +938,9 @@ export async function organizationRoleFormAction(
 export async function assignOrganizationRoleUsersAction(
   orgSlug: string,
   roleId: string,
-  _state: RoleAssignmentFormState,
+  _state: AssignmentFormState,
   formData: FormData
-): Promise<RoleAssignmentFormState> {
+): Promise<AssignmentFormState> {
   const parsed = z.array(z.string().min(1)).max(1_000).safeParse(formData.getAll("member_ids"))
   if (!parsed.success) {
     return { error: "The selected Users are invalid." }
@@ -888,7 +951,9 @@ export async function assignOrganizationRoleUsersAction(
       error:
         result.error === "final-superadmin"
           ? "At least one active Superadmin is required."
-          : "The Role assignments could not be saved.",
+          : result.error === "assignment-required"
+            ? `${result.members.join(", ")} must keep at least one direct Role or Team.`
+            : "The Role assignments could not be saved.",
     }
   }
 
@@ -1006,16 +1071,21 @@ export async function assignWorkspaceRoleUsersAction(
   orgSlug: string,
   workspaceSlug: string,
   roleId: string,
-  _state: RoleAssignmentFormState,
+  _state: AssignmentFormState,
   formData: FormData
-): Promise<RoleAssignmentFormState> {
+): Promise<AssignmentFormState> {
   const parsed = z.array(z.string().min(1)).max(1_000).safeParse(formData.getAll("member_ids"))
   if (!parsed.success) {
     return { error: "The selected Users are invalid." }
   }
   const result = await assignWorkspaceRoleUsers(orgSlug, workspaceSlug, roleId, parsed.data)
   if ("error" in result) {
-    return { error: "The Workspace Role assignments could not be saved." }
+    return {
+      error:
+        result.error === "assignment-required"
+          ? `${result.members.join(", ")} must keep at least one direct Role or Team.`
+          : "The Workspace Role assignments could not be saved.",
+    }
   }
 
   updateTag(`organization:${result.organizationId}:workspace:${result.workspaceId}:roles`)
@@ -1082,8 +1152,16 @@ export async function teamFormAction(
     if (result.error === "stale") {
       return { error: "This Team changed while you were editing. Refresh and try again." }
     }
+    if (result.error === "final-superadmin") {
+      return { error: "At least one active effective Superadmin is required." }
+    }
     if (result.error === "invalid") {
-      return { error: "Choose active Members and current custom Roles, then try again." }
+      return { error: "Choose active Members and current Roles, then try again." }
+    }
+    if (result.error === "assignment-required") {
+      return {
+        error: `${result.members.join(", ")} must keep at least one direct Role or Team.`,
+      }
     }
     return { error: "You no longer have permission to save this Team." }
   }
@@ -1096,6 +1174,43 @@ export async function teamFormAction(
   }
   revalidatePath(`/orgs/${orgSlug}/teams`)
   return { href: `/orgs/${orgSlug}/teams/${result.teamId}` as Route }
+}
+
+export async function saveTeamRolesAction(
+  orgSlug: string,
+  teamId: string,
+  _state: AssignmentFormState,
+  formData: FormData
+): Promise<AssignmentFormState> {
+  const parsed = z
+    .object({ roleIds: z.array(z.string().min(1)).max(1_000), updatedAt: z.string() })
+    .safeParse({ roleIds: formData.getAll("role_ids"), updatedAt: formData.get("updated_at") })
+  if (!parsed.success) return { error: "The selected Roles are invalid." }
+
+  const result = await saveTeamRoles(orgSlug, teamId, parsed.data)
+  if ("error" in result) {
+    if (result.error === "stale") {
+      return { error: "This Team changed while you were editing. Refresh and try again." }
+    }
+    if (result.error === "final-superadmin") {
+      return { error: "At least one active effective Superadmin is required." }
+    }
+    return { error: "The Team Role assignments could not be saved." }
+  }
+
+  updateTag(`organization:${result.organizationId}:roles`)
+  updateTag(`organization:${result.organizationId}:teams`)
+  updateTag(`organization:${result.organizationId}:team:${result.teamId}`)
+  updateTag(agentsTag)
+  for (const roleId of result.roleIds) {
+    updateTag(`organization:${result.organizationId}:role:${roleId}`)
+  }
+  for (const memberId of result.memberIds) {
+    updateTag(`organization:${result.organizationId}:member:${memberId}:access`)
+  }
+  revalidatePath(`/orgs/${orgSlug}/teams/${teamId}/roles`)
+  revalidatePath(`/orgs/${orgSlug}/teams`)
+  return { saved: true }
 }
 
 export async function deleteTeamAction(
@@ -1118,6 +1233,11 @@ export async function deleteTeamAction(
     parsed.data.fingerprint
   )
   if ("error" in result) {
+    if (result.error === "assignment-required") {
+      return {
+        error: `${result.members.join(", ")} must keep at least one direct Role or Team.`,
+      }
+    }
     if (result.error === "stale-preview") {
       const impact = await getDestructiveImpact(orgSlug, {
         operation: "team_delete",
@@ -1128,6 +1248,9 @@ export async function deleteTeamAction(
         error: "The Team changed. Confirm the deletion again.",
         fingerprint: impact?.fingerprint,
       }
+    }
+    if (result.error === "final-superadmin") {
+      return { error: "At least one active effective Superadmin is required." }
     }
     return { error: "The Team no longer meets the deletion requirements." }
   }

@@ -77,15 +77,7 @@ export function StatusBadge({ status }: { status: AdministrationStatus }) {
   return <Badge variant="destructive">Failed</Badge>
 }
 
-type AccessSource =
-  | "Direct Role"
-  | "Team Role"
-  | "Superadmin"
-  | "Workspace Admin"
-  | "Ownership"
-  | "Agent Share"
-  | "Direct Share"
-  | "Team Share"
+type AccessSource = "Direct Role" | "Team Role" | "Ownership" | "Direct Share" | "Team Share"
 
 export function AccessSourceChip({ source }: { source: AccessSource }) {
   return <span className="text-muted-foreground">{source}</span>

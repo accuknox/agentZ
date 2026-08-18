@@ -1,16 +1,28 @@
+enabled: true
+
 nameOverride: ""
 fullnameOverride: ""
 
 replicaCount: 1
+revisionHistoryLimit: 10
+terminationGracePeriodSeconds: 30
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
 
 image:
   repository: murtazau/agentz
   tag: latest
+  digest: ""
   pullPolicy: IfNotPresent
 
 waitImage:
   repository: busybox
   tag: "1.37.0"
+  digest: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -18,6 +30,8 @@ imagePullSecrets: []
 serviceAccount:
   create: true
   name: ""
+  annotations: {}
+  automountServiceAccountToken: true
 
 rbac:
   create: true
@@ -29,16 +43,49 @@ resources: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+
+waitContainerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
 
 service:
   type: ClusterIP
   port: 8090
 
+waitForJWKS:
+  timeoutSeconds: 300
+
 config:
   logLevel: info
   logFormat: text
   logWithSource: false
-  namespace: agentz-system
   externalJWTJWKSURL: ""
   externalJWTIssuer: ""
   externalJWTAudience: agentz-gateway
@@ -53,7 +100,8 @@ config:
   openBaoK8sAuthMountPath: kubernetes
   openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
   mcpProbeStaleAfter: 5m
-  postgresDSN: ""
+  postgresSecretName: agentz-postgres
+  postgresSecretKey: DATABASE_URL
   skillsS3Endpoint: ""
   skillsS3Region: us-east-1
   skillsS3Bucket: ""

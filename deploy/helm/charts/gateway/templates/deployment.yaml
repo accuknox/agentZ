@@ -1,3 +1,15 @@
+{{- if .Values.enabled }}
+{{- $umbrella := dig "agentz" "umbrella" false (.Values.global | default dict) }}
+{{- $jwksURL := .Values.config.externalJWTJWKSURL }}
+{{- if and $umbrella (not $jwksURL) }}
+{{- $webName := printf "%s-web" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- $jwksURL = printf "http://%s.%s.svc.cluster.local:3000/api/auth/.well-known/jwks.json" $webName .Release.Namespace }}
+{{- end }}
+{{- $traceEndpoint := .Values.config.agentTraceEndpoint }}
+{{- if and $umbrella (not $traceEndpoint) }}
+{{- $observerName := printf "%s-observer" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- $traceEndpoint = printf "%s.%s.svc.cluster.local:4317" $observerName .Release.Namespace }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,6 +19,9 @@ metadata:
     {{- include "gateway.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "gateway.selectorLabels" . | nindent 6 }}
@@ -23,24 +38,42 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "gateway.serviceAccountName" . }}
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       initContainers:
         - name: wait-for-web-jwks
-          image: "{{ .Values.waitImage.repository }}:{{ .Values.waitImage.tag }}"
+          image: "{{ .Values.waitImage.repository }}{{ if .Values.waitImage.digest }}@{{ .Values.waitImage.digest }}{{ else }}:{{ .Values.waitImage.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.waitImage.pullPolicy }}
           command:
             - /bin/sh
             - -ec
             - |
-              until wget -q -O /dev/null {{ .Values.config.externalJWTJWKSURL | quote }}; do
+              deadline=$(( $(date +%s) + {{ .Values.waitForJWKS.timeoutSeconds }} ))
+              until wget -q -O /dev/null {{ required "gateway.config.externalJWTJWKSURL is required for standalone installs" $jwksURL | quote }}; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "timed out waiting for the web JWKS endpoint" >&2
+                  exit 1
+                fi
                 sleep 2
               done
+          securityContext:
+            {{- toYaml .Values.waitContainerSecurityContext | nindent 12 }}
       containers:
         - name: gateway
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/agentz"]
           args:
@@ -49,13 +82,12 @@ spec:
             - --log-level={{ .Values.config.logLevel }}
             - --log-format={{ .Values.config.logFormat }}
             - "--addr=0.0.0.0:{{ .Values.service.port }}"
-            - --namespace={{ .Values.config.namespace }}
-            - --postgres-dsn={{ required "gateway.config.postgresDSN is required" .Values.config.postgresDSN }}
-            - --external-jwt-jwks-url={{ required "gateway.config.externalJWTJWKSURL is required" .Values.config.externalJWTJWKSURL }}
+            - "--postgres-dsn=$(AGENTZ_POSTGRES_DSN)"
+            - --external-jwt-jwks-url={{ required "gateway.config.externalJWTJWKSURL is required for standalone installs" $jwksURL }}
             - --external-jwt-issuer={{ required "gateway.config.externalJWTIssuer is required" .Values.config.externalJWTIssuer }}
             - --external-jwt-audience={{ required "gateway.config.externalJWTAudience is required" .Values.config.externalJWTAudience }}
             - --internal-k8s-token-audience={{ required "gateway.config.internalK8sTokenAudience is required" .Values.config.internalK8sTokenAudience }}
-            - --agent-trace-endpoint={{ required "gateway.config.agentTraceEndpoint is required" .Values.config.agentTraceEndpoint }}
+            - --agent-trace-endpoint={{ required "gateway.config.agentTraceEndpoint is required for standalone installs" $traceEndpoint }}
             - --openbao-addr={{ .Values.config.openBaoAddr }}
             - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}
             - --openbao-k8s-auth-role={{ .Values.config.openBaoK8sAuthRole }}
@@ -85,6 +117,11 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           env:
+            - name: AGENTZ_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "gateway.config.postgresSecretName is required" .Values.config.postgresSecretName }}
+                  key: {{ required "gateway.config.postgresSecretKey is required" .Values.config.postgresSecretKey }}
             - name: AGENTZ_SKILLS_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -108,6 +145,8 @@ spec:
             tcpSocket:
               port: http
             periodSeconds: 20
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
@@ -122,3 +161,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

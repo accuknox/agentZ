@@ -68,7 +68,6 @@ const cleanupMaxAttempts = 8
 // Config describes how to start the gateway.
 type Config struct {
 	Addr                     string
-	Namespace                string
 	PostgresDSN              string
 	ExternalJWTJWKSURL       string
 	ExternalJWTIssuer        string

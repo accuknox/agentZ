@@ -1,8 +1,8 @@
-{{- if and .Values.certManager.enabled .Values.config.enableWebhooks }}
+{{- if and .Values.enabled .Values.certManager.enabled .Values.config.enableWebhooks }}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ include "manager.fullname" . }}-{{ .Values.certManager.issuerName }}
+  name: {{ include "manager.webhookSelfSignedIssuerName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "manager.labels" . | nindent 4 }}
@@ -12,7 +12,33 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ include "manager.fullname" . }}-{{ .Values.certManager.webhookCertificateName }}
+  name: {{ include "manager.webhookCAName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+spec:
+  commonName: {{ include "manager.webhookCAName" . }}
+  isCA: true
+  issuerRef:
+    kind: Issuer
+    name: {{ include "manager.webhookSelfSignedIssuerName" . }}
+  secretName: {{ include "manager.webhookCAName" . }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "manager.webhookCAIssuerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ include "manager.webhookCAName" . }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "manager.webhookCertificateName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "manager.labels" . | nindent 4 }}
@@ -22,6 +48,6 @@ spec:
     - {{ include "manager.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc.cluster.local
   issuerRef:
     kind: Issuer
-    name: {{ include "manager.fullname" . }}-{{ .Values.certManager.issuerName }}
-  secretName: {{ .Values.certManager.webhookSecretName }}
+    name: {{ include "manager.webhookCAIssuerName" . }}
+  secretName: {{ include "manager.webhookSecretName" . }}
 {{- end }}

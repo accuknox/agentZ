@@ -23,7 +23,6 @@ var (
 	errKubeArmorRelayAddrEmpty = errors.New("kubearmor relay address must not be empty")
 	errHubbleRelayAddrEmpty    = errors.New("hubble relay address must not be empty")
 	errOTLPTraceGRPCAddrEmpty  = errors.New("otlp trace grpc address must not be empty")
-	errNamespaceEmpty          = errors.New("namespace must not be empty")
 	errBatchSizeInvalid        = errors.New("batch size must be greater than zero")
 	errFlushIntervalInvalid    = errors.New("flush interval must be greater than zero")
 )
@@ -34,7 +33,6 @@ type Config struct {
 	KubeArmorRelayAddr string
 	HubbleRelayAddr    string
 	OTLPTraceGRPCAddr  string
-	Namespace          string
 	BatchSize          int
 	FlushInterval      time.Duration
 }
@@ -52,9 +50,6 @@ func (c Config) Validate() error {
 	}
 	if c.OTLPTraceGRPCAddr == "" {
 		return errOTLPTraceGRPCAddrEmpty
-	}
-	if c.Namespace == "" {
-		return errNamespaceEmpty
 	}
 	if c.BatchSize <= 0 {
 		return errBatchSizeInvalid

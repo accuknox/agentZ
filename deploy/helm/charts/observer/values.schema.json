@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": { "type": "object" },
+    "enabled": { "type": "boolean" },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+    "strategy": { "$ref": "#/definitions/strategy" },
+    "image": { "$ref": "#/definitions/image" },
+    "imagePullSecrets": { "type": "array" },
+    "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "create": { "type": "boolean" } }
+    },
+    "podAnnotations": { "type": "object" },
+    "podLabels": { "type": "object" },
+    "resources": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array" },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array" },
+    "priorityClassName": { "type": "string" },
+    "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+    "podSecurityContext": { "type": "object" },
+    "containerSecurityContext": { "type": "object" },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "otlpGrpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "logLevel": { "enum": ["debug", "info", "warn", "error"] },
+        "logFormat": { "enum": ["text", "json", "pretty"] },
+        "logWithSource": { "type": "boolean" },
+        "postgresSecretName": { "type": "string" },
+        "postgresSecretKey": { "type": "string" },
+        "kubearmorRelayAddr": { "type": "string", "minLength": 1 },
+        "hubbleRelayAddr": { "type": "string", "minLength": 1 },
+        "batchSize": { "type": "integer", "minimum": 1 },
+        "flushInterval": { "type": "string", "minLength": 1 }
+      }
+    },
+    "extraArgs": { "type": "array", "items": { "type": "string" } }
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["Recreate", "RollingUpdate"] },
+        "rollingUpdate": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxUnavailable": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+%?$" }] },
+            "maxSurge": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+%?$" }] }
+          }
+        }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "maxUnavailable": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+%?$" }] }
+      }
+    }
+  }
+}

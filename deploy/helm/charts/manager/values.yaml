@@ -1,16 +1,43 @@
+enabled: true
+
 nameOverride: ""
 fullnameOverride: ""
 
 inference:
   externalSecrets:
-    storeName: agentz-inference
+    enabled: true
+    storeName: ""
     refreshInterval: 1m
+    serviceAccount:
+      name: ""
+      namespace: ""
+      annotations: {}
+      audiences:
+        - https://kubernetes.default.svc
+    openBao:
+      server: http://openbao.openbao.svc.cluster.local:8200
+      kvMount: kv
+      kubernetesAuthMount: kubernetes
+      role: agentz-inference-external-secrets
+      caBundle: ""
+      caProvider: {}
+    managedNamespaceSelector:
+      app.kubernetes.io/managed-by: agentz
 
 replicaCount: 1
+revisionHistoryLimit: 10
+terminationGracePeriodSeconds: 10
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
 
 image:
   repository: murtazau/agentz
   tag: latest
+  digest: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -18,10 +45,11 @@ imagePullSecrets: []
 serviceAccount:
   create: true
   name: ""
+  annotations: {}
+  automountServiceAccountToken: true
 
 rbac:
   create: true
-  createUserRoles: true
 
 podAnnotations: {}
 podLabels: {}
@@ -37,6 +65,12 @@ resources:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1
 
 podSecurityContext:
   runAsNonRoot: true
@@ -44,6 +78,9 @@ podSecurityContext:
     type: RuntimeDefault
 
 containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
   capabilities:
@@ -61,17 +98,17 @@ config:
   enableHTTP2: false
   workflowRunOrphanRetention: 168h
   # Image used for controller-managed workloads and agent filesystem sidecars.
-  controllerImage: controller:latest
+  controllerImage: murtazau/agentz:latest
   agentImage: ""
   agentInitImage: ""
-  gatewayURL: http://gateway.agentz-system.svc.cluster.local:8090
+  gatewayURL: ""
   agentgatewayTraceMode: service
-  agentgatewayTraceServiceName: observer
-  agentgatewayTraceServiceNamespace: agentz-system
+  agentgatewayTraceServiceName: ""
+  agentgatewayTraceServiceNamespace: ""
   agentgatewayTraceServicePort: 4317
   agentgatewayTraceHost: ""
   agentgatewayTracePort: 4317
-  nixStorePVC: ""
+  nixStorePVC: nix-store
   nixStoreSize: 5Gi
   nixStoreAccessModes:
   - ReadWriteOnce
@@ -102,7 +139,7 @@ config:
   sinjectorCACertPath: /etc/agentz/sinjector-ca/tls.crt
   sinjectorCAKeyPath: /etc/agentz/sinjector-ca/tls.key
   agentCABundlePath: /etc/agentz/sinjector-ca/ca.crt
-  tenantSinjectorClusterIssuerName: ""
+  tenantSinjectorClusterIssuerName: selfsigned
   watchNamespace: ""
   enableWebhooks: true
 
@@ -111,7 +148,6 @@ service:
     enabled: true
     port: 8443
   webhook:
-    enabled: true
     port: 443
     targetPort: 9443
 
@@ -119,6 +155,6 @@ certManager:
   enabled: true
   issuerName: selfsigned-issuer
   webhookCertificateName: serving-cert
-  webhookSecretName: webhook-server-cert
+  webhookSecretName: ""
 
 extraArgs: []

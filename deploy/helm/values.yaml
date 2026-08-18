@@ -1,13 +1,18 @@
 # Controller manager chart.
+global:
+  agentz:
+    umbrella: true
+
 manager:
   inference:
     externalSecrets:
       enabled: true
-      storeName: agentz-inference
+      storeName: ""
       refreshInterval: 1m
       serviceAccount:
-        name: agentz-inference-external-secrets
+        name: ""
         namespace: ""
+        annotations: {}
         audiences:
           - https://kubernetes.default.svc
       openBao:
@@ -17,7 +22,7 @@ manager:
         role: agentz-inference-external-secrets
         caBundle: ""
         caProvider: {}
-      tenantNamespaceSelector:
+      managedNamespaceSelector:
         app.kubernetes.io/managed-by: agentz
 
   # Enable the AgentZ controller manager subchart.
@@ -32,6 +37,14 @@ manager:
   # Number of manager replicas. In practice this is usually 1 with leader
   # election enabled.
   replicaCount: 1
+  revisionHistoryLimit: 10
+  terminationGracePeriodSeconds: 10
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
 
   image:
     # Image repository for the `agentz` binary used by the manager pod.
@@ -39,6 +52,7 @@ manager:
 
     # Image tag for the manager image.
     tag: latest
+    digest: ""
 
     # Kubernetes image pull policy.
     pullPolicy: IfNotPresent
@@ -52,15 +66,12 @@ manager:
 
     # Explicit ServiceAccount name. Leave empty to use the generated default.
     name: ""
+    annotations: {}
+    automountServiceAccountToken: true
 
   rbac:
     # Create RBAC for the manager.
     create: true
-
-    # Create the extra viewer/editor/admin Roles for CRD users.
-    # These are not required by the controller itself but mirror the existing
-    # Kubebuilder-style install bundle.
-    createUserRoles: true
 
   # Extra annotations added to the manager pod template.
   podAnnotations: {}
@@ -87,6 +98,12 @@ manager:
 
   # Affinity rules for manager pods.
   affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
 
   podSecurityContext:
     # Run the pod as a non-root workload.
@@ -97,6 +114,9 @@ manager:
       type: RuntimeDefault
 
   containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
     # Keep the container filesystem read-only.
     readOnlyRootFilesystem: true
 
@@ -137,7 +157,7 @@ manager:
 
     # Image used for controller-managed workloads and agent filesystem
     # sidecars.
-    controllerImage: controller:latest
+    controllerImage: murtazau/agentz:latest
 
     # Default image used for Agent resources created by the system.
     agentImage: ""
@@ -146,13 +166,23 @@ manager:
     agentInitImage: ""
 
     # Base URL exposed to agents for gateway-backed workflow tools.
-    gatewayURL: http://gateway:8090
+    gatewayURL: ""
 
-    # OTLP/gRPC endpoint used by agentgateway for MCP traces.
-    agentgatewayTraceEndpoint: observer.agentz-system.svc.cluster.local:4317
+    # AgentGateway trace target discovery mode: service or static.
+    agentgatewayTraceMode: service
+
+    # Kubernetes Service used for AgentGateway trace export. Empty values use
+    # this release's observer Service and namespace.
+    agentgatewayTraceServiceName: ""
+    agentgatewayTraceServiceNamespace: ""
+    agentgatewayTraceServicePort: 4317
+
+    # Static AgentGateway trace target used when trace mode is static.
+    agentgatewayTraceHost: ""
+    agentgatewayTracePort: 4317
 
     # Name of each scope-local shared PVC used by agent package jobs.
-    nixStorePVC: ""
+    nixStorePVC: nix-store
 
     # Requested storage size for each scope-local nix store PVC.
     nixStoreSize: 5Gi
@@ -241,7 +271,7 @@ manager:
     agentCABundlePath: /etc/agentz/sinjector-ca/ca.crt
 
     # Pre-created ClusterIssuer used for tenant sinjector CA certificates.
-    tenantSinjectorClusterIssuerName: ""
+    tenantSinjectorClusterIssuerName: selfsigned
 
     # Namespace or comma-separated namespaces watched by the manager.
     watchNamespace: ""
@@ -260,9 +290,6 @@ manager:
 
     webhook:
       # Expose the manager webhook Service.
-      enabled: true
-
-      # Service port for webhook traffic.
       port: 443
 
       # Container port used by the webhook server.
@@ -279,7 +306,7 @@ manager:
     webhookCertificateName: serving-cert
 
     # Secret name mounted into the manager pod for webhook TLS.
-    webhookSecretName: webhook-server-cert
+    webhookSecretName: ""
 
   # Extra CLI arguments appended to `agentz manager`.
   extraArgs: []
@@ -297,6 +324,14 @@ gateway:
 
   # Number of gateway replicas.
   replicaCount: 1
+  revisionHistoryLimit: 10
+  terminationGracePeriodSeconds: 30
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
 
   image:
     # Image repository for the gateway workload.
@@ -304,6 +339,7 @@ gateway:
 
     # Image tag for the gateway workload.
     tag: latest
+    digest: ""
 
     # Kubernetes image pull policy.
     pullPolicy: IfNotPresent
@@ -314,6 +350,7 @@ gateway:
 
     # Image tag used by the gateway init container.
     tag: "1.37.0"
+    digest: ""
 
     # Kubernetes image pull policy for the wait container.
     pullPolicy: IfNotPresent
@@ -327,6 +364,8 @@ gateway:
 
     # Explicit ServiceAccount name. Leave empty to use the generated default.
     name: ""
+    annotations: {}
+    automountServiceAccountToken: true
 
   rbac:
     # Create gateway RBAC for Kubernetes-backed API operations and watches.
@@ -349,6 +388,37 @@ gateway:
 
   # Affinity rules for gateway pods.
   affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
+
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+
+  waitContainerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
 
   service:
     # Kubernetes Service type for the gateway.
@@ -356,6 +426,10 @@ gateway:
 
     # Gateway HTTP port.
     port: 8090
+
+  waitForJWKS:
+    # Fail startup instead of waiting forever for a misconfigured JWKS URL.
+    timeoutSeconds: 300
 
   config:
     # Application log level passed to `agentz gateway serve`.
@@ -366,9 +440,6 @@ gateway:
 
     # Include file and line information in logs.
     logWithSource: false
-
-    # Namespace where the gateway resolves and manages AgentZ resources.
-    namespace: default
 
     # Optional backend target override for local or special routing scenarios.
     targetOverride: ""
@@ -414,8 +485,9 @@ gateway:
     # Maximum age before MCP probe results are treated as stale.
     mcpProbeStaleAfter: 5m
 
-    # Required PostgreSQL DSN for gateway state.
-    postgresDSN: ""
+    # Secret containing the PostgreSQL DSN for gateway state.
+    postgresSecretName: agentz-postgres
+    postgresSecretKey: DATABASE_URL
 
     # Immutable Skill object storage is owned by the gateway.
     skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
@@ -438,10 +510,18 @@ observer:
   nameOverride: ""
 
   # Override the full generated resource name.
-  fullnameOverride: observer
+  fullnameOverride: ""
 
   # Number of observer replicas.
   replicaCount: 1
+  revisionHistoryLimit: 10
+  terminationGracePeriodSeconds: 30
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
 
   image:
     # Image repository for the observer workload.
@@ -449,6 +529,7 @@ observer:
 
     # Image tag for the observer workload.
     tag: latest
+    digest: ""
 
     # Kubernetes image pull policy.
     pullPolicy: IfNotPresent
@@ -462,6 +543,8 @@ observer:
 
     # Explicit ServiceAccount name. Leave empty to use the generated default.
     name: ""
+    annotations: {}
+    automountServiceAccountToken: true
 
   rbac:
     # Create RBAC for observer access to Agents, Services, and EndpointSlices.
@@ -484,6 +567,27 @@ observer:
 
   # Affinity rules for observer pods.
   affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
+
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
 
   service:
     # Kubernetes Service type for the OTLP receiver.
@@ -502,17 +606,15 @@ observer:
     # Include file and line information in logs.
     logWithSource: false
 
-    # Required PostgreSQL DSN for telemetry storage.
-    postgresDSN: ""
+    # Secret containing the PostgreSQL DSN for telemetry storage.
+    postgresSecretName: agentz-postgres
+    postgresSecretKey: DATABASE_URL
 
     # KubeArmor relay gRPC address.
     kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
 
     # Hubble relay gRPC address.
     hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
-
-    # Namespace whose managed agents should be observed.
-    namespace: default
 
     # Max events buffered into one PostgreSQL flush.
     batchSize: 500
@@ -536,6 +638,14 @@ web:
 
   # Number of web replicas.
   replicaCount: 1
+  revisionHistoryLimit: 10
+  terminationGracePeriodSeconds: 30
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
 
   image:
     # Image repository for the built Next.js web application.
@@ -543,6 +653,7 @@ web:
 
     # Image tag for the web workload.
     tag: latest
+    digest: ""
 
     # Kubernetes image pull policy.
     pullPolicy: IfNotPresent
@@ -556,6 +667,7 @@ web:
 
     # Explicit ServiceAccount name. Leave empty to use the generated default.
     name: ""
+    annotations: {}
 
   # Extra annotations added to the web pod template.
   podAnnotations: {}
@@ -574,6 +686,27 @@ web:
 
   # Affinity rules for web pods.
   affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
+
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
 
   service:
     # Kubernetes Service type for the web app.
@@ -647,6 +780,9 @@ web:
     nixosSearchESBranch: ""
 
   secrets:
+    # Existing Secret containing the keys otherwise created by this chart.
+    existingSecret: ""
+
     # Required database DSN for Better Auth and Drizzle.
     databaseURL: ""
 

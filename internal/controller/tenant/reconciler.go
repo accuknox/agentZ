@@ -428,7 +428,7 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 								ciliumpolicyapi.NewESFromLabels(
 									ciliumlabels.NewLabel(
 										"io.kubernetes.pod.namespace",
-										"agentz-system",
+										r.ManagerServiceAccountNamespace,
 										ciliumlabels.LabelSourceK8s,
 									),
 								),

@@ -30,14 +30,6 @@ var gatewayServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:  "namespace",
-			Usage: "Kubernetes namespace to resolve Agents from",
-			Value: gateway.DefaultNamespace,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.StringFlag{
 			Name:     "postgres-dsn",
 			Usage:    "PostgreSQL DSN for session history and agent listing",
 			Required: true,
@@ -175,7 +167,6 @@ var gatewayServeCmd = &cli.Command{
 			ctx,
 			gateway.Config{
 				Addr:                     c.String("addr"),
-				Namespace:                c.String("namespace"),
 				PostgresDSN:              c.String("postgres-dsn"),
 				ExternalJWTJWKSURL:       c.String("external-jwt-jwks-url"),
 				ExternalJWTIssuer:        c.String("external-jwt-issuer"),

@@ -32,9 +32,6 @@ spec:
                 name: {{ include "agentz.webFullname" $ }}
                 port:
                   number: {{ $.Values.web.service.port }}
-    - host: {{ .host }}
-      http:
-        paths:
           - path: /api/account
             pathType: Prefix
             backend:

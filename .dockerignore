@@ -6,6 +6,7 @@
 !**/*.go
 !**/*.hcl
 !**/*.tmpl
+!internal/authorization/*.cedar
 !internal/workflow/input-schema.json
 !internal/controller/agent/prompts/
 **/*_test.go

@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: ChatPageProps): Promise<Metad
 
   return {
     title: {
-      absolute: `${agentName} - ${sessionTitle} | AccuKnox AgentZ`,
+      absolute: `${agentName} - ${sessionTitle} | AgentZ`,
     },
   }
 }

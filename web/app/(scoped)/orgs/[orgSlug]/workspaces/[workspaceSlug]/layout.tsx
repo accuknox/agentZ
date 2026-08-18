@@ -25,7 +25,7 @@ export async function generateMetadata({
   return {
     title: {
       default: name,
-      template: `${name} - %s | AccuKnox AgentZ`,
+      template: `${name} - %s | AgentZ`,
     },
   }
 }

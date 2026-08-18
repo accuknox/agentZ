@@ -167,8 +167,14 @@ export function SignUpForm({
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
       <div className="flex items-center justify-center gap-3">
-        <Image src="/emblem.svg" alt="AccuKnox emblem" width={40} height={40} className="size-10" />
-        <span className="text-foreground text-3xl font-semibold tracking-tight">AccuKnox</span>
+        <Image
+          src="/agentz-logo.svg"
+          alt="AgentZ logo"
+          width={46}
+          height={40}
+          className="h-10 w-auto"
+        />
+        <span className="text-foreground text-3xl font-semibold tracking-tight">AgentZ</span>
       </div>
       {showPasswordAuth ? (
         <form

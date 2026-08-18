@@ -39,7 +39,7 @@ export async function generateMetadata({
   const data = await getMemberAdministration(orgSlug, memberId)
   return {
     title: {
-      absolute: data ? `${data.member.name} - User | AccuKnox AgentZ` : "User | AccuKnox AgentZ",
+      absolute: data ? `${data.member.name} - User | AgentZ` : "User | AgentZ",
     },
   }
 }

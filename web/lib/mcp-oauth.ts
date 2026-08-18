@@ -427,7 +427,7 @@ function redirectURL() {
 function oauthClientMetadata(redirectURL: URL): OAuthClientMetadata {
   const base = new URL("/", redirectURL)
   return {
-    client_name: "AccuKnox AgentZ OAuth Client",
+    client_name: "AgentZ OAuth Client",
     redirect_uris: [redirectURL.toString()],
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],

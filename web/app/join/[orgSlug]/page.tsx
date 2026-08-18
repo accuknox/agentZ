@@ -206,8 +206,8 @@ async function JoinOrganizationContent({
       />
       <section className="relative flex w-full max-w-md flex-col items-center text-center">
         <div className="flex items-center gap-2.5">
-          <Image src="/emblem.svg" alt="" width={28} height={28} className="size-7" />
-          <span className="text-lg font-semibold tracking-tight">AccuKnox AgentZ</span>
+          <Image src="/agentz-logo.svg" alt="" width={32} height={28} className="h-7 w-8" />
+          <span className="text-lg font-semibold tracking-tight">AgentZ</span>
         </div>
 
         <Image

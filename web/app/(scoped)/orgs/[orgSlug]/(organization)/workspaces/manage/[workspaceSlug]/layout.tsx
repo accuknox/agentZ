@@ -19,7 +19,7 @@ export async function generateMetadata({
   return {
     title: {
       default: scope.workspace.name,
-      template: `${scope.workspace.name} - %s | AccuKnox AgentZ`,
+      template: `${scope.workspace.name} - %s | AgentZ`,
     },
   }
 }

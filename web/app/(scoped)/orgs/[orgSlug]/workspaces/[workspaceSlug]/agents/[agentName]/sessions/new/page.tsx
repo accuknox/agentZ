@@ -29,7 +29,7 @@ export async function generateMetadata({
 
   return {
     title: {
-      absolute: `${agentName} - New session | AccuKnox AgentZ`,
+      absolute: `${agentName} - New session | AgentZ`,
     },
   }
 }

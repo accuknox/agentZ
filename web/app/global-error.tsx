@@ -13,7 +13,7 @@ export default function GlobalError({
   return (
     <html lang="en">
       <head>
-        <title>Application error | AccuKnox AgentZ</title>
+        <title>Application error | AgentZ</title>
       </head>
       <body>
         <main className="flex min-h-svh items-center justify-center p-6">

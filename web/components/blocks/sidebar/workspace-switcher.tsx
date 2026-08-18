@@ -189,7 +189,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
         <SidebarMenuButton asChild size="lg" tooltip="AgentZ">
           <Link href="/" className="flex items-center gap-2">
             <Avatar className="size-8">
-              <AvatarImage alt="AgentZ" src="/emblem.svg" />
+              <AvatarImage alt="AgentZ" className="object-contain" src="/agentz-logo.svg" />
               <AvatarFallback>AZ</AvatarFallback>
             </Avatar>
             <span className="truncate font-medium">AgentZ</span>

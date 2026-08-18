@@ -7,11 +7,11 @@ const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
 
 export const metadata: Metadata = {
   title: {
-    default: "AccuKnox AgentZ",
-    template: "%s | AccuKnox AgentZ",
+    default: "AgentZ",
+    template: "%s | AgentZ",
   },
   description: "Control-plane for your AI agents",
-  icons: ["/favicon.svg"],
+  icons: ["/agentz-logo.svg"],
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

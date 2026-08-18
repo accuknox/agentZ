@@ -1,6 +1,7 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
+import type { Route } from "next"
 import { cache } from "react"
 import { and, eq, isNull } from "drizzle-orm"
 import {
@@ -26,6 +27,7 @@ import {
 } from "@/data/organizations"
 import { getDB, schema } from "@/db"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
+import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 
 export const getWorkspaceDirectory = cache(async (orgSlug: string) => {
@@ -112,6 +114,48 @@ export const getWorkspaceScope = cache(async (orgSlug: string, workspaceSlug: st
     workspace: workspace.data,
   }
 })
+
+export async function resolveWorkspaceDestination(
+  orgSlug: string,
+  workspaceSlug: string
+): Promise<Route | undefined> {
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind !== "ready") {
+    return
+  }
+
+  const root = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
+  if (scope.workspace.capabilities.agents.author) {
+    return `${root}/agents` as Route
+  }
+
+  const agents = await listAgentsCachedQuery(undefined, scope.workspace.id)
+  if (!agents.error && agents.agents.length > 0) {
+    return `${root}/agents` as Route
+  }
+  if (scope.scope.organization.superadmin || scope.workspace.capabilities.administer) {
+    return `${root}/roles` as Route
+  }
+  if (scope.workspace.capabilities.observability.read) {
+    return `${root}/lens/traces` as Route
+  }
+  if (scope.workspace.capabilities.skills.read) {
+    return `${root}/skills` as Route
+  }
+  if (scope.workspace.capabilities.mcp_connections.read) {
+    return `${root}/mcps` as Route
+  }
+  if (scope.workspace.capabilities.sandboxes.read) {
+    return `${root}/sandboxes` as Route
+  }
+  if (scope.workspace.capabilities.inference_providers.read) {
+    return `${root}/inference/providers` as Route
+  }
+  if (scope.workspace.capabilities.inference_pools.read) {
+    return `${root}/inference/pools` as Route
+  }
+  return undefined
+}
 
 export async function getWorkspaceCreation(orgSlug: string) {
   const scope = await resolveOrganizationSlug(orgSlug)

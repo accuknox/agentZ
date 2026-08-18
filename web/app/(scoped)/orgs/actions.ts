@@ -7,7 +7,7 @@ import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } from "@/data/cache"
-import { getOrganizationSession, switchOrganization } from "@/data/organizations"
+import { getOrganizationSession, resolveOrganizationDestination } from "@/data/organizations"
 import { deleteWorkspace, getDestructiveImpact } from "@/data/operations"
 import {
   acceptInvitation,
@@ -33,6 +33,7 @@ import { deleteTeam, saveTeam, saveTeamRoles } from "@/data/teams"
 import {
   provisionWorkspace,
   replaceWorkspaceInheritedResourceSelection,
+  resolveWorkspaceDestination,
   retryWorkspaceProvisioning,
   updateWorkspaceName,
 } from "@/data/workspaces"
@@ -333,9 +334,15 @@ export type InvitationFormState = { error?: string; link?: string }
 
 export type SocialAdmissionFormState = { error?: string; saved?: boolean }
 
-export async function switchOrganizationAction(organizationId: string): Promise<never> {
-  const destination = await switchOrganization(organizationId)
-  redirect(destination ?? "/settings/account")
+export async function resolveOrganizationDestinationAction(organizationId: string): Promise<Route> {
+  return (await resolveOrganizationDestination(organizationId)) ?? "/settings/account"
+}
+
+export async function resolveWorkspaceDestinationAction(
+  orgSlug: string,
+  workspaceSlug: string
+): Promise<Route> {
+  return (await resolveWorkspaceDestination(orgSlug, workspaceSlug)) ?? "/settings/account"
 }
 
 export async function createInvitationAction(

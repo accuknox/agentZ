@@ -58,10 +58,7 @@ export default async function ChatPage({ params, searchParams }: NewSessionPageP
   const greetingIndex = randomInt(10)
 
   return (
-    <main
-      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0"
-      data-chat-page
-    >
+    <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
       <ChatShell
         agentName={agentName}
         draftKey={draft}

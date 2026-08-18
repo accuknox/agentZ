@@ -52,10 +52,7 @@ async function ChatPageContent({ params }: ChatPageProps) {
   }
 
   return (
-    <main
-      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0"
-      data-chat-page
-    >
+    <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
       <h1 className="sr-only">
         Session {sessionId} with {agentName}
       </h1>

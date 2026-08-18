@@ -9,6 +9,7 @@ import type { CSSProperties, ReactNode } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
+import { ScopeTransitionProvider } from "@/components/scope-transition"
 
 const sidebarStyle: CSSProperties & { "--sidebar-width": string } = {
   "--sidebar-width": "17.5rem",
@@ -30,9 +31,11 @@ export default function Providers({ children }: { children: ReactNode }) {
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider delayDuration={450}>
-            <SidebarProvider style={sidebarStyle}>{children}</SidebarProvider>
-          </TooltipProvider>
+          <ScopeTransitionProvider>
+            <TooltipProvider delayDuration={450}>
+              <SidebarProvider style={sidebarStyle}>{children}</SidebarProvider>
+            </TooltipProvider>
+          </ScopeTransitionProvider>
           <Toaster />
         </ThemeProvider>
       </ProgressProvider>

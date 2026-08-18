@@ -3,9 +3,9 @@ import "server-only"
 import type { Route } from "next"
 import { cache } from "react"
 import { and, asc, countDistinct, eq, isNotNull, isNull, or } from "drizzle-orm"
-import { headers } from "next/headers"
+import { after } from "next/server"
 import { getDB, schema } from "@/db"
-import { getAuth } from "@/lib/auth"
+import { getAuth, getAuthSession } from "@/lib/auth"
 
 export type OrganizationSummary = {
   id: string
@@ -108,13 +108,12 @@ export async function lockOrganizationForSuperadmin(
   return isActiveSuperadmin(db, organizationId, userId)
 }
 
-export async function getOrganizationSession() {
-  const requestHeaders = await headers()
-  const auth = getAuth()
-  const session = await auth.api.getSession({ headers: requestHeaders })
-  if (!session) {
+export const getOrganizationSession = cache(async () => {
+  const authSession = await getAuthSession()
+  if (!authSession) {
     return
   }
+  const { requestHeaders, session } = authSession
 
   const db = getDB()
   const organizationRows = db
@@ -176,11 +175,12 @@ export async function getOrganizationSession() {
   }))
 
   return {
+    activeOrganizationId: session.session.activeOrganizationId,
     organizations,
     requestHeaders,
     session,
   }
-}
+})
 
 export const resolveOrganizationSlug = cache(async (slug: string) => {
   const organizationSession = await getOrganizationSession()
@@ -246,11 +246,12 @@ export async function activateOrganization(organizationId: string) {
     return
   }
 
-  if (organizationSession.session.session.activeOrganizationId !== organization.id) {
+  if (organizationSession.activeOrganizationId !== organization.id) {
     await getAuth().api.setActiveOrganization({
       body: { organizationId: organization.id },
       headers: organizationSession.requestHeaders,
     })
+    organizationSession.activeOrganizationId = organization.id
   }
 
   return organization
@@ -269,7 +270,7 @@ export async function rootOrganizationPath(): Promise<Route> {
 
   const organization =
     organizationSession.organizations.find(
-      (candidate) => candidate.id === organizationSession.session.session.activeOrganizationId
+      (candidate) => candidate.id === organizationSession.activeOrganizationId
     ) ?? firstOrganization
   const [lastContext] = await getDB()
     .select({ route: schema.lastAccessibleContexts.route })
@@ -286,10 +287,14 @@ export async function rootOrganizationPath(): Promise<Route> {
   return organizationDestination(organization, lastContext?.route)
 }
 
-export async function switchOrganization(organizationId: string): Promise<Route | undefined> {
-  const organization = await activateOrganization(organizationId)
+export async function resolveOrganizationDestination(
+  organizationId: string
+): Promise<Route | undefined> {
   const organizationSession = await getOrganizationSession()
-  if (!organization || !organizationSession) {
+  const organization = organizationSession?.organizations.find(
+    (candidate) => candidate.id === organizationId
+  )
+  if (!organizationSession || !organization) {
     return
   }
 
@@ -307,7 +312,7 @@ export async function switchOrganization(organizationId: string): Promise<Route 
   return organizationDestination(organization, lastContext?.route)
 }
 
-export async function rememberOrganizationRoute(
+export async function scheduleOrganizationRouteMemory(
   organizationId: string,
   route: string,
   workspaceId: string | null
@@ -325,22 +330,28 @@ export async function rememberOrganizationRoute(
     return
   }
 
-  await getDB()
-    .insert(schema.lastAccessibleContexts)
-    .values({
-      organizationId: organization.id,
-      route,
-      userId: organizationSession.session.user.id,
-      workspaceId,
-    })
-    .onConflictDoUpdate({
-      target: [schema.lastAccessibleContexts.userId, schema.lastAccessibleContexts.organizationId],
-      set: {
+  const userId = organizationSession.session.user.id
+  after(async () => {
+    await getDB()
+      .insert(schema.lastAccessibleContexts)
+      .values({
+        organizationId: organization.id,
         route,
-        updatedAt: new Date(),
+        userId,
         workspaceId,
-      },
-    })
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.lastAccessibleContexts.userId,
+          schema.lastAccessibleContexts.organizationId,
+        ],
+        set: {
+          route,
+          updatedAt: new Date(),
+          workspaceId,
+        },
+      })
+  })
 }
 
 function organizationDestination(organization: OrganizationSummary, savedRoute?: string): Route {
@@ -348,8 +359,12 @@ function organizationDestination(organization: OrganizationSummary, savedRoute?:
   if (!organization.hasAccess) {
     return root as Route
   }
-  if (savedRoute === root || savedRoute?.startsWith(`${root}/`)) {
-    return savedRoute as Route
+  if (savedRoute?.startsWith(`${root}/`)) {
+    const segments = savedRoute.slice(root.length + 1).split("/")
+    const workspaceLanding = segments[0] === "workspaces" && segments.length === 2
+    if (!workspaceLanding) {
+      return savedRoute as Route
+    }
   }
 
   if (organization.superadmin) {

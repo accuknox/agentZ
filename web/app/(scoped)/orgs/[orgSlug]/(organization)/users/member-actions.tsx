@@ -38,6 +38,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -94,19 +95,21 @@ export function InvitationActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          disabled={pending}
-          onSelect={() =>
-            start(async () => {
-              await cancelInvitationAction(orgSlug, invitationId)
-              toast.success("Invitation cancelled")
-            })
-          }
-          variant="destructive"
-        >
-          {pending ? <Spinner /> : <X />}
-          Cancel
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            disabled={pending}
+            onSelect={() =>
+              start(async () => {
+                await cancelInvitationAction(orgSlug, invitationId)
+                toast.success("Invitation cancelled")
+              })
+            }
+            variant="destructive"
+          >
+            {pending ? <Spinner /> : <X />}
+            Cancel
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -134,69 +137,79 @@ export function UserTableActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
-          <DropdownMenuItem asChild className="whitespace-nowrap">
-            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=access` as Route}>
-              <Shield />
-              Roles and access
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild className="whitespace-nowrap">
-            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=agents` as Route}>
-              <Bot />
-              Owned Agents
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild className="whitespace-nowrap">
-            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=keys` as Route}>
-              <KeyRound />
-              API Keys
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild className="whitespace-nowrap">
-            <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=activity` as Route}>
-              <Activity />
-              Activity
-            </Link>
-          </DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuItem asChild className="whitespace-nowrap">
+              <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=access` as Route}>
+                <Shield />
+                Roles and access
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="whitespace-nowrap">
+              <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=agents` as Route}>
+                <Bot />
+                Owned Agents
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="whitespace-nowrap">
+              <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=keys` as Route}>
+                <KeyRound />
+                API Keys
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="whitespace-nowrap">
+              <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=activity` as Route}>
+                <Activity />
+                Activity
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
   )
 }
 
-export function MembershipStateButton({
-  disabled,
+export function DisabledUserActions({
   memberId,
+  name,
   orgSlug,
 }: {
-  disabled: boolean
   memberId: string
+  name: string
   orgSlug: string
 }) {
   const [pending, start] = useTransition()
-  if (!disabled) {
-    return (
-      <Button asChild size="sm" variant="outline">
-        <Link href={`/orgs/${orgSlug}/users/${memberId}` as Route}>Manage</Link>
-      </Button>
-    )
-  }
+
   return (
-    <Button
-      disabled={pending}
-      onClick={() =>
-        start(async () => {
-          await restoreMembershipAction(orgSlug, memberId)
-          toast.success("User restored")
-        })
-      }
-      size="sm"
-      type="button"
-      variant="outline"
+    <div
+      className="flex justify-end"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
     >
-      {pending ? <Spinner /> : <ShieldPlus />}
-      Restore
-    </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button aria-label={`Actions for ${name}`} size="icon" variant="ghost">
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              disabled={pending}
+              onSelect={() =>
+                start(async () => {
+                  await restoreMembershipAction(orgSlug, memberId)
+                  toast.success("User restored")
+                })
+              }
+            >
+              {pending ? <Spinner /> : <ShieldPlus />}
+              Restore
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 

@@ -1,5 +1,6 @@
 import "server-only"
 
+import { cache } from "react"
 import { and, eq, isNull, or } from "drizzle-orm"
 import { getOrganizationSession } from "@/data/organizations"
 import { getDB, schema } from "@/db"
@@ -26,7 +27,7 @@ async function resolveGatewayAuthState(): Promise<GatewayAuthContext> {
   }
 
   const organization = organizationSession.organizations.find(
-    (candidate) => candidate.id === organizationSession.session.session.activeOrganizationId
+    (candidate) => candidate.id === organizationSession.activeOrganizationId
   )
   if (!organization) {
     throw new GatewayUnauthorizedError()
@@ -57,9 +58,20 @@ export async function currentGatewayAuthContext(): Promise<GatewayAuthContext> {
  */
 export async function currentGatewayAuthToken(workspaceId?: string): Promise<string> {
   const state = await resolveGatewayAuthState()
+  return getGatewayAuthToken(state.organizationId, state.userId, state.userName, workspaceId)
+}
+
+const getGatewayAuthToken = cache(signGatewayAuthToken)
+
+async function signGatewayAuthToken(
+  organizationId: string,
+  userId: string,
+  userName: string,
+  workspaceId?: string
+): Promise<string> {
   const db = getDB()
   const scopeType = workspaceId ? "workspace" : "organization"
-  const scopeId = workspaceId ?? state.organizationId
+  const scopeId = workspaceId ?? organizationId
   if (workspaceId) {
     const [workspace] = await db
       .select({ id: schema.workspaces.id })
@@ -67,7 +79,7 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
       .where(
         and(
           eq(schema.workspaces.id, workspaceId),
-          eq(schema.workspaces.organizationId, state.organizationId),
+          eq(schema.workspaces.organizationId, organizationId),
           isNull(schema.workspaces.deletedAt)
         )
       )
@@ -111,8 +123,8 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
     )
     .where(
       and(
-        eq(schema.members.userId, state.userId),
-        eq(schema.members.organizationId, state.organizationId),
+        eq(schema.members.userId, userId),
+        eq(schema.members.organizationId, organizationId),
         isNull(schema.members.disabledAt),
         workspaceId
           ? or(
@@ -142,9 +154,9 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
         .from(schema.agentOwners)
         .where(
           and(
-            eq(schema.agentOwners.organizationId, state.organizationId),
+            eq(schema.agentOwners.organizationId, organizationId),
             eq(schema.agentOwners.workspaceId, workspaceId),
-            eq(schema.agentOwners.ownerUserId, state.userId)
+            eq(schema.agentOwners.ownerUserId, userId)
           )
         ),
       db
@@ -159,9 +171,9 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
         )
         .where(
           and(
-            eq(schema.agentShares.organizationId, state.organizationId),
+            eq(schema.agentShares.organizationId, organizationId),
             eq(schema.agentShares.workspaceId, workspaceId),
-            eq(schema.agentShares.targetUserId, state.userId)
+            eq(schema.agentShares.targetUserId, userId)
           )
         ),
       db
@@ -187,9 +199,9 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
         )
         .where(
           and(
-            eq(schema.agentShares.organizationId, state.organizationId),
+            eq(schema.agentShares.organizationId, organizationId),
             eq(schema.agentShares.workspaceId, workspaceId),
-            eq(schema.teamMembers.userId, state.userId)
+            eq(schema.teamMembers.userId, userId)
           )
         ),
     ])
@@ -222,12 +234,12 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
         ),
         capabilities: [...capabilities].sort(),
         iat: Math.floor(Date.now() / 1000),
-        organization_id: state.organizationId,
+        organization_id: organizationId,
         scope_id: scopeId,
         scope_type: scopeType,
-        sub: state.userId,
-        user_id: state.userId,
-        user_name: state.userName,
+        sub: userId,
+        user_id: userId,
+        user_name: userName,
       },
     },
   })

@@ -12,8 +12,9 @@ import {
   SlidersHorizontal,
   User2,
 } from "lucide-react"
-import { useState, useTransition } from "react"
-import { switchOrganizationAction } from "@/app/(scoped)/orgs/actions"
+import { useState } from "react"
+import { resolveOrganizationDestinationAction } from "@/app/(scoped)/orgs/actions"
+import { useScopeTransition } from "@/components/scope-transition"
 import { authClient } from "@/lib/auth-client"
 import type { OrganizationSummary } from "@/data/organizations"
 import { Avatar, AvatarFallback, AvatarImage, OrganizationAvatar } from "@/components/ui/avatar"
@@ -51,8 +52,8 @@ export function NavUser({
 }) {
   const router = useRouter()
   const { isMobile, setOpenMobile } = useSidebar()
-  const [isPending, setIsPending] = useState(false)
-  const [isSwitching, startSwitch] = useTransition()
+  const { isPending: isSwitching, navigate } = useScopeTransition()
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const initials = user.name
     .split(/\s+/)
     .filter(Boolean)
@@ -61,9 +62,9 @@ export function NavUser({
     .join("")
 
   async function handleSignOut() {
-    if (isPending) return
+    if (isSigningOut) return
 
-    setIsPending(true)
+    setIsSigningOut(true)
     const { error } = await authClient.signOut({
       fetchOptions: {
         onSuccess: () => {
@@ -73,7 +74,7 @@ export function NavUser({
       },
     })
     if (error) {
-      setIsPending(false)
+      setIsSigningOut(false)
     }
   }
 
@@ -133,7 +134,7 @@ export function NavUser({
                     if (isMobile) {
                       setOpenMobile(false)
                     }
-                    startSwitch(() => switchOrganizationAction(organizationId))
+                    navigate(resolveOrganizationDestinationAction(organizationId))
                   }}
                 >
                   {organizations.map((organization) => (
@@ -200,15 +201,15 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
-              disabled={isPending}
-              aria-busy={isPending}
+              disabled={isSigningOut}
+              aria-busy={isSigningOut}
               onSelect={(event) => {
                 event.preventDefault()
                 void handleSignOut()
               }}
             >
-              {isPending ? <Spinner /> : <LogOut />}
-              {isPending ? "Logging out..." : "Log out"}
+              {isSigningOut ? <Spinner /> : <LogOut />}
+              {isSigningOut ? "Logging out..." : "Log out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

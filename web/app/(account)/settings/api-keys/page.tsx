@@ -51,7 +51,7 @@ export default async function APIKeysPage({
 
 async function getAPIKeyContext() {
   const session = await getOrganizationSession()
-  const activeId = session?.session.session.activeOrganizationId
+  const activeId = session?.activeOrganizationId
   const organization = session?.organizations.find((item) => item.id === activeId)
   if (!organization?.hasAccess) return { workspaces: [] }
   const result = await getWorkspaceDirectory(organization.slug)

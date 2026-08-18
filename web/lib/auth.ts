@@ -1,4 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
+import { cache } from "react"
 import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 import { betterAuth } from "better-auth"
 import { createAuthMiddleware, getOAuthState } from "better-auth/api"
@@ -12,6 +13,7 @@ import { organization } from "better-auth/plugins/organization"
 import { createAccessControl } from "better-auth/plugins/access"
 import { defaultStatements } from "better-auth/plugins/organization/access"
 import { twoFactor } from "better-auth/plugins/two-factor"
+import { headers } from "next/headers"
 import { z } from "zod"
 import { authErrorMessages } from "@/app/(auth)/shared"
 import { getDB, schema } from "@/db"
@@ -839,3 +841,16 @@ export function getAuth(): Auth {
   authInstance ??= buildAuth()
   return authInstance
 }
+
+/**
+ * getAuthSession deduplicates Better Auth's request-bound session lookup
+ * across layouts, metadata, preferences, and gateway authorization.
+ */
+export const getAuthSession = cache(async () => {
+  const requestHeaders = await headers()
+  const session = await getAuth().api.getSession({ headers: requestHeaders })
+  if (!session) {
+    return
+  }
+  return { requestHeaders, session }
+})

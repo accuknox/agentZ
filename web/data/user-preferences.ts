@@ -1,9 +1,9 @@
 import "server-only"
 
+import { cache } from "react"
 import { eq } from "drizzle-orm"
-import { headers } from "next/headers"
 import { getDB, schema } from "@/db"
-import { getAuth } from "@/lib/auth"
+import { getAuthSession } from "@/lib/auth"
 
 export const themePreferences = ["system", "light", "dark"] as const
 
@@ -25,41 +25,40 @@ const defaultUserPreferences: UserPreferences = {
 /**
  * getCurrentUserPreferences returns the current user's saved preferences.
  *
- * The request headers are read first so Cache Components can defer the auth
- * and database setup to request time while prerendering the page shell.
+ * Authentication remains request-bound while sharing the session lookup with
+ * the surrounding organization layout.
  */
-export async function getCurrentUserPreferences({
-  required = true,
-}: {
-  required?: boolean
-} = {}): Promise<UserPreferences> {
-  const requestHeaders = await headers()
-  const auth = getAuth()
-  const session = await auth.api.getSession({
-    headers: requestHeaders,
-  })
-  if (!session) {
-    if (!required) {
-      return defaultUserPreferences
+export const getCurrentUserPreferences = cache(
+  async ({
+    required = true,
+  }: {
+    required?: boolean
+  } = {}): Promise<UserPreferences> => {
+    const authSession = await getAuthSession()
+    if (!authSession) {
+      if (!required) {
+        return defaultUserPreferences
+      }
+
+      throw new Error("unauthorized")
     }
+    const { session } = authSession
 
-    throw new Error("unauthorized")
+    const [row] = await getDB()
+      .select({
+        theme: schema.userPreferences.theme,
+        updateSandbox: schema.userPreferences.updateSandbox,
+      })
+      .from(schema.userPreferences)
+      .where(eq(schema.userPreferences.userId, session.user.id))
+      .limit(1)
+
+    return {
+      theme: row?.theme ?? defaultUserPreferences.theme,
+      updateSandbox: row?.updateSandbox ?? defaultUserPreferences.updateSandbox,
+    }
   }
-
-  const [row] = await getDB()
-    .select({
-      theme: schema.userPreferences.theme,
-      updateSandbox: schema.userPreferences.updateSandbox,
-    })
-    .from(schema.userPreferences)
-    .where(eq(schema.userPreferences.userId, session.user.id))
-    .limit(1)
-
-  return {
-    theme: row?.theme ?? defaultUserPreferences.theme,
-    updateSandbox: row?.updateSandbox ?? defaultUserPreferences.updateSandbox,
-  }
-}
+)
 
 /**
  * saveCurrentUserPreferences upserts the current user's saved preferences.
@@ -67,14 +66,11 @@ export async function getCurrentUserPreferences({
 export async function saveCurrentUserPreferences(
   preferences: UserPreferences
 ): Promise<UserPreferences> {
-  const requestHeaders = await headers()
-  const auth = getAuth()
-  const session = await auth.api.getSession({
-    headers: requestHeaders,
-  })
-  if (!session) {
+  const authSession = await getAuthSession()
+  if (!authSession) {
     throw new Error("unauthorized")
   }
+  const { session } = authSession
 
   await getDB()
     .insert(schema.userPreferences)

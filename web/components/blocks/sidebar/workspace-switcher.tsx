@@ -2,9 +2,10 @@
 
 import type { Route } from "next"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { PanelsTopLeft, ChevronsUpDown, Plus } from "lucide-react"
+import { resolveWorkspaceDestinationAction } from "@/app/(scoped)/orgs/actions"
+import { useScopeTransition } from "@/components/scope-transition"
 import { Avatar, AvatarFallback, AvatarImage, OrganizationAvatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,8 +26,8 @@ import {
 import type { SidebarScope } from "./sidebar"
 
 export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
-  const router = useRouter()
   const { isMobile, setOpenMobile } = useSidebar()
+  const { isPending, navigate } = useScopeTransition()
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState("")
 
@@ -108,11 +109,17 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
               className="w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-xl p-0"
               sideOffset={8}
             >
-              <Link
+              <button
                 aria-current={scope.kind === "organization" ? "page" : undefined}
-                className="hover:bg-muted/60 focus-visible:ring-ring/50 aria-[current=page]:bg-muted/60 mx-1 mt-1 flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 outline-none focus-visible:ring-3"
-                href={root as Route}
-                onClick={close}
+                className="hover:bg-muted/60 focus-visible:ring-ring/50 aria-[current=page]:bg-muted/60 mx-1 mt-1 flex w-[calc(100%-0.5rem)] min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!scope.canEnterOrganization || isPending}
+                onClick={() => {
+                  close()
+                  if (scope.kind === "workspace") {
+                    navigate(`${root}/workspaces` as Route)
+                  }
+                }}
+                type="button"
               >
                 <OrganizationAvatar
                   className="size-7"
@@ -128,7 +135,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   </span>
                   <span className="text-muted-foreground block text-xs">Organisation</span>
                 </span>
-              </Link>
+              </button>
               <Command
                 className="border-border/60 rounded-none! border-t [&_[data-slot=command-input-wrapper]]:pt-0"
                 onValueChange={setSelected}
@@ -143,11 +150,17 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                         className="data-[checked=true]:bg-muted/70 h-auto cursor-pointer gap-2.5 rounded-lg px-2 py-2"
                         key={workspace.id}
                         data-checked={workspace.id === active?.id}
+                        disabled={isPending || workspace.id === active?.id}
                         keywords={[workspace.name, workspace.slug]}
                         value={workspace.id}
                         onSelect={() => {
                           close()
-                          router.push(`${root}/workspaces/${workspace.slug}` as Route)
+                          navigate(
+                            resolveWorkspaceDestinationAction(
+                              scope.organization.slug,
+                              workspace.slug
+                            )
+                          )
                         }}
                       >
                         <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">

@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { ActiveMember, InvitationRow, MemberDirectory, MemberTab } from "@/data/members"
-import { InvitationActions, MembershipStateButton, UserTableActions } from "./member-actions"
+import { DisabledUserActions, InvitationActions, UserTableActions } from "./member-actions"
 
 export function UserDirectoryTable({
   data,
@@ -90,10 +90,14 @@ function MemberTable({
       ...(disabled
         ? [
             {
-              id: "action",
-              header: "Action",
+              id: "actions",
+              header: () => <span className="sr-only">Actions</span>,
               cell: ({ row }) => (
-                <MembershipStateButton disabled memberId={row.original.id} orgSlug={orgSlug} />
+                <DisabledUserActions
+                  memberId={row.original.id}
+                  name={row.original.name}
+                  orgSlug={orgSlug}
+                />
               ),
             } satisfies ColumnDef<ActiveMember>,
           ]
@@ -122,8 +126,7 @@ function MemberTable({
       columns={columns}
       nextPageToken={data.nextPageToken}
       headerClassNames={{
-        action: "w-28 text-right",
-        actions: "w-20",
+        actions: "w-20 text-right",
         apiKeys: "w-24 text-right",
         assignments: "w-44",
         createdAt: "w-32",
@@ -242,9 +245,7 @@ function DirectoryTable<T>({
                   <TableCell
                     className={[
                       cellClassNames[cell.column.id],
-                      ["ownedAgents", "sharedAgents", "apiKeys", "action", "actions"].includes(
-                        cell.column.id
-                      )
+                      ["ownedAgents", "sharedAgents", "apiKeys", "actions"].includes(cell.column.id)
                         ? "text-right tabular-nums"
                         : "",
                     ]

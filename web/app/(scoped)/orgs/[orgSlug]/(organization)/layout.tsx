@@ -8,7 +8,7 @@ import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { ThemeSync } from "@/components/theme-sync"
 import {
   activateOrganization,
-  rememberOrganizationRoute,
+  scheduleOrganizationRouteMemory,
   resolveOrganizationSlug,
 } from "@/data/organizations"
 import { getCurrentUserPreferences } from "@/data/user-preferences"
@@ -61,7 +61,7 @@ export default async function OrganizationLayout({
         <AppShell
           sidebar={
             <AppSidebar
-              activeOrganizationId={organizationSession.session.session.activeOrganizationId}
+              activeOrganizationId={organizationSession.activeOrganizationId}
               organizations={organizationSession.organizations}
               scope={{ kind: "account" }}
               user={{
@@ -142,7 +142,9 @@ export default async function OrganizationLayout({
   const rememberedPath = requestedURL.pathname.startsWith(`${root}/event-trail/`)
     ? `${root}/event-trail`
     : requestedURL.pathname
-  await rememberOrganizationRoute(result.organization.id, rememberedPath, null)
+  if (rememberedPath !== root) {
+    await scheduleOrganizationRouteMemory(result.organization.id, rememberedPath, null)
+  }
 
   return (
     <>

@@ -1,17 +1,48 @@
 import type { Metadata } from "next"
 import { Archivo } from "next/font/google"
+import { connection } from "next/server"
+import { Suspense } from "react"
+import { AgentZTransition } from "@/components/scope-transition"
+import { getEnv } from "@/lib/env"
 import "./globals.css"
 import Providers from "./providers"
 
 const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
+const socialTitle = "AgentZ | By Team AccuKnox"
+const description = "Build, run, and govern production agents. Secure by design."
+const socialImage = {
+  url: "/agentz-social-card.png",
+  alt: "AgentZ by Team AccuKnox",
+  width: 1200,
+  height: 630,
+}
 
-export const metadata: Metadata = {
-  title: {
-    default: "AgentZ",
-    template: "%s | AgentZ",
-  },
-  description: "Control-plane for your AI agents",
-  icons: ["/agentz-logo.svg"],
+export async function generateMetadata(): Promise<Metadata> {
+  // The public origin is deployment-specific and must stay out of the image.
+  await connection()
+
+  return {
+    metadataBase: new URL(getEnv().BETTER_AUTH_URL),
+    title: {
+      default: "AgentZ",
+      template: "%s | AgentZ",
+    },
+    description,
+    icons: ["/agentz-logo.svg"],
+    openGraph: {
+      title: socialTitle,
+      description,
+      images: [socialImage],
+      siteName: "AgentZ",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: socialTitle,
+      description,
+      images: [socialImage],
+    },
+  }
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -28,7 +59,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
-        <Providers>{children}</Providers>
+        <Providers>
+          <Suspense fallback={<AgentZTransition />}>{children}</Suspense>
+        </Providers>
       </body>
     </html>
   )

@@ -6,7 +6,7 @@ import { AdministrationLayout, AdministrationState } from "@/components/administ
 import { AppShell } from "@/components/blocks/app-shell"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { ThemeSync } from "@/components/theme-sync"
-import { rememberOrganizationRoute } from "@/data/organizations"
+import { scheduleOrganizationRouteMemory } from "@/data/organizations"
 import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { signInURL } from "@/lib/sign-in-redirect"
@@ -62,7 +62,7 @@ export default async function WorkspaceLayout({
         <AppShell
           sidebar={
             <AppSidebar
-              activeOrganizationId={organizationSession.session.session.activeOrganizationId}
+              activeOrganizationId={organizationSession.activeOrganizationId}
               organizations={organizationSession.organizations}
               scope={
                 noAccessOrganization
@@ -120,7 +120,13 @@ export default async function WorkspaceLayout({
   const rememberedPath = requestedURL.pathname.startsWith(`${root}/event-trail/`)
     ? `${root}/event-trail`
     : requestedURL.pathname
-  await rememberOrganizationRoute(result.scope.organization.id, rememberedPath, result.workspace.id)
+  if (rememberedPath !== root) {
+    await scheduleOrganizationRouteMemory(
+      result.scope.organization.id,
+      rememberedPath,
+      result.workspace.id
+    )
+  }
 
   return (
     <>

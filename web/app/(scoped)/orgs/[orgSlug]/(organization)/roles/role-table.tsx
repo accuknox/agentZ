@@ -19,6 +19,24 @@ import type { OrganizationRoleSummary } from "@/data/roles"
 import { TableRelativeTime } from "@/components/ui/table"
 import { RoleTableActions } from "./role-table-actions"
 
+const headerClassName: Readonly<Record<string, string | undefined>> = {
+  actions: "w-16",
+  dependencyState: "w-32",
+  immutable: "w-20",
+  permissions: "w-28 text-right",
+  scope: "w-24",
+  teams: "w-16 text-right",
+  updatedAt: "w-36",
+  users: "w-16 text-right",
+}
+
+const cellClassName: Readonly<Record<string, string | undefined>> = {
+  name: "min-w-0",
+  permissions: "text-right tabular-nums",
+  teams: "text-right tabular-nums",
+  users: "text-right tabular-nums",
+}
+
 export function RoleTable({
   nextPageToken,
   orgSlug,
@@ -121,28 +139,7 @@ export function RoleTable({
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
                 {group.headers.map((header) => (
-                  <TableHead
-                    className={
-                      header.column.id === "name"
-                        ? undefined
-                        : header.column.id === "scope"
-                          ? "w-24"
-                          : header.column.id === "immutable"
-                            ? "w-20"
-                            : header.column.id === "users" || header.column.id === "teams"
-                              ? "w-16 text-right"
-                              : header.column.id === "permissions"
-                                ? "w-28 text-right"
-                                : header.column.id === "dependencyState"
-                                  ? "w-32"
-                                  : header.column.id === "updatedAt"
-                                    ? "w-28"
-                                    : header.column.id === "actions"
-                                      ? "w-16"
-                                      : undefined
-                    }
-                    key={header.id}
-                  >
+                  <TableHead className={headerClassName[header.column.id]} key={header.id}>
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
@@ -158,16 +155,7 @@ export function RoleTable({
                   key={row.id}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      className={
-                        cell.column.id === "name"
-                          ? "min-w-0"
-                          : ["users", "teams", "permissions"].includes(cell.column.id)
-                            ? "text-right tabular-nums"
-                            : undefined
-                      }
-                      key={cell.id}
-                    >
+                    <TableCell className={cellClassName[cell.column.id]} key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -183,7 +171,7 @@ export function RoleTable({
           </TableBody>
         </Table>
       </div>
-      <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
+      <TokenTablePagination hasNextPage={nextPageToken !== ""} nextPageToken={nextPageToken} />
     </div>
   )
 }

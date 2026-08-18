@@ -820,7 +820,7 @@ web:
 
 # Shared ingress for the web UI and gateway API.
 ingress:
-  # Enable a single ingress that routes `/api` to gateway and `/` to web.
+  # Enable a single ingress that routes gateway APIs and web-owned endpoints.
   enabled: false
 
   # Optional ingressClassName.

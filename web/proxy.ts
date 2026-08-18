@@ -10,11 +10,19 @@ import { signInURL } from "@/lib/sign-in-redirect"
  * Revoked sessions (cookie present but DB session deleted) are caught by
  * the GatewayUnauthorizedError flow in the error interceptors.
  *
- * Server Function POSTs are excluded via the `missing` matcher - a 307
- * redirect response to a POST is handled awkwardly by the fetch layer,
- * so the error interceptor approach is cleaner there.
+ * Server Function POSTs bypass the cookie redirect because a 307 response
+ * is handled awkwardly by the fetch layer. Their actions enforce access at
+ * the data boundary, while malformed action requests are rejected here.
  */
 export function proxy(request: NextRequest) {
+  const actionId = request.headers.get("next-action")
+  if (actionId !== null) {
+    if (request.method !== "POST" || actionId.length !== 42) {
+      return new NextResponse("Invalid Server Action request", { status: 400 })
+    }
+    return NextResponse.next()
+  }
+
   if (getSessionCookie(request)) {
     const requestHeaders = new Headers(request.headers)
     requestHeaders.set("x-agentz-pathname", `${request.nextUrl.pathname}${request.nextUrl.search}`)
@@ -28,8 +36,9 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!join|signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
-      missing: [{ type: "header", key: "next-action" }],
+      source: "/((?!_next/static|_next/image|.*\\..*).*)",
+      has: [{ type: "header", key: "next-action" }],
     },
+    "/((?!join|signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
   ],
 }

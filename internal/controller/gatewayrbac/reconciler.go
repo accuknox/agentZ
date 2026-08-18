@@ -42,6 +42,14 @@ type Config struct {
 	Owner                   metav1.OwnerReference
 }
 
+// The manager must hold every permission delegated by this Role because
+// Kubernetes rejects RBAC privilege escalation during reconciliation.
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents;skills;sandboxes;inferencepools;inferenceproviders,verbs=create;delete;get;list;update;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections;secrets;workflowruns,verbs=create;delete;get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowschedules,verbs=create;delete;get;list;update
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns/status,verbs=get;patch;update
+
 // Reconcile converges the namespace-local gateway Role and RoleBinding.
 func Reconcile(ctx context.Context, c client.Client, cfg Config) error {
 	if cfg.ServiceAccountName == "" {

@@ -50,8 +50,10 @@ rules:
   resources:
   - agents
   verbs:
+  - create
   - create-workflow
   - create-workflow-schedule
+  - delete
   - delete-workflow-schedule
   - delete-workflows
   - get
@@ -99,17 +101,7 @@ rules:
   resources:
   - inferencepools
   - inferenceproviders
-  - mcpconnections
   - sandboxes
-  - secrets
-  verbs:
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
   - skills
   - workflowruns
   verbs:
@@ -119,6 +111,18 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - mcpconnections
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
   - watch
 - apiGroups:
   - agentz.accuknox.com
@@ -135,6 +139,16 @@ rules:
   - agentz.accuknox.com
   resources:
   - workflowschedules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
   - workspaces
   verbs:
   - get
@@ -237,16 +251,6 @@ rules:
   resources:
   - clusterrolebindings
   - clusterroles
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - rolebindings
   - roles
   verbs:

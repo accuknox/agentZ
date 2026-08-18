@@ -46,6 +46,13 @@ spec:
                 name: {{ include "agentz.webFullname" $ }}
                 port:
                   number: {{ $.Values.web.service.port }}
+          - path: /api/message-actors
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentz.webFullname" $ }}
+                port:
+                  number: {{ $.Values.web.service.port }}
           - path: /api
             pathType: Prefix
             backend:

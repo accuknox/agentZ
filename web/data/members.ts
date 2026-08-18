@@ -642,67 +642,65 @@ export async function saveMemberAssignments(
         .limit(1)
       if (!member) return { error: "not-found" as const }
 
-      const [roles, teams, currentRoles, currentTeams] = await Promise.all([
-        roleIds.length
-          ? tx
-              .select({
-                id: schema.roleScopes.roleId,
-                systemRole: schema.roleScopes.systemRole,
-              })
-              .from(schema.roleScopes)
-              .leftJoin(
-                schema.workspaces,
-                and(
-                  eq(schema.workspaces.id, schema.roleScopes.workspaceId),
-                  eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
-                )
+      const roles = roleIds.length
+        ? await tx
+            .select({
+              id: schema.roleScopes.roleId,
+              systemRole: schema.roleScopes.systemRole,
+            })
+            .from(schema.roleScopes)
+            .leftJoin(
+              schema.workspaces,
+              and(
+                eq(schema.workspaces.id, schema.roleScopes.workspaceId),
+                eq(schema.workspaces.organizationId, schema.roleScopes.organizationId)
               )
-              .where(
-                and(
-                  eq(schema.roleScopes.organizationId, actor.organization.id),
-                  inArray(schema.roleScopes.roleId, roleIds),
-                  or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
-                )
-              )
-          : [],
-        teamIds.length
-          ? tx
-              .select({ id: schema.teams.id })
-              .from(schema.teams)
-              .where(
-                and(
-                  eq(schema.teams.organizationId, actor.organization.id),
-                  inArray(schema.teams.id, teamIds)
-                )
-              )
-          : [],
-        tx
-          .select({ roleId: schema.memberRoles.roleId })
-          .from(schema.memberRoles)
-          .innerJoin(
-            schema.roleScopes,
-            and(
-              eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
-              eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
             )
+            .where(
+              and(
+                eq(schema.roleScopes.organizationId, actor.organization.id),
+                inArray(schema.roleScopes.roleId, roleIds),
+                or(isNull(schema.roleScopes.workspaceId), isNull(schema.workspaces.deletedAt))
+              )
+            )
+        : []
+      const teams = teamIds.length
+        ? await tx
+            .select({ id: schema.teams.id })
+            .from(schema.teams)
+            .where(
+              and(
+                eq(schema.teams.organizationId, actor.organization.id),
+                inArray(schema.teams.id, teamIds)
+              )
+            )
+        : []
+      const currentRoles = await tx
+        .select({ roleId: schema.memberRoles.roleId })
+        .from(schema.memberRoles)
+        .innerJoin(
+          schema.roleScopes,
+          and(
+            eq(schema.roleScopes.roleId, schema.memberRoles.roleId),
+            eq(schema.roleScopes.organizationId, schema.memberRoles.organizationId)
           )
-          .where(
-            and(
-              eq(schema.memberRoles.memberId, member.id),
-              eq(schema.memberRoles.organizationId, actor.organization.id)
-            )
-          ),
-        tx
-          .select({ teamId: schema.teamMembers.teamId })
-          .from(schema.teamMembers)
-          .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
-          .where(
-            and(
-              eq(schema.teamMembers.userId, member.userId),
-              eq(schema.teams.organizationId, actor.organization.id)
-            )
-          ),
-      ])
+        )
+        .where(
+          and(
+            eq(schema.memberRoles.memberId, member.id),
+            eq(schema.memberRoles.organizationId, actor.organization.id)
+          )
+        )
+      const currentTeams = await tx
+        .select({ teamId: schema.teamMembers.teamId })
+        .from(schema.teamMembers)
+        .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+        .where(
+          and(
+            eq(schema.teamMembers.userId, member.userId),
+            eq(schema.teams.organizationId, actor.organization.id)
+          )
+        )
       if (roles.length !== roleIds.length || teams.length !== teamIds.length) {
         return { error: "invalid" as const }
       }
@@ -980,29 +978,27 @@ export async function restoreMembership(orgSlug: string, memberId: string) {
       return { error: "already-active" as const }
     }
 
-    const [roles, teams] = await Promise.all([
-      tx
-        .select({ id: schema.memberRoles.roleId })
-        .from(schema.memberRoles)
-        .where(
-          and(
-            eq(schema.memberRoles.memberId, member.id),
-            eq(schema.memberRoles.organizationId, actor.organization.id)
-          )
+    const roles = await tx
+      .select({ id: schema.memberRoles.roleId })
+      .from(schema.memberRoles)
+      .where(
+        and(
+          eq(schema.memberRoles.memberId, member.id),
+          eq(schema.memberRoles.organizationId, actor.organization.id)
         )
-        .limit(1),
-      tx
-        .select({ id: schema.teamMembers.teamId })
-        .from(schema.teamMembers)
-        .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
-        .where(
-          and(
-            eq(schema.teamMembers.userId, member.userId),
-            eq(schema.teams.organizationId, actor.organization.id)
-          )
+      )
+      .limit(1)
+    const teams = await tx
+      .select({ id: schema.teamMembers.teamId })
+      .from(schema.teamMembers)
+      .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+      .where(
+        and(
+          eq(schema.teamMembers.userId, member.userId),
+          eq(schema.teams.organizationId, actor.organization.id)
         )
-        .limit(1),
-    ])
+      )
+      .limit(1)
     if (roles.length + teams.length === 0) return { error: "assignment-required" as const }
 
     await tx
@@ -1545,30 +1541,28 @@ export async function saveSocialAdmission(
       return { error: "forbidden" as const }
     }
 
-    const [roles, teams] = await Promise.all([
-      roleIds.length
-        ? tx
-            .select({ id: schema.roleScopes.roleId })
-            .from(schema.roleScopes)
-            .where(
-              and(
-                eq(schema.roleScopes.organizationId, actor.organization.id),
-                inArray(schema.roleScopes.roleId, roleIds)
-              )
+    const roles = roleIds.length
+      ? await tx
+          .select({ id: schema.roleScopes.roleId })
+          .from(schema.roleScopes)
+          .where(
+            and(
+              eq(schema.roleScopes.organizationId, actor.organization.id),
+              inArray(schema.roleScopes.roleId, roleIds)
             )
-        : [],
-      teamIds.length
-        ? tx
-            .select({ id: schema.teams.id })
-            .from(schema.teams)
-            .where(
-              and(
-                eq(schema.teams.organizationId, actor.organization.id),
-                inArray(schema.teams.id, teamIds)
-              )
+          )
+      : []
+    const teams = teamIds.length
+      ? await tx
+          .select({ id: schema.teams.id })
+          .from(schema.teams)
+          .where(
+            and(
+              eq(schema.teams.organizationId, actor.organization.id),
+              inArray(schema.teams.id, teamIds)
             )
-        : [],
-    ])
+          )
+      : []
     if (roles.length !== roleIds.length || teams.length !== teamIds.length) {
       return { error: "invalid-assignment" as const }
     }

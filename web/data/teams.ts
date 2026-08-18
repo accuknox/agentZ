@@ -397,29 +397,29 @@ export async function saveTeam(
         return { error: "invalid" as const }
       }
 
-      const [currentMembers, currentRoles] = teamId
-        ? await Promise.all([
-            tx
-              .select({ memberId: schema.members.id, userId: schema.teamMembers.userId })
-              .from(schema.teamMembers)
-              .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
-              .where(
-                and(
-                  eq(schema.teamMembers.teamId, team.id),
-                  eq(schema.members.organizationId, actor.organizationId)
-                )
-              ),
-            tx
-              .select({ roleId: schema.teamRoles.roleId })
-              .from(schema.teamRoles)
-              .where(
-                and(
-                  eq(schema.teamRoles.teamId, team.id),
-                  eq(schema.teamRoles.organizationId, actor.organizationId)
-                )
-              ),
-          ])
-        : [[], []]
+      const currentMembers = teamId
+        ? await tx
+            .select({ memberId: schema.members.id, userId: schema.teamMembers.userId })
+            .from(schema.teamMembers)
+            .innerJoin(schema.members, eq(schema.members.userId, schema.teamMembers.userId))
+            .where(
+              and(
+                eq(schema.teamMembers.teamId, team.id),
+                eq(schema.members.organizationId, actor.organizationId)
+              )
+            )
+        : []
+      const currentRoles = teamId
+        ? await tx
+            .select({ roleId: schema.teamRoles.roleId })
+            .from(schema.teamRoles)
+            .where(
+              and(
+                eq(schema.teamRoles.teamId, team.id),
+                eq(schema.teamRoles.organizationId, actor.organizationId)
+              )
+            )
+        : []
 
       const affectedMemberIds = [
         ...new Set([...memberIds, ...currentMembers.map(({ memberId }) => memberId)]),

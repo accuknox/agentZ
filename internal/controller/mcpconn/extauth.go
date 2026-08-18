@@ -87,7 +87,10 @@ type ExtAuthRuntimeReconciler struct {
 	OpenBaoK8sAuthTokenPath string
 }
 
+// The runtime controller deletes obsolete scope-reader RBAC objects explicitly
+// because their owner namespace can remain after the runtime is disabled.
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 
 // SetupWithManager registers the shared runtime controller.
 func (r *ExtAuthRuntimeReconciler) SetupWithManager(mgr ctrl.Manager) error {

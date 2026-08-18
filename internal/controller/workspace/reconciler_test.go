@@ -304,6 +304,43 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 	)
 }
 
+func TestReconcileRejectsInvalidNetworkPolicy(t *testing.T) {
+	organizationID := "org-workspace-invalid-policy"
+	workspaceID := "workspace-invalid-policy"
+	createReadyTenant(t, organizationID)
+	workspace := createWorkspace(t, organizationID, workspaceID, 1)
+	recorder := &lifecycleRecorder{}
+	reconciler := newTestReconciler(t, recorder)
+	reconciler.NixCacheTarget.Port = -1
+
+	reconcile(t, reconciler, workspace.Name)
+
+	current := getWorkspace(t, workspace.Name)
+	if current.Status.State != agentzv1alpha1.WorkspaceStateFailed {
+		t.Fatalf("state = %q, want %q", current.Status.State, agentzv1alpha1.WorkspaceStateFailed)
+	}
+	degraded := apimeta.FindStatusCondition(
+		current.Status.Conditions,
+		agentzv1alpha1.WorkspaceConditionDegraded,
+	)
+	if degraded == nil || degraded.Reason != agentzv1alpha1.WorkspaceReasonNetworkPolicyInvalid {
+		t.Fatalf("Degraded reason = %v, want NetworkPolicyInvalid", degraded)
+	}
+
+	var policy ciliumv2.CiliumNetworkPolicy
+	err := testClient.Get(
+		context.Background(),
+		client.ObjectKey{
+			Name:      agentzv1alpha1.WorkspaceIsolationPolicyName,
+			Namespace: workspace.Name,
+		},
+		&policy,
+	)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("get unapplied workspace policy error = %v, want not found", err)
+	}
+}
+
 func TestReconcileRetriesUnavailableTenantWithoutFailingAttempt(t *testing.T) {
 	organizationID := "org-workspace-failure"
 	workspaceID := "workspace-failure"
@@ -459,8 +496,6 @@ func TestReconcileRejectsConflictingNamespaceWithoutLeakingIdentity(t *testing.T
 		t.Fatalf("repair conflicting namespace: %v", err)
 	}
 	reconcile(t, reconciler, workspace.Name)
-	markIsolationPolicyValid(t, workspace.Name)
-	reconcile(t, reconciler, workspace.Name)
 	markCertificateReady(t, reconciler, workspace.Name)
 	reconcile(t, reconciler, workspace.Name)
 	current = getWorkspace(t, workspace.Name)
@@ -538,8 +573,6 @@ func TestReconcileReplaysFailedLifecycleAfterCallbackFailure(t *testing.T) {
 		t.Fatalf("mark namespace for adoption: %v", err)
 	}
 	reconcile(t, reconciler, workspace.Name)
-	markIsolationPolicyValid(t, workspace.Name)
-	reconcile(t, reconciler, workspace.Name)
 	markCertificateReady(t, reconciler, workspace.Name)
 	reconcile(t, reconciler, workspace.Name)
 
@@ -556,8 +589,6 @@ func TestReconcileRetriesTerminalGatewayObservation(t *testing.T) {
 	recorder := &lifecycleRecorder{statuses: []int{http.StatusInternalServerError}}
 	reconciler := newTestReconciler(t, recorder)
 
-	reconcile(t, reconciler, workspace.Name)
-	markIsolationPolicyValid(t, workspace.Name)
 	reconcile(t, reconciler, workspace.Name)
 	markCertificateReady(t, reconciler, workspace.Name)
 	_, err := reconciler.Reconcile(
@@ -746,8 +777,6 @@ func reconcile(t *testing.T, reconciler *Reconciler, name string) {
 func reconcileUntilReady(t *testing.T, reconciler *Reconciler, name string) {
 	t.Helper()
 	reconcile(t, reconciler, name)
-	markIsolationPolicyValid(t, name)
-	reconcile(t, reconciler, name)
 	markCertificateReady(t, reconciler, name)
 	reconcile(t, reconciler, name)
 }
@@ -770,28 +799,6 @@ func markCertificateReady(t *testing.T, reconciler *Reconciler, namespace string
 	)
 	if err != nil {
 		t.Fatalf("mark sinjector certificate ready: %v", err)
-	}
-}
-
-func markIsolationPolicyValid(t *testing.T, namespace string) {
-	t.Helper()
-	names := []string{
-		agentzv1alpha1.WorkspaceIsolationPolicyName,
-		agentzv1alpha1.WorkspacePackagePolicyName,
-	}
-	for _, name := range names {
-		var policy ciliumv2.CiliumNetworkPolicy
-		key := client.ObjectKey{Name: name, Namespace: namespace}
-		if err := testClient.Get(context.Background(), key, &policy); err != nil {
-			t.Fatalf("get %s policy: %v", name, err)
-		}
-		policy.Status.Conditions = []ciliumv2.NetworkPolicyCondition{{
-			Type:   ciliumv2.PolicyConditionValid,
-			Status: corev1.ConditionTrue,
-		}}
-		if err := testClient.Status().Update(context.Background(), &policy); err != nil {
-			t.Fatalf("mark %s policy valid: %v", name, err)
-		}
 	}
 }
 

@@ -57,7 +57,7 @@ import (
 var (
 	errNamespaceConflict    = errors.New("workspace namespace identity conflicts")
 	errStorageConflict      = errors.New("workspace package storage conflicts")
-	errNetworkPolicyInvalid = errors.New("cilium rejected the workspace isolation policy")
+	errNetworkPolicyInvalid = errors.New("workspace network policy is invalid")
 )
 
 // Reconciler reconciles a Workspace object.
@@ -220,7 +220,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		)
 	}
 
-	valid, err := r.reconcileIsolationPolicy(ctx, &workspace, tenant)
+	err = r.reconcileIsolationPolicy(ctx, &workspace, tenant)
 	if err != nil {
 		if errors.Is(err, errNetworkPolicyInvalid) {
 			return r.failWorkspace(
@@ -232,16 +232,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				err,
 			)
 		}
-		return ctrl.Result{RequeueAfter: 2 * time.Second}, r.markPending(
-			ctx,
-			&workspace,
-			attempt,
-			terminalReported,
-			agentzv1alpha1.WorkspaceReasonNetworkPolicyPending,
-			"workspace network isolation is not ready",
-		)
-	}
-	if !valid {
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, r.markPending(
 			ctx,
 			&workspace,
@@ -512,7 +502,7 @@ func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, workspace *agentz
 	return nil
 }
 
-func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *agentzv1alpha1.Workspace, tenant *agentzv1alpha1.Tenant) (bool, error) {
+func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *agentzv1alpha1.Workspace, tenant *agentzv1alpha1.Tenant) error {
 	nonPackageJobs := ciliumpolicyapi.NewESFromK8sLabelSelector(
 		ciliumlabels.LabelSourceK8sKeyPrefix,
 		&slimv1.LabelSelector{MatchExpressions: []slimv1.LabelSelectorRequirement{{
@@ -623,7 +613,15 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 		},
 	}
 
-	ready := true
+	for _, policy := range policies {
+		// Sanitize mutates selectors and protocol casing, so validate a copy
+		// before storing the controller's canonical policy.
+		err := policy.Spec.DeepCopy().Sanitize()
+		if err != nil {
+			return fmt.Errorf("%w: validate %q: %v", errNetworkPolicyInvalid, policy.Name, err)
+		}
+	}
+
 	for _, policy := range policies {
 		spec := policy.Spec
 		_, err := controllerutil.CreateOrPatch(
@@ -643,24 +641,10 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 			},
 		)
 		if err != nil {
-			return false, fmt.Errorf("reconcile workspace network policy: %w", err)
-		}
-
-		var valid bool
-		for _, condition := range policy.Status.Conditions {
-			if condition.Type != ciliumv2.PolicyConditionValid {
-				continue
-			}
-			if condition.Status == corev1.ConditionFalse {
-				return false, errNetworkPolicyInvalid
-			}
-			valid = condition.Status == corev1.ConditionTrue
-		}
-		if !valid {
-			ready = false
+			return fmt.Errorf("reconcile workspace network policy: %w", err)
 		}
 	}
-	return ready, nil
+	return nil
 }
 
 func (r *Reconciler) markPending(ctx context.Context, workspace *agentzv1alpha1.Workspace, attempt int64, terminalReported bool, reason, message string) error {

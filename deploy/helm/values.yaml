@@ -3,6 +3,14 @@ global:
   agentz:
     umbrella: true
 
+# Shared PostgreSQL connection for Go services.
+postgres:
+  # Create the Secret referenced by gateway and observer.
+  createSecret: false
+  secretName: agentz-postgres
+  secretKey: DATABASE_URL
+  databaseURL: ""
+
 manager:
   inference:
     externalSecrets:

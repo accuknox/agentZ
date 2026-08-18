@@ -14,6 +14,16 @@
         }
       }
     },
+    "postgres": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "createSecret": { "type": "boolean" },
+        "secretName": { "type": "string", "minLength": 1 },
+        "secretKey": { "type": "string", "minLength": 1 },
+        "databaseURL": { "type": "string" }
+      }
+    },
     "manager": { "type": "object" },
     "gateway": { "type": "object" },
     "observer": { "type": "object" },

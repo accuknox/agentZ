@@ -2,7 +2,6 @@
 
 import { cookies } from "next/headers"
 import { updateTag } from "next/cache"
-import { redirect } from "next/navigation"
 import * as z from "zod"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { deleteSecret, putSecret } from "@/lib/gateway/client"
@@ -20,7 +19,13 @@ import { defaultMcpAuthLocation, type ParsedMcpForm } from "@/data/mcp.schema"
 import { oauthSecretFormInputSchema, secretFormInputSchema, secretKeySchema } from "./schema"
 import type { DeleteSecretFormState, PutSecretFormState } from "./types"
 
+export type SecretActionScope = {
+  basePath: string
+  workspaceId: string
+}
+
 export async function putSecretFormAction(
+  scope: SecretActionScope,
   agentName: string,
   _: PutSecretFormState,
   formData: FormData
@@ -32,7 +37,8 @@ export async function putSecretFormAction(
 
   const preferences = await getCurrentUserPreferences()
   const result = await putSecret({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: { agentName },
     query: {
       update_sandbox: preferences.updateSandbox,
@@ -50,10 +56,11 @@ export async function putSecretFormAction(
 
   updateTag(secretsTag)
   updateTag(agentSecretsTag(agentName))
-  redirect(`/secrets?agent_name=${encodeURIComponent(agentName)}`)
+  return { success: true }
 }
 
 export async function startOAuthSecretFormAction(
+  scope: SecretActionScope,
   agentName: string,
   _: PutSecretFormState,
   formData: FormData
@@ -90,6 +97,7 @@ export async function startOAuthSecretFormAction(
     operation: {
       kind: "secret",
       form,
+      workspaceId: scope.workspaceId,
       secret: {
         agentName,
         key: parsed.data.key,
@@ -157,6 +165,7 @@ export async function startOAuthSecretFormAction(
 }
 
 export async function deleteSecretFormAction(
+  scope: SecretActionScope,
   agentName: string,
   _: DeleteSecretFormState,
   formData: FormData
@@ -170,7 +179,8 @@ export async function deleteSecretFormAction(
   }
 
   const result = await deleteSecret({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: { agentName },
     body: {
       keys: [parsed.data.key],
@@ -182,7 +192,7 @@ export async function deleteSecretFormAction(
 
   updateTag(secretsTag)
   updateTag(agentSecretsTag(agentName))
-  redirect(`/secrets?agent_name=${encodeURIComponent(agentName)}`)
+  return { success: true }
 }
 
 function invalidSchemaState(message: string, error: z.ZodError): PutSecretFormState {

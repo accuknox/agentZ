@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-table"
 import type { Sandbox } from "@/lib/gateway/client"
 import { createSandboxColumns } from "./sandbox-columns"
-import { Button } from "@/components/ui/button"
+import { TokenTablePagination } from "@/components/table-pagination"
 import {
   Table,
   TableBody,
@@ -21,29 +21,34 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { DeleteSandboxFormState } from "@/data/types"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import type { Route } from "next"
 
 const columnClassName: Record<string, string> = {
-  name: "min-w-40",
-  packages: "w-32",
-  allowed_hosts: "w-36",
-  models: "w-36",
-  mcps: "w-28",
-  skills: "w-28",
-  created_at: "w-44",
-  actions: "w-14",
+  name: "w-52",
+  packages: "w-24",
+  allowed_hosts: "w-24",
+  models: "w-32",
+  mcps: "w-16",
+  skills: "w-20",
+  created_by: "hidden lg:table-cell w-28",
+  last_modified_by: "hidden lg:table-cell w-28",
+  created_at: "w-28",
+  actions: "w-20",
 }
 
 export function SandboxTable({
   sandboxes,
+  basePath,
   hasNextPage,
   nextPageToken,
   deleteSandboxAction,
+  showOrganisation,
 }: {
   sandboxes: Sandbox[]
+  basePath: string
   hasNextPage: boolean
   nextPageToken: string
+  showOrganisation: boolean
   deleteSandboxAction: (
     name: string,
     state: DeleteSandboxFormState,
@@ -53,11 +58,10 @@ export function SandboxTable({
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const router = useRouter()
   const columns = React.useMemo(
-    () => createSandboxColumns(deleteSandboxAction),
-    [deleteSandboxAction]
+    () => createSandboxColumns(basePath, deleteSandboxAction, showOrganisation),
+    [basePath, deleteSandboxAction, showOrganisation]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -72,9 +76,9 @@ export function SandboxTable({
   })
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -97,19 +101,25 @@ export function SandboxTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="cursor-pointer"
-                  role="link"
-                  tabIndex={0}
+                  className={row.original.can_modify ? "cursor-pointer" : undefined}
+                  role={row.original.can_modify ? "link" : undefined}
+                  tabIndex={row.original.can_modify ? 0 : undefined}
                   onClick={() => {
-                    router.push(`/sandboxes/update/${encodeURIComponent(row.original.name)}`)
+                    if (row.original.can_modify) {
+                      router.push(
+                        `${basePath}/update/${encodeURIComponent(row.original.name)}` as Route
+                      )
+                    }
                   }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
+                    if (!row.original.can_modify || (event.key !== "Enter" && event.key !== " ")) {
                       return
                     }
 
                     event.preventDefault()
-                    router.push(`/sandboxes/update/${encodeURIComponent(row.original.name)}`)
+                    router.push(
+                      `${basePath}/update/${encodeURIComponent(row.original.name)}` as Route
+                    )
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -125,28 +135,14 @@ export function SandboxTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No sandboxes
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => goNext(nextPageToken)}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
     </div>
   )
 }

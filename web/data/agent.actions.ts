@@ -1,15 +1,53 @@
 "use server"
 
 import * as z from "zod"
-import { redirect } from "next/navigation"
+import { revalidatePath } from "next/cache"
 import { updateTag } from "next/cache"
-import { createAgent, deleteAgent, updateAgent } from "@/lib/gateway/client"
-import type { CreateAgentFormState, DeleteAgentFormState } from "@/data/types"
+import {
+  createAgent,
+  deleteAgent,
+  deleteAgentShare,
+  transferAgentOwner,
+  updateAgent,
+  upsertAgentShare,
+} from "@/lib/gateway/client"
+import type { CreateAgentFormState, DeleteAgentFormState, WorkspacePath } from "@/data/types"
 import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { zAgentShareCapability } from "@/lib/gateway/client/zod.gen"
+
+export type AgentActionScope = {
+  workspaceId: string
+  workspacePath: WorkspacePath
+}
+
+export type AgentOwnerFormState = {
+  error?: string
+  success?: boolean
+}
+
+export type AgentShareFormState = {
+  error?: string
+  success?: boolean
+}
+
+const transferAgentOwnerFormSchema = z.object({
+  owner_user_id: z.string().min(1, "Choose a new owner"),
+})
+
+const upsertAgentShareFormSchema = z.object({
+  target_kind: z.enum(["user", "team"]),
+  target_id: z.string().min(1, "Choose a share target"),
+  capabilities: z.array(zAgentShareCapability).min(1, "Choose at least one capability"),
+})
+
+const deleteAgentShareFormSchema = z.object({
+  share_id: z.string().min(1, "Choose a share"),
+})
 
 export async function createAgentFormAction(
+  scope: AgentActionScope,
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
@@ -25,11 +63,11 @@ export async function createAgentFormAction(
   const result = await createAgent({
     body: {
       name: parsed.data.name,
-      sandboxName: parsed.data.sandboxName,
-      skills: parsed.data.skills,
+      sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
+      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
       memory: { enabled: parsed.data.memoryEnabled },
     },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
   })
   if (result.error) {
     return { error: result.error }
@@ -37,10 +75,11 @@ export async function createAgentFormAction(
 
   updateTag(agentsTag)
   updateTag(skillsTag)
-  redirect("/")
+  return { success: true }
 }
 
 export async function updateAgentFormAction(
+  scope: AgentActionScope,
   agentName: string,
   _: CreateAgentFormState,
   formData: FormData
@@ -56,11 +95,11 @@ export async function updateAgentFormAction(
 
   const result = await updateAgent({
     body: {
-      sandboxName: parsed.data.sandboxName,
-      skills: parsed.data.skills,
+      sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
+      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
       memory: { enabled: parsed.data.memoryEnabled },
     },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
     path: { agentName },
   })
   if (result.error) {
@@ -69,7 +108,7 @@ export async function updateAgentFormAction(
 
   updateTag(agentsTag)
   updateTag(skillsTag)
-  redirect("/")
+  return { success: true }
 }
 
 function invalidAgentFormState(error: z.ZodError): CreateAgentFormState {
@@ -89,12 +128,13 @@ function invalidAgentFormState(error: z.ZodError): CreateAgentFormState {
 }
 
 export async function deleteAgentFormAction(
+  scope: AgentActionScope,
   agentName: string,
   _: DeleteAgentFormState,
   _formData: FormData
 ): Promise<DeleteAgentFormState> {
   const result = await deleteAgent({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
     path: { agentName },
   })
   if (result.error) {
@@ -103,5 +143,92 @@ export async function deleteAgentFormAction(
 
   updateTag(agentsTag)
   updateTag(skillsTag)
-  redirect("/")
+  return { success: true }
+}
+
+export async function transferAgentOwnerFormAction(
+  scope: AgentActionScope,
+  agentName: string,
+  _: AgentOwnerFormState,
+  formData: FormData
+): Promise<AgentOwnerFormState> {
+  const parsed = transferAgentOwnerFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid owner" }
+  }
+
+  const result = await transferAgentOwner({
+    body: { owner_user_id: parsed.data.owner_user_id },
+    client: getGatewayServerClient(scope.workspaceId),
+    path: { agentName },
+  })
+  if (result.error) {
+    return { error: result.error.message }
+  }
+
+  refreshAgentRoutes(scope, agentName)
+  return { success: true }
+}
+
+export async function upsertAgentShareFormAction(
+  scope: AgentActionScope,
+  agentName: string,
+  _: AgentShareFormState,
+  formData: FormData
+): Promise<AgentShareFormState> {
+  const parsed = upsertAgentShareFormSchema.safeParse({
+    ...Object.fromEntries(formData),
+    capabilities: formData.getAll("capabilities"),
+  })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid share" }
+  }
+
+  const result = await upsertAgentShare({
+    body: {
+      capabilities: parsed.data.capabilities,
+      ...(parsed.data.target_kind === "user"
+        ? { target_user_id: parsed.data.target_id }
+        : { target_team_id: parsed.data.target_id }),
+    },
+    client: getGatewayServerClient(scope.workspaceId),
+    path: { agentName },
+  })
+  if (result.error) {
+    return { error: result.error.message }
+  }
+
+  refreshAgentRoutes(scope, agentName)
+  return { success: true }
+}
+
+export async function deleteAgentShareFormAction(
+  scope: AgentActionScope,
+  agentName: string,
+  _: AgentShareFormState,
+  formData: FormData
+): Promise<AgentShareFormState> {
+  const parsed = deleteAgentShareFormSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid share" }
+  }
+
+  const result = await deleteAgentShare({
+    client: getGatewayServerClient(scope.workspaceId),
+    path: { agentName, shareId: parsed.data.share_id },
+  })
+  if (result.error) {
+    return { error: result.error.message }
+  }
+
+  refreshAgentRoutes(scope, agentName)
+  return { success: true }
+}
+
+function refreshAgentRoutes(scope: AgentActionScope, agentName: string) {
+  updateTag(agentsTag)
+  updateTag(`${agentsTag}:${scope.workspaceId}`)
+  updateTag(`${agentsTag}:${scope.workspaceId}:${agentName}`)
+  revalidatePath(`${scope.workspacePath}/agents`)
+  revalidatePath(`${scope.workspacePath}/agents/${agentName}`)
 }

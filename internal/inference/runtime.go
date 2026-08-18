@@ -146,8 +146,9 @@ type Runtime struct {
 // configuration. Model is empty for direct provider backends and set for Pool
 // members so the logical Pool ID never reaches an upstream.
 type ProviderTarget struct {
-	LLM      agentgatewayv1alpha1.LLMProvider
-	Policies *agentgatewayv1alpha1.BackendWithAI
+	LLM             agentgatewayv1alpha1.LLMProvider
+	Policies        *agentgatewayv1alpha1.BackendWithAI
+	AdditionalHosts []string
 
 	secretKeys         map[string]string
 	extractCredentials bool
@@ -196,7 +197,11 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 		isSubscription = isSubscription || provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
 		if isSubscription {
 			runtime.AuthPolicy = RenderInferenceAuthPolicy(
-				provider.Namespace, provider.Name, nil, provider.Name, "",
+				provider.Namespace,
+				provider.Name,
+				nil,
+				provider.Name,
+				"",
 			)
 		}
 		return runtime, nil
@@ -206,18 +211,24 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 	path := CredentialPath(provider.Namespace, provider.Name, provider.Spec.Kind)
 	if !target.extractCredentials {
 		for secretKey, property := range target.secretKeys {
-			data = append(data, externalsecretsv1.ExternalSecretData{
-				SecretKey: secretKey,
-				RemoteRef: externalsecretsv1.ExternalSecretDataRemoteRef{
-					Key:      path,
-					Property: property,
+			data = append(
+				data,
+				externalsecretsv1.ExternalSecretData{
+					SecretKey: secretKey,
+					RemoteRef: externalsecretsv1.ExternalSecretDataRemoteRef{
+						Key:      path,
+						Property: property,
+					},
 				},
-			})
+			)
 		}
 	}
-	slices.SortFunc(data, func(a, b externalsecretsv1.ExternalSecretData) int {
-		return strings.Compare(a.SecretKey, b.SecretKey)
-	})
+	slices.SortFunc(
+		data,
+		func(a, b externalsecretsv1.ExternalSecretData) int {
+			return strings.Compare(a.SecretKey, b.SecretKey)
+		},
+	)
 	expected := make([]string, 0, len(target.secretKeys))
 	for key := range target.secretKeys {
 		expected = append(expected, key)
@@ -317,7 +328,7 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		secretKeys: map[string]string{},
 	}
 	auth := &agentgatewayv1alpha1.BackendAuth{}
-	secretRef := &agentgatewayv1alpha1.LocalSecretObjectRef{
+	secretRef := &agentgatewayv1alpha1.LocalSecretKeyRef{
 		Name: gwv1.ObjectName(provider.Name),
 	}
 	var modelRef *agentgatewayv1alpha1.ShortString
@@ -328,14 +339,21 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 	switch provider.Spec.Kind {
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
+			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
+				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{{
+					Type: agentgatewayv1alpha1.ProviderFormatResponses,
+					Path: "/backend-api/codex/responses",
+				}},
+			},
 			Model: modelRef,
-			Formats: []agentgatewayv1alpha1.ProviderFormatConfig{{
-				Type: agentgatewayv1alpha1.ProviderFormatResponses,
-				Path: "/backend-api/codex/responses",
-			}},
 		}
 		err := applyEndpoint(
-			&target.LLM, target.Policies, "https://chatgpt.com", "", "", false,
+			&target.LLM,
+			target.Policies,
+			"https://chatgpt.com",
+			"",
+			"",
+			false,
 		)
 		if err != nil {
 			return ProviderTarget{}, err
@@ -344,45 +362,70 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		target.LLM.OpenAI = &agentgatewayv1alpha1.OpenAIConfig{Model: modelRef}
 		target.secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
+		target.LLM.Host = "api.openai.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if provider.Spec.OpenAI.BaseURL != "" {
 			err := applyEndpoint(&target.LLM, target.Policies, provider.Spec.OpenAI.BaseURL, "", "", false)
 			if err != nil {
 				return ProviderTarget{}, err
 			}
 		}
+		if target.LLM.PathPrefix == "" {
+			target.LLM.PathPrefix = "/v1"
+		}
 	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		target.LLM.Anthropic = &agentgatewayv1alpha1.AnthropicConfig{Model: modelRef}
 		target.secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
 		auth.Location = headerLocation("x-api-key", "")
+		target.LLM.Host = "api.anthropic.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if provider.Spec.Anthropic.BaseURL != "" {
 			err := applyEndpoint(&target.LLM, target.Policies, provider.Spec.Anthropic.BaseURL, "", "", false)
 			if err != nil {
 				return ProviderTarget{}, err
 			}
 		}
+		if target.LLM.PathPrefix == "" {
+			target.LLM.PathPrefix = "/v1"
+		}
 	case agentzv1alpha1.InferenceProviderKindGemini:
 		target.LLM.Gemini = &agentgatewayv1alpha1.GeminiConfig{Model: modelRef}
 		target.secretKeys[secretAuthorization] = credentialAPIKey
 		auth.SecretRef = secretRef
 		auth.Location = headerLocation("x-goog-api-key", "")
+		target.LLM.Host = "generativelanguage.googleapis.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if provider.Spec.Gemini.BaseURL != "" {
 			err := applyEndpoint(&target.LLM, target.Policies, provider.Spec.Gemini.BaseURL, "", "", false)
 			if err != nil {
 				return ProviderTarget{}, err
 			}
 		}
+		if target.LLM.PathPrefix == "" {
+			target.LLM.PathPrefix = "/"
+		}
 	case agentzv1alpha1.InferenceProviderKindGitHubCopilot:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
-			Model: modelRef,
-			Formats: []agentgatewayv1alpha1.ProviderFormatConfig{
-				{Type: agentgatewayv1alpha1.ProviderFormatCompletions, Path: "/chat/completions"},
-				{Type: agentgatewayv1alpha1.ProviderFormatResponses, Path: "/responses"},
-				{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"},
+			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
+				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{
+					{Type: agentgatewayv1alpha1.ProviderFormatCompletions, Path: "/chat/completions"},
+					{Type: agentgatewayv1alpha1.ProviderFormatResponses, Path: "/responses"},
+					{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"},
+				},
 			},
+			Model: modelRef,
 		}
 		err := applyEndpoint(
-			&target.LLM, target.Policies, GitHubCopilotAPIEndpoint, "", "", false,
+			&target.LLM,
+			target.Policies,
+			GitHubCopilotAPIEndpoint,
+			"",
+			"",
+			false,
 		)
 		if err != nil {
 			return ProviderTarget{}, err
@@ -393,10 +436,26 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			modelRef = &value
 		}
 		target.LLM.VertexAI = &agentgatewayv1alpha1.VertexAIConfig{
-			Model:     modelRef,
-			ProjectId: provider.Spec.VertexAI.Project,
-			Region:    provider.Spec.VertexAI.Region,
+			VertexAISettings: agentgatewayv1alpha1.VertexAISettings{
+				ProjectId: provider.Spec.VertexAI.Project,
+				Region:    provider.Spec.VertexAI.Region,
+			},
+			Model: modelRef,
 		}
+		target.LLM.PathPrefix = "/"
+		switch provider.Spec.VertexAI.Region {
+		case "", "global":
+			target.LLM.Host = "aiplatform.googleapis.com"
+		case "us", "eu":
+			target.LLM.Host = "aiplatform." + provider.Spec.VertexAI.Region +
+				".rep.googleapis.com"
+		default:
+			target.LLM.Host = provider.Spec.VertexAI.Region +
+				"-aiplatform.googleapis.com"
+		}
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
+		target.AdditionalHosts = []string{"discoveryengine.googleapis.com"}
 		aliases := make(map[string]string)
 		for _, model := range provider.Spec.Models {
 			name := vertexModelName(provider, model.ID)
@@ -414,8 +473,19 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		auth.GCP = &agentgatewayv1alpha1.GcpAuth{Type: &kind, SecretRef: secretRef}
 	case agentzv1alpha1.InferenceProviderKindBedrock:
 		target.LLM.Bedrock = &agentgatewayv1alpha1.BedrockConfig{
-			Region: provider.Spec.Bedrock.Region,
-			Model:  modelRef,
+			BedrockSettings: agentgatewayv1alpha1.BedrockSettings{
+				Region: provider.Spec.Bedrock.Region,
+			},
+			Model: modelRef,
+		}
+		target.LLM.PathPrefix = "/"
+		target.LLM.Host = "bedrock-runtime." + provider.Spec.Bedrock.Region +
+			".amazonaws.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
+		target.AdditionalHosts = []string{
+			"bedrock-agent-runtime." + provider.Spec.Bedrock.Region +
+				".amazonaws.com",
 		}
 		if provider.Spec.Bedrock.AuthMode == agentzv1alpha1.BedrockAuthModeBearerToken {
 			target.secretKeys[secretAuthorization] = credentialBearerToken
@@ -425,14 +495,24 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		target.secretKeys[credentialAccessKey] = credentialAccessKey
 		target.secretKeys[credentialSecretKey] = credentialSecretKey
 		target.extractCredentials = true
-		auth.AWS = &agentgatewayv1alpha1.AwsAuth{SecretRef: secretRef}
+		secretObjRef := secretRef.ObjectRef()
+		auth.AWS = &agentgatewayv1alpha1.AwsAuth{SecretRef: &secretObjRef}
 	case agentzv1alpha1.InferenceProviderKindAzure:
 		azure := provider.Spec.Azure
 		target.LLM.Azure = &agentgatewayv1alpha1.AzureConfig{
-			Model:        modelRef,
-			ResourceName: azure.ResourceName,
-			ResourceType: agentgatewayv1alpha1.AzureResourceType(azure.ResourceType),
+			AzureSettings: agentgatewayv1alpha1.AzureSettings{
+				ResourceName: azure.ResourceName,
+				ResourceType: agentgatewayv1alpha1.AzureResourceType(azure.ResourceType),
+			},
+			Model: modelRef,
 		}
+		target.LLM.PathPrefix = "/"
+		target.LLM.Host = azure.ResourceName + ".openai.azure.com"
+		if azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry {
+			target.LLM.Host = azure.ResourceName + ".services.ai.azure.com"
+		}
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 		if azure.Project != "" {
 			value := azure.Project
 			target.LLM.Azure.ProjectName = &value
@@ -450,7 +530,8 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			target.secretKeys[credentialClientID] = credentialClientID
 			target.secretKeys[credentialTenantID] = credentialTenantID
 			target.secretKeys[credentialClientSecret] = credentialClientSecret
-			auth.Azure = &agentgatewayv1alpha1.AzureAuth{SecretRef: secretRef}
+			secretObjRef := secretRef.ObjectRef()
+			auth.Azure = &agentgatewayv1alpha1.AzureAuth{SecretRef: &secretObjRef}
 		}
 	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,
 		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
@@ -466,11 +547,17 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			}
 		}
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
-			Model:   modelRef,
-			Formats: formats,
+			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
+				Formats: formats,
+			},
+			Model: modelRef,
 		}
 		err := applyEndpoint(
-			&target.LLM, target.Policies, custom.BaseURL, custom.Path, custom.PathPrefix,
+			&target.LLM,
+			target.Policies,
+			custom.BaseURL,
+			custom.Path,
+			custom.PathPrefix,
 			custom.SkipTLSVerify,
 		)
 		if err != nil {
@@ -484,10 +571,13 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 		if len(custom.Headers) > 0 {
 			set := make([]agentgatewayv1alpha1.HeaderTransformation, 0, len(custom.Headers))
 			for _, header := range custom.Headers {
-				set = append(set, agentgatewayv1alpha1.HeaderTransformation{
-					Name:  agentgatewayv1alpha1.HeaderName(header.Name),
-					Value: agentgatewayv1alpha1.CELExpression(strconv.Quote(header.Value)),
-				})
+				set = append(
+					set,
+					agentgatewayv1alpha1.HeaderTransformation{
+						Name:  agentgatewayv1alpha1.HeaderName(header.Name),
+						Value: agentgatewayv1alpha1.CELExpression(strconv.Quote(header.Value)),
+					},
+				)
 			}
 			target.Policies.Transformation = &agentgatewayv1alpha1.Transformation{
 				Request: &agentgatewayv1alpha1.Transform{Set: set},
@@ -548,6 +638,7 @@ func applyEndpoint(llm *agentgatewayv1alpha1.LLMProvider, policies *agentgateway
 	llm.Path = path
 	llm.PathPrefix = pathPrefix
 	if parsed.Scheme == "http" {
+		policies.TLS = nil
 		return nil
 	}
 	policies.TLS = &agentgatewayv1alpha1.BackendTLS{}

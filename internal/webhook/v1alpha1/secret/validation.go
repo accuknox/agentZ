@@ -128,10 +128,17 @@ func validateSpec(spec agentzv1alpha1.SecretSpec, path *field.Path) field.ErrorL
 	case agentzv1alpha1.SecretTypeOAuth:
 		fields = append(fields, validateOAuthSpec(spec.OAuth, path.Child("oauth"))...)
 	default:
-		fields = append(fields, field.NotSupported(path.Child("type"), spec.Type, []string{
-			string(agentzv1alpha1.SecretTypeStatic),
-			string(agentzv1alpha1.SecretTypeOAuth),
-		}))
+		fields = append(
+			fields,
+			field.NotSupported(
+				path.Child("type"),
+				spec.Type,
+				[]string{
+					string(agentzv1alpha1.SecretTypeStatic),
+					string(agentzv1alpha1.SecretTypeOAuth),
+				},
+			),
+		)
 	}
 
 	return fields

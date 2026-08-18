@@ -51,9 +51,9 @@ const (
 
 // Decision selects the destination and precondition for one imported skill.
 type Decision struct {
-	Action DecisionAction
-	Name   string
-	Rename string
+	Action DecisionAction `json:"action"`
+	Name   string         `json:"name"`
+	Rename string         `json:"rename,omitempty"`
 }
 
 // File is one validated regular file in a skill tree.
@@ -180,9 +180,12 @@ func (b Bundle) Decide(decisions []Decision) (Bundle, error) {
 		}
 		out.Skills = append(out.Skills, tree)
 	}
-	slices.SortFunc(out.Skills, func(a, b Tree) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		out.Skills,
+		func(a, b Tree) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	return out, nil
 }
 
@@ -333,9 +336,12 @@ func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
 			tree.Files = append(tree.Files, File{Path: rel, Content: content})
 			claimed[name] = struct{}{}
 		}
-		slices.SortFunc(tree.Files, func(a, b File) int {
-			return strings.Compare(a.Path, b.Path)
-		})
+		slices.SortFunc(
+			tree.Files,
+			func(a, b File) int {
+				return strings.Compare(a.Path, b.Path)
+			},
+		)
 		skillFile, ok := files[root+skillFileName]
 		if !ok {
 			return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains an invalid skill tree"))
@@ -353,9 +359,12 @@ func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
 	if len(claimed) != len(files) {
 		return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains files outside a skill tree"))
 	}
-	slices.SortFunc(bundle.Skills, func(a, b Tree) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		bundle.Skills,
+		func(a, b Tree) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	return bundle, nil
 }
 

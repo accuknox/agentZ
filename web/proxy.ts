@@ -16,7 +16,9 @@ import { signInURL } from "@/lib/sign-in-redirect"
  */
 export function proxy(request: NextRequest) {
   if (getSessionCookie(request)) {
-    return NextResponse.next()
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set("x-agentz-pathname", `${request.nextUrl.pathname}${request.nextUrl.search}`)
+    return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
   const returnTo = `${request.nextUrl.pathname}${request.nextUrl.search}`
@@ -26,7 +28,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
+      source: "/((?!join|signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
       missing: [{ type: "header", key: "next-action" }],
     },
   ],

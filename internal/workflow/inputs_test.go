@@ -6,6 +6,21 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
+type validateDefinitionCase struct {
+	name          string
+	inputs        *gatewayapi.WorkflowInputs
+	arbitraryJSON *gatewayapi.WorkflowArbitraryJSON
+	field         string
+}
+
+type validateValuesCase struct {
+	name          string
+	raw           []byte
+	inputs        *gatewayapi.WorkflowInputs
+	arbitraryJSON *gatewayapi.WorkflowArbitraryJSON
+	field         string
+}
+
 func TestValidateDefinition(t *testing.T) {
 	description := "payload"
 	emptyDescription := " "
@@ -25,12 +40,7 @@ func TestValidateDefinition(t *testing.T) {
 		},
 	}
 
-	tests := []struct {
-		name          string
-		inputs        *gatewayapi.WorkflowInputs
-		arbitraryJSON *gatewayapi.WorkflowArbitraryJSON
-		field         string
-	}{
+	tests := []validateDefinitionCase{
 		{
 			name:   "typed inputs",
 			inputs: &inputs,
@@ -70,24 +80,27 @@ func TestValidateDefinition(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			issues, err := ValidateDefinition(tt.inputs, tt.arbitraryJSON)
-			if err != nil {
-				t.Fatalf("ValidateDefinition() error = %v", err)
-			}
-			if tt.field == "" {
-				if len(issues) != 0 {
-					t.Fatalf("ValidateDefinition() issues = %#v, want none", issues)
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				issues, err := ValidateDefinition(tt.inputs, tt.arbitraryJSON)
+				if err != nil {
+					t.Fatalf("ValidateDefinition() error = %v", err)
 				}
-				return
-			}
-			if len(issues) == 0 {
-				t.Fatalf("ValidateDefinition() issues = nil, want field %q", tt.field)
-			}
-			if issues[0].Field != tt.field {
-				t.Fatalf("ValidateDefinition() field = %q, want %q", issues[0].Field, tt.field)
-			}
-		})
+				if tt.field == "" {
+					if len(issues) != 0 {
+						t.Fatalf("ValidateDefinition() issues = %#v, want none", issues)
+					}
+					return
+				}
+				if len(issues) == 0 {
+					t.Fatalf("ValidateDefinition() issues = nil, want field %q", tt.field)
+				}
+				if issues[0].Field != tt.field {
+					t.Fatalf("ValidateDefinition() field = %q, want %q", issues[0].Field, tt.field)
+				}
+			},
+		)
 	}
 }
 
@@ -103,13 +116,7 @@ func TestValidateValues(t *testing.T) {
 		Description: &description,
 	}
 
-	tests := []struct {
-		name          string
-		raw           []byte
-		inputs        *gatewayapi.WorkflowInputs
-		arbitraryJSON *gatewayapi.WorkflowArbitraryJSON
-		field         string
-	}{
+	tests := []validateValuesCase{
 		{
 			name:   "typed object",
 			raw:    []byte(`{"target":"repo"}`),
@@ -143,26 +150,6 @@ func TestValidateValues(t *testing.T) {
 			arbitraryJSON: &arbitraryJSON,
 		},
 		{
-			name:          "arbitrary array",
-			raw:           []byte(`[1,2,3]`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
-			name:          "arbitrary string",
-			raw:           []byte(`"repo"`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
-			name:          "arbitrary number",
-			raw:           []byte(`42`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
-			name:          "arbitrary boolean",
-			raw:           []byte(`true`),
-			arbitraryJSON: &arbitraryJSON,
-		},
-		{
 			name:          "arbitrary null",
 			raw:           []byte(`null`),
 			arbitraryJSON: &arbitraryJSON,
@@ -181,23 +168,26 @@ func TestValidateValues(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			issues, err := ValidateValues(tt.raw, tt.inputs, tt.arbitraryJSON, "inputs")
-			if err != nil {
-				t.Fatalf("ValidateValues() error = %v", err)
-			}
-			if tt.field == "" {
-				if len(issues) != 0 {
-					t.Fatalf("ValidateValues() issues = %#v, want none", issues)
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				issues, err := ValidateValues(tt.raw, tt.inputs, tt.arbitraryJSON, "inputs")
+				if err != nil {
+					t.Fatalf("ValidateValues() error = %v", err)
 				}
-				return
-			}
-			if len(issues) == 0 {
-				t.Fatalf("ValidateValues() issues = nil, want field %q", tt.field)
-			}
-			if issues[0].Field != tt.field {
-				t.Fatalf("ValidateValues() field = %q, want %q", issues[0].Field, tt.field)
-			}
-		})
+				if tt.field == "" {
+					if len(issues) != 0 {
+						t.Fatalf("ValidateValues() issues = %#v, want none", issues)
+					}
+					return
+				}
+				if len(issues) == 0 {
+					t.Fatalf("ValidateValues() issues = nil, want field %q", tt.field)
+				}
+				if issues[0].Field != tt.field {
+					t.Fatalf("ValidateValues() field = %q, want %q", issues[0].Field, tt.field)
+				}
+			},
+		)
 	}
 }

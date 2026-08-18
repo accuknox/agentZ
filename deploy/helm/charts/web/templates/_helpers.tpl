@@ -18,6 +18,8 @@
 helm.sh/chart: {{ include "web.chart" . }}
 app.kubernetes.io/name: {{ include "web.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/part-of: agentz
+app.kubernetes.io/component: web
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
@@ -33,4 +35,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "web.secretName" -}}
+{{- default (include "web.fullname" .) .Values.secrets.existingSecret -}}
 {{- end -}}

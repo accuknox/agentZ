@@ -72,11 +72,16 @@ func (r *Reconciler) reconcileServiceAccount(ctx context.Context, schedule *agen
 			Namespace: schedule.Namespace,
 		},
 	}
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, sa, func() error {
-		sa.Labels = scheduleLabels(schedule)
-		sa.Annotations = schedule.Annotations
-		return ctrl.SetControllerReference(schedule, sa, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		sa,
+		func() error {
+			sa.Labels = scheduleLabels(schedule)
+			sa.Annotations = schedule.Annotations
+			return ctrl.SetControllerReference(schedule, sa, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch serviceaccount: %w", err)
 	}
@@ -90,23 +95,28 @@ func (r *Reconciler) reconcileRole(ctx context.Context, schedule *agentzv1alpha1
 			Namespace: schedule.Namespace,
 		},
 	}
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, role, func() error {
-		role.Labels = scheduleLabels(schedule)
-		role.Annotations = schedule.Annotations
-		role.Rules = []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{"agentz.accuknox.com"},
-				Resources: []string{"workflowschedules"},
-				Verbs:     []string{"get"},
-			},
-			{
-				APIGroups: []string{"agentz.accuknox.com"},
-				Resources: []string{"workflowruns"},
-				Verbs:     []string{"create", "get", "list", "watch"},
-			},
-		}
-		return ctrl.SetControllerReference(schedule, role, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		role,
+		func() error {
+			role.Labels = scheduleLabels(schedule)
+			role.Annotations = schedule.Annotations
+			role.Rules = []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{"agentz.accuknox.com"},
+					Resources: []string{"workflowschedules"},
+					Verbs:     []string{"get"},
+				},
+				{
+					APIGroups: []string{"agentz.accuknox.com"},
+					Resources: []string{"workflowruns"},
+					Verbs:     []string{"create", "get", "list", "watch"},
+				},
+			}
+			return ctrl.SetControllerReference(schedule, role, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch role: %w", err)
 	}
@@ -120,21 +130,26 @@ func (r *Reconciler) reconcileRoleBinding(ctx context.Context, schedule *agentzv
 			Namespace: schedule.Namespace,
 		},
 	}
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, roleBinding, func() error {
-		roleBinding.Labels = scheduleLabels(schedule)
-		roleBinding.Annotations = schedule.Annotations
-		roleBinding.RoleRef = rbacv1.RoleRef{
-			APIGroup: rbacv1.GroupName,
-			Kind:     "Role",
-			Name:     scheduleRunnerName(schedule),
-		}
-		roleBinding.Subjects = []rbacv1.Subject{{
-			Kind:      rbacv1.ServiceAccountKind,
-			Name:      scheduleRunnerName(schedule),
-			Namespace: schedule.Namespace,
-		}}
-		return ctrl.SetControllerReference(schedule, roleBinding, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		roleBinding,
+		func() error {
+			roleBinding.Labels = scheduleLabels(schedule)
+			roleBinding.Annotations = schedule.Annotations
+			roleBinding.RoleRef = rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     scheduleRunnerName(schedule),
+			}
+			roleBinding.Subjects = []rbacv1.Subject{{
+				Kind:      rbacv1.ServiceAccountKind,
+				Name:      scheduleRunnerName(schedule),
+				Namespace: schedule.Namespace,
+			}}
+			return ctrl.SetControllerReference(schedule, roleBinding, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch rolebinding: %w", err)
 	}
@@ -148,53 +163,58 @@ func (r *Reconciler) reconcileRunnerPolicy(ctx context.Context, schedule *agentz
 			Namespace: schedule.Namespace,
 		},
 	}
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
-		policy.Labels = scheduleLabels(schedule)
-		policy.Annotations = schedule.Annotations
-		policy.Spec = &ciliumapi.Rule{
-			EndpointSelector: ciliumapi.NewESFromLabels(
-				ciliumlabels.NewLabel(
-					scheduleRunnerLabel,
-					schedule.Name,
-					ciliumlabels.LabelSourceK8s,
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		policy,
+		func() error {
+			policy.Labels = scheduleLabels(schedule)
+			policy.Annotations = schedule.Annotations
+			policy.Spec = &ciliumapi.Rule{
+				EndpointSelector: ciliumapi.NewESFromLabels(
+					ciliumlabels.NewLabel(
+						scheduleRunnerLabel,
+						schedule.Name,
+						ciliumlabels.LabelSourceK8s,
+					),
 				),
-			),
-			Egress: []ciliumapi.EgressRule{
-				{
-					EgressCommonRule: ciliumapi.EgressCommonRule{
-						ToEntities: ciliumapi.EntitySlice{
-							ciliumapi.EntityKubeAPIServer,
+				Egress: []ciliumapi.EgressRule{
+					{
+						EgressCommonRule: ciliumapi.EgressCommonRule{
+							ToEntities: ciliumapi.EntitySlice{
+								ciliumapi.EntityKubeAPIServer,
+							},
 						},
 					},
-				},
-				{
-					EgressCommonRule: ciliumapi.EgressCommonRule{
-						ToEndpoints: []ciliumapi.EndpointSelector{
-							ciliumapi.NewESFromLabels(
-								ciliumlabels.NewLabel(
-									"io.kubernetes.pod.namespace",
-									"kube-system",
-									ciliumlabels.LabelSourceK8s,
+					{
+						EgressCommonRule: ciliumapi.EgressCommonRule{
+							ToEndpoints: []ciliumapi.EndpointSelector{
+								ciliumapi.NewESFromLabels(
+									ciliumlabels.NewLabel(
+										"io.kubernetes.pod.namespace",
+										"kube-system",
+										ciliumlabels.LabelSourceK8s,
+									),
+									ciliumlabels.NewLabel(
+										"k8s-app",
+										"kube-dns",
+										ciliumlabels.LabelSourceK8s,
+									),
 								),
-								ciliumlabels.NewLabel(
-									"k8s-app",
-									"kube-dns",
-									ciliumlabels.LabelSourceK8s,
-								),
-							),
+							},
 						},
+						ToPorts: []ciliumapi.PortRule{{
+							Ports: []ciliumapi.PortProtocol{
+								{Port: "53", Protocol: ciliumapi.ProtoUDP},
+								{Port: "53", Protocol: ciliumapi.ProtoTCP},
+							},
+						}},
 					},
-					ToPorts: []ciliumapi.PortRule{{
-						Ports: []ciliumapi.PortProtocol{
-							{Port: "53", Protocol: ciliumapi.ProtoUDP},
-							{Port: "53", Protocol: ciliumapi.ProtoTCP},
-						},
-					}},
 				},
-			},
-		}
-		return ctrl.SetControllerReference(schedule, policy, r.Scheme)
-	})
+			}
+			return ctrl.SetControllerReference(schedule, policy, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("create or patch runner policy: %w", err)
 	}
@@ -226,39 +246,44 @@ func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *agentzv1alp
 			Namespace: schedule.Namespace,
 		},
 	}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, cronJob, func() error {
-		cronJob.Labels = scheduleLabels(schedule)
-		cronJob.Annotations = schedule.Annotations
-		cronJob.Spec.Schedule = schedule.Spec.Schedule
-		cronJob.Spec.TimeZone = nil
-		if schedule.Spec.TimeZone != "" {
-			cronJob.Spec.TimeZone = &schedule.Spec.TimeZone
-		}
-		cronJob.Spec.Suspend = &schedule.Spec.Suspend
-		cronJob.Spec.ConcurrencyPolicy = batchv1.ForbidConcurrent
-		cronJob.Spec.SuccessfulJobsHistoryLimit = new(int32(1))
-		cronJob.Spec.FailedJobsHistoryLimit = new(int32(1))
-		cronJob.Spec.JobTemplate.Spec.BackoffLimit = new(int32(0))
-		cronJob.Spec.JobTemplate.Spec.Template.Labels = scheduleRunnerPodLabels(schedule)
-		cronJob.Spec.JobTemplate.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
-		cronJob.Spec.JobTemplate.Spec.Template.Spec.ServiceAccountName = scheduleRunnerName(schedule)
-		cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers = []corev1.Container{{
-			Name:            "workflow-trigger",
-			Image:           r.ControllerImage,
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Args: []string{
-				"workflow",
-				"run-schedule",
-				"--namespace=" + schedule.Namespace,
-				"--schedule-name=" + schedule.Name,
-				"--agent-name=" + schedule.Spec.AgentName,
-				"--workflow-name=" + schedule.Spec.WorkflowName,
-				"--timeout-seconds=" + fmt.Sprintf("%d", schedule.Spec.TimeoutSeconds),
-				"--inputs-json=" + inputsJSON,
-			},
-		}}
-		return ctrl.SetControllerReference(schedule, cronJob, r.Scheme)
-	})
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		cronJob,
+		func() error {
+			cronJob.Labels = scheduleLabels(schedule)
+			cronJob.Annotations = schedule.Annotations
+			cronJob.Spec.Schedule = schedule.Spec.Schedule
+			cronJob.Spec.TimeZone = nil
+			if schedule.Spec.TimeZone != "" {
+				cronJob.Spec.TimeZone = &schedule.Spec.TimeZone
+			}
+			cronJob.Spec.Suspend = &schedule.Spec.Suspend
+			cronJob.Spec.ConcurrencyPolicy = batchv1.ForbidConcurrent
+			cronJob.Spec.SuccessfulJobsHistoryLimit = new(int32(1))
+			cronJob.Spec.FailedJobsHistoryLimit = new(int32(1))
+			cronJob.Spec.JobTemplate.Spec.BackoffLimit = new(int32(0))
+			cronJob.Spec.JobTemplate.Spec.Template.Labels = scheduleRunnerPodLabels(schedule)
+			cronJob.Spec.JobTemplate.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
+			cronJob.Spec.JobTemplate.Spec.Template.Spec.ServiceAccountName = scheduleRunnerName(schedule)
+			cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers = []corev1.Container{{
+				Name:            "workflow-trigger",
+				Image:           r.ControllerImage,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Args: []string{
+					"workflow",
+					"run-schedule",
+					"--namespace=" + schedule.Namespace,
+					"--schedule-name=" + schedule.Name,
+					"--agent-name=" + schedule.Spec.AgentName,
+					"--workflow-name=" + schedule.Spec.WorkflowName,
+					"--timeout-seconds=" + fmt.Sprintf("%d", schedule.Spec.TimeoutSeconds),
+					"--inputs-json=" + inputsJSON,
+				},
+			}}
+			return ctrl.SetControllerReference(schedule, cronJob, r.Scheme)
+		},
+	)
 	if err != nil {
 		return "", fmt.Errorf("create or patch cronjob: %w", err)
 	}

@@ -52,6 +52,8 @@ function createMessageID() {
 
 export function useOpencodeSend(
   agentName: string,
+  workspaceId: string,
+  sessionsPath: string,
   sessionID?: string,
   directory?: string,
   isBusy?: boolean,
@@ -64,7 +66,7 @@ export function useOpencodeSend(
   const abortMutation = useMutation<boolean, Error, { sessionID: string; directory?: string }>({
     mutationKey: abortKey,
     mutationFn: async (input) => {
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.abort({
         ...(input.directory ? { directory: input.directory } : {}),
         sessionID: input.sessionID,
@@ -85,7 +87,7 @@ export function useOpencodeSend(
         if (!sessionStatus || sessionStatus.type === "idle") {
           await new Promise((resolve) => setTimeout(resolve, 2_000))
           queryClient.setQueryData<SessionStatusResponse>(
-            sessionStatusQueryOptions(agentName, input.directory ?? "").queryKey,
+            sessionStatusQueryOptions(agentName, workspaceId, input.directory ?? "").queryKey,
             (current) => ({
               ...current,
               [input.sessionID]: { type: "idle" },
@@ -125,7 +127,7 @@ export function useOpencodeSend(
       let optimisticStatus: SessionStatus | undefined
 
       try {
-        const client = await createAgentOpencodeClient(agentName)
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
 
         if (!resolvedSessionID) {
           const createResult = await client.session.create({
@@ -143,27 +145,34 @@ export function useOpencodeSend(
           resolvedSessionID = createResult.data.id
           setPendingSessionID(createResult.data.id)
           queryClient.setQueryData(
-            sessionInfoQueryKey(agentName, createResult.data.id),
+            sessionInfoQueryKey(workspaceId, agentName, createResult.data.id),
             createResult.data
           )
           onSessionCreated?.(createResult.data.id)
-          const sessionPath =
-            `/agents/${encodeURIComponent(agentName)}/` +
-            `${encodeURIComponent(createResult.data.id)}`
+          const sessionPath = `${sessionsPath}/${encodeURIComponent(createResult.data.id)}`
           startTransition(() => {
             router.replace(sessionPath)
           })
         }
 
         const activeSessionID = resolvedSessionID
-        const uploaded = await uploadChatAttachments(agentName, activeSessionID, input.files)
+        const uploaded = await uploadChatAttachments(
+          agentName,
+          workspaceId,
+          activeSessionID,
+          input.files
+        )
         const parts = opencodePartsFromMessage(text, uploaded)
         const pendingID = createMessageID()
         const pendingStatus: SessionStatus = { type: "busy" }
         optimisticID = pendingID
         optimisticSessionID = activeSessionID
         optimisticStatus = pendingStatus
-        const sessionStatusOptions = sessionStatusQueryOptions(agentName, sessionDirectory ?? "")
+        const sessionStatusOptions = sessionStatusQueryOptions(
+          agentName,
+          workspaceId,
+          sessionDirectory ?? ""
+        )
         queryClient.setQueryData<SessionStatusResponse>(
           sessionStatusOptions.queryKey,
           (current) => ({
@@ -171,7 +180,7 @@ export function useOpencodeSend(
             [activeSessionID]: pendingStatus,
           })
         )
-        addOptimisticUserMessage(queryClient, agentName, activeSessionID, {
+        addOptimisticUserMessage(queryClient, workspaceId, agentName, activeSessionID, {
           attachments: uploaded,
           createdAt: Date.now(),
           id: pendingID,
@@ -202,9 +211,15 @@ export function useOpencodeSend(
         if (optimisticID && optimisticSessionID && optimisticStatus) {
           const failedSessionID = optimisticSessionID
           const failedStatus = optimisticStatus
-          markOptimisticUserMessageFailed(queryClient, agentName, failedSessionID, optimisticID)
+          markOptimisticUserMessageFailed(
+            queryClient,
+            workspaceId,
+            agentName,
+            failedSessionID,
+            optimisticID
+          )
           queryClient.setQueryData<SessionStatusResponse>(
-            sessionStatusQueryOptions(agentName, sessionDirectory ?? "").queryKey,
+            sessionStatusQueryOptions(agentName, workspaceId, sessionDirectory ?? "").queryKey,
             (current) => {
               if (current?.[failedSessionID] !== failedStatus) return current
               return { ...current, [failedSessionID]: { type: "idle" } }

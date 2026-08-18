@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -84,6 +85,7 @@ func (v *Validator) ValidateDelete(ctx context.Context, sandbox *agentzv1alpha1.
 
 func (v *Validator) validateSandbox(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) error {
 	fields := validateAllowedHostFields(sandbox)
+	fields = append(fields, v.validateSkillRefs(ctx, sandbox)...)
 	fields = append(fields, v.validateMCPConnectionRefs(ctx, sandbox)...)
 	fields = append(fields, v.validateInference(ctx, sandbox)...)
 	if len(fields) == 0 {
@@ -100,8 +102,8 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 		return append(fields, field.Required(path.Child("models"), "at least one model is required"))
 	}
 
-	allowed := make(map[string]struct{}, len(sandbox.Spec.Inference.Models))
-	byProvider := make(map[string][]string, len(sandbox.Spec.Inference.Models))
+	allowed := make(map[agentzv1alpha1.InferenceModelRef]struct{}, len(sandbox.Spec.Inference.Models))
+	byProvider := make(map[agentzv1alpha1.ResourceReference][]string, len(sandbox.Spec.Inference.Models))
 	pools := map[string]struct{}{}
 	for i, model := range sandbox.Spec.Inference.Models {
 		if strings.TrimSpace(model.Provider) == "" {
@@ -110,78 +112,151 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 		if strings.TrimSpace(model.Model) == "" {
 			fields = append(fields, field.Required(path.Child("models").Index(i).Child("model"), "field is required"))
 		}
-		key := model.Provider + "\x00" + model.Model
-		if _, exists := allowed[key]; exists {
+		if _, exists := allowed[model]; exists {
 			fields = append(fields, field.Duplicate(path.Child("models").Index(i), model))
 			continue
 		}
-		allowed[key] = struct{}{}
+		allowed[model] = struct{}{}
 		if model.Provider == agentzv1alpha1.InferencePoolProvider {
+			if model.Scope != agentzv1alpha1.ResourceScopeWorkspace {
+				fields = append(
+					fields,
+					field.NotSupported(
+						path.Child("models").Index(i).Child("scope"),
+						model.Scope,
+						[]string{string(agentzv1alpha1.ResourceScopeWorkspace)},
+					),
+				)
+				continue
+			}
 			pools[model.Model] = struct{}{}
 			continue
 		}
-		byProvider[model.Provider] = append(byProvider[model.Provider], model.Model)
+		provider := agentzv1alpha1.ResourceReference{
+			Scope: model.Scope,
+			Name:  model.Provider,
+		}
+		byProvider[provider] = append(byProvider[provider], model.Model)
 	}
 
-	defaultKey := sandbox.Spec.Inference.DefaultModel.Provider + "\x00" +
-		sandbox.Spec.Inference.DefaultModel.Model
-	if _, exists := allowed[defaultKey]; !exists {
-		fields = append(fields, field.Invalid(
-			path.Child("defaultModel"), sandbox.Spec.Inference.DefaultModel,
-			"must belong to the model allowlist",
-		))
+	if _, exists := allowed[sandbox.Spec.Inference.DefaultModel]; !exists {
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("defaultModel"),
+				sandbox.Spec.Inference.DefaultModel,
+				"must belong to the model allowlist",
+			),
+		)
 	}
 	if sandbox.Spec.Inference.SmallModel != nil {
-		smallKey := sandbox.Spec.Inference.SmallModel.Provider + "\x00" + sandbox.Spec.Inference.SmallModel.Model
-		if _, exists := allowed[smallKey]; !exists {
-			fields = append(fields, field.Invalid(
-				path.Child("smallModel"), sandbox.Spec.Inference.SmallModel,
-				"must belong to the model allowlist",
-			))
+		if _, exists := allowed[*sandbox.Spec.Inference.SmallModel]; !exists {
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Child("smallModel"),
+					sandbox.Spec.Inference.SmallModel,
+					"must belong to the model allowlist",
+				),
+			)
 		}
 	}
 	if v.client == nil {
 		return fields
 	}
+	poolNamespace, poolErr := scope.Namespace(
+		ctx,
+		v.client,
+		sandbox.Namespace,
+		agentzv1alpha1.ResourceScopeWorkspace,
+	)
 	for poolID := range pools {
+		if poolErr != nil {
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Child("models"),
+					poolID,
+					"Workspace inference pool scope cannot be resolved from the Sandbox namespace",
+				),
+			)
+			continue
+		}
 		pool := &agentzv1alpha1.InferencePool{}
-		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: poolID}
+		key := client.ObjectKey{Namespace: poolNamespace, Name: poolID}
 		err := v.client.Get(ctx, key, pool)
 		if apierrors.IsNotFound(err) {
 			fields = append(fields, field.NotFound(path.Child("models"), poolID))
 			continue
 		}
 		if err != nil {
-			fields = append(fields, field.InternalError(
-				path.Child("models"), fmt.Errorf("get inference pool %q: %w", poolID, err),
-			))
+			fields = append(
+				fields,
+				field.InternalError(
+					path.Child("models"),
+					fmt.Errorf("get inference pool %q: %w", poolID, err),
+				),
+			)
 			continue
 		}
 		if !pool.DeletionTimestamp.IsZero() {
-			fields = append(fields, field.Forbidden(
-				path.Child("models"), fmt.Sprintf("pool %q is terminating", poolID),
-			))
+			fields = append(
+				fields,
+				field.Forbidden(
+					path.Child("models"),
+					fmt.Sprintf("pool %q is terminating", poolID),
+				),
+			)
 		}
 	}
 
-	for providerID, modelIDs := range byProvider {
+	for ref, modelIDs := range byProvider {
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			v.client,
+			sandbox.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  ref.Name,
+			},
+		)
+		if err != nil {
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Child("models"),
+					ref,
+					"inference provider scope cannot be resolved from the Sandbox namespace",
+				),
+			)
+			continue
+		}
 		provider := &agentzv1alpha1.InferenceProvider{}
-		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: providerID}
-		err := v.client.Get(ctx, key, provider)
+		key := client.ObjectKey{Namespace: ns, Name: ref.Name}
+		err = v.client.Get(ctx, key, provider)
 		if apierrors.IsNotFound(err) {
-			fields = append(fields, field.NotFound(path.Child("models"), providerID))
+			fields = append(fields, field.NotFound(path.Child("models"), ref.Name))
 			continue
 		}
 		if err != nil {
-			fields = append(fields, field.InternalError(
-				path.Child("models"), fmt.Errorf("get inference provider %q: %w", providerID, err),
-			))
+			fields = append(
+				fields,
+				field.InternalError(
+					path.Child("models"),
+					fmt.Errorf("get inference provider %q: %w", ref.Name, err),
+				),
+			)
 			continue
 		}
 		if !provider.DeletionTimestamp.IsZero() {
-			fields = append(fields, field.Forbidden(
-				path.Child("models"), fmt.Sprintf("provider %q is terminating", providerID),
-			))
+			fields = append(
+				fields,
+				field.Forbidden(
+					path.Child("models"),
+					fmt.Sprintf("provider %q is terminating", ref.Name),
+				),
+			)
 			continue
 		}
 		enabled := make(map[string]struct{}, len(provider.Spec.Models))
@@ -192,9 +267,69 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 			if _, exists := enabled[modelID]; exists {
 				continue
 			}
-			fields = append(fields, field.NotFound(
-				path.Child("models"), providerID+"/"+modelID,
-			))
+			fields = append(
+				fields,
+				field.NotFound(
+					path.Child("models"),
+					ref.Name+"/"+modelID,
+				),
+			)
+		}
+	}
+	return fields
+}
+
+func (v *Validator) validateSkillRefs(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) field.ErrorList {
+	if v.client == nil {
+		return nil
+	}
+
+	fields := field.ErrorList{}
+	path := field.NewPath("spec").Child("skills")
+	for i, ref := range sandbox.Spec.Skills {
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			v.client,
+			sandbox.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+				Name:  ref.Name,
+			},
+		)
+		if err != nil {
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Index(i).Child("scope"),
+					ref.Scope,
+					"scope cannot be resolved from the Sandbox namespace",
+				),
+			)
+			continue
+		}
+
+		skill := &agentzv1alpha1.Skill{}
+		err = v.client.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, skill)
+		switch {
+		case apierrors.IsNotFound(err):
+			fields = append(fields, field.NotFound(path.Index(i).Child("name"), ref.Name))
+		case err != nil:
+			fields = append(
+				fields,
+				field.InternalError(
+					path.Index(i).Child("name"),
+					fmt.Errorf("get skill %q: %w", ref.Name, err),
+				),
+			)
+		case !skill.DeletionTimestamp.IsZero():
+			fields = append(
+				fields,
+				field.Forbidden(
+					path.Index(i).Child("name"),
+					fmt.Sprintf("skill %q is terminating", ref.Name),
+				),
+			)
 		}
 	}
 	return fields
@@ -205,11 +340,14 @@ func validateAllowedHostFields(sandbox *agentzv1alpha1.Sandbox) field.ErrorList 
 	path := field.NewPath("spec").Child("allowedHosts")
 	for i, entry := range sandbox.Spec.AllowedHosts {
 		if _, err := sandboxutil.ParseHost(entry); err != nil {
-			fields = append(fields, field.Invalid(
-				path.Index(i),
-				entry,
-				fmt.Sprintf("%v", err),
-			))
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Index(i),
+					entry,
+					fmt.Sprintf("%v", err),
+				),
+			)
 		}
 	}
 	return fields
@@ -218,55 +356,92 @@ func validateAllowedHostFields(sandbox *agentzv1alpha1.Sandbox) field.ErrorList 
 func (v *Validator) validateMCPConnectionRefs(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) field.ErrorList {
 	fields := field.ErrorList{}
 	path := field.NewPath("spec").Child("mcpConnectionRefs")
-	seen := map[string]int{}
+	seen := map[agentzv1alpha1.ResourceReference]int{}
 
 	for i, ref := range sandbox.Spec.MCPConnectionRefs {
-		name := strings.TrimSpace(ref.Name)
+		name := ref.Name
 		if name == "" {
-			fields = append(fields, field.Required(
-				path.Index(i).Child("name"),
-				"field is required",
-			))
+			fields = append(
+				fields,
+				field.Required(
+					path.Index(i).Child("name"),
+					"field is required",
+				),
+			)
 			continue
 		}
 
-		if first, ok := seen[name]; ok {
-			fields = append(fields, field.Duplicate(
-				path.Index(i).Child("name"),
-				fmt.Sprintf("%s (first seen at index %d)", name, first),
-			))
+		key := agentzv1alpha1.ResourceReference{Scope: ref.Scope, Name: name}
+		if first, ok := seen[key]; ok {
+			fields = append(
+				fields,
+				field.Duplicate(
+					path.Index(i).Child("name"),
+					fmt.Sprintf("%s (first seen at index %d)", name, first),
+				),
+			)
 			continue
 		}
-		seen[name] = i
+		seen[key] = i
 
 		if v.client == nil {
 			continue
 		}
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			v.client,
+			sandbox.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+				Name:  name,
+			},
+		)
+		if err != nil {
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Index(i).Child("scope"),
+					ref.Scope,
+					"scope cannot be resolved from the Sandbox namespace",
+				),
+			)
+			continue
+		}
 
 		conn := &agentzv1alpha1.MCPConnection{}
-		key := client.ObjectKey{Namespace: sandbox.Namespace, Name: name}
-		err := v.client.Get(ctx, key, conn)
+		objKey := client.ObjectKey{Namespace: ns, Name: name}
+		err = v.client.Get(ctx, objKey, conn)
 		if apierrors.IsNotFound(err) {
-			fields = append(fields, field.NotFound(
-				path.Index(i).Child("name"),
-				name,
-			))
+			fields = append(
+				fields,
+				field.NotFound(
+					path.Index(i).Child("name"),
+					name,
+				),
+			)
 			continue
 		}
 		if err == nil {
 			toolsPath := path.Index(i).Child("tools")
 			if len(ref.Tools) == 0 {
-				fields = append(fields, field.Required(
-					toolsPath,
-					"at least one tool is required",
-				))
+				fields = append(
+					fields,
+					field.Required(
+						toolsPath,
+						"at least one tool is required",
+					),
+				)
 				continue
 			}
 			if !conn.Status.ToolCatalogReady {
-				fields = append(fields, field.Forbidden(
-					toolsPath,
-					fmt.Sprintf("mcp connection %q tool catalog is not ready", name),
-				))
+				fields = append(
+					fields,
+					field.Forbidden(
+						toolsPath,
+						fmt.Sprintf("mcp connection %q tool catalog is not ready", name),
+					),
+				)
 				continue
 			}
 
@@ -284,34 +459,46 @@ func (v *Validator) validateMCPConnectionRefs(ctx context.Context, sandbox *agen
 			for toolIndex, tool := range ref.Tools {
 				toolName := strings.TrimSpace(tool.Name)
 				if toolName == "" {
-					fields = append(fields, field.Required(
-						toolsPath.Index(toolIndex).Child("name"),
-						"field is required",
-					))
+					fields = append(
+						fields,
+						field.Required(
+							toolsPath.Index(toolIndex).Child("name"),
+							"field is required",
+						),
+					)
 					continue
 				}
 				if firstToolIndex, ok := seenTools[toolName]; ok {
-					fields = append(fields, field.Duplicate(
-						toolsPath.Index(toolIndex).Child("name"),
-						fmt.Sprintf("%s (first seen at index %d)", toolName, firstToolIndex),
-					))
+					fields = append(
+						fields,
+						field.Duplicate(
+							toolsPath.Index(toolIndex).Child("name"),
+							fmt.Sprintf("%s (first seen at index %d)", toolName, firstToolIndex),
+						),
+					)
 					continue
 				}
 				seenTools[toolName] = toolIndex
 				if !slices.Contains(toolNames, toolName) {
-					fields = append(fields, field.NotSupported(
-						toolsPath.Index(toolIndex).Child("name"),
-						toolName,
-						toolNames,
-					))
+					fields = append(
+						fields,
+						field.NotSupported(
+							toolsPath.Index(toolIndex).Child("name"),
+							toolName,
+							toolNames,
+						),
+					)
 				}
 			}
 			continue
 		}
-		fields = append(fields, field.InternalError(
-			path.Index(i).Child("name"),
-			fmt.Errorf("get mcpconnection %q: %w", name, err),
-		))
+		fields = append(
+			fields,
+			field.InternalError(
+				path.Index(i).Child("name"),
+				fmt.Errorf("get mcpconnection %q: %w", name, err),
+			),
+		)
 	}
 
 	return fields

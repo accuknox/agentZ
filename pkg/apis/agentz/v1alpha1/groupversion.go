@@ -45,21 +45,19 @@ type schemeBuilder struct {
 
 // Register adds objects to the group-version scheme.
 func (b *schemeBuilder) Register(objs ...runtime.Object) error {
-	b.SchemeBuilder = append(b.SchemeBuilder, func(s *runtime.Scheme) error {
-		s.AddKnownTypes(b.GroupVersion, objs...)
-		metav1.AddToGroupVersion(s, b.GroupVersion)
-		return nil
-	})
+	b.SchemeBuilder = append(
+		b.SchemeBuilder,
+		func(s *runtime.Scheme) error {
+			s.AddKnownTypes(b.GroupVersion, objs...)
+			metav1.AddToGroupVersion(s, b.GroupVersion)
+			return nil
+		},
+	)
 	return nil
 }
 
 func (b *schemeBuilder) schemeBuilder() *runtime.SchemeBuilder {
 	return &b.SchemeBuilder
-}
-
-// Kind returns a GroupKind for an unqualified kind.
-func Kind(kind string) schema.GroupKind {
-	return SchemeGroupVersion.WithKind(kind).GroupKind()
 }
 
 // Resource returns a GroupResource for an unqualified resource.

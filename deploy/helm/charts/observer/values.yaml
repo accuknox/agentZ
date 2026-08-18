@@ -1,11 +1,22 @@
+enabled: true
+
 nameOverride: ""
 fullnameOverride: ""
 
 replicaCount: 1
+revisionHistoryLimit: 10
+terminationGracePeriodSeconds: 30
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
 
 image:
   repository: murtazau/agentz
   tag: latest
+  digest: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -13,6 +24,8 @@ imagePullSecrets: []
 serviceAccount:
   create: true
   name: ""
+  annotations: {}
+  automountServiceAccountToken: true
 
 rbac:
   create: true
@@ -24,6 +37,27 @@ resources: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
 
 service:
   type: ClusterIP
@@ -33,10 +67,10 @@ config:
   logLevel: info
   logFormat: text
   logWithSource: false
-  postgresDSN: ""
+  postgresSecretName: agentz-postgres
+  postgresSecretKey: DATABASE_URL
   kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
   hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
-  namespace: agentz-system
   batchSize: 500
   flushInterval: 1s
 

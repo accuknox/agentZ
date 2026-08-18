@@ -6,19 +6,10 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
+import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import type { Route } from "next"
 import Link from "next/link"
 import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpDown,
   ArrowUpRight,
   CheckCircle2,
   CircleAlert,
@@ -65,11 +56,14 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferencePoolAction } from "@/data/inference-pool.actions"
-import { formatAge, formatCompactNumber } from "@/lib/format"
+import type { InferencePoolActionScope } from "@/data/inference-pool.actions"
+import { formatCompactNumber } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   getInferencePool,
@@ -82,16 +76,14 @@ import {
 import { ProviderIcon } from "../providers/provider-shared"
 import { PoolSheet } from "./pool-sheet"
 
-const pageSize = 25
-
 const columnClassName: Record<string, string> = {
-  display_name: "min-w-0 w-0",
+  display_name: "w-56",
   state: "w-44",
   members: "w-64 max-w-64",
   automatic_failover: "w-40",
   usage_count: "w-24",
   updated_at: "w-28",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const stateMeta = {
@@ -107,15 +99,19 @@ const stateMeta = {
   }
 >
 
-const watchPoolsQueryOptions = (poolIDs: string[], pools: InferencePool[]) =>
+const watchPoolsQueryOptions = (
+  poolIDs: string[],
+  pools: InferencePool[],
+  scope: InferencePoolActionScope
+) =>
   queryOptions({
-    queryKey: ["watchInferencePools", poolIDs] as const,
+    queryKey: ["watchInferencePools", scope.workspaceId, poolIDs] as const,
     enabled: poolIDs.length > 0,
     placeholderData: pools,
     queryFn: streamedQuery<
       WatchInferencePoolsEvent,
       InferencePool[],
-      readonly ["watchInferencePools", string[]]
+      readonly ["watchInferencePools", string, string[]]
     >({
       initialValue: pools,
       reducer: (rows, event) => {
@@ -127,6 +123,7 @@ const watchPoolsQueryOptions = (poolIDs: string[], pools: InferencePool[]) =>
         const result = await watchInferencePools({
           baseUrl: await getGatewayBaseURL(),
           body: { pool_ids: poolIDs },
+          headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
           signal,
         })
         return result.stream
@@ -141,34 +138,24 @@ const watchPoolsQueryOptions = (poolIDs: string[], pools: InferencePool[]) =>
   })
 
 export function InferencePoolTable({
+  hasNextPage,
+  nextPageToken,
   pools,
   providers,
+  scope,
 }: {
+  hasNextPage: boolean
+  nextPageToken: string
   pools: InferencePool[]
   providers: InferenceProvider[]
+  scope: InferencePoolActionScope
 }) {
   "use no memo"
 
   const [viewing, setViewing] = React.useState<InferencePool>()
   const [editing, setEditing] = React.useState<InferencePool>()
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "updated_at", desc: true }])
-  const [page, setPage] = React.useState(0)
-  const pageCount = Math.max(1, Math.ceil(pools.length / pageSize))
-  const currentPage = Math.min(page, pageCount - 1)
-  const poolIDs = React.useMemo(() => {
-    const ordered = [...pools]
-    const sort = sorting[0]
-    if (sort?.id === "display_name") {
-      ordered.sort((a, b) => a.display_name.localeCompare(b.display_name))
-    } else {
-      ordered.sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at))
-    }
-    if (sort?.desc) ordered.reverse()
-    return ordered
-      .slice(currentPage * pageSize, currentPage * pageSize + pageSize)
-      .map((pool) => pool.id)
-  }, [currentPage, pools, sorting])
-  const watched = useQuery(watchPoolsQueryOptions(poolIDs, pools)).data ?? pools
+  const poolIDs = React.useMemo(() => pools.map((pool) => pool.id), [pools])
+  const watched = useQuery(watchPoolsQueryOptions(poolIDs, pools, scope)).data ?? pools
   const providerByID = React.useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),
     [providers]
@@ -177,15 +164,7 @@ export function InferencePoolTable({
     () => [
       {
         accessorKey: "display_name",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Name <ArrowUpDown />
-          </Button>
-        ),
+        header: "Name",
         cell: ({ row }) => (
           <span className="block truncate font-medium">{row.original.display_name}</span>
         ),
@@ -270,16 +249,8 @@ export function InferencePoolTable({
       },
       {
         accessorKey: "updated_at",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Updated <ArrowUpDown />
-          </Button>
-        ),
-        cell: ({ row }) => formatAge(row.original.updated_at),
+        header: "Updated",
+        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
       {
@@ -287,13 +258,14 @@ export function InferencePoolTable({
         cell: ({ row }) => (
           <PoolActions
             pool={row.original}
+            scope={scope}
             view={() => setViewing(row.original)}
             edit={() => setEditing(row.original)}
           />
         ),
       },
     ],
-    [providerByID]
+    [providerByID, scope]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -301,19 +273,13 @@ export function InferencePoolTable({
     data: watched,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: { sorting },
   })
-  const visibleRows = table
-    .getRowModel()
-    .rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize)
 
   return (
     <TooltipProvider>
-      <div className="min-w-0 space-y-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <div className="w-full min-w-0 border-b">
-          <Table className="table-auto">
+          <Table className="w-full table-fixed">
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id}>
@@ -331,8 +297,8 @@ export function InferencePoolTable({
               ))}
             </TableHeader>
             <TableBody>
-              {visibleRows.length ? (
-                visibleRows.map((row) => (
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
                     role="button"
@@ -358,36 +324,20 @@ export function InferencePoolTable({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No inference Pools
+                    <span className="text-muted-foreground">_</span>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={currentPage === 0}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            <ArrowLeft /> Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={currentPage + 1 === pageCount}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            Next <ArrowRight />
-          </Button>
-        </div>
+        <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
         <PoolViewSheet
           pool={viewing}
           providers={providers}
           open={Boolean(viewing)}
           onOpenChange={(open) => !open && setViewing(undefined)}
+          scope={scope}
         />
         <PoolSheet
           key={editing?.id ?? "closed"}
@@ -395,6 +345,7 @@ export function InferencePoolTable({
           providers={providers}
           open={Boolean(editing)}
           onOpenChange={(open) => !open && setEditing(undefined)}
+          scope={scope}
         />
       </div>
     </TooltipProvider>
@@ -426,10 +377,12 @@ function PoolStatusBadge({ pool }: { pool: InferencePool }) {
 
 function PoolActions({
   pool,
+  scope,
   view,
   edit,
 }: {
   pool: InferencePool
+  scope: InferencePoolActionScope
   view: () => void
   edit: () => void
 }) {
@@ -452,16 +405,20 @@ function PoolActions({
             <DropdownMenuItem onSelect={view}>
               <Eye /> View
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={edit}>
-              <Pencil /> Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-              <Trash2 /> Delete
-            </DropdownMenuItem>
+            {pool.can_modify ? (
+              <DropdownMenuItem onSelect={edit}>
+                <Pencil /> Edit
+              </DropdownMenuItem>
+            ) : null}
+            {pool.can_delete ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                <Trash2 /> Delete
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <DeletePoolDialog pool={pool} open={deleteOpen} setOpen={setDeleteOpen} />
+      <DeletePoolDialog pool={pool} open={deleteOpen} scope={scope} setOpen={setDeleteOpen} />
     </div>
   )
 }
@@ -469,10 +426,12 @@ function PoolActions({
 function DeletePoolDialog({
   pool,
   open,
+  scope,
   setOpen,
 }: {
   pool: InferencePool
   open: boolean
+  scope: InferencePoolActionScope
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const [error, setError] = React.useState("")
@@ -510,7 +469,7 @@ function DeletePoolDialog({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const result = await deleteInferencePoolAction(pool.id)
+                const result = await deleteInferencePoolAction(scope, pool.id)
                 if (result.error) {
                   const details =
                     result.error.errors?.map((item) => `${item.field}: ${item.message}`) ?? []
@@ -518,7 +477,7 @@ function DeletePoolDialog({
                   return
                 }
                 setOpen(false)
-                toast.success("Inference Pool deleted")
+                toast.success("Inference pool deleted")
               })
             }
           >
@@ -535,23 +494,33 @@ function PoolViewSheet({
   providers,
   open,
   onOpenChange,
+  scope,
 }: {
   pool?: InferencePool
   providers: InferenceProvider[]
   open: boolean
   onOpenChange: (open: boolean) => void
+  scope: InferencePoolActionScope
 }) {
   const poolName = pool?.id
   const query = useQuery(
     queryOptions({
       enabled: open && Boolean(poolName),
-      queryKey: ["inference-pool", poolName],
+      queryKey: ["inference-pool", scope.workspaceId, poolName],
       queryFn: async () => {
         if (!poolName) throw new Error("Pool is unavailable")
         const baseUrl = await getGatewayBaseURL()
         const [detail, usage] = await Promise.all([
-          getInferencePool({ baseUrl, path: { poolName } }),
-          getInferencePoolUsage({ baseUrl, path: { poolName } }),
+          getInferencePool({
+            baseUrl,
+            headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
+            path: { poolName },
+          }),
+          getInferencePoolUsage({
+            baseUrl,
+            headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
+            path: { poolName },
+          }),
         ])
         if (detail.error) throw new Error(detail.error.message)
         if (usage.error) throw new Error(usage.error.message)
@@ -731,7 +700,9 @@ function PoolViewSheet({
                   {query.data.usage.sandboxes.map((sandbox) => (
                     <Link
                       key={sandbox}
-                      href={`/sandboxes/update/${encodeURIComponent(sandbox)}`}
+                      href={
+                        `${scope.basePath}/sandboxes/update/${encodeURIComponent(sandbox)}` as Route
+                      }
                       className="hover:bg-accent focus-visible:ring-ring flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2"
                     >
                       <span className="break-anywhere min-w-0">{sandbox}</span>

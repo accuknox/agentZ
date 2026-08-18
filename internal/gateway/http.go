@@ -20,12 +20,16 @@ func newAPIError(status int, code string, message string, cause error, fields ..
 }
 
 func (s *Service) handleRouteError(w http.ResponseWriter, r *http.Request, err error) {
-	writeError(w, r, newAPIError(
-		http.StatusBadRequest,
-		"invalid_request",
-		"request is invalid",
-		err,
-	))
+	writeError(
+		w,
+		r,
+		newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request is invalid",
+			err,
+		),
+	)
 }
 
 func recordRequestError(w http.ResponseWriter, code string, cause error) {
@@ -107,10 +111,13 @@ func mapKubeHTTPError(action string, err error) *apiError {
 			if cause.Field == "" {
 				continue
 			}
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   cause.Field,
-				Message: cause.Message,
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   cause.Field,
+					Message: cause.Message,
+				},
+			)
 		}
 		if len(fields) == 0 {
 			return newAPIError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)

@@ -16,8 +16,7 @@ import {
   type WatchMcpConnectionsEvent,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
-import { Button } from "@/components/ui/button"
+import { TokenTablePagination } from "@/components/table-pagination"
 import {
   Table,
   TableBody,
@@ -29,51 +28,58 @@ import {
 import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { createMcpColumns } from "./mcp-columns"
 import { McpViewSheet } from "./mcp-view-sheet"
-import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
-  name: "w-40",
-  auth_mode: "w-32",
-  status: "w-48",
-  endpoint: "min-w-0 w-0",
+  name: "w-56",
+  auth_mode: "w-24",
+  status: "w-32",
+  endpoint: "min-w-40",
+  created_by: "hidden lg:table-cell w-24",
+  last_modified_by: "hidden lg:table-cell w-24",
   age: "w-28",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const watchMcpConnectionsQueryOptions = (
   connectionNames: string[],
-  mcpConnections: McpConnectionSummary[]
+  mcpConnections: McpConnectionSummary[],
+  workspaceId?: string
 ) =>
   queryOptions({
-    queryKey: ["watchMcpConnections", connectionNames] as const,
+    queryKey: ["watchMcpConnections", workspaceId, connectionNames] as const,
     enabled: connectionNames.length > 0,
     placeholderData: mcpConnections,
     queryFn: streamedQuery<
       WatchMcpConnectionsEvent,
       McpConnectionSummary[],
-      readonly ["watchMcpConnections", string[]]
+      readonly ["watchMcpConnections", string | undefined, string[]]
     >({
       initialValue: mcpConnections,
       reducer: (rows, event) => {
-        const byName = new Map(rows.map((row) => [row.name, row]))
+        const byReference = new Map(rows.map((row) => [JSON.stringify([row.scope, row.name]), row]))
 
         for (const connection of event.mcp_connections) {
-          if (!byName.has(connection.name)) {
+          const reference = JSON.stringify([connection.scope, connection.name])
+          if (!byReference.has(reference)) {
             continue
           }
-          byName.set(connection.name, connection)
+          byReference.set(reference, connection)
         }
 
-        return rows.map((row) => byName.get(row.name) ?? row)
+        return rows.map((row) => byReference.get(JSON.stringify([row.scope, row.name])) ?? row)
       },
       refetchMode: "reset",
       streamFn: async ({ signal }) => {
         const result = await watchMcpConnections({
           baseUrl: await getGatewayBaseURL(),
           body: {
-            names: connectionNames,
+            connections: connectionNames.map((name) => ({
+              name,
+              scope: workspaceId ? "Workspace" : "Organisation",
+            })),
           },
           signal,
+          headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
         })
         return result.stream
       },
@@ -91,6 +97,7 @@ export function McpTable({
   hasNextPage,
   nextPageToken,
   deleteMcpAction,
+  workspaceId,
 }: {
   mcpConnections: McpConnectionSummary[]
   hasNextPage: boolean
@@ -100,25 +107,31 @@ export function McpTable({
     state: DeleteMcpFormState,
     formData: FormData
   ) => Promise<DeleteMcpFormState>
+  workspaceId?: string
 }) {
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "age", desc: true }])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
-  const [viewConnectionName, setViewConnectionName] = React.useState<string>()
+  const [viewConnection, setViewConnection] = React.useState<McpConnectionSummary>()
   const connectionNames = React.useMemo(
-    () => mcpConnections.map((connection) => connection.name),
-    [mcpConnections]
+    () =>
+      mcpConnections
+        .filter((connection) => connection.scope === (workspaceId ? "Workspace" : "Organisation"))
+        .map((connection) => connection.name),
+    [mcpConnections, workspaceId]
   )
-  const query = useQuery(watchMcpConnectionsQueryOptions(connectionNames, mcpConnections))
+  const query = useQuery(
+    watchMcpConnectionsQueryOptions(connectionNames, mcpConnections, workspaceId)
+  )
   const rows = query.data ?? mcpConnections
   const columns = React.useMemo(
     () =>
       createMcpColumns({
         deleteMcpAction,
-        onViewAction: setViewConnectionName,
+        showOrganisation: workspaceId !== undefined,
+        onViewAction: setViewConnection,
       }),
-    [deleteMcpAction]
+    [deleteMcpAction, workspaceId]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -134,9 +147,9 @@ export function McpTable({
   })
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -162,7 +175,7 @@ export function McpTable({
                   role="button"
                   tabIndex={0}
                   onClick={() => {
-                    setViewConnectionName(row.original.name)
+                    setViewConnection(row.original)
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") {
@@ -170,7 +183,7 @@ export function McpTable({
                     }
 
                     event.preventDefault()
-                    setViewConnectionName(row.original.name)
+                    setViewConnection(row.original)
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -186,35 +199,23 @@ export function McpTable({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No MCP connections
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => goNext(nextPageToken)}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
-      {viewConnectionName ? (
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+      {viewConnection ? (
         <McpViewSheet
-          name={viewConnectionName}
+          name={viewConnection.name}
+          scope={viewConnection.scope}
+          workspaceId={workspaceId}
           open
           onOpenChangeAction={(open) => {
             if (!open) {
-              setViewConnectionName(undefined)
+              setViewConnection(undefined)
             }
           }}
         />

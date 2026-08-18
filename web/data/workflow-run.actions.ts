@@ -1,11 +1,12 @@
 "use server"
 
-import { redirect } from "next/navigation"
+import type { Route } from "next"
 import { updateTag } from "next/cache"
 import * as z from "zod"
 import { createWorkflowRun, deleteWorkflowRun, type Error } from "@/lib/gateway/client"
 import { workflowRunsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import type { WorkflowActionScope } from "@/data/workflow.actions"
 
 export type DeleteWorkflowRunActionState = {
   success: boolean
@@ -15,6 +16,7 @@ export type DeleteWorkflowRunActionState = {
 export type TriggerWorkflowRunActionState = {
   success: boolean
   error?: Error
+  href?: Route
 }
 
 const deleteWorkflowRunFormSchema = z.object({
@@ -33,6 +35,7 @@ const triggerWorkflowRunFormSchema = z.object({
  * deleteWorkflowRunAction deletes one workflow run for one workflow.
  */
 export async function deleteWorkflowRunAction(
+  scope: WorkflowActionScope,
   agentName: string,
   workflowName: string,
   _: DeleteWorkflowRunActionState,
@@ -50,7 +53,8 @@ export async function deleteWorkflowRunAction(
   }
 
   const result = await deleteWorkflowRun({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: {
       agentName,
       workflowName,
@@ -76,6 +80,7 @@ export async function deleteWorkflowRunAction(
  * triggerWorkflowRunAction triggers one immediate run for one workflow schedule.
  */
 export async function triggerWorkflowRunAction(
+  scope: WorkflowActionScope,
   agentName: string,
   workflowName: string,
   scheduleName: string,
@@ -94,7 +99,8 @@ export async function triggerWorkflowRunAction(
   }
 
   const result = await createWorkflowRun({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspaceId },
     path: {
       agentName,
       workflowName,
@@ -109,7 +115,8 @@ export async function triggerWorkflowRunAction(
   }
 
   updateTag(workflowRunsTag)
-  redirect(
-    `/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(workflowName)}&schedule_name=${encodeURIComponent(scheduleName)}`
-  )
+  return {
+    success: true,
+    href: `${scope.basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(workflowName)}&schedule_name=${encodeURIComponent(scheduleName)}` as Route,
+  }
 }

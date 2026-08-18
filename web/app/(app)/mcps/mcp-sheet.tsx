@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import Fuse from "fuse.js"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { queryOptions, useQuery } from "@tanstack/react-query"
@@ -16,7 +17,16 @@ import {
   type UseFormReturn,
 } from "react-hook-form"
 import * as z from "zod"
-import { Check, ChevronDown, CircleAlert, RefreshCw, Settings2, Trash2, X } from "lucide-react"
+import {
+  Check,
+  ChevronDown,
+  CircleAlert,
+  RefreshCw,
+  Save,
+  Settings2,
+  Trash2,
+  X,
+} from "lucide-react"
 import {
   findMcpServerByURL,
   mcpServers,
@@ -54,12 +64,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { type McpFormState, type SubmitMcpFormAction } from "@/data/mcp.actions"
 import { mcpFormSchema, type McpFormInput, type McpFormValues } from "@/data/mcp.schema"
-import {
-  oauthBroadcastChannelName,
-  oauthWindowMessageSource,
-  parseOAuthPopupMessage,
-  type OAuthPopupMessage,
-} from "@/lib/mcp-oauth-shared"
+import { useOAuthPopup } from "@/lib/use-oauth-popup"
 
 type SubmitMcpAction = (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
 
@@ -364,7 +369,7 @@ function generalErrorMessage(error: McpFormState["error"]) {
   return hasGeneralError ? error.message : undefined
 }
 
-const ServerURLField = React.memo(function ServerURLField({
+function ServerURLField({
   control,
   authMode,
   endpointError,
@@ -601,7 +606,7 @@ const ServerURLField = React.memo(function ServerURLField({
       {endpointError ? <FieldError errors={[endpointError]} /> : null}
     </Field>
   )
-})
+}
 
 export function McpSheet({
   open,
@@ -658,19 +663,16 @@ export function McpSheet({
     oauthAuthorizationEndpoint = defaultFormValues.oauth_authorization_endpoint,
     oauthTokenEndpoint = defaultFormValues.oauth_token_endpoint,
   ] = oauthFields
-  const [oauthPopupFlowId, setOauthPopupFlowId] = React.useState<string>()
   const [clientSubmitError, setClientSubmitError] = React.useState<string>()
-  const [successMessage, setSuccessMessage] = React.useState<string>()
-  const [submitted, setSubmitted] = React.useState(false)
+  const {
+    cleanup: cleanupPopupFlow,
+    flowId: oauthPopupFlowId,
+    open: openOAuthPopup,
+  } = useOAuthPopup("mcp-oauth")
   const [userExpandedAccordions, dispatchAccordion] = React.useReducer(accordionReducer, [])
   const [dismissedDiscoveryWarningKey, setDismissedDiscoveryWarningKey] = React.useState<string>()
   const [discoveryURLOverride, setDiscoveryURLOverride] = React.useState<string>()
   const [hasTriggeredDiscovery, setHasTriggeredDiscovery] = React.useState(true)
-  const popupRef = React.useRef<Window | null>(null)
-  const popupPollRef = React.useRef<number | null>(null)
-  const broadcastChannelRef = React.useRef<BroadcastChannel | null>(null)
-  const messageHandlerRef = React.useRef<((event: MessageEvent<unknown>) => void) | null>(null)
-  const handledPopupFlowIdRef = React.useRef<string | undefined>(undefined)
   const shouldResetSubmitStateRef = React.useRef(false)
   const endpointURL = useWatch({
     control: form.control,
@@ -747,55 +749,14 @@ export function McpSheet({
             ? "success"
             : "idle"
 
-  const cancelPendingOAuthFlow = React.useCallback(() => {
-    void fetch("/mcps/oauth/pending", {
-      method: "POST",
-      keepalive: true,
-    }).catch(() => {})
-  }, [])
-
   const resetSubmitState = React.useCallback(() => {
     shouldResetSubmitStateRef.current = false
-    handledPopupFlowIdRef.current = undefined
     startTransition(() => {
       submitAction({
         type: "reset",
       })
     })
   }, [startTransition, submitAction])
-
-  const cleanupPopupFlow = React.useCallback(
-    (options?: { closePopup?: boolean; cancelPending?: boolean }) => {
-      const handler = messageHandlerRef.current
-      if (handler) {
-        window.removeEventListener("message", handler)
-        messageHandlerRef.current = null
-      }
-      broadcastChannelRef.current?.close()
-      broadcastChannelRef.current = null
-      if (popupPollRef.current !== null) {
-        window.clearInterval(popupPollRef.current)
-        popupPollRef.current = null
-      }
-      if (options?.closePopup && popupRef.current && !popupRef.current.closed) {
-        popupRef.current.close()
-      }
-      popupRef.current = null
-      setOauthPopupFlowId(undefined)
-      if (options?.cancelPending) {
-        cancelPendingOAuthFlow()
-      }
-    },
-    [cancelPendingOAuthFlow]
-  )
-
-  React.useEffect(() => {
-    return () => {
-      cleanupPopupFlow({
-        closePopup: true,
-      })
-    }
-  }, [cleanupPopupFlow])
 
   React.useLayoutEffect(() => {
     return () => {
@@ -871,94 +832,6 @@ export function McpSheet({
     })
   }, [currentDiscoveryState, form, oauthDiscoveryState])
 
-  const openOAuthPopup = React.useCallback(
-    (oauth: { flowId: string; url: string }) => {
-      setClientSubmitError(undefined)
-      setSuccessMessage(undefined)
-      let completed = false
-
-      function finishPopupFlow() {
-        cleanupPopupFlow()
-      }
-
-      function acknowledgePopup(flowId: string) {
-        const ack: OAuthPopupMessage = {
-          source: oauthWindowMessageSource,
-          kind: "ack",
-          flowId,
-        }
-        broadcastChannelRef.current?.postMessage(ack)
-      }
-
-      function handlePopupMessage(data: unknown) {
-        const message = parseOAuthPopupMessage(data)
-        if (!message || message.kind !== "result" || message.flowId !== oauth.flowId) {
-          return
-        }
-
-        completed = true
-        acknowledgePopup(message.flowId)
-        finishPopupFlow()
-
-        if (message.status === "success") {
-          setClientSubmitError(undefined)
-          setSuccessMessage(message.message)
-          setSubmitted(true)
-          startTransition(() => {
-            router.refresh()
-          })
-          return
-        }
-
-        setClientSubmitError(message.message)
-      }
-
-      function onWindowMessage(event: MessageEvent<unknown>) {
-        if (event.origin !== window.location.origin) {
-          return
-        }
-        handlePopupMessage(event.data)
-      }
-
-      messageHandlerRef.current = onWindowMessage
-      window.addEventListener("message", onWindowMessage)
-      if (typeof BroadcastChannel !== "undefined") {
-        const channel = new BroadcastChannel(oauthBroadcastChannelName)
-        channel.onmessage = (event: MessageEvent<OAuthPopupMessage>) => {
-          handlePopupMessage(event.data)
-        }
-        broadcastChannelRef.current = channel
-      }
-
-      const popup = window.open(
-        oauth.url,
-        `mcp-oauth-${oauth.flowId}`,
-        "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes"
-      )
-      if (!popup) {
-        finishPopupFlow()
-        setClientSubmitError("OAuth popup was blocked by the browser. Allow popups and try again.")
-        return
-      }
-
-      popupRef.current = popup
-      setOauthPopupFlowId(oauth.flowId)
-
-      popupPollRef.current = window.setInterval(() => {
-        if (!popupRef.current || !popupRef.current.closed) {
-          return
-        }
-        if (completed) {
-          return
-        }
-        finishPopupFlow()
-        cancelPendingOAuthFlow()
-        setClientSubmitError("OAuth popup was closed before authentication completed.")
-      }, 400)
-    },
-    [cancelPendingOAuthFlow, cleanupPopupFlow, router]
-  )
-
   React.useEffect(() => {
     if (!open) {
       return
@@ -972,13 +845,19 @@ export function McpSheet({
     }
 
     if (submitState.oauth) {
-      if (handledPopupFlowIdRef.current === submitState.oauth.flowId) {
-        return
-      }
-
-      handledPopupFlowIdRef.current = submitState.oauth.flowId
       shouldResetSubmitStateRef.current = true
-      openOAuthPopup(submitState.oauth)
+      openOAuthPopup(submitState.oauth, {
+        onError: setClientSubmitError,
+        onSuccess() {
+          toast.success("MCP connection created")
+          setClientSubmitError(undefined)
+          form.reset(defaultFormValues)
+          onOpenChangeAction(false)
+          startTransition(() => {
+            router.refresh()
+          })
+        },
+      })
       return
     }
 
@@ -986,17 +865,17 @@ export function McpSheet({
       return
     }
 
+    toast.success("MCP connection created")
     shouldResetSubmitStateRef.current = true
     queueMicrotask(() => {
-      setSubmitted(true)
       setClientSubmitError(undefined)
-      setSuccessMessage(submitState.message)
       form.reset(defaultFormValues)
+      onOpenChangeAction(false)
       startTransition(() => {
         router.refresh()
       })
     })
-  }, [form, open, openOAuthPopup, router, startTransition, submitState])
+  }, [form, onOpenChangeAction, open, openOAuthPopup, router, startTransition, submitState])
 
   const discoveryWarningVisible =
     authMode === "oauth" &&
@@ -1114,8 +993,6 @@ export function McpSheet({
       })
       form.reset(defaultFormValues)
       setClientSubmitError(undefined)
-      setSuccessMessage(undefined)
-      setSubmitted(false)
       dispatchAccordion({
         type: "reset",
       })
@@ -1224,81 +1101,180 @@ export function McpSheet({
             </AlertAction>
           </Alert>
         ) : null}
-        {submitted ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 pb-2">
-            <div className="bg-primary/10 flex size-12 items-center justify-center rounded-full">
-              <Check className="text-primary size-6" />
-            </div>
-            <p className="text-muted-foreground text-center text-sm">
-              {successMessage ?? "MCP server connection has been created successfully."}
-            </p>
-          </div>
-        ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              setClientSubmitError(undefined)
-              form.clearErrors()
-              void form.handleSubmit(submitFormAction, invalidSubmitAction)()
-            }}
-            className="flex flex-1 flex-col gap-5 px-4 pb-2"
-          >
-            <FieldGroup>
-              <Field data-invalid={Boolean(errors.name)}>
-                <FieldLabel htmlFor="mcp-name" required>
-                  Name
-                </FieldLabel>
-                <Input
-                  id="mcp-name"
-                  placeholder="Example MCP"
-                  aria-invalid={Boolean(errors.name)}
-                  aria-required="true"
-                  {...form.register("name")}
-                />
-                {errors.name ? <FieldError errors={[errors.name]} /> : null}
-              </Field>
-              <Field>
-                <FieldLabel>Type</FieldLabel>
-                <Controller
-                  name="auth_mode"
-                  control={form.control}
-                  render={({ field }) => (
-                    <ButtonGroup>
-                      <Button
-                        type="button"
-                        variant={field.value === "oauth" ? "secondary" : "ghost"}
-                        onClick={() => {
-                          field.onChange("oauth")
-                        }}
-                      >
-                        OAuth
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={field.value === "bearer" ? "secondary" : "ghost"}
-                        onClick={() => {
-                          field.onChange("bearer")
-                        }}
-                      >
-                        Bearer token
-                      </Button>
-                    </ButtonGroup>
-                  )}
-                />
-              </Field>
-              <ServerURLField
-                control={form.control}
-                authMode={authMode}
-                endpointError={errors.endpoint_url}
-                discoveryIconState={discoveryIconState}
-                isRefreshingDiscovery={oauthQuery.fetchStatus === "fetching"}
-                discoveryURLOverride={discoveryURLOverride}
-                onDiscoveryURLOverrideChangeAction={setDiscoveryURLOverride}
-                onRefreshDiscoveryAction={() => {
-                  void refreshDiscovery()
-                }}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            setClientSubmitError(undefined)
+            form.clearErrors()
+            void form.handleSubmit(submitFormAction, invalidSubmitAction)()
+          }}
+          className="flex flex-1 flex-col gap-5 px-4 pb-2"
+        >
+          <FieldGroup>
+            <Field data-invalid={Boolean(errors.name)}>
+              <FieldLabel htmlFor="mcp-name" required>
+                Name
+              </FieldLabel>
+              <Input
+                id="mcp-name"
+                placeholder="my-mcp"
+                aria-invalid={Boolean(errors.name)}
+                aria-required="true"
+                {...form.register("name")}
               />
-              {authMode === "oauth" ? (
+              {errors.name ? <FieldError errors={[errors.name]} /> : null}
+            </Field>
+            <Field>
+              <FieldLabel>Type</FieldLabel>
+              <Controller
+                name="auth_mode"
+                control={form.control}
+                render={({ field }) => (
+                  <ButtonGroup>
+                    <Button
+                      type="button"
+                      variant={field.value === "oauth" ? "secondary" : "ghost"}
+                      onClick={() => {
+                        field.onChange("oauth")
+                      }}
+                    >
+                      OAuth
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={field.value === "bearer" ? "secondary" : "ghost"}
+                      onClick={() => {
+                        field.onChange("bearer")
+                      }}
+                    >
+                      Bearer token
+                    </Button>
+                  </ButtonGroup>
+                )}
+              />
+            </Field>
+            <ServerURLField
+              control={form.control}
+              authMode={authMode}
+              endpointError={errors.endpoint_url}
+              discoveryIconState={discoveryIconState}
+              isRefreshingDiscovery={oauthQuery.fetchStatus === "fetching"}
+              discoveryURLOverride={discoveryURLOverride}
+              onDiscoveryURLOverrideChangeAction={setDiscoveryURLOverride}
+              onRefreshDiscoveryAction={() => {
+                void refreshDiscovery()
+              }}
+            />
+            {authMode === "oauth" ? (
+              <Accordion
+                type="multiple"
+                className="rounded-lg border px-4"
+                value={userExpandedAccordions}
+                onValueChange={(value) => {
+                  dispatchAccordion({
+                    type: "set",
+                    value,
+                  })
+                }}
+              >
+                <AccordionItem value={clientCredentialsAccordionItem} className="border-none">
+                  <AccordionTrigger className="py-4 hover:no-underline">
+                    <span>OAuth client credentials</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="[&>div]:h-auto">
+                    <FieldGroup>
+                      <Field data-invalid={Boolean(errors.oauth_client_id)}>
+                        <FieldLabel required={oauthClientCredentialsRequired}>Client ID</FieldLabel>
+                        <Input
+                          placeholder="Client ID"
+                          aria-invalid={Boolean(errors.oauth_client_id)}
+                          aria-required={oauthClientCredentialsRequired}
+                          {...form.register("oauth_client_id")}
+                        />
+                        {errors.oauth_client_id ? (
+                          <FieldError errors={[errors.oauth_client_id]} />
+                        ) : null}
+                      </Field>
+                      <Field data-invalid={Boolean(errors.oauth_client_secret)}>
+                        <FieldLabel required={oauthClientCredentialsRequired}>
+                          Client secret
+                        </FieldLabel>
+                        <Input
+                          type="password"
+                          placeholder="Client secret"
+                          aria-invalid={Boolean(errors.oauth_client_secret)}
+                          aria-required={oauthClientCredentialsRequired}
+                          {...form.register("oauth_client_secret")}
+                        />
+                        {errors.oauth_client_secret ? (
+                          <FieldError errors={[errors.oauth_client_secret]} />
+                        ) : null}
+                      </Field>
+                    </FieldGroup>
+                  </AccordionContent>
+                </AccordionItem>
+                <div className="-mx-4.25">
+                  <Separator />
+                </div>
+                <AccordionItem value={advancedAccordionItem} className="border-none">
+                  <AccordionTrigger className="py-4 hover:no-underline">
+                    <span>Advanced</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="[&>div]:h-auto">
+                    <FieldGroup>
+                      {oauthAdvancedFields.map((config) => {
+                        const error = errors[config.name]
+                        const required = oauthAdvancedRequiredFields.has(config.name)
+                        return (
+                          <Field key={config.name} data-invalid={Boolean(error)}>
+                            <FieldLabel required={required}>{config.label}</FieldLabel>
+                            {"kind" in config && config.kind === "textarea" ? (
+                              <Textarea
+                                rows={3}
+                                placeholder={config.placeholder}
+                                aria-invalid={Boolean(error)}
+                                aria-required={required}
+                                {...form.register(config.name)}
+                              />
+                            ) : (
+                              <Input
+                                placeholder={config.placeholder}
+                                aria-invalid={Boolean(error)}
+                                aria-required={required}
+                                {...form.register(config.name)}
+                              />
+                            )}
+                            {config.name === "oauth_scopes" ? (
+                              <FieldDescription>
+                                {discoveredAdditionalScopes?.length
+                                  ? `Additional allowed scopes: ${discoveredAdditionalScopes.join(", ")}`
+                                  : ""}
+                              </FieldDescription>
+                            ) : null}
+                            {error ? <FieldError errors={[error]} /> : null}
+                          </Field>
+                        )
+                      })}
+                    </FieldGroup>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            ) : (
+              <>
+                <Field data-invalid={Boolean(errors.bearer_token)}>
+                  <FieldLabel htmlFor="mcp-bearer-token" required>
+                    Token
+                  </FieldLabel>
+                  <Input
+                    id="mcp-bearer-token"
+                    type="password"
+                    placeholder="API key or personal access token"
+                    aria-invalid={Boolean(errors.bearer_token)}
+                    aria-required="true"
+                    {...form.register("bearer_token")}
+                  />
+                  {errors.bearer_token ? <FieldError errors={[errors.bearer_token]} /> : null}
+                </Field>
                 <Accordion
                   type="multiple"
                   className="rounded-lg border px-4"
@@ -1310,242 +1286,132 @@ export function McpSheet({
                     })
                   }}
                 >
-                  <AccordionItem value={clientCredentialsAccordionItem} className="border-none">
-                    <AccordionTrigger className="py-4 hover:no-underline">
-                      <span>OAuth client credentials</span>
-                    </AccordionTrigger>
-                    <AccordionContent className="[&>div]:h-auto">
-                      <FieldGroup>
-                        <Field data-invalid={Boolean(errors.oauth_client_id)}>
-                          <FieldLabel required={oauthClientCredentialsRequired}>
-                            Client ID
-                          </FieldLabel>
-                          <Input
-                            placeholder="Client ID"
-                            aria-invalid={Boolean(errors.oauth_client_id)}
-                            aria-required={oauthClientCredentialsRequired}
-                            {...form.register("oauth_client_id")}
-                          />
-                          {errors.oauth_client_id ? (
-                            <FieldError errors={[errors.oauth_client_id]} />
-                          ) : null}
-                        </Field>
-                        <Field data-invalid={Boolean(errors.oauth_client_secret)}>
-                          <FieldLabel required={oauthClientCredentialsRequired}>
-                            Client secret
-                          </FieldLabel>
-                          <Input
-                            type="password"
-                            placeholder="Client secret"
-                            aria-invalid={Boolean(errors.oauth_client_secret)}
-                            aria-required={oauthClientCredentialsRequired}
-                            {...form.register("oauth_client_secret")}
-                          />
-                          {errors.oauth_client_secret ? (
-                            <FieldError errors={[errors.oauth_client_secret]} />
-                          ) : null}
-                        </Field>
-                      </FieldGroup>
-                    </AccordionContent>
-                  </AccordionItem>
-                  <div className="-mx-4.25">
-                    <Separator />
-                  </div>
                   <AccordionItem value={advancedAccordionItem} className="border-none">
                     <AccordionTrigger className="py-4 hover:no-underline">
                       <span>Advanced</span>
                     </AccordionTrigger>
-                    <AccordionContent className="[&>div]:h-auto">
+                    <AccordionContent className="[&>div]:h-auto" style={{ animation: "none" }}>
                       <FieldGroup>
-                        {oauthAdvancedFields.map((config) => {
-                          const error = errors[config.name]
-                          const required = oauthAdvancedRequiredFields.has(config.name)
-                          return (
-                            <Field key={config.name} data-invalid={Boolean(error)}>
-                              <FieldLabel required={required}>{config.label}</FieldLabel>
-                              {"kind" in config && config.kind === "textarea" ? (
-                                <Textarea
-                                  rows={3}
-                                  placeholder={config.placeholder}
-                                  aria-invalid={Boolean(error)}
-                                  aria-required={required}
-                                  {...form.register(config.name)}
-                                />
-                              ) : (
-                                <Input
-                                  placeholder={config.placeholder}
-                                  aria-invalid={Boolean(error)}
-                                  aria-required={required}
-                                  {...form.register(config.name)}
-                                />
-                              )}
-                              {config.name === "oauth_scopes" ? (
-                                <FieldDescription>
-                                  {discoveredAdditionalScopes?.length
-                                    ? `Additional allowed scopes: ${discoveredAdditionalScopes.join(", ")}`
-                                    : ""}
-                                </FieldDescription>
-                              ) : null}
-                              {error ? <FieldError errors={[error]} /> : null}
-                            </Field>
-                          )
-                        })}
+                        <Field data-invalid={Boolean(errors.bearer_location_header_name)}>
+                          <FieldLabel>Bearer token header name</FieldLabel>
+                          <Input
+                            placeholder="Authorization"
+                            aria-invalid={Boolean(errors.bearer_location_header_name)}
+                            {...form.register("bearer_location_header_name")}
+                          />
+                          {errors.bearer_location_header_name ? (
+                            <FieldError errors={[errors.bearer_location_header_name]} />
+                          ) : null}
+                        </Field>
+                        <Field data-invalid={Boolean(errors.bearer_location_header_prefix)}>
+                          <FieldLabel>Bearer token prefix</FieldLabel>
+                          <Input
+                            placeholder="Bearer"
+                            aria-invalid={Boolean(errors.bearer_location_header_prefix)}
+                            {...form.register("bearer_location_header_prefix")}
+                          />
+                          {errors.bearer_location_header_prefix ? (
+                            <FieldError errors={[errors.bearer_location_header_prefix]} />
+                          ) : null}
+                        </Field>
                       </FieldGroup>
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
-              ) : (
-                <>
-                  <Field data-invalid={Boolean(errors.bearer_token)}>
-                    <FieldLabel htmlFor="mcp-bearer-token" required>
-                      Token
-                    </FieldLabel>
-                    <Input
-                      id="mcp-bearer-token"
-                      type="password"
-                      placeholder="API key or personal access token"
-                      aria-invalid={Boolean(errors.bearer_token)}
-                      aria-required="true"
-                      {...form.register("bearer_token")}
-                    />
-                    {errors.bearer_token ? <FieldError errors={[errors.bearer_token]} /> : null}
-                  </Field>
-                  <Accordion
-                    type="multiple"
-                    className="rounded-lg border px-4"
-                    value={userExpandedAccordions}
-                    onValueChange={(value) => {
-                      dispatchAccordion({
-                        type: "set",
-                        value,
-                      })
-                    }}
-                  >
-                    <AccordionItem value={advancedAccordionItem} className="border-none">
-                      <AccordionTrigger className="py-4 hover:no-underline">
-                        <span>Advanced</span>
-                      </AccordionTrigger>
-                      <AccordionContent className="[&>div]:h-auto" style={{ animation: "none" }}>
-                        <FieldGroup>
-                          <Field data-invalid={Boolean(errors.bearer_location_header_name)}>
-                            <FieldLabel>Bearer token header name</FieldLabel>
-                            <Input
-                              placeholder="Authorization"
-                              aria-invalid={Boolean(errors.bearer_location_header_name)}
-                              {...form.register("bearer_location_header_name")}
-                            />
-                            {errors.bearer_location_header_name ? (
-                              <FieldError errors={[errors.bearer_location_header_name]} />
-                            ) : null}
-                          </Field>
-                          <Field data-invalid={Boolean(errors.bearer_location_header_prefix)}>
-                            <FieldLabel>Bearer token prefix</FieldLabel>
-                            <Input
-                              placeholder="Bearer"
-                              aria-invalid={Boolean(errors.bearer_location_header_prefix)}
-                              {...form.register("bearer_location_header_prefix")}
-                            />
-                            {errors.bearer_location_header_prefix ? (
-                              <FieldError errors={[errors.bearer_location_header_prefix]} />
-                            ) : null}
-                          </Field>
-                        </FieldGroup>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </>
-              )}
-              <Field>
-                <FieldLabel>Extra headers</FieldLabel>
-                <div className="flex flex-col gap-4">
-                  {headerFields.fields.map((item, index) => (
-                    <div key={item.id} className="flex items-start gap-4">
-                      <Field
-                        className="flex-1"
-                        data-invalid={Boolean(errors.extra_headers?.[index]?.key)}
-                      >
-                        <Input
-                          placeholder={`Key ${index + 1}`}
-                          aria-invalid={Boolean(errors.extra_headers?.[index]?.key)}
-                          {...form.register(`extra_headers.${index}.key`)}
-                        />
-                        {errors.extra_headers?.[index]?.key ? (
-                          <FieldError errors={[errors.extra_headers[index].key]} />
-                        ) : null}
-                      </Field>
-                      <Field
-                        className="flex-1"
-                        data-invalid={Boolean(errors.extra_headers?.[index]?.value)}
-                      >
-                        <Textarea
-                          rows={2}
-                          placeholder={`Value ${index + 1}`}
-                          aria-invalid={Boolean(errors.extra_headers?.[index]?.value)}
-                          {...form.register(`extra_headers.${index}.value`)}
-                        />
-                        {errors.extra_headers?.[index]?.value ? (
-                          <FieldError errors={[errors.extra_headers[index].value]} />
-                        ) : null}
-                      </Field>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="mt-1"
-                        onClick={() => {
-                          headerFields.remove(index)
-                        }}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-fit"
-                    onClick={() => {
-                      headerFields.append({ key: "", value: "" })
-                    }}
-                  >
-                    + Add
-                  </Button>
-                </div>
-              </Field>
-            </FieldGroup>
-            {submitError ? (
-              <Alert variant="destructive">
-                <CircleAlert className="size-4" />
-                <AlertTitle>Connection failed</AlertTitle>
-                <AlertDescription>{submitError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                disabled={
-                  !isValid ||
-                  isSubmitting ||
-                  isRefreshing ||
-                  oauthPopupFlowId !== undefined ||
-                  isDiscoveryPendingForCurrentURL
-                }
-              >
-                {isSubmitting ||
+              </>
+            )}
+            <Field>
+              <FieldLabel>Extra headers</FieldLabel>
+              <div className="flex flex-col gap-4">
+                {headerFields.fields.map((item, index) => (
+                  <div key={item.id} className="flex items-start gap-4">
+                    <Field
+                      className="flex-1"
+                      data-invalid={Boolean(errors.extra_headers?.[index]?.key)}
+                    >
+                      <Input
+                        placeholder={`Key ${index + 1}`}
+                        aria-invalid={Boolean(errors.extra_headers?.[index]?.key)}
+                        {...form.register(`extra_headers.${index}.key`)}
+                      />
+                      {errors.extra_headers?.[index]?.key ? (
+                        <FieldError errors={[errors.extra_headers[index].key]} />
+                      ) : null}
+                    </Field>
+                    <Field
+                      className="flex-1"
+                      data-invalid={Boolean(errors.extra_headers?.[index]?.value)}
+                    >
+                      <Textarea
+                        rows={2}
+                        placeholder={`Value ${index + 1}`}
+                        aria-invalid={Boolean(errors.extra_headers?.[index]?.value)}
+                        {...form.register(`extra_headers.${index}.value`)}
+                      />
+                      {errors.extra_headers?.[index]?.value ? (
+                        <FieldError errors={[errors.extra_headers[index].value]} />
+                      ) : null}
+                    </Field>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="mt-1"
+                      onClick={() => {
+                        headerFields.remove(index)
+                      }}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-fit"
+                  onClick={() => {
+                    headerFields.append({ key: "", value: "" })
+                  }}
+                >
+                  + Add
+                </Button>
+              </div>
+            </Field>
+          </FieldGroup>
+          {submitError ? (
+            <Alert variant="destructive">
+              <CircleAlert className="size-4" />
+              <AlertTitle>Connection failed</AlertTitle>
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              disabled={
+                !isValid ||
+                isSubmitting ||
                 isRefreshing ||
-                oauthPopupFlowId ||
-                isDiscoveryPendingForCurrentURL ? (
-                  <Spinner />
-                ) : null}
-                {oauthPopupFlowId
-                  ? "Waiting for OAuth"
-                  : isSubmitting || isRefreshing
-                    ? `${submitLabel}ing`
-                    : submitLabel}
-              </Button>
-            </div>
-          </form>
-        )}
+                oauthPopupFlowId !== undefined ||
+                isDiscoveryPendingForCurrentURL
+              }
+            >
+              {isSubmitting ||
+              isRefreshing ||
+              oauthPopupFlowId ||
+              isDiscoveryPendingForCurrentURL ? (
+                <Spinner />
+              ) : (
+                <Save data-icon="inline-start" />
+              )}
+              {oauthPopupFlowId
+                ? "Waiting for OAuth"
+                : isSubmitting || isRefreshing
+                  ? `${submitLabel}ing`
+                  : submitLabel}
+            </Button>
+          </div>
+        </form>
       </SheetContent>
     </Sheet>
   )

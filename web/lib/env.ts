@@ -72,6 +72,14 @@ const envSchema = z
     GOOGLE_CLIENT_ID: optionalNonEmptyStringSchema.optional(),
     GOOGLE_CLIENT_SECRET: optionalNonEmptyStringSchema.optional(),
     GOOGLE_ALLOWED_EMAIL_DOMAINS: csvLowercaseListSchema.optional(),
+    ORGANIZATION_ASSETS_S3_ENDPOINT: z.url().optional(),
+    ORGANIZATION_ASSETS_S3_REGION: z.string().min(1),
+    ORGANIZATION_ASSETS_S3_BUCKET: z.string().min(1),
+    ORGANIZATION_ASSETS_PUBLIC_BASE_URL: z.url(),
+    ORGANIZATION_ASSETS_S3_FORCE_PATH_STYLE: z.stringbool().default(false),
+    ORGANIZATION_ASSETS_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+    ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    ORGANIZATION_ASSETS_S3_SESSION_TOKEN: z.string().min(1).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   })
   .superRefine((value, ctx) => {
@@ -111,6 +119,44 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         message: "GITHUB_TEAM_SLUG requires GITHUB_ORG.",
         path: ["GITHUB_TEAM_SLUG"],
+      })
+    }
+
+    const assetAccessKeyConfigured = Boolean(value.ORGANIZATION_ASSETS_S3_ACCESS_KEY_ID)
+    const assetSecretKeyConfigured = Boolean(value.ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY)
+    if (assetAccessKeyConfigured !== assetSecretKeyConfigured) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Organisation asset access key ID and secret must be set together.",
+        path: ["ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY"],
+      })
+    }
+    if (value.ORGANIZATION_ASSETS_S3_SESSION_TOKEN && !assetAccessKeyConfigured) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Organisation asset session token requires static credentials.",
+        path: ["ORGANIZATION_ASSETS_S3_SESSION_TOKEN"],
+      })
+    }
+
+    const publicAssetsURL = new URL(value.ORGANIZATION_ASSETS_PUBLIC_BASE_URL)
+    if (value.NODE_ENV === "production" && publicAssetsURL.protocol !== "https:") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Organisation assets must use a public HTTPS URL in production.",
+        path: ["ORGANIZATION_ASSETS_PUBLIC_BASE_URL"],
+      })
+    }
+    if (
+      publicAssetsURL.username ||
+      publicAssetsURL.password ||
+      publicAssetsURL.search ||
+      publicAssetsURL.hash
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Organisation assets public URL cannot contain credentials, a query, or a hash.",
+        path: ["ORGANIZATION_ASSETS_PUBLIC_BASE_URL"],
       })
     }
   })

@@ -1,6 +1,5 @@
 "use server"
 
-import { redirect } from "next/navigation"
 import { updateTag } from "next/cache"
 import {
   createSandbox,
@@ -17,20 +16,20 @@ import type {
   ListSandboxActionResponse,
 } from "@/data/types"
 import * as z from "zod"
-import { zSandboxName } from "@/lib/gateway/client/zod.gen"
+import {
+  zMcpConnectionName,
+  zResourceScope,
+  zSandboxName,
+  zSkillName,
+} from "@/lib/gateway/client/zod.gen"
 import { sandboxesTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 type SandboxFormValues = Omit<z.input<typeof createSandboxFormSchema>, "name">
-
-const mcpToolRefSchema = z.string({ error: "MCP tool must be text" }).transform((value, ctx) => {
-  const [name, tool, extra] = value.split("\u0000")
-  if (!name || !tool || extra !== undefined) {
-    ctx.addIssue({ code: "custom", message: "MCP tool reference is invalid" })
-    return z.NEVER
-  }
-  return { name, tool }
-})
+export type SandboxActionScope = {
+  basePath: string
+  workspaceId?: string
+}
 
 const inferenceRefPartSchema = z
   .string({ error: "Inference model reference must be text" })
@@ -45,61 +44,107 @@ const sandboxFormDataSchema = z
     allowedHosts: z.array(z.string({ error: "Allowed host must be text" }), {
       error: "Allowed hosts must be a list",
     }),
-    mcpConnectionRefs: z.array(z.string({ error: "MCP connection name must be text" }), {
+    mcpConnectionScopes: z.array(zResourceScope, {
+      error: "MCP connection scopes must be a list",
+    }),
+    mcpConnectionNames: z.array(zMcpConnectionName, {
       error: "MCP connections must be a list",
     }),
-    mcpRequireConsentTool: z.array(mcpToolRefSchema, {
+    mcpToolScopes: z.array(zResourceScope, { error: "MCP tool scopes must be a list" }),
+    mcpToolConnections: z.array(zMcpConnectionName, {
+      error: "MCP tool connections must be a list",
+    }),
+    mcpToolNames: z.array(inferenceRefPartSchema, { error: "MCP tools must be a list" }),
+    mcpConsentScopes: z.array(zResourceScope, {
+      error: "MCP consent scopes must be a list",
+    }),
+    mcpConsentConnections: z.array(zMcpConnectionName, {
+      error: "MCP consent connections must be a list",
+    }),
+    mcpConsentToolNames: z.array(inferenceRefPartSchema, {
       error: "MCP consent tools must be a list",
     }),
-    mcpTool: z.array(mcpToolRefSchema, {
-      error: "MCP tools must be a list",
-    }),
-    skills: z.array(z.string({ error: "Skill name must be text" }), {
+    skillScopes: z.array(zResourceScope, { error: "Skill scopes must be a list" }),
+    skillNames: z.array(zSkillName, {
       error: "Skills must be a list",
     }),
+    inferenceModelScopes: z.array(zResourceScope).min(1, "Select at least one model"),
     inferenceModelProviders: z.array(inferenceRefPartSchema).min(1, "Select at least one model"),
     inferenceModelIDs: z.array(inferenceRefPartSchema).min(1, "Select at least one model"),
+    inferenceDefaultScope: zResourceScope,
     inferenceDefaultProvider: inferenceRefPartSchema,
     inferenceDefaultModel: inferenceRefPartSchema,
+    inferenceSmallScope: zResourceScope.optional(),
     inferenceSmallProvider: inferenceRefPartSchema.optional(),
     inferenceSmallModel: inferenceRefPartSchema.optional(),
+    inferenceAttachmentScope: zResourceScope.optional(),
     inferenceAttachmentProvider: inferenceRefPartSchema.optional(),
     inferenceAttachmentModel: inferenceRefPartSchema.optional(),
   })
   .transform((data, ctx): SandboxFormValues => {
     const inferenceModels: SandboxFormValues["inference"]["models"] = []
-    for (const [index, provider] of data.inferenceModelProviders.entries()) {
+    for (const [index, scope] of data.inferenceModelScopes.entries()) {
+      const provider = data.inferenceModelProviders[index]
       const model = data.inferenceModelIDs[index]
-      if (!model) {
+      if (!provider || !model) {
         ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
         return z.NEVER
       }
-      inferenceModels.push({ provider, model })
+      inferenceModels.push({ scope, provider, model })
     }
-    if (inferenceModels.length !== data.inferenceModelIDs.length) {
+    if (
+      inferenceModels.length !== data.inferenceModelProviders.length ||
+      inferenceModels.length !== data.inferenceModelIDs.length
+    ) {
       ctx.addIssue({ code: "custom", message: "Inference model references are incomplete" })
       return z.NEVER
     }
-    if ((data.inferenceSmallProvider === undefined) !== (data.inferenceSmallModel === undefined)) {
+    const hasSmallModel =
+      data.inferenceSmallScope !== undefined ||
+      data.inferenceSmallProvider !== undefined ||
+      data.inferenceSmallModel !== undefined
+    if (
+      hasSmallModel &&
+      (!data.inferenceSmallScope || !data.inferenceSmallProvider || !data.inferenceSmallModel)
+    ) {
       ctx.addIssue({ code: "custom", message: "Small model reference is incomplete" })
       return z.NEVER
     }
+    const hasAttachmentModel =
+      data.inferenceAttachmentScope !== undefined ||
+      data.inferenceAttachmentProvider !== undefined ||
+      data.inferenceAttachmentModel !== undefined
     if (
-      (data.inferenceAttachmentProvider === undefined) !==
-      (data.inferenceAttachmentModel === undefined)
+      hasAttachmentModel &&
+      (!data.inferenceAttachmentScope ||
+        !data.inferenceAttachmentProvider ||
+        !data.inferenceAttachmentModel)
     ) {
       ctx.addIssue({ code: "custom", message: "Attachment model reference is incomplete" })
       return z.NEVER
     }
-    const refsByName = new Map<string, SandboxFormValues["mcpConnectionRefs"][number]>(
-      data.mcpConnectionRefs.map((name) => [name, { name, tools: [] }])
-    )
-    const consentByTool = new Set(
-      data.mcpRequireConsentTool.map((ref) => `${ref.name}\u0000${ref.tool}`)
-    )
+    const mcpConnectionRefs: SandboxFormValues["mcpConnectionRefs"] = []
+    for (const [index, scope] of data.mcpConnectionScopes.entries()) {
+      const name = data.mcpConnectionNames[index]
+      if (!name) {
+        ctx.addIssue({ code: "custom", message: "MCP connection references are incomplete" })
+        return z.NEVER
+      }
+      mcpConnectionRefs.push({ scope, name, tools: [] })
+    }
+    if (mcpConnectionRefs.length !== data.mcpConnectionNames.length) {
+      ctx.addIssue({ code: "custom", message: "MCP connection references are incomplete" })
+      return z.NEVER
+    }
 
-    for (const ref of data.mcpTool) {
-      const connection = refsByName.get(ref.name)
+    for (const [index, scope] of data.mcpToolScopes.entries()) {
+      const name = data.mcpToolConnections[index]
+      const tool = data.mcpToolNames[index]
+      if (!name || !tool) {
+        ctx.addIssue({ code: "custom", message: "MCP tool references are incomplete" })
+        return z.NEVER
+      }
+      const connection = mcpConnectionRefs.find((ref) => ref.scope === scope && ref.name === name)
       if (!connection) {
         ctx.addIssue({
           code: "custom",
@@ -109,33 +154,66 @@ const sandboxFormDataSchema = z
         return z.NEVER
       }
       connection.tools.push({
-        name: ref.tool,
-        requireConsent: consentByTool.has(`${ref.name}\u0000${ref.tool}`),
+        name: tool,
+        requireConsent: data.mcpConsentScopes.some(
+          (consentScope, consentIndex) =>
+            consentScope === scope &&
+            data.mcpConsentConnections[consentIndex] === name &&
+            data.mcpConsentToolNames[consentIndex] === tool
+        ),
       })
+    }
+    if (
+      data.mcpToolScopes.length !== data.mcpToolConnections.length ||
+      data.mcpToolScopes.length !== data.mcpToolNames.length ||
+      data.mcpConsentScopes.length !== data.mcpConsentConnections.length ||
+      data.mcpConsentScopes.length !== data.mcpConsentToolNames.length
+    ) {
+      ctx.addIssue({ code: "custom", message: "MCP tool references are incomplete" })
+      return z.NEVER
+    }
+
+    const skills: SandboxFormValues["skills"] = []
+    for (const [index, scope] of data.skillScopes.entries()) {
+      const name = data.skillNames[index]
+      if (!name) {
+        ctx.addIssue({ code: "custom", message: "Skill references are incomplete" })
+        return z.NEVER
+      }
+      skills.push({ scope, name })
+    }
+    if (skills.length !== data.skillNames.length) {
+      ctx.addIssue({ code: "custom", message: "Skill references are incomplete" })
+      return z.NEVER
     }
 
     return {
       packages: data.packages,
       allowedHosts: data.allowedHosts,
-      mcpConnectionRefs: [...refsByName.values()],
-      skills: data.skills,
+      mcpConnectionRefs,
+      skills,
       inference: {
         models: inferenceModels,
         default_model: {
+          scope: data.inferenceDefaultScope,
           provider: data.inferenceDefaultProvider,
           model: data.inferenceDefaultModel,
         },
-        ...(data.inferenceSmallProvider && data.inferenceSmallModel
+        ...(data.inferenceSmallScope && data.inferenceSmallProvider && data.inferenceSmallModel
           ? {
               small_model: {
+                scope: data.inferenceSmallScope,
                 provider: data.inferenceSmallProvider,
                 model: data.inferenceSmallModel,
               },
             }
           : {}),
-        ...(data.inferenceAttachmentProvider && data.inferenceAttachmentModel
+        ...(data.inferenceAttachmentScope &&
+        data.inferenceAttachmentProvider &&
+        data.inferenceAttachmentModel
           ? {
               attachment_model: {
+                scope: data.inferenceAttachmentScope,
                 provider: data.inferenceAttachmentProvider,
                 model: data.inferenceAttachmentModel,
               },
@@ -146,11 +224,13 @@ const sandboxFormDataSchema = z
   })
 
 export async function listSandboxesAction(
-  query?: ListSandboxesData["query"]
+  query?: ListSandboxesData["query"],
+  workspaceId?: string
 ): Promise<ListSandboxActionResponse> {
   const result = await listSandboxes({
     query,
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
   })
   if (result.error) {
     return {
@@ -177,22 +257,33 @@ function sandboxFormValues(formData: FormData) {
   return sandboxFormDataSchema.safeParse({
     packages: formData.getAll("packages"),
     allowedHosts: formData.getAll("allowedHosts"),
-    mcpConnectionRefs: formData.getAll("mcpConnectionRefs"),
-    mcpRequireConsentTool: formData.getAll("mcpRequireConsentTool"),
-    mcpTool: formData.getAll("mcpTool"),
-    skills: formData.getAll("skills"),
+    mcpConnectionScopes: formData.getAll("mcpConnectionScopes"),
+    mcpConnectionNames: formData.getAll("mcpConnectionNames"),
+    mcpToolScopes: formData.getAll("mcpToolScopes"),
+    mcpToolConnections: formData.getAll("mcpToolConnections"),
+    mcpToolNames: formData.getAll("mcpToolNames"),
+    mcpConsentScopes: formData.getAll("mcpConsentScopes"),
+    mcpConsentConnections: formData.getAll("mcpConsentConnections"),
+    mcpConsentToolNames: formData.getAll("mcpConsentToolNames"),
+    skillScopes: formData.getAll("skillScopes"),
+    skillNames: formData.getAll("skillNames"),
+    inferenceModelScopes: formData.getAll("inferenceModelScopes"),
     inferenceModelProviders: formData.getAll("inferenceModelProviders"),
     inferenceModelIDs: formData.getAll("inferenceModelIDs"),
+    inferenceDefaultScope: formData.get("inferenceDefaultScope"),
     inferenceDefaultProvider: formData.get("inferenceDefaultProvider"),
     inferenceDefaultModel: formData.get("inferenceDefaultModel"),
+    inferenceSmallScope: formData.get("inferenceSmallScope") ?? undefined,
     inferenceSmallProvider: formData.get("inferenceSmallProvider") ?? undefined,
     inferenceSmallModel: formData.get("inferenceSmallModel") ?? undefined,
+    inferenceAttachmentScope: formData.get("inferenceAttachmentScope") ?? undefined,
     inferenceAttachmentProvider: formData.get("inferenceAttachmentProvider") ?? undefined,
     inferenceAttachmentModel: formData.get("inferenceAttachmentModel") ?? undefined,
   })
 }
 
 export async function deleteSandboxFormAction(
+  scope: SandboxActionScope,
   name: string,
   _: DeleteSandboxFormState,
   _formData: FormData
@@ -205,7 +296,8 @@ export async function deleteSandboxFormAction(
   let pageToken = ""
   for (;;) {
     const listResult = await listSandboxes({
-      client: getGatewayServerClient(),
+      client: getGatewayServerClient(scope.workspaceId),
+      headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
       query: { limit: 200, page_token: pageToken || undefined },
     })
     if (listResult.error) {
@@ -232,7 +324,8 @@ export async function deleteSandboxFormAction(
   }
 
   const result = await deleteSandbox({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     path: { sandboxName: sandboxName.data },
   })
   if (result.error) {
@@ -241,10 +334,11 @@ export async function deleteSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect("/sandboxes")
+  return { success: true }
 }
 
 export async function createSandboxFormAction(
+  scope: SandboxActionScope,
   _: CreateSandboxFormState,
   formData: FormData
 ): Promise<CreateSandboxFormState> {
@@ -263,22 +357,11 @@ export async function createSandboxFormAction(
   }
 
   const result = await createSandbox({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     body: {
       name: parsed.data.name,
-      packages: parsed.data.packages,
-      allowed_hosts: parsed.data.allowedHosts,
-      mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
-        (ref): McpConnectionRef => ({
-          name: ref.name,
-          tools: ref.tools.map((tool) => ({
-            name: tool.name,
-            require_consent: tool.requireConsent,
-          })),
-        })
-      ),
-      skills: parsed.data.skills,
-      inference: parsed.data.inference,
+      ...sandboxRequestBody(parsed.data),
     },
   })
 
@@ -288,10 +371,11 @@ export async function createSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect("/sandboxes")
+  return { success: true }
 }
 
 export async function updateSandboxFormAction(
+  scope: SandboxActionScope,
   name: string,
   _: CreateSandboxFormState,
   formData: FormData
@@ -313,23 +397,10 @@ export async function updateSandboxFormAction(
   }
 
   const result = await updateSandbox({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     path: { sandboxName: sandboxName.data },
-    body: {
-      packages: parsed.data.packages,
-      allowed_hosts: parsed.data.allowedHosts,
-      mcp_connection_refs: parsed.data.mcpConnectionRefs.map(
-        (ref): McpConnectionRef => ({
-          name: ref.name,
-          tools: ref.tools.map((tool) => ({
-            name: tool.name,
-            require_consent: tool.requireConsent,
-          })),
-        })
-      ),
-      skills: parsed.data.skills,
-      inference: parsed.data.inference,
-    },
+    body: sandboxRequestBody(parsed.data),
   })
 
   if (result.error) {
@@ -338,7 +409,26 @@ export async function updateSandboxFormAction(
 
   updateTag(sandboxesTag)
   updateTag(skillsTag)
-  redirect("/sandboxes")
+  return { success: true }
+}
+
+function sandboxRequestBody(values: SandboxFormValues) {
+  return {
+    allowed_hosts: values.allowedHosts,
+    inference: values.inference,
+    mcp_connection_refs: values.mcpConnectionRefs.map(
+      (ref): McpConnectionRef => ({
+        name: ref.name,
+        scope: ref.scope,
+        tools: ref.tools.map((tool) => ({
+          name: tool.name,
+          require_consent: tool.requireConsent,
+        })),
+      })
+    ),
+    packages: values.packages,
+    skills: values.skills,
+  }
 }
 
 function invalidSandboxFormState(error: z.ZodError): CreateSandboxFormState {

@@ -4,6 +4,101 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type EventTrailActorType = "user" | "api_key" | "system"
+
+export type EventTrailResult = "succeeded" | "denied" | "failed"
+
+export type EventTrailTargetType =
+  | "organization"
+  | "organization_membership"
+  | "workspace"
+  | "role"
+  | "sandbox"
+  | "skill"
+  | "team"
+  | "mcp_connection"
+  | "inference_provider"
+  | "inference_pool"
+  | "agent"
+
+export type EventTrailField = {
+  field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
+  value: string
+}
+
+export type EventTrailActor = {
+  type: EventTrailActorType
+  id?: string
+  name?: string
+  email?: string
+}
+
+export type EventTrailTarget = {
+  type: EventTrailTargetType
+  id: string
+  name?: string
+  slug?: string
+}
+
+export type EventTrailWorkspace = {
+  id: string
+  name?: string
+  slug?: string
+}
+
+export type EventTrailEvent = {
+  id: string
+  actor: EventTrailActor
+  target: EventTrailTarget
+  workspace?: EventTrailWorkspace
+  category: string
+  action: string
+  result: EventTrailResult
+  before: Array<EventTrailField>
+  after: Array<EventTrailField>
+  created_at: string
+}
+
+export type EventTrailActorFilter = {
+  id?: string
+  type: EventTrailActorType
+  name?: string
+  email?: string
+}
+
+export type EventTrailWorkspaceFilter = {
+  id: string
+  name?: string
+  slug?: string
+}
+
+export type EventTrailFilters = {
+  actors: Array<EventTrailActorFilter>
+  categories: Array<string>
+  workspaces: Array<EventTrailWorkspaceFilter>
+  target_types: Array<EventTrailTargetType>
+}
+
+export type EventTrailFilterField =
+  "actor_type" | "actor_id" | "category" | "workspace_id" | "target_type" | "result" | "created_at"
+
+export type EventTrailFilter = {
+  field: EventTrailFilterField
+  values: Array<string>
+}
+
+export type ListEventTrailEventsRequest = {
+  filters: Array<EventTrailFilter>
+  limit: number
+  page_token?: string
+}
+
+export type ListEventTrailEventsResponse = {
+  events: Array<EventTrailEvent>
+  filter_options: EventTrailFilters
+  next_page_token: string
+}
+
 /**
  * Lowercase hexadecimal OTLP trace ID.
  */
@@ -28,18 +123,140 @@ export type TenantCondition = {
   message: string
 }
 
+export type ResourceCapabilities = {
+  read: boolean
+  create: boolean
+  modify: boolean
+  delete: boolean
+}
+
+export type ResourceActor = {
+  id: string
+  name: string | null
+  email: string | null
+  image: string | null
+}
+
 export type Tenant = {
-  tenant_id: string
-  user_id: string
+  organization_id: string
   namespace: string
   ready: boolean
   phase: TenantPhase
   conditions: Array<TenantCondition>
+  skill_capabilities: ResourceCapabilities
+  mcp_connection_capabilities: ResourceCapabilities
+  sandbox_capabilities: ResourceCapabilities
+  inference_provider_capabilities: ResourceCapabilities
+  inference_pool_capabilities: ResourceCapabilities
+}
+
+export type WorkspaceState = "provisioning" | "ready" | "failed" | "deleting"
+
+export type Workspace = {
+  id: string
+  name: string
+  slug: string
+  namespace: string
+  state: WorkspaceState
+  provisioning_attempt: number
+  failure_reason?: string
+  capabilities: WorkspaceCapabilities
+  workspace_admin_count: number
+  created_at: string
+  updated_at: string
+}
+
+export type WorkspaceCapabilities = {
+  administer: boolean
+  agents: AgentWorkspaceCapabilities
+  skills: ResourceCapabilities
+  mcp_connections: ResourceCapabilities
+  sandboxes: ResourceCapabilities
+  inference_providers: ResourceCapabilities
+  inference_pools: ResourceCapabilities
+  api_keys: ResourceCapabilities
+  observability: ResourceCapabilities
+}
+
+export type AgentWorkspaceCapabilities = {
+  author: boolean
+}
+
+export type ListWorkspacesResponse = {
+  workspaces: Array<Workspace>
+  can_create: boolean
+  can_enter_organization: boolean
+  next_page_token: string
+}
+
+export type CreateWorkspaceRequest = {
+  name: string
+  admin_member_ids: Array<string>
+  selected_organization_resources: SelectedOrganizationResources
+}
+
+export type InheritedResourceType = "skill" | "sandbox" | "mcp_connection" | "inference_provider"
+
+export type SelectedOrganizationResources = {
+  skills: Array<string>
+  sandboxes: Array<string>
+  mcp_connections: Array<string>
+  inference_providers: Array<string>
+}
+
+export type InheritedResourceConsumer = {
+  kind: string
+  name: string
+}
+
+export type ResourceLifecycle = "Accepted" | "Ready" | "NotReady" | "Degraded" | "Error"
+
+export type WorkspaceInheritedResource = {
+  name: string
+  status: ResourceLifecycle
+  message?: string
+  selected: boolean
+  consumers: Array<InheritedResourceConsumer>
+  disabled_reason?: string
+}
+
+export type ListWorkspaceInheritedResourcesResponse = {
+  resource_type: InheritedResourceType
+  resources: Array<WorkspaceInheritedResource>
+}
+
+export type ReplaceWorkspaceInheritedResourcesRequest = {
+  names: Array<string>
+}
+
+export type WorkspaceMemberCandidate = {
+  member_id: string
+  user_id: string
+  name: string
+  email: string
+  image: string | null
+}
+
+export type ListWorkspaceMemberCandidatesResponse = {
+  members: Array<WorkspaceMemberCandidate>
+}
+
+export type UpdateWorkspaceLifecycleRequest = {
+  provisioning_attempt: number
+  state: "ready" | "failed"
+  failure_reason?: string
 }
 
 export type ObservabilityAction = "Allowed" | "Blocked"
 
 export type AgentName = string
+
+export type ResourceScope = "Organisation" | "Workspace"
+
+export type ResourceReference = {
+  scope: ResourceScope
+  name: string
+}
 
 export type AgentMemoryConfig = {
   enabled: boolean
@@ -167,6 +384,11 @@ export type ListAgentsResponse = {
   next_page_token: string
 }
 
+export type ListAgentSharesResponse = {
+  shares: Array<AgentShare>
+  next_page_token: string
+}
+
 export type ListSkillsResponse = {
   skills: Array<Skill>
   next_page_token: string
@@ -199,26 +421,84 @@ export type ListWorkflowWebhookTriggersResponse = {
 
 export type Agent = {
   name: AgentName
-  sandboxName: SandboxName
+  sandbox: ResourceReference
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   last_activity: string
   memory: AgentMemoryConfig
   created_at: string
   modified_at: string
-  skills: Array<SkillName>
+  skills: Array<ResourceReference>
   status: AgentStatus
+  capabilities: AgentCapabilities
+}
+
+export type AgentCapabilities = {
+  use: boolean
+  modify: boolean
+  delete: boolean
+  share: boolean
+  manage_ownership: boolean
+  read_secrets: boolean
+  write_secrets: boolean
+  delete_secrets: boolean
+}
+
+export type AgentOwner = {
+  agent_name: AgentName
+  creator_user_id: string
+  owner_user_id: string
+  created_at: string
+  updated_at: string
+}
+
+export type AgentShare = {
+  id: string
+  agent_name: AgentName
+  target_user_id: string | null
+  target_team_id: string | null
+  created_by: string
+  capabilities: Array<AgentShareCapability>
+  created_at: string
+}
+
+export type AgentShareCapability =
+  | "share_non_authored"
+  | "use_shared"
+  | "read_shared_secret"
+  | "write_shared_secret"
+  | "delete_shared_secret"
+
+export type AgentAccessTargetKind = "user" | "team"
+
+export type AgentAccessTarget = {
+  kind: AgentAccessTargetKind
+  id: string
+  label: string
+  email: string | null
+  image: string | null
+  capabilities: Array<AgentShareCapability>
+  can_own: boolean
+}
+
+export type ListAgentAccessTargetsResponse = {
+  targets: Array<AgentAccessTarget>
 }
 
 export type Skill = {
   name: SkillName
+  scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   description: string
   version: number
   storage_path: string
   agents: Array<AgentName>
   sandboxes: Array<SandboxName>
   created_at: string
+  can_modify: boolean
+  can_delete: boolean
 }
-
-export type SkillKind = "mutable" | "immutable"
 
 export type SkillFileSummary = {
   name: SkillName
@@ -231,6 +511,11 @@ export type MutableSkillSummary = SkillFileSummary
 
 export type ImmutableSkillSummary = SkillFileSummary & {
   description: string
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
+  scope: ResourceScope
+  can_modify: boolean
+  can_delete: boolean
   version: number
   agents: Array<AgentName>
   sandboxes: Array<SandboxName>
@@ -240,8 +525,33 @@ export type DeleteSkillsRequest = {
   skill_names: Array<SkillName>
 }
 
-export type ExportSkillsRequest = {
+export type ExportMutableSkillsRequest = {
   skill_names: Array<SkillName>
+}
+
+export type ExportImmutableSkillsRequest = {
+  /**
+   * Skill references whose names are unique across scopes.
+   */
+  skills: Array<ResourceReference>
+}
+
+export type ImmutableSkillImportPreviewItem = {
+  name: SkillName
+  conflict: boolean
+}
+
+export type ImmutableSkillImportPreviewResponse = {
+  skills: Array<ImmutableSkillImportPreviewItem>
+}
+
+export type MutableSkillImportPreviewItem = {
+  name: SkillName
+  conflict_agents: Array<AgentName>
+}
+
+export type MutableSkillImportPreviewResponse = {
+  skills: Array<MutableSkillImportPreviewItem>
 }
 
 export type SkillImportDecision =
@@ -271,23 +581,13 @@ export type RenameSkillImportDecision = {
   rename: SkillName
 }
 
-export type SkillImportPreviewItem = {
-  name: SkillName
-  mutable_conflict_agents: Array<AgentName>
-  immutable_conflict: boolean
-}
-
-export type SkillImportPreviewResponse = {
-  skills: Array<SkillImportPreviewItem>
-}
-
 export type SkillImportAgentResult = {
   agent: AgentName
   status: "succeeded" | "failed"
   error?: string
 }
 
-export type ImportSkillsResponse = {
+export type SkillImportResponse = {
   skills: Array<SkillName>
   agents: Array<SkillImportAgentResult>
 }
@@ -317,8 +617,8 @@ export type CreateAgentRequest = {
   env?: {
     [key: string]: string
   }
-  sandboxName: SandboxName
-  skills?: Array<SkillName>
+  sandbox: ResourceReference
+  skills?: Array<ResourceReference>
   opencode?: AgentOpencodeConfig
 }
 
@@ -508,9 +808,19 @@ export type UpdateAgentRequest = {
     [key: string]: string
   }
   memory?: AgentMemoryConfig
-  sandboxName?: SandboxName
-  skills?: Array<SkillName>
+  sandbox?: ResourceReference
+  skills?: Array<ResourceReference>
   opencode?: AgentOpencodeConfig
+}
+
+export type TransferAgentOwnerRequest = {
+  owner_user_id: string
+}
+
+export type UpsertAgentShareRequest = {
+  target_user_id?: string
+  target_team_id?: string
+  capabilities: Array<AgentShareCapability>
 }
 
 export type AgentOpencodeConfig = {
@@ -655,7 +965,12 @@ export type SpanDetailResponse = {
 }
 
 export type ListProcessObservabilityResponse = {
-  events: Array<ProcessObservabilityEvent | ProcessObservabilityEventAggregated>
+  events: Array<ProcessObservabilityEvent>
+  next_page_token: string
+}
+
+export type ListProcessObservabilitySummaryResponse = {
+  events: Array<ProcessObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -685,7 +1000,12 @@ export type ProcessObservabilityEventAggregated = {
 }
 
 export type ListFileObservabilityResponse = {
-  events: Array<FileObservabilityEvent | FileObservabilityEventAggregated>
+  events: Array<FileObservabilityEvent>
+  next_page_token: string
+}
+
+export type ListFileObservabilitySummaryResponse = {
+  events: Array<FileObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -715,7 +1035,12 @@ export type FileObservabilityEventAggregated = {
 }
 
 export type ListNetworkObservabilityResponse = {
-  events: Array<NetworkObservabilityEvent | NetworkObservabilityEventAggregated>
+  events: Array<NetworkObservabilityEvent>
+  next_page_token: string
+}
+
+export type ListNetworkObservabilitySummaryResponse = {
+  events: Array<NetworkObservabilityEventAggregated>
   next_page_token: string
 }
 
@@ -830,6 +1155,8 @@ export type CreateSecretRequest = {
 
 export type SecretListItem = {
   key: SecretKey
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   type: SecretType
   hosts: Array<SecretHost>
   provider?: string
@@ -864,11 +1191,16 @@ export type WatchSecretsEvent = {
 
 export type Sandbox = {
   name: SandboxName
+  scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
-  skills: Array<SkillName>
+  skills: Array<ResourceReference>
   inference: SandboxInference
+  can_modify: boolean
+  can_delete: boolean
   created_at: string
   metadata: {
     package_count: number
@@ -888,7 +1220,7 @@ export type CreateSandboxRequest = {
   packages?: Array<string>
   allowed_hosts?: Array<string>
   mcp_connection_refs?: Array<McpConnectionRef>
-  skills?: Array<SkillName>
+  skills?: Array<ResourceReference>
   inference: SandboxInference
 }
 
@@ -896,11 +1228,12 @@ export type UpdateSandboxRequest = {
   packages: Array<string>
   allowed_hosts: Array<string>
   mcp_connection_refs: Array<McpConnectionRef>
-  skills: Array<SkillName>
+  skills: Array<ResourceReference>
   inference: SandboxInference
 }
 
 export type SandboxInferenceModelRef = {
+  scope: ResourceScope
   provider: InferenceProviderName
   model: string
 }
@@ -1259,11 +1592,16 @@ export type InferenceProviderCondition = {
 export type InferenceProvider = InferenceProviderReadFields &
   InferenceProviderReadDiscriminator & {
     id: InferenceProviderName
+    scope: ResourceScope
+    created_by: ResourceActor
+    last_modified_by: ResourceActor
     resource_version: string
     state: "Accepted" | "Ready" | "Degraded"
     conditions: Array<InferenceProviderCondition>
     model_count: number
     usage_count: number
+    can_modify: boolean
+    can_delete: boolean
     created_at: string
     updated_at: string
   }
@@ -1274,7 +1612,7 @@ export type ListInferenceProvidersResponse = {
 }
 
 export type WatchInferenceProvidersRequest = {
-  provider_ids?: Array<InferenceProviderName>
+  providers?: Array<ResourceReference>
 }
 
 export type WatchInferenceProvidersEvent = {
@@ -1288,6 +1626,7 @@ export type InferenceProviderUsage = {
 }
 
 export type InferencePoolMember = {
+  scope: ResourceScope
   provider: InferenceProviderName
   model: string
 }
@@ -1322,6 +1661,7 @@ export type InferencePoolWarning = {
 }
 
 export type InferencePoolMemberStatus = {
+  scope: ResourceScope
   provider: InferenceProviderName
   model: string
   protocol: InferenceProtocol
@@ -1343,6 +1683,8 @@ export type InferencePool = {
   warnings: Array<InferencePoolWarning>
   member_statuses: Array<InferencePoolMemberStatus>
   usage_count: number
+  can_modify: boolean
+  can_delete: boolean
   created_at: string
   updated_at: string
 }
@@ -1393,6 +1735,7 @@ export type InferenceModelSuggestions = {
 }
 
 export type McpConnectionRef = {
+  scope: ResourceScope
   tools: Array<McpConnectionToolRef>
   name: McpConnectionName
 }
@@ -1407,7 +1750,14 @@ export type McpConnectionTool = {
 }
 
 export type McpConnectionDetail = {
+  /**
+   * Whether the current principal may delete this connection in the selected scope.
+   */
+  can_delete: boolean
   name: McpConnectionName
+  scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   endpoint: McpConnectionEndpoint
   auth: McpConnectionAuth
   created_at: string
@@ -1419,7 +1769,14 @@ export type McpConnectionDetail = {
 }
 
 export type McpConnectionSummary = {
+  /**
+   * Whether the current principal may delete this connection in the selected scope.
+   */
+  can_delete: boolean
   name: McpConnectionName
+  scope: ResourceScope
+  created_by: ResourceActor
+  last_modified_by: ResourceActor
   auth_mode: string
   endpoint_url: string
   created_at: string
@@ -1477,8 +1834,6 @@ export type McpConnectionCookieLocation = {
   name: string
 }
 
-export type McpConnectionLifecycle = "Accepted" | "Ready" | "Error"
-
 export type McpConnectionReason =
   | "Ready"
   | "ProbePending"
@@ -1487,13 +1842,15 @@ export type McpConnectionReason =
   | "ProtocolError"
   | "InternalError"
 
+export type McpConnectionLifecycle = "Accepted" | "Ready" | "Error"
+
 export type ListMcpConnectionsResponse = {
   mcp_connections: Array<McpConnectionSummary>
   next_page_token: string
 }
 
 export type WatchMcpConnectionsRequest = {
-  names?: Array<McpConnectionName>
+  connections?: Array<ResourceReference>
 }
 
 export type WatchMcpConnectionsEvent = {
@@ -1664,6 +2021,31 @@ export type UpdateInferenceProviderRequestWritable = {
 }
 
 /**
+ * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+ *
+ */
+export type WorkspaceIdHeader = string
+
+/**
+ * Stable Workspace ID.
+ */
+export type WorkspaceIdPath = string
+
+export type InheritedResourceTypePath = InheritedResourceType
+
+export type ResourceScopeQuery = ResourceScope
+
+/**
+ * Current or historical Workspace slug.
+ */
+export type WorkspaceSlugPath = string
+
+/**
+ * Stable event trail event ID.
+ */
+export type EventTrailEventIdPath = string
+
+/**
  * Agent name.
  */
 export type AgentNameQuery = AgentName
@@ -1677,6 +2059,11 @@ export type AgentNameQueryOptional = AgentName
  * Agent name.
  */
 export type AgentNamePath = AgentName
+
+/**
+ * Stable Agent Share ID.
+ */
+export type AgentShareIdPath = string
 
 /**
  * Stable inference provider ID.
@@ -1765,14 +2152,19 @@ export type EventTimeAfterQuery = string
 export type EventTimeBeforeQuery = string
 
 /**
+ * Inclusive lower bound for event time.
+ */
+export type EventTimeAfterRequiredQuery = string
+
+/**
+ * Inclusive upper bound for event time.
+ */
+export type EventTimeBeforeRequiredQuery = string
+
+/**
  * Optional observability action filter.
  */
 export type ActionQuery = ObservabilityAction
-
-/**
- * When true, returns aggregated events with occurrence counts over the time range.
- */
-export type AggregatedQuery = boolean
 
 /**
  * Inclusive lower bound for MCP tool activity date.
@@ -1783,6 +2175,102 @@ export type FromDateQuery = string
  * Inclusive upper bound for MCP tool activity date.
  */
 export type ToDateQuery = string
+
+export type ListEventTrailEventsData = {
+  body: ListEventTrailEventsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/event-trail-event"
+}
+
+export type ListEventTrailEventsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListEventTrailEventsError = ListEventTrailEventsErrors[keyof ListEventTrailEventsErrors]
+
+export type ListEventTrailEventsResponses = {
+  /**
+   * Paginated scoped event trail events and filter options.
+   */
+  200: ListEventTrailEventsResponse
+}
+
+export type ListEventTrailEventsResponse2 =
+  ListEventTrailEventsResponses[keyof ListEventTrailEventsResponses]
+
+export type GetEventTrailEventData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Stable event trail event ID.
+     */
+    eventId: string
+  }
+  query?: never
+  url: "/api/event-trail-event/{eventId}"
+}
+
+export type GetEventTrailEventErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetEventTrailEventError = GetEventTrailEventErrors[keyof GetEventTrailEventErrors]
+
+export type GetEventTrailEventResponses = {
+  /**
+   * Scoped event trail event detail.
+   */
+  200: EventTrailEvent
+}
+
+export type GetEventTrailEventResponse =
+  GetEventTrailEventResponses[keyof GetEventTrailEventResponses]
 
 export type GetTenantData = {
   body?: never
@@ -1843,6 +2331,403 @@ export type EnsureTenantResponses = {
 }
 
 export type EnsureTenantResponse = EnsureTenantResponses[keyof EnsureTenantResponses]
+
+export type ListWorkspacesData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/workspace"
+}
+
+export type ListWorkspacesErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkspacesError = ListWorkspacesErrors[keyof ListWorkspacesErrors]
+
+export type ListWorkspacesResponses = {
+  /**
+   * Accessible Workspaces and navigation capabilities.
+   */
+  200: ListWorkspacesResponse
+}
+
+export type ListWorkspacesResponse2 = ListWorkspacesResponses[keyof ListWorkspacesResponses]
+
+export type CreateWorkspaceData = {
+  body: CreateWorkspaceRequest
+  path?: never
+  query?: never
+  url: "/api/workspace"
+}
+
+export type CreateWorkspaceErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateWorkspaceError = CreateWorkspaceErrors[keyof CreateWorkspaceErrors]
+
+export type CreateWorkspaceResponses = {
+  /**
+   * Workspace creation was accepted for provisioning.
+   */
+  201: Workspace
+}
+
+export type CreateWorkspaceResponse = CreateWorkspaceResponses[keyof CreateWorkspaceResponses]
+
+export type ListWorkspaceMemberCandidatesData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/workspace/member-candidate"
+}
+
+export type ListWorkspaceMemberCandidatesErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkspaceMemberCandidatesError =
+  ListWorkspaceMemberCandidatesErrors[keyof ListWorkspaceMemberCandidatesErrors]
+
+export type ListWorkspaceMemberCandidatesResponses = {
+  /**
+   * Eligible Workspace Admin candidates.
+   */
+  200: ListWorkspaceMemberCandidatesResponse
+}
+
+export type ListWorkspaceMemberCandidatesResponse2 =
+  ListWorkspaceMemberCandidatesResponses[keyof ListWorkspaceMemberCandidatesResponses]
+
+export type ResolveWorkspaceSlugData = {
+  body?: never
+  path: {
+    /**
+     * Current or historical Workspace slug.
+     */
+    workspaceSlug: string
+  }
+  query?: never
+  url: "/api/workspace/slug/{workspaceSlug}"
+}
+
+export type ResolveWorkspaceSlugErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ResolveWorkspaceSlugError = ResolveWorkspaceSlugErrors[keyof ResolveWorkspaceSlugErrors]
+
+export type ResolveWorkspaceSlugResponses = {
+  /**
+   * Accessible Workspace and canonical slug.
+   */
+  200: Workspace
+}
+
+export type ResolveWorkspaceSlugResponse =
+  ResolveWorkspaceSlugResponses[keyof ResolveWorkspaceSlugResponses]
+
+export type GetWorkspaceData = {
+  body?: never
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}"
+}
+
+export type GetWorkspaceErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetWorkspaceError = GetWorkspaceErrors[keyof GetWorkspaceErrors]
+
+export type GetWorkspaceResponses = {
+  /**
+   * Accessible Workspace lifecycle state.
+   */
+  200: Workspace
+}
+
+export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses]
+
+export type ListWorkspaceInheritedResourcesData = {
+  body?: never
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+    resourceType: InheritedResourceType
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}"
+}
+
+export type ListWorkspaceInheritedResourcesErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListWorkspaceInheritedResourcesError =
+  ListWorkspaceInheritedResourcesErrors[keyof ListWorkspaceInheritedResourcesErrors]
+
+export type ListWorkspaceInheritedResourcesResponses = {
+  /**
+   * Organisation resource selection state and consumers.
+   */
+  200: ListWorkspaceInheritedResourcesResponse
+}
+
+export type ListWorkspaceInheritedResourcesResponse2 =
+  ListWorkspaceInheritedResourcesResponses[keyof ListWorkspaceInheritedResourcesResponses]
+
+export type ReplaceWorkspaceInheritedResourcesData = {
+  body: ReplaceWorkspaceInheritedResourcesRequest
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+    resourceType: InheritedResourceType
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}"
+}
+
+export type ReplaceWorkspaceInheritedResourcesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReplaceWorkspaceInheritedResourcesError =
+  ReplaceWorkspaceInheritedResourcesErrors[keyof ReplaceWorkspaceInheritedResourcesErrors]
+
+export type ReplaceWorkspaceInheritedResourcesResponses = {
+  /**
+   * Updated Organisation resource selection state.
+   */
+  200: ListWorkspaceInheritedResourcesResponse
+}
+
+export type ReplaceWorkspaceInheritedResourcesResponse =
+  ReplaceWorkspaceInheritedResourcesResponses[keyof ReplaceWorkspaceInheritedResourcesResponses]
+
+export type RetryWorkspaceData = {
+  body?: never
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/retry"
+}
+
+export type RetryWorkspaceErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type RetryWorkspaceError = RetryWorkspaceErrors[keyof RetryWorkspaceErrors]
+
+export type RetryWorkspaceResponses = {
+  /**
+   * Workspace returned to provisioning.
+   */
+  200: Workspace
+}
+
+export type RetryWorkspaceResponse = RetryWorkspaceResponses[keyof RetryWorkspaceResponses]
+
+export type UpdateWorkspaceLifecycleData = {
+  body: UpdateWorkspaceLifecycleRequest
+  path: {
+    /**
+     * Stable Workspace ID.
+     */
+    workspaceId: string
+  }
+  query?: never
+  url: "/api/workspace/{workspaceId}/lifecycle"
+}
+
+export type UpdateWorkspaceLifecycleErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateWorkspaceLifecycleError =
+  UpdateWorkspaceLifecycleErrors[keyof UpdateWorkspaceLifecycleErrors]
+
+export type UpdateWorkspaceLifecycleResponses = {
+  /**
+   * Lifecycle observation recorded or already current.
+   */
+  204: void
+}
+
+export type UpdateWorkspaceLifecycleResponse =
+  UpdateWorkspaceLifecycleResponses[keyof UpdateWorkspaceLifecycleResponses]
 
 export type ListAgentsData = {
   body?: never
@@ -2349,6 +3234,306 @@ export type WriteAgentFileRawResponses = {
 
 export type WriteAgentFileRawResponse = WriteAgentFileRawResponses[keyof WriteAgentFileRawResponses]
 
+export type GetAgentOwnerData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/owner"
+}
+
+export type GetAgentOwnerErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAgentOwnerError = GetAgentOwnerErrors[keyof GetAgentOwnerErrors]
+
+export type GetAgentOwnerResponses = {
+  /**
+   * Agent ownership metadata.
+   */
+  200: AgentOwner
+}
+
+export type GetAgentOwnerResponse = GetAgentOwnerResponses[keyof GetAgentOwnerResponses]
+
+export type TransferAgentOwnerData = {
+  body: TransferAgentOwnerRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/owner"
+}
+
+export type TransferAgentOwnerErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type TransferAgentOwnerError = TransferAgentOwnerErrors[keyof TransferAgentOwnerErrors]
+
+export type TransferAgentOwnerResponses = {
+  /**
+   * Agent owner transferred.
+   */
+  200: AgentOwner
+}
+
+export type TransferAgentOwnerResponse =
+  TransferAgentOwnerResponses[keyof TransferAgentOwnerResponses]
+
+export type ListAgentSharesData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/agent/{agentName}/share"
+}
+
+export type ListAgentSharesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentSharesError = ListAgentSharesErrors[keyof ListAgentSharesErrors]
+
+export type ListAgentSharesResponses = {
+  /**
+   * Agent Shares for the selected Agent.
+   */
+  200: ListAgentSharesResponse
+}
+
+export type ListAgentSharesResponse2 = ListAgentSharesResponses[keyof ListAgentSharesResponses]
+
+export type UpsertAgentShareData = {
+  body: UpsertAgentShareRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/share"
+}
+
+export type UpsertAgentShareErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpsertAgentShareError = UpsertAgentShareErrors[keyof UpsertAgentShareErrors]
+
+export type UpsertAgentShareResponses = {
+  /**
+   * Agent Share created or replaced.
+   */
+  200: AgentShare
+}
+
+export type UpsertAgentShareResponse = UpsertAgentShareResponses[keyof UpsertAgentShareResponses]
+
+export type DeleteAgentShareData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Stable Agent Share ID.
+     */
+    shareId: string
+  }
+  query?: never
+  url: "/api/agent/{agentName}/share/{shareId}"
+}
+
+export type DeleteAgentShareErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteAgentShareError = DeleteAgentShareErrors[keyof DeleteAgentShareErrors]
+
+export type DeleteAgentShareResponses = {
+  /**
+   * Agent Share deleted.
+   */
+  204: void
+}
+
+export type DeleteAgentShareResponse = DeleteAgentShareResponses[keyof DeleteAgentShareResponses]
+
+export type ListAgentAccessTargetsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/access-targets"
+}
+
+export type ListAgentAccessTargetsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentAccessTargetsError =
+  ListAgentAccessTargetsErrors[keyof ListAgentAccessTargetsErrors]
+
+export type ListAgentAccessTargetsResponses = {
+  /**
+   * Active Users and Teams with their eligible Agent capabilities.
+   */
+  200: ListAgentAccessTargetsResponse
+}
+
+export type ListAgentAccessTargetsResponse2 =
+  ListAgentAccessTargetsResponses[keyof ListAgentAccessTargetsResponses]
+
 export type CreateAgentDirectoryData = {
   body: CreateAgentDirectoryRequest
   path: {
@@ -2495,6 +3680,13 @@ export type DeleteAgentEntryResponse = DeleteAgentEntryResponses[keyof DeleteAge
 
 export type DeleteAgentMutableSkillsData = {
   body: DeleteSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Agent name.
@@ -2544,6 +3736,13 @@ export type DeleteAgentMutableSkillsResponse =
 
 export type ListAgentMutableSkillsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Agent name.
@@ -2593,7 +3792,14 @@ export type ListAgentMutableSkillsResponse =
   ListAgentMutableSkillsResponses[keyof ListAgentMutableSkillsResponses]
 
 export type ExportAgentMutableSkillsData = {
-  body: ExportSkillsRequest
+  body: ExportMutableSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Agent name.
@@ -2641,17 +3847,142 @@ export type ExportAgentMutableSkillsResponses = {
 export type ExportAgentMutableSkillsResponse =
   ExportAgentMutableSkillsResponses[keyof ExportAgentMutableSkillsResponses]
 
-export type PreviewSkillImportData = {
+export type PreviewMutableSkillImportData = {
   body: {
     file: Blob | File
-    agents?: Array<AgentName>
+    agents: Array<AgentName>
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/agent/skill/import/preview"
+}
+
+export type PreviewMutableSkillImportErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * The Agent filesystem is unavailable.
+   */
+  502: Error
+}
+
+export type PreviewMutableSkillImportError =
+  PreviewMutableSkillImportErrors[keyof PreviewMutableSkillImportErrors]
+
+export type PreviewMutableSkillImportResponses = {
+  /**
+   * Parsed skills and current Agent conflicts.
+   */
+  200: MutableSkillImportPreviewResponse
+}
+
+export type PreviewMutableSkillImportResponse =
+  PreviewMutableSkillImportResponses[keyof PreviewMutableSkillImportResponses]
+
+export type ImportMutableSkillsData = {
+  body: {
+    file: Blob | File
+    agents: Array<AgentName>
+    /**
+     * JSON-encoded array of SkillImportDecision objects.
+     */
+    decisions: string
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/agent/skill/import"
+}
+
+export type ImportMutableSkillsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * The Agent filesystem is unavailable.
+   */
+  502: Error
+}
+
+export type ImportMutableSkillsError = ImportMutableSkillsErrors[keyof ImportMutableSkillsErrors]
+
+export type ImportMutableSkillsResponses = {
+  /**
+   * Imported skills and a result for every targeted Agent.
+   */
+  200: SkillImportResponse
+}
+
+export type ImportMutableSkillsResponse =
+  ImportMutableSkillsResponses[keyof ImportMutableSkillsResponses]
+
+export type PreviewImmutableSkillImportData = {
+  body: {
+    file: Blob | File
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
   }
   path?: never
   query?: never
   url: "/api/skill/import/preview"
 }
 
-export type PreviewSkillImportErrors = {
+export type PreviewImmutableSkillImportErrors = {
   /**
    * Request validation failed.
    */
@@ -2670,31 +4001,44 @@ export type PreviewSkillImportErrors = {
   422: Error
 }
 
-export type PreviewSkillImportError = PreviewSkillImportErrors[keyof PreviewSkillImportErrors]
+export type PreviewImmutableSkillImportError =
+  PreviewImmutableSkillImportErrors[keyof PreviewImmutableSkillImportErrors]
 
-export type PreviewSkillImportResponses = {
+export type PreviewImmutableSkillImportResponses = {
   /**
    * Parsed skills and current conflicts.
    */
-  200: SkillImportPreviewResponse
+  200: ImmutableSkillImportPreviewResponse
 }
 
-export type PreviewSkillImportResponse =
-  PreviewSkillImportResponses[keyof PreviewSkillImportResponses]
+export type PreviewImmutableSkillImportResponse =
+  PreviewImmutableSkillImportResponses[keyof PreviewImmutableSkillImportResponses]
 
-export type ImportSkillsData = {
+export type ImportImmutableSkillsData = {
   body: {
     file: Blob | File
-    kind: SkillKind
+    /**
+     * JSON-encoded array of SkillImportDecision objects.
+     */
+    decisions: string
+    /**
+     * Workspace Agents to attach imported skills to.
+     */
     agents?: Array<AgentName>
-    decisions: Array<SkillImportDecision>
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
   }
   path?: never
   query?: never
   url: "/api/skill/import"
 }
 
-export type ImportSkillsErrors = {
+export type ImportImmutableSkillsErrors = {
   /**
    * Request validation failed.
    */
@@ -2713,19 +4057,28 @@ export type ImportSkillsErrors = {
   422: Error
 }
 
-export type ImportSkillsError = ImportSkillsErrors[keyof ImportSkillsErrors]
+export type ImportImmutableSkillsError =
+  ImportImmutableSkillsErrors[keyof ImportImmutableSkillsErrors]
 
-export type ImportSkillsResponses = {
+export type ImportImmutableSkillsResponses = {
   /**
-   * A result for every targeted Agent.
+   * Imported skills and any requested Agent attachment results.
    */
-  200: ImportSkillsResponse
+  200: SkillImportResponse
 }
 
-export type ImportSkillsResponse2 = ImportSkillsResponses[keyof ImportSkillsResponses]
+export type ImportImmutableSkillsResponse =
+  ImportImmutableSkillsResponses[keyof ImportImmutableSkillsResponses]
 
 export type DeleteImmutableSkillsData = {
   body: DeleteSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/skill"
@@ -2770,6 +4123,13 @@ export type DeleteImmutableSkillsResponse =
 
 export type ListSkillsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -2817,6 +4177,13 @@ export type ListSkillsResponse2 = ListSkillsResponses[keyof ListSkillsResponses]
 
 export type CreateSkillData = {
   body: CreateSkillRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/skill"
@@ -2859,6 +4226,13 @@ export type CreateSkillResponse = CreateSkillResponses[keyof CreateSkillResponse
 
 export type ListImmutableSkillSummariesData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -2907,7 +4281,14 @@ export type ListImmutableSkillSummariesResponse2 =
   ListImmutableSkillSummariesResponses[keyof ListImmutableSkillSummariesResponses]
 
 export type ExportImmutableSkillsData = {
-  body: ExportSkillsRequest
+  body: ExportImmutableSkillsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/skill/export"
@@ -2952,6 +4333,13 @@ export type ExportImmutableSkillsResponse =
 
 export type DeleteSkillData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
@@ -2991,6 +4379,13 @@ export type DeleteSkillResponse = DeleteSkillResponses[keyof DeleteSkillResponse
 
 export type UpdateSkillData = {
   body: UpdateSkillRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
@@ -3043,13 +4438,22 @@ export type UpdateSkillResponse = UpdateSkillResponses[keyof UpdateSkillResponse
 
 export type GetSkillReferencesData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
      */
     skillName: SkillName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/skill/{skillName}/references"
 }
 
@@ -3083,13 +4487,22 @@ export type GetSkillReferencesResponse =
 
 export type ListImmutableSkillVersionsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Skill name.
      */
     skillName: SkillName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/skill/{skillName}/version"
 }
 
@@ -3319,10 +4732,6 @@ export type ListProcessObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
   }
   url: "/api/lens/{agentName}/observability/process"
 }
@@ -3356,6 +4765,68 @@ export type ListProcessObservabilityResponses = {
 export type ListProcessObservabilityResponse2 =
   ListProcessObservabilityResponses[keyof ListProcessObservabilityResponses]
 
+export type ListProcessObservabilitySummaryData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+  }
+  url: "/api/lens/{agentName}/observability/process/summary"
+}
+
+export type ListProcessObservabilitySummaryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListProcessObservabilitySummaryError =
+  ListProcessObservabilitySummaryErrors[keyof ListProcessObservabilitySummaryErrors]
+
+export type ListProcessObservabilitySummaryResponses = {
+  /**
+   * Paginated process observability summaries.
+   */
+  200: ListProcessObservabilitySummaryResponse
+}
+
+export type ListProcessObservabilitySummaryResponse2 =
+  ListProcessObservabilitySummaryResponses[keyof ListProcessObservabilitySummaryResponses]
+
 export type ListFileObservabilityData = {
   body?: never
   path: {
@@ -3385,10 +4856,6 @@ export type ListFileObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
   }
   url: "/api/lens/{agentName}/observability/file"
 }
@@ -3422,6 +4889,68 @@ export type ListFileObservabilityResponses = {
 export type ListFileObservabilityResponse2 =
   ListFileObservabilityResponses[keyof ListFileObservabilityResponses]
 
+export type ListFileObservabilitySummaryData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+  }
+  url: "/api/lens/{agentName}/observability/file/summary"
+}
+
+export type ListFileObservabilitySummaryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListFileObservabilitySummaryError =
+  ListFileObservabilitySummaryErrors[keyof ListFileObservabilitySummaryErrors]
+
+export type ListFileObservabilitySummaryResponses = {
+  /**
+   * Paginated file observability summaries.
+   */
+  200: ListFileObservabilitySummaryResponse
+}
+
+export type ListFileObservabilitySummaryResponse2 =
+  ListFileObservabilitySummaryResponses[keyof ListFileObservabilitySummaryResponses]
+
 export type ListNetworkObservabilityData = {
   body?: never
   path: {
@@ -3451,10 +4980,6 @@ export type ListNetworkObservabilityData = {
      * Optional observability action filter.
      */
     action?: ObservabilityAction
-    /**
-     * When true, returns aggregated events with occurrence counts over the time range.
-     */
-    aggregated?: boolean
   }
   url: "/api/lens/{agentName}/observability/network"
 }
@@ -3487,6 +5012,68 @@ export type ListNetworkObservabilityResponses = {
 
 export type ListNetworkObservabilityResponse2 =
   ListNetworkObservabilityResponses[keyof ListNetworkObservabilityResponses]
+
+export type ListNetworkObservabilitySummaryData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before: string
+    /**
+     * Optional observability action filter.
+     */
+    action?: ObservabilityAction
+  }
+  url: "/api/lens/{agentName}/observability/network/summary"
+}
+
+export type ListNetworkObservabilitySummaryErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListNetworkObservabilitySummaryError =
+  ListNetworkObservabilitySummaryErrors[keyof ListNetworkObservabilitySummaryErrors]
+
+export type ListNetworkObservabilitySummaryResponses = {
+  /**
+   * Paginated network observability summaries.
+   */
+  200: ListNetworkObservabilitySummaryResponse
+}
+
+export type ListNetworkObservabilitySummaryResponse2 =
+  ListNetworkObservabilitySummaryResponses[keyof ListNetworkObservabilitySummaryResponses]
 
 export type GetMcpGraphData = {
   body?: never
@@ -3733,6 +5320,13 @@ export type DeleteSecretResponse = DeleteSecretResponses[keyof DeleteSecretRespo
 
 export type ListSandboxesData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -3753,6 +5347,14 @@ export type ListSandboxesErrors = {
    */
   400: Error
   /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -3771,6 +5373,13 @@ export type ListSandboxesResponse2 = ListSandboxesResponses[keyof ListSandboxesR
 
 export type CreateSandboxData = {
   body: CreateSandboxRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/sandbox"
@@ -3781,6 +5390,14 @@ export type CreateSandboxErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -3813,6 +5430,13 @@ export type CreateSandboxResponse = CreateSandboxResponses[keyof CreateSandboxRe
 
 export type ListInferenceProvidersData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -3853,6 +5477,13 @@ export type ListInferenceProvidersResponse2 =
 
 export type CreateInferenceProviderData = {
   body: CreateInferenceProviderRequestWritable
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/inference/provider"
@@ -3897,6 +5528,13 @@ export type CreateInferenceProviderResponse =
 
 export type CreateInferenceProviderOAuthTicketData = {
   body: CreateInferenceProviderOAuthTicketRequestWritable
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/inference/provider/oauth-ticket"
@@ -3940,6 +5578,13 @@ export type CreateInferenceProviderOAuthTicketResponse2 =
 
 export type DeleteInferenceProviderData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
@@ -3982,13 +5627,22 @@ export type DeleteInferenceProviderResponse =
 
 export type GetInferenceProviderData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
      */
     providerName: InferenceProviderName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/inference/provider/{providerName}"
 }
 
@@ -4018,6 +5672,13 @@ export type GetInferenceProviderResponse =
 
 export type UpdateInferenceProviderData = {
   body: UpdateInferenceProviderRequestWritable
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
@@ -4072,6 +5733,13 @@ export type UpdateInferenceProviderResponse =
 
 export type WatchInferenceProvidersData = {
   body?: WatchInferenceProvidersRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/inference/provider/watch"
@@ -4111,13 +5779,22 @@ export type WatchInferenceProvidersResponse =
 
 export type GetInferenceProviderUsageData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
      */
     providerName: InferenceProviderName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/inference/provider/{providerName}/usage"
 }
 
@@ -4148,13 +5825,22 @@ export type GetInferenceProviderUsageResponse =
 
 export type RefreshInferenceProviderModelsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Stable inference provider ID.
      */
     providerName: InferenceProviderName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/inference/provider/{providerName}/models"
 }
 
@@ -4189,6 +5875,13 @@ export type RefreshInferenceProviderModelsResponse =
 
 export type ListInferenceProviderCatalogData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     q?: string
@@ -4222,6 +5915,13 @@ export type ListInferenceProviderCatalogResponse =
 
 export type ListInferenceModelSuggestionsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     catalogProvider: string
   }
@@ -4257,6 +5957,9 @@ export type ListInferenceModelSuggestionsResponse =
 
 export type ListInferencePoolsData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path?: never
   query?: {
     /**
@@ -4296,6 +5999,9 @@ export type ListInferencePoolsResponse2 =
 
 export type CreateInferencePoolData = {
   body: InferencePoolWrite
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path?: never
   query?: never
   url: "/api/inference/pool"
@@ -4339,6 +6045,9 @@ export type CreateInferencePoolResponse =
 
 export type DeleteInferencePoolData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -4380,6 +6089,9 @@ export type DeleteInferencePoolResponse =
 
 export type GetInferencePoolData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -4415,6 +6127,9 @@ export type GetInferencePoolResponse = GetInferencePoolResponses[keyof GetInfere
 
 export type UpdateInferencePoolData = {
   body: UpdateInferencePoolRequest
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -4468,6 +6183,9 @@ export type UpdateInferencePoolResponse =
 
 export type GetInferencePoolUsageData = {
   body?: never
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path: {
     /**
      * Stable inference Pool ID.
@@ -4505,6 +6223,9 @@ export type GetInferencePoolUsageResponse =
 
 export type WatchInferencePoolsData = {
   body?: WatchInferencePoolsRequest
+  headers: {
+    "X-AgentZ-Workspace-ID": string
+  }
   path?: never
   query?: never
   url: "/api/inference/pool/watch"
@@ -4543,6 +6264,13 @@ export type WatchInferencePoolsResponse =
 
 export type DeleteSandboxData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Sandbox resource name.
@@ -4558,6 +6286,14 @@ export type DeleteSandboxErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -4582,6 +6318,13 @@ export type DeleteSandboxResponse = DeleteSandboxResponses[keyof DeleteSandboxRe
 
 export type UpdateSandboxData = {
   body: UpdateSandboxRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * Sandbox resource name.
@@ -4597,6 +6340,14 @@ export type UpdateSandboxErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -4629,6 +6380,13 @@ export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxRe
 
 export type ListMcpConnectionsData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: {
     /**
@@ -4649,6 +6407,14 @@ export type ListMcpConnectionsErrors = {
    */
   400: Error
   /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -4668,6 +6434,13 @@ export type ListMcpConnectionsResponse2 =
 
 export type CreateMcpConnectionData = {
   body: CreateMcpConnectionRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/mcp-connection"
@@ -4678,6 +6451,14 @@ export type CreateMcpConnectionErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -4711,6 +6492,13 @@ export type CreateMcpConnectionResponse =
 
 export type DeleteMcpConnectionData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * MCPConnection name.
@@ -4726,6 +6514,14 @@ export type DeleteMcpConnectionErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -4756,13 +6552,22 @@ export type DeleteMcpConnectionResponse =
 
 export type GetMcpConnectionData = {
   body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path: {
     /**
      * MCPConnection name.
      */
     name: McpConnectionName
   }
-  query?: never
+  query: {
+    scope: ResourceScope
+  }
   url: "/api/mcp-connection/{name}"
 }
 
@@ -4771,6 +6576,14 @@ export type GetMcpConnectionErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -4795,6 +6608,13 @@ export type GetMcpConnectionResponse = GetMcpConnectionResponses[keyof GetMcpCon
 
 export type WatchMcpConnectionsData = {
   body?: WatchMcpConnectionsRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
   path?: never
   query?: never
   url: "/api/mcp-connection/watch"
@@ -4805,6 +6625,14 @@ export type WatchMcpConnectionsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * The request Content-Type is not supported by this operation.
    */

@@ -6,6 +6,7 @@ resources:
 - agentz_v1alpha1_workflowrun.yaml
 - agentz_v1alpha1_mcpconnection.yaml
 - agentz_v1alpha1_tenant.yaml
+- agentz_v1alpha1_workspace.yaml
 - agentz_v1alpha1_secret.yaml
 - agentz_v1alpha1_skill.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

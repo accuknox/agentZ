@@ -1,5 +1,9 @@
 "use client"
 
+import type { Route } from "next"
+import Link from "next/link"
+import { useRouter } from "@bprogress/next/app"
+import type { UrlObject } from "node:url"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
 import {
@@ -20,6 +24,7 @@ import {
   Cable,
   ChevronDown,
   CircleAlert,
+  ExternalLink,
   Globe2,
   Layers3,
   ScrollText,
@@ -32,8 +37,9 @@ import {
 } from "lucide-react"
 import * as React from "react"
 import { startTransition, useActionState, useRef, useState } from "react"
+import { toast } from "sonner"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { formatAge, formatCompactNumber } from "@/lib/format"
+import { formatCompactNumber } from "@/lib/format"
 import { WizardShell } from "@/components/blocks/wizard/shell"
 import {
   Accordion,
@@ -44,6 +50,14 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import {
   Field,
   FieldDescription,
@@ -75,10 +89,16 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { createSandboxFormAction, updateSandboxFormAction } from "@/data/sandbox.actions"
+import {
+  createSandboxFormAction,
+  updateSandboxFormAction,
+  type SandboxActionScope,
+} from "@/data/sandbox.actions"
+import type { CreateSandboxFormState } from "@/data/types"
 import { refreshInferenceProvidersAction } from "@/data/inference-provider.actions"
 import { refreshInferencePoolsAction } from "@/data/inference-pool.actions"
 import * as z from "zod"
@@ -91,10 +111,15 @@ import {
   type InferencePool,
   type SandboxInference,
   type SandboxInferenceModelRef,
+  type ResourceReference,
   type SecretHost,
   type Skill,
 } from "@/lib/gateway/client"
-import { zMcpConnectionName, zSkillName } from "@/lib/gateway/client/zod.gen"
+import {
+  zMcpConnectionName,
+  zResourceReference,
+  zResourceScope,
+} from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { ProviderIcon, providerKindLabels } from "@/app/(app)/inference/providers/provider-shared"
 import { PackageSearch } from "./package-search"
@@ -111,6 +136,7 @@ const selectedMcpToolSchema = z.object({
 })
 
 const selectedMcpConnectionRefSchema = z.object({
+  scope: zResourceScope,
   name: z
     .string({ error: "MCP connection name is required" })
     .min(1, "MCP connection name is required")
@@ -138,7 +164,7 @@ const mcpStepSchema = z.object({
 })
 
 const skillsStepSchema = z.object({
-  skills: z.array(zSkillName, { error: "Skills must be a list" }),
+  skills: z.array(zResourceReference, { error: "Skills must be a list" }),
 })
 
 type SandboxIdentity = z.infer<typeof identitySchema>
@@ -153,7 +179,7 @@ type SandboxWizardData = {
   identity?: SandboxIdentity
   packages?: string[]
   mcps?: SelectedMcpConnectionRef[]
-  skills?: string[]
+  skills?: ResourceReference[]
   inference?: SandboxInference
   allowedHosts?: AllowedHostsDraft
 }
@@ -167,13 +193,15 @@ type SandboxWizardProps = {
   initialAllowedHosts?: string[]
   initialMcpConnectionRefs?: SelectedMcpConnectionRef[]
   initialPackages?: string[]
-  initialSkills?: string[]
+  initialSkills?: ResourceReference[]
   initialInference?: SandboxInference
   immutableSkills: Skill[]
   mcpConnections: McpConnectionSummary[]
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
   mode: SandboxWizardMode
+  providersHref: UrlObject
+  scope: SandboxActionScope
   secretHostSuggestions?: Promise<SecretHost[]>
 }
 
@@ -191,9 +219,10 @@ type AllowedHostsStepProps = {
   initialDraft: string
   mcpConnectionRefs: SelectedMcpConnectionRef[]
   packages: string[]
-  skills: string[]
+  skills: ResourceReference[]
   inference: SandboxInference
   mode: SandboxWizardMode
+  scope: SandboxActionScope
   secretHostSuggestions?: Promise<SecretHost[]>
   onAllowedHostsChangeAction: (data: AllowedHostsDraft) => void
   onPrev: () => void
@@ -202,17 +231,20 @@ type AllowedHostsStepProps = {
 type ModelsStepProps = {
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
-  initialInference?: SandboxInference
+  inference?: SandboxInference
+  providersHref: UrlObject
+  scope: SandboxActionScope
   onAdvanceAction: () => void
-  onNext: (inference: SandboxInference) => void
+  onChangeAction: (inference?: SandboxInference) => void
+  onNext: () => void
   onPrev: () => void
 }
 
 type SkillsStepProps = {
   immutableSkills: Skill[]
-  initialSkills: string[]
+  initialSkills: ResourceReference[]
   onAdvanceAction: () => void
-  onNext: (skills: string[]) => void
+  onNext: (skills: ResourceReference[]) => void
   onPrev: () => void
 }
 
@@ -348,8 +380,13 @@ function IdentityForm({
         />
       </FieldGroup>
       <StepActions>
-        <Button type="submit" onClick={onAdvanceAction}>
+        <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -393,10 +430,16 @@ function PackageStep({
       />
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
-        <Button type="submit" onClick={onAdvanceAction}>
+        <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -404,14 +447,14 @@ function PackageStep({
 }
 
 function createMcpSelectionColumns({
-  expandedNames,
-  selectedNames,
+  expandedReferences,
+  selectedReferences,
   onExpandedChange,
   onSelectedChange,
 }: {
-  expandedNames: ReadonlySet<string>
-  selectedNames: ReadonlySet<string>
-  onExpandedChange: (name: string) => void
+  expandedReferences: ReadonlySet<string>
+  selectedReferences: ReadonlySet<string>
+  onExpandedChange: (reference: string) => void
   onSelectedChange: (connection: McpConnectionSummary, checked: boolean) => void
 }): ColumnDef<McpConnectionSummary>[] {
   return [
@@ -430,15 +473,16 @@ function createMcpSelectionColumns({
       ),
       cell: ({ row }) => {
         const connection = row.original
+        const reference = JSON.stringify([connection.scope, connection.name])
 
         return (
           <button
             type="button"
             className="flex w-full items-center gap-2 text-left"
-            onClick={() => onExpandedChange(connection.name)}
+            onClick={() => onExpandedChange(reference)}
           >
             <ChevronDown
-              className={`size-4 shrink-0 transition-transform ${expandedNames.has(connection.name) ? "rotate-180" : ""}`}
+              className={`size-4 shrink-0 transition-transform ${expandedReferences.has(reference) ? "rotate-180" : ""}`}
             />
             <div className="flex min-w-0 items-center gap-2">
               {renderMcpServerIcon(connection.endpoint_url, {
@@ -446,6 +490,7 @@ function createMcpSelectionColumns({
                 className: "size-4 shrink-0",
               })}
               <span className="min-w-0 truncate font-medium">{connection.name}</span>
+              <Badge variant="outline">{connection.scope}</Badge>
             </div>
           </button>
         )
@@ -484,15 +529,15 @@ function createMcpSelectionColumns({
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatAge(row.original.created_at),
+      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
     },
     {
       id: "attach",
       header: "",
-      accessorFn: (row) => selectedNames.has(row.name),
+      accessorFn: (row) => selectedReferences.has(JSON.stringify([row.scope, row.name])),
       cell: ({ row }) => {
         const connection = row.original
-        const selected = selectedNames.has(connection.name)
+        const selected = selectedReferences.has(JSON.stringify([connection.scope, connection.name]))
         const disabled = !connection.tool_catalog_ready && !selected
 
         return (
@@ -511,10 +556,10 @@ function createMcpSelectionColumns({
 }
 
 function createSkillSelectionColumns({
-  selectedNames,
+  selectedReferences,
   onSelectedChange,
 }: {
-  selectedNames: ReadonlySet<string>
+  selectedReferences: ReadonlySet<string>
   onSelectedChange: (skill: Skill, checked: boolean) => void
 }): ColumnDef<Skill>[] {
   return [
@@ -532,9 +577,12 @@ function createSkillSelectionColumns({
         </Button>
       ),
       cell: ({ row }) => (
-        <span className="block min-w-0 truncate font-medium" title={row.original.name}>
-          {row.original.name}
-        </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="block min-w-0 truncate font-medium" title={row.original.name}>
+            {row.original.name}
+          </span>
+          <Badge variant="outline">{row.original.scope}</Badge>
+        </div>
       ),
     },
     {
@@ -556,10 +604,10 @@ function createSkillSelectionColumns({
     {
       id: "attach",
       header: "",
-      accessorFn: (row) => selectedNames.has(row.name),
+      accessorFn: (row) => selectedReferences.has(JSON.stringify([row.scope, row.name])),
       cell: ({ row }) => {
         const skill = row.original
-        const selected = selectedNames.has(skill.name)
+        const selected = selectedReferences.has(JSON.stringify([skill.scope, skill.name]))
 
         return (
           <div className="flex justify-end">
@@ -582,15 +630,20 @@ function McpToolsPanel({
 }: {
   connection: McpConnectionSummary
   selectedRef?: SelectedMcpConnectionRef
-  onToolsChange: (name: string, tools: SelectedMcpTool[]) => void
+  onToolsChange: (
+    scope: McpConnectionSummary["scope"],
+    name: string,
+    tools: SelectedMcpTool[]
+  ) => void
 }) {
   const query = useQuery(
     queryOptions({
-      queryKey: ["mcp-connection", connection.name],
+      queryKey: ["mcp-connection", connection.scope, connection.name],
       queryFn: async () => {
         const result = await getMcpConnection({
           baseUrl: await getGatewayBaseURL(),
           path: { name: connection.name },
+          query: { scope: connection.scope },
         })
         if (result.error) {
           throw new Error(result.error.message)
@@ -647,6 +700,7 @@ function McpToolsPanel({
           const handleCheckedChange = (checked: boolean) => {
             if (checked) {
               onToolsChange(
+                connection.scope,
                 connection.name,
                 [...toolsByName.values(), { name: tool.name, requireConsent: false }].toSorted(
                   (a, b) => a.name.localeCompare(b.name)
@@ -656,6 +710,7 @@ function McpToolsPanel({
             }
 
             onToolsChange(
+              connection.scope,
               connection.name,
               [...toolsByName.values()].filter((value) => value.name !== tool.name)
             )
@@ -667,6 +722,7 @@ function McpToolsPanel({
             }
 
             onToolsChange(
+              connection.scope,
               connection.name,
               [...toolsByName.values()]
                 .map((value) =>
@@ -746,36 +802,51 @@ function McpStep({
     name: "mcpConnectionRefs",
     defaultValue: initialMcpConnectionRefs,
   })
-  const selectedByName = React.useMemo(
-    () => new Map(selected.map((ref) => [ref.name, ref])),
+  const selectedByReference = React.useMemo(
+    () => new Map(selected.map((ref) => [JSON.stringify([ref.scope, ref.name]), ref])),
     [selected]
   )
-  const selectedNames = React.useMemo(() => new Set(selectedByName.keys()), [selectedByName])
+  const selectedReferences = React.useMemo(
+    () => new Set(selectedByReference.keys()),
+    [selectedByReference]
+  )
   const connections = React.useMemo(
-    () => mcpConnections.toSorted((a, b) => a.name.localeCompare(b.name)),
+    () =>
+      mcpConnections.toSorted(
+        (a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope)
+      ),
     [mcpConnections]
   )
   const [sorting, setSorting] = React.useState<SortingState>(defaultMcpSorting)
   const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
-  const [expandedNames, setExpandedNames] = React.useState<string[]>([])
-  const expandedNameSet = React.useMemo(() => new Set(expandedNames), [expandedNames])
-  const toggleExpandedName = React.useCallback((name: string) => {
-    setExpandedNames((current) =>
-      current.includes(name) ? current.filter((value) => value !== name) : [...current, name]
+  const [expandedReferences, setExpandedReferences] = React.useState<string[]>([])
+  const expandedReferenceSet = React.useMemo(
+    () => new Set(expandedReferences),
+    [expandedReferences]
+  )
+  const toggleExpandedReference = React.useCallback((reference: string) => {
+    setExpandedReferences((current) =>
+      current.includes(reference)
+        ? current.filter((value) => value !== reference)
+        : [...current, reference]
     )
   }, [])
 
   const setSelected = React.useCallback(
     async (connection: McpConnectionSummary, checked: boolean) => {
       const current = form.getValues("mcpConnectionRefs") ?? []
-      const next = new Map(current.map((ref) => [ref.name, ref]))
+      const next = new Map(
+        current.map((ref) => [JSON.stringify([ref.scope, ref.name]), ref] as const)
+      )
+      const reference = JSON.stringify([connection.scope, connection.name])
 
       if (!checked) {
-        next.delete(connection.name)
+        next.delete(reference)
       } else {
-        const existing = next.get(connection.name)
+        const existing = next.get(reference)
         if (existing) {
-          next.set(connection.name, {
+          next.set(reference, {
+            scope: existing.scope,
             name: existing.name,
             tools: existing.tools.toSorted((a, b) => a.name.localeCompare(b.name)),
           })
@@ -783,11 +854,13 @@ function McpStep({
           const result = await getMcpConnection({
             baseUrl: await getGatewayBaseURL(),
             path: { name: connection.name },
+            query: { scope: connection.scope },
           })
           if (result.error || !result.data.tool_catalog_ready) {
             return
           }
-          next.set(connection.name, {
+          next.set(reference, {
+            scope: connection.scope,
             name: connection.name,
             tools: result.data.tools
               .map((tool) => ({
@@ -799,7 +872,9 @@ function McpStep({
         }
       }
 
-      const nextRefs = [...next.values()].toSorted((a, b) => a.name.localeCompare(b.name))
+      const nextRefs = [...next.values()].toSorted(
+        (a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope)
+      )
 
       form.setValue("mcpConnectionRefs", nextRefs, {
         shouldDirty: true,
@@ -809,14 +884,15 @@ function McpStep({
     [form]
   )
   const setEnabledTools = React.useCallback(
-    (name: string, tools: SelectedMcpTool[]) => {
+    (scope: McpConnectionSummary["scope"], name: string, tools: SelectedMcpTool[]) => {
       const current = form.getValues("mcpConnectionRefs") ?? []
       const next = current
         .map((ref) => {
-          if (ref.name !== name) {
+          if (ref.scope !== scope || ref.name !== name) {
             return ref
           }
           return {
+            scope,
             name,
             tools,
           }
@@ -834,14 +910,14 @@ function McpStep({
   const columns = React.useMemo(
     () =>
       createMcpSelectionColumns({
-        expandedNames: expandedNameSet,
-        selectedNames,
-        onExpandedChange: toggleExpandedName,
+        expandedReferences: expandedReferenceSet,
+        selectedReferences,
+        onExpandedChange: toggleExpandedReference,
         onSelectedChange: (connection, checked) => {
           void setSelected(connection, checked)
         },
       }),
-    [expandedNameSet, selectedNames, setSelected, toggleExpandedName]
+    [expandedReferenceSet, selectedReferences, setSelected, toggleExpandedReference]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -900,7 +976,9 @@ function McpStep({
                         </TableCell>
                       ))}
                     </TableRow>
-                    {expandedNameSet.has(row.original.name) ? (
+                    {expandedReferenceSet.has(
+                      JSON.stringify([row.original.scope, row.original.name])
+                    ) ? (
                       <TableRow>
                         <TableCell
                           colSpan={columns.length}
@@ -908,7 +986,9 @@ function McpStep({
                         >
                           <McpToolsPanel
                             connection={row.original}
-                            selectedRef={selectedByName.get(row.original.name)}
+                            selectedRef={selectedByReference.get(
+                              JSON.stringify([row.original.scope, row.original.name])
+                            )}
                             onToolsChange={setEnabledTools}
                           />
                         </TableCell>
@@ -919,7 +999,7 @@ function McpStep({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No MCP connections
+                    <span className="text-muted-foreground">_</span>
                   </TableCell>
                 </TableRow>
               )}
@@ -951,14 +1031,20 @@ function McpStep({
       </div>
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button
           type="submit"
           onClick={onAdvanceAction}
-          disabled={selected.some((ref) => ref.tools.length === 0)}
+          disabled={form.formState.isSubmitting || selected.some((ref) => ref.tools.length === 0)}
         >
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -983,9 +1069,15 @@ function SkillsStep({
     name: "skills",
     defaultValue: initialSkills,
   })
-  const selectedNames = React.useMemo(() => new Set(selected), [selected])
+  const selectedReferences = React.useMemo(
+    () => new Set(selected.map((ref) => JSON.stringify([ref.scope, ref.name]))),
+    [selected]
+  )
   const skills = React.useMemo(
-    () => immutableSkills.toSorted((a, b) => a.name.localeCompare(b.name)),
+    () =>
+      immutableSkills.toSorted(
+        (a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope)
+      ),
     [immutableSkills]
   )
   const [sorting, setSorting] = React.useState<SortingState>(defaultSkillSorting)
@@ -995,8 +1087,10 @@ function SkillsStep({
     (skill: Skill, checked: boolean) => {
       const current = form.getValues("skills") ?? []
       const next = checked
-        ? Array.from(new Set([...current, skill.name])).toSorted()
-        : current.filter((name) => name !== skill.name)
+        ? [...current, { scope: skill.scope, name: skill.name }].toSorted(
+            (a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope)
+          )
+        : current.filter((ref) => ref.scope !== skill.scope || ref.name !== skill.name)
 
       form.setValue("skills", next, {
         shouldDirty: true,
@@ -1009,10 +1103,10 @@ function SkillsStep({
   const columns = React.useMemo(
     () =>
       createSkillSelectionColumns({
-        selectedNames,
+        selectedReferences,
         onSelectedChange: setSelected,
       }),
-    [selectedNames, setSelected]
+    [selectedReferences, setSelected]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -1072,7 +1166,7 @@ function SkillsStep({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No immutable skills
+                    <span className="text-muted-foreground">_</span>
                   </TableCell>
                 </TableRow>
               )}
@@ -1104,10 +1198,16 @@ function SkillsStep({
       </div>
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
-        <Button type="submit" onClick={onAdvanceAction}>
+        <Button type="submit" onClick={onAdvanceAction} disabled={form.formState.isSubmitting}>
           Next
+          {form.formState.isSubmitting ? (
+            <Spinner data-icon="inline-end" />
+          ) : (
+            <ArrowRight data-icon="inline-end" />
+          )}
         </Button>
       </StepActions>
     </form>
@@ -1117,8 +1217,11 @@ function SkillsStep({
 function ModelsStep({
   inferenceProviders,
   inferencePools,
-  initialInference,
+  inference,
+  providersHref,
+  scope,
   onAdvanceAction,
+  onChangeAction,
   onNext,
   onPrev,
 }: ModelsStepProps) {
@@ -1126,103 +1229,118 @@ function ModelsStep({
   const [pools, setPools] = React.useState(inferencePools)
   const [refreshError, setRefreshError] = React.useState("")
   const [refreshing, startRefresh] = React.useTransition()
-  const [selected, setSelected] = React.useState<SandboxInferenceModelRef[]>(
-    initialInference?.models ?? []
-  )
-  // The selects only record explicit picks. The effective default derives as
-  // "explicit pick if still selected, else first selected model", so the
-  // draft always has a valid default without a separate validation gate.
-  const [defaultKey, setDefaultKey] = React.useState(() =>
-    initialInference
-      ? JSON.stringify([
-          initialInference.default_model.provider,
-          initialInference.default_model.model,
-        ])
-      : undefined
-  )
-  const [smallKey, setSmallKey] = React.useState(() =>
-    initialInference?.small_model
-      ? JSON.stringify([initialInference.small_model.provider, initialInference.small_model.model])
-      : undefined
-  )
-  const [attachmentKey, setAttachmentKey] = React.useState(() =>
-    initialInference?.attachment_model
-      ? JSON.stringify([
-          initialInference.attachment_model.provider,
-          initialInference.attachment_model.model,
-        ])
-      : undefined
-  )
   const [invalidSubmit, setInvalidSubmit] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
+  const selected = inference?.models ?? []
 
-  const refs = React.useMemo(
-    () => new Map(selected.map((ref) => [JSON.stringify([ref.provider, ref.model]), ref] as const)),
-    [selected]
+  const refs = new Map(
+    selected.map((ref) => [JSON.stringify([ref.scope, ref.provider, ref.model]), ref] as const)
   )
-  const providersById = React.useMemo(
-    () => new Map(providers.map((provider) => [provider.id, provider])),
+  const providersByReference = React.useMemo(
+    () =>
+      new Map(
+        providers.map((provider) => [JSON.stringify([provider.scope, provider.id]), provider])
+      ),
     [providers]
   )
   const poolsById = React.useMemo(() => new Map(pools.map((pool) => [pool.id, pool])), [pools])
-  const selectedCountByProvider = React.useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const ref of selected) {
-      counts.set(ref.provider, (counts.get(ref.provider) ?? 0) + 1)
-    }
-    return counts
-  }, [selected])
+  const selectedCountByProvider = new Map<string, number>()
+  for (const ref of selected) {
+    const provider = JSON.stringify([ref.scope, ref.provider])
+    selectedCountByProvider.set(provider, (selectedCountByProvider.get(provider) ?? 0) + 1)
+  }
 
-  const defaultRef = (defaultKey ? refs.get(defaultKey) : undefined) ?? selected[0]
-  const defaultRefKey = defaultRef
-    ? JSON.stringify([defaultRef.provider, defaultRef.model])
+  const defaultRefKey = inference
+    ? JSON.stringify([
+        inference.default_model.scope,
+        inference.default_model.provider,
+        inference.default_model.model,
+      ])
     : undefined
-  const smallRef = smallKey ? refs.get(smallKey) : undefined
-  const attachmentRef = attachmentKey ? refs.get(attachmentKey) : undefined
+  const smallKey = inference?.small_model
+    ? JSON.stringify([
+        inference.small_model.scope,
+        inference.small_model.provider,
+        inference.small_model.model,
+      ])
+    : undefined
+  const attachmentKey = inference?.attachment_model
+    ? JSON.stringify([
+        inference.attachment_model.scope,
+        inference.attachment_model.provider,
+        inference.attachment_model.model,
+      ])
+    : undefined
   // Accordion reads defaultValue only at mount: open providers that hold a
   // selection (edit mode), or the first provider when starting empty.
   const initiallyOpenProviders = providers.some((provider) =>
-    selectedCountByProvider.has(provider.id)
+    selectedCountByProvider.has(JSON.stringify([provider.scope, provider.id]))
   )
     ? providers
-        .filter((provider) => selectedCountByProvider.has(provider.id))
-        .map((provider) => provider.id)
-    : providers.slice(0, 1).map((provider) => provider.id)
+        .filter((provider) =>
+          selectedCountByProvider.has(JSON.stringify([provider.scope, provider.id]))
+        )
+        .map((provider) => JSON.stringify([provider.scope, provider.id]))
+    : providers.slice(0, 1).map((provider) => JSON.stringify([provider.scope, provider.id]))
 
   function toggleModel(ref: SandboxInferenceModelRef, checked: boolean) {
-    const key = JSON.stringify([ref.provider, ref.model])
+    const key = JSON.stringify([ref.scope, ref.provider, ref.model])
     if (checked) {
-      setSelected((current) =>
-        current.some((item) => JSON.stringify([item.provider, item.model]) === key)
-          ? current
-          : [...current, ref]
+      onChangeAction(
+        inference
+          ? { ...inference, models: [...selected, ref] }
+          : { models: [ref], default_model: ref }
       )
       setInvalidSubmit(false)
       return
     }
-    setSelected((current) =>
-      current.filter((item) => JSON.stringify([item.provider, item.model]) !== key)
+
+    if (!inference) {
+      return
+    }
+
+    const models = selected.filter(
+      (item) => JSON.stringify([item.scope, item.provider, item.model]) !== key
     )
-    if (defaultKey === key) {
-      setDefaultKey(undefined)
+    const [first] = models
+    if (!first) {
+      onChangeAction(undefined)
+      return
     }
-    if (smallKey === key) {
-      setSmallKey(undefined)
+
+    onChangeAction({
+      ...inference,
+      models,
+      default_model: defaultRefKey === key ? first : inference.default_model,
+      small_model: smallKey === key ? undefined : inference.small_model,
+      attachment_model: attachmentKey === key ? undefined : inference.attachment_model,
+    })
+  }
+
+  function setOptionalModel(field: "small_model" | "attachment_model", value: string) {
+    if (!inference) {
+      return
     }
-    if (attachmentKey === key) {
-      setAttachmentKey(undefined)
+    if (value === "none") {
+      onChangeAction({ ...inference, [field]: undefined })
+      return
+    }
+    const model = refs.get(value)
+    if (model) {
+      onChangeAction({ ...inference, [field]: model })
     }
   }
 
   // One options feed both selects; display names fall back to raw IDs when a
   // provider or model no longer exists in the catalog (e.g. stale edit draft).
   const modelOptions = selected.map((ref) => {
-    const key = JSON.stringify([ref.provider, ref.model])
-    const provider = providersById.get(ref.provider)
+    const key = JSON.stringify([ref.scope, ref.provider, ref.model])
+    const provider = providersByReference.get(JSON.stringify([ref.scope, ref.provider]))
     const model = provider?.models.find((item) => item.id === ref.model)
     const pool = ref.provider === "agentz-pools" ? poolsById.get(ref.model) : undefined
     return (
       <SelectItem key={key} value={key}>
-        {pool ? <Layers3 className="size-4 shrink-0" /> : null}
+        {pool ? <Layers3 /> : <Brain />}
         <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
         <span className="text-muted-foreground truncate">
           {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
@@ -1231,7 +1349,7 @@ function ModelsStep({
     )
   })
   const attachmentModelOptions = selected.flatMap((ref) => {
-    const provider = providersById.get(ref.provider)
+    const provider = providersByReference.get(JSON.stringify([ref.scope, ref.provider]))
     const model = provider?.models.find((item) => item.id === ref.model)
     const pool = ref.provider === "agentz-pools" ? poolsById.get(ref.model) : undefined
     const contract = pool?.contract ?? model
@@ -1239,10 +1357,10 @@ function ModelsStep({
       return []
     }
 
-    const key = JSON.stringify([ref.provider, ref.model])
+    const key = JSON.stringify([ref.scope, ref.provider, ref.model])
     return [
       <SelectItem key={key} value={key}>
-        {pool ? <Layers3 className="size-4 shrink-0" /> : null}
+        {pool ? <Layers3 /> : <Brain />}
         <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
         <span className="text-muted-foreground truncate">
           {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
@@ -1257,67 +1375,71 @@ function ModelsStep({
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!defaultRef) {
+        if (!inference) {
           setInvalidSubmit(true)
           return
         }
-        onNext({
-          models: selected,
-          default_model: defaultRef,
-          ...(smallRef ? { small_model: smallRef } : {}),
-          ...(attachmentRef ? { attachment_model: attachmentRef } : {}),
-        })
+        setSubmitting(true)
+        onNext()
       }}
     >
       {providers.length === 0 && pools.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
-          <Brain className="text-muted-foreground size-8" aria-hidden="true" />
-          <div>
-            <p className="font-medium">No inference providers are configured</p>
-            <p className="text-muted-foreground mt-1 text-sm">
+        <Empty className="gap-3 p-8">
+          <EmptyHeader>
+            <EmptyMedia>
+              <Brain className="text-muted-foreground size-8" aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>No inference providers are configured</EmptyTitle>
+            <EmptyDescription>
               Add a provider, then refresh this catalog without losing the rest of your draft.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <a href="/inference/providers" target="_blank" rel="noreferrer">
-                Open provider setup
-              </a>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={refreshing}
-              onClick={() =>
-                startRefresh(async () => {
-                  const [providerResult, poolResult] = await Promise.all([
-                    refreshInferenceProvidersAction(),
-                    refreshInferencePoolsAction(),
-                  ])
-                  if (providerResult.error || poolResult.error) {
-                    setRefreshError(
-                      providerResult.error?.message ??
-                        poolResult.error?.message ??
-                        "Inference catalog could not be refreshed"
-                    )
-                    return
-                  }
-                  setRefreshError("")
-                  setProviders(providerResult.providers)
-                  setPools(poolResult.pools)
-                })
-              }
-            >
-              {refreshing ? <Spinner /> : <RefreshCw />} Refresh
-            </Button>
-          </div>
-          {refreshError ? (
-            <Alert variant="destructive">
-              <CircleAlert />
-              <AlertDescription>{refreshError}</AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <div className="flex gap-2">
+              <Button asChild variant="outline">
+                <Link href={providersHref} target="_blank" rel="noreferrer">
+                  Open provider setup
+                  <ExternalLink data-icon="inline-end" />
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={refreshing}
+                onClick={() =>
+                  startRefresh(async () => {
+                    const providerResult = await refreshInferenceProvidersAction(scope)
+                    const poolResult = scope.workspaceId
+                      ? await refreshInferencePoolsAction({
+                          basePath: scope.basePath,
+                          workspaceId: scope.workspaceId,
+                        })
+                      : { pools: [], error: undefined }
+                    if (providerResult.error || poolResult.error) {
+                      setRefreshError(
+                        providerResult.error?.message ??
+                          poolResult.error?.message ??
+                          "Inference catalog could not be refreshed"
+                      )
+                      return
+                    }
+                    setRefreshError("")
+                    setProviders(providerResult.providers)
+                    setPools(poolResult.pools)
+                  })
+                }
+              >
+                {refreshing ? <Spinner /> : <RefreshCw />} Refresh
+              </Button>
+            </div>
+            {refreshError ? (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertDescription>{refreshError}</AlertDescription>
+              </Alert>
+            ) : null}
+          </EmptyContent>
+        </Empty>
       ) : (
         <div className="grid min-h-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="order-2 min-w-0 lg:order-1">
@@ -1334,8 +1456,12 @@ function ModelsStep({
                 </div>
                 <div className="divide-y">
                   {pools.map((pool) => {
-                    const ref = { provider: "agentz-pools", model: pool.id }
-                    const active = refs.has(JSON.stringify([ref.provider, ref.model]))
+                    const ref: SandboxInferenceModelRef = {
+                      scope: "Workspace",
+                      provider: "agentz-pools",
+                      model: pool.id,
+                    }
+                    const active = refs.has(JSON.stringify([ref.scope, ref.provider, ref.model]))
                     const available = pool.state === "Ready" || pool.state === "PartiallyDegraded"
                     const failures = pool.member_statuses.filter((member) => !member.ready)
                     return (
@@ -1422,9 +1548,10 @@ function ModelsStep({
               className="overflow-hidden rounded-lg border"
             >
               {providers.map((provider) => {
-                const selectedCount = selectedCountByProvider.get(provider.id) ?? 0
+                const providerReference = JSON.stringify([provider.scope, provider.id])
+                const selectedCount = selectedCountByProvider.get(providerReference) ?? 0
                 return (
-                  <AccordionItem key={provider.id} value={provider.id}>
+                  <AccordionItem key={providerReference} value={providerReference}>
                     <AccordionTrigger className="hover:bg-muted/50 px-3 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0!">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <ProviderIcon
@@ -1432,6 +1559,7 @@ function ModelsStep({
                           className="size-4 shrink-0"
                         />
                         <span className="truncate font-medium">{provider.display_name}</span>
+                        <Badge variant="outline">{provider.scope}</Badge>
                         <span className="text-muted-foreground hidden truncate text-xs md:inline">
                           {providerKindLabels[provider.kind]}
                         </span>
@@ -1457,11 +1585,17 @@ function ModelsStep({
                       ) : (
                         <div className="divide-y border-t">
                           {provider.models.map((model) => {
-                            const ref = { provider: provider.id, model: model.id }
-                            const active = refs.has(JSON.stringify([ref.provider, ref.model]))
+                            const ref: SandboxInferenceModelRef = {
+                              scope: provider.scope,
+                              provider: provider.id,
+                              model: model.id,
+                            }
+                            const active = refs.has(
+                              JSON.stringify([ref.scope, ref.provider, ref.model])
+                            )
                             return (
                               <label
-                                key={model.id}
+                                key={JSON.stringify([provider.scope, provider.id, model.id])}
                                 className={`hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors ${active ? "bg-primary/5" : ""}`}
                               >
                                 <div className="min-w-0 flex-1">
@@ -1514,8 +1648,10 @@ function ModelsStep({
                 ) : (
                   <ul className="divide-y rounded-md border">
                     {selected.map((ref) => {
-                      const key = JSON.stringify([ref.provider, ref.model])
-                      const provider = providersById.get(ref.provider)
+                      const key = JSON.stringify([ref.scope, ref.provider, ref.model])
+                      const provider = providersByReference.get(
+                        JSON.stringify([ref.scope, ref.provider])
+                      )
                       const model = provider?.models.find((item) => item.id === ref.model)
                       const pool =
                         ref.provider === "agentz-pools" ? poolsById.get(ref.model) : undefined
@@ -1561,7 +1697,13 @@ function ModelsStep({
                   <FieldLabel required>Default model</FieldLabel>
                   <Select
                     value={defaultRefKey ?? ""}
-                    onValueChange={setDefaultKey}
+                    onValueChange={(value) => {
+                      const model = refs.get(value)
+                      if (!inference || !model) {
+                        return
+                      }
+                      onChangeAction({ ...inference, default_model: model })
+                    }}
                     disabled={selected.length === 0}
                   >
                     <SelectTrigger className="w-full" aria-label="Default model">
@@ -1577,16 +1719,16 @@ function ModelsStep({
                   <FieldLabel>Attachment model</FieldLabel>
                   <Select
                     value={attachmentKey ?? "none"}
-                    onValueChange={(value) =>
-                      setAttachmentKey(value === "none" ? undefined : value)
-                    }
+                    onValueChange={(value) => setOptionalModel("attachment_model", value)}
                     disabled={attachmentModelOptions.length === 0}
                   >
                     <SelectTrigger className="w-full" aria-label="Attachment model">
                       <SelectValue placeholder="Use capable default model" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Use capable default model</SelectItem>
+                      <SelectItem value="none">
+                        <Brain /> Use capable default model
+                      </SelectItem>
                       {attachmentModelOptions}
                     </SelectContent>
                   </Select>
@@ -1598,14 +1740,16 @@ function ModelsStep({
                   <FieldLabel>Small model</FieldLabel>
                   <Select
                     value={smallKey ?? "none"}
-                    onValueChange={(value) => setSmallKey(value === "none" ? undefined : value)}
+                    onValueChange={(value) => setOptionalModel("small_model", value)}
                     disabled={selected.length === 0}
                   >
                     <SelectTrigger className="w-full" aria-label="Small model">
                       <SelectValue placeholder="Not set" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Not set</SelectItem>
+                      <SelectItem value="none">
+                        <Brain /> Not set
+                      </SelectItem>
                       {modelOptions}
                     </SelectContent>
                   </Select>
@@ -1613,7 +1757,7 @@ function ModelsStep({
                     Optional cheaper model for lightweight background tasks.
                   </FieldDescription>
                 </Field>
-                {invalidSubmit && selected.length === 0 ? (
+                {invalidSubmit && !inference ? (
                   <FieldError errors={[{ message: "Select at least one model to continue." }]} />
                 ) : null}
               </div>
@@ -1623,14 +1767,16 @@ function ModelsStep({
       )}
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button
           type="submit"
           onClick={onAdvanceAction}
-          disabled={providers.length === 0 && pools.length === 0}
+          disabled={submitting || (providers.length === 0 && pools.length === 0)}
         >
           Next
+          {submitting ? <Spinner data-icon="inline-end" /> : <ArrowRight data-icon="inline-end" />}
         </Button>
       </StepActions>
     </form>
@@ -1646,15 +1792,28 @@ function AllowedHostsStep({
   skills,
   inference,
   mode,
+  scope,
   secretHostSuggestions,
   onAllowedHostsChangeAction,
   onPrev,
 }: AllowedHostsStepProps) {
+  const router = useRouter()
   const [draft, setDraft] = React.useState(initialDraft)
   const [draftError, setDraftError] = React.useState<string>()
-  const formAction =
-    mode === "update" ? updateSandboxFormAction.bind(null, identity.name) : createSandboxFormAction
-  const [state, action, pending] = useActionState(formAction, {})
+  const [state, action, pending] = useActionState<CreateSandboxFormState, FormData>(
+    async (state, formData) => {
+      const result =
+        mode === "update"
+          ? await updateSandboxFormAction(scope, identity.name, state, formData)
+          : await createSandboxFormAction(scope, state, formData)
+      if (result.success) {
+        toast.success(mode === "update" ? "Sandbox updated" : "Sandbox created")
+        router.push(scope.basePath as Route)
+      }
+      return result
+    },
+    {}
+  )
   const form = useForm<AllowedHostsStepValues>({
     resolver: zodResolver(allowedHostsStepSchema),
     defaultValues: {
@@ -1749,14 +1908,19 @@ function AllowedHostsStep({
         <input key={pkg} type="hidden" name="packages" value={pkg} />
       ))}
       {skills.map((skill) => (
-        <input key={skill} type="hidden" name="skills" value={skill} />
+        <React.Fragment key={JSON.stringify([skill.scope, skill.name])}>
+          <input type="hidden" name="skillScopes" value={skill.scope} />
+          <input type="hidden" name="skillNames" value={skill.name} />
+        </React.Fragment>
       ))}
       {inference.models.map((ref) => (
-        <React.Fragment key={`${ref.provider}-${ref.model}`}>
+        <React.Fragment key={JSON.stringify([ref.scope, ref.provider, ref.model])}>
+          <input type="hidden" name="inferenceModelScopes" value={ref.scope} />
           <input type="hidden" name="inferenceModelProviders" value={ref.provider} />
           <input type="hidden" name="inferenceModelIDs" value={ref.model} />
         </React.Fragment>
       ))}
+      <input type="hidden" name="inferenceDefaultScope" value={inference.default_model.scope} />
       <input
         type="hidden"
         name="inferenceDefaultProvider"
@@ -1765,6 +1929,7 @@ function AllowedHostsStep({
       <input type="hidden" name="inferenceDefaultModel" value={inference.default_model.model} />
       {inference.small_model && (
         <>
+          <input type="hidden" name="inferenceSmallScope" value={inference.small_model.scope} />
           <input
             type="hidden"
             name="inferenceSmallProvider"
@@ -1775,6 +1940,11 @@ function AllowedHostsStep({
       )}
       {inference.attachment_model && (
         <>
+          <input
+            type="hidden"
+            name="inferenceAttachmentScope"
+            value={inference.attachment_model.scope}
+          />
           <input
             type="hidden"
             name="inferenceAttachmentProvider"
@@ -1788,17 +1958,20 @@ function AllowedHostsStep({
         </>
       )}
       {mcpConnectionRefs.map((ref) => (
-        <React.Fragment key={ref.name}>
-          <input type="hidden" name="mcpConnectionRefs" value={ref.name} />
+        <React.Fragment key={JSON.stringify([ref.scope, ref.name])}>
+          <input type="hidden" name="mcpConnectionScopes" value={ref.scope} />
+          <input type="hidden" name="mcpConnectionNames" value={ref.name} />
           {ref.tools.map((tool) => (
-            <React.Fragment key={`${ref.name}-${tool.name}`}>
-              <input type="hidden" name="mcpTool" value={`${ref.name}\u0000${tool.name}`} />
+            <React.Fragment key={JSON.stringify([ref.scope, ref.name, tool.name])}>
+              <input type="hidden" name="mcpToolScopes" value={ref.scope} />
+              <input type="hidden" name="mcpToolConnections" value={ref.name} />
+              <input type="hidden" name="mcpToolNames" value={tool.name} />
               {tool.requireConsent ? (
-                <input
-                  type="hidden"
-                  name="mcpRequireConsentTool"
-                  value={`${ref.name}\u0000${tool.name}`}
-                />
+                <>
+                  <input type="hidden" name="mcpConsentScopes" value={ref.scope} />
+                  <input type="hidden" name="mcpConsentConnections" value={ref.name} />
+                  <input type="hidden" name="mcpConsentToolNames" value={tool.name} />
+                </>
               ) : null}
             </React.Fragment>
           ))}
@@ -1901,10 +2074,11 @@ function AllowedHostsStep({
       ) : null}
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev} disabled={pending}>
+          <ArrowLeft data-icon="inline-start" />
           Previous
         </Button>
         <Button type="submit" disabled={pending}>
-          {pending ? <Spinner /> : null}
+          {pending ? <Spinner /> : <Box data-icon="inline-start" />}
           {pending ? pendingLabel : submitLabel}
         </Button>
       </StepActions>
@@ -1972,6 +2146,8 @@ export function SandboxWizard({
   inferencePools,
   mcpConnections,
   mode,
+  providersHref,
+  scope,
   secretHostSuggestions,
 }: SandboxWizardProps) {
   const [direction, setDirection] = useState(1)
@@ -1986,7 +2162,7 @@ export function SandboxWizard({
         packages: initialPackages,
         mcps: initialMcpConnectionRefs,
         skills: initialSkills,
-        models: initialInference,
+        models: initialInference ?? null,
         allowedHosts: {
           allowedHosts: initialAllowedHosts,
           draft: "",
@@ -1999,7 +2175,7 @@ export function SandboxWizard({
           identity: stepper.metadata.get<SandboxIdentity>("identity") ?? undefined,
           packages: stepper.metadata.get<string[]>("packages") ?? undefined,
           mcps: stepper.metadata.get<SelectedMcpConnectionRef[]>("mcps") ?? undefined,
-          skills: stepper.metadata.get<string[]>("skills") ?? undefined,
+          skills: stepper.metadata.get<ResourceReference[]>("skills") ?? undefined,
           inference: stepper.metadata.get<SandboxInference>("models") ?? undefined,
           allowedHosts: stepper.metadata.get<AllowedHostsDraft>("allowedHosts") ?? undefined,
         }
@@ -2029,7 +2205,12 @@ export function SandboxWizard({
             return
           }
 
-          if (currentStepId === "allowedHosts") {
+          if (
+            currentStepId === "allowedHosts" ||
+            (currentStepId === "models" &&
+              (request.kind === "prev" ||
+                (request.kind === "step" && request.index < currentIndex)))
+          ) {
             pendingNavigationRef.current = undefined
             completeNavigation(request)
             return
@@ -2131,35 +2312,41 @@ export function SandboxWizard({
                 <ModelsStep
                   inferenceProviders={inferenceProviders}
                   inferencePools={inferencePools}
-                  initialInference={data.inference ?? initialInference}
+                  inference={data.inference}
+                  providersHref={providersHref}
+                  scope={scope}
                   onAdvanceAction={() => {
                     pendingNavigationRef.current = undefined
                   }}
+                  onChangeAction={(inference) => {
+                    stepper.metadata.set("models", inference ?? null)
+                  }}
                   onPrev={() => requestNavigation({ kind: "prev" })}
-                  onNext={(inference) => {
-                    stepper.metadata.set("models", inference)
+                  onNext={() => {
                     completeNavigation(pendingNavigationRef.current)
                     pendingNavigationRef.current = undefined
                   }}
                 />
               ),
-              allowedHosts: () => (
-                <AllowedHostsStep
-                  identity={data.identity!}
-                  initialAllowedHosts={data.allowedHosts?.allowedHosts ?? initialAllowedHosts}
-                  initialDraft={data.allowedHosts?.draft ?? ""}
-                  mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
-                  packages={data.packages ?? initialPackages}
-                  skills={data.skills ?? initialSkills}
-                  inference={data.inference ?? initialInference!}
-                  mode={mode}
-                  secretHostSuggestions={secretHostSuggestions}
-                  onAllowedHostsChangeAction={(nextData) => {
-                    stepper.metadata.set("allowedHosts", nextData)
-                  }}
-                  onPrev={() => requestNavigation({ kind: "prev" })}
-                />
-              ),
+              allowedHosts: () =>
+                data.identity && data.inference ? (
+                  <AllowedHostsStep
+                    identity={data.identity}
+                    initialAllowedHosts={data.allowedHosts?.allowedHosts ?? initialAllowedHosts}
+                    initialDraft={data.allowedHosts?.draft ?? ""}
+                    mcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
+                    packages={data.packages ?? initialPackages}
+                    skills={data.skills ?? initialSkills}
+                    inference={data.inference}
+                    mode={mode}
+                    scope={scope}
+                    secretHostSuggestions={secretHostSuggestions}
+                    onAllowedHostsChangeAction={(nextData) => {
+                      stepper.metadata.set("allowedHosts", nextData)
+                    }}
+                    onPrev={() => requestNavigation({ kind: "prev" })}
+                  />
+                ) : null,
             })}
           </WizardShell>
         )

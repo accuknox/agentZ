@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 
 type CopyButtonProps = {
   content: string
+  /** Describes the copied value to assistive technology. */
   label?: string
 }
 
@@ -20,9 +21,10 @@ export function CopyButton({ content, label }: CopyButtonProps) {
     <Button
       type="button"
       variant="ghost"
-      size={label ? "default" : "icon"}
-      className={cn("relative", !label && "h-6 w-6")}
-      aria-label="Copy to clipboard"
+      size="icon"
+      className="relative size-6"
+      aria-label={label ?? "Copy to clipboard"}
+      title={isCopied ? "Copied" : (label ?? "Copy to clipboard")}
       onClick={handleCopy}
     >
       <span className="relative inline-flex h-4 w-4 items-center justify-center">
@@ -39,7 +41,6 @@ export function CopyButton({ content, label }: CopyButtonProps) {
           )}
         />
       </span>
-      {label ? <span>{label}</span> : null}
     </Button>
   )
 }

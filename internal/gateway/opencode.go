@@ -1,22 +1,31 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 const (
 	opencodePrefix              = "/api/opencode"
 	opencodeProxyBodyLimitBytes = 16 * 1024 * 1024
+	opencodeActorMetadataKey    = "agentz.dev/actor"
+	opencodeSessionPromptPath   = "/api/opencode/{agentName}/session/{sessionID}/message"
+	opencodeSessionAsyncPath    = "/api/opencode/{agentName}/session/{sessionID}/prompt_async"
 )
 
 var opencodeProxyBodyLimitedMethods = map[string]struct{}{
@@ -30,20 +39,43 @@ const opencodeSessionDeletePath = "/api/opencode/{agentName}/session/{sessionID}
 
 var opencodeRouteMatcher = newOpenCodeRouteMatcher()
 
+var opencodeRouteOperations = func() map[opencodeRouteKey]authorization.Operation {
+	operations := make(map[opencodeRouteKey]authorization.Operation, len(opencodeRoutes))
+	for _, route := range opencodeRoutes {
+		key := opencodeRouteKey{method: route.Method, path: route.Path}
+		operations[key] = route.Operation
+	}
+	return operations
+}()
+
+type opencodeRouteKey struct {
+	method string
+	path   string
+}
+
 type opencodeRoute struct {
-	Method string
-	Path   string
+	Method    string
+	Path      string
+	Operation authorization.Operation
 }
 
 type opencodeRouteMatch struct {
-	Method string
-	Path   string
-	Params map[string]string
+	Method    string
+	Path      string
+	Operation authorization.Operation
+	Params    map[string]string
 }
 
 type opencodeSessionDeleteTarget struct {
 	agentName string
 	sessionID string
+}
+
+type opencodeMessageActor struct {
+	Version int              `json:"version"`
+	Type    requestActorType `json:"type"`
+	ID      string           `json:"id"`
+	Name    string           `json:"name"`
 }
 
 type sessionTraceStore interface {
@@ -52,12 +84,6 @@ type sessionTraceStore interface {
 
 // handleOpenCodeProxy resolves and proxies supported OpenCode requests.
 func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
-	ns, err := tenantNamespace(r.Context())
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
 	agentName, ok := validAgentName(w, r, chi.URLParam(r, "agentName"), "agentName")
 	if !ok {
 		return
@@ -66,31 +92,49 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	route, methodAllowed := matchOpenCodeRoute(r.Method, r.URL.Path)
 	if route == nil {
 		if methodAllowed {
-			writeError(w, r, newAPIError(
-				http.StatusMethodNotAllowed,
-				"method_not_allowed",
-				"method is not allowed for this route",
-				nil,
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusMethodNotAllowed,
+					"method_not_allowed",
+					"method is not allowed for this route",
+					nil,
+				),
+			)
 			return
 		}
 
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"route not found",
-			nil,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"route not found",
+				nil,
+			),
+		)
 		return
 	}
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, route.Operation)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
+	ns := access.namespace
 	resolved, err := s.resolver.resolveAgent(r.Context(), ns, agentName)
 	if err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"agent not found",
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				err,
+			),
+		)
 		return
 	}
 
@@ -102,26 +146,48 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	path, rawPath, err := openCodeUpstreamPath(r.URL, agentName)
 	if err != nil {
-		writeError(w, r, newAPIError(
-			http.StatusNotFound,
-			"not_found",
-			"route not found",
-			err,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusNotFound,
+				"not_found",
+				"route not found",
+				err,
+			),
+		)
 		return
 	}
 
 	if opencodeProxyBodyLimitEnabled(r.Method) {
 		if r.ContentLength > opencodeProxyBodyLimitBytes {
-			writeError(w, r, newAPIError(
-				http.StatusRequestEntityTooLarge,
-				"request_too_large",
-				"request body exceeds the maximum allowed size",
-				nil,
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusRequestEntityTooLarge,
+					"request_too_large",
+					"request body exceeds the maximum allowed size",
+					nil,
+				),
+			)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
+	}
+	auth, _ := requestAuthState(r.Context())
+	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"bad_request",
+				"invalid OpenCode prompt",
+				err,
+			),
+		)
+		return
 	}
 
 	proxy := &httputil.ReverseProxy{
@@ -142,12 +208,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		FlushInterval:  -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				writeError(rw, req, newAPIError(
-					http.StatusRequestEntityTooLarge,
-					"request_too_large",
-					"request body exceeds the maximum allowed size",
-					proxyErr,
-				))
+				writeError(
+					rw,
+					req,
+					newAPIError(
+						http.StatusRequestEntityTooLarge,
+						"request_too_large",
+						"request body exceeds the maximum allowed size",
+						proxyErr,
+					),
+				)
 				return
 			}
 
@@ -156,16 +226,113 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			writeError(rw, req, newAPIError(
-				http.StatusBadGateway,
-				"proxy_error",
-				"request failed",
-				proxyErr,
-			))
+			writeError(
+				rw,
+				req,
+				newAPIError(
+					http.StatusBadGateway,
+					"proxy_error",
+					"request failed",
+					proxyErr,
+				),
+			)
 		},
 	}
 
 	proxy.ServeHTTP(w, r)
+}
+
+// attributeOpenCodePrompt binds the authenticated gateway principal to
+// OpenCode prompts without changing unrecognized or synthetic ingress routes.
+func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth requestAuth) error {
+	if r.Method != http.MethodPost || auth.actorID == "" {
+		return nil
+	}
+	if route.Path != opencodeSessionPromptPath && route.Path != opencodeSessionAsyncPath {
+		return nil
+	}
+
+	var body gatewayapi.SessionPromptJSONBody
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&body); err != nil {
+		return fmt.Errorf("decode prompt: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("decode prompt: expected one JSON value")
+	}
+
+	name := auth.actorName
+	if name == "" {
+		name = auth.actorID
+	}
+	actor := opencodeMessageActor{
+		Version: 1,
+		Type:    auth.actorType,
+		ID:      auth.actorID,
+		Name:    name,
+	}
+	var attached bool
+	for i := range body.Parts {
+		partType, err := body.Parts[i].Discriminator()
+		if err != nil {
+			return fmt.Errorf("read prompt part type: %w", err)
+		}
+		if partType != string(gatewayapi.OpencodeTextPartInputTypeText) {
+			continue
+		}
+
+		part, err := body.Parts[i].AsOpencodeTextPartInput()
+		if err != nil {
+			return fmt.Errorf("decode text prompt part: %w", err)
+		}
+		metadata := make(map[string]any)
+		if part.Metadata != nil {
+			metadata = *part.Metadata
+		}
+		if attached {
+			if _, exists := metadata[opencodeActorMetadataKey]; !exists {
+				continue
+			}
+			delete(metadata, opencodeActorMetadataKey)
+		}
+		if !attached {
+			metadata[opencodeActorMetadataKey] = actor
+			attached = true
+		}
+		part.Metadata = &metadata
+		if err := body.Parts[i].FromOpencodeTextPartInput(part); err != nil {
+			return fmt.Errorf("encode text prompt part: %w", err)
+		}
+	}
+	if !attached {
+		metadata := map[string]any{opencodeActorMetadataKey: actor}
+		ignored := true
+		synthetic := true
+		part := gatewayapi.OpencodeTextPartInput{
+			Ignored:   &ignored,
+			Metadata:  &metadata,
+			Synthetic: &synthetic,
+			Text:      "",
+			Type:      gatewayapi.OpencodeTextPartInputTypeText,
+		}
+		var input gatewayapi.OpencodePromptPartInput
+		if err := input.FromOpencodeTextPartInput(part); err != nil {
+			return fmt.Errorf("encode actor prompt part: %w", err)
+		}
+		body.Parts = append(body.Parts, input)
+	}
+
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("encode prompt: %w", err)
+	}
+	if err := r.Body.Close(); err != nil {
+		return fmt.Errorf("close prompt body: %w", err)
+	}
+	r.Body = io.NopCloser(bytes.NewReader(encoded))
+	r.ContentLength = int64(len(encoded))
+	r.Header.Set("Content-Length", strconv.Itoa(len(encoded)))
+	return nil
 }
 
 // openCodeModifyResponse applies gateway-owned response cleanup and optional
@@ -235,11 +402,14 @@ func deleteSessionTraces(ctx context.Context, store sessionTraceStore, target op
 		return fmt.Errorf("resolve tenant namespace: %w", err)
 	}
 
-	_, err = store.GatewayDeleteSessionTraces(ctx, gatewaydb.GatewayDeleteSessionTracesParams{
-		TenantNamespace: tenantNamespace,
-		AgentName:       target.agentName,
-		SessionID:       target.sessionID,
-	})
+	_, err = store.GatewayDeleteSessionTraces(
+		ctx,
+		gatewaydb.GatewayDeleteSessionTracesParams{
+			TenantNamespace: tenantNamespace,
+			AgentName:       target.agentName,
+			SessionID:       target.sessionID,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("delete session traces: %w", err)
 	}
@@ -258,9 +428,10 @@ func matchOpenCodeRoute(method string, path string) (*opencodeRouteMatch, bool) 
 	rctx := chi.NewRouteContext()
 	if opencodeRouteMatcher.Match(rctx, method, path) {
 		return &opencodeRouteMatch{
-			Method: method,
-			Path:   rctx.RoutePattern(),
-			Params: routeParams(rctx.URLParams),
+			Method:    method,
+			Path:      rctx.RoutePattern(),
+			Operation: opencodeRouteOperation(method, rctx.RoutePattern()),
+			Params:    routeParams(rctx.URLParams),
 		}, false
 	}
 
@@ -275,6 +446,10 @@ func matchOpenCodeRoute(method string, path string) (*opencodeRouteMatch, bool) 
 	}
 
 	return nil, false
+}
+
+func opencodeRouteOperation(method string, path string) authorization.Operation {
+	return opencodeRouteOperations[opencodeRouteKey{method: method, path: path}]
 }
 
 func routeParams(params chi.RouteParams) map[string]string {

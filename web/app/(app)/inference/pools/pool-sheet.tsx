@@ -28,6 +28,7 @@ import {
   GripVertical,
   Layers3,
   Plus,
+  Save,
   Trash2,
   TriangleAlert,
 } from "lucide-react"
@@ -65,7 +66,11 @@ import {
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import { getInferencePoolUsageAction, saveInferencePoolAction } from "@/data/inference-pool.actions"
+import {
+  getInferencePoolUsageAction,
+  saveInferencePoolAction,
+  type InferencePoolActionScope,
+} from "@/data/inference-pool.actions"
 import { formatCompactNumber } from "@/lib/format"
 import type {
   InferenceModel,
@@ -77,6 +82,7 @@ import type {
 import { ProviderIcon, providerKindLabels } from "../providers/provider-shared"
 
 const poolMemberSchema = z.object({
+  scope: z.enum(["Organisation", "Workspace"]),
   provider: z
     .string({ error: "Choose a provider for this member" })
     .min(1, { message: "Choose a provider for this member" })
@@ -107,7 +113,7 @@ const poolSchema = z
   .superRefine((value, ctx) => {
     const seen = new Set<string>()
     value.members.forEach((member, index) => {
-      const key = `${member.provider}\u0000${member.model}`
+      const key = `${member.scope}\u0000${member.provider}\u0000${member.model}`
       if (seen.has(key)) {
         ctx.addIssue({
           code: "custom",
@@ -119,9 +125,19 @@ const poolSchema = z
     })
   })
 
-const blankMember: InferencePoolMember = { provider: "", model: "" }
+const blankMember: InferencePoolMember = {
+  scope: "Workspace",
+  provider: "",
+  model: "",
+}
 
-export function NewInferencePoolButton({ providers }: { providers: InferenceProvider[] }) {
+export function NewInferencePoolButton({
+  providers,
+  scope,
+}: {
+  providers: InferenceProvider[]
+  scope: InferencePoolActionScope
+}) {
   const [open, setOpen] = React.useState(false)
 
   return (
@@ -134,6 +150,7 @@ export function NewInferencePoolButton({ providers }: { providers: InferenceProv
         key={open ? "new" : "closed"}
         open={open}
         providers={providers}
+        scope={scope}
         onOpenChange={setOpen}
       />
     </>
@@ -145,11 +162,13 @@ export function PoolSheet({
   providers,
   open,
   onOpenChange,
+  scope,
 }: {
   pool?: InferencePool
   providers: InferenceProvider[]
   open: boolean
   onOpenChange: (open: boolean) => void
+  scope: InferencePoolActionScope
 }) {
   const defaults: InferencePoolWrite = pool
     ? {
@@ -184,7 +203,9 @@ export function PoolSheet({
   const [pending, startTransition] = React.useTransition()
 
   const selected = memberValues.map((member) => {
-    const provider = providers.find((candidate) => candidate.id === member.provider)
+    const provider = providers.find(
+      (candidate) => candidate.id === member.provider && candidate.scope === member.scope
+    )
     const model = provider?.models.find((candidate) => candidate.id === member.model)
     return { provider, model }
   })
@@ -260,12 +281,12 @@ export function PoolSheet({
     form.clearErrors()
     startTransition(async () => {
       const result = pool
-        ? await saveInferencePoolAction({
+        ? await saveInferencePoolAction(scope, {
             poolName: pool.id,
             resourceVersion: pool.resource_version,
             pool: input,
           })
-        : await saveInferencePoolAction({ pool: input })
+        : await saveInferencePoolAction(scope, { pool: input })
       if (result.error) {
         const details: string[] = []
         let memberError = false
@@ -297,7 +318,7 @@ export function PoolSheet({
         }
         return
       }
-      toast.success(pool ? "Inference Pool updated" : "Inference Pool created")
+      toast.success(pool ? "Inference pool updated" : "Inference pool created")
       onOpenChange(false)
     })
   }
@@ -313,7 +334,7 @@ export function PoolSheet({
     }
 
     startTransition(async () => {
-      const result = await getInferencePoolUsageAction(pool.id)
+      const result = await getInferencePoolUsageAction(scope, pool.id)
       if (result.error) {
         setSubmitError(result.error.message)
         return
@@ -498,7 +519,7 @@ export function PoolSheet({
                 Cancel
               </Button>
               <Button type="submit" disabled={pending}>
-                {pending ? <Spinner /> : null}
+                {pending ? <Spinner /> : <Save data-icon="inline-start" />}
                 {pool ? "Save changes" : "Create Pool"}
               </Button>
             </div>
@@ -562,7 +583,9 @@ function SortableMember({
 }) {
   const sortable = useSortable({ id })
   const member = useWatch({ control: form.control, name: `members.${index}` })
-  const provider = providers.find((candidate) => candidate.id === member.provider)
+  const provider = providers.find(
+    (candidate) => candidate.id === member.provider && candidate.scope === member.scope
+  )
 
   return (
     <div
@@ -592,22 +615,30 @@ function SortableMember({
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel>Provider {index + 1}</FieldLabel>
               <MemberPicker
-                value={field.value}
+                value={`${member.scope}:${field.value}`}
                 placeholder="Choose a provider"
                 items={providers.map((candidate) => ({
-                  value: candidate.id,
+                  value: `${candidate.scope}:${candidate.id}`,
                   label: candidate.display_name,
                   detail:
                     candidate.state === "Ready"
-                      ? providerKindLabels[candidate.kind]
-                      : `${candidate.state} · unavailable`,
+                      ? `${candidate.scope} · ${providerKindLabels[candidate.kind]}`
+                      : `${candidate.scope} · ${candidate.state} · unavailable`,
                   disabled: candidate.state !== "Ready",
                   icon: <ProviderIcon provider={candidate.catalog_provider} className="size-4" />,
                 }))}
                 onBlur={field.onBlur}
                 invalid={fieldState.invalid}
                 onChange={(value) => {
-                  form.setValue(`members.${index}.provider`, value, {
+                  const candidate = providers.find(
+                    (provider) => `${provider.scope}:${provider.id}` === value
+                  )
+                  if (!candidate) return
+                  form.setValue(`members.${index}.scope`, candidate.scope, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                  form.setValue(`members.${index}.provider`, candidate.id, {
                     shouldDirty: true,
                     shouldTouch: true,
                   })
@@ -723,7 +754,7 @@ function MemberPicker({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(24rem,calc(100vw-2rem))] p-0">
         <Command>
-          <CommandInput placeholder="Search…" />
+          <CommandInput placeholder="Search..." />
           <CommandList>
             <CommandEmpty>No matches.</CommandEmpty>
             <CommandGroup>

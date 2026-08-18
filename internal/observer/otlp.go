@@ -99,11 +99,14 @@ func runOTLPTraceReceiver(ctx context.Context, cfg Config, res *resolver, out ch
 	}
 
 	srv := grpc.NewServer()
-	tracev1.RegisterTraceServiceServer(srv, &traceReceiver{
-		res:   res,
-		out:   out,
-		stats: s,
-	})
+	tracev1.RegisterTraceServiceServer(
+		srv,
+		&traceReceiver{
+			res:   res,
+			out:   out,
+			stats: s,
+		},
+	)
 
 	errCh := make(chan error, 1)
 	go func() {

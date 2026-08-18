@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState, type ComponentType, type SVGProps } from "react"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Command,
@@ -14,7 +16,22 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-export type MultiSelectDropdownOption = {
+type MultiSelectDropdownOptionIdentity =
+  | {
+      icon: ComponentType<SVGProps<SVGSVGElement>>
+      image?: never
+      initials?: never
+    }
+  | {
+      icon?: never
+      image: string | null
+      initials: string
+    }
+
+export type MultiSelectDropdownOption = MultiSelectDropdownOptionIdentity & {
+  badge?: string
+  badgeIcon?: ComponentType<SVGProps<SVGSVGElement>>
+  group?: string
   label: string
   value: string
   disabled?: boolean
@@ -23,6 +40,7 @@ export type MultiSelectDropdownOption = {
 function MultiSelectDropdown({
   allowCustomValues = false,
   className,
+  closeOnSelect = false,
   disabled,
   emptyMessage = "No options found.",
   id,
@@ -36,6 +54,8 @@ function MultiSelectDropdown({
 }: {
   allowCustomValues?: boolean
   className?: string
+  /** Closes after a choice. Event trail filters use this compact interaction. */
+  closeOnSelect?: boolean
   disabled?: boolean
   emptyMessage?: string
   id?: string
@@ -47,9 +67,19 @@ function MultiSelectDropdown({
   searchPlaceholder?: string
   value: string[]
 }) {
+  const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const selectedValues = new Set(value)
   const customValue = search.trim()
+  const groups = new Map<string | undefined, MultiSelectDropdownOption[]>()
+  for (const option of options) {
+    const group = groups.get(option.group)
+    if (group) {
+      group.push(option)
+      continue
+    }
+    groups.set(option.group, [option])
+  }
   const canCreate =
     allowCustomValues &&
     customValue.length > 0 &&
@@ -59,13 +89,35 @@ function MultiSelectDropdown({
     value.length === 0
       ? placeholder
       : value.length <= 2
-        ? value
-            .map((item) => options.find((option) => option.value === item)?.label ?? item)
-            .join(", ")
+        ? value.map((item, index) => {
+            const option = options.find((option) => option.value === item)
+            if (!option) {
+              return (
+                <Fragment key={item}>
+                  {index > 0 ? ", " : null}
+                  {item}
+                </Fragment>
+              )
+            }
+            const BadgeIcon = option.badgeIcon
+            return (
+              <Fragment key={item}>
+                {index > 0 ? ", " : null}
+                {option.label}
+                {option.badge ? (
+                  <span className="text-muted-foreground inline-flex items-center gap-1">
+                    <span aria-hidden="true">·</span>
+                    {BadgeIcon ? <BadgeIcon aria-hidden="true" className="size-3.5" /> : null}
+                    {option.badge}
+                  </span>
+                ) : null}
+              </Fragment>
+            )
+          })
         : `${value.length} selected`
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           id={id}
@@ -79,7 +131,7 @@ function MultiSelectDropdown({
             className
           )}
         >
-          <span className="line-clamp-1 text-left">{triggerLabel}</span>
+          <span className="flex min-w-0 items-center gap-1 truncate text-left">{triggerLabel}</span>
           <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0" />
         </button>
       </PopoverTrigger>
@@ -103,6 +155,9 @@ function MultiSelectDropdown({
                   onSelect={() => {
                     onValueChangeAction([...value, customValue].toSorted())
                     setSearch("")
+                    if (closeOnSelect) {
+                      setOpen(false)
+                    }
                   }}
                 >
                   <PlusIcon />
@@ -110,31 +165,50 @@ function MultiSelectDropdown({
                 </CommandItem>
               </CommandGroup>
             ) : null}
-            <CommandGroup>
-              {options.map((option) => {
-                const checked = selectedValues.has(option.value)
-                const nextValue = checked
-                  ? value.filter((item) => item !== option.value)
-                  : [...value, option.value].toSorted()
+            {[...groups].map(([group, groupOptions]) => (
+              <CommandGroup heading={group} key={group ?? "options"}>
+                {groupOptions.map((option) => {
+                  const Icon = option.icon
+                  const BadgeIcon = option.badgeIcon
+                  const checked = selectedValues.has(option.value)
+                  const nextValue = checked
+                    ? value.filter((item) => item !== option.value)
+                    : [...value, option.value].toSorted()
 
-                return (
-                  <CommandItem
-                    key={option.value}
-                    value={`${option.label} ${option.value}`}
-                    disabled={option.disabled}
-                    onSelect={() => {
-                      if (option.disabled) {
-                        return
-                      }
-                      onValueChangeAction(nextValue)
-                    }}
-                  >
-                    <Checkbox className="pointer-events-none" checked={checked} />
-                    <span>{option.label}</span>
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      value={`${option.label} ${option.badge ?? ""} ${option.value}`}
+                      disabled={option.disabled}
+                      onSelect={() => {
+                        if (option.disabled) return
+                        onValueChangeAction(nextValue)
+                        if (closeOnSelect) setOpen(false)
+                      }}
+                    >
+                      <Checkbox className="pointer-events-none" checked={checked} />
+                      {option.image !== undefined ? (
+                        <Avatar size="sm">
+                          <AvatarImage alt="" src={option.image ?? undefined} />
+                          <AvatarFallback>{option.initials}</AvatarFallback>
+                        </Avatar>
+                      ) : Icon ? (
+                        <Icon aria-hidden="true" />
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                      {option.badge ? (
+                        <Badge className="max-w-40 shrink-0 truncate" variant="secondary">
+                          {BadgeIcon ? (
+                            <BadgeIcon aria-hidden="true" data-icon="inline-start" />
+                          ) : null}
+                          {option.badge}
+                        </Badge>
+                      ) : null}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

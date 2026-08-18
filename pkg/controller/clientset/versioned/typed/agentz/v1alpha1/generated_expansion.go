@@ -29,6 +29,10 @@ type SandboxExpansion interface{}
 
 type SecretExpansion interface{}
 
+type TenantExpansion interface{}
+
 type WorkflowRunExpansion interface{}
 
 type WorkflowScheduleExpansion interface{}
+
+type WorkspaceExpansion interface{}

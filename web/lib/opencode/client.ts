@@ -4,9 +4,13 @@ import { gatewayAuthenticatedFetch, getGatewayBaseURL } from "@/lib/gateway/brow
 // createAgentOpencodeClient builds a browser OpenCode client that relies on
 // gatewayAuthenticatedFetch to mint a fresh 2-minute bearer for every request
 // and SSE reconnect instead of caching Authorization at client creation time.
-export async function createAgentOpencodeClient(agentName: string): Promise<OpencodeClient> {
+export async function createAgentOpencodeClient(
+  agentName: string,
+  workspaceId: string
+): Promise<OpencodeClient> {
   return createOpencodeClient({
     baseUrl: `${await getGatewayBaseURL()}/api/opencode/${encodeURIComponent(agentName)}`,
     fetch: gatewayAuthenticatedFetch,
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
   })
 }

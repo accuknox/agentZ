@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { formatAge } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
   ArrowUpDown,
@@ -32,6 +32,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
+import { UserAvatar } from "@/components/ui/avatar"
+import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { renderMcpServerIcon } from "./catalog"
@@ -62,7 +64,8 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
-  onViewAction: (name: string) => void
+  showOrganisation: boolean
+  onViewAction: (connection: McpConnectionSummary) => void
   deleteMcpAction: (
     name: string,
     state: DeleteMcpFormState,
@@ -82,7 +85,9 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <McpNameCell connection={row.original} />,
+      cell: ({ row }) => (
+        <McpNameCell connection={row.original} showOrganisation={actions.showOrganisation} />
+      ),
     },
     {
       id: "auth_mode",
@@ -110,6 +115,16 @@ export function createMcpColumns(actions: {
       ),
     },
     {
+      accessorKey: "created_by",
+      header: "Created",
+      cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+    },
+    {
+      accessorKey: "last_modified_by",
+      header: "Modified",
+      cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
+    },
+    {
       id: "age",
       accessorKey: "created_at",
       header: ({ column }) => (
@@ -122,7 +137,7 @@ export function createMcpColumns(actions: {
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => <span>{formatAge(row.original.created_at)}</span>,
+      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
     },
     {
       id: "actions",
@@ -137,7 +152,13 @@ export function createMcpColumns(actions: {
   ]
 }
 
-function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
+function McpNameCell({
+  connection,
+  showOrganisation,
+}: {
+  connection: McpConnectionSummary
+  showOrganisation: boolean
+}) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       {renderMcpServerIcon(connection.endpoint_url, {
@@ -145,6 +166,9 @@ function McpNameCell({ connection }: { connection: McpConnectionSummary }) {
         className: "size-4 shrink-0",
       })}
       <span className="min-w-0 truncate font-medium">{connection.name}</span>
+      {showOrganisation && connection.scope === "Organisation" ? (
+        <Badge variant="secondary">Organisation</Badge>
+      ) : null}
     </div>
   )
 }
@@ -183,7 +207,7 @@ function McpActions({
     state: DeleteMcpFormState,
     formData: FormData
   ) => Promise<DeleteMcpFormState>
-  onViewAction: (name: string) => void
+  onViewAction: (connection: McpConnectionSummary) => void
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
@@ -208,16 +232,18 @@ function McpActions({
           <DropdownMenuGroup>
             <DropdownMenuItem
               onSelect={() => {
-                onViewAction(connection.name)
+                onViewAction(connection)
               }}
             >
               <Eye />
               View
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-              <Trash2 />
-              Delete
-            </DropdownMenuItem>
+            {connection.can_delete ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -252,10 +278,11 @@ function DeleteMcpDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("MCP connection deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

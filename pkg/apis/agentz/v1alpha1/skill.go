@@ -19,7 +19,10 @@ package v1alpha1
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // SkillSpec defines the desired state of an immutable Skill.
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type SkillSpec struct {
+	ResourceAudit `json:",inline"`
+
 	// Description summarizes when the skill should be used.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=1024

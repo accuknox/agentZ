@@ -29,6 +29,7 @@
   --color-chart-1: var(--chart-1);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -72,6 +73,7 @@
   --destructive: oklch(0.5379 0.2186 25.9751);
   --destructive-foreground: oklch(1 0 0);
   --warning: oklch(0.666 0.179 58.318);
+  --info: oklch(0.546 0.215 262.881);
   --border: oklch(0.9219 0 0);
   --input: oklch(0.9219 0 0);
   --ring: oklch(0.709 0 0);
@@ -109,6 +111,7 @@
   --destructive: oklch(0.7036 0.1881 22.1462);
   --destructive-foreground: oklch(0.9851 0 0);
   --warning: oklch(0.828 0.189 84.429);
+  --info: oklch(0.707 0.165 254.624);
   --border: oklch(0.2768 0 0);
   --input: oklch(0.325 0 0);
   --ring: oklch(0.5555 0 0);
@@ -165,6 +168,27 @@
 }
 
 @layer components {
+  [data-administration] [data-slot="card"] {
+    gap: 1rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding-block: 0;
+    box-shadow: none;
+  }
+
+  [data-administration] [data-slot="card-header"],
+  [data-administration] [data-slot="card-footer"] {
+    padding-inline: 1rem;
+  }
+
+  @media (min-width: 48rem) {
+    [data-administration] [data-slot="card-header"],
+    [data-administration] [data-slot="card-footer"] {
+      padding-inline: 1.5rem;
+    }
+  }
+
   .trace-waterfall-progress [data-slot="progress-indicator"] {
     animation: trace-waterfall 700ms ease-out var(--waterfall-delay, 0ms) both;
   }

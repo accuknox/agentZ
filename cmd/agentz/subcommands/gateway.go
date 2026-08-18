@@ -30,14 +30,6 @@ var gatewayServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name:  "namespace",
-			Usage: "Kubernetes namespace to resolve Agents from",
-			Value: gateway.DefaultNamespace,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
-		},
-		&cli.StringFlag{
 			Name:     "postgres-dsn",
 			Usage:    "PostgreSQL DSN for session history and agent listing",
 			Required: true,
@@ -171,31 +163,33 @@ var gatewayServeCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return gateway.Serve(ctx, gateway.Config{
-			Addr:                     c.String("addr"),
-			Namespace:                c.String("namespace"),
-			PostgresDSN:              c.String("postgres-dsn"),
-			ExternalJWTJWKSURL:       c.String("external-jwt-jwks-url"),
-			ExternalJWTIssuer:        c.String("external-jwt-issuer"),
-			ExternalJWTAudience:      c.String("external-jwt-audience"),
-			InternalK8sTokenAudience: c.String("internal-k8s-token-audience"),
-			TargetOverride:           c.String("target-override"),
-			FilesystemTargetOverride: c.String("filesystem-target-override"),
-			AgentImage:               c.String("agent-image"),
-			AgentTraceEndpoint:       c.String("agent-trace-endpoint"),
-			OpenBaoAddr:              c.String("openbao-addr"),
-			OpenBaoSecretMountPath:   c.String("openbao-secret-mount-path"),
-			OpenBaoK8sAuthRole:       c.String("openbao-k8s-auth-role"),
-			OpenBaoK8sAuthMountPath:  c.String("openbao-k8s-auth-mount-path"),
-			OpenBaoK8sAuthTokenPath:  c.String("openbao-k8s-auth-token-path"),
-			MCPProbeStaleAfter:       c.Duration("mcp-probe-stale-after"),
-			SkillStore: skill.Config{
-				Endpoint:        c.String("skills-s3-endpoint"),
-				Region:          c.String("skills-s3-region"),
-				Bucket:          c.String("skills-s3-bucket"),
-				AccessKeyID:     strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_ACCESS_KEY_ID")),
-				SecretAccessKey: strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY")),
+		return gateway.Serve(
+			ctx,
+			gateway.Config{
+				Addr:                     c.String("addr"),
+				PostgresDSN:              c.String("postgres-dsn"),
+				ExternalJWTJWKSURL:       c.String("external-jwt-jwks-url"),
+				ExternalJWTIssuer:        c.String("external-jwt-issuer"),
+				ExternalJWTAudience:      c.String("external-jwt-audience"),
+				InternalK8sTokenAudience: c.String("internal-k8s-token-audience"),
+				TargetOverride:           c.String("target-override"),
+				FilesystemTargetOverride: c.String("filesystem-target-override"),
+				AgentImage:               c.String("agent-image"),
+				AgentTraceEndpoint:       c.String("agent-trace-endpoint"),
+				OpenBaoAddr:              c.String("openbao-addr"),
+				OpenBaoSecretMountPath:   c.String("openbao-secret-mount-path"),
+				OpenBaoK8sAuthRole:       c.String("openbao-k8s-auth-role"),
+				OpenBaoK8sAuthMountPath:  c.String("openbao-k8s-auth-mount-path"),
+				OpenBaoK8sAuthTokenPath:  c.String("openbao-k8s-auth-token-path"),
+				MCPProbeStaleAfter:       c.Duration("mcp-probe-stale-after"),
+				SkillStore: skill.Config{
+					Endpoint:        c.String("skills-s3-endpoint"),
+					Region:          c.String("skills-s3-region"),
+					Bucket:          c.String("skills-s3-bucket"),
+					AccessKeyID:     strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_ACCESS_KEY_ID")),
+					SecretAccessKey: strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY")),
+				},
 			},
-		})
+		)
 	},
 }

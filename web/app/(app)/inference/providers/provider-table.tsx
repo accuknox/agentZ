@@ -6,18 +6,8 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
+import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
-import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpDown,
   CheckCircle2,
   CircleAlert,
   CircleDashed,
@@ -30,6 +20,7 @@ import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { UserAvatar } from "@/components/ui/avatar"
 import {
   Dialog,
   DialogClose,
@@ -53,11 +44,13 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableRelativeTime,
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferenceProviderAction } from "@/data/inference-provider.actions"
-import { formatAge } from "@/lib/format"
+import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   watchInferenceProviders,
@@ -67,16 +60,16 @@ import {
 import { ProviderSheet } from "./provider-sheet"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
 
-const pageSize = 25
-
 const columnClassName: Record<string, string> = {
-  display_name: "min-w-0 w-0",
-  kind: "w-44",
-  state: "w-36",
-  model_count: "w-28",
-  usage_count: "w-28",
+  display_name: "w-56",
+  kind: "w-32",
+  state: "w-32",
+  model_count: "w-24",
+  usage_count: "w-24",
+  created_by: "hidden lg:table-cell w-24",
+  last_modified_by: "hidden lg:table-cell w-24",
   updated_at: "w-32",
-  actions: "w-14",
+  actions: "w-20",
 }
 
 const providerStateMeta = {
@@ -100,22 +93,32 @@ const providerStateMeta = {
   }
 >
 
-const watchProvidersQueryOptions = (providers: InferenceProvider[]) =>
+const watchProvidersQueryOptions = (
+  providers: InferenceProvider[],
+  scope: InferenceProviderActionScope
+) =>
   queryOptions({
-    queryKey: ["watchInferenceProviders"] as const,
+    queryKey: ["watchInferenceProviders", scope.workspaceId ?? "organization"] as const,
     placeholderData: providers,
     queryFn: streamedQuery<
       WatchInferenceProvidersEvent,
       InferenceProvider[],
-      readonly ["watchInferenceProviders"]
+      readonly ["watchInferenceProviders", string]
     >({
       initialValue: providers,
-      reducer: (_, event) => event.providers,
+      reducer: (_, event) =>
+        scope.workspaceId
+          ? [
+              ...event.providers,
+              ...providers.filter((provider) => provider.scope === "Organisation"),
+            ]
+          : event.providers,
       refetchMode: "reset",
       streamFn: async ({ signal }) => {
         const result = await watchInferenceProviders({
           baseUrl: await getGatewayBaseURL(),
           body: {},
+          headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
           signal,
         })
         return result.stream
@@ -128,34 +131,33 @@ const watchProvidersQueryOptions = (providers: InferenceProvider[]) =>
     staleTime: Infinity,
   })
 
-export function InferenceProviderTable({ providers }: { providers: InferenceProvider[] }) {
+export function InferenceProviderTable({
+  hasNextPage,
+  nextPageToken,
+  providers,
+  scope,
+}: {
+  hasNextPage: boolean
+  nextPageToken: string
+  providers: InferenceProvider[]
+  scope: InferenceProviderActionScope
+}) {
   "use no memo"
 
-  const watched = useQuery(watchProvidersQueryOptions(providers)).data ?? providers
+  const watched = useQuery(watchProvidersQueryOptions(providers, scope)).data ?? providers
   const [editing, setEditing] = React.useState<InferenceProvider>()
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "updated_at", desc: true }])
-  const [page, setPage] = React.useState(0)
-
-  const pageCount = Math.max(1, Math.ceil(watched.length / pageSize))
-  const currentPage = Math.min(page, pageCount - 1)
   const columns = React.useMemo<ColumnDef<InferenceProvider>[]>(
     () => [
       {
         accessorKey: "display_name",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Name
-            <ArrowUpDown />
-          </Button>
-        ),
+        header: "Name",
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-2">
             <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
             <span className="min-w-0 truncate font-medium">{row.original.display_name}</span>
+            {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
+              <Badge variant="secondary">Organisation</Badge>
+            ) : null}
           </div>
         ),
       },
@@ -180,26 +182,29 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
         cell: ({ row }) => <span>{row.original.usage_count}</span>,
       },
       {
+        accessorKey: "created_by",
+        header: "Created",
+        cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+      },
+      {
+        accessorKey: "last_modified_by",
+        header: "Modified",
+        cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
+      },
+      {
         accessorKey: "updated_at",
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Updated
-            <ArrowUpDown />
-          </Button>
-        ),
-        cell: ({ row }) => <span>{formatAge(row.original.updated_at)}</span>,
+        header: "Updated",
+        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
         sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
       },
       {
         id: "actions",
-        cell: ({ row }) => <ProviderActions provider={row.original} onEditAction={setEditing} />,
+        cell: ({ row }) => (
+          <ProviderActions provider={row.original} scope={scope} onEditAction={setEditing} />
+        ),
       },
     ],
-    []
+    [scope]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -207,19 +212,12 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
     data: watched,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: { sorting },
   })
 
-  const visibleRows = table
-    .getRowModel()
-    .rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize)
-
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -237,16 +235,18 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
             ))}
           </TableHeader>
           <TableBody>
-            {visibleRows.length > 0 ? (
-              visibleRows.map((row) => (
+            {table.getRowModel().rows.length > 0 ? (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setEditing(row.original)}
+                  className={row.original.can_modify ? "cursor-pointer" : undefined}
+                  role={row.original.can_modify ? "button" : undefined}
+                  tabIndex={row.original.can_modify ? 0 : undefined}
+                  onClick={() => {
+                    if (row.original.can_modify) setEditing(row.original)
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
+                    if (!row.original.can_modify || (event.key !== "Enter" && event.key !== " ")) {
                       return
                     }
 
@@ -267,33 +267,14 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No inference providers
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={currentPage === 0}
-          onClick={() => setPage(currentPage - 1)}
-        >
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={currentPage + 1 === pageCount}
-          onClick={() => setPage(currentPage + 1)}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
 
       <ProviderSheet
         key={editing?.id ?? "closed"}
@@ -304,6 +285,7 @@ export function InferenceProviderTable({ providers }: { providers: InferenceProv
             setEditing(undefined)
           }
         }}
+        scope={scope}
       />
     </div>
   )
@@ -342,9 +324,11 @@ function ProviderStatusBadge({ provider }: { provider: InferenceProvider }) {
 /** ProviderActions renders the per-row menu and its delete confirmation. */
 function ProviderActions({
   provider,
+  scope,
   onEditAction,
 }: {
   provider: InferenceProvider
+  scope: InferenceProviderActionScope
   onEditAction: (provider: InferenceProvider) => void
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
@@ -359,27 +343,38 @@ function ProviderActions({
         event.stopPropagation()
       }}
     >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <span className="sr-only">Open menu</span>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={() => onEditAction(provider)}>
-              <Pencil />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-              <Trash2 />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DeleteProviderDialog provider={provider} open={deleteOpen} setOpen={setDeleteOpen} />
+      {provider.can_modify || provider.can_delete ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuGroup>
+              {provider.can_modify ? (
+                <DropdownMenuItem onSelect={() => onEditAction(provider)}>
+                  <Pencil />
+                  Edit
+                </DropdownMenuItem>
+              ) : null}
+              {provider.can_delete ? (
+                <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                  <Trash2 />
+                  Delete
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      <DeleteProviderDialog
+        provider={provider}
+        open={deleteOpen}
+        scope={scope}
+        setOpen={setDeleteOpen}
+      />
     </div>
   )
 }
@@ -391,10 +386,12 @@ function ProviderActions({
 function DeleteProviderDialog({
   provider,
   open,
+  scope,
   setOpen,
 }: {
   provider: InferenceProvider
   open: boolean
+  scope: InferenceProviderActionScope
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   const [error, setError] = React.useState("")
@@ -417,7 +414,7 @@ function DeleteProviderDialog({
           </DialogDescription>
         </DialogHeader>
         {error ? (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4">
             <CircleAlert />
             <AlertTitle>Provider could not be deleted</AlertTitle>
             <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
@@ -434,7 +431,7 @@ function DeleteProviderDialog({
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
-                const result = await deleteInferenceProviderAction(provider.id)
+                const result = await deleteInferenceProviderAction(scope, provider.id)
                 if (result.error) {
                   const details = result.error.errors?.map(
                     (fieldError) => `${fieldError.field}: ${fieldError.message}`

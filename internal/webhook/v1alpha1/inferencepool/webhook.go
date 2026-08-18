@@ -88,11 +88,14 @@ func (v *Validator) validate(ctx context.Context, pool *agentzv1alpha1.Inference
 	}
 	fields := make(field.ErrorList, 0, len(issues))
 	for _, issue := range issues {
-		fields = append(fields, field.Invalid(
-			field.NewPath("spec"),
-			"",
-			issue.Field+": "+issue.Message,
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				field.NewPath("spec"),
+				"",
+				issue.Field+": "+issue.Message,
+			),
+		)
 	}
 	if len(fields) == 0 {
 		return nil

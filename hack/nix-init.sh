@@ -16,6 +16,7 @@ readonly shared_cache_meta_dir='/nix-shared/.agentz-nix-init/envs'
 readonly shared_cache_lock_dir='/nix-shared/.agentz-nix-init/locks'
 readonly shared_cache_uri='file:///nix-shared?compression=none'
 readonly shared_cache_substituter='file:///nix-shared?compression=none&priority=100'
+readonly nix_cache_endpoint="${AGENTZ_NIX_CACHE_ENDPOINT:-https://cache.nixos.org}"
 readonly mode="${1:-prepare-agent-store}"
 
 shared_lock_path=''
@@ -86,7 +87,7 @@ configure_nix() {
         # create it, so parallel builders can trip Nix's purity check.
         echo 'max-jobs = 1'
         echo 'sandbox = false'
-        echo "substituters = ${shared_cache_substituter} https://cache.nixos.org?priority=50"
+        echo "substituters = ${shared_cache_substituter} ${nix_cache_endpoint}?priority=50"
     } >"$NIX_CONF_DIR/nix.conf"
 }
 

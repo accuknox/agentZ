@@ -65,20 +65,26 @@ func (v *Validator) validateSchedule(ctx context.Context, schedule *agentzv1alph
 
 	err := workflow.ValidateCronSchedule(schedule.Spec.Schedule)
 	if err != nil {
-		fields = append(fields, field.Invalid(
-			field.NewPath("spec").Child("schedule"),
-			schedule.Spec.Schedule,
-			err.Error(),
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				field.NewPath("spec").Child("schedule"),
+				schedule.Spec.Schedule,
+				err.Error(),
+			),
+		)
 	}
 
 	err = workflow.ValidateTimeZone(schedule.Spec.TimeZone)
 	if err != nil {
-		fields = append(fields, field.Invalid(
-			field.NewPath("spec").Child("timeZone"),
-			schedule.Spec.TimeZone,
-			err.Error(),
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				field.NewPath("spec").Child("timeZone"),
+				schedule.Spec.TimeZone,
+				err.Error(),
+			),
+		)
 	}
 
 	if len(fields) == 0 {

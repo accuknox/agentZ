@@ -1,0 +1,532 @@
+"use client"
+
+import * as React from "react"
+import { toast } from "sonner"
+import { useRouter } from "@bprogress/next/app"
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table"
+import { ArrowUpDown, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react"
+import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
+import { TokenTablePagination } from "@/components/table-pagination"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRelativeTime,
+  TableRow,
+} from "@/components/ui/table"
+import type {
+  DeleteWorkflowScheduleFormState,
+  UpdateWorkflowScheduleFormState,
+  WorkflowInputContractResult,
+} from "@/data/types"
+import type { TriggerWorkflowRunActionState } from "@/data/workflow-run.actions"
+import { ScheduleSheet } from "./schedule-sheet"
+
+const columnClassName: Record<string, string> = {
+  name: "min-w-48",
+  workflow_name: "min-w-48",
+  schedule: "min-w-48",
+  created_at: "w-36",
+  actions: "w-20",
+}
+
+export function ScheduleTriggersTable({
+  agentName,
+  basePath,
+  workflows,
+  workflowSchedules,
+  hasNextPage,
+  nextPageToken,
+  deleteWorkflowScheduleAction,
+  getWorkflowInputContractAction,
+  triggerWorkflowRunAction,
+  updateWorkflowScheduleAction,
+}: {
+  agentName: string
+  basePath: string
+  workflows: WorkflowSummary[]
+  workflowSchedules: WorkflowSchedule[]
+  hasNextPage: boolean
+  nextPageToken: string
+  deleteWorkflowScheduleAction: (
+    agentName: string,
+    state: DeleteWorkflowScheduleFormState,
+    formData: FormData
+  ) => Promise<DeleteWorkflowScheduleFormState>
+  getWorkflowInputContractAction: (
+    agentName: string,
+    workflowName: string
+  ) => Promise<WorkflowInputContractResult>
+  triggerWorkflowRunAction: (
+    agentName: string,
+    workflowName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>
+  updateWorkflowScheduleAction: (
+    agentName: string,
+    state: UpdateWorkflowScheduleFormState,
+    formData: FormData
+  ) => Promise<UpdateWorkflowScheduleFormState>
+}) {
+  "use no memo"
+
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at", desc: true }])
+  const router = useRouter()
+  const columns = React.useMemo<ColumnDef<WorkflowSchedule>[]>(
+    () =>
+      createColumns(
+        agentName,
+        workflows,
+        deleteWorkflowScheduleAction,
+        getWorkflowInputContractAction,
+        triggerWorkflowRunAction,
+        updateWorkflowScheduleAction
+      ),
+    [
+      agentName,
+      deleteWorkflowScheduleAction,
+      getWorkflowInputContractAction,
+      triggerWorkflowRunAction,
+      updateWorkflowScheduleAction,
+      workflows,
+    ]
+  )
+
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({
+    data: workflowSchedules,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: {
+      sorting,
+    },
+  })
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="w-full min-w-0 border-b">
+        <Table className="table-auto">
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    className={`h-8 px-4 ${columnClassName[header.column.id] ?? ""}`}
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length > 0 ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => {
+                    router.push(
+                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
+                    )
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return
+                    }
+
+                    event.preventDefault()
+                    router.push(
+                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
+                    )
+                  }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id] ?? ""}`}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <span className="text-muted-foreground">_</span>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+    </div>
+  )
+}
+
+function createColumns(
+  agentName: string,
+  workflows: WorkflowSummary[],
+  deleteWorkflowScheduleAction: (
+    agentName: string,
+    state: DeleteWorkflowScheduleFormState,
+    formData: FormData
+  ) => Promise<DeleteWorkflowScheduleFormState>,
+  getWorkflowInputContractAction: (
+    agentName: string,
+    workflowName: string
+  ) => Promise<WorkflowInputContractResult>,
+  triggerWorkflowRunAction: (
+    agentName: string,
+    workflowName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>,
+  updateWorkflowScheduleAction: (
+    agentName: string,
+    state: UpdateWorkflowScheduleFormState,
+    formData: FormData
+  ) => Promise<UpdateWorkflowScheduleFormState>
+): ColumnDef<WorkflowSchedule>[] {
+  return [
+    {
+      accessorKey: "name",
+      header: ({ column }) => (
+        <Button
+          className="-ml-2"
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Name
+          <ArrowUpDown />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+    },
+    {
+      accessorKey: "workflow_name",
+      header: ({ column }) => (
+        <Button
+          className="-ml-2"
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Workflow
+          <ArrowUpDown />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-mono text-sm">{row.original.workflow_name}</span>,
+    },
+    {
+      accessorKey: "schedule",
+      header: ({ column }) => (
+        <Button
+          className="-ml-2"
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Schedule
+          <ArrowUpDown />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-mono text-sm">{row.original.schedule}</span>,
+    },
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => (
+        <Button
+          className="-ml-2"
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Age
+          <ArrowUpDown />
+        </Button>
+      ),
+      sortingFn: "datetime",
+      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <ScheduleActions
+          agentName={agentName}
+          workflows={workflows}
+          item={row.original}
+          deleteWorkflowScheduleAction={deleteWorkflowScheduleAction}
+          getWorkflowInputContractAction={getWorkflowInputContractAction}
+          triggerWorkflowRunAction={triggerWorkflowRunAction}
+          updateWorkflowScheduleAction={updateWorkflowScheduleAction}
+        />
+      ),
+    },
+  ]
+}
+
+function ScheduleActions({
+  agentName,
+  workflows,
+  item,
+  deleteWorkflowScheduleAction,
+  getWorkflowInputContractAction,
+  triggerWorkflowRunAction,
+  updateWorkflowScheduleAction,
+}: {
+  agentName: string
+  workflows: WorkflowSummary[]
+  item: WorkflowSchedule
+  deleteWorkflowScheduleAction: (
+    agentName: string,
+    state: DeleteWorkflowScheduleFormState,
+    formData: FormData
+  ) => Promise<DeleteWorkflowScheduleFormState>
+  getWorkflowInputContractAction: (
+    agentName: string,
+    workflowName: string
+  ) => Promise<WorkflowInputContractResult>
+  triggerWorkflowRunAction: (
+    agentName: string,
+    workflowName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>
+  updateWorkflowScheduleAction: (
+    agentName: string,
+    state: UpdateWorkflowScheduleFormState,
+    formData: FormData
+  ) => Promise<UpdateWorkflowScheduleFormState>
+}) {
+  const [editOpen, setEditOpen] = React.useState(false)
+  const [runOpen, setRunOpen] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
+
+  return (
+    <div
+      className="flex justify-end"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-8">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setRunOpen(true)}>
+            <Play />
+            Run
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+            <Pencil />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+            <Trash2 />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ScheduleSheet
+        agentName={agentName}
+        mode="update"
+        workflows={workflows}
+        scheduleItem={item}
+        putWorkflowScheduleAction={updateWorkflowScheduleAction}
+        getWorkflowInputContractAction={getWorkflowInputContractAction}
+        open={editOpen}
+        onOpenChangeAction={setEditOpen}
+      />
+      <RunScheduleDialog
+        agentName={agentName}
+        item={item}
+        open={runOpen}
+        setOpen={setRunOpen}
+        triggerWorkflowRunAction={triggerWorkflowRunAction}
+      />
+      <DeleteScheduleDialog
+        agentName={agentName}
+        item={item}
+        deleteWorkflowScheduleAction={deleteWorkflowScheduleAction}
+        open={deleteOpen}
+        setOpen={setDeleteOpen}
+      />
+    </div>
+  )
+}
+
+function RunScheduleDialog({
+  agentName,
+  item,
+  open,
+  setOpen,
+  triggerWorkflowRunAction,
+}: {
+  agentName: string
+  item: WorkflowSchedule
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  triggerWorkflowRunAction: (
+    agentName: string,
+    workflowName: string,
+    scheduleName: string,
+    state: TriggerWorkflowRunActionState,
+    formData: FormData
+  ) => Promise<TriggerWorkflowRunActionState>
+}) {
+  const router = useRouter()
+  const [state, action, pending] = React.useActionState(
+    async (state: TriggerWorkflowRunActionState, formData: FormData) => {
+      const result = await triggerWorkflowRunAction(
+        agentName,
+        item.workflow_name,
+        item.name,
+        state,
+        formData
+      )
+      if (result.href) {
+        toast.success("Workflow started")
+        router.push(result.href)
+      }
+      return result
+    },
+    { success: false }
+  )
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Run {item.name} now?</DialogTitle>
+          <DialogDescription>
+            This will trigger the workflow schedule immediately using its saved configuration.
+          </DialogDescription>
+        </DialogHeader>
+        {state.error ? (
+          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
+            {state.error.message}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={pending}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <form action={action}>
+            <input type="hidden" name="workflow_name" value={item.workflow_name} />
+            <input type="hidden" name="schedule_name" value={item.name} />
+            <Button type="submit" disabled={pending}>
+              {pending ? <Spinner /> : <Play />}
+              Run
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeleteScheduleDialog({
+  agentName,
+  item,
+  deleteWorkflowScheduleAction,
+  open,
+  setOpen,
+}: {
+  agentName: string
+  item: WorkflowSchedule
+  deleteWorkflowScheduleAction: (
+    agentName: string,
+    state: DeleteWorkflowScheduleFormState,
+    formData: FormData
+  ) => Promise<DeleteWorkflowScheduleFormState>
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+}) {
+  const [state, action, pending] = React.useActionState(
+    deleteWorkflowScheduleAction.bind(null, agentName),
+    {}
+  )
+
+  React.useEffect(() => {
+    if (state.success) {
+      toast.success("Schedule deleted")
+      setOpen(false)
+    }
+  }, [setOpen, state.success])
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {item.name}?</DialogTitle>
+          <DialogDescription>
+            This will delete the workflow schedule permanently. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        {state.error ? (
+          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
+            {state.error.message}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={pending}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <form action={action}>
+            <input type="hidden" name="name" value={item.name} />
+            <input type="hidden" name="workflow_name" value={item.workflow_name} />
+            <Button type="submit" variant="destructive" disabled={pending}>
+              {pending ? <Spinner /> : <Trash2 />}
+              Delete
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

@@ -14,6 +14,7 @@ const deleteOpencodeSessionFormSchema = z.object({
 // deleteAgentSessionAction deletes one OpenCode session for a single agent.
 export async function deleteAgentSessionAction(
   agentName: string,
+  workspaceId: string,
   _: DeleteSessionFormState,
   formData: FormData
 ): Promise<DeleteSessionFormState> {
@@ -29,7 +30,7 @@ export async function deleteAgentSessionAction(
   }
 
   try {
-    const client = await createAgentOpencodeClient(agentName)
+    const client = await createAgentOpencodeClient(agentName, { workspaceId })
     const result = await client.session.delete({
       path: { id: parsed.data.sessionID },
     })

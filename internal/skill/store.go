@@ -72,6 +72,7 @@ type Manifest struct {
 
 // ManifestSkill describes one immutable skill version in a pod bootstrap manifest.
 type ManifestSkill struct {
+	Namespace   string `json:"namespace,omitempty"`
 	Name        string `json:"name"`
 	Version     int64  `json:"version"`
 	StoragePath string `json:"storagePath"`
@@ -92,8 +93,9 @@ type Summary struct {
 
 // VersionSelection identifies one immutable skill version for export.
 type VersionSelection struct {
-	Name    string
-	Version int64
+	Namespace string
+	Name      string
+	Version   int64
 }
 
 // ConfigFromDir reads a mounted Kubernetes Secret directory into Config.
@@ -177,13 +179,17 @@ func New(ctx context.Context, c Config) (*Client, error) {
 	}
 	return &Client{
 		bucket: c.Bucket,
-		s3: s3.NewFromConfig(cfg, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(c.Endpoint)
-			o.UsePathStyle = true
-		}),
+		s3: s3.NewFromConfig(
+			cfg,
+			func(o *s3.Options) {
+				o.BaseEndpoint = aws.String(c.Endpoint)
+				o.UsePathStyle = true
+			},
+		),
 	}, nil
 }
 
+// The namespace is a typed stable-ID scope, so names and slugs never enter S3 keys.
 func immutableSkillPrefix(namespace, name string) string {
 	return namespace + "/" + immutableDir + "/" + name + "/"
 }
@@ -225,9 +231,12 @@ func (c *Client) DeleteVersion(ctx context.Context, namespace, name string, vers
 func (c *Client) Versions(ctx context.Context, namespace, name string) ([]int64, error) {
 	prefix := immutableSkillPrefix(namespace, name)
 	versions := []int64{}
-	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
-		Bucket: aws.String(c.bucket), Delimiter: aws.String("/"), Prefix: aws.String(prefix),
-	})
+	paginator := s3.NewListObjectsV2Paginator(
+		c.s3,
+		&s3.ListObjectsV2Input{
+			Bucket: aws.String(c.bucket), Delimiter: aws.String("/"), Prefix: aws.String(prefix),
+		},
+	)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -257,9 +266,12 @@ func (c *Client) Versions(ctx context.Context, namespace, name string) ([]int64,
 func (c *Client) VersionSummary(ctx context.Context, namespace, name string, version int64) (Summary, error) {
 	prefix := immutableVersionPrefix(namespace, name, version)
 	var summary Summary
-	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
-		Bucket: aws.String(c.bucket), Prefix: aws.String(prefix),
-	})
+	paginator := s3.NewListObjectsV2Paginator(
+		c.s3,
+		&s3.ListObjectsV2Input{
+			Bucket: aws.String(c.bucket), Prefix: aws.String(prefix),
+		},
+	)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -286,18 +298,21 @@ func (c *Client) VersionSummary(ctx context.Context, namespace, name string, ver
 // UploadVersion conditionally creates one complete immutable skill version.
 func (c *Client) UploadVersion(ctx context.Context, namespace string, tree Tree, version int64) error {
 	files := slices.Clone(tree.Files)
-	slices.SortFunc(files, func(a, b File) int {
-		if a.Path == b.Path {
-			return 0
-		}
-		if a.Path == skillFileName {
-			return -1
-		}
-		if b.Path == skillFileName {
-			return 1
-		}
-		return strings.Compare(a.Path, b.Path)
-	})
+	slices.SortFunc(
+		files,
+		func(a, b File) int {
+			if a.Path == b.Path {
+				return 0
+			}
+			if a.Path == skillFileName {
+				return -1
+			}
+			if b.Path == skillFileName {
+				return 1
+			}
+			return strings.Compare(a.Path, b.Path)
+		},
+	)
 	prefix := immutableVersionPrefix(namespace, tree.Name, version)
 	uploaded := make([]s3types.ObjectIdentifier, 0, len(files))
 	for _, file := range files {
@@ -328,17 +343,27 @@ func (c *Client) UploadVersion(ctx context.Context, namespace string, tree Tree,
 }
 
 // WriteVersionsZIP streams immutable skill versions into a portable ZIP.
-func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, namespace string, selections []VersionSelection) error {
+func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, selections []VersionSelection) error {
 	selections = slices.Clone(selections)
-	slices.SortFunc(selections, func(a, b VersionSelection) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		selections,
+		func(a, b VersionSelection) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	zw := zip.NewWriter(w)
 	for _, selection := range selections {
-		prefix := immutableVersionPrefix(namespace, selection.Name, selection.Version)
-		paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
-			Bucket: aws.String(c.bucket), Prefix: aws.String(prefix),
-		})
+		prefix := immutableVersionPrefix(
+			selection.Namespace,
+			selection.Name,
+			selection.Version,
+		)
+		paginator := s3.NewListObjectsV2Paginator(
+			c.s3,
+			&s3.ListObjectsV2Input{
+				Bucket: aws.String(c.bucket), Prefix: aws.String(prefix),
+			},
+		)
 		for paginator.HasMorePages() {
 			page, err := paginator.NextPage(ctx)
 			if err != nil {
@@ -352,9 +377,12 @@ func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, namespace st
 				if !ok || !fs.ValidPath(rel) {
 					return errors.Join(errors.New("immutable skill object key is unsafe"), zw.Close())
 				}
-				object, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
-					Bucket: aws.String(c.bucket), Key: item.Key,
-				})
+				object, err := c.s3.GetObject(
+					ctx,
+					&s3.GetObjectInput{
+						Bucket: aws.String(c.bucket), Key: item.Key,
+					},
+				)
 				if err != nil {
 					return errors.Join(fmt.Errorf("get immutable skill export object: %w", err), zw.Close())
 				}
@@ -381,10 +409,13 @@ func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, namespace st
 
 func (c *Client) deletePrefix(ctx context.Context, bucket, prefix string) error {
 	var keys []s3types.ObjectIdentifier
-	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
-		Bucket: aws.String(bucket),
-		Prefix: aws.String(prefix),
-	})
+	paginator := s3.NewListObjectsV2Paginator(
+		c.s3,
+		&s3.ListObjectsV2Input{
+			Bucket: aws.String(bucket),
+			Prefix: aws.String(prefix),
+		},
+	)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -424,9 +455,12 @@ func (c *Client) DownloadManifest(ctx context.Context, manifestPath, targetDir s
 	if manifest.Namespace == "" || len(manifest.Namespace) > 63 || !namespaceNameRE.MatchString(manifest.Namespace) {
 		return errors.New("immutable skill manifest namespace is invalid")
 	}
-	slices.SortFunc(manifest.Skills, func(a, b ManifestSkill) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		manifest.Skills,
+		func(a, b ManifestSkill) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 
 	targetDir, err = filepath.Abs(targetDir)
 	if err != nil {
@@ -454,15 +488,23 @@ func (c *Client) DownloadManifest(ctx context.Context, manifestPath, targetDir s
 		if item.Version < 1 {
 			return errors.New("immutable skill version is invalid")
 		}
-		if item.StoragePath != (Config{Bucket: c.bucket}).StoragePath(
-			manifest.Namespace,
+		namespace := item.Namespace
+		if namespace == "" {
+			namespace = manifest.Namespace
+		}
+		if len(namespace) > 63 || !namespaceNameRE.MatchString(namespace) {
+			return errors.New("immutable skill namespace is invalid")
+		}
+		storagePath := (Config{Bucket: c.bucket}).StoragePath(
+			namespace,
 			item.Name,
 			item.Version,
-		) {
+		)
+		if item.StoragePath != storagePath {
 			return errors.New("immutable skill storage path does not match its identity")
 		}
 		dst := filepath.Join(staging, item.Name)
-		prefix := immutableVersionPrefix(manifest.Namespace, item.Name, item.Version)
+		prefix := immutableVersionPrefix(namespace, item.Name, item.Version)
 		if err := c.downloadSkill(ctx, prefix, dst); err != nil {
 			return fmt.Errorf("download immutable skill %q: %w", item.Name, err)
 		}
@@ -487,10 +529,13 @@ func (c *Client) downloadSkill(ctx context.Context, prefix, targetDir string) er
 	var fileCount int
 	var totalBytes int64
 	var hasSkillFile bool
-	paginator := s3.NewListObjectsV2Paginator(c.s3, &s3.ListObjectsV2Input{
-		Bucket: aws.String(c.bucket),
-		Prefix: aws.String(prefix),
-	})
+	paginator := s3.NewListObjectsV2Paginator(
+		c.s3,
+		&s3.ListObjectsV2Input{
+			Bucket: aws.String(c.bucket),
+			Prefix: aws.String(prefix),
+		},
+	)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -548,13 +593,16 @@ func readSecretFile(dir, name string) (string, error) {
 }
 
 func (c *Client) deleteKeys(ctx context.Context, bucket string, keys []s3types.ObjectIdentifier) error {
-	result, err := c.s3.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: aws.String(bucket),
-		Delete: &s3types.Delete{
-			Objects: keys,
-			Quiet:   aws.Bool(true),
+	result, err := c.s3.DeleteObjects(
+		ctx,
+		&s3.DeleteObjectsInput{
+			Bucket: aws.String(bucket),
+			Delete: &s3types.Delete{
+				Objects: keys,
+				Quiet:   aws.Bool(true),
+			},
 		},
-	})
+	)
 	if err != nil {
 		return fmt.Errorf("delete s3 objects: %w", err)
 	}
@@ -568,10 +616,13 @@ func (c *Client) downloadObject(ctx context.Context, root *os.Root, key, rel str
 	if err := root.MkdirAll(path.Dir(rel), 0o755); err != nil {
 		return 0, fmt.Errorf("create immutable skill directory: %w", err)
 	}
-	object, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(c.bucket),
-		Key:    aws.String(key),
-	})
+	object, err := c.s3.GetObject(
+		ctx,
+		&s3.GetObjectInput{
+			Bucket: aws.String(c.bucket),
+			Key:    aws.String(key),
+		},
+	)
 	if err != nil {
 		return 0, fmt.Errorf("get s3 object: %w", err)
 	}

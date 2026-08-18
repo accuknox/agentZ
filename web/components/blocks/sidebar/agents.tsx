@@ -4,6 +4,8 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { motion } from "motion/react"
+import { nanoid } from "nanoid"
+import { toast } from "sonner"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -44,6 +46,7 @@ import type {
   DeleteSessionFormState,
   ListAgentActionResponse,
   ListSandboxActionResponse,
+  WorkspacePath,
 } from "@/data/types"
 import { usePathname } from "next/navigation"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -80,21 +83,26 @@ function sortSessions(sessions: readonly AgentSessionListItem[]): AgentSessionLi
 
 export function NavAgents({
   agents,
-  immutableSkills,
-  sandboxes,
+  create,
+  workspaceId,
+  workspacePath,
 }: {
   agents: ListAgentActionResponse
-  immutableSkills: Skill[]
-  sandboxes: ListSandboxActionResponse
+  create?: {
+    immutableSkills: Skill[]
+    sandboxes: ListSandboxActionResponse
+  }
+  workspaceId: string
+  workspacePath: WorkspacePath
 }) {
   const initialAgents = agents.agents ?? []
   const path = usePathname()
-  const currentAgentName = agentNameFromPath(path)
+  const currentAgentName = agentNameFromPath(path, workspacePath)
   const [manualOpenAgentName, setManualOpenAgentName] = useState<string | null>(null)
   const openAgentName = currentAgentName ?? manualOpenAgentName
 
   const query = useQuery({
-    ...watchAgentsQueryOptions(initialAgents),
+    ...watchAgentsQueryOptions(workspaceId, initialAgents),
     enabled: agents.agents !== undefined,
   })
 
@@ -110,15 +118,22 @@ export function NavAgents({
   }
 
   if (queryAgents.length === 0) {
+    if (!create) return null
+
     return (
       <SidebarMenu>
         <SidebarMenuItem>
           <AgentDialog
+            actionScope={{ workspaceId, workspacePath }}
             mode="create"
-            immutableSkills={immutableSkills}
-            sandboxes={sandboxes.error ? [] : sandboxes.sandboxes}
-            initialHasNextSandboxPage={sandboxes.error ? false : sandboxes.hasNextPage}
-            initialNextSandboxPageToken={sandboxes.error ? "" : sandboxes.nextPageToken}
+            immutableSkills={create.immutableSkills}
+            sandboxes={create.sandboxes.error ? [] : create.sandboxes.sandboxes}
+            initialHasNextSandboxPage={
+              create.sandboxes.error ? false : create.sandboxes.hasNextPage
+            }
+            initialNextSandboxPageToken={
+              create.sandboxes.error ? "" : create.sandboxes.nextPageToken
+            }
             trigger={
               <SidebarMenuButton
                 tooltip="Create"
@@ -143,6 +158,8 @@ export function NavAgents({
           isOpen={openAgentName === agent.name}
           path={path}
           setOpenAgentName={setManualOpenAgentName}
+          workspaceId={workspaceId}
+          workspacePath={workspacePath}
         />
       ))}
     </>
@@ -154,13 +171,17 @@ function AgentSessionsItem({
   isOpen,
   path,
   setOpenAgentName,
+  workspaceId,
+  workspacePath,
 }: {
   agent: Agent
   isOpen: boolean
   path: string
   setOpenAgentName: React.Dispatch<React.SetStateAction<string | null>>
+  workspaceId: string
+  workspacePath: string
 }) {
-  const query = useQuery(agentSessionsQueryOptions(agent.name, isOpen))
+  const query = useQuery(agentSessionsQueryOptions(agent.name, workspaceId, isOpen))
   const sessions = useMemo(() => {
     return query.data?.sessions ?? []
   }, [query.data?.sessions])
@@ -169,7 +190,8 @@ function AgentSessionsItem({
     return sessions.filter((session) => !session.parentID)
   }, [sessions])
   const router = useRouter()
-  const newSessionPath = `/agents/${agent.name}/session/new` as Route
+  const newSessionPath =
+    `${workspacePath}/agents/${encodeURIComponent(agent.name)}/sessions/new` as Route
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setOpenAgentName(open ? agent.name : null)
@@ -180,14 +202,24 @@ function AgentSessionsItem({
   useEffect(() => {
     if (!isOpen) return
 
-    const sessionID = sessionIDFromPath(path, agent.name)
+    const sessionID = sessionIDFromPath(path, workspacePath, agent.name)
     if (!sessionID) return
     if (query.isPending) return
     if (query.isError) return
     if (sessions.some((session) => session.id === sessionID)) return
 
-    void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
-  }, [agent.name, isOpen, newSessionPath, path, query.isError, query.isPending, router, sessions])
+    void router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
+  }, [
+    agent.name,
+    isOpen,
+    newSessionPath,
+    path,
+    query.isError,
+    query.isPending,
+    router,
+    sessions,
+    workspacePath,
+  ])
 
   return (
     <SidebarMenu>
@@ -210,7 +242,7 @@ function AgentSessionsItem({
               href={newSessionPath}
               onClick={(event) => {
                 event.preventDefault()
-                void router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
+                void router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
               }}
               prefetch={false}
             >
@@ -245,6 +277,8 @@ function AgentSessionsItem({
                   path={path}
                   session={session}
                   status={statuses[session.id]}
+                  workspaceId={workspaceId}
+                  workspacePath={workspacePath}
                 />
               ))}
             </SidebarMenuSub>
@@ -260,6 +294,8 @@ function AnimatedSessionItem(props: {
   path: string
   session: AgentSessionListItem
   status?: SessionStatus
+  workspaceId: string
+  workspacePath: string
 }) {
   return (
     <MotionSidebarMenuSubItem
@@ -279,40 +315,57 @@ function SessionItem({
   path,
   session,
   status,
+  workspaceId,
+  workspacePath,
 }: {
   agentName: string
   path: string
   session: AgentSessionListItem
   status?: SessionStatus
+  workspaceId: string
+  workspacePath: string
 }) {
-  const href = `/agents/${agentName}/${session.id}` as Route
+  const href =
+    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(session.id)}` as Route
   const [open, setOpen] = useState(false)
   const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
-    deleteAgentSessionAction.bind(null, agentName),
+    deleteAgentSessionAction.bind(null, agentName, workspaceId),
     { success: false }
   )
   const [isTransitionPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
   const router = useRouter()
-  const newSessionPath = `/agents/${agentName}/session/new` as Route
+  const newSessionPath =
+    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/new` as Route
   const isBusy = isPending || isTransitionPending
 
   useEffect(() => {
     if (isPending || !pendingState.success) return
 
+    toast.success("Chat session deleted")
     startTransition(() => {
       setOpen(false)
 
       void queryClient.invalidateQueries({
-        queryKey: agentSessionsQueryOptions(agentName, true).queryKey,
+        queryKey: agentSessionsQueryOptions(agentName, workspaceId, true).queryKey,
       })
 
       if (path !== href) return
 
-      router.push(`${newSessionPath}?draft=${crypto.randomUUID()}` as Route)
+      router.push(`${newSessionPath}?draft=${nanoid()}` as Route)
       router.refresh()
     })
-  }, [agentName, href, isPending, newSessionPath, path, pendingState.success, queryClient, router])
+  }, [
+    agentName,
+    href,
+    isPending,
+    newSessionPath,
+    path,
+    pendingState.success,
+    queryClient,
+    router,
+    workspaceId,
+  ])
 
   return (
     <>
@@ -375,107 +428,109 @@ function SessionItem({
   )
 }
 
-function agentSessionsQueryOptions(agentName: string, enabled: boolean) {
+function agentSessionsQueryOptions(agentName: string, workspaceId: string, enabled: boolean) {
   return queryOptions({
     enabled,
-    queryFn: streamedQuery<AgentSessionsStreamChunk, AgentSessionsState, ["agentSessions", string]>(
-      {
-        initialValue: { sessions: [], statuses: {} },
-        reducer: (state, chunk) => {
-          if (chunk.type === "snapshot") {
-            return chunk.state
-          }
+    queryFn: streamedQuery<
+      AgentSessionsStreamChunk,
+      AgentSessionsState,
+      ["agentSessions", string, string]
+    >({
+      initialValue: { sessions: [], statuses: {} },
+      reducer: (state, chunk) => {
+        if (chunk.type === "snapshot") {
+          return chunk.state
+        }
 
-          switch (chunk.event.type) {
-            case "session.created":
-            case "session.updated":
-            case "session.deleted": {
-              const sessions = new Map(state.sessions.map((session) => [session.id, session]))
-              const statuses = { ...state.statuses }
-              const session = {
-                id: chunk.event.properties.info.id,
-                parentID: chunk.event.properties.info.parentID,
-                title: chunk.event.properties.info.title,
-                updatedAt: chunk.event.properties.info.time.updated,
-              } satisfies AgentSessionListItem
+        switch (chunk.event.type) {
+          case "session.created":
+          case "session.updated":
+          case "session.deleted": {
+            const sessions = new Map(state.sessions.map((session) => [session.id, session]))
+            const statuses = { ...state.statuses }
+            const session = {
+              id: chunk.event.properties.info.id,
+              parentID: chunk.event.properties.info.parentID,
+              title: chunk.event.properties.info.title,
+              updatedAt: chunk.event.properties.info.time.updated,
+            } satisfies AgentSessionListItem
 
-              if (chunk.event.type === "session.deleted") {
-                sessions.delete(session.id)
-                delete statuses[session.id]
-              } else {
-                sessions.set(session.id, session)
-              }
-
-              return {
-                sessions: sortSessions(Array.from(sessions.values())),
-                statuses,
-              }
+            if (chunk.event.type === "session.deleted") {
+              sessions.delete(session.id)
+              delete statuses[session.id]
+            } else {
+              sessions.set(session.id, session)
             }
-            case "session.status":
-              return {
-                sessions: state.sessions,
-                statuses: {
-                  ...state.statuses,
-                  [chunk.event.properties.sessionID]: chunk.event.properties.status,
-                },
-              }
-            case "session.idle":
-              return {
-                sessions: state.sessions,
-                statuses: {
-                  ...state.statuses,
-                  [chunk.event.properties.sessionID]: { type: "idle" },
-                },
-              }
-            default:
-              return state
-          }
-        },
-        streamFn: async function* ({ signal }) {
-          const client = await createAgentOpencodeClient(agentName)
-          const [listResult, statusResult] = await Promise.all([
-            client.session.list(),
-            client.session.status(),
-          ])
-          if (!listResult.data || !statusResult.data) {
-            throw new Error("Failed to load sessions")
-          }
 
-          const sessions = sortSessions(
-            listResult.data.map((session: OpencodeSession) => ({
-              id: session.id,
-              parentID: session.parentID,
-              title: session.title,
-              updatedAt: session.time.updated,
-            }))
-          )
-          const visibleSessionIDs = new Set(sessions.map((session) => session.id))
+            return {
+              sessions: sortSessions(Array.from(sessions.values())),
+              statuses,
+            }
+          }
+          case "session.status":
+            return {
+              sessions: state.sessions,
+              statuses: {
+                ...state.statuses,
+                [chunk.event.properties.sessionID]: chunk.event.properties.status,
+              },
+            }
+          case "session.idle":
+            return {
+              sessions: state.sessions,
+              statuses: {
+                ...state.statuses,
+                [chunk.event.properties.sessionID]: { type: "idle" },
+              },
+            }
+          default:
+            return state
+        }
+      },
+      streamFn: async function* ({ signal }) {
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
+        const [listResult, statusResult] = await Promise.all([
+          client.session.list(),
+          client.session.status(),
+        ])
+        if (!listResult.data || !statusResult.data) {
+          throw new Error("Failed to load sessions")
+        }
 
+        const sessions = sortSessions(
+          listResult.data.map((session: OpencodeSession) => ({
+            id: session.id,
+            parentID: session.parentID,
+            title: session.title,
+            updatedAt: session.time.updated,
+          }))
+        )
+        const visibleSessionIDs = new Set(sessions.map((session) => session.id))
+
+        yield {
+          type: "snapshot",
+          state: {
+            sessions,
+            statuses: Object.fromEntries(
+              Object.entries(statusResult.data).filter(([sessionID]) => {
+                return visibleSessionIDs.has(sessionID)
+              })
+            ),
+          },
+        }
+
+        const subscription = await client.event.subscribe(undefined, { signal })
+
+        for await (const event of subscription.stream) {
           yield {
-            type: "snapshot",
-            state: {
-              sessions,
-              statuses: Object.fromEntries(
-                Object.entries(statusResult.data).filter(([sessionID]) => {
-                  return visibleSessionIDs.has(sessionID)
-                })
-              ),
-            },
+            type: "event",
+            event,
           }
-
-          const subscription = await client.event.subscribe(undefined, { signal })
-
-          for await (const event of subscription.stream) {
-            yield {
-              type: "event",
-              event,
-            }
-          }
-        },
-        refetchMode: "reset",
-      }
-    ),
-    queryKey: ["agentSessions", agentName],
+        }
+      },
+      refetchMode: "reset",
+    }),
+    queryKey: ["agentSessions", workspaceId, agentName],
     refetchOnMount: "always",
     refetchOnReconnect: "always",
     retry: true,
@@ -510,24 +565,22 @@ function SidebarSessionSpinner() {
   )
 }
 
-function agentNameFromPath(path: string) {
-  const match = path.match(/^\/agents\/([^/]+)(?:\/.*)?$/)
-  if (!match) return null
-
-  const [, encodedAgentName] = match
+function agentNameFromPath(path: string, workspacePath: string) {
+  const prefix = `${workspacePath}/agents/`
+  if (!path.startsWith(prefix)) return null
+  const [encodedAgentName] = path.slice(prefix.length).split("/")
   if (!encodedAgentName) return null
 
   return decodeURIComponent(encodedAgentName)
 }
 
-function sessionIDFromPath(path: string, agentName: string) {
-  const match = path.match(/^\/agents\/([^/]+)\/([^/]+)$/)
-  if (!match) return
-
-  const [, encodedAgentName, encodedSessionID] = match
+function sessionIDFromPath(path: string, workspacePath: string, agentName: string) {
+  const prefix = `${workspacePath}/agents/`
+  if (!path.startsWith(prefix)) return
+  const [encodedAgentName, sessions, encodedSessionID] = path.slice(prefix.length).split("/")
   if (!encodedAgentName || !encodedSessionID) return
   if (decodeURIComponent(encodedAgentName) !== agentName) return
-  if (encodedSessionID === "session") return
+  if (sessions !== "sessions" || encodedSessionID === "new") return
 
   return decodeURIComponent(encodedSessionID)
 }

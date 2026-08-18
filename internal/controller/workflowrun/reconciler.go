@@ -211,18 +211,21 @@ func (r *Reconciler) pruneOrphanRuns(ctx context.Context, run *agentzv1alpha1.Wo
 }
 
 func (r *Reconciler) addFinalizer(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.WorkflowRun{}
-		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
-		if err != nil {
-			return err
-		}
-		if ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
-			return nil
-		}
-		ctrlutil.AddFinalizer(current, workflowRunFinalizer)
-		return r.Update(ctx, current)
-	})
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.WorkflowRun{}
+			err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
+			if err != nil {
+				return err
+			}
+			if ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+				return nil
+			}
+			ctrlutil.AddFinalizer(current, workflowRunFinalizer)
+			return r.Update(ctx, current)
+		},
+	)
 }
 
 func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
@@ -251,25 +254,28 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 		}
 	}
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.WorkflowRun{}
-		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.WorkflowRun{}
+			err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			if !ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+				return nil
+			}
+			ctrlutil.RemoveFinalizer(current, workflowRunFinalizer)
+			err = r.Update(ctx, current)
+			if apierrors.IsNotFound(err) || errors.Is(err, context.Canceled) {
 				return nil
 			}
 			return err
-		}
-		if !ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
-			return nil
-		}
-		ctrlutil.RemoveFinalizer(current, workflowRunFinalizer)
-		err = r.Update(ctx, current)
-		if apierrors.IsNotFound(err) || errors.Is(err, context.Canceled) {
-			return nil
-		}
-		return err
-	})
+		},
+	)
 }
 
 func (r *Reconciler) reconcilePending(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (ctrl.Result, error) {
@@ -314,17 +320,21 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.W
 	}
 
 	now := metav1.Now()
-	err = r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
-		status.Phase = agentzv1alpha1.WorkflowRunPhaseUnacked
-		status.Message = message
-		r.setTerminalStatus(
-			status,
-			run.Generation,
-			agentzv1alpha1.WorkflowRunReasonUnacked,
-			message,
-			&now,
-		)
-	})
+	err = r.patchStatus(
+		ctx,
+		run,
+		func(status *agentzv1alpha1.WorkflowRunStatus) {
+			status.Phase = agentzv1alpha1.WorkflowRunPhaseUnacked
+			status.Message = message
+			r.setTerminalStatus(
+				status,
+				run.Generation,
+				agentzv1alpha1.WorkflowRunReasonUnacked,
+				message,
+				&now,
+			)
+		},
+	)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -380,11 +390,14 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 			if !tool.RequireConsent {
 				continue
 			}
-			permission = append(permission, gatewayapi.OpencodePermissionRule{
-				Action:     gatewayapi.Allow,
-				Permission: ref.Name + "_" + tool.Name,
-				Pattern:    "*",
-			})
+			permission = append(
+				permission,
+				gatewayapi.OpencodePermissionRule{
+					Action:     gatewayapi.Allow,
+					Permission: ref.Name + "_" + tool.Name,
+					Pattern:    "*",
+				},
+			)
 		}
 	}
 
@@ -429,19 +442,23 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	}
 
 	now := metav1.Now()
-	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
-		status.Phase = agentzv1alpha1.WorkflowRunPhaseRunning
-		status.ObservedGeneration = run.Generation
-		status.SessionID = sessionID
-		status.StartedAt = &now
-		status.Message = ""
-		r.setActiveConditions(
-			status,
-			run.Generation,
-			agentzv1alpha1.WorkflowRunReasonSessionRunning,
-			"workflow run is executing",
-		)
-	})
+	return r.patchStatus(
+		ctx,
+		run,
+		func(status *agentzv1alpha1.WorkflowRunStatus) {
+			status.Phase = agentzv1alpha1.WorkflowRunPhaseRunning
+			status.ObservedGeneration = run.Generation
+			status.SessionID = sessionID
+			status.StartedAt = &now
+			status.Message = ""
+			r.setActiveConditions(
+				status,
+				run.Generation,
+				agentzv1alpha1.WorkflowRunReasonSessionRunning,
+				"workflow run is executing",
+			)
+		},
+	)
 }
 
 func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
@@ -476,24 +493,31 @@ func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRu
 	}
 
 	now := metav1.Now()
-	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
-		status.Phase = agentzv1alpha1.WorkflowRunPhaseFailed
-		status.Message = message
-		r.setTerminalStatus(status, run.Generation, reason, message, &now)
-	})
+	return r.patchStatus(
+		ctx,
+		run,
+		func(status *agentzv1alpha1.WorkflowRunStatus) {
+			status.Phase = agentzv1alpha1.WorkflowRunPhaseFailed
+			status.Message = message
+			r.setTerminalStatus(status, run.Generation, reason, message, &now)
+		},
+	)
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, run *agentzv1alpha1.WorkflowRun, mutate func(*agentzv1alpha1.WorkflowRunStatus)) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &agentzv1alpha1.WorkflowRun{}
-		err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
-		if err != nil {
-			return err
-		}
-		patch := client.MergeFrom(current.DeepCopy())
-		mutate(&current.Status)
-		return r.Status().Patch(ctx, current, patch)
-	})
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			current := &agentzv1alpha1.WorkflowRun{}
+			err := r.Get(ctx, client.ObjectKeyFromObject(run), current)
+			if err != nil {
+				return err
+			}
+			patch := client.MergeFrom(current.DeepCopy())
+			mutate(&current.Status)
+			return r.Status().Patch(ctx, current, patch)
+		},
+	)
 }
 
 func timedOut(run *agentzv1alpha1.WorkflowRun) bool {
@@ -529,10 +553,14 @@ func (r *Reconciler) syncTerminalStatus(ctx context.Context, run *agentzv1alpha1
 		completedAt = &now
 	}
 
-	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
-		status.Message = message
-		r.setTerminalStatus(status, run.Generation, reason, message, completedAt)
-	})
+	return r.patchStatus(
+		ctx,
+		run,
+		func(status *agentzv1alpha1.WorkflowRunStatus) {
+			status.Message = message
+			r.setTerminalStatus(status, run.Generation, reason, message, completedAt)
+		},
+	)
 }
 
 func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
@@ -555,30 +583,37 @@ func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.Workfl
 
 	nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(resp.JSON200.Nodes))
 	for _, node := range resp.JSON200.Nodes {
-		nodes = append(nodes, agentzv1alpha1.WorkflowRunNodeStatus{
-			Name:  node.Name,
-			Phase: agentzv1alpha1.WorkflowRunNodePhaseDisabled,
-		})
+		nodes = append(
+			nodes,
+			agentzv1alpha1.WorkflowRunNodeStatus{
+				Name:  node.Name,
+				Phase: agentzv1alpha1.WorkflowRunNodePhaseDisabled,
+			},
+		)
 	}
 
-	return r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
-		status.Phase = agentzv1alpha1.WorkflowRunPhasePending
-		status.ObservedGeneration = run.Generation
-		status.Nodes = nodes
-		r.setActiveConditions(
-			status,
-			run.Generation,
-			agentzv1alpha1.WorkflowRunReasonPending,
-			"workflow run is pending",
-		)
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.WorkflowRunConditionProgressing,
-			Status:             metav1.ConditionTrue,
-			Reason:             agentzv1alpha1.WorkflowRunReasonPending,
-			Message:            "workflow run is waiting to start",
-			ObservedGeneration: run.Generation,
-		})
-	})
+	return r.patchStatus(
+		ctx,
+		run,
+		func(status *agentzv1alpha1.WorkflowRunStatus) {
+			status.Phase = agentzv1alpha1.WorkflowRunPhasePending
+			status.ObservedGeneration = run.Generation
+			status.Nodes = nodes
+			r.setActiveConditions(
+				status,
+				run.Generation,
+				agentzv1alpha1.WorkflowRunReasonPending,
+				"workflow run is pending",
+			)
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.WorkflowRunConditionProgressing,
+				Status:             metav1.ConditionTrue,
+				Reason:             agentzv1alpha1.WorkflowRunReasonPending,
+				Message:            "workflow run is waiting to start",
+				ObservedGeneration: run.Generation,
+			})
+		},
+	)
 }
 
 func (r *Reconciler) setActiveConditions(status *agentzv1alpha1.WorkflowRunStatus, generation int64, reason string, message string) {
@@ -633,12 +668,15 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) ([]byte, error) {
 	}
 
 	var prompt bytes.Buffer
-	err := promptTemplate.Execute(&prompt, promptTemplateData{
-		AgentName:    run.Spec.AgentName,
-		WorkflowName: run.Spec.WorkflowName,
-		RunName:      run.Name,
-		InputsJSON:   inputs,
-	})
+	err := promptTemplate.Execute(
+		&prompt,
+		promptTemplateData{
+			AgentName:    run.Spec.AgentName,
+			WorkflowName: run.Spec.WorkflowName,
+			RunName:      run.Name,
+			InputsJSON:   inputs,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("render session prompt: %w", err)
 	}

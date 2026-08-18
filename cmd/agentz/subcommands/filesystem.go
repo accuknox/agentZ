@@ -53,9 +53,12 @@ var filesystemServeCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return filesystem.Serve(ctx, filesystem.Config{
-			Addr: c.String("addr"),
-			Root: c.String("root"),
-		})
+		return filesystem.Serve(
+			ctx,
+			filesystem.Config{
+				Addr: c.String("addr"),
+				Root: c.String("root"),
+			},
+		)
 	},
 }

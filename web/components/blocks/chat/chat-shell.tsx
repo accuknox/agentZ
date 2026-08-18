@@ -9,6 +9,8 @@ type ChatShellProps = {
   firstName?: string
   greetingIndex?: number
   sessionId?: string
+  workspaceId: string
+  workspacePath: string
 }
 
 const Chat = dynamic(() => import("@/components/blocks/chat/chat"), {
@@ -25,6 +27,8 @@ export function ChatShell({
   firstName,
   greetingIndex,
   sessionId,
+  workspaceId,
+  workspacePath,
 }: ChatShellProps): React.JSX.Element {
   const [previewerOpen, setPreviewerOpen] = useState(false)
   // Soft navigations preserve client trees in this app, so the chat subtree
@@ -41,12 +45,15 @@ export function ChatShell({
           greetingIndex={greetingIndex}
           promptMobile={previewerOpen}
           sessionId={sessionId}
+          workspaceId={workspaceId}
+          workspacePath={workspacePath}
         />
       </div>
       <FilesWorkspace
         agentName={agentName}
         onPreviewerOpenChange={setPreviewerOpen}
         sessionId={sessionId}
+        workspaceId={workspaceId}
       />
     </div>
   )

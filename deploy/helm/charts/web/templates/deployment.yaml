@@ -1,17 +1,37 @@
+{{- if .Values.enabled }}
 {{- if and (not .Values.env.githubClientID) (not .Values.env.googleClientID) (not .Values.env.enableEmailPasswordAuth) }}
 {{- fail "web requires at least one auth method (github, google, or email/password)" }}
 {{- end }}
-{{- if and .Values.env.githubClientID (not .Values.secrets.githubClientSecret) }}
+{{- if and (not .Values.secrets.existingSecret) .Values.env.githubClientID (not .Values.secrets.githubClientSecret) }}
 {{- fail "web.env.githubClientID requires web.secrets.githubClientSecret" }}
 {{- end }}
 {{- if and .Values.secrets.githubClientSecret (not .Values.env.githubClientID) }}
 {{- fail "web.secrets.githubClientSecret requires web.env.githubClientID" }}
 {{- end }}
-{{- if and .Values.env.googleClientID (not .Values.secrets.googleClientSecret) }}
+{{- if and (not .Values.secrets.existingSecret) .Values.env.googleClientID (not .Values.secrets.googleClientSecret) }}
 {{- fail "web.env.googleClientID requires web.secrets.googleClientSecret" }}
+{{- end }}
+{{- if and (not .Values.secrets.existingSecret) (lt (len .Values.secrets.betterAuthSecret) 32) }}
+{{- fail "web.secrets.betterAuthSecret must contain at least 32 characters" }}
+{{- end }}
+{{- if and (not .Values.secrets.existingSecret) (lt (len .Values.secrets.mcpOAuthCookieSecret) 32) }}
+{{- fail "web.secrets.mcpOAuthCookieSecret must contain at least 32 characters" }}
 {{- end }}
 {{- if and .Values.secrets.googleClientSecret (not .Values.env.googleClientID) }}
 {{- fail "web.secrets.googleClientSecret requires web.env.googleClientID" }}
+{{- end }}
+{{- if and (not .Values.secrets.existingSecret) (ne (empty .Values.secrets.organizationAssetsS3AccessKeyID) (empty .Values.secrets.organizationAssetsS3SecretAccessKey)) }}
+{{- fail "web Organisation asset access key ID and secret must be set together" }}
+{{- end }}
+{{- if and (not .Values.secrets.existingSecret) .Values.secrets.organizationAssetsS3SessionToken (not .Values.secrets.organizationAssetsS3AccessKeyID) }}
+{{- fail "web.secrets.organizationAssetsS3SessionToken requires static Organisation asset credentials" }}
+{{- end }}
+{{- $secretName := include "web.secretName" . }}
+{{- $umbrella := dig "agentz" "umbrella" false (.Values.global | default dict) }}
+{{- $internalGatewayBaseURL := .Values.env.internalGatewayBaseURL }}
+{{- if and $umbrella (not $internalGatewayBaseURL) }}
+{{- $gatewayName := printf "%s-gateway" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- $internalGatewayBaseURL = printf "http://%s.%s.svc.cluster.local:8090" $gatewayName .Release.Namespace }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -22,14 +42,25 @@ metadata:
     {{- include "web.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "web.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      {{- if not .Values.secrets.existingSecret }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- else }}
       {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}
       labels:
         {{- include "web.selectorLabels" . | nindent 8 }}
@@ -38,13 +69,25 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "web.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: web
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: PORT
@@ -52,14 +95,14 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "web.fullname" . }}
+                  name: {{ $secretName }}
                   key: DATABASE_URL
             - name: BETTER_AUTH_URL
               value: {{ required "web.env.betterAuthURL is required" .Values.env.betterAuthURL | quote }}
             - name: BETTER_AUTH_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "web.fullname" . }}
+                  name: {{ $secretName }}
                   key: BETTER_AUTH_SECRET
             - name: GATEWAY_BASE_URL
               value: {{ required "web.env.gatewayBaseURL is required" .Values.env.gatewayBaseURL | quote }}
@@ -68,13 +111,21 @@ spec:
             - name: MCP_OAUTH_COOKIE_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "web.fullname" . }}
+                  name: {{ $secretName }}
                   key: MCP_OAUTH_COOKIE_SECRET
             - name: ENABLE_EMAIL_PASSWORD_AUTH
               value: {{ .Values.env.enableEmailPasswordAuth | quote }}
-            {{- if .Values.env.internalGatewayBaseURL }}
+            - name: ORGANIZATION_ASSETS_S3_REGION
+              value: {{ required "web.env.organizationAssetsS3Region is required" .Values.env.organizationAssetsS3Region | quote }}
+            - name: ORGANIZATION_ASSETS_S3_BUCKET
+              value: {{ required "web.env.organizationAssetsS3Bucket is required" .Values.env.organizationAssetsS3Bucket | quote }}
+            - name: ORGANIZATION_ASSETS_PUBLIC_BASE_URL
+              value: {{ required "web.env.organizationAssetsPublicBaseURL is required" .Values.env.organizationAssetsPublicBaseURL | quote }}
+            - name: ORGANIZATION_ASSETS_S3_FORCE_PATH_STYLE
+              value: {{ .Values.env.organizationAssetsS3ForcePathStyle | quote }}
+            {{- if $internalGatewayBaseURL }}
             - name: INTERNAL_GATEWAY_BASE_URL
-              value: {{ .Values.env.internalGatewayBaseURL | quote }}
+              value: {{ $internalGatewayBaseURL | quote }}
             {{- end }}
             {{- if .Values.env.emailPasswordAuthAllowedUser }}
             - name: EMAIL_PASSWORD_AUTH_ALLOWED_USER
@@ -84,11 +135,11 @@ spec:
             - name: GITHUB_CLIENT_ID
               value: {{ .Values.env.githubClientID | quote }}
             {{- end }}
-            {{- if .Values.secrets.githubClientSecret }}
+            {{- if .Values.env.githubClientID }}
             - name: GITHUB_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "web.fullname" . }}
+                  name: {{ $secretName }}
                   key: GITHUB_CLIENT_SECRET
             {{- end }}
             {{- if .Values.env.githubAllowedUserID }}
@@ -107,17 +158,39 @@ spec:
             - name: GOOGLE_CLIENT_ID
               value: {{ .Values.env.googleClientID | quote }}
             {{- end }}
-            {{- if .Values.secrets.googleClientSecret }}
+            {{- if .Values.env.googleClientID }}
             - name: GOOGLE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "web.fullname" . }}
+                  name: {{ $secretName }}
                   key: GOOGLE_CLIENT_SECRET
             {{- end }}
             {{- if .Values.env.googleAllowedEmailDomains }}
             - name: GOOGLE_ALLOWED_EMAIL_DOMAINS
               value: {{ .Values.env.googleAllowedEmailDomains | quote }}
             {{- end }}
+            {{- if .Values.env.organizationAssetsS3Endpoint }}
+            - name: ORGANIZATION_ASSETS_S3_ENDPOINT
+              value: {{ .Values.env.organizationAssetsS3Endpoint | quote }}
+            {{- end }}
+            - name: ORGANIZATION_ASSETS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: ORGANIZATION_ASSETS_S3_ACCESS_KEY_ID
+                  optional: true
+            - name: ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY
+                  optional: true
+            - name: ORGANIZATION_ASSETS_S3_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: ORGANIZATION_ASSETS_S3_SESSION_TOKEN
+                  optional: true
             {{- if .Values.env.nixosSearchESURL }}
             - name: NIXOS_SEARCH_ES_URL
               value: {{ .Values.env.nixosSearchESURL | quote }}
@@ -134,17 +207,31 @@ spec:
             - name: NIXOS_SEARCH_ES_BRANCH
               value: {{ .Values.env.nixosSearchESBranch | quote }}
             {{- end }}
-            {{- if .Values.secrets.nixosSearchESPassword }}
             - name: NIXOS_SEARCH_ES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "web.fullname" . }}
+                  name: {{ $secretName }}
                   key: NIXOS_SEARCH_ES_PASSWORD
-            {{- end }}
+                  optional: true
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          startupProbe:
+            tcpSocket:
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
@@ -159,3 +246,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

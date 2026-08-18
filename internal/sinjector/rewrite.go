@@ -32,10 +32,16 @@ func replacePlaceholders(ctx context.Context, src string, res secretResolver, ta
 }
 
 func replacePath(ctx context.Context, path string, res secretResolver, target string) (string, bool) {
-	return replaceSecretRefs(ctx, path, res, target, placeholderOptions{
-		context: " in path",
-		path:    true,
-	})
+	return replaceSecretRefs(
+		ctx,
+		path,
+		res,
+		target,
+		placeholderOptions{
+			context: " in path",
+			path:    true,
+		},
+	)
 }
 
 func replaceSecretRefs(ctx context.Context, src string, res secretResolver, target string, opts placeholderOptions) (string, bool) {

@@ -13,8 +13,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
-import { getMcpConnection } from "@/lib/gateway/client"
-import type { McpConnectionAuthLocation } from "@/lib/gateway/client"
+import {
+  getMcpConnection,
+  type McpConnectionAuthLocation,
+  type ResourceScope,
+} from "@/lib/gateway/client"
 
 function locationLabel(location?: McpConnectionAuthLocation) {
   if (location?.header) {
@@ -44,19 +47,25 @@ export function McpViewSheet({
   name,
   open,
   onOpenChangeAction,
+  scope,
+  workspaceId,
 }: {
   name: string
   open: boolean
   onOpenChangeAction: (open: boolean) => void
+  scope: ResourceScope
+  workspaceId?: string
 }) {
   const query = useQuery(
     queryOptions({
       enabled: open,
-      queryKey: ["mcp-connection", name],
+      queryKey: ["mcp-connection", workspaceId, scope, name],
       queryFn: async () => {
         const result = await getMcpConnection({
           baseUrl: await getGatewayBaseURL(),
           path: { name },
+          query: { scope },
+          headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
         })
         if (result.error) {
           throw new Error(result.error.message)

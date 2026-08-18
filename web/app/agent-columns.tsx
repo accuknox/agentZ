@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { ArrowUpDown, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
@@ -22,8 +23,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { UserAvatar } from "@/components/ui/avatar"
+import { toast } from "sonner"
+import { TableRelativeTime } from "@/components/ui/table"
+import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
-import { formatTimestamp } from "@/lib/format"
 
 type DeleteAgentAction = (
   agentName: string,
@@ -36,9 +40,11 @@ export function createAgentColumns(
   immutableSkills: Skill[],
   sandboxes: Sandbox[],
   initialHasNextSandboxPage: boolean,
-  initialNextSandboxPageToken: string
+  initialNextSandboxPageToken: string,
+  actionScope: AgentActionScope,
+  showActions: boolean
 ): ColumnDef<Agent>[] {
-  return [
+  const columns: ColumnDef<Agent>[] = [
     {
       accessorKey: "name",
       header: ({ column }) => (
@@ -58,6 +64,16 @@ export function createAgentColumns(
       },
     },
     {
+      accessorKey: "created_by",
+      header: "Created",
+      cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+    },
+    {
+      accessorKey: "last_modified_by",
+      header: "Modified",
+      cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
+    },
+    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <Button
@@ -65,11 +81,11 @@ export function createAgentColumns(
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Created
+          Created at
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatTimestamp(row.getValue("created_at")),
+      cell: ({ row }) => <TableRelativeTime value={row.getValue("created_at")} />,
     },
     {
       id: "actions",
@@ -84,11 +100,14 @@ export function createAgentColumns(
             sandboxes={sandboxes}
             initialHasNextSandboxPage={initialHasNextSandboxPage}
             initialNextSandboxPageToken={initialNextSandboxPageToken}
+            actionScope={actionScope}
           />
         )
       },
     },
   ]
+  if (!showActions) columns.pop()
+  return columns
 }
 
 function AgentActions({
@@ -98,6 +117,7 @@ function AgentActions({
   sandboxes,
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
+  actionScope,
 }: {
   agent: Agent
   deleteAgentAction: DeleteAgentAction
@@ -105,6 +125,7 @@ function AgentActions({
   sandboxes: Sandbox[]
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
+  actionScope: AgentActionScope
 }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
@@ -119,39 +140,55 @@ function AgentActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setEditOpen(true)
-            }}
-          >
-            Edit
+          <DropdownMenuItem asChild>
+            <Link href={`${actionScope.workspacePath}/agents/${encodeURIComponent(agent.name)}`}>
+              <Settings />
+              Settings
+            </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
+          {agent.capabilities.modify ? (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setEditOpen(true)
+              }}
+            >
+              <Pencil />
+              Edit
+            </DropdownMenuItem>
+          ) : null}
+          {agent.capabilities.delete ? (
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+              <Trash2 />
+              Delete
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      <AgentDialog
-        mode="update"
-        agentName={agent.name}
-        initialSandboxName={agent.sandboxName}
-        initialMemoryEnabled={agent.memory.enabled}
-        initialSkills={agent.skills}
-        immutableSkills={immutableSkills}
-        sandboxes={sandboxes}
-        initialHasNextSandboxPage={initialHasNextSandboxPage}
-        initialNextSandboxPageToken={initialNextSandboxPageToken}
-        open={editOpen}
-        onOpenChangeAction={setEditOpen}
-      />
-      <DeleteAgentDialog
-        agent={agent}
-        deleteAgentAction={deleteAgentAction}
-        open={deleteOpen}
-        setOpen={setDeleteOpen}
-      />
+      {agent.capabilities.modify ? (
+        <AgentDialog
+          mode="update"
+          actionScope={actionScope}
+          agentName={agent.name}
+          initialSandboxName={agent.sandbox.name}
+          initialMemoryEnabled={agent.memory.enabled}
+          initialSkills={agent.skills.map((skill) => skill.name)}
+          immutableSkills={immutableSkills}
+          sandboxes={sandboxes}
+          initialHasNextSandboxPage={initialHasNextSandboxPage}
+          initialNextSandboxPageToken={initialNextSandboxPageToken}
+          open={editOpen}
+          onOpenChangeAction={setEditOpen}
+        />
+      ) : null}
+      {agent.capabilities.delete ? (
+        <DeleteAgentDialog
+          agent={agent}
+          deleteAgentAction={deleteAgentAction}
+          open={deleteOpen}
+          setOpen={setDeleteOpen}
+        />
+      ) : null}
     </div>
   )
 }
@@ -173,10 +210,11 @@ function DeleteAgentDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("Agent deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

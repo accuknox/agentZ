@@ -7,6 +7,8 @@ import type {
   WorkflowInputs,
 } from "@/lib/gateway/client"
 
+export type WorkspacePath = `/orgs/${string}/workspaces/${string}`
+
 export type ListAgentActionResponse<TAgent = Agent> =
   | {
       agents: TAgent[]
@@ -151,21 +153,21 @@ export type NetworkTelemetryRow = {
 
 export type ProcessTelemetryActionData = {
   rows: ProcessTelemetryRow[]
-  chart: TraceChartActionData
+  chart: EventsChartData
   nextPageToken: string
   hasNextPage: boolean
 }
 
 export type FileTelemetryActionData = {
   rows: FileTelemetryRow[]
-  chart: TraceChartActionData
+  chart: EventsChartData
   nextPageToken: string
   hasNextPage: boolean
 }
 
 export type NetworkTelemetryActionData = {
   rows: NetworkTelemetryRow[]
-  chart: TraceChartActionData
+  chart: EventsChartData
   nextPageToken: string
   hasNextPage: boolean
 }
@@ -182,17 +184,14 @@ export type NetworkTelemetryActionResponse =
   | { data: NetworkTelemetryActionData; error: undefined }
   | { data: undefined; error: Error }
 
-export type TraceChartPoint = {
+export type EventsChartPoint = {
   label: string
   count: number
-  startedAfter: string
-  startedBefore: string
 }
 
-export type TraceChartActionData = {
-  points: TraceChartPoint[]
+export type EventsChartData = {
+  points: EventsChartPoint[]
   total: number
-  granularity: string
 }
 
 export type ListTracesActionResponse =
@@ -205,9 +204,9 @@ export type ListTracesActionResponse =
       error: Error
     }
 
-export type TraceChartActionResponse =
+export type EventsChartActionResponse =
   | {
-      data: TraceChartActionData
+      data: EventsChartData
       error: undefined
     }
   | {
@@ -299,10 +298,12 @@ export type SpanDetailActionResponse =
 
 export type CreateAgentFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type DeleteAgentFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type ListSandboxActionResponse =
@@ -321,14 +322,17 @@ export type ListSandboxActionResponse =
 
 export type DeleteSandboxFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type CreateSandboxFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type PutSecretFormState = {
   error?: Error
+  success?: boolean
   status?: "oauth_pending"
   oauth?: {
     flowId: string
@@ -338,6 +342,7 @@ export type PutSecretFormState = {
 
 export type DeleteSecretFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type PutSecretFormAction = (
@@ -373,14 +378,17 @@ export type DeleteAPIKeyFormState = {
 
 export type CreateWorkflowScheduleFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type UpdateWorkflowScheduleFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type DeleteWorkflowScheduleFormState = {
   error?: Error
+  success?: boolean
 }
 
 export type WorkflowInputContractResult =

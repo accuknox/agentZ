@@ -7,20 +7,22 @@ import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
 import { signInURL } from "@/lib/sign-in-redirect"
 
-let client: Client | undefined
+const clients = new Map<string, Client>()
 
 /**
  * getGatewayServerClient lazily configures the generated SDK after runtime
  * configuration is available, while reusing its interceptor registry.
  */
-export function getGatewayServerClient(): Client {
-  if (client) {
-    return client
+export function getGatewayServerClient(workspaceId?: string): Client {
+  const scope = workspaceId ?? ""
+  const existing = clients.get(scope)
+  if (existing) {
+    return existing
   }
 
-  client = createClient(
+  const client = createClient(
     createConfig({
-      auth: () => currentGatewayAuthToken(),
+      auth: () => currentGatewayAuthToken(workspaceId),
       baseUrl: serverGatewayBaseURL(),
     })
   )
@@ -31,5 +33,6 @@ export function getGatewayServerClient(): Client {
     return error
   })
 
+  clients.set(scope, client)
   return client
 }

@@ -49,12 +49,16 @@ func RecordRequestError(w http.ResponseWriter, code string, cause error) {
 
 // WriteInternalError writes a generic internal error response.
 func WriteInternalError(w http.ResponseWriter, r *http.Request, err error) {
-	WriteError(w, r, NewError(
-		http.StatusInternalServerError,
-		"internal_error",
-		"request failed",
-		err,
-	))
+	WriteError(
+		w,
+		r,
+		NewError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"request failed",
+			err,
+		),
+	)
 }
 
 // WriteError writes a structured API error response.

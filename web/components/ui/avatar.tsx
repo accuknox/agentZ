@@ -4,6 +4,7 @@ import * as React from "react"
 import { Avatar as AvatarPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 function Avatar({
   className,
@@ -51,46 +52,104 @@ function AvatarFallback({
   )
 }
 
-function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
+function initialsFromLabel(label: string) {
+  return label
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("")
+}
+
+/** UserIdentity presents a person's avatar, name, and email as one unit. */
+function UserIdentity({
+  className,
+  email,
+  image,
+  name,
+  secondary = true,
+  size = "sm",
+}: {
+  className?: string
+  email?: string | null
+  image?: string | null
+  name?: string | null
+  secondary?: boolean
+  size?: "default" | "sm"
+}) {
+  const label = name || email || "Unknown user"
+
   return (
-    <span
-      data-slot="avatar-badge"
-      className={cn(
-        "bg-primary text-primary-foreground ring-background absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full bg-blend-color ring-2 select-none",
-        "group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
-        "group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",
-        "group-data-[size=lg]/avatar:size-3 group-data-[size=lg]/avatar:[&>svg]:size-2",
-        className
-      )}
-      {...props}
-    />
+    <span className={cn("flex min-w-0 items-center gap-2", className)}>
+      <Avatar size={size}>
+        <AvatarImage alt={label} src={image ?? undefined} />
+        <AvatarFallback>{initialsFromLabel(label)}</AvatarFallback>
+      </Avatar>
+      <span className="min-w-0 leading-tight">
+        <span className="block truncate font-medium" title={label}>
+          {label}
+        </span>
+        {secondary && name && email ? (
+          <span className="text-muted-foreground block truncate text-xs" title={email}>
+            {email}
+          </span>
+        ) : null}
+      </span>
+    </span>
   )
 }
 
-function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
+/** UserAvatar renders only a person's avatar; hovering reveals their name and email. */
+function UserAvatar({
+  email,
+  id,
+  image,
+  name,
+  size = "sm",
+}: {
+  email?: string | null
+  id?: string
+  image?: string | null
+  name?: string | null
+  size?: "default" | "sm"
+}) {
+  const label = name || email || id || "Unknown user"
+
   return (
-    <div
-      data-slot="avatar-group"
-      className={cn(
-        "group/avatar-group *:data-[slot=avatar]:ring-background flex -space-x-2 *:data-[slot=avatar]:ring-2",
-        className
-      )}
-      {...props}
-    />
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Avatar size={size}>
+          <AvatarImage alt={label} src={image ?? undefined} />
+          <AvatarFallback>{initialsFromLabel(label)}</AvatarFallback>
+        </Avatar>
+      </TooltipTrigger>
+      <TooltipContent sideOffset={4}>
+        <span className="max-w-64 truncate">
+          {label}
+          {email && email !== label ? <span className="text-background/60"> · {email}</span> : null}
+        </span>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
-function AvatarGroupCount({ className, ...props }: React.ComponentProps<"div">) {
+/** OrganizationAvatar renders a public Organisation image with an initials fallback. */
+function OrganizationAvatar({
+  className,
+  logo,
+  name,
+  size = "default",
+}: {
+  className?: string
+  logo: string | null
+  name: string
+  size?: "default" | "sm" | "lg"
+}) {
   return (
-    <div
-      data-slot="avatar-group-count"
-      className={cn(
-        "bg-muted text-muted-foreground ring-background relative flex size-8 shrink-0 items-center justify-center rounded-full text-sm ring-2 group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
-        className
-      )}
-      {...props}
-    />
+    <Avatar className={className} size={size}>
+      <AvatarImage alt={`${name} profile picture`} src={logo ?? undefined} />
+      <AvatarFallback>{initialsFromLabel(name)}</AvatarFallback>
+    </Avatar>
   )
 }
 
-export { Avatar, AvatarImage, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarBadge }
+export { Avatar, AvatarImage, AvatarFallback, OrganizationAvatar, UserAvatar, UserIdentity }

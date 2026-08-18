@@ -5,6 +5,7 @@ import Link from "next/link"
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
+import { LogIn } from "lucide-react"
 import { z } from "zod"
 import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
@@ -183,7 +184,12 @@ export function SignInForm({
         <span className="text-foreground text-3xl font-semibold tracking-tight">AccuKnox</span>
       </div>
       {showPasswordAuth ? (
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit(submit)} noValidate>
+        <form
+          className="flex flex-col gap-5"
+          method="post"
+          onSubmit={handleSubmit(submit)}
+          noValidate
+        >
           <FieldGroup>
             <Controller
               name="email"
@@ -253,7 +259,11 @@ export function SignInForm({
               aria-invalid={passwordActionError ? "true" : undefined}
               disabled={locked}
             >
-              {pendingAction === "password" ? <Spinner data-icon="inline-start" /> : null}
+              {pendingAction === "password" ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <LogIn data-icon="inline-start" />
+              )}
               Sign in
             </Button>
             {passwordActionError ? <FieldError>{passwordActionError}</FieldError> : null}

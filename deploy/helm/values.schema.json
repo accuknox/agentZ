@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agentz": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "umbrella": { "type": "boolean" } }
+        }
+      }
+    },
+    "manager": { "type": "object" },
+    "gateway": { "type": "object" },
+    "observer": { "type": "object" },
+    "web": { "type": "object" },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host"],
+            "properties": { "host": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "tls": { "type": "array" }
+      }
+    }
+  }
+}

@@ -27,6 +27,7 @@ export type ListWorkflowRunsQueryResult =
 export async function listWorkflowRunsCachedQuery(
   agentName: ListWorkflowRunsData["path"]["agentName"],
   workflowName: ListWorkflowRunsData["path"]["workflowName"],
+  workspaceId: string,
   query?: ListWorkflowRunsData["query"]
 ): Promise<ListWorkflowRunsQueryResult> {
   "use cache: private"
@@ -35,7 +36,8 @@ export async function listWorkflowRunsCachedQuery(
   cacheTag(workflowRunsTag)
 
   const { data, error } = await listWorkflowRuns({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: {
       agentName,
       workflowName,
@@ -73,7 +75,8 @@ export type GetWorkflowRunQueryResult =
 export async function getWorkflowRunCachedQuery(
   agentName: GetWorkflowRunData["path"]["agentName"],
   workflowName: GetWorkflowRunData["path"]["workflowName"],
-  runName: GetWorkflowRunData["path"]["runName"]
+  runName: GetWorkflowRunData["path"]["runName"],
+  workspaceId: string
 ): Promise<GetWorkflowRunQueryResult> {
   "use cache: private"
 
@@ -81,7 +84,8 @@ export async function getWorkflowRunCachedQuery(
   cacheTag(workflowRunsTag)
 
   const { data, error } = await getWorkflowRun({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: {
       agentName,
       workflowName,

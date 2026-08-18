@@ -16,7 +16,10 @@ limitations under the License.
 
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	// SecretTypeStatic stores a static secret value in OpenBao.
@@ -102,7 +105,10 @@ type SecretOAuthSpec struct {
 }
 
 // SecretSpec defines the desired Secret state.
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type SecretSpec struct {
+	ResourceAudit `json:",inline"`
+
 	// AgentRef identifies the owning Agent.
 	AgentRef SecretAgentRef `json:"agentRef"`
 
@@ -175,22 +181,7 @@ type SecretStatus struct {
 
 // SetCondition adds or updates one Secret condition.
 func (s *SecretStatus) SetCondition(cond metav1.Condition) {
-	cond.LastTransitionTime = metav1.Now()
-	for i, cur := range s.Conditions {
-		if cur.Type != cond.Type {
-			continue
-		}
-		unchanged := cur.Status == cond.Status &&
-			cur.Reason == cond.Reason &&
-			cur.Message == cond.Message &&
-			cur.ObservedGeneration == cond.ObservedGeneration
-		if unchanged {
-			cond.LastTransitionTime = cur.LastTransitionTime
-		}
-		s.Conditions[i] = cond
-		return
-	}
-	s.Conditions = append(s.Conditions, cond)
+	apimeta.SetStatusCondition(&s.Conditions, cond)
 }
 
 // +genclient

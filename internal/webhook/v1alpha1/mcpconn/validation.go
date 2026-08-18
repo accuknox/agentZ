@@ -66,11 +66,14 @@ func Validate(conn *agentzv1alpha1.MCPConnection) error {
 
 	fields = append(fields, validateEndpoint(conn.Spec.Endpoint, specPath.Child("endpoint"))...)
 	fields = append(fields, validateAuth(conn.Namespace, conn.Name, conn.Spec.Auth, specPath.Child("auth"))...)
-	fields = append(fields, validateAuthHeaderConflicts(
-		conn.Spec.Endpoint.Headers,
-		conn.Spec.Auth,
-		specPath,
-	)...)
+	fields = append(
+		fields,
+		validateAuthHeaderConflicts(
+			conn.Spec.Endpoint.Headers,
+			conn.Spec.Auth,
+			specPath,
+		)...,
+	)
 
 	if len(fields) == 0 {
 		return nil
@@ -146,66 +149,90 @@ func validateEndpoint(endpoint agentzv1alpha1.MCPConnectionEndpoint, path *field
 
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		fields = append(fields, field.Invalid(
-			path.Child("url"),
-			endpoint.URL,
-			fmt.Sprintf("parse url: %v", err),
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("url"),
+				endpoint.URL,
+				fmt.Sprintf("parse url: %v", err),
+			),
+		)
 		return fields
 	}
 	if !parsed.IsAbs() {
-		fields = append(fields, field.Invalid(
-			path.Child("url"),
-			endpoint.URL,
-			"must be an absolute url",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("url"),
+				endpoint.URL,
+				"must be an absolute url",
+			),
+		)
 	}
 	if parsed.Scheme != "https" {
-		fields = append(fields, field.Invalid(
-			path.Child("url"),
-			endpoint.URL,
-			"must use https",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("url"),
+				endpoint.URL,
+				"must use https",
+			),
+		)
 	}
 	if strings.TrimSpace(parsed.Hostname()) == "" {
-		fields = append(fields, field.Invalid(
-			path.Child("url"),
-			endpoint.URL,
-			"must include a host",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("url"),
+				endpoint.URL,
+				"must include a host",
+			),
+		)
 	}
 	if parsed.User != nil {
-		fields = append(fields, field.Invalid(
-			path.Child("url"),
-			endpoint.URL,
-			"must not include credentials",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("url"),
+				endpoint.URL,
+				"must not include credentials",
+			),
+		)
 	}
 
 	for name, value := range endpoint.Headers {
 		canonicalName := textproto.CanonicalMIMEHeaderKey(strings.TrimSpace(name))
 		headerPath := path.Child("headers").Key(name)
 		if canonicalName == "" {
-			fields = append(fields, field.Invalid(
-				headerPath,
-				name,
-				"header name must not be empty",
-			))
+			fields = append(
+				fields,
+				field.Invalid(
+					headerPath,
+					name,
+					"header name must not be empty",
+				),
+			)
 			continue
 		}
 		if _, ok := reservedAuthHeaders[canonicalName]; ok {
-			fields = append(fields, field.Invalid(
-				headerPath,
-				name,
-				fmt.Sprintf("header %q is reserved", canonicalName),
-			))
+			fields = append(
+				fields,
+				field.Invalid(
+					headerPath,
+					name,
+					fmt.Sprintf("header %q is reserved", canonicalName),
+				),
+			)
 		}
 		if strings.TrimSpace(value) == "" {
-			fields = append(fields, field.Invalid(
-				headerPath,
-				value,
-				"header value must not be empty",
-			))
+			fields = append(
+				fields,
+				field.Invalid(
+					headerPath,
+					value,
+					"header value must not be empty",
+				),
+			)
 		}
 	}
 
@@ -228,11 +255,14 @@ func validateAuth(namespace, name string, auth *agentzv1alpha1.MCPConnectionAuth
 		fields = append(fields, validateOAuthAuth(namespace, name, auth.OAuth, path.Child("oauth"))...)
 	}
 	if authModes > 1 {
-		fields = append(fields, field.Invalid(
-			path,
-			"multiple auth modes",
-			"exactly one auth mode may be configured",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path,
+				"multiple auth modes",
+				"exactly one auth mode may be configured",
+			),
+		)
 	}
 
 	return fields
@@ -241,12 +271,15 @@ func validateAuth(namespace, name string, auth *agentzv1alpha1.MCPConnectionAuth
 func validateBearerAuth(namespace, name string, auth *agentzv1alpha1.MCPConnectionBearerAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
 	if auth.SecretRef != nil {
-		fields = append(fields, validateSecretRef(
-			namespace,
-			name,
-			auth.SecretRef,
-			path.Child("secretRef"),
-		)...)
+		fields = append(
+			fields,
+			validateSecretRef(
+				namespace,
+				name,
+				auth.SecretRef,
+				path.Child("secretRef"),
+			)...,
+		)
 	}
 	fields = append(fields, validateAuthLocation(auth.Location, path.Child("location"))...)
 	return fields
@@ -254,43 +287,64 @@ func validateBearerAuth(namespace, name string, auth *agentzv1alpha1.MCPConnecti
 
 func validateOAuthAuth(namespace, name string, auth *agentzv1alpha1.MCPConnectionOAuthAuth, path *field.Path) field.ErrorList {
 	fields := field.ErrorList{}
-	fields = append(fields, validateOptionalHTTPSURL(
-		auth.Issuer,
-		path.Child("issuer"),
-	)...)
-	fields = append(fields, validateOptionalHTTPSURL(
-		auth.AuthorizationEndpoint,
-		path.Child("authorizationEndpoint"),
-	)...)
-	fields = append(fields, validateOptionalHTTPSURL(
-		auth.TokenEndpoint,
-		path.Child("tokenEndpoint"),
-	)...)
-	fields = append(fields, validateOptionalHTTPSURL(
-		auth.RegistrationEndpoint,
-		path.Child("registrationEndpoint"),
-	)...)
-	fields = append(fields, validateOptionalHTTPSURL(
-		auth.Resource,
-		path.Child("resource"),
-	)...)
+	fields = append(
+		fields,
+		validateOptionalHTTPSURL(
+			auth.Issuer,
+			path.Child("issuer"),
+		)...,
+	)
+	fields = append(
+		fields,
+		validateOptionalHTTPSURL(
+			auth.AuthorizationEndpoint,
+			path.Child("authorizationEndpoint"),
+		)...,
+	)
+	fields = append(
+		fields,
+		validateOptionalHTTPSURL(
+			auth.TokenEndpoint,
+			path.Child("tokenEndpoint"),
+		)...,
+	)
+	fields = append(
+		fields,
+		validateOptionalHTTPSURL(
+			auth.RegistrationEndpoint,
+			path.Child("registrationEndpoint"),
+		)...,
+	)
+	fields = append(
+		fields,
+		validateOptionalHTTPSURL(
+			auth.Resource,
+			path.Child("resource"),
+		)...,
+	)
 
 	for i, scope := range auth.Scopes {
 		if strings.TrimSpace(scope) == "" {
-			fields = append(fields, field.Invalid(
-				path.Child("scopes").Index(i),
-				scope,
-				"scope must not be empty",
-			))
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Child("scopes").Index(i),
+					scope,
+					"scope must not be empty",
+				),
+			)
 		}
 	}
 	if auth.SecretRef != nil {
-		fields = append(fields, validateSecretRef(
-			namespace,
-			name,
-			auth.SecretRef,
-			path.Child("secretRef"),
-		)...)
+		fields = append(
+			fields,
+			validateSecretRef(
+				namespace,
+				name,
+				auth.SecretRef,
+				path.Child("secretRef"),
+			)...,
+		)
 	}
 	fields = append(fields, validateAuthLocation(auth.Location, path.Child("location"))...)
 	return fields
@@ -307,32 +361,44 @@ func validateSecretRef(namespace, name string, ref *agentzv1alpha1.MCPConnection
 		fields = append(fields, field.Required(path.Child("key"), "field is required"))
 	}
 	if ref.Path != strings.TrimSpace(ref.Path) {
-		fields = append(fields, field.Invalid(
-			path.Child("path"),
-			ref.Path,
-			"path must not contain leading or trailing whitespace",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("path"),
+				ref.Path,
+				"path must not contain leading or trailing whitespace",
+			),
+		)
 	}
 	if ref.Key != strings.TrimSpace(ref.Key) {
-		fields = append(fields, field.Invalid(
-			path.Child("key"),
-			ref.Key,
-			"key must not contain leading or trailing whitespace",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("key"),
+				ref.Key,
+				"key must not contain leading or trailing whitespace",
+			),
+		)
 	}
 	if ref.Path != "" && ref.Path != wantPath {
-		fields = append(fields, field.Invalid(
-			path.Child("path"),
-			ref.Path,
-			fmt.Sprintf("must be %q", wantPath),
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("path"),
+				ref.Path,
+				fmt.Sprintf("must be %q", wantPath),
+			),
+		)
 	}
 	if ref.Key != "" && ref.Key != mcp.SecretRecordKey {
-		fields = append(fields, field.Invalid(
-			path.Child("key"),
-			ref.Key,
-			fmt.Sprintf("must be %q", mcp.SecretRecordKey),
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("key"),
+				ref.Key,
+				fmt.Sprintf("must be %q", mcp.SecretRecordKey),
+			),
+		)
 	}
 	return fields
 }
@@ -348,43 +414,58 @@ func validateAuthLocation(location *agentzv1alpha1.MCPConnectionAuthLocation, pa
 		locationModes++
 		headerName := textproto.CanonicalMIMEHeaderKey(strings.TrimSpace(location.Header.Name))
 		if headerName == "" {
-			fields = append(fields, field.Required(
-				path.Child("header").Child("name"),
-				"field is required",
-			))
+			fields = append(
+				fields,
+				field.Required(
+					path.Child("header").Child("name"),
+					"field is required",
+				),
+			)
 		}
 		if _, ok := reservedAuthHeaders[headerName]; headerName != "" && ok && headerName != http.CanonicalHeaderKey("Authorization") {
-			fields = append(fields, field.Invalid(
-				path.Child("header").Child("name"),
-				location.Header.Name,
-				fmt.Sprintf("header %q is reserved", headerName),
-			))
+			fields = append(
+				fields,
+				field.Invalid(
+					path.Child("header").Child("name"),
+					location.Header.Name,
+					fmt.Sprintf("header %q is reserved", headerName),
+				),
+			)
 		}
 	}
 	if location.QueryParameter != nil {
 		locationModes++
 		if strings.TrimSpace(location.QueryParameter.Name) == "" {
-			fields = append(fields, field.Required(
-				path.Child("queryParameter").Child("name"),
-				"field is required",
-			))
+			fields = append(
+				fields,
+				field.Required(
+					path.Child("queryParameter").Child("name"),
+					"field is required",
+				),
+			)
 		}
 	}
 	if location.Cookie != nil {
 		locationModes++
 		if strings.TrimSpace(location.Cookie.Name) == "" {
-			fields = append(fields, field.Required(
-				path.Child("cookie").Child("name"),
-				"field is required",
-			))
+			fields = append(
+				fields,
+				field.Required(
+					path.Child("cookie").Child("name"),
+					"field is required",
+				),
+			)
 		}
 	}
 	if locationModes > 1 {
-		fields = append(fields, field.Invalid(
-			path,
-			"multiple auth locations",
-			"exactly one auth location may be configured",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path,
+				"multiple auth locations",
+				"exactly one auth location may be configured",
+			),
+		)
 	}
 
 	return fields
@@ -398,40 +479,55 @@ func validateOptionalHTTPSURL(raw string, path *field.Path) field.ErrorList {
 
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
-		fields = append(fields, field.Invalid(
-			path,
-			raw,
-			fmt.Sprintf("parse url: %v", err),
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path,
+				raw,
+				fmt.Sprintf("parse url: %v", err),
+			),
+		)
 		return fields
 	}
 	if !parsed.IsAbs() {
-		fields = append(fields, field.Invalid(
-			path,
-			raw,
-			"must be an absolute url",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path,
+				raw,
+				"must be an absolute url",
+			),
+		)
 	}
 	if parsed.Scheme != "https" {
-		fields = append(fields, field.Invalid(
-			path,
-			raw,
-			"must use https",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path,
+				raw,
+				"must use https",
+			),
+		)
 	}
 	if strings.TrimSpace(parsed.Hostname()) == "" {
-		fields = append(fields, field.Invalid(
-			path,
-			raw,
-			"must include a host",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path,
+				raw,
+				"must include a host",
+			),
+		)
 	}
 	if parsed.User != nil {
-		fields = append(fields, field.Invalid(
-			path,
-			raw,
-			"must not include credentials",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path,
+				raw,
+				"must not include credentials",
+			),
+		)
 	}
 
 	return fields
@@ -459,11 +555,14 @@ func validateAuthHeaderConflicts(headers map[string]string, auth *agentzv1alpha1
 		if textproto.CanonicalMIMEHeaderKey(strings.TrimSpace(key)) != target {
 			continue
 		}
-		fields = append(fields, field.Invalid(
-			path.Child("endpoint").Child("headers").Key(key),
-			key,
-			fmt.Sprintf("header %q conflicts with auth insertion location", target),
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				path.Child("endpoint").Child("headers").Key(key),
+				key,
+				fmt.Sprintf("header %q conflicts with auth insertion location", target),
+			),
+		)
 	}
 	return fields
 }

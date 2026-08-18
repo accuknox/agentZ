@@ -89,6 +89,7 @@ rules:
   - tenants/status
   - workflowruns/status
   - workflowschedules/status
+  - workspaces/status
   verbs:
   - get
   - patch
@@ -99,21 +100,12 @@ rules:
   - inferencepools
   - inferenceproviders
   - mcpconnections
+  - sandboxes
   - secrets
   verbs:
   - get
   - list
   - patch
-  - watch
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
-  - sandboxes
-  verbs:
-  - get
-  - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - agentz.accuknox.com
@@ -135,12 +127,15 @@ rules:
   verbs:
   - get
   - list
+  - patch
+  - update
   - use
   - watch
 - apiGroups:
   - agentz.accuknox.com
   resources:
   - workflowschedules
+  - workspaces
   verbs:
   - get
   - list
@@ -228,6 +223,7 @@ rules:
   resources:
   - gateways
   - httproutes
+  - referencegrants
   verbs:
   - create
   - delete

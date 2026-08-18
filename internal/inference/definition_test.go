@@ -14,14 +14,22 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+type validateProviderCase struct {
+	name  string
+	spec  agentzv1alpha1.InferenceProviderSpec
+	valid bool
+}
+
+type renderRuntimeCompatibleFormatCase struct {
+	name     string
+	kind     agentzv1alpha1.InferenceProviderKind
+	expected []agentgatewayv1alpha1.ProviderFormat
+}
+
 func TestValidateProvider(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name  string
-		spec  agentzv1alpha1.InferenceProviderSpec
-		valid bool
-	}{
+	tests := []validateProviderCase{
 		{
 			name:  "valid openai",
 			spec:  providerSpec(agentzv1alpha1.InferenceProviderKindOpenAI),
@@ -118,16 +126,19 @@ func TestValidateProvider(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			issues := ValidateProvider(test.spec)
-			if test.valid && len(issues) > 0 {
-				t.Fatalf("ValidateProvider() issues = %v", issues)
-			}
-			if !test.valid && len(issues) == 0 {
-				t.Fatal("ValidateProvider() unexpectedly succeeded")
-			}
-		})
+		t.Run(
+			test.name,
+			func(t *testing.T) {
+				t.Parallel()
+				issues := ValidateProvider(test.spec)
+				if test.valid && len(issues) > 0 {
+					t.Fatalf("ValidateProvider() issues = %v", issues)
+				}
+				if !test.valid && len(issues) == 0 {
+					t.Fatal("ValidateProvider() unexpectedly succeeded")
+				}
+			},
+		)
 	}
 }
 
@@ -144,9 +155,12 @@ func TestCredentials(t *testing.T) {
 	if err == nil {
 		t.Fatal("CredentialsForUpdate() unexpectedly accepted partial AWS credentials")
 	}
-	record, changed, err := CredentialsForUpdate(bedrock, CredentialValues{
-		AccessKey: "access", SecretKey: "secret",
-	})
+	record, changed, err := CredentialsForUpdate(
+		bedrock,
+		CredentialValues{
+			AccessKey: "access", SecretKey: "secret",
+		},
+	)
 	if err != nil || !changed {
 		t.Fatalf("CredentialsForUpdate() error = %v, changed = %t", err, changed)
 	}
@@ -163,15 +177,21 @@ func TestCredentials(t *testing.T) {
 	}
 
 	bedrock.Bedrock.AuthMode = agentzv1alpha1.BedrockAuthModeBearerToken
-	record, changed, err = CredentialsForUpdate(bedrock, CredentialValues{
-		BearerToken: "token",
-	})
+	record, changed, err = CredentialsForUpdate(
+		bedrock,
+		CredentialValues{
+			BearerToken: "token",
+		},
+	)
 	if err != nil || !changed || record[credentialBearerToken] != "token" {
 		t.Fatalf("CredentialsForUpdate() = %#v, %t, %v", record, changed, err)
 	}
-	_, _, err = CredentialsForUpdate(bedrock, CredentialValues{
-		AccessKey: "access", SecretKey: "secret",
-	})
+	_, _, err = CredentialsForUpdate(
+		bedrock,
+		CredentialValues{
+			AccessKey: "access", SecretKey: "secret",
+		},
+	)
 	if err == nil {
 		t.Fatal("CredentialsForUpdate() accepted access keys in bearer-token mode")
 	}
@@ -180,11 +200,7 @@ func TestCredentials(t *testing.T) {
 func TestRenderRuntimeCompatibleFormats(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		kind     agentzv1alpha1.InferenceProviderKind
-		expected []agentgatewayv1alpha1.ProviderFormat
-	}{
+	tests := []renderRuntimeCompatibleFormatCase{
 		{
 			name:     "openai compatible",
 			kind:     agentzv1alpha1.InferenceProviderKindOpenAICompatible,
@@ -200,26 +216,29 @@ func TestRenderRuntimeCompatibleFormats(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			provider := &agentzv1alpha1.InferenceProvider{
-				ObjectMeta: metav1.ObjectMeta{Name: "provider", Namespace: "default"},
-				Spec:       providerSpec(test.kind),
-			}
-			runtime, err := RenderRuntime(provider, "openbao", time.Hour)
-			if err != nil {
-				t.Fatalf("RenderRuntime() error = %v", err)
-			}
-			formats := runtime.Backend.Spec.AI.LLM.Custom.Formats
-			if len(formats) != len(test.expected) {
-				t.Fatalf("RenderRuntime() formats = %#v, want %#v", formats, test.expected)
-			}
-			for i, expected := range test.expected {
-				if formats[i].Type != expected {
-					t.Fatalf("RenderRuntime() format %d = %q, want %q", i, formats[i].Type, expected)
+		t.Run(
+			test.name,
+			func(t *testing.T) {
+				t.Parallel()
+				provider := &agentzv1alpha1.InferenceProvider{
+					ObjectMeta: metav1.ObjectMeta{Name: "provider", Namespace: "default"},
+					Spec:       providerSpec(test.kind),
 				}
-			}
-		})
+				runtime, err := RenderRuntime(provider, "openbao", time.Hour)
+				if err != nil {
+					t.Fatalf("RenderRuntime() error = %v", err)
+				}
+				formats := runtime.Backend.Spec.AI.LLM.Custom.Formats
+				if len(formats) != len(test.expected) {
+					t.Fatalf("RenderRuntime() formats = %#v, want %#v", formats, test.expected)
+				}
+				for i, expected := range test.expected {
+					if formats[i].Type != expected {
+						t.Fatalf("RenderRuntime() format %d = %q, want %q", i, formats[i].Type, expected)
+					}
+				}
+			},
+		)
 	}
 }
 
@@ -231,13 +250,25 @@ func TestRenderProviderTargetVertexModelNames(t *testing.T) {
 		Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindVertexAI),
 	}
 	provider.Spec.Models[0].ID = "gemini-2.5-flash"
-	provider.Spec.Models = append(provider.Spec.Models, agentzv1alpha1.InferenceModel{
-		ID: "claude-haiku-4-5@20251001",
-	})
+	provider.Spec.Models = append(
+		provider.Spec.Models,
+		agentzv1alpha1.InferenceModel{
+			ID: "claude-haiku-4-5@20251001",
+		},
+	)
 
 	direct, err := RenderProviderTarget(provider, "")
 	if err != nil {
 		t.Fatalf("RenderProviderTarget() direct error = %v", err)
+	}
+	if direct.LLM.VertexAI.ProjectId != "project" || direct.LLM.VertexAI.Region != "us-central1" {
+		t.Fatalf("RenderProviderTarget() Vertex settings = %#v", direct.LLM.VertexAI)
+	}
+	if direct.Policies.Auth == nil || direct.Policies.Auth.GCP == nil ||
+		direct.Policies.Auth.GCP.SecretRef == nil ||
+		direct.Policies.Auth.GCP.SecretRef.Name != "vertex" ||
+		direct.Policies.Auth.GCP.SecretRef.Key != nil {
+		t.Fatalf("RenderProviderTarget() auth = %#v", direct.Policies.Auth)
 	}
 	got := direct.Policies.AI.ModelAliases["gemini-2.5-flash"]
 	if got != "google/gemini-2.5-flash" {
@@ -279,6 +310,86 @@ func TestRenderProviderTargetVertexModelNames(t *testing.T) {
 	}
 }
 
+func TestRenderProviderTargetUsesConcreteDefaultEndpoint(t *testing.T) {
+	t.Parallel()
+
+	provider := &agentzv1alpha1.InferenceProvider{
+		ObjectMeta: metav1.ObjectMeta{Name: "openai", Namespace: "default"},
+		Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindOpenAI),
+	}
+	target, err := RenderProviderTarget(provider, "")
+	if err != nil {
+		t.Fatalf("RenderProviderTarget() error = %v", err)
+	}
+	if target.LLM.Host != "api.openai.com" || target.LLM.Port != 443 {
+		t.Fatalf(
+			"RenderProviderTarget() endpoint = %s:%d, want api.openai.com:443",
+			target.LLM.Host,
+			target.LLM.Port,
+		)
+	}
+	if target.LLM.PathPrefix != "/v1" {
+		t.Fatalf("RenderProviderTarget() path prefix = %q, want /v1", target.LLM.PathPrefix)
+	}
+	if target.Policies.TLS == nil {
+		t.Fatal("RenderProviderTarget() did not enable TLS for the default endpoint")
+	}
+	if target.Policies.Auth == nil || target.Policies.Auth.SecretRef == nil ||
+		target.Policies.Auth.SecretRef.Name != "openai" ||
+		target.Policies.Auth.SecretRef.Key != nil {
+		t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+	}
+}
+
+func TestRenderProviderTargetUsesWholeSecretCredentials(t *testing.T) {
+	t.Parallel()
+
+	t.Run("bedrock", func(t *testing.T) {
+		t.Parallel()
+
+		provider := &agentzv1alpha1.InferenceProvider{
+			ObjectMeta: metav1.ObjectMeta{Name: "bedrock", Namespace: "default"},
+			Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindBedrock),
+		}
+		target, err := RenderProviderTarget(provider, "")
+		if err != nil {
+			t.Fatalf("RenderProviderTarget() error = %v", err)
+		}
+		if target.LLM.Bedrock.Region != "us-east-1" {
+			t.Fatalf("RenderProviderTarget() Bedrock settings = %#v", target.LLM.Bedrock)
+		}
+		if target.Policies.Auth == nil || target.Policies.Auth.AWS == nil ||
+			target.Policies.Auth.AWS.SecretRef == nil ||
+			target.Policies.Auth.AWS.SecretRef.Name != "bedrock" {
+			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+		}
+	})
+
+	t.Run("azure", func(t *testing.T) {
+		t.Parallel()
+
+		spec := providerSpec(agentzv1alpha1.InferenceProviderKindAzure)
+		spec.Azure.AuthMode = agentzv1alpha1.AzureAuthModeServicePrincipal
+		provider := &agentzv1alpha1.InferenceProvider{
+			ObjectMeta: metav1.ObjectMeta{Name: "azure", Namespace: "default"},
+			Spec:       spec,
+		}
+		target, err := RenderProviderTarget(provider, "")
+		if err != nil {
+			t.Fatalf("RenderProviderTarget() error = %v", err)
+		}
+		if target.LLM.Azure.ResourceName != "resource" ||
+			target.LLM.Azure.ResourceType != agentgatewayv1alpha1.AzureResourceTypeOpenAI {
+			t.Fatalf("RenderProviderTarget() Azure settings = %#v", target.LLM.Azure)
+		}
+		if target.Policies.Auth == nil || target.Policies.Auth.Azure == nil ||
+			target.Policies.Auth.Azure.SecretRef == nil ||
+			target.Policies.Auth.Azure.SecretRef.Name != "azure" {
+			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+		}
+	})
+}
+
 func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
 	t.Parallel()
 
@@ -291,7 +402,7 @@ func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{{
-			Provider: current.Name, Model: "model",
+			Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: current.Name, Model: "model",
 		}}},
 	}
 	scheme := runtime.NewScheme()
@@ -299,7 +410,8 @@ func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool).WithIndex(
-		&agentzv1alpha1.InferencePool{}, PoolByProviderIndex,
+		&agentzv1alpha1.InferencePool{},
+		PoolByProviderIndex,
 		func(obj client.Object) []string {
 			value := obj.(*agentzv1alpha1.InferencePool)
 			providers := make([]string, 0, len(value.Spec.Members))

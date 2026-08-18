@@ -48,13 +48,9 @@ type probeRoundTripper struct {
 
 	connName string
 
-	lastStatus    int
-	lastMethod    string
-	lastURL       string
-	lastReqBody   []byte
-	lastRespBody  []byte
-	reqTruncated  bool
-	respTruncated bool
+	lastStatus int
+	lastMethod string
+	lastURL    string
 }
 
 func (s *Service) runMCPProbes(ctx context.Context) {
@@ -84,23 +80,26 @@ func (s *Service) runProbeQueue(ctx context.Context) {
 			return
 		}
 
-		_, err, _ := s.sf.Do("probe:"+name, func() (any, error) {
-			conn, getErr := s.mcpConnections.Get(name)
-			if getErr != nil {
-				return nil, ctrlclient.IgnoreNotFound(getErr)
-			}
-			if !conn.DeletionTimestamp.IsZero() {
+		_, err, _ := s.sf.Do(
+			"probe:"+name,
+			func() (any, error) {
+				conn, getErr := s.mcpConnections.Get(name)
+				if getErr != nil {
+					return nil, ctrlclient.IgnoreNotFound(getErr)
+				}
+				if !conn.DeletionTimestamp.IsZero() {
+					return nil, nil
+				}
+				outcome := s.probeMCPConnection(ctx, conn)
+				s.probeTimesMu.Lock()
+				s.probeTimes[name] = outcome.lastProbeTime.Time
+				s.probeTimesMu.Unlock()
+				if writeErr := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); writeErr != nil {
+					return nil, writeErr
+				}
 				return nil, nil
-			}
-			outcome := s.probeMCPConnection(ctx, conn)
-			s.probeTimesMu.Lock()
-			s.probeTimes[name] = outcome.lastProbeTime.Time
-			s.probeTimesMu.Unlock()
-			if writeErr := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); writeErr != nil {
-				return nil, writeErr
-			}
-			return nil, nil
-		})
+			},
+		)
 		s.probeQueue.Done(name)
 		if err == nil {
 			continue
@@ -239,7 +238,7 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *agentzv1alph
 	session, err := client.Connect(reqCtx, transport, nil)
 	if err != nil {
 		outcome.reason = classifyProbeError(err, rt.lastStatus)
-		outcome.message = err.Error()
+		outcome.message = "MCP initialize request failed"
 		rt.logHTTPExchange(
 			ctx,
 			slog.LevelWarn,
@@ -262,17 +261,23 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *agentzv1alph
 	tools, err := session.ListTools(reqCtx, nil)
 	if err != nil {
 		outcome.reason = classifyProbeError(err, rt.lastStatus)
-		outcome.message = err.Error()
-		rt.logHTTPExchange(ctx, slog.LevelWarn, "mcp list_tools http exchange",
+		outcome.message = "MCP tools request failed"
+		rt.logHTTPExchange(
+			ctx,
+			slog.LevelWarn,
+			"mcp list_tools http exchange",
 			slog.String("probe_reason", outcome.reason),
 		)
 		return outcome
 	}
 	outcome.tools = make([]agentzv1alpha1.MCPConnectionTool, 0, len(tools.Tools))
 	for _, tool := range tools.Tools {
-		outcome.tools = append(outcome.tools, agentzv1alpha1.MCPConnectionTool{
-			Name: strings.TrimSpace(tool.Name),
-		})
+		outcome.tools = append(
+			outcome.tools,
+			agentzv1alpha1.MCPConnectionTool{
+				Name: strings.TrimSpace(tool.Name),
+			},
+		)
 	}
 
 	outcome.healthy = true
@@ -379,70 +384,65 @@ func isReachabilityError(err error) bool {
 		err = urlErr.Err
 	}
 
-	if _, ok := errors.AsType[net.Error](err); ok {
-		return true
-	}
-
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "no such host") ||
-		strings.Contains(msg, "i/o timeout") ||
-		strings.Contains(msg, "tls") ||
-		strings.Contains(msg, "x509")
+	_, ok := errors.AsType[net.Error](err)
+	return ok
 }
 
 func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name string, outcome mcpProbeOutcome) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		conn := &agentzv1alpha1.MCPConnection{}
-		key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
-		if err := s.kube.Get(ctx, key, conn); err != nil {
-			return ctrlclient.IgnoreNotFound(err)
-		}
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			conn := &agentzv1alpha1.MCPConnection{}
+			key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
+			if err := s.kube.Get(ctx, key, conn); err != nil {
+				return ctrlclient.IgnoreNotFound(err)
+			}
 
-		conn.Status.LastProbeTime = &outcome.lastProbeTime
-		conn.Status.ToolCatalogReady = outcome.healthy
-		conn.Status.Tools = outcome.tools
-		status := metav1.ConditionFalse
-		if outcome.healthy {
-			status = metav1.ConditionTrue
-		}
-		if outcome.reason == internalmcp.ReasonProbePending {
-			status = metav1.ConditionUnknown
-		}
-		conn.Status.SetCondition(metav1.Condition{
-			Type:               internalmcp.ConditionProbeHealthy,
-			Status:             status,
-			Reason:             outcome.reason,
-			Message:            outcome.message,
-			ObservedGeneration: conn.Generation,
-		})
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionConnectionUnreachable,
-			outcome.reason == internalmcp.ReasonConnectionUnreachable,
-			outcome,
-		)
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionCredentialsInvalid,
-			outcome.reason == internalmcp.ReasonCredentialsInvalid,
-			outcome,
-		)
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionProtocolError,
-			outcome.reason == internalmcp.ReasonProtocolError,
-			outcome,
-		)
-		setProbeErrorCondition(
-			conn,
-			internalmcp.ConditionInternalError,
-			outcome.reason == internalmcp.ReasonInternalError,
-			outcome,
-		)
+			conn.Status.LastProbeTime = &outcome.lastProbeTime
+			conn.Status.ToolCatalogReady = outcome.healthy
+			conn.Status.Tools = outcome.tools
+			status := metav1.ConditionFalse
+			if outcome.healthy {
+				status = metav1.ConditionTrue
+			}
+			if outcome.reason == internalmcp.ReasonProbePending {
+				status = metav1.ConditionUnknown
+			}
+			conn.Status.SetCondition(metav1.Condition{
+				Type:               internalmcp.ConditionProbeHealthy,
+				Status:             status,
+				Reason:             outcome.reason,
+				Message:            outcome.message,
+				ObservedGeneration: conn.Generation,
+			})
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionConnectionUnreachable,
+				outcome.reason == internalmcp.ReasonConnectionUnreachable,
+				outcome,
+			)
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionCredentialsInvalid,
+				outcome.reason == internalmcp.ReasonCredentialsInvalid,
+				outcome,
+			)
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionProtocolError,
+				outcome.reason == internalmcp.ReasonProtocolError,
+				outcome,
+			)
+			setProbeErrorCondition(
+				conn,
+				internalmcp.ConditionInternalError,
+				outcome.reason == internalmcp.ReasonInternalError,
+				outcome,
+			)
 
-		return s.kube.Status().Update(ctx, conn)
-	})
+			return s.kube.Status().Update(ctx, conn)
+		},
+	)
 }
 
 func setProbeErrorCondition(conn *agentzv1alpha1.MCPConnection, typ string, active bool, outcome mcpProbeOutcome) {
@@ -469,13 +469,16 @@ func (rt *probeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 
 	var reqBody []byte
 	if req.Body != nil {
-		var truncated bool
 		var err error
-		reqBody, truncated, err = readProbeBody(req.Body)
+		reqBody, err = io.ReadAll(io.LimitReader(req.Body, maxProbeHTTPBodyBytes+1))
+		closeErr := req.Body.Close()
 		if err != nil {
 			return nil, err
 		}
-		if truncated {
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		if len(reqBody) > maxProbeHTTPBodyBytes {
 			return nil, fmt.Errorf("mcp probe request body exceeds %d bytes", maxProbeHTTPBodyBytes)
 		}
 		req.Body = io.NopCloser(bytes.NewReader(reqBody))
@@ -510,16 +513,6 @@ func (rt *probeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		rt.lastStatus = resp.StatusCode
 		rt.lastMethod = req.Method
 		rt.lastURL = probeLogURL(req.URL)
-		rt.lastReqBody = reqBody
-		rt.reqTruncated = false
-
-		respBody, truncated, err := readProbeBody(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(respBody))
-		rt.lastRespBody = respBody
-		rt.respTruncated = truncated
 	}
 	return resp, err
 }
@@ -533,25 +526,8 @@ func (rt *probeRoundTripper) logHTTPExchange(ctx context.Context, level slog.Lev
 		slog.String("http_method", rt.lastMethod),
 		slog.String("http_url", rt.lastURL),
 		slog.Int("http_status", rt.lastStatus),
-		slog.String("http_req_body", strings.TrimSpace(string(rt.lastReqBody))),
-		slog.Bool("http_req_body_truncated", rt.reqTruncated),
-		slog.String("http_resp_body", strings.TrimSpace(string(rt.lastRespBody))),
-		slog.Bool("http_resp_body_truncated", rt.respTruncated),
 	)
 	slog.LogAttrs(ctx, level, msg, attrs...)
-}
-
-func readProbeBody(body io.ReadCloser) ([]byte, bool, error) {
-	defer body.Close()
-
-	data, err := io.ReadAll(io.LimitReader(body, maxProbeHTTPBodyBytes+1))
-	if err != nil {
-		return nil, false, err
-	}
-	if len(data) <= maxProbeHTTPBodyBytes {
-		return data, false, nil
-	}
-	return data[:maxProbeHTTPBodyBytes], true, nil
 }
 
 func probeLogURL(raw *url.URL) string {

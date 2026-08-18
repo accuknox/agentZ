@@ -16,9 +16,11 @@ import {
   createWorkflow,
   createWorkflowRun,
   createWorkflowSchedule,
+  createWorkspace,
   deleteAgent,
   deleteAgentEntry,
   deleteAgentMutableSkills,
+  deleteAgentShare,
   deleteImmutableSkills,
   deleteInferencePool,
   deleteInferenceProvider,
@@ -32,6 +34,8 @@ import {
   ensureTenant,
   exportAgentMutableSkills,
   exportImmutableSkills,
+  getAgentOwner,
+  getEventTrailEvent,
   getInferencePool,
   getInferencePoolUsage,
   getInferenceProvider,
@@ -43,12 +47,18 @@ import {
   getTenant,
   getWorkflow,
   getWorkflowRun,
-  importSkills,
+  getWorkspace,
+  importImmutableSkills,
+  importMutableSkills,
   invokeWorkflowWebhook,
+  listAgentAccessTargets,
   listAgentMutableSkills,
   listAgents,
+  listAgentShares,
   listAgentWorkflowSchedules,
+  listEventTrailEvents,
   listFileObservability,
+  listFileObservabilitySummary,
   listImmutableSkillSummaries,
   listImmutableSkillVersions,
   listInferenceModelSuggestions,
@@ -57,7 +67,9 @@ import {
   listInferenceProviders,
   listMcpConnections,
   listNetworkObservability,
+  listNetworkObservabilitySummary,
   listProcessObservability,
+  listProcessObservabilitySummary,
   listSandboxes,
   listSecrets,
   listSkills,
@@ -67,22 +79,32 @@ import {
   listWorkflowSchedules,
   listWorkflowSummaries,
   listWorkflowWebhookTriggers,
+  listWorkspaceInheritedResources,
+  listWorkspaceMemberCandidates,
+  listWorkspaces,
   type Options,
   patchWorkflowRunNodeStatus,
   patchWorkflowRunStatus,
-  previewSkillImport,
+  previewImmutableSkillImport,
+  previewMutableSkillImport,
   putSecret,
   readAgentFile,
   readAgentFileRaw,
   refreshInferenceProviderModels,
   renameAgentEntry,
+  replaceWorkspaceInheritedResources,
+  resolveWorkspaceSlug,
+  retryWorkspace,
   statAgentFile,
+  transferAgentOwner,
   updateAgent,
   updateInferencePool,
   updateInferenceProvider,
   updateSandbox,
   updateSkill,
   updateWorkflowSchedule,
+  updateWorkspaceLifecycle,
+  upsertAgentShare,
   writeAgentFile,
   writeAgentFileRaw,
 } from "../sdk.gen"
@@ -123,6 +145,9 @@ import type {
   CreateWorkflowScheduleData,
   CreateWorkflowScheduleError,
   CreateWorkflowScheduleResponse,
+  CreateWorkspaceData,
+  CreateWorkspaceError,
+  CreateWorkspaceResponse,
   DeleteAgentData,
   DeleteAgentEntryData,
   DeleteAgentEntryError,
@@ -132,6 +157,9 @@ import type {
   DeleteAgentMutableSkillsError,
   DeleteAgentMutableSkillsResponse,
   DeleteAgentResponse,
+  DeleteAgentShareData,
+  DeleteAgentShareError,
+  DeleteAgentShareResponse,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsError,
   DeleteImmutableSkillsResponse,
@@ -171,6 +199,12 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsError,
   ExportImmutableSkillsResponse,
+  GetAgentOwnerData,
+  GetAgentOwnerError,
+  GetAgentOwnerResponse,
+  GetEventTrailEventData,
+  GetEventTrailEventError,
+  GetEventTrailEventResponse,
   GetInferencePoolData,
   GetInferencePoolError,
   GetInferencePoolResponse,
@@ -204,24 +238,42 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunError,
   GetWorkflowRunResponse,
-  ImportSkillsData,
-  ImportSkillsError,
-  ImportSkillsResponse2,
+  GetWorkspaceData,
+  GetWorkspaceError,
+  GetWorkspaceResponse,
+  ImportImmutableSkillsData,
+  ImportImmutableSkillsError,
+  ImportImmutableSkillsResponse,
+  ImportMutableSkillsData,
+  ImportMutableSkillsError,
+  ImportMutableSkillsResponse,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookError,
   InvokeWorkflowWebhookResponse,
+  ListAgentAccessTargetsData,
+  ListAgentAccessTargetsError,
+  ListAgentAccessTargetsResponse2,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsError,
   ListAgentMutableSkillsResponse,
   ListAgentsData,
   ListAgentsError,
+  ListAgentSharesData,
+  ListAgentSharesError,
+  ListAgentSharesResponse2,
   ListAgentsResponse2,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
+  ListEventTrailEventsData,
+  ListEventTrailEventsError,
+  ListEventTrailEventsResponse2,
   ListFileObservabilityData,
   ListFileObservabilityError,
   ListFileObservabilityResponse2,
+  ListFileObservabilitySummaryData,
+  ListFileObservabilitySummaryError,
+  ListFileObservabilitySummaryResponse2,
   ListImmutableSkillSummariesData,
   ListImmutableSkillSummariesError,
   ListImmutableSkillSummariesResponse2,
@@ -246,9 +298,15 @@ import type {
   ListNetworkObservabilityData,
   ListNetworkObservabilityError,
   ListNetworkObservabilityResponse2,
+  ListNetworkObservabilitySummaryData,
+  ListNetworkObservabilitySummaryError,
+  ListNetworkObservabilitySummaryResponse2,
   ListProcessObservabilityData,
   ListProcessObservabilityError,
   ListProcessObservabilityResponse2,
+  ListProcessObservabilitySummaryData,
+  ListProcessObservabilitySummaryError,
+  ListProcessObservabilitySummaryResponse2,
   ListSandboxesData,
   ListSandboxesError,
   ListSandboxesResponse2,
@@ -276,15 +334,27 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersError,
   ListWorkflowWebhookTriggersResponse2,
+  ListWorkspaceInheritedResourcesData,
+  ListWorkspaceInheritedResourcesError,
+  ListWorkspaceInheritedResourcesResponse2,
+  ListWorkspaceMemberCandidatesData,
+  ListWorkspaceMemberCandidatesError,
+  ListWorkspaceMemberCandidatesResponse2,
+  ListWorkspacesData,
+  ListWorkspacesError,
+  ListWorkspacesResponse2,
   PatchWorkflowRunNodeStatusData,
   PatchWorkflowRunNodeStatusError,
   PatchWorkflowRunNodeStatusResponse,
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusError,
   PatchWorkflowRunStatusResponse,
-  PreviewSkillImportData,
-  PreviewSkillImportError,
-  PreviewSkillImportResponse,
+  PreviewImmutableSkillImportData,
+  PreviewImmutableSkillImportError,
+  PreviewImmutableSkillImportResponse,
+  PreviewMutableSkillImportData,
+  PreviewMutableSkillImportError,
+  PreviewMutableSkillImportResponse,
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
@@ -300,9 +370,21 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryError,
   RenameAgentEntryResponse,
+  ReplaceWorkspaceInheritedResourcesData,
+  ReplaceWorkspaceInheritedResourcesError,
+  ReplaceWorkspaceInheritedResourcesResponse,
+  ResolveWorkspaceSlugData,
+  ResolveWorkspaceSlugError,
+  ResolveWorkspaceSlugResponse,
+  RetryWorkspaceData,
+  RetryWorkspaceError,
+  RetryWorkspaceResponse,
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
+  TransferAgentOwnerData,
+  TransferAgentOwnerError,
+  TransferAgentOwnerResponse,
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
@@ -321,6 +403,12 @@ import type {
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleError,
   UpdateWorkflowScheduleResponse,
+  UpdateWorkspaceLifecycleData,
+  UpdateWorkspaceLifecycleError,
+  UpdateWorkspaceLifecycleResponse,
+  UpsertAgentShareData,
+  UpsertAgentShareError,
+  UpsertAgentShareResponse,
   WriteAgentFileData,
   WriteAgentFileError,
   WriteAgentFileRawData,
@@ -328,6 +416,36 @@ import type {
   WriteAgentFileRawResponse,
   WriteAgentFileResponse,
 } from "../types.gen"
+
+/**
+ * List Organisation event trail events.
+ *
+ * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
+ *
+ */
+export const listEventTrailEventsMutation = (
+  options?: Partial<Options<ListEventTrailEventsData>>
+): UseMutationOptions<
+  ListEventTrailEventsResponse2,
+  ListEventTrailEventsError,
+  Options<ListEventTrailEventsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ListEventTrailEventsResponse2,
+    ListEventTrailEventsError,
+    Options<ListEventTrailEventsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await listEventTrailEvents({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export type QueryKey<TOptions extends Options> = [
   Pick<TOptions, "baseUrl" | "body" | "headers" | "path" | "query"> & {
@@ -367,6 +485,34 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
+
+export const getEventTrailEventQueryKey = (options: Options<GetEventTrailEventData>) =>
+  createQueryKey("getEventTrailEvent", options)
+
+/**
+ * Get an Organisation event trail event.
+ *
+ * Returns one event from the selected scope's rolling event trail history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
+ *
+ */
+export const getEventTrailEventOptions = (options: Options<GetEventTrailEventData>) =>
+  queryOptions<
+    GetEventTrailEventResponse,
+    GetEventTrailEventError,
+    GetEventTrailEventResponse,
+    ReturnType<typeof getEventTrailEventQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getEventTrailEvent({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getEventTrailEventQueryKey(options),
+  })
 
 export const getTenantQueryKey = (options?: Options<GetTenantData>) =>
   createQueryKey("getTenant", options)
@@ -409,6 +555,262 @@ export const ensureTenantMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await ensureTenant({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkspacesQueryKey = (options?: Options<ListWorkspacesData>) =>
+  createQueryKey("listWorkspaces", options)
+
+/**
+ * List accessible Workspaces.
+ *
+ * Lists nondeleted Workspaces accessible to the current active Organisation membership. Superadmins receive every Workspace.
+ *
+ */
+export const listWorkspacesOptions = (options?: Options<ListWorkspacesData>) =>
+  queryOptions<
+    ListWorkspacesResponse2,
+    ListWorkspacesError,
+    ListWorkspacesResponse2,
+    ReturnType<typeof listWorkspacesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkspaces({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkspacesQueryKey(options),
+  })
+
+/**
+ * Create a Workspace.
+ *
+ * Creates the complete relational Workspace aggregate and starts cluster provisioning. Only an active Superadmin may create a Workspace or assign its initial Workspace Admins.
+ *
+ */
+export const createWorkspaceMutation = (
+  options?: Partial<Options<CreateWorkspaceData>>
+): UseMutationOptions<
+  CreateWorkspaceResponse,
+  CreateWorkspaceError,
+  Options<CreateWorkspaceData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkspaceResponse,
+    CreateWorkspaceError,
+    Options<CreateWorkspaceData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkspace({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listWorkspaceMemberCandidatesQueryKey = (
+  options?: Options<ListWorkspaceMemberCandidatesData>
+) => createQueryKey("listWorkspaceMemberCandidates", options)
+
+/**
+ * List eligible initial Workspace Admins.
+ *
+ * Lists active, non-Superadmin members of the current Organisation. Only an active Superadmin may inspect the candidates.
+ *
+ */
+export const listWorkspaceMemberCandidatesOptions = (
+  options?: Options<ListWorkspaceMemberCandidatesData>
+) =>
+  queryOptions<
+    ListWorkspaceMemberCandidatesResponse2,
+    ListWorkspaceMemberCandidatesError,
+    ListWorkspaceMemberCandidatesResponse2,
+    ReturnType<typeof listWorkspaceMemberCandidatesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkspaceMemberCandidates({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkspaceMemberCandidatesQueryKey(options),
+  })
+
+export const resolveWorkspaceSlugQueryKey = (options: Options<ResolveWorkspaceSlugData>) =>
+  createQueryKey("resolveWorkspaceSlug", options)
+
+/**
+ * Resolve an accessible Workspace slug.
+ *
+ * Resolves current and historical slugs inside the active Organisation without exposing inaccessible Workspace identity.
+ *
+ */
+export const resolveWorkspaceSlugOptions = (options: Options<ResolveWorkspaceSlugData>) =>
+  queryOptions<
+    ResolveWorkspaceSlugResponse,
+    ResolveWorkspaceSlugError,
+    ResolveWorkspaceSlugResponse,
+    ReturnType<typeof resolveWorkspaceSlugQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await resolveWorkspaceSlug({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: resolveWorkspaceSlugQueryKey(options),
+  })
+
+export const getWorkspaceQueryKey = (options: Options<GetWorkspaceData>) =>
+  createQueryKey("getWorkspace", options)
+
+/**
+ * Get an accessible Workspace.
+ */
+export const getWorkspaceOptions = (options: Options<GetWorkspaceData>) =>
+  queryOptions<
+    GetWorkspaceResponse,
+    GetWorkspaceError,
+    GetWorkspaceResponse,
+    ReturnType<typeof getWorkspaceQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkspace({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkspaceQueryKey(options),
+  })
+
+export const listWorkspaceInheritedResourcesQueryKey = (
+  options: Options<ListWorkspaceInheritedResourcesData>
+) => createQueryKey("listWorkspaceInheritedResources", options)
+
+/**
+ * List Organisation resources available for Workspace inheritance.
+ *
+ * Only an active Superadmin may browse and manage inheritance.
+ */
+export const listWorkspaceInheritedResourcesOptions = (
+  options: Options<ListWorkspaceInheritedResourcesData>
+) =>
+  queryOptions<
+    ListWorkspaceInheritedResourcesResponse2,
+    ListWorkspaceInheritedResourcesError,
+    ListWorkspaceInheritedResourcesResponse2,
+    ReturnType<typeof listWorkspaceInheritedResourcesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkspaceInheritedResources({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkspaceInheritedResourcesQueryKey(options),
+  })
+
+/**
+ * Replace one type of explicitly inherited Organisation resource.
+ *
+ * Consumed resources cannot be unselected.
+ */
+export const replaceWorkspaceInheritedResourcesMutation = (
+  options?: Partial<Options<ReplaceWorkspaceInheritedResourcesData>>
+): UseMutationOptions<
+  ReplaceWorkspaceInheritedResourcesResponse,
+  ReplaceWorkspaceInheritedResourcesError,
+  Options<ReplaceWorkspaceInheritedResourcesData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReplaceWorkspaceInheritedResourcesResponse,
+    ReplaceWorkspaceInheritedResourcesError,
+    Options<ReplaceWorkspaceInheritedResourcesData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await replaceWorkspaceInheritedResources({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Retry failed Workspace provisioning.
+ *
+ * Only an active Superadmin may retry a failed Workspace.
+ */
+export const retryWorkspaceMutation = (
+  options?: Partial<Options<RetryWorkspaceData>>
+): UseMutationOptions<RetryWorkspaceResponse, RetryWorkspaceError, Options<RetryWorkspaceData>> => {
+  const mutationOptions: UseMutationOptions<
+    RetryWorkspaceResponse,
+    RetryWorkspaceError,
+    Options<RetryWorkspaceData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await retryWorkspace({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Record observed Workspace lifecycle state.
+ *
+ * Accepts a controller-observed terminal state for the current provisioning attempt. Stale attempts cannot overwrite current state.
+ *
+ */
+export const updateWorkspaceLifecycleMutation = (
+  options?: Partial<Options<UpdateWorkspaceLifecycleData>>
+): UseMutationOptions<
+  UpdateWorkspaceLifecycleResponse,
+  UpdateWorkspaceLifecycleError,
+  Options<UpdateWorkspaceLifecycleData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateWorkspaceLifecycleResponse,
+    UpdateWorkspaceLifecycleError,
+    Options<UpdateWorkspaceLifecycleData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateWorkspaceLifecycle({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -671,6 +1073,165 @@ export const writeAgentFileRawMutation = (
   return mutationOptions
 }
 
+export const getAgentOwnerQueryKey = (options: Options<GetAgentOwnerData>) =>
+  createQueryKey("getAgentOwner", options)
+
+/**
+ * Read Agent ownership metadata.
+ */
+export const getAgentOwnerOptions = (options: Options<GetAgentOwnerData>) =>
+  queryOptions<
+    GetAgentOwnerResponse,
+    GetAgentOwnerError,
+    GetAgentOwnerResponse,
+    ReturnType<typeof getAgentOwnerQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAgentOwner({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAgentOwnerQueryKey(options),
+  })
+
+/**
+ * Transfer Agent ownership.
+ */
+export const transferAgentOwnerMutation = (
+  options?: Partial<Options<TransferAgentOwnerData>>
+): UseMutationOptions<
+  TransferAgentOwnerResponse,
+  TransferAgentOwnerError,
+  Options<TransferAgentOwnerData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    TransferAgentOwnerResponse,
+    TransferAgentOwnerError,
+    Options<TransferAgentOwnerData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await transferAgentOwner({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listAgentSharesQueryKey = (options: Options<ListAgentSharesData>) =>
+  createQueryKey("listAgentShares", options)
+
+/**
+ * List Agent Shares.
+ */
+export const listAgentSharesOptions = (options: Options<ListAgentSharesData>) =>
+  queryOptions<
+    ListAgentSharesResponse2,
+    ListAgentSharesError,
+    ListAgentSharesResponse2,
+    ReturnType<typeof listAgentSharesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentShares({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentSharesQueryKey(options),
+  })
+
+/**
+ * Create or replace an Agent Share.
+ *
+ * Creates or replaces one User or Team Agent Share. UseShared permits Agent sessions, files, and workflows; it does not permit Agent modification, deletion, sharing, ownership, or secret access.
+ *
+ */
+export const upsertAgentShareMutation = (
+  options?: Partial<Options<UpsertAgentShareData>>
+): UseMutationOptions<
+  UpsertAgentShareResponse,
+  UpsertAgentShareError,
+  Options<UpsertAgentShareData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpsertAgentShareResponse,
+    UpsertAgentShareError,
+    Options<UpsertAgentShareData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await upsertAgentShare({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete an Agent Share.
+ */
+export const deleteAgentShareMutation = (
+  options?: Partial<Options<DeleteAgentShareData>>
+): UseMutationOptions<
+  DeleteAgentShareResponse,
+  DeleteAgentShareError,
+  Options<DeleteAgentShareData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteAgentShareResponse,
+    DeleteAgentShareError,
+    Options<DeleteAgentShareData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteAgentShare({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listAgentAccessTargetsQueryKey = (options: Options<ListAgentAccessTargetsData>) =>
+  createQueryKey("listAgentAccessTargets", options)
+
+/**
+ * List Agent access targets and their eligible capabilities.
+ */
+export const listAgentAccessTargetsOptions = (options: Options<ListAgentAccessTargetsData>) =>
+  queryOptions<
+    ListAgentAccessTargetsResponse2,
+    ListAgentAccessTargetsError,
+    ListAgentAccessTargetsResponse2,
+    ReturnType<typeof listAgentAccessTargetsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentAccessTargets({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentAccessTargetsQueryKey(options),
+  })
+
 /**
  * Create a directory in the agent workspace.
  */
@@ -832,22 +1393,22 @@ export const exportAgentMutableSkillsMutation = (
 }
 
 /**
- * Parse a skill import and report live conflicts.
+ * Parse a mutable skill import and report Agent conflicts.
  */
-export const previewSkillImportMutation = (
-  options?: Partial<Options<PreviewSkillImportData>>
+export const previewMutableSkillImportMutation = (
+  options?: Partial<Options<PreviewMutableSkillImportData>>
 ): UseMutationOptions<
-  PreviewSkillImportResponse,
-  PreviewSkillImportError,
-  Options<PreviewSkillImportData>
+  PreviewMutableSkillImportResponse,
+  PreviewMutableSkillImportError,
+  Options<PreviewMutableSkillImportData>
 > => {
   const mutationOptions: UseMutationOptions<
-    PreviewSkillImportResponse,
-    PreviewSkillImportError,
-    Options<PreviewSkillImportData>
+    PreviewMutableSkillImportResponse,
+    PreviewMutableSkillImportError,
+    Options<PreviewMutableSkillImportData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await previewSkillImport({
+      const { data } = await previewMutableSkillImport({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -859,18 +1420,76 @@ export const previewSkillImportMutation = (
 }
 
 /**
- * Import mutable or immutable skills.
+ * Import mutable skills into selected Agents.
  */
-export const importSkillsMutation = (
-  options?: Partial<Options<ImportSkillsData>>
-): UseMutationOptions<ImportSkillsResponse2, ImportSkillsError, Options<ImportSkillsData>> => {
+export const importMutableSkillsMutation = (
+  options?: Partial<Options<ImportMutableSkillsData>>
+): UseMutationOptions<
+  ImportMutableSkillsResponse,
+  ImportMutableSkillsError,
+  Options<ImportMutableSkillsData>
+> => {
   const mutationOptions: UseMutationOptions<
-    ImportSkillsResponse2,
-    ImportSkillsError,
-    Options<ImportSkillsData>
+    ImportMutableSkillsResponse,
+    ImportMutableSkillsError,
+    Options<ImportMutableSkillsData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await importSkills({
+      const { data } = await importMutableSkills({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Parse an immutable skill import and report scope conflicts.
+ */
+export const previewImmutableSkillImportMutation = (
+  options?: Partial<Options<PreviewImmutableSkillImportData>>
+): UseMutationOptions<
+  PreviewImmutableSkillImportResponse,
+  PreviewImmutableSkillImportError,
+  Options<PreviewImmutableSkillImportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    PreviewImmutableSkillImportResponse,
+    PreviewImmutableSkillImportError,
+    Options<PreviewImmutableSkillImportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await previewImmutableSkillImport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Import immutable skills.
+ */
+export const importImmutableSkillsMutation = (
+  options?: Partial<Options<ImportImmutableSkillsData>>
+): UseMutationOptions<
+  ImportImmutableSkillsResponse,
+  ImportImmutableSkillsError,
+  Options<ImportImmutableSkillsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ImportImmutableSkillsResponse,
+    ImportImmutableSkillsError,
+    Options<ImportImmutableSkillsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await importImmutableSkills({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -1210,6 +1829,34 @@ export const listProcessObservabilityOptions = (options: Options<ListProcessObse
     queryKey: listProcessObservabilityQueryKey(options),
   })
 
+export const listProcessObservabilitySummaryQueryKey = (
+  options: Options<ListProcessObservabilitySummaryData>
+) => createQueryKey("listProcessObservabilitySummary", options)
+
+/**
+ * List paginated process observability summaries.
+ */
+export const listProcessObservabilitySummaryOptions = (
+  options: Options<ListProcessObservabilitySummaryData>
+) =>
+  queryOptions<
+    ListProcessObservabilitySummaryResponse2,
+    ListProcessObservabilitySummaryError,
+    ListProcessObservabilitySummaryResponse2,
+    ReturnType<typeof listProcessObservabilitySummaryQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listProcessObservabilitySummary({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listProcessObservabilitySummaryQueryKey(options),
+  })
+
 export const listFileObservabilityQueryKey = (options: Options<ListFileObservabilityData>) =>
   createQueryKey("listFileObservability", options)
 
@@ -1235,6 +1882,34 @@ export const listFileObservabilityOptions = (options: Options<ListFileObservabil
     queryKey: listFileObservabilityQueryKey(options),
   })
 
+export const listFileObservabilitySummaryQueryKey = (
+  options: Options<ListFileObservabilitySummaryData>
+) => createQueryKey("listFileObservabilitySummary", options)
+
+/**
+ * List paginated file observability summaries.
+ */
+export const listFileObservabilitySummaryOptions = (
+  options: Options<ListFileObservabilitySummaryData>
+) =>
+  queryOptions<
+    ListFileObservabilitySummaryResponse2,
+    ListFileObservabilitySummaryError,
+    ListFileObservabilitySummaryResponse2,
+    ReturnType<typeof listFileObservabilitySummaryQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listFileObservabilitySummary({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listFileObservabilitySummaryQueryKey(options),
+  })
+
 export const listNetworkObservabilityQueryKey = (options: Options<ListNetworkObservabilityData>) =>
   createQueryKey("listNetworkObservability", options)
 
@@ -1258,6 +1933,34 @@ export const listNetworkObservabilityOptions = (options: Options<ListNetworkObse
       return data
     },
     queryKey: listNetworkObservabilityQueryKey(options),
+  })
+
+export const listNetworkObservabilitySummaryQueryKey = (
+  options: Options<ListNetworkObservabilitySummaryData>
+) => createQueryKey("listNetworkObservabilitySummary", options)
+
+/**
+ * List paginated network observability summaries.
+ */
+export const listNetworkObservabilitySummaryOptions = (
+  options: Options<ListNetworkObservabilitySummaryData>
+) =>
+  queryOptions<
+    ListNetworkObservabilitySummaryResponse2,
+    ListNetworkObservabilitySummaryError,
+    ListNetworkObservabilitySummaryResponse2,
+    ReturnType<typeof listNetworkObservabilitySummaryQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listNetworkObservabilitySummary({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listNetworkObservabilitySummaryQueryKey(options),
   })
 
 export const getMcpGraphQueryKey = (options: Options<GetMcpGraphData>) =>
@@ -1684,13 +2387,13 @@ export const listInferenceModelSuggestionsOptions = (
     queryKey: listInferenceModelSuggestionsQueryKey(options),
   })
 
-export const listInferencePoolsQueryKey = (options?: Options<ListInferencePoolsData>) =>
+export const listInferencePoolsQueryKey = (options: Options<ListInferencePoolsData>) =>
   createQueryKey("listInferencePools", options)
 
 /**
  * List paginated inference Pools.
  */
-export const listInferencePoolsOptions = (options?: Options<ListInferencePoolsData>) =>
+export const listInferencePoolsOptions = (options: Options<ListInferencePoolsData>) =>
   queryOptions<
     ListInferencePoolsResponse2,
     ListInferencePoolsError,

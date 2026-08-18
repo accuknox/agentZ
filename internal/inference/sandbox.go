@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
@@ -20,6 +21,8 @@ const (
 	SandboxLabel = "agentz.accuknox.com/inference-sandbox"
 	// SandboxHeader carries controller-owned route identity to extAuth.
 	SandboxHeader = "x-agentz-inference-sandbox"
+	// SandboxNamespaceHeader binds the route to its source Workspace.
+	SandboxNamespaceHeader = "x-agentz-inference-sandbox-namespace"
 )
 
 // Gateway returns the isolated namespace-local inference Gateway.
@@ -45,13 +48,14 @@ func Gateway(namespace string) *gwv1.Gateway {
 
 // SandboxTarget describes one logical inference target exposed by a Sandbox.
 type SandboxTarget struct {
-	Name    string
-	Backend string
-	Path    string
-	Models  []string
-	Labels  map[string]string
-	ExtAuth bool
-	Retries int
+	Name             string
+	Backend          string
+	BackendNamespace string
+	Path             string
+	Models           []string
+	Labels           map[string]string
+	ExtAuth          bool
+	Retries          int
 }
 
 // SandboxTargetRuntime contains the fail-closed route and authorization policy
@@ -87,16 +91,13 @@ func SandboxPoolPath(sandboxName, poolName string) string {
 // RenderSandboxTarget creates a route and fail-closed logical model policy.
 func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) SandboxTargetRuntime {
 	name := SandboxProviderRuntimeName(sandboxName, target.Name)
-	root := "/"
 	pathType := gwv1.PathMatchPathPrefix
 	group := gwv1.Group("agentgateway.dev")
 	kind := gwv1.Kind("AgentgatewayBackend")
 	labels := map[string]string{
 		SandboxLabel: sandboxName,
 	}
-	for key, value := range target.Labels {
-		labels[key] = value
-	}
+	maps.Copy(labels, target.Labels)
 	route := &gwv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
 		Spec: gwv1.HTTPRouteSpec{
@@ -106,15 +107,6 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 			Rules: []gwv1.HTTPRouteRule{{
 				Matches: []gwv1.HTTPRouteMatch{{
 					Path: &gwv1.HTTPPathMatch{Type: &pathType, Value: &target.Path},
-				}},
-				Filters: []gwv1.HTTPRouteFilter{{
-					Type: gwv1.HTTPRouteFilterURLRewrite,
-					URLRewrite: &gwv1.HTTPURLRewriteFilter{
-						Path: &gwv1.HTTPPathModifier{
-							Type:               gwv1.PrefixMatchHTTPPathModifier,
-							ReplacePrefixMatch: &root,
-						},
-					},
 				}},
 				BackendRefs: []gwv1.HTTPBackendRef{{
 					BackendRef: gwv1.BackendRef{
@@ -126,15 +118,25 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 			}},
 		},
 	}
+	if target.BackendNamespace != "" && target.BackendNamespace != namespace {
+		backendNamespace := gwv1.Namespace(target.BackendNamespace)
+		route.Spec.Rules[0].BackendRefs[0].Namespace = &backendNamespace
+	}
 	if target.ExtAuth {
 		route.Spec.Rules[0].Filters = append(
 			[]gwv1.HTTPRouteFilter{{
 				Type: gwv1.HTTPRouteFilterRequestHeaderModifier,
 				RequestHeaderModifier: &gwv1.HTTPHeaderFilter{
-					Set: []gwv1.HTTPHeader{{
-						Name:  gwv1.HTTPHeaderName(SandboxHeader),
-						Value: sandboxName,
-					}},
+					Set: []gwv1.HTTPHeader{
+						{
+							Name:  gwv1.HTTPHeaderName(SandboxHeader),
+							Value: sandboxName,
+						},
+						{
+							Name:  gwv1.HTTPHeaderName(SandboxNamespaceHeader),
+							Value: namespace,
+						},
+					},
 				},
 			}},
 			route.Spec.Rules[0].Filters...,

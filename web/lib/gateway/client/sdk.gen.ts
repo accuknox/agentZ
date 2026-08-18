@@ -44,6 +44,9 @@ import type {
   CreateWorkflowScheduleData,
   CreateWorkflowScheduleErrors,
   CreateWorkflowScheduleResponses,
+  CreateWorkspaceData,
+  CreateWorkspaceErrors,
+  CreateWorkspaceResponses,
   DeleteAgentData,
   DeleteAgentEntryData,
   DeleteAgentEntryErrors,
@@ -53,6 +56,9 @@ import type {
   DeleteAgentMutableSkillsErrors,
   DeleteAgentMutableSkillsResponses,
   DeleteAgentResponses,
+  DeleteAgentShareData,
+  DeleteAgentShareErrors,
+  DeleteAgentShareResponses,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
@@ -92,6 +98,12 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetAgentOwnerData,
+  GetAgentOwnerErrors,
+  GetAgentOwnerResponses,
+  GetEventTrailEventData,
+  GetEventTrailEventErrors,
+  GetEventTrailEventResponses,
   GetInferencePoolData,
   GetInferencePoolErrors,
   GetInferencePoolResponses,
@@ -125,24 +137,42 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunErrors,
   GetWorkflowRunResponses,
-  ImportSkillsData,
-  ImportSkillsErrors,
-  ImportSkillsResponses,
+  GetWorkspaceData,
+  GetWorkspaceErrors,
+  GetWorkspaceResponses,
+  ImportImmutableSkillsData,
+  ImportImmutableSkillsErrors,
+  ImportImmutableSkillsResponses,
+  ImportMutableSkillsData,
+  ImportMutableSkillsErrors,
+  ImportMutableSkillsResponses,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookErrors,
   InvokeWorkflowWebhookResponses,
+  ListAgentAccessTargetsData,
+  ListAgentAccessTargetsErrors,
+  ListAgentAccessTargetsResponses,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsErrors,
   ListAgentMutableSkillsResponses,
   ListAgentsData,
   ListAgentsErrors,
+  ListAgentSharesData,
+  ListAgentSharesErrors,
+  ListAgentSharesResponses,
   ListAgentsResponses,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
+  ListEventTrailEventsData,
+  ListEventTrailEventsErrors,
+  ListEventTrailEventsResponses,
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
+  ListFileObservabilitySummaryData,
+  ListFileObservabilitySummaryErrors,
+  ListFileObservabilitySummaryResponses,
   ListImmutableSkillSummariesData,
   ListImmutableSkillSummariesErrors,
   ListImmutableSkillSummariesResponses,
@@ -167,9 +197,15 @@ import type {
   ListNetworkObservabilityData,
   ListNetworkObservabilityErrors,
   ListNetworkObservabilityResponses,
+  ListNetworkObservabilitySummaryData,
+  ListNetworkObservabilitySummaryErrors,
+  ListNetworkObservabilitySummaryResponses,
   ListProcessObservabilityData,
   ListProcessObservabilityErrors,
   ListProcessObservabilityResponses,
+  ListProcessObservabilitySummaryData,
+  ListProcessObservabilitySummaryErrors,
+  ListProcessObservabilitySummaryResponses,
   ListSandboxesData,
   ListSandboxesErrors,
   ListSandboxesResponses,
@@ -197,15 +233,27 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersErrors,
   ListWorkflowWebhookTriggersResponses,
+  ListWorkspaceInheritedResourcesData,
+  ListWorkspaceInheritedResourcesErrors,
+  ListWorkspaceInheritedResourcesResponses,
+  ListWorkspaceMemberCandidatesData,
+  ListWorkspaceMemberCandidatesErrors,
+  ListWorkspaceMemberCandidatesResponses,
+  ListWorkspacesData,
+  ListWorkspacesErrors,
+  ListWorkspacesResponses,
   PatchWorkflowRunNodeStatusData,
   PatchWorkflowRunNodeStatusErrors,
   PatchWorkflowRunNodeStatusResponses,
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
-  PreviewSkillImportData,
-  PreviewSkillImportErrors,
-  PreviewSkillImportResponses,
+  PreviewImmutableSkillImportData,
+  PreviewImmutableSkillImportErrors,
+  PreviewImmutableSkillImportResponses,
+  PreviewMutableSkillImportData,
+  PreviewMutableSkillImportErrors,
+  PreviewMutableSkillImportResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -221,9 +269,21 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
+  ReplaceWorkspaceInheritedResourcesData,
+  ReplaceWorkspaceInheritedResourcesErrors,
+  ReplaceWorkspaceInheritedResourcesResponses,
+  ResolveWorkspaceSlugData,
+  ResolveWorkspaceSlugErrors,
+  ResolveWorkspaceSlugResponses,
+  RetryWorkspaceData,
+  RetryWorkspaceErrors,
+  RetryWorkspaceResponses,
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  TransferAgentOwnerData,
+  TransferAgentOwnerErrors,
+  TransferAgentOwnerResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
@@ -242,6 +302,12 @@ import type {
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
+  UpdateWorkspaceLifecycleData,
+  UpdateWorkspaceLifecycleErrors,
+  UpdateWorkspaceLifecycleResponses,
+  UpsertAgentShareData,
+  UpsertAgentShareErrors,
+  UpsertAgentShareResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
@@ -293,6 +359,48 @@ export type Options<
 }
 
 /**
+ * List Organisation event trail events.
+ *
+ * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
+ *
+ */
+export const listEventTrailEvents = <ThrowOnError extends boolean = false>(
+  options: Options<ListEventTrailEventsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ListEventTrailEventsResponses,
+    ListEventTrailEventsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/event-trail-event",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get an Organisation event trail event.
+ *
+ * Returns one event from the selected scope's rolling event trail history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
+ *
+ */
+export const getEventTrailEvent = <ThrowOnError extends boolean = false>(
+  options: Options<GetEventTrailEventData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetEventTrailEventResponses,
+    GetEventTrailEventErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/event-trail-event/{eventId}",
+    ...options,
+  })
+
+/**
  * Get the current tenant bootstrap state.
  */
 export const getTenant = <ThrowOnError extends boolean = false>(
@@ -317,6 +425,167 @@ export const ensureTenant = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/tenant",
     ...options,
+  })
+
+/**
+ * List accessible Workspaces.
+ *
+ * Lists nondeleted Workspaces accessible to the current active Organisation membership. Superadmins receive every Workspace.
+ *
+ */
+export const listWorkspaces = <ThrowOnError extends boolean = false>(
+  options?: Options<ListWorkspacesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListWorkspacesResponses, ListWorkspacesErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace",
+    ...options,
+  })
+
+/**
+ * Create a Workspace.
+ *
+ * Creates the complete relational Workspace aggregate and starts cluster provisioning. Only an active Superadmin may create a Workspace or assign its initial Workspace Admins.
+ *
+ */
+export const createWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateWorkspaceResponses, CreateWorkspaceErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List eligible initial Workspace Admins.
+ *
+ * Lists active, non-Superadmin members of the current Organisation. Only an active Superadmin may inspect the candidates.
+ *
+ */
+export const listWorkspaceMemberCandidates = <ThrowOnError extends boolean = false>(
+  options?: Options<ListWorkspaceMemberCandidatesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListWorkspaceMemberCandidatesResponses,
+    ListWorkspaceMemberCandidatesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/member-candidate",
+    ...options,
+  })
+
+/**
+ * Resolve an accessible Workspace slug.
+ *
+ * Resolves current and historical slugs inside the active Organisation without exposing inaccessible Workspace identity.
+ *
+ */
+export const resolveWorkspaceSlug = <ThrowOnError extends boolean = false>(
+  options: Options<ResolveWorkspaceSlugData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ResolveWorkspaceSlugResponses,
+    ResolveWorkspaceSlugErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/slug/{workspaceSlug}",
+    ...options,
+  })
+
+/**
+ * Get an accessible Workspace.
+ */
+export const getWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetWorkspaceResponses, GetWorkspaceErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}",
+    ...options,
+  })
+
+/**
+ * List Organisation resources available for Workspace inheritance.
+ *
+ * Only an active Superadmin may browse and manage inheritance.
+ */
+export const listWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkspaceInheritedResourcesResponses,
+    ListWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+  })
+
+/**
+ * Replace one type of explicitly inherited Organisation resource.
+ *
+ * Consumed resources cannot be unselected.
+ */
+export const replaceWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ReplaceWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    ReplaceWorkspaceInheritedResourcesResponses,
+    ReplaceWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Retry failed Workspace provisioning.
+ *
+ * Only an active Superadmin may retry a failed Workspace.
+ */
+export const retryWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<RetryWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).post<RetryWorkspaceResponses, RetryWorkspaceErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/retry",
+    ...options,
+  })
+
+/**
+ * Record observed Workspace lifecycle state.
+ *
+ * Accepts a controller-observed terminal state for the current provisioning attempt. Stale attempts cannot overwrite current state.
+ *
+ */
+export const updateWorkspaceLifecycle = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateWorkspaceLifecycleData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateWorkspaceLifecycleResponses,
+    UpdateWorkspaceLifecycleErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/lifecycle",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**
@@ -488,6 +757,101 @@ export const writeAgentFileRaw = <ThrowOnError extends boolean = false>(
   )
 
 /**
+ * Read Agent ownership metadata.
+ */
+export const getAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<GetAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAgentOwnerResponses, GetAgentOwnerErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+  })
+
+/**
+ * Transfer Agent ownership.
+ */
+export const transferAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<TransferAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    TransferAgentOwnerResponses,
+    TransferAgentOwnerErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List Agent Shares.
+ */
+export const listAgentShares = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentSharesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAgentSharesResponses, ListAgentSharesErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+  })
+
+/**
+ * Create or replace an Agent Share.
+ *
+ * Creates or replaces one User or Team Agent Share. UseShared permits Agent sessions, files, and workflows; it does not permit Agent modification, deletion, sharing, ownership, or secret access.
+ *
+ */
+export const upsertAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<UpsertAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).post<UpsertAgentShareResponses, UpsertAgentShareErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an Agent Share.
+ */
+export const deleteAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteAgentShareResponses,
+    DeleteAgentShareErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share/{shareId}",
+    ...options,
+  })
+
+/**
+ * List Agent access targets and their eligible capabilities.
+ */
+export const listAgentAccessTargets = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentAccessTargetsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListAgentAccessTargetsResponses,
+    ListAgentAccessTargetsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/access-targets",
+    ...options,
+  })
+
+/**
  * Create a directory in the agent workspace.
  */
 export const createAgentDirectory = <ThrowOnError extends boolean = false>(
@@ -596,14 +960,56 @@ export const exportAgentMutableSkills = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Parse a skill import and report live conflicts.
+ * Parse a mutable skill import and report Agent conflicts.
  */
-export const previewSkillImport = <ThrowOnError extends boolean = false>(
-  options: Options<PreviewSkillImportData, ThrowOnError>
+export const previewMutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewMutableSkillImportData, ThrowOnError>
 ) =>
   (options.client ?? client).post<
-    PreviewSkillImportResponses,
-    PreviewSkillImportErrors,
+    PreviewMutableSkillImportResponses,
+    PreviewMutableSkillImportErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import/preview",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Import mutable skills into selected Agents.
+ */
+export const importMutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportMutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ImportMutableSkillsResponses,
+    ImportMutableSkillsErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Parse an immutable skill import and report scope conflicts.
+ */
+export const previewImmutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewImmutableSkillImportData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PreviewImmutableSkillImportResponses,
+    PreviewImmutableSkillImportErrors,
     ThrowOnError
   >({
     ...formDataBodySerializer,
@@ -617,12 +1023,16 @@ export const previewSkillImport = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Import mutable or immutable skills.
+ * Import immutable skills.
  */
-export const importSkills = <ThrowOnError extends boolean = false>(
-  options: Options<ImportSkillsData, ThrowOnError>
+export const importImmutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportImmutableSkillsData, ThrowOnError>
 ) =>
-  (options.client ?? client).post<ImportSkillsResponses, ImportSkillsErrors, ThrowOnError>({
+  (options.client ?? client).post<
+    ImportImmutableSkillsResponses,
+    ImportImmutableSkillsErrors,
+    ThrowOnError
+  >({
     ...formDataBodySerializer,
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/skill/import",
@@ -832,6 +1242,22 @@ export const listProcessObservability = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated process observability summaries.
+ */
+export const listProcessObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListProcessObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListProcessObservabilitySummaryResponses,
+    ListProcessObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/process/summary",
+    ...options,
+  })
+
+/**
  * List paginated file observability events.
  */
 export const listFileObservability = <ThrowOnError extends boolean = false>(
@@ -848,6 +1274,22 @@ export const listFileObservability = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated file observability summaries.
+ */
+export const listFileObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListFileObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListFileObservabilitySummaryResponses,
+    ListFileObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/file/summary",
+    ...options,
+  })
+
+/**
  * List paginated network observability events.
  */
 export const listNetworkObservability = <ThrowOnError extends boolean = false>(
@@ -860,6 +1302,22 @@ export const listNetworkObservability = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/observability/network",
+    ...options,
+  })
+
+/**
+ * List paginated network observability summaries.
+ */
+export const listNetworkObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListNetworkObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListNetworkObservabilitySummaryResponses,
+    ListNetworkObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/network/summary",
     ...options,
   })
 
@@ -1177,9 +1635,9 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
  * List paginated inference Pools.
  */
 export const listInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<ListInferencePoolsData, ThrowOnError>
+  options: Options<ListInferencePoolsData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<
+  (options.client ?? client).get<
     ListInferencePoolsResponses,
     ListInferencePoolsErrors,
     ThrowOnError
@@ -1280,9 +1738,9 @@ export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
  *
  */
 export const watchInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
+  options: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
 ) =>
-  (options?.client ?? client).sse.post<
+  (options.client ?? client).sse.post<
     WatchInferencePoolsResponses,
     WatchInferencePoolsErrors,
     ThrowOnError
@@ -1292,7 +1750,7 @@ export const watchInferencePools = <ThrowOnError extends boolean = false>(
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...options?.headers,
+      ...options.headers,
     },
   })
 

@@ -46,6 +46,7 @@ import (
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
+	"github.com/accuknox/agentz/internal/scope"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -65,6 +66,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=skills,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workspaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
@@ -298,6 +300,7 @@ type sandboxConfig struct {
 	GitHubCopilotPoolIDs     []string
 	InferenceURL             string
 	MCPURL                   string
+	SandboxNamespace         string
 	MCPConsentPermissionIDs  []string
 	MCPRefs                  []mcpRefConfig
 	Skills                   []skillpkg.ManifestSkill
@@ -324,34 +327,71 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		GitHubCopilotPoolIDs:     []string{},
 		InferenceURL:             "",
 		MCPURL:                   "",
+		SandboxNamespace:         "",
 		MCPConsentPermissionIDs:  []string{},
 		MCPRefs:                  []mcpRefConfig{},
 		Skills:                   []skillpkg.ManifestSkill{},
 	}
-	skillNames := make([]string, 0, len(agt.Spec.Skills))
-	seenSkills := make(map[string]struct{}, len(agt.Spec.Skills))
-	for _, name := range agt.Spec.Skills {
-		if name == "" {
+	skillKeys := make([]types.NamespacedName, 0, len(agt.Spec.Skills))
+	seenSkills := make(map[types.NamespacedName]struct{}, len(agt.Spec.Skills))
+	for _, ref := range agt.Spec.Skills {
+		if ref.Name == "" {
 			continue
 		}
-		if _, ok := seenSkills[name]; ok {
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			r.Client,
+			agt.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+				Name:  ref.Name,
+			},
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve skill %q scope: %w", ref.Name, err)
+		}
+		key := types.NamespacedName{Namespace: ns, Name: ref.Name}
+		if _, ok := seenSkills[key]; ok {
 			continue
 		}
-		seenSkills[name] = struct{}{}
-		skillNames = append(skillNames, name)
+		seenSkills[key] = struct{}{}
+		skillKeys = append(skillKeys, key)
 	}
 
 	ref := agt.Spec.SandboxRef
+	sandboxNamespace, err := scope.SelectedNamespace(
+		ctx,
+		r.Client,
+		agt.Namespace,
+		scope.Selection{
+			Scope: ref.Scope,
+			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+			Name:  ref.Name,
+		},
+	)
+	if err != nil {
+		return sandboxConfig{}, fmt.Errorf("resolve sandbox scope: %w", err)
+	}
 	sandbox := &agentzv1alpha1.Sandbox{}
-	key := types.NamespacedName{Name: ref.Name, Namespace: agt.Namespace}
+	key := types.NamespacedName{Name: ref.Name, Namespace: sandboxNamespace}
 	if err := r.Get(ctx, key, sandbox); err != nil {
 		return sandboxConfig{}, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
 	for _, modelRef := range sandbox.Spec.Inference.Models {
+		modelNamespace, err := scope.Namespace(
+			ctx,
+			r.Client,
+			sandboxNamespace,
+			modelRef.Scope,
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve inference model scope: %w", err)
+		}
 		if modelRef.Provider == agentzv1alpha1.InferencePoolProvider {
 			pool := &agentzv1alpha1.InferencePool{}
-			key := types.NamespacedName{Name: modelRef.Model, Namespace: agt.Namespace}
+			key := types.NamespacedName{Name: modelRef.Model, Namespace: modelNamespace}
 			if err := r.Get(ctx, key, pool); err != nil {
 				return sandboxConfig{}, fmt.Errorf("get inference pool %q: %w", modelRef.Model, err)
 			}
@@ -399,12 +439,29 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				},
 				Provider: &opencodeModelProviderFile{
 					NPM: npm,
-					API: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+					API: "http://" + inference.GatewayName + "." + sandboxNamespace + ".svc.cluster.local" + path,
 				},
 			}
 			for _, member := range pool.Spec.Members {
+				memberNamespace, err := scope.SelectedNamespace(
+					ctx,
+					r.Client,
+					pool.Namespace,
+					scope.Selection{
+						Scope: member.Scope,
+						Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+						Name:  member.Provider,
+					},
+				)
+				if err != nil {
+					return sandboxConfig{}, fmt.Errorf(
+						"resolve inference pool %q provider scope: %w",
+						pool.Name,
+						err,
+					)
+				}
 				memberProvider := &agentzv1alpha1.InferenceProvider{}
-				key := types.NamespacedName{Name: member.Provider, Namespace: agt.Namespace}
+				key := types.NamespacedName{Name: member.Provider, Namespace: memberNamespace}
 				if err := r.Get(ctx, key, memberProvider); err != nil {
 					return sandboxConfig{}, fmt.Errorf(
 						"get inference pool %q provider %q: %w",
@@ -422,14 +479,28 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			}
 			continue
 		}
-		provider := providers[modelRef.Provider]
+		modelNamespace, err = scope.SelectedNamespace(
+			ctx,
+			r.Client,
+			sandboxNamespace,
+			scope.Selection{
+				Scope: modelRef.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  modelRef.Provider,
+			},
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve inference provider scope: %w", err)
+		}
+		providerKey := modelNamespace + "/" + modelRef.Provider
+		provider := providers[providerKey]
 		if provider == nil {
 			provider = &agentzv1alpha1.InferenceProvider{}
-			key := types.NamespacedName{Name: modelRef.Provider, Namespace: agt.Namespace}
+			key := types.NamespacedName{Name: modelRef.Provider, Namespace: modelNamespace}
 			if err := r.Get(ctx, key, provider); err != nil {
 				return sandboxConfig{}, fmt.Errorf("get inference provider %q: %w", modelRef.Provider, err)
 			}
-			providers[modelRef.Provider] = provider
+			providers[providerKey] = provider
 			switch provider.Spec.Kind {
 			case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 				cfg.OpenAICodexProviderIDs = append(
@@ -463,7 +534,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				Models: map[string]opencodeModelFile{},
 				Options: &opencodeProviderOptionsFile{
 					APIKey:  apiKey,
-					BaseURL: "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local" + path,
+					BaseURL: "http://" + inference.GatewayName + "." + sandboxNamespace + ".svc.cluster.local" + path,
 				},
 			}
 		}
@@ -548,16 +619,30 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			attachmentModel.Provider+"/"+attachmentModel.Model,
 		)
 	}
-	cfg.InferenceURL = "http://" + inference.GatewayName + "." + agt.Namespace + ".svc.cluster.local"
-	for _, name := range sandbox.Spec.Skills {
-		if name == "" {
+	cfg.InferenceURL = "http://" + inference.GatewayName + "." + sandboxNamespace + ".svc.cluster.local"
+	for _, ref := range sandbox.Spec.Skills {
+		if ref.Name == "" {
 			continue
 		}
-		if _, ok := seenSkills[name]; ok {
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			r.Client,
+			sandbox.Namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+				Name:  ref.Name,
+			},
+		)
+		if err != nil {
+			return sandboxConfig{}, fmt.Errorf("resolve skill %q scope: %w", ref.Name, err)
+		}
+		key := types.NamespacedName{Namespace: ns, Name: ref.Name}
+		if _, ok := seenSkills[key]; ok {
 			continue
 		}
-		seenSkills[name] = struct{}{}
-		skillNames = append(skillNames, name)
+		seenSkills[key] = struct{}{}
+		skillKeys = append(skillKeys, key)
 	}
 	packages := make([]string, 0, len(sandbox.Spec.Packages))
 	for _, pkg := range sandbox.Spec.Packages {
@@ -576,10 +661,13 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	for _, ref := range sandbox.Spec.MCPConnectionRefs {
 		tools := make([]mcpToolConfig, 0, len(ref.Tools))
 		for _, tool := range ref.Tools {
-			tools = append(tools, mcpToolConfig{
-				Name:           tool.Name,
-				RequireConsent: tool.RequireConsent,
-			})
+			tools = append(
+				tools,
+				mcpToolConfig{
+					Name:           tool.Name,
+					RequireConsent: tool.RequireConsent,
+				},
+			)
 			if !tool.RequireConsent {
 				continue
 			}
@@ -588,42 +676,52 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				ref.Name+"_"+tool.Name,
 			)
 		}
-		mcpRefs = append(mcpRefs, mcpRefConfig{
-			Name:  ref.Name,
-			Tools: tools,
-		})
+		mcpRefs = append(
+			mcpRefs,
+			mcpRefConfig{
+				Name:  ref.Name,
+				Tools: tools,
+			},
+		)
 	}
 	slices.Sort(mcpConsentPermissionIDs)
-	skills, err := r.resolveImmutableSkills(ctx, agt.Namespace, skillNames)
+	skills, err := r.resolveImmutableSkills(ctx, skillKeys)
 	if err != nil {
 		return sandboxConfig{}, err
 	}
 	cfg.Packages = packages
 	cfg.AllowedHosts = allowedHosts
-	cfg.MCPURL = r.sandboxMCPURL(ctx, agt.Namespace, sandbox)
+	cfg.MCPURL = r.sandboxMCPURL(ctx, sandboxNamespace, sandbox)
+	cfg.SandboxNamespace = sandboxNamespace
 	cfg.MCPConsentPermissionIDs = mcpConsentPermissionIDs
 	cfg.MCPRefs = mcpRefs
 	cfg.Skills = skills
 	return cfg, nil
 }
 
-func (r *Reconciler) resolveImmutableSkills(ctx context.Context, namespace string, names []string) ([]skillpkg.ManifestSkill, error) {
-	skills := make([]skillpkg.ManifestSkill, 0, len(names))
-	for _, name := range names {
+func (r *Reconciler) resolveImmutableSkills(ctx context.Context, keys []types.NamespacedName) ([]skillpkg.ManifestSkill, error) {
+	skills := make([]skillpkg.ManifestSkill, 0, len(keys))
+	for _, key := range keys {
 		skill := &agentzv1alpha1.Skill{}
-		key := types.NamespacedName{Name: name, Namespace: namespace}
 		if err := r.Get(ctx, key, skill); err != nil {
-			return nil, fmt.Errorf("get immutable skill %q: %w", name, err)
+			return nil, fmt.Errorf("get immutable skill %q: %w", key.Name, err)
 		}
-		skills = append(skills, skillpkg.ManifestSkill{
-			Name:        skill.Name,
-			Version:     skill.Spec.Version,
-			StoragePath: skill.Spec.StoragePath,
-		})
+		skills = append(
+			skills,
+			skillpkg.ManifestSkill{
+				Namespace:   skill.Namespace,
+				Name:        skill.Name,
+				Version:     skill.Spec.Version,
+				StoragePath: skill.Spec.StoragePath,
+			},
+		)
 	}
-	slices.SortFunc(skills, func(a, b skillpkg.ManifestSkill) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+	slices.SortFunc(
+		skills,
+		func(a, b skillpkg.ManifestSkill) int {
+			return strings.Compare(a.Name, b.Name)
+		},
+	)
 	return skills, nil
 }
 
@@ -650,7 +748,6 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	err := r.List(
 		ctx,
 		agents,
-		client.InNamespace(sandbox.Namespace),
 		client.MatchingFields{sandboxutil.AgentBySandboxIndex: sandbox.Name},
 	)
 	if err != nil {
@@ -658,13 +755,30 @@ func (r *Reconciler) agentsForSandbox(ctx context.Context, obj client.Object) []
 	}
 
 	requests := []reconcile.Request{}
-	for _, agt := range agents.Items {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Name:      agt.Name,
-				Namespace: agt.Namespace,
+	for i := range agents.Items {
+		agt := &agents.Items[i]
+		namespace, err := scope.SelectedNamespace(
+			ctx,
+			r.Client,
+			agt.Namespace,
+			scope.Selection{
+				Scope: agt.Spec.SandboxRef.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+				Name:  agt.Spec.SandboxRef.Name,
 			},
-		})
+		)
+		if err != nil || namespace != sandbox.Namespace {
+			continue
+		}
+		requests = append(
+			requests,
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      agt.Name,
+					Namespace: agt.Namespace,
+				},
+			},
+		)
 	}
 	return requests
 }
@@ -675,7 +789,6 @@ func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(provider.Namespace),
 		client.MatchingFields{inference.SandboxByProviderIndex: provider.Name},
 	)
 	if err != nil {
@@ -690,6 +803,29 @@ func (r *Reconciler) agentsForInferenceProvider(ctx context.Context, obj client.
 	}
 	requests := make([]reconcile.Request, 0, len(sandboxes.Items))
 	for i := range sandboxes.Items {
+		var matched bool
+		for _, model := range sandboxes.Items[i].Spec.Inference.Models {
+			if model.Provider != provider.Name {
+				continue
+			}
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				scope.Selection{
+					Scope: model.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  model.Provider,
+				},
+			)
+			if err == nil && ns == provider.Namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
 		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
 	}
 	return requests
@@ -701,7 +837,6 @@ func (r *Reconciler) agentsForInferencePool(ctx context.Context, obj client.Obje
 	err := r.List(
 		ctx,
 		sandboxes,
-		client.InNamespace(pool.Namespace),
 		client.MatchingFields{inference.SandboxByPoolIndex: pool.Name},
 	)
 	if err != nil {
@@ -716,6 +851,25 @@ func (r *Reconciler) agentsForInferencePool(ctx context.Context, obj client.Obje
 	}
 	requests := []reconcile.Request{}
 	for i := range sandboxes.Items {
+		var matched bool
+		for _, model := range sandboxes.Items[i].Spec.Inference.Models {
+			if model.Provider != agentzv1alpha1.InferencePoolProvider || model.Model != pool.Name {
+				continue
+			}
+			ns, err := scope.Namespace(
+				ctx,
+				r.Client,
+				sandboxes.Items[i].Namespace,
+				model.Scope,
+			)
+			if err == nil && ns == pool.Namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
 		requests = append(requests, r.agentsForSandbox(ctx, &sandboxes.Items[i])...)
 	}
 	return requests
@@ -727,44 +881,85 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 		return []reconcile.Request{}
 	}
 
-	sandboxes := &agentzv1alpha1.SandboxList{}
-	err := r.List(ctx, sandboxes, client.InNamespace(skill.Namespace))
-	if err != nil {
-		return []reconcile.Request{}
-	}
-	sandboxRefs := map[string]struct{}{}
-	for _, sandbox := range sandboxes.Items {
-		if slices.Contains(sandbox.Spec.Skills, skill.Name) {
-			sandboxRefs[sandbox.Name] = struct{}{}
-		}
-	}
-
 	agents := &agentzv1alpha1.AgentList{}
-	err = r.List(ctx, agents, client.InNamespace(skill.Namespace))
+	err := r.List(ctx, agents)
 	if err != nil {
 		return []reconcile.Request{}
 	}
 
 	requests := []reconcile.Request{}
-	seen := map[string]struct{}{}
-	for _, agt := range agents.Items {
-		referenced := slices.Contains(agt.Spec.Skills, skill.Name)
+	for i := range agents.Items {
+		agt := &agents.Items[i]
+		var referenced bool
+		for _, ref := range agt.Spec.Skills {
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				agt.Namespace,
+				scope.Selection{
+					Scope: ref.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+					Name:  ref.Name,
+				},
+			)
+			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
+				referenced = true
+				break
+			}
+		}
 		if !referenced {
-			_, referenced = sandboxRefs[agt.Spec.SandboxRef.Name]
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				agt.Namespace,
+				scope.Selection{
+					Scope: agt.Spec.SandboxRef.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+					Name:  agt.Spec.SandboxRef.Name,
+				},
+			)
+			if err == nil {
+				sandbox := &agentzv1alpha1.Sandbox{}
+				err = r.Get(
+					ctx,
+					client.ObjectKey{
+						Namespace: ns,
+						Name:      agt.Spec.SandboxRef.Name,
+					},
+					sandbox,
+				)
+				if err == nil {
+					for _, ref := range sandbox.Spec.Skills {
+						skillNamespace, err := scope.SelectedNamespace(
+							ctx,
+							r.Client,
+							sandbox.Namespace,
+							scope.Selection{
+								Scope: ref.Scope,
+								Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
+								Name:  ref.Name,
+							},
+						)
+						if err == nil && skillNamespace == skill.Namespace && ref.Name == skill.Name {
+							referenced = true
+							break
+						}
+					}
+				}
+			}
 		}
 		if !referenced {
 			continue
 		}
-		if _, ok := seen[agt.Name]; ok {
-			continue
-		}
-		seen[agt.Name] = struct{}{}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Name:      agt.Name,
-				Namespace: agt.Namespace,
+		requests = append(
+			requests,
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      agt.Name,
+					Namespace: agt.Namespace,
+				},
 			},
-		})
+		)
 	}
 	return requests
 }
@@ -781,16 +976,21 @@ func (r *Reconciler) reconcilePVCs(ctx context.Context, agt *agentzv1alpha1.Agen
 			Namespace: agt.Namespace,
 		},
 	}
-	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, nixPVC, func() error {
-		nixPVC.Labels = resourceLabels(agt)
-		nixPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
-			corev1.ReadWriteOnce,
-		}
-		nixPVC.Spec.Resources.Requests = corev1.ResourceList{
-			corev1.ResourceStorage: nixSize,
-		}
-		return ctrl.SetControllerReference(agt, nixPVC, r.Scheme)
-	})
+	_, err := ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		nixPVC,
+		func() error {
+			nixPVC.Labels = resourceLabels(agt)
+			nixPVC.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			}
+			nixPVC.Spec.Resources.Requests = corev1.ResourceList{
+				corev1.ResourceStorage: nixSize,
+			}
+			return ctrl.SetControllerReference(agt, nixPVC, r.Scheme)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("ensure agent nix pvc: %w", err)
 	}
@@ -808,258 +1008,268 @@ func (r *Reconciler) proxyAddress(agt *agentzv1alpha1.Agent) string {
 }
 
 func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.NamespacedName) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt := &agentzv1alpha1.Agent{}
-		err := r.Get(ctx, key, agt)
-		if err != nil {
-			return client.IgnoreNotFound(err)
-		}
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			agt := &agentzv1alpha1.Agent{}
+			err := r.Get(ctx, key, agt)
+			if err != nil {
+				return client.IgnoreNotFound(err)
+			}
 
-		svc := &corev1.Service{}
-		svcErr := r.Get(ctx, key, svc)
-		if svcErr != nil && !apierr.IsNotFound(svcErr) {
-			return fmt.Errorf("get service: %w", svcErr)
-		}
+			svc := &corev1.Service{}
+			svcErr := r.Get(ctx, key, svc)
+			if svcErr != nil && !apierr.IsNotFound(svcErr) {
+				return fmt.Errorf("get service: %w", svcErr)
+			}
 
-		job := &batchv1.Job{}
-		jobErr := r.Get(ctx, types.NamespacedName{
-			Name:      packageJobName(agt),
-			Namespace: agt.Namespace,
-		}, job)
-		if jobErr != nil && !apierr.IsNotFound(jobErr) {
-			return fmt.Errorf("get package job: %w", jobErr)
-		}
-
-		dep := &appsv1.Deployment{}
-		depErr := r.Get(ctx, key, dep)
-		if depErr != nil && !apierr.IsNotFound(depErr) {
-			return fmt.Errorf("get deployment: %w", depErr)
-		}
-
-		status := agt.Status.DeepCopy()
-		status.ServiceName = ""
-		status.URL = ""
-		if svcErr == nil {
-			status.ServiceName = svc.Name
-			status.URL = fmt.Sprintf(
-				"http://%s.%s.svc.cluster.local:%d",
-				svc.Name,
-				svc.Namespace,
-				4096,
+			job := &batchv1.Job{}
+			jobErr := r.Get(
+				ctx,
+				types.NamespacedName{
+					Name:      packageJobName(agt),
+					Namespace: agt.Namespace,
+				},
+				job,
 			)
-		}
-		status.ObservedGeneration = agt.Generation
-		writeStatus := func() error {
+			if jobErr != nil && !apierr.IsNotFound(jobErr) {
+				return fmt.Errorf("get package job: %w", jobErr)
+			}
+
+			dep := &appsv1.Deployment{}
+			depErr := r.Get(ctx, key, dep)
+			if depErr != nil && !apierr.IsNotFound(depErr) {
+				return fmt.Errorf("get deployment: %w", depErr)
+			}
+
+			status := agt.Status.DeepCopy()
+			status.ServiceName = ""
+			status.URL = ""
+			if svcErr == nil {
+				status.ServiceName = svc.Name
+				status.URL = fmt.Sprintf(
+					"http://%s.%s.svc.cluster.local:%d",
+					svc.Name,
+					svc.Namespace,
+					4096,
+				)
+			}
+			status.ObservedGeneration = agt.Generation
+			writeStatus := func() error {
+				if reflect.DeepEqual(agt.Status, *status) {
+					return nil
+				}
+				patch := client.MergeFrom(agt.DeepCopy())
+				agt.Status = *status
+				return r.Status().Patch(ctx, agt, patch)
+			}
+
+			if job.Name == "" {
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeReady.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonPackageJobCreating,
+					Message:            "Waiting for package job to be created",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
+					Status:             metav1.ConditionTrue,
+					Reason:             agentzv1alpha1.ReasonPackageJobCreating,
+					Message:            "Waiting for package job to be created",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonPackageJobCreating,
+					Message:            "Package preparation has not started yet",
+					ObservedGeneration: agt.Generation,
+				})
+				return writeStatus()
+			}
+
+			failed := findJobCondition(job, batchv1.JobFailed)
+			if failed != nil && failed.Status == corev1.ConditionTrue {
+				message := strings.TrimSpace(failed.Message)
+				if message == "" {
+					message = strings.TrimSpace(failed.Reason)
+				}
+				if message == "" {
+					message = "package preparation job failed"
+				}
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeReady.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonPackageJobFailed,
+					Message:            "Package preparation job failed",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonPackageJobFailed,
+					Message:            "Package preparation job failed",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
+					Status:             metav1.ConditionTrue,
+					Reason:             agentzv1alpha1.ReasonPackageJobFailed,
+					Message:            message,
+					ObservedGeneration: agt.Generation,
+				})
+				return writeStatus()
+			}
+
+			complete := findJobCondition(job, batchv1.JobComplete)
+			if complete == nil || complete.Status != corev1.ConditionTrue {
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeReady.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonPackageJobRunning,
+					Message:            "Waiting for package job to complete",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
+					Status:             metav1.ConditionTrue,
+					Reason:             agentzv1alpha1.ReasonPackageJobRunning,
+					Message:            "Waiting for package job to complete",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonPackageJobRunning,
+					Message:            "Package preparation is still running",
+					ObservedGeneration: agt.Generation,
+				})
+				return writeStatus()
+			}
+
+			if dep.Name == "" {
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
+					Status:             metav1.ConditionTrue,
+					Reason:             agentzv1alpha1.ReasonDeploymentCreating,
+					Message:            "Waiting for deployment to be created",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeReady.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonDeploymentNotReady,
+					Message:            "Deployment has not been created yet",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonDeploymentCreating,
+					Message:            "Agent is being created",
+					ObservedGeneration: agt.Generation,
+				})
+				return writeStatus()
+			}
+
+			if dep.Status.ReadyReplicas > 0 {
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeReady.String(),
+					Status:             metav1.ConditionTrue,
+					Reason:             agentzv1alpha1.ReasonDeploymentReady,
+					Message:            "Agent deployment is ready",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonDeploymentReady,
+					Message:            "Agent deployment is ready",
+					ObservedGeneration: agt.Generation,
+				})
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.ReasonDeploymentReady,
+					Message:            "Agent deployment is healthy",
+					ObservedGeneration: agt.Generation,
+				})
+				return writeStatus()
+			}
+
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.ConditionTypeReady.String(),
+				Status:             metav1.ConditionFalse,
+				Reason:             agentzv1alpha1.ReasonDeploymentNotReady,
+				Message:            "Waiting for agent pods to become ready",
+				ObservedGeneration: agt.Generation,
+			})
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
+				Status:             metav1.ConditionTrue,
+				Reason:             agentzv1alpha1.ReasonDeploymentUpdating,
+				Message:            "Waiting for deployment rollout",
+				ObservedGeneration: agt.Generation,
+			})
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
+				Status:             metav1.ConditionFalse,
+				Reason:             agentzv1alpha1.ReasonDeploymentUpdating,
+				Message:            "Agent deployment is progressing",
+				ObservedGeneration: agt.Generation,
+			})
+			return writeStatus()
+		},
+	)
+}
+
+func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.NamespacedName, gen int64, recErr error) error {
+	return retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			agt := &agentzv1alpha1.Agent{}
+			err := r.Get(ctx, key, agt)
+			if err != nil {
+				return client.IgnoreNotFound(err)
+			}
+
+			status := agt.Status.DeepCopy()
+			status.ObservedGeneration = gen
+			reason := agentzv1alpha1.ReasonReconcileFailed
+			if errors.Is(recErr, errImageEmpty) {
+				reason = agentzv1alpha1.ReasonConfigInvalid
+			}
+			if errors.Is(recErr, errPackageJobFailed) {
+				reason = agentzv1alpha1.ReasonPackageJobFailed
+			}
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.ConditionTypeReady.String(),
+				Status:             metav1.ConditionFalse,
+				Reason:             agentzv1alpha1.ReasonReconcileFailed,
+				Message:            "Agent reconcile failed",
+				ObservedGeneration: gen,
+			})
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
+				Status:             metav1.ConditionFalse,
+				Reason:             agentzv1alpha1.ReasonReconcileFailed,
+				Message:            "Agent reconcile failed",
+				ObservedGeneration: gen,
+			})
+			status.SetCondition(metav1.Condition{
+				Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
+				Status:             metav1.ConditionTrue,
+				Reason:             reason,
+				Message:            recErr.Error(),
+				ObservedGeneration: gen,
+			})
 			if reflect.DeepEqual(agt.Status, *status) {
 				return nil
 			}
 			patch := client.MergeFrom(agt.DeepCopy())
 			agt.Status = *status
 			return r.Status().Patch(ctx, agt, patch)
-		}
-
-		if job.Name == "" {
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeReady.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonPackageJobCreating,
-				Message:            "Waiting for package job to be created",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
-				Status:             metav1.ConditionTrue,
-				Reason:             agentzv1alpha1.ReasonPackageJobCreating,
-				Message:            "Waiting for package job to be created",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonPackageJobCreating,
-				Message:            "Package preparation has not started yet",
-				ObservedGeneration: agt.Generation,
-			})
-			return writeStatus()
-		}
-
-		failed := findJobCondition(job, batchv1.JobFailed)
-		if failed != nil && failed.Status == corev1.ConditionTrue {
-			message := strings.TrimSpace(failed.Message)
-			if message == "" {
-				message = strings.TrimSpace(failed.Reason)
-			}
-			if message == "" {
-				message = "package preparation job failed"
-			}
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeReady.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonPackageJobFailed,
-				Message:            "Package preparation job failed",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonPackageJobFailed,
-				Message:            "Package preparation job failed",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
-				Status:             metav1.ConditionTrue,
-				Reason:             agentzv1alpha1.ReasonPackageJobFailed,
-				Message:            message,
-				ObservedGeneration: agt.Generation,
-			})
-			return writeStatus()
-		}
-
-		complete := findJobCondition(job, batchv1.JobComplete)
-		if complete == nil || complete.Status != corev1.ConditionTrue {
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeReady.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonPackageJobRunning,
-				Message:            "Waiting for package job to complete",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
-				Status:             metav1.ConditionTrue,
-				Reason:             agentzv1alpha1.ReasonPackageJobRunning,
-				Message:            "Waiting for package job to complete",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonPackageJobRunning,
-				Message:            "Package preparation is still running",
-				ObservedGeneration: agt.Generation,
-			})
-			return writeStatus()
-		}
-
-		if dep.Name == "" {
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
-				Status:             metav1.ConditionTrue,
-				Reason:             agentzv1alpha1.ReasonDeploymentCreating,
-				Message:            "Waiting for deployment to be created",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeReady.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonDeploymentNotReady,
-				Message:            "Deployment has not been created yet",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonDeploymentCreating,
-				Message:            "Agent is being created",
-				ObservedGeneration: agt.Generation,
-			})
-			return writeStatus()
-		}
-
-		if dep.Status.ReadyReplicas > 0 {
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeReady.String(),
-				Status:             metav1.ConditionTrue,
-				Reason:             agentzv1alpha1.ReasonDeploymentReady,
-				Message:            "Agent deployment is ready",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonDeploymentReady,
-				Message:            "Agent deployment is ready",
-				ObservedGeneration: agt.Generation,
-			})
-			status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.ReasonDeploymentReady,
-				Message:            "Agent deployment is healthy",
-				ObservedGeneration: agt.Generation,
-			})
-			return writeStatus()
-		}
-
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.ConditionTypeReady.String(),
-			Status:             metav1.ConditionFalse,
-			Reason:             agentzv1alpha1.ReasonDeploymentNotReady,
-			Message:            "Waiting for agent pods to become ready",
-			ObservedGeneration: agt.Generation,
-		})
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
-			Status:             metav1.ConditionTrue,
-			Reason:             agentzv1alpha1.ReasonDeploymentUpdating,
-			Message:            "Waiting for deployment rollout",
-			ObservedGeneration: agt.Generation,
-		})
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
-			Status:             metav1.ConditionFalse,
-			Reason:             agentzv1alpha1.ReasonDeploymentUpdating,
-			Message:            "Agent deployment is progressing",
-			ObservedGeneration: agt.Generation,
-		})
-		return writeStatus()
-	})
-}
-
-func (r *Reconciler) setDegradedStatus(ctx context.Context, key types.NamespacedName, gen int64, recErr error) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		agt := &agentzv1alpha1.Agent{}
-		err := r.Get(ctx, key, agt)
-		if err != nil {
-			return client.IgnoreNotFound(err)
-		}
-
-		status := agt.Status.DeepCopy()
-		status.ObservedGeneration = gen
-		reason := agentzv1alpha1.ReasonReconcileFailed
-		if errors.Is(recErr, errImageEmpty) {
-			reason = agentzv1alpha1.ReasonConfigInvalid
-		}
-		if errors.Is(recErr, errPackageJobFailed) {
-			reason = agentzv1alpha1.ReasonPackageJobFailed
-		}
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.ConditionTypeReady.String(),
-			Status:             metav1.ConditionFalse,
-			Reason:             agentzv1alpha1.ReasonReconcileFailed,
-			Message:            "Agent reconcile failed",
-			ObservedGeneration: gen,
-		})
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.ConditionTypeProgressing.String(),
-			Status:             metav1.ConditionFalse,
-			Reason:             agentzv1alpha1.ReasonReconcileFailed,
-			Message:            "Agent reconcile failed",
-			ObservedGeneration: gen,
-		})
-		status.SetCondition(metav1.Condition{
-			Type:               agentzv1alpha1.ConditionTypeDegraded.String(),
-			Status:             metav1.ConditionTrue,
-			Reason:             reason,
-			Message:            recErr.Error(),
-			ObservedGeneration: gen,
-		})
-		if reflect.DeepEqual(agt.Status, *status) {
-			return nil
-		}
-		patch := client.MergeFrom(agt.DeepCopy())
-		agt.Status = *status
-		return r.Status().Patch(ctx, agt, patch)
-	})
+		},
+	)
 }

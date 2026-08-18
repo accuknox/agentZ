@@ -5,6 +5,7 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { TWO_FACTOR_ERROR_CODES } from "better-auth/plugins/two-factor"
 import { Controller, useForm } from "react-hook-form"
+import { ArrowRight } from "lucide-react"
 import * as z from "zod"
 import { authClient } from "@/lib/auth-client"
 import { signInURL } from "@/lib/sign-in-redirect"
@@ -128,6 +129,7 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
       <section className="flex flex-col gap-5">
         <form
           className="flex flex-col gap-5"
+          method="post"
           onSubmit={form.handleSubmit(submit)}
           aria-busy={locked}
         >
@@ -203,6 +205,7 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
             <Button type="submit" size="lg" disabled={locked}>
               {pending ? <Spinner data-icon="inline-start" /> : null}
               Continue
+              {!pending ? <ArrowRight data-icon="inline-end" /> : null}
             </Button>
             <Button
               type="button"

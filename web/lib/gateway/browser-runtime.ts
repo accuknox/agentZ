@@ -76,9 +76,12 @@ export async function getGatewayBaseURL(): Promise<ClientOptions["baseUrl"]> {
  * getGatewayToken returns a freshly minted gateway bearer token for one
  * browser API call.
  */
-export async function getGatewayToken(): Promise<string> {
+async function getGatewayToken(workspaceId?: string): Promise<string> {
+  const path = workspaceId
+    ? `/api/gateway/token?workspace_id=${encodeURIComponent(workspaceId)}`
+    : "/api/gateway/token"
   const body = await fetchGatewayResponse(
-    "/api/gateway/token",
+    path,
     "Failed to load gateway token",
     gatewayTokenResponseSchema
   )
@@ -93,7 +96,9 @@ export async function gatewayAuthenticatedFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const [token, baseUrl] = await Promise.all([getGatewayToken(), getGatewayBaseURL()])
+  const requestHeaders = input instanceof Request ? input.headers : init?.headers
+  const workspaceId = new Headers(requestHeaders).get("X-AgentZ-Workspace-ID") ?? undefined
+  const [token, baseUrl] = await Promise.all([getGatewayToken(workspaceId), getGatewayBaseURL()])
 
   if (input instanceof Request) {
     const headers = new Headers(input.headers)

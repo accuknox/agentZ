@@ -1,14 +1,13 @@
-"use client"
-
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { formatAge } from "@/lib/format"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain"
+      className="relative w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
     >
       <table
         data-slot="table"
@@ -31,16 +30,6 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
     <tbody
       data-slot="table-body"
       className={cn("[&_tr:last-child]:border-0", className)}
-      {...props}
-    />
-  )
-}
-
-function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
-  return (
-    <tfoot
-      data-slot="table-footer"
-      className={cn("bg-muted/50 border-t font-medium [&>tr]:last:border-b-0", className)}
       {...props}
     />
   )
@@ -72,27 +61,58 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   )
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+function TableCell({ children, className, ...props }: React.ComponentProps<"td">) {
+  const empty = children === null || children === undefined || children === ""
+
   return (
     <td
       data-slot="table-cell"
       className={cn(
-        "h-14 px-6 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "h-12 px-4 py-1.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
-    />
+    >
+      {empty ? <span className="text-muted-foreground">_</span> : children}
+    </td>
   )
 }
 
-function TableCaption({ className, ...props }: React.ComponentProps<"caption">) {
+/** TableRelativeTime renders unavailable or relative table dates consistently. */
+function TableRelativeTime({
+  className,
+  value,
+}: {
+  className?: string
+  value: Date | string | null | undefined
+}) {
+  if (!value) return <EmptyValue />
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return <EmptyValue />
+
   return (
-    <caption
-      data-slot="table-caption"
-      className={cn("text-muted-foreground mt-4 text-sm", className)}
-      {...props}
-    />
+    <time
+      className={cn("text-muted-foreground tabular-nums", className)}
+      dateTime={date.toISOString()}
+    >
+      {formatAge(date)}
+    </time>
   )
 }
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption }
+/** EmptyValue renders the standard placeholder for unavailable table data. */
+function EmptyValue() {
+  return <span className="text-muted-foreground">_</span>
+}
+
+export {
+  EmptyValue,
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableRelativeTime,
+}

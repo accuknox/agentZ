@@ -18,10 +18,9 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// MCPConnectionRef references one MCPConnection in the same namespace.
+// MCPConnectionRef references one MCPConnection and its exposed tools.
 type MCPConnectionRef struct {
-	// Name is the local name of the referenced MCPConnection.
-	Name string `json:"name"`
+	ResourceReference `json:",inline"`
 
 	// Tools lists the upstream MCP tools exposed through this sandbox
 	// for the referenced connection.
@@ -41,6 +40,9 @@ type SandboxMCPTool struct {
 
 // InferenceModelRef identifies one enabled model on one provider instance.
 type InferenceModelRef struct {
+	// Scope selects the current Organisation or Workspace namespace.
+	Scope ResourceScope `json:"scope"`
+
 	// Provider is the immutable InferenceProvider metadata name.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
@@ -54,12 +56,13 @@ type InferenceModelRef struct {
 }
 
 // SandboxInference defines the model policy inherited by referencing Agents.
-// +kubebuilder:validation:XValidation:rule="self.models.exists(m, m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)",message="default model must belong to the allowlist"
-// +kubebuilder:validation:XValidation:rule="!has(self.smallModel) || self.models.exists(m, m.provider == self.smallModel.provider && m.model == self.smallModel.model)",message="small model must belong to the allowlist"
-// +kubebuilder:validation:XValidation:rule="!has(self.attachmentModel) || self.models.exists(m, m.provider == self.attachmentModel.provider && m.model == self.attachmentModel.model)",message="attachment model must belong to the allowlist"
+// +kubebuilder:validation:XValidation:rule="self.models.exists(m, m.scope == self.defaultModel.scope && m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)",message="default model must belong to the allowlist"
+// +kubebuilder:validation:XValidation:rule="!has(self.smallModel) || self.models.exists(m, m.scope == self.smallModel.scope && m.provider == self.smallModel.provider && m.model == self.smallModel.model)",message="small model must belong to the allowlist"
+// +kubebuilder:validation:XValidation:rule="!has(self.attachmentModel) || self.models.exists(m, m.scope == self.attachmentModel.scope && m.provider == self.attachmentModel.provider && m.model == self.attachmentModel.model)",message="attachment model must belong to the allowlist"
 type SandboxInference struct {
 	// Models is the hard provider/model allowlist.
 	// +listType=map
+	// +listMapKey=scope
 	// +listMapKey=provider
 	// +listMapKey=model
 	// +kubebuilder:validation:MinItems=1
@@ -79,7 +82,11 @@ type SandboxInference struct {
 }
 
 // SandboxSpec defines the desired state of Sandbox.
+// +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 32)",message="skill names must not exceed 32 characters"
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type SandboxSpec struct {
+	ResourceAudit `json:",inline"`
+
 	// Inference defines the model policy inherited by referencing Agents.
 	Inference SandboxInference `json:"inference"`
 
@@ -101,11 +108,11 @@ type SandboxSpec struct {
 
 	// Skills lists immutable Skill names exposed through this sandbox.
 	// +optional
-	// +listType=set
+	// +listType=map
+	// +listMapKey=scope
+	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=200
-	// +kubebuilder:validation:items:MaxLength=32
-	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	Skills []string `json:"skills,omitempty"`
+	Skills []ResourceReference `json:"skills,omitempty"`
 }
 
 // SandboxStatus defines the observed state of Sandbox.

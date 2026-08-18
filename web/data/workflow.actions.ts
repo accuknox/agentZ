@@ -14,27 +14,32 @@ import {
 import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
 import { listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
 
-export async function selectWorkflowFiltersAction(formData: FormData) {
-  const agentsResult = await listAgentsCachedQuery()
+export type WorkflowActionScope = {
+  basePath: string
+  workspaceId: string
+}
+
+export async function selectWorkflowFiltersAction(scope: WorkflowActionScope, formData: FormData) {
+  const agentsResult = await listAgentsCachedQuery(undefined, scope.workspaceId)
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    redirect("/workflows/graphs")
+    redirect(workflowsPath(scope))
   }
 
   const parsed = workflowFiltersFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
-    redirect("/workflows/graphs")
+    redirect(workflowsPath(scope))
   }
 
   const agent =
     agentsResult.agents.find((currentAgent) => currentAgent.name === parsed.data.agent_name) ??
     agentsResult.agents[0]
   if (!agent) {
-    redirect("/workflows/graphs")
+    redirect(workflowsPath(scope))
   }
 
-  const workflowsResult = await listWorkflowSummariesCachedQuery(agent.name)
+  const workflowsResult = await listWorkflowSummariesCachedQuery(agent.name, scope.workspaceId)
   if (workflowsResult.error || !workflowsResult.summaries) {
-    redirect(workflowsPath({ agentName: agent.name }))
+    redirect(workflowsPath(scope, { agentName: agent.name }))
   }
 
   const workflow =
@@ -42,67 +47,73 @@ export async function selectWorkflowFiltersAction(formData: FormData) {
       (currentWorkflow) => currentWorkflow.workflow_name === parsed.data.workflow_name
     ) ?? workflowsResult.summaries[0]
   if (!workflow) {
-    redirect(workflowsPath({ agentName: agent.name }))
+    redirect(workflowsPath(scope, { agentName: agent.name }))
   }
 
   redirect(
-    workflowsPath({
+    workflowsPath(scope, {
       agentName: agent.name,
       workflowName: workflow.workflow_name,
     })
   )
 }
 
-export async function selectWorkflowTriggerFiltersAction(formData: FormData) {
-  const agentsResult = await listAgentsCachedQuery()
+export async function selectWorkflowTriggerFiltersAction(
+  scope: WorkflowActionScope,
+  formData: FormData
+) {
+  const agentsResult = await listAgentsCachedQuery(undefined, scope.workspaceId)
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    redirect("/workflows/triggers")
+    redirect(workflowTriggersPath(scope))
   }
 
   const parsed = workflowTriggerFiltersFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
-    redirect("/workflows/triggers")
+    redirect(workflowTriggersPath(scope))
   }
 
   const agent =
     agentsResult.agents.find((currentAgent) => currentAgent.name === parsed.data.agent_name) ??
     agentsResult.agents[0]
   if (!agent) {
-    redirect("/workflows/triggers")
+    redirect(workflowTriggersPath(scope))
   }
 
   redirect(
-    workflowTriggersPath({
+    workflowTriggersPath(scope, {
       agentName: agent.name,
       type: parsed.data.type,
     })
   )
 }
 
-export async function selectWorkflowRunsFiltersAction(formData: FormData) {
-  const agentsResult = await listAgentsCachedQuery()
+export async function selectWorkflowRunsFiltersAction(
+  scope: WorkflowActionScope,
+  formData: FormData
+) {
+  const agentsResult = await listAgentsCachedQuery(undefined, scope.workspaceId)
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    redirect("/workflows/triggers/runs")
+    redirect(workflowRunsPath(scope))
   }
 
   const parsed = workflowRunFiltersFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
-    redirect("/workflows/triggers/runs")
+    redirect(workflowRunsPath(scope))
   }
 
   const agent =
     agentsResult.agents.find((currentAgent) => currentAgent.name === parsed.data.agent_name) ??
     agentsResult.agents[0]
   if (!agent) {
-    redirect("/workflows/triggers/runs")
+    redirect(workflowRunsPath(scope))
   }
 
   if (parsed.data.type === "schedule") {
-    const schedulesResult = await listWorkflowSchedulesCachedQuery(agent.name, {
+    const schedulesResult = await listWorkflowSchedulesCachedQuery(agent.name, scope.workspaceId, {
       limit: 200,
     })
     if (schedulesResult.error || !schedulesResult.workflowSchedules) {
-      redirect(workflowTriggersPath({ agentName: agent.name, type: "schedule" }))
+      redirect(workflowTriggersPath(scope, { agentName: agent.name, type: "schedule" }))
     }
 
     const schedule =
@@ -110,11 +121,11 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
         (currentSchedule) => currentSchedule.name === parsed.data.schedule_name
       ) ?? schedulesResult.workflowSchedules[0]
     if (!schedule) {
-      redirect(workflowTriggersPath({ agentName: agent.name, type: "schedule" }))
+      redirect(workflowTriggersPath(scope, { agentName: agent.name, type: "schedule" }))
     }
 
     redirect(
-      workflowRunsPath({
+      workflowRunsPath(scope, {
         agentName: agent.name,
         type: "schedule",
         workflowName: schedule.workflow_name,
@@ -123,11 +134,15 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
     )
   }
 
-  const webhookTriggersResult = await listWorkflowWebhookTriggersCachedQuery(agent.name, {
-    limit: 200,
-  })
+  const webhookTriggersResult = await listWorkflowWebhookTriggersCachedQuery(
+    agent.name,
+    scope.workspaceId,
+    {
+      limit: 200,
+    }
+  )
   if (webhookTriggersResult.error || !webhookTriggersResult.webhookTriggers) {
-    redirect(workflowTriggersPath({ agentName: agent.name, type: "webhook" }))
+    redirect(workflowTriggersPath(scope, { agentName: agent.name, type: "webhook" }))
   }
 
   const webhookTrigger =
@@ -137,11 +152,11 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
         currentTrigger.api_key_id === parsed.data.webhook_api_key_id
     ) ?? webhookTriggersResult.webhookTriggers[0]
   if (!webhookTrigger) {
-    redirect(workflowTriggersPath({ agentName: agent.name, type: "webhook" }))
+    redirect(workflowTriggersPath(scope, { agentName: agent.name, type: "webhook" }))
   }
 
   redirect(
-    workflowRunsPath({
+    workflowRunsPath(scope, {
       agentName: agent.name,
       type: "webhook",
       workflowName: webhookTrigger.workflow_name,
@@ -150,27 +165,30 @@ export async function selectWorkflowRunsFiltersAction(formData: FormData) {
   )
 }
 
-export async function selectWorkflowRunGraphFiltersAction(formData: FormData) {
-  const agentsResult = await listAgentsCachedQuery()
+export async function selectWorkflowRunGraphFiltersAction(
+  scope: WorkflowActionScope,
+  formData: FormData
+) {
+  const agentsResult = await listAgentsCachedQuery(undefined, scope.workspaceId)
   if (agentsResult.error || !agentsResult.agents || agentsResult.agents.length === 0) {
-    redirect("/workflows/triggers/runs/graph")
+    redirect(workflowRunGraphPath(scope))
   }
 
   const parsed = workflowRunGraphFiltersFormSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
-    redirect("/workflows/triggers/runs/graph")
+    redirect(workflowRunGraphPath(scope))
   }
 
   const agent =
     agentsResult.agents.find((currentAgent) => currentAgent.name === parsed.data.agent_name) ??
     agentsResult.agents[0]
   if (!agent) {
-    redirect("/workflows/triggers/runs/graph")
+    redirect(workflowRunGraphPath(scope))
   }
 
-  const workflowsResult = await listWorkflowSummariesCachedQuery(agent.name)
+  const workflowsResult = await listWorkflowSummariesCachedQuery(agent.name, scope.workspaceId)
   if (workflowsResult.error || !workflowsResult.summaries) {
-    redirect(workflowRunGraphPath({ agentName: agent.name }))
+    redirect(workflowRunGraphPath(scope, { agentName: agent.name }))
   }
 
   const workflow =
@@ -178,15 +196,20 @@ export async function selectWorkflowRunGraphFiltersAction(formData: FormData) {
       (currentWorkflow) => currentWorkflow.workflow_name === parsed.data.workflow_name
     ) ?? workflowsResult.summaries[0]
   if (!workflow) {
-    redirect(workflowRunGraphPath({ agentName: agent.name }))
+    redirect(workflowRunGraphPath(scope, { agentName: agent.name }))
   }
 
-  const runsResult = await listWorkflowRunsCachedQuery(agent.name, workflow.workflow_name, {
-    limit: 200,
-  })
+  const runsResult = await listWorkflowRunsCachedQuery(
+    agent.name,
+    workflow.workflow_name,
+    scope.workspaceId,
+    {
+      limit: 200,
+    }
+  )
   if (runsResult.error || !runsResult.workflowRuns) {
     redirect(
-      workflowRunGraphPath({
+      workflowRunGraphPath(scope, {
         agentName: agent.name,
         workflowName: workflow.workflow_name,
       })
@@ -198,7 +221,7 @@ export async function selectWorkflowRunGraphFiltersAction(formData: FormData) {
     runsResult.workflowRuns[0]
   if (!run) {
     redirect(
-      workflowRunGraphPath({
+      workflowRunGraphPath(scope, {
         agentName: agent.name,
         workflowName: workflow.workflow_name,
       })
@@ -206,7 +229,7 @@ export async function selectWorkflowRunGraphFiltersAction(formData: FormData) {
   }
 
   redirect(
-    workflowRunGraphPath({
+    workflowRunGraphPath(scope, {
       agentName: agent.name,
       workflowName: workflow.workflow_name,
       runName: run.name,
@@ -214,13 +237,10 @@ export async function selectWorkflowRunGraphFiltersAction(formData: FormData) {
   )
 }
 
-function workflowsPath({
-  agentName,
-  workflowName,
-}: {
-  agentName?: string
-  workflowName?: string
-}): Route {
+function workflowsPath(
+  scope: WorkflowActionScope,
+  { agentName, workflowName }: { agentName?: string; workflowName?: string } = {}
+): Route {
   const params = new URLSearchParams()
   if (agentName) {
     params.set("agent_name", agentName)
@@ -230,16 +250,14 @@ function workflowsPath({
   }
 
   const query = params.toString()
-  return query === "" ? "/workflows/graphs" : (`/workflows/graphs?${query}` as Route)
+  const path = `${scope.basePath}/workflows/graphs`
+  return query === "" ? (path as Route) : (`${path}?${query}` as Route)
 }
 
-function workflowTriggersPath({
-  agentName,
-  type,
-}: {
-  agentName?: string
-  type?: "schedule" | "webhook"
-}): Route {
+function workflowTriggersPath(
+  scope: WorkflowActionScope,
+  { agentName, type }: { agentName?: string; type?: "schedule" | "webhook" } = {}
+): Route {
   const params = new URLSearchParams()
   if (agentName) {
     params.set("agent_name", agentName)
@@ -249,45 +267,51 @@ function workflowTriggersPath({
   }
 
   const query = params.toString()
-  return query === "" ? "/workflows/triggers" : (`/workflows/triggers?${query}` as Route)
+  const path = `${scope.basePath}/workflows/triggers`
+  return query === "" ? (path as Route) : (`${path}?${query}` as Route)
 }
 
-function workflowRunsPath({
-  agentName,
-  type,
-  workflowName,
-  scheduleName,
-  webhookApiKeyId,
-}: {
-  agentName: string
-  type: "schedule" | "webhook"
-  workflowName: string
-  scheduleName?: string
-  webhookApiKeyId?: string
-}): Route {
+function workflowRunsPath(
+  scope: WorkflowActionScope,
+  input?: {
+    agentName: string
+    type: "schedule" | "webhook"
+    workflowName: string
+    scheduleName?: string
+    webhookApiKeyId?: string
+  }
+): Route {
+  const path = `${scope.basePath}/workflows/triggers/runs`
+  if (!input) {
+    return path as Route
+  }
+
   const params = new URLSearchParams()
-  params.set("agent_name", agentName)
-  params.set("type", type)
-  params.set("workflow_name", workflowName)
-  if (scheduleName) {
-    params.set("schedule_name", scheduleName)
+  params.set("agent_name", input.agentName)
+  params.set("type", input.type)
+  params.set("workflow_name", input.workflowName)
+  if (input.scheduleName) {
+    params.set("schedule_name", input.scheduleName)
   }
-  if (webhookApiKeyId) {
-    params.set("webhook_api_key_id", webhookApiKeyId)
+  if (input.webhookApiKeyId) {
+    params.set("webhook_api_key_id", input.webhookApiKeyId)
   }
 
-  return `/workflows/triggers/runs?${params.toString()}` as Route
+  return `${path}?${params.toString()}` as Route
 }
 
-function workflowRunGraphPath({
-  agentName,
-  workflowName,
-  runName,
-}: {
-  agentName?: string
-  workflowName?: string
-  runName?: string
-}): Route {
+function workflowRunGraphPath(
+  scope: WorkflowActionScope,
+  {
+    agentName,
+    workflowName,
+    runName,
+  }: {
+    agentName?: string
+    workflowName?: string
+    runName?: string
+  } = {}
+): Route {
   const params = new URLSearchParams()
   if (agentName) {
     params.set("agent_name", agentName)
@@ -300,7 +324,6 @@ function workflowRunGraphPath({
   }
 
   const query = params.toString()
-  return query === ""
-    ? "/workflows/triggers/runs/graph"
-    : (`/workflows/triggers/runs/graph?${query}` as Route)
+  const path = `${scope.basePath}/workflows/triggers/runs/graph`
+  return query === "" ? (path as Route) : (`${path}?${query}` as Route)
 }

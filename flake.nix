@@ -18,7 +18,7 @@
             src = ./.;
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-mtv/e1zmmUbXeyhxPgPtOrzMuhiKxa4kD1gzp7UTOP4=";
+            vendorHash = "sha256-QBNvMdU8tDfXfICaXYNR61ntyp+FOXvoWlMgPHImswk=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";
@@ -48,7 +48,7 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-xHfE7QkLBUDfrcymEA+2zz89H1Sjolp/d2k81B0z48U=";
+            outputHash = "sha256-4YQOwvbC6pep7vV6Tfuq4bdV3n3IsKeqFKM9rwYBZsg=";
           };
           cfg = pkgs.runCommand "opencode-config" { } ''
             mkdir -p \
@@ -74,8 +74,10 @@
               "$schema": "https://opencode.ai/config.json",
               "plugin": [
                 "./plugins/opencode-plugin-otel",
-                "./plugins/file-analysis.ts"
+                "./plugins/file-analysis.ts",
+                "./plugins/sender-context.ts"
               ],
+              "share": "disabled",
               "tools": {
                 "create_workflow": true,
                 "create_workflow_schedule": true,
@@ -109,6 +111,7 @@
                   fi
                   export OPENCODE_DISABLE_PROJECT_CONFIG=1
                   export OPENCODE_DISABLE_MODELS_FETCH=1
+                  export OPENCODE_DISABLE_SHARE=1
                   export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}"
                   exec ${pkgs.opencode}/bin/opencode "$@"
                 '')

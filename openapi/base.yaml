@@ -13,6 +13,10 @@ tags:
   description: Agent lifecycle and status APIs.
 - name: tenants
   description: Tenant bootstrap and readiness APIs.
+- name: workspaces
+  description: Workspace provisioning and navigation APIs.
+- name: event-trail
+  description: Organisation event trail investigation APIs.
 - name: lens
   description: Trace, span, and OS observability APIs.
 - name: secrets
@@ -35,6 +39,67 @@ tags:
   description: Workflow webhook invocation and trigger listing APIs.
 
 paths:
+  /api/event-trail-event:
+    post:
+      operationId: listEventTrailEvents
+      summary: List Organisation event trail events.
+      description: >
+        Lists rolling event trail history in the selected scope. An active
+        Superadmin may read Organisation-wide or Workspace events; an active
+        Workspace Admin may read only the Workspace bound into the bearer.
+      tags: [event-trail]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListEventTrailEventsRequest'
+      responses:
+        '200':
+          description: Paginated scoped event trail events and filter options.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEventTrailEventsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/event-trail-event/{eventId}:
+    get:
+      operationId: getEventTrailEvent
+      summary: Get an Organisation event trail event.
+      description: >
+        Returns one event from the selected scope's rolling event trail history.
+        Workspace Admins are restricted to the Workspace bound into the
+        bearer; Superadmins may read Organisation-wide events.
+      tags: [event-trail]
+      parameters:
+      - $ref: '#/components/parameters/EventTrailEventIDPath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      responses:
+        '200':
+          description: Scoped event trail event detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventTrailEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/tenant:
     get:
       operationId: getTenant
@@ -67,6 +132,243 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tenant'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspace:
+    get:
+      operationId: listWorkspaces
+      summary: List accessible Workspaces.
+      description: >
+        Lists nondeleted Workspaces accessible to the current active
+        Organisation membership. Superadmins receive every Workspace.
+      tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Accessible Workspaces and navigation capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspacesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createWorkspace
+      summary: Create a Workspace.
+      description: >
+        Creates the complete relational Workspace aggregate and starts
+        cluster provisioning. Only an active Superadmin may create a
+        Workspace or assign its initial Workspace Admins.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+      responses:
+        '201':
+          description: Workspace creation was accepted for provisioning.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspace/member-candidate:
+    get:
+      operationId: listWorkspaceMemberCandidates
+      summary: List eligible initial Workspace Admins.
+      description: >
+        Lists active, non-Superadmin members of the current Organisation.
+        Only an active Superadmin may inspect the candidates.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Eligible Workspace Admin candidates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspaceMemberCandidatesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspace/slug/{workspaceSlug}:
+    get:
+      operationId: resolveWorkspaceSlug
+      summary: Resolve an accessible Workspace slug.
+      description: >
+        Resolves current and historical slugs inside the active Organisation
+        without exposing inaccessible Workspace identity.
+      tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceSlugPath'
+      responses:
+        '200':
+          description: Accessible Workspace and canonical slug.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspace/{workspaceId}:
+    get:
+      operationId: getWorkspace
+      summary: Get an accessible Workspace.
+      tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      responses:
+        '200':
+          description: Accessible Workspace lifecycle state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspace/{workspaceId}/inherited-resource/{resourceType}:
+    get:
+      operationId: listWorkspaceInheritedResources
+      summary: List Organisation resources available for Workspace inheritance.
+      description: Only an active Superadmin may browse and manage inheritance.
+      tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      - $ref: '#/components/parameters/InheritedResourceTypePath'
+      responses:
+        '200':
+          description: Organisation resource selection state and consumers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspaceInheritedResourcesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: replaceWorkspaceInheritedResources
+      summary: Replace one type of explicitly inherited Organisation resource.
+      description: Consumed resources cannot be unselected.
+      tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      - $ref: '#/components/parameters/InheritedResourceTypePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceWorkspaceInheritedResourcesRequest'
+      responses:
+        '200':
+          description: Updated Organisation resource selection state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListWorkspaceInheritedResourcesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspace/{workspaceId}/retry:
+    post:
+      operationId: retryWorkspace
+      summary: Retry failed Workspace provisioning.
+      description: Only an active Superadmin may retry a failed Workspace.
+      tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      responses:
+        '200':
+          description: Workspace returned to provisioning.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspace/{workspaceId}/lifecycle:
+    patch:
+      operationId: updateWorkspaceLifecycle
+      summary: Record observed Workspace lifecycle state.
+      description: >
+        Accepts a controller-observed terminal state for the current
+        provisioning attempt. Stale attempts cannot overwrite current state.
+      tags: [workspaces]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceLifecycleRequest'
+      responses:
+        '204':
+          description: Lifecycle observation recorded or already current.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
@@ -374,6 +676,167 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/agent/{agentName}/owner:
+    get:
+      operationId: getAgentOwner
+      summary: Read Agent ownership metadata.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        '200':
+          description: Agent ownership metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentOwner'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: transferAgentOwner
+      summary: Transfer Agent ownership.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferAgentOwnerRequest'
+      responses:
+        '200':
+          description: Agent owner transferred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentOwner'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/share:
+    get:
+      operationId: listAgentShares
+      summary: List Agent Shares.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Agent Shares for the selected Agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAgentSharesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: upsertAgentShare
+      summary: Create or replace an Agent Share.
+      description: >
+        Creates or replaces one User or Team Agent Share. UseShared permits
+        Agent sessions, files, and workflows; it does not permit Agent
+        modification, deletion, sharing, ownership, or secret access.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertAgentShareRequest'
+      responses:
+        '200':
+          description: Agent Share created or replaced.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentShare'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/share/{shareId}:
+    delete:
+      operationId: deleteAgentShare
+      summary: Delete an Agent Share.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/AgentShareIDPath'
+      responses:
+        '204':
+          description: Agent Share deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/access-targets:
+    get:
+      operationId: listAgentAccessTargets
+      summary: List Agent access targets and their eligible capabilities.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        '200':
+          description: Active Users and Teams with their eligible Agent capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAgentAccessTargetsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/agent/{agentName}/fs/directory:
     post:
       operationId: createAgentDirectory
@@ -463,6 +926,7 @@ paths:
       tags: [skills]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -484,6 +948,7 @@ paths:
       tags: [skills]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -511,12 +976,13 @@ paths:
       tags: [skills]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExportSkillsRequest'
+              $ref: '#/components/schemas/ExportMutableSkillsRequest'
       responses:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
@@ -540,11 +1006,110 @@ paths:
         '502':
           $ref: '#/components/responses/BadGateway'
 
+  /api/agent/skill/import/preview:
+    post:
+      operationId: previewMutableSkillImport
+      summary: Parse a mutable skill import and report Agent conflicts.
+      tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, agents]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                agents:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  uniqueItems: true
+                  items:
+                    $ref: '#/components/schemas/AgentName'
+      responses:
+        '200':
+          description: Parsed skills and current Agent conflicts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MutableSkillImportPreviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
+  /api/agent/skill/import:
+    post:
+      operationId: importMutableSkills
+      summary: Import mutable skills into selected Agents.
+      tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, agents, decisions]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                agents:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  uniqueItems: true
+                  items:
+                    $ref: '#/components/schemas/AgentName'
+                decisions:
+                  type: string
+                  minLength: 2
+                  maxLength: 65536
+                  description: JSON-encoded array of SkillImportDecision objects.
+      responses:
+        '200':
+          description: Imported skills and a result for every targeted Agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillImportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
   /api/skill/import/preview:
     post:
-      operationId: previewSkillImport
-      summary: Parse a skill import and report live conflicts.
+      operationId: previewImmutableSkillImport
+      summary: Parse an immutable skill import and report scope conflicts.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.read]
       requestBody:
         required: true
         content:
@@ -556,12 +1121,6 @@ paths:
                 file:
                   type: string
                   format: binary
-                agents:
-                  type: array
-                  maxItems: 200
-                  uniqueItems: true
-                  items:
-                    $ref: '#/components/schemas/AgentName'
       responses:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
@@ -572,7 +1131,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SkillImportPreviewResponse'
+                $ref: '#/components/schemas/ImmutableSkillImportPreviewResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '413':
@@ -580,45 +1139,47 @@ paths:
 
   /api/skill/import:
     post:
-      operationId: importSkills
-      summary: Import mutable or immutable skills.
+      operationId: importImmutableSkills
+      summary: Import immutable skills.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.create]
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required: [file, kind, decisions]
+              required: [file, decisions]
               properties:
                 file:
                   type: string
                   format: binary
-                kind:
-                  $ref: '#/components/schemas/SkillKind'
+                decisions:
+                  type: string
+                  minLength: 2
+                  maxLength: 65536
+                  description: JSON-encoded array of SkillImportDecision objects.
                 agents:
                   type: array
                   maxItems: 200
                   uniqueItems: true
+                  description: Workspace Agents to attach imported skills to.
                   items:
                     $ref: '#/components/schemas/AgentName'
-                decisions:
-                  type: array
-                  minItems: 1
-                  maxItems: 200
-                  items:
-                    $ref: '#/components/schemas/SkillImportDecision'
       responses:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/UnprocessableContent'
         '200':
-          description: A result for every targeted Agent.
+          description: Imported skills and any requested Agent attachment results.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ImportSkillsResponse'
+                $ref: '#/components/schemas/SkillImportResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '413':
@@ -630,9 +1191,12 @@ paths:
       summary: List immutable Skill resources.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Paginated immutable skills.
@@ -650,6 +1214,10 @@ paths:
       operationId: createSkill
       summary: Create an immutable Skill resource.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.create]
       requestBody:
         required: true
         content:
@@ -677,6 +1245,10 @@ paths:
       operationId: deleteImmutableSkills
       summary: Delete immutable Skill resources in one request.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.delete]
       requestBody:
         required: true
         content:
@@ -703,9 +1275,12 @@ paths:
       summary: List immutable skills with active version file summaries.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Paginated immutable skill summaries.
@@ -725,12 +1300,16 @@ paths:
       operationId: exportImmutableSkills
       summary: Stream selected active immutable Skill versions as ZIP.
       tags: [skills]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: [skill.read]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExportSkillsRequest'
+              $ref: '#/components/schemas/ExportImmutableSkillsRequest'
       responses:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
@@ -756,7 +1335,10 @@ paths:
       summary: Update an immutable Skill active version and references.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      security:
+      - GatewayBearer: [skill.modify]
       requestBody:
         required: true
         content:
@@ -787,7 +1369,10 @@ paths:
       summary: Delete an immutable Skill resource.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      security:
+      - GatewayBearer: [skill.delete]
       responses:
         '204':
           description: Skill deleted.
@@ -804,7 +1389,11 @@ paths:
       summary: List Agents and Sandboxes referencing an immutable Skill.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Skill references.
@@ -825,7 +1414,11 @@ paths:
       summary: List stored versions for an immutable Skill.
       tags: [skills]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/SkillNamePath'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
+      security:
+      - GatewayBearer: [skill.read]
       responses:
         '200':
           description: Sorted stored versions.
@@ -964,7 +1557,6 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
-      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated process observability events.
@@ -972,6 +1564,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListProcessObservabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/lens/{agentName}/observability/process/summary:
+    get:
+      operationId: listProcessObservabilitySummary
+      summary: List paginated process observability summaries.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/EventTimeAfterRequiredQuery'
+      - $ref: '#/components/parameters/EventTimeBeforeRequiredQuery'
+      - $ref: '#/components/parameters/ActionQuery'
+      responses:
+        '200':
+          description: Paginated process observability summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListProcessObservabilitySummaryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -991,7 +1609,6 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
-      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated file observability events.
@@ -999,6 +1616,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListFileObservabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/lens/{agentName}/observability/file/summary:
+    get:
+      operationId: listFileObservabilitySummary
+      summary: List paginated file observability summaries.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/EventTimeAfterRequiredQuery'
+      - $ref: '#/components/parameters/EventTimeBeforeRequiredQuery'
+      - $ref: '#/components/parameters/ActionQuery'
+      responses:
+        '200':
+          description: Paginated file observability summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListFileObservabilitySummaryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1018,7 +1661,6 @@ paths:
       - $ref: '#/components/parameters/EventTimeAfterQuery'
       - $ref: '#/components/parameters/EventTimeBeforeQuery'
       - $ref: '#/components/parameters/ActionQuery'
-      - $ref: '#/components/parameters/AggregatedQuery'
       responses:
         '200':
           description: Paginated network observability events.
@@ -1026,6 +1668,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListNetworkObservabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/lens/{agentName}/observability/network/summary:
+    get:
+      operationId: listNetworkObservabilitySummary
+      summary: List paginated network observability summaries.
+      tags: [lens]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/EventTimeAfterRequiredQuery'
+      - $ref: '#/components/parameters/EventTimeBeforeRequiredQuery'
+      - $ref: '#/components/parameters/ActionQuery'
+      responses:
+        '200':
+          description: Paginated network observability summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListNetworkObservabilitySummaryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1186,7 +1854,10 @@ paths:
       operationId: listSandboxes
       summary: List paginated Sandbox resources.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1198,12 +1869,20 @@ paths:
                 $ref: '#/components/schemas/ListSandboxesResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
     post:
       operationId: createSandbox
       summary: Create a Sandbox resource.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -1223,6 +1902,10 @@ paths:
                 $ref: '#/components/schemas/Sandbox'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
@@ -1233,7 +1916,10 @@ paths:
       operationId: listInferenceProviders
       summary: List paginated inference providers.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1251,6 +1937,10 @@ paths:
       operationId: createInferenceProvider
       summary: Create an inference provider and its write-only credentials.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -1283,6 +1973,10 @@ paths:
         Credential material is written directly to OpenBao and is never
         included in this or any later API response.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -1309,10 +2003,15 @@ paths:
   /api/inference/provider/{providerName}:
     parameters:
     - $ref: '#/components/parameters/InferenceProviderNamePath'
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
     get:
       operationId: getInferenceProvider
       summary: Get an inference provider without credential material.
       tags: [inference]
+      parameters:
+      - $ref: '#/components/parameters/ResourceScopeQuery'
+      security:
+      - GatewayBearer: [inference_provider.read]
       responses:
         '200':
           description: Inference provider.
@@ -1329,6 +2028,8 @@ paths:
       operationId: updateInferenceProvider
       summary: Replace provider configuration and optionally rotate credentials.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.modify]
       requestBody:
         required: true
         content:
@@ -1358,6 +2059,8 @@ paths:
       operationId: deleteInferenceProvider
       summary: Delete an unreferenced inference provider.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.delete]
       responses:
         '204':
           description: Provider deletion accepted.
@@ -1376,6 +2079,10 @@ paths:
         Returns an SSE stream. Each payload contains the current read shapes
         for the requested provider IDs, or all providers when IDs are omitted.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: false
         content:
@@ -1403,8 +2110,12 @@ paths:
       operationId: getInferenceProviderUsage
       summary: List Sandboxes referencing an inference provider.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         '200':
           description: Provider usage.
@@ -1422,8 +2133,12 @@ paths:
       operationId: refreshInferenceProviderModels
       summary: Refresh non-secret model metadata for a subscription provider.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
       - $ref: '#/components/parameters/InferenceProviderNamePath'
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         '200':
           description: Current subscription model suggestions.
@@ -1443,7 +2158,10 @@ paths:
       operationId: listInferenceProviderCatalog
       summary: Search the pinned OpenCode provider catalog.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: q
         in: query
         required: false
@@ -1466,7 +2184,10 @@ paths:
       operationId: listInferenceModelSuggestions
       summary: List Models.dev suggestions for one provider/runtime variant.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: catalogProvider
         in: path
         required: true
@@ -1496,7 +2217,14 @@ paths:
       operationId: listInferencePools
       summary: List paginated inference Pools.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.read]
       parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1514,6 +2242,14 @@ paths:
       operationId: createInferencePool
       summary: Create an inference Pool with ordered provider-model members.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.create]
+      parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -1541,10 +2277,17 @@ paths:
   /api/inference/pool/{poolName}:
     parameters:
     - $ref: '#/components/parameters/InferencePoolNamePath'
+    - in: header
+      name: X-AgentZ-Workspace-ID
+      required: true
+      schema:
+        type: string
     get:
       operationId: getInferencePool
       summary: Get an inference Pool and its derived contract.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.read]
       responses:
         '200':
           description: Inference Pool.
@@ -1560,6 +2303,8 @@ paths:
       operationId: updateInferencePool
       summary: Replace Pool membership or routing behavior.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.modify]
       requestBody:
         required: true
         content:
@@ -1589,6 +2334,8 @@ paths:
       operationId: deleteInferencePool
       summary: Delete an inference Pool not referenced by a Sandbox.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.delete]
       responses:
         '204':
           description: Pool deletion accepted.
@@ -1606,6 +2353,13 @@ paths:
       tags: [inference]
       parameters:
       - $ref: '#/components/parameters/InferencePoolNamePath'
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
+      security:
+      - GatewayBearer: [inference_pool.read]
       responses:
         '200':
           description: Pool usage.
@@ -1626,6 +2380,14 @@ paths:
         Returns an SSE stream. Each payload contains current Pool read shapes
         for the requested IDs, or all Pools when IDs are omitted.
       tags: [inference]
+      security:
+      - GatewayBearer: [inference_pool.read]
+      parameters:
+      - in: header
+        name: X-AgentZ-Workspace-ID
+        required: true
+        schema:
+          type: string
       requestBody:
         required: false
         content:
@@ -1656,7 +2418,10 @@ paths:
         Replaces the mutable configuration for an existing Sandbox. The name
         in the path identifies the Sandbox.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.modify]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: sandboxName
         in: path
         required: true
@@ -1682,6 +2447,10 @@ paths:
                 $ref: '#/components/schemas/Sandbox'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -1690,7 +2459,10 @@ paths:
       operationId: deleteSandbox
       summary: Delete a Sandbox resource.
       tags: [sandboxes]
+      security:
+      - GatewayBearer: [sandbox.delete]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - name: sandboxName
         in: path
         required: true
@@ -1702,6 +2474,10 @@ paths:
           description: Sandbox deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -1712,7 +2488,10 @@ paths:
       operationId: listMCPConnections
       summary: List paginated MCPConnection resources.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
@@ -1724,12 +2503,20 @@ paths:
                 $ref: '#/components/schemas/ListMCPConnectionsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
     post:
       operationId: createMCPConnection
       summary: Create an MCPConnection resource.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.create]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: true
         content:
@@ -1751,6 +2538,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -1759,8 +2550,12 @@ paths:
       operationId: getMCPConnection
       summary: Get an MCPConnection resource.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.read]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/MCPConnectionNamePath'
+      - $ref: '#/components/parameters/ResourceScopeQuery'
       responses:
         '200':
           description: MCPConnection.
@@ -1772,13 +2567,20 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
     delete:
       operationId: deleteMCPConnection
       summary: Delete an MCPConnection resource.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.delete]
       parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/MCPConnectionNamePath'
       responses:
         '204':
@@ -1789,6 +2591,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -1801,6 +2607,10 @@ paths:
         WatchMCPConnectionsEvent. If names is omitted or empty, all MCP
         connections are watched.
       tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.read]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
       requestBody:
         required: false
         content:
@@ -1820,6 +2630,10 @@ paths:
                 $ref: '#/components/schemas/WatchMCPConnectionsEvent'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -2506,6 +3320,61 @@ components:
       in: header
       name: X-API-Key
   parameters:
+    WorkspaceIDHeader:
+      name: X-AgentZ-Workspace-ID
+      in: header
+      required: false
+      description: >
+        Stable Workspace ID selecting Workspace scope. Omit for Organisation
+        scope.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+
+    WorkspaceIDPath:
+      name: workspaceId
+      in: path
+      required: true
+      description: Stable Workspace ID.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+
+    InheritedResourceTypePath:
+      name: resourceType
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/InheritedResourceType'
+
+    ResourceScopeQuery:
+      name: scope
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceScope'
+
+    WorkspaceSlugPath:
+      name: workspaceSlug
+      in: path
+      required: true
+      description: Current or historical Workspace slug.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+
+    EventTrailEventIDPath:
+      name: eventId
+      in: path
+      required: true
+      description: Stable event trail event ID.
+      schema:
+        type: string
+        minLength: 1
+
     AgentNameQuery:
       name: agent_name
       in: query
@@ -2529,6 +3398,15 @@ components:
       description: Agent name.
       schema:
         $ref: '#/components/schemas/AgentName'
+
+    AgentShareIDPath:
+      name: shareId
+      in: path
+      required: true
+      description: Stable Agent Share ID.
+      schema:
+        type: string
+        minLength: 1
 
     InferenceProviderNamePath:
       name: providerName
@@ -2685,6 +3563,24 @@ components:
         type: string
         format: date-time
 
+    EventTimeAfterRequiredQuery:
+      name: event_time_after
+      in: query
+      required: true
+      description: Inclusive lower bound for event time.
+      schema:
+        type: string
+        format: date-time
+
+    EventTimeBeforeRequiredQuery:
+      name: event_time_before
+      in: query
+      required: true
+      description: Inclusive upper bound for event time.
+      schema:
+        type: string
+        format: date-time
+
     ActionQuery:
       name: action
       in: query
@@ -2692,15 +3588,6 @@ components:
       description: Optional observability action filter.
       schema:
         $ref: '#/components/schemas/ObservabilityAction'
-
-    AggregatedQuery:
-      name: aggregated
-      in: query
-      required: false
-      description: When true, returns aggregated events with occurrence counts over the time range.
-      schema:
-        type: boolean
-        default: false
 
     FromDateQuery:
       name: from
@@ -2729,6 +3616,12 @@ components:
             $ref: '#/components/schemas/Error'
     Unauthorized:
       description: Request authentication failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: The authenticated principal lacks authority for this operation.
       content:
         application/json:
           schema:
@@ -2783,6 +3676,232 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    EventTrailActorType:
+      type: string
+      enum: [user, api_key, system]
+
+    EventTrailResult:
+      type: string
+      enum: [succeeded, denied, failed]
+
+    EventTrailTargetType:
+      type: string
+      enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection, inference_provider, inference_pool, agent]
+      x-enum-varnames:
+      - EventTrailTargetOrganization
+      - EventTrailTargetOrganizationMembership
+      - EventTrailTargetWorkspace
+      - EventTrailTargetRole
+      - EventTrailTargetSandbox
+      - EventTrailTargetSkill
+      - EventTrailTargetTeam
+      - EventTrailTargetMCPConnection
+      - EventTrailTargetInferenceProvider
+      - EventTrailTargetInferencePool
+      - EventTrailTargetAgent
+
+    EventTrailField:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+          enum: [member_id, name, provisioning_attempt, role, slug, state, user_id]
+          x-enum-varnames:
+          - EventTrailFieldMemberID
+          - EventTrailFieldName
+          - EventTrailFieldProvisioningAttempt
+          - EventTrailFieldRole
+          - EventTrailFieldSlug
+          - EventTrailFieldState
+          - EventTrailFieldUserID
+        value:
+          type: string
+      required: [field, value]
+
+    EventTrailActor:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          $ref: '#/components/schemas/EventTrailActorType'
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [type]
+
+    EventTrailTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          $ref: '#/components/schemas/EventTrailTargetType'
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required: [type, id]
+
+    EventTrailWorkspace:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required: [id]
+
+    EventTrailEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        actor:
+          $ref: '#/components/schemas/EventTrailActor'
+        target:
+          $ref: '#/components/schemas/EventTrailTarget'
+        workspace:
+          $ref: '#/components/schemas/EventTrailWorkspace'
+        category:
+          type: string
+        action:
+          type: string
+        result:
+          $ref: '#/components/schemas/EventTrailResult'
+        before:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventTrailField'
+        after:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventTrailField'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - actor
+      - target
+      - category
+      - action
+      - result
+      - before
+      - after
+      - created_at
+
+    EventTrailActorFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/EventTrailActorType'
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [type]
+
+    EventTrailWorkspaceFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      required: [id]
+
+    EventTrailFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        actors:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventTrailActorFilter'
+        categories:
+          type: array
+          items:
+            type: string
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventTrailWorkspaceFilter'
+        target_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventTrailTargetType'
+      required: [actors, categories, workspaces, target_types]
+
+    EventTrailFilterField:
+      type: string
+      enum: [actor_type, actor_id, category, workspace_id, target_type, result, created_at]
+
+    EventTrailFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          $ref: '#/components/schemas/EventTrailFilterField'
+        values:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+      required: [field, values]
+
+    ListEventTrailEventsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        filters:
+          type: array
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/EventTrailFilter'
+        limit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          default: 50
+        page_token:
+          type: string
+      required: [filters, limit]
+
+    ListEventTrailEventsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventTrailEvent'
+        filter_options:
+          $ref: '#/components/schemas/EventTrailFilters'
+        next_page_token:
+          type: string
+      required: [events, filter_options, next_page_token]
+
     TraceID:
       type: string
       minLength: 32
@@ -2821,13 +3940,44 @@ components:
         message:
           type: string
 
+    ResourceCapabilities:
+      type: object
+      additionalProperties: false
+      required: [read, create, modify, delete]
+      properties:
+        read:
+          type: boolean
+        create:
+          type: boolean
+        modify:
+          type: boolean
+        delete:
+          type: boolean
+
+    ResourceActor:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        image:
+          type: string
+          nullable: true
+      required: [id, name, email, image]
+
     Tenant:
       type: object
-      required: [tenant_id, user_id, namespace, ready, phase, conditions]
+      required: [organization_id, namespace, ready, phase, conditions, skill_capabilities, mcp_connection_capabilities, sandbox_capabilities, inference_provider_capabilities, inference_pool_capabilities]
       properties:
-        tenant_id:
-          type: string
-        user_id:
+        organization_id:
           type: string
         namespace:
           type: string
@@ -2839,6 +3989,284 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TenantCondition'
+        skill_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        mcp_connection_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        sandbox_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_provider_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_pool_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+
+    WorkspaceState:
+      type: string
+      enum: [provisioning, ready, failed, deleting]
+      x-enum-varnames:
+      - WorkspaceStateProvisioning
+      - WorkspaceStateReady
+      - WorkspaceStateFailed
+      - WorkspaceStateDeleting
+
+    Workspace:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        namespace:
+          type: string
+        state:
+          $ref: '#/components/schemas/WorkspaceState'
+        provisioning_attempt:
+          type: integer
+          format: int64
+          minimum: 1
+        failure_reason:
+          type: string
+        capabilities:
+          $ref: '#/components/schemas/WorkspaceCapabilities'
+        workspace_admin_count:
+          type: integer
+          format: int64
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - name
+      - slug
+      - namespace
+      - state
+      - provisioning_attempt
+      - workspace_admin_count
+      - capabilities
+      - created_at
+      - updated_at
+
+    WorkspaceCapabilities:
+      type: object
+      additionalProperties: false
+      properties:
+        administer:
+          type: boolean
+        agents:
+          $ref: '#/components/schemas/AgentWorkspaceCapabilities'
+        skills:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        mcp_connections:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        sandboxes:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_providers:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        inference_pools:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        api_keys:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        observability:
+          $ref: '#/components/schemas/ResourceCapabilities'
+      required:
+      - administer
+      - agents
+      - skills
+      - mcp_connections
+      - sandboxes
+      - inference_providers
+      - inference_pools
+      - api_keys
+      - observability
+
+    AgentWorkspaceCapabilities:
+      type: object
+      additionalProperties: false
+      properties:
+        author:
+          type: boolean
+      required: [author]
+
+    ListWorkspacesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+        can_create:
+          type: boolean
+        can_enter_organization:
+          type: boolean
+        next_page_token:
+          type: string
+      required: [workspaces, can_create, can_enter_organization, next_page_token]
+
+    CreateWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: '.*\S.*'
+        admin_member_ids:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        selected_organization_resources:
+          $ref: '#/components/schemas/SelectedOrganizationResources'
+      required: [name, admin_member_ids, selected_organization_resources]
+
+    InheritedResourceType:
+      type: string
+      enum: [skill, sandbox, mcp_connection, inference_provider]
+      x-enum-varnames:
+      - InheritedResourceTypeSkill
+      - InheritedResourceTypeSandbox
+      - InheritedResourceTypeMCPConnection
+      - InheritedResourceTypeInferenceProvider
+
+    SelectedOrganizationResources:
+      type: object
+      additionalProperties: false
+      properties:
+        skills:
+          type: array
+          uniqueItems: true
+          items: {type: string, minLength: 1}
+        sandboxes:
+          type: array
+          uniqueItems: true
+          items: {type: string, minLength: 1}
+        mcp_connections:
+          type: array
+          uniqueItems: true
+          items: {type: string, minLength: 1}
+        inference_providers:
+          type: array
+          uniqueItems: true
+          items: {type: string, minLength: 1}
+      required: [skills, sandboxes, mcp_connections, inference_providers]
+
+    InheritedResourceConsumer:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+      required: [kind, name]
+
+    ResourceLifecycle:
+      type: string
+      enum: [Accepted, Ready, NotReady, Degraded, Error]
+
+    WorkspaceInheritedResource:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ResourceLifecycle'
+        message:
+          type: string
+        selected:
+          type: boolean
+        consumers:
+          type: array
+          items:
+            $ref: '#/components/schemas/InheritedResourceConsumer'
+        disabled_reason:
+          type: string
+      required: [name, status, selected, consumers]
+
+    ListWorkspaceInheritedResourcesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        resource_type:
+          $ref: '#/components/schemas/InheritedResourceType'
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceInheritedResource'
+      required: [resource_type, resources]
+
+    ReplaceWorkspaceInheritedResourcesRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        names:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+      required: [names]
+
+    WorkspaceMemberCandidate:
+      type: object
+      additionalProperties: false
+      properties:
+        member_id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        image:
+          type: string
+          nullable: true
+      required: [member_id, user_id, name, email, image]
+
+    ListWorkspaceMemberCandidatesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceMemberCandidate'
+      required: [members]
+
+    UpdateWorkspaceLifecycleRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        provisioning_attempt:
+          type: integer
+          format: int64
+          minimum: 1
+        state:
+          type: string
+          enum: [ready, failed]
+          x-enum-varnames:
+          - UpdateWorkspaceLifecycleRequestStateReady
+          - UpdateWorkspaceLifecycleRequestStateFailed
+        failure_reason:
+          type: string
+          minLength: 1
+          maxLength: 1024
+      required: [provisioning_attempt, state]
 
     ObservabilityAction:
       type: string
@@ -2849,6 +4277,23 @@ components:
       minLength: 1
       maxLength: 32
       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+
+    ResourceScope:
+      type: string
+      enum: [Organisation, Workspace]
+
+    ResourceReference:
+      type: object
+      additionalProperties: false
+      properties:
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+      required: [scope, name]
 
     AgentMemoryConfig:
       type: object
@@ -3118,6 +4563,18 @@ components:
           type: string
       required: [agents, next_page_token]
 
+    ListAgentSharesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        shares:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentShare'
+        next_page_token:
+          type: string
+      required: [shares, next_page_token]
+
     ListSkillsResponse:
       type: object
       additionalProperties: false
@@ -3196,8 +4653,12 @@ components:
       properties:
         name:
           $ref: '#/components/schemas/AgentName'
-        sandboxName:
-          $ref: '#/components/schemas/SandboxName'
+        sandbox:
+          $ref: '#/components/schemas/ResourceReference'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         last_activity:
           type: string
           format: date-time
@@ -3212,18 +4673,164 @@ components:
         skills:
           type: array
           items:
-            $ref: '#/components/schemas/SkillName'
+            $ref: '#/components/schemas/ResourceReference'
         status:
           $ref: '#/components/schemas/AgentStatus'
+        capabilities:
+          $ref: '#/components/schemas/AgentCapabilities'
       required:
       - name
-      - sandboxName
+      - sandbox
+      - created_by
+      - last_modified_by
       - last_activity
       - memory
       - created_at
       - modified_at
       - skills
       - status
+      - capabilities
+
+    AgentCapabilities:
+      type: object
+      additionalProperties: false
+      properties:
+        use:
+          type: boolean
+        modify:
+          type: boolean
+        delete:
+          type: boolean
+        share:
+          type: boolean
+        manage_ownership:
+          type: boolean
+        read_secrets:
+          type: boolean
+        write_secrets:
+          type: boolean
+        delete_secrets:
+          type: boolean
+      required:
+      - use
+      - modify
+      - delete
+      - share
+      - manage_ownership
+      - read_secrets
+      - write_secrets
+      - delete_secrets
+
+    AgentOwner:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        creator_user_id:
+          type: string
+        owner_user_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - agent_name
+      - creator_user_id
+      - owner_user_id
+      - created_at
+      - updated_at
+
+    AgentShare:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        target_user_id:
+          type: string
+          nullable: true
+        target_team_id:
+          type: string
+          nullable: true
+        created_by:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentShareCapability'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - agent_name
+      - target_user_id
+      - target_team_id
+      - created_by
+      - capabilities
+      - created_at
+
+    AgentShareCapability:
+      type: string
+      enum:
+      - share_non_authored
+      - use_shared
+      - read_shared_secret
+      - write_shared_secret
+      - delete_shared_secret
+      x-enum-varnames:
+      - AgentShareCapabilityShareNonAuthored
+      - AgentShareCapabilityUseShared
+      - AgentShareCapabilityReadSharedSecret
+      - AgentShareCapabilityWriteSharedSecret
+      - AgentShareCapabilityDeleteSharedSecret
+
+    AgentAccessTargetKind:
+      type: string
+      enum: [user, team]
+      x-enum-varnames:
+      - AgentAccessTargetKindUser
+      - AgentAccessTargetKindTeam
+
+    AgentAccessTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: '#/components/schemas/AgentAccessTargetKind'
+        id:
+          type: string
+        label:
+          type: string
+        email:
+          type: string
+          nullable: true
+        image:
+          type: string
+          nullable: true
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentShareCapability'
+        can_own:
+          type: boolean
+      required: [kind, id, label, email, image, capabilities, can_own]
+
+    ListAgentAccessTargetsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentAccessTarget'
+      required: [targets]
 
     Skill:
       type: object
@@ -3231,6 +4838,12 @@ components:
       properties:
         name:
           $ref: '#/components/schemas/SkillName'
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         description:
           type: string
           minLength: 1
@@ -3253,18 +4866,23 @@ components:
         created_at:
           type: string
           format: date-time
+        can_modify:
+          type: boolean
+        can_delete:
+          type: boolean
       required:
       - name
+      - scope
+      - created_by
+      - last_modified_by
       - description
       - version
       - storage_path
       - agents
       - sandboxes
       - created_at
-
-    SkillKind:
-      type: string
-      enum: [mutable, immutable]
+      - can_modify
+      - can_delete
 
     SkillFileSummary:
       type: object
@@ -3297,6 +4915,16 @@ components:
         properties:
           description:
             type: string
+          created_by:
+            $ref: '#/components/schemas/ResourceActor'
+          last_modified_by:
+            $ref: '#/components/schemas/ResourceActor'
+          scope:
+            $ref: '#/components/schemas/ResourceScope'
+          can_modify:
+            type: boolean
+          can_delete:
+            type: boolean
           version:
             type: integer
             format: int64
@@ -3309,7 +4937,7 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/SandboxName'
-        required: [description, version, agents, sandboxes]
+        required: [description, created_by, last_modified_by, scope, version, agents, sandboxes, can_modify, can_delete]
 
     DeleteSkillsRequest:
       type: object
@@ -3324,7 +4952,7 @@ components:
             $ref: '#/components/schemas/SkillName'
       required: [skill_names]
 
-    ExportSkillsRequest:
+    ExportMutableSkillsRequest:
       type: object
       additionalProperties: false
       properties:
@@ -3336,6 +4964,62 @@ components:
           items:
             $ref: '#/components/schemas/SkillName'
       required: [skill_names]
+
+    ExportImmutableSkillsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        skills:
+          description: Skill references whose names are unique across scopes.
+          type: array
+          minItems: 1
+          maxItems: 200
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceReference'
+      required: [skills]
+
+    ImmutableSkillImportPreviewItem:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/SkillName'
+        conflict:
+          type: boolean
+      required: [name, conflict]
+
+    ImmutableSkillImportPreviewResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImmutableSkillImportPreviewItem'
+      required: [skills]
+
+    MutableSkillImportPreviewItem:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/SkillName'
+        conflict_agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentName'
+      required: [name, conflict_agents]
+
+    MutableSkillImportPreviewResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/MutableSkillImportPreviewItem'
+      required: [skills]
 
     SkillImportDecision:
       oneOf:
@@ -3384,30 +5068,6 @@ components:
           $ref: '#/components/schemas/SkillName'
       required: [action, name, rename]
 
-    SkillImportPreviewItem:
-      type: object
-      additionalProperties: false
-      properties:
-        name:
-          $ref: '#/components/schemas/SkillName'
-        mutable_conflict_agents:
-          type: array
-          items:
-            $ref: '#/components/schemas/AgentName'
-        immutable_conflict:
-          type: boolean
-      required: [name, mutable_conflict_agents, immutable_conflict]
-
-    SkillImportPreviewResponse:
-      type: object
-      additionalProperties: false
-      properties:
-        skills:
-          type: array
-          items:
-            $ref: '#/components/schemas/SkillImportPreviewItem'
-      required: [skills]
-
     SkillImportAgentResult:
       type: object
       additionalProperties: false
@@ -3421,7 +5081,7 @@ components:
           type: string
       required: [agent, status]
 
-    ImportSkillsResponse:
+    SkillImportResponse:
       type: object
       additionalProperties: false
       properties:
@@ -3503,15 +5163,15 @@ components:
           type: object
           additionalProperties:
             type: string
-        sandboxName:
-          $ref: '#/components/schemas/SandboxName'
+        sandbox:
+          $ref: '#/components/schemas/ResourceReference'
         skills:
           type: array
           items:
-            $ref: '#/components/schemas/SkillName'
+            $ref: '#/components/schemas/ResourceReference'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
-      required: [name, sandboxName]
+      required: [name, sandbox]
 
     CreateWorkflowRequest:
       type: object
@@ -4045,15 +5705,41 @@ components:
             type: string
         memory:
           $ref: '#/components/schemas/AgentMemoryConfig'
-        sandboxName:
-          $ref: '#/components/schemas/SandboxName'
+        sandbox:
+          $ref: '#/components/schemas/ResourceReference'
         skills:
           type: array
           items:
-            $ref: '#/components/schemas/SkillName'
+            $ref: '#/components/schemas/ResourceReference'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
       minProperties: 1
+
+    TransferAgentOwnerRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        owner_user_id:
+          type: string
+          minLength: 1
+      required: [owner_user_id]
+
+    UpsertAgentShareRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        target_user_id:
+          type: string
+          minLength: 1
+        target_team_id:
+          type: string
+          minLength: 1
+        capabilities:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AgentShareCapability'
+      required: [capabilities]
 
     AgentOpencodeConfig:
       type: object
@@ -4508,9 +6194,19 @@ components:
         events:
           type: array
           items:
-            oneOf:
-            - $ref: '#/components/schemas/ProcessObservabilityEvent'
-            - $ref: '#/components/schemas/ProcessObservabilityEventAggregated'
+            $ref: '#/components/schemas/ProcessObservabilityEvent'
+        next_page_token:
+          type: string
+      required: [events, next_page_token]
+
+    ListProcessObservabilitySummaryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -4598,9 +6294,19 @@ components:
         events:
           type: array
           items:
-            oneOf:
-            - $ref: '#/components/schemas/FileObservabilityEvent'
-            - $ref: '#/components/schemas/FileObservabilityEventAggregated'
+            $ref: '#/components/schemas/FileObservabilityEvent'
+        next_page_token:
+          type: string
+      required: [events, next_page_token]
+
+    ListFileObservabilitySummaryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -4688,9 +6394,19 @@ components:
         events:
           type: array
           items:
-            oneOf:
-            - $ref: '#/components/schemas/NetworkObservabilityEvent'
-            - $ref: '#/components/schemas/NetworkObservabilityEventAggregated'
+            $ref: '#/components/schemas/NetworkObservabilityEvent'
+        next_page_token:
+          type: string
+      required: [events, next_page_token]
+
+    ListNetworkObservabilitySummaryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetworkObservabilityEventAggregated'
         next_page_token:
           type: string
       required: [events, next_page_token]
@@ -4958,6 +6674,10 @@ components:
       properties:
         key:
           $ref: '#/components/schemas/SecretKey'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         type:
           $ref: '#/components/schemas/SecretType'
         hosts:
@@ -4981,7 +6701,7 @@ components:
         token_expiry_time:
           type: string
           format: date-time
-      required: [key, type, hosts, status, reason, message, created_at]
+      required: [key, type, hosts, status, reason, message, created_at, created_by, last_modified_by]
 
     PutSecretsResponse:
       type: object
@@ -5040,6 +6760,12 @@ components:
       properties:
         name:
           $ref: '#/components/schemas/SandboxName'
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         packages:
           type: array
           items:
@@ -5057,9 +6783,13 @@ components:
         skills:
           type: array
           items:
-            $ref: '#/components/schemas/SkillName'
+            $ref: '#/components/schemas/ResourceReference'
         inference:
           $ref: '#/components/schemas/SandboxInference'
+        can_modify:
+          type: boolean
+        can_delete:
+          type: boolean
         created_at:
           type: string
           format: date-time
@@ -5082,7 +6812,7 @@ components:
             referenced_by_agent:
               type: boolean
           required: [package_count, allowed_host_count, skill_count, referenced_by_agent]
-      required: [name, packages, allowed_hosts, mcp_connection_refs, skills, inference, created_at, metadata]
+      required: [name, scope, created_by, last_modified_by, packages, allowed_hosts, mcp_connection_refs, skills, inference, created_at, can_modify, can_delete, metadata]
 
     ListSandboxesResponse:
       type: object
@@ -5119,7 +6849,7 @@ components:
         skills:
           type: array
           items:
-            $ref: '#/components/schemas/SkillName'
+            $ref: '#/components/schemas/ResourceReference'
         inference:
           $ref: '#/components/schemas/SandboxInference'
       required: [name, inference]
@@ -5145,7 +6875,7 @@ components:
         skills:
           type: array
           items:
-            $ref: '#/components/schemas/SkillName'
+            $ref: '#/components/schemas/ResourceReference'
         inference:
           $ref: '#/components/schemas/SandboxInference'
       required: [packages, allowed_hosts, mcp_connection_refs, skills, inference]
@@ -5154,13 +6884,15 @@ components:
       type: object
       additionalProperties: false
       properties:
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
         provider:
           $ref: '#/components/schemas/InferenceProviderName'
         model:
           type: string
           minLength: 1
           maxLength: 512
-      required: [provider, model]
+      required: [scope, provider, model]
 
     SandboxInference:
       type: object
@@ -5648,6 +7380,9 @@ components:
       - type: object
         properties:
           id: {$ref: '#/components/schemas/InferenceProviderName'}
+          scope: {$ref: '#/components/schemas/ResourceScope'}
+          created_by: {$ref: '#/components/schemas/ResourceActor'}
+          last_modified_by: {$ref: '#/components/schemas/ResourceActor'}
           resource_version: {type: string}
           state: {type: string, enum: [Accepted, Ready, Degraded]}
           conditions:
@@ -5655,9 +7390,11 @@ components:
             items: {$ref: '#/components/schemas/InferenceProviderCondition'}
           model_count: {type: integer, minimum: 0}
           usage_count: {type: integer, minimum: 0}
+          can_modify: {type: boolean}
+          can_delete: {type: boolean}
           created_at: {type: string, format: date-time}
           updated_at: {type: string, format: date-time}
-        required: [id, resource_version, state, conditions, model_count, usage_count, created_at, updated_at]
+        required: [id, scope, created_by, last_modified_by, resource_version, state, conditions, model_count, usage_count, can_modify, can_delete, created_at, updated_at]
 
     ListInferenceProvidersResponse:
       type: object
@@ -5673,11 +7410,11 @@ components:
       type: object
       additionalProperties: false
       properties:
-        provider_ids:
+        providers:
           type: array
           maxItems: 200
           uniqueItems: true
-          items: {$ref: '#/components/schemas/InferenceProviderName'}
+          items: {$ref: '#/components/schemas/ResourceReference'}
 
     WatchInferenceProvidersEvent:
       type: object
@@ -5705,9 +7442,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        scope: {$ref: '#/components/schemas/ResourceScope'}
         provider: {$ref: '#/components/schemas/InferenceProviderName'}
         model: {type: string, minLength: 1, maxLength: 512}
-      required: [provider, model]
+      required: [scope, provider, model]
 
     InferencePoolWrite:
       type: object
@@ -5763,13 +7501,14 @@ components:
       type: object
       additionalProperties: false
       properties:
+        scope: {$ref: '#/components/schemas/ResourceScope'}
         provider: {$ref: '#/components/schemas/InferenceProviderName'}
         model: {type: string, minLength: 1, maxLength: 512}
         protocol: {$ref: '#/components/schemas/InferenceProtocol'}
         ready: {type: boolean}
         reason: {type: string}
         message: {type: string}
-      required: [provider, model, protocol, ready, reason, message]
+      required: [scope, provider, model, protocol, ready, reason, message]
 
     InferencePool:
       type: object
@@ -5797,9 +7536,11 @@ components:
           type: array
           items: {$ref: '#/components/schemas/InferencePoolMemberStatus'}
         usage_count: {type: integer, minimum: 0}
+        can_modify: {type: boolean}
+        can_delete: {type: boolean}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
-      required: [id, display_name, resource_version, automatic_failover, members, state, conditions, warnings, member_statuses, usage_count, created_at, updated_at]
+      required: [id, display_name, resource_version, automatic_failover, members, state, conditions, warnings, member_statuses, usage_count, can_modify, can_delete, created_at, updated_at]
 
     ListInferencePoolsResponse:
       type: object
@@ -5890,6 +7631,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
         tools:
           type: array
           items:
@@ -5897,7 +7640,7 @@ components:
           minItems: 1
         name:
           $ref: '#/components/schemas/MCPConnectionName'
-      required: [name, tools]
+      required: [scope, name, tools]
 
     MCPConnectionToolRef:
       type: object
@@ -5923,8 +7666,17 @@ components:
       type: object
       additionalProperties: false
       properties:
+        can_delete:
+          type: boolean
+          description: Whether the current principal may delete this connection in the selected scope.
         name:
           $ref: '#/components/schemas/MCPConnectionName'
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         endpoint:
           $ref: '#/components/schemas/MCPConnectionEndpoint'
         auth:
@@ -5944,14 +7696,23 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MCPConnectionTool'
-      required: [name, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools]
+      required: [name, scope, created_by, last_modified_by, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools, can_delete]
 
     MCPConnectionSummary:
       type: object
       additionalProperties: false
       properties:
+        can_delete:
+          type: boolean
+          description: Whether the current principal may delete this connection in the selected scope.
         name:
           $ref: '#/components/schemas/MCPConnectionName'
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
         auth_mode:
           type: string
         endpoint_url:
@@ -5971,7 +7732,7 @@ components:
           type: integer
           format: int64
           minimum: 0
-      required: [name, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count]
+      required: [name, scope, created_by, last_modified_by, auth_mode, endpoint_url, created_at, status, reason, message, tool_catalog_ready, tool_count, can_delete]
 
     MCPConnectionEndpoint:
       type: object
@@ -6070,13 +7831,13 @@ components:
           minLength: 1
       required: [name]
 
-    MCPConnectionLifecycle:
-      type: string
-      enum: [Accepted, Ready, Error]
-
     MCPConnectionReason:
       type: string
       enum: [Ready, ProbePending, Unreachable, InvalidCredentials, ProtocolError, InternalError]
+
+    MCPConnectionLifecycle:
+      type: string
+      enum: [Accepted, Ready, Error]
 
     ListMCPConnectionsResponse:
       type: object
@@ -6093,10 +7854,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        names:
+        connections:
           type: array
           items:
-            $ref: '#/components/schemas/MCPConnectionName'
+            $ref: '#/components/schemas/ResourceReference'
     WatchMCPConnectionsEvent:
       type: object
       additionalProperties: false

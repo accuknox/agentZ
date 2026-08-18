@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,6 +43,8 @@ const (
 const (
 	// AgentNameMCPConnection is reserved for tenant-scoped MCP credentials.
 	AgentNameMCPConnection = "mcp-connection"
+	// AgentPackageJobLabel selects package preparation Jobs and their Pods.
+	AgentPackageJobLabel = "agentz.accuknox.com/agent-package-job"
 
 	// ReasonConfigInvalid indicates the Agent spec cannot produce a runtime.
 	ReasonConfigInvalid = "ConfigInvalid"
@@ -64,7 +67,11 @@ const (
 )
 
 // AgentSpec defines the desired state of Agent.
+// +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 32)",message="skill names must not exceed 32 characters"
+// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type AgentSpec struct {
+	ResourceAudit `json:",inline"`
+
 	// Image is the container image used for the Agent runtime.
 	// +optional
 	Image string `json:"image,omitempty"`
@@ -95,15 +102,15 @@ type AgentSpec struct {
 	Memory MemoryConfig `json:"memory,omitempty"`
 
 	// SandboxRef references reusable package, policy, and inference configuration.
-	SandboxRef corev1.LocalObjectReference `json:"sandboxRef"`
+	SandboxRef ResourceReference `json:"sandboxRef"`
 
 	// Skills lists immutable Skill names attached directly to this Agent.
 	// +optional
-	// +listType=set
+	// +listType=map
+	// +listMapKey=scope
+	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=200
-	// +kubebuilder:validation:items:MaxLength=32
-	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	Skills []string `json:"skills,omitempty"`
+	Skills []ResourceReference `json:"skills,omitempty"`
 
 	// NixStoreSize sets the size of the agent-specific nix store PVC.
 	// +kubebuilder:default="5Gi"
@@ -152,20 +159,7 @@ type AgentStatus struct {
 
 // SetCondition adds or updates a condition in the status.
 func (s *AgentStatus) SetCondition(cond metav1.Condition) {
-	cond.LastTransitionTime = metav1.Now()
-	for i, cur := range s.Conditions {
-		if cur.Type != cond.Type {
-			continue
-		}
-		if cur.Status == cond.Status && cur.Reason == cond.Reason &&
-			cur.Message == cond.Message &&
-			cur.ObservedGeneration == cond.ObservedGeneration {
-			cond.LastTransitionTime = cur.LastTransitionTime
-		}
-		s.Conditions[i] = cond
-		return
-	}
-	s.Conditions = append(s.Conditions, cond)
+	apimeta.SetStatusCondition(&s.Conditions, cond)
 }
 
 // +genclient

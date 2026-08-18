@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: sandboxes.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -66,6 +66,11 @@ spec:
                 items:
                   type: string
                 type: array
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
               inference:
                 description: Inference defines the model policy inherited by referencing Agents.
                 properties:
@@ -83,9 +88,16 @@ spec:
                         minLength: 1
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
+                      scope:
+                        description: Scope selects the current Organisation or Workspace namespace.
+                        enum:
+                        - Organisation
+                        - Workspace
+                        type: string
                     required:
                     - model
                     - provider
+                    - scope
                     type: object
                   defaultModel:
                     description: DefaultModel is the required primary OpenCode model.
@@ -101,9 +113,16 @@ spec:
                         minLength: 1
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
+                      scope:
+                        description: Scope selects the current Organisation or Workspace namespace.
+                        enum:
+                        - Organisation
+                        - Workspace
+                        type: string
                     required:
                     - model
                     - provider
+                    - scope
                     type: object
                   models:
                     description: Models is the hard provider/model allowlist.
@@ -121,14 +140,22 @@ spec:
                           minLength: 1
                           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                           type: string
+                        scope:
+                          description: Scope selects the current Organisation or Workspace namespace.
+                          enum:
+                          - Organisation
+                          - Workspace
+                          type: string
                       required:
                       - model
                       - provider
+                      - scope
                       type: object
                     maxItems: 500
                     minItems: 1
                     type: array
                     x-kubernetes-list-map-keys:
+                    - scope
                     - provider
                     - model
                     x-kubernetes-list-type: map
@@ -146,9 +173,16 @@ spec:
                         minLength: 1
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
+                      scope:
+                        description: Scope selects the current Organisation or Workspace namespace.
+                        enum:
+                        - Organisation
+                        - Workspace
+                        type: string
                     required:
                     - model
                     - provider
+                    - scope
                     type: object
                 required:
                 - defaultModel
@@ -156,20 +190,34 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: default model must belong to the allowlist
-                  rule: self.models.exists(m, m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)
+                  rule: self.models.exists(m, m.scope == self.defaultModel.scope && m.provider == self.defaultModel.provider && m.model == self.defaultModel.model)
                 - message: small model must belong to the allowlist
-                  rule: '!has(self.smallModel) || self.models.exists(m, m.provider == self.smallModel.provider && m.model == self.smallModel.model)'
+                  rule: '!has(self.smallModel) || self.models.exists(m, m.scope == self.smallModel.scope && m.provider == self.smallModel.provider && m.model == self.smallModel.model)'
                 - message: attachment model must belong to the allowlist
-                  rule: '!has(self.attachmentModel) || self.models.exists(m, m.provider == self.attachmentModel.provider && m.model == self.attachmentModel.model)'
+                  rule: '!has(self.attachmentModel) || self.models.exists(m, m.scope == self.attachmentModel.scope && m.provider == self.attachmentModel.provider && m.model == self.attachmentModel.model)'
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
               mcpConnectionRefs:
                 description: |-
                   MCPConnectionRefs lists external MCP connections exposed in this
                   sandbox in order.
                 items:
-                  description: MCPConnectionRef references one MCPConnection in the same namespace.
+                  description: MCPConnectionRef references one MCPConnection and its exposed tools.
                   properties:
                     name:
-                      description: Name is the local name of the referenced MCPConnection.
+                      description: Name is the immutable Kubernetes metadata name of the resource.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    scope:
+                      description: Scope selects the current Organisation or Workspace namespace.
+                      enum:
+                      - Organisation
+                      - Workspace
                       type: string
                     tools:
                       description: |-
@@ -195,6 +243,7 @@ spec:
                       type: array
                   required:
                   - name
+                  - scope
                   - tools
                   type: object
                 type: array
@@ -209,15 +258,40 @@ spec:
               skills:
                 description: Skills lists immutable Skill names exposed through this sandbox.
                 items:
-                  maxLength: 32
-                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                  type: string
+                  description: ResourceReference identifies a resource by scope and metadata name.
+                  properties:
+                    name:
+                      description: Name is the immutable Kubernetes metadata name of the resource.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    scope:
+                      description: Scope selects the current Organisation or Workspace namespace.
+                      enum:
+                      - Organisation
+                      - Workspace
+                      type: string
+                  required:
+                  - name
+                  - scope
+                  type: object
                 maxItems: 200
                 type: array
-                x-kubernetes-list-type: set
+                x-kubernetes-list-map-keys:
+                - scope
+                - name
+                x-kubernetes-list-type: map
             required:
+            - createdByUserID
             - inference
+            - lastModifiedByUserID
             type: object
+            x-kubernetes-validations:
+            - message: skill names must not exceed 32 characters
+              rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 32)'
+            - message: createdByUserID is immutable
+              rule: self.createdByUserID == oldSelf.createdByUserID
           status:
             description: status defines the observed state of Sandbox
             properties:

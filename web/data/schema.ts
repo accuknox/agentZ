@@ -3,6 +3,8 @@ import ipaddr from "ipaddr.js"
 import {
   zAgentName,
   zMcpConnectionName,
+  zResourceReference,
+  zResourceScope,
   zSandboxName,
   zSandboxInference,
   zSecretKey,
@@ -20,7 +22,7 @@ export const secretKeySchema = z
   )
   .pipe(zSecretKey)
 
-export const secretValueSchema = z
+const secretValueSchema = z
   .string({ error: "Secret value is required" })
   .trim()
   .min(1, "Secret value is required")
@@ -33,7 +35,7 @@ export const secretHostSchema = z
   .max(253, "Host must be at most 253 characters")
   .transform(parseSecretHost)
 
-export const secretHostsInputSchema = z
+const secretHostsInputSchema = z
   .string({ error: "Hosts are required" })
   .transform((value) =>
     value
@@ -120,6 +122,7 @@ const selectedMcpToolSchema = z.object({
 })
 
 const selectedMcpConnectionSchema = z.object({
+  scope: zResourceScope,
   name: z
     .string({ error: "MCP connection name is required" })
     .trim()
@@ -296,26 +299,27 @@ function parseSandboxHost(value: string, ctx: z.RefinementCtx) {
 function parseHost(value: string, allowIP: boolean) {
   const host = value.trim()
   if (ipaddr.isValidCIDR(host)) {
-    return canonicalCIDR(host)
+    const [address, bits] = ipaddr.parseCIDR(host)
+    return `${address.toString()}/${bits}`
   }
   if (ipaddr.isValid(host)) {
     return allowIP ? host : undefined
   }
   if (host.startsWith("**.")) {
-    const domain = canonicalDomain(host.slice(3))
+    const domain = parseDomain(host.slice(3))
     return domain ? `**.${domain}` : undefined
   }
   if (host.startsWith("*.")) {
-    const domain = canonicalDomain(host.slice(2))
+    const domain = parseDomain(host.slice(2))
     return domain ? `*.${domain}` : undefined
   }
   if (host.includes("*")) {
     return undefined
   }
-  return canonicalDomain(host)
+  return parseDomain(host)
 }
 
-function canonicalDomain(value: string) {
+function parseDomain(value: string) {
   const domain = value.trim().replace(/\.$/, "")
   if (domain.length === 0 || domain.length > 253 || domain.includes("..")) {
     return undefined
@@ -329,14 +333,9 @@ function canonicalDomain(value: string) {
   return domain.toLowerCase()
 }
 
-function canonicalCIDR(value: string) {
-  const [addr, bits] = ipaddr.parseCIDR(value)
-  return `${addr.toString()}/${bits}`
-}
-
-export const agentNameSchema = agentNameInputSchema
+const agentNameSchema = agentNameInputSchema
 export const sandboxNameSchema = sandboxNameInputSchema
-export const skillNameSchema = z
+const skillNameSchema = z
   .string({ error: "Skill name is required" })
   .trim()
   .min(1, "Skill name is required")
@@ -352,12 +351,14 @@ export const sandboxAllowedHostSchema = z
 
 export const createAgentSimpleFormSchema = z.object({
   name: agentNameSchema,
+  sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
   skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
   memoryEnabled: z.boolean(),
 })
 
 export const updateAgentSimpleFormSchema = z.object({
+  sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
   skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
   memoryEnabled: z.boolean(),
@@ -365,14 +366,15 @@ export const updateAgentSimpleFormSchema = z.object({
 
 export const createSandboxFormSchema = z.object({
   name: sandboxNameSchema,
-  skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
+  skills: z.array(zResourceReference, { error: "Skills must be a list" }),
   packages: z.array(sandboxPackageSchema, { error: "Packages must be a list" }),
   mcpConnectionRefs: z
     .array(selectedMcpConnectionSchema, { error: "MCP connections must be a list" })
     .superRefine((refs, ctx) => {
-      const names = new Set<string>()
+      const references = new Set<string>()
       for (const [index, ref] of refs.entries()) {
-        if (names.has(ref.name)) {
+        const reference = JSON.stringify([ref.scope, ref.name])
+        if (references.has(reference)) {
           ctx.addIssue({
             code: "custom",
             message: "Duplicate MCP connection references are not allowed",
@@ -380,7 +382,7 @@ export const createSandboxFormSchema = z.object({
           })
           continue
         }
-        names.add(ref.name)
+        references.add(reference)
 
         const toolNames = new Set<string>()
         for (const [toolIndex, tool] of ref.tools.entries()) {
@@ -398,8 +400,9 @@ export const createSandboxFormSchema = z.object({
     })
     .transform((refs) =>
       refs
-        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .toSorted((a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope))
         .map((ref) => ({
+          scope: ref.scope,
           name: ref.name,
           tools: ref.tools.toSorted((a, b) => a.name.localeCompare(b.name)),
         }))

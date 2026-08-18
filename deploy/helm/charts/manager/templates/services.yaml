@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- if .Values.service.metrics.enabled }}
 apiVersion: v1
 kind: Service
@@ -17,7 +18,7 @@ spec:
   selector:
     {{- include "manager.selectorLabels" . | nindent 4 }}
 {{- end }}
-{{- if and .Values.config.enableWebhooks .Values.service.webhook.enabled }}
+{{- if .Values.config.enableWebhooks }}
 ---
 apiVersion: v1
 kind: Service
@@ -34,4 +35,5 @@ spec:
       protocol: TCP
   selector:
     {{- include "manager.selectorLabels" . | nindent 4 }}
+{{- end }}
 {{- end }}

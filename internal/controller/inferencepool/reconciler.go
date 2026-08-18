@@ -10,6 +10,7 @@ import (
 	"time"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
+	externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/accuknox/agentz/internal/inference"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -38,6 +40,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;sandboxes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaypolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile moves one Pool backend and status toward the desired state.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -64,6 +67,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		err := fmt.Errorf("pool configuration is invalid: %s", issues[0].Message)
 		return ctrl.Result{}, r.updateStatus(ctx, pool, definition, nil, err)
 	}
+	if err := r.reconcileCredentialProjections(ctx, pool, definition); err != nil {
+		return ctrl.Result{}, errors.Join(err, r.updateStatus(ctx, pool, definition, nil, err))
+	}
 	desired, err := inference.RenderPoolBackend(pool, definition)
 	if err != nil {
 		return ctrl.Result{}, errors.Join(err, r.updateStatus(ctx, pool, definition, nil, err))
@@ -71,14 +77,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	backend := &agentgatewayv1alpha1.AgentgatewayBackend{
 		ObjectMeta: metav1.ObjectMeta{Name: pool.Name, Namespace: pool.Namespace},
 	}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, backend, func() error {
-		if backend.UID != "" && !metav1.IsControlledBy(backend, pool) {
-			return errors.New("inference backend name is already in use")
-		}
-		backend.Labels = desired.Labels
-		backend.Spec = desired.Spec
-		return ctrlutil.SetControllerReference(pool, backend, r.Scheme)
-	})
+	_, err = ctrlutil.CreateOrPatch(
+		ctx,
+		r.Client,
+		backend,
+		func() error {
+			if backend.UID != "" && !metav1.IsControlledBy(backend, pool) {
+				return errors.New("inference backend name is already in use")
+			}
+			backend.Labels = desired.Labels
+			backend.Spec = desired.Spec
+			return ctrlutil.SetControllerReference(pool, backend, r.Scheme)
+		},
+	)
 	if err != nil {
 		return ctrl.Result{}, errors.Join(err, r.updateStatus(ctx, pool, definition, backend, err))
 	}
@@ -98,8 +109,73 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Owns(&agentgatewayv1alpha1.AgentgatewayBackend{}).
 		Owns(&agentgatewayv1alpha1.AgentgatewayPolicy{}).
+		Owns(&externalsecretsv1.ExternalSecret{}).
 		Named("inference-pool").
 		Complete(r)
+}
+
+func (r *Reconciler) reconcileCredentialProjections(ctx context.Context, pool *agentzv1alpha1.InferencePool, definition inference.PoolDefinition) error {
+	desired := make(map[string]struct{}, len(definition.Members))
+	for i := range definition.Members {
+		member := &definition.Members[i]
+		if member.Ref.Scope != agentzv1alpha1.ResourceScopeOrganisation {
+			continue
+		}
+		source := &externalsecretsv1.ExternalSecret{}
+		key := client.ObjectKey{
+			Name: member.Provider.Name, Namespace: member.Provider.Namespace,
+		}
+		err := r.Get(ctx, key, source)
+		if apierrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("get inherited provider credentials %q: %w", member.Provider.Name, err)
+		}
+
+		name := inference.PoolProviderSecretName(pool.Name, member.Provider.Name)
+		desired[name] = struct{}{}
+		projection := &externalsecretsv1.ExternalSecret{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: pool.Namespace},
+		}
+		_, err = ctrlutil.CreateOrPatch(
+			ctx,
+			r.Client,
+			projection,
+			func() error {
+				if projection.UID != "" && !metav1.IsControlledBy(projection, pool) {
+					return errors.New("inherited provider credential projection name is already in use")
+				}
+				projection.Labels = map[string]string{
+					inference.PoolLabel: pool.Name,
+				}
+				projection.Spec = *source.Spec.DeepCopy()
+				projection.Spec.Target.Name = name
+				return ctrlutil.SetControllerReference(pool, projection, r.Scheme)
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("reconcile inherited provider credentials %q: %w", member.Provider.Name, err)
+		}
+	}
+
+	projections := &externalsecretsv1.ExternalSecretList{}
+	if err := r.List(ctx, projections, client.InNamespace(pool.Namespace)); err != nil {
+		return fmt.Errorf("list inherited provider credential projections: %w", err)
+	}
+	for i := range projections.Items {
+		projection := &projections.Items[i]
+		if !metav1.IsControlledBy(projection, pool) {
+			continue
+		}
+		if _, ok := desired[projection.Name]; ok {
+			continue
+		}
+		if err := r.Delete(ctx, projection); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete stale inherited provider credentials %q: %w", projection.Name, err)
+		}
+	}
+	return nil
 }
 
 func (r *Reconciler) reconcileAuthPolicies(ctx context.Context, pool *agentzv1alpha1.InferencePool, definition inference.PoolDefinition) error {
@@ -122,13 +198,18 @@ func (r *Reconciler) reconcileAuthPolicies(ctx context.Context, pool *agentzv1al
 		current := &agentgatewayv1alpha1.AgentgatewayPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: policy.Name, Namespace: pool.Namespace},
 		}
-		_, err := ctrlutil.CreateOrPatch(ctx, r.Client, current, func() error {
-			if current.UID != "" && !metav1.IsControlledBy(current, pool) {
-				return errors.New("pool auth policy name is already in use")
-			}
-			current.Spec = policy.Spec
-			return ctrlutil.SetControllerReference(pool, current, r.Scheme)
-		})
+		_, err := ctrlutil.CreateOrPatch(
+			ctx,
+			r.Client,
+			current,
+			func() error {
+				if current.UID != "" && !metav1.IsControlledBy(current, pool) {
+					return errors.New("pool auth policy name is already in use")
+				}
+				current.Spec = policy.Spec
+				return ctrlutil.SetControllerReference(pool, current, r.Scheme)
+			},
+		)
 		if err != nil {
 			return fmt.Errorf("reconcile pool auth policy: %w", err)
 		}
@@ -157,7 +238,6 @@ func (r *Reconciler) poolsForProvider(ctx context.Context, obj client.Object) []
 	err := r.List(
 		ctx,
 		pools,
-		client.InNamespace(obj.GetNamespace()),
 		client.MatchingFields{inference.PoolByProviderIndex: obj.GetName()},
 	)
 	if err != nil {
@@ -171,11 +251,38 @@ func (r *Reconciler) poolsForProvider(ctx context.Context, obj client.Object) []
 		return nil
 	}
 	requests := make([]reconcile.Request, 0, len(pools.Items))
-	for _, pool := range pools.Items {
-		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
-			Namespace: pool.Namespace,
-			Name:      pool.Name,
-		}})
+	for i := range pools.Items {
+		pool := &pools.Items[i]
+		var matched bool
+		for _, member := range pool.Spec.Members {
+			if member.Provider != obj.GetName() {
+				continue
+			}
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				r.Client,
+				pool.Namespace,
+				scope.Selection{
+					Scope: member.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  member.Provider,
+				},
+			)
+			if err == nil && ns == obj.GetNamespace() {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		requests = append(
+			requests,
+			reconcile.Request{NamespacedName: types.NamespacedName{
+				Namespace: pool.Namespace,
+				Name:      pool.Name,
+			}},
+		)
 	}
 	return requests
 }
@@ -222,132 +329,151 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, pool *agentzv1alpha1.I
 }
 
 func (r *Reconciler) updateStatus(ctx context.Context, pool *agentzv1alpha1.InferencePool, definition inference.PoolDefinition, backend *agentgatewayv1alpha1.AgentgatewayBackend, reconcileErr error) error {
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		current := &agentzv1alpha1.InferencePool{}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(pool), current); err != nil {
-			return err
-		}
-		status := agentzv1alpha1.InferencePoolStatus{
-			ObservedGeneration: current.Generation,
-			State:              agentzv1alpha1.InferencePoolStateAccepted,
-			Protocol:           definition.Protocol,
-			Warnings:           definition.Warnings,
-			Members:            make([]agentzv1alpha1.InferencePoolMemberStatus, 0, len(definition.Members)),
-			Conditions:         current.Status.Conditions,
-		}
-		if len(definition.Members) > 0 && reconcileErr == nil {
-			contract := definition.Contract
-			status.Contract = &contract
-		}
-
-		var readyMembers int
-		for _, member := range definition.Members {
-			ready := member.Provider.Status.State == agentzv1alpha1.InferenceProviderStateReady
-			reason := "ProviderReady"
-			message := "provider is ready"
-			if ready {
-				readyMembers++
+	return retry.RetryOnConflict(
+		retry.DefaultBackoff,
+		func() error {
+			current := &agentzv1alpha1.InferencePool{}
+			if err := r.Get(ctx, client.ObjectKeyFromObject(pool), current); err != nil {
+				return err
 			}
-			if !ready {
-				reason = "ProviderNotReady"
-				message = "provider is not ready"
-				for _, condition := range member.Provider.Status.Conditions {
-					if condition.Type == string(agentzv1alpha1.InferenceProviderConditionReady) {
-						reason = condition.Reason
-						message = condition.Message
-						break
+			status := agentzv1alpha1.InferencePoolStatus{
+				ObservedGeneration: current.Generation,
+				State:              agentzv1alpha1.InferencePoolStateAccepted,
+				Protocol:           definition.Protocol,
+				Warnings:           definition.Warnings,
+				Members:            make([]agentzv1alpha1.InferencePoolMemberStatus, 0, len(definition.Members)),
+				Conditions:         current.Status.Conditions,
+			}
+			if len(definition.Members) > 0 && reconcileErr == nil {
+				contract := definition.Contract
+				status.Contract = &contract
+			}
+
+			var readyMembers int
+			for _, member := range definition.Members {
+				ready := member.Provider.Status.State == agentzv1alpha1.InferenceProviderStateReady
+				reason := "ProviderReady"
+				message := "provider is ready"
+				if ready {
+					readyMembers++
+				}
+				if !ready {
+					reason = "ProviderNotReady"
+					message = "provider is not ready"
+					for _, condition := range member.Provider.Status.Conditions {
+						if condition.Type == string(agentzv1alpha1.InferenceProviderConditionReady) {
+							reason = condition.Reason
+							message = condition.Message
+							break
+						}
 					}
 				}
+				status.Members = append(
+					status.Members,
+					agentzv1alpha1.InferencePoolMemberStatus{
+						Scope:    member.Ref.Scope,
+						Provider: member.Ref.Provider,
+						Model:    member.Ref.Model,
+						Protocol: member.Protocol,
+						Ready:    ready,
+						Reason:   reason,
+						Message:  message,
+					},
+				)
 			}
-			status.Members = append(status.Members, agentzv1alpha1.InferencePoolMemberStatus{
-				Provider: member.Ref.Provider,
-				Model:    member.Ref.Model,
-				Protocol: member.Protocol,
-				Ready:    ready,
-				Reason:   reason,
-				Message:  message,
-			})
-		}
 
-		var accepted, backendRejected bool
-		if backend != nil {
-			for _, condition := range backend.Status.Conditions {
-				if condition.Type != "Accepted" {
-					continue
+			var accepted, backendRejected bool
+			if backend != nil {
+				for _, condition := range backend.Status.Conditions {
+					if condition.Type != "Accepted" {
+						continue
+					}
+					accepted = condition.Status == metav1.ConditionTrue
+					backendRejected = condition.Status == metav1.ConditionFalse
+					break
 				}
-				accepted = condition.Status == metav1.ConditionTrue
-				backendRejected = condition.Status == metav1.ConditionFalse
-				break
 			}
-		}
-		switch {
-		case reconcileErr != nil || backendRejected:
-			status.State = agentzv1alpha1.InferencePoolStateDegraded
-		case readyMembers == 0:
-			status.State = agentzv1alpha1.InferencePoolStateDegraded
-		case accepted && readyMembers == len(definition.Members):
-			status.State = agentzv1alpha1.InferencePoolStateReady
-		case accepted && readyMembers > 0:
-			status.State = agentzv1alpha1.InferencePoolStatePartiallyDegraded
-		}
+			switch {
+			case reconcileErr != nil || backendRejected:
+				status.State = agentzv1alpha1.InferencePoolStateDegraded
+			case readyMembers == 0:
+				status.State = agentzv1alpha1.InferencePoolStateDegraded
+			case accepted && readyMembers == len(definition.Members):
+				status.State = agentzv1alpha1.InferencePoolStateReady
+			case accepted && readyMembers > 0:
+				status.State = agentzv1alpha1.InferencePoolStatePartiallyDegraded
+			}
 
-		acceptedStatus := metav1.ConditionTrue
-		acceptedReason := "Accepted"
-		acceptedMessage := "pool configuration is valid"
-		if reconcileErr != nil {
-			acceptedStatus = metav1.ConditionFalse
-			acceptedReason = "ReconcileFailed"
-			acceptedMessage = reconcileErr.Error()
-		}
-		meta.SetStatusCondition(&status.Conditions, metav1.Condition{
-			Type: string(agentzv1alpha1.InferencePoolConditionAccepted), Status: acceptedStatus,
-			Reason: acceptedReason, Message: acceptedMessage,
-			ObservedGeneration: current.Generation,
-		})
-		backendStatus := metav1.ConditionFalse
-		backendReason := "BackendPending"
-		backendMessage := "waiting for AgentGateway to accept the backend"
-		switch {
-		case accepted:
-			backendStatus = metav1.ConditionTrue
-			backendReason = "BackendAccepted"
-			backendMessage = "AgentGateway accepted the backend"
-		case backendRejected:
-			backendReason = "BackendRejected"
-			backendMessage = "AgentGateway rejected the backend"
-		}
-		meta.SetStatusCondition(&status.Conditions, metav1.Condition{
-			Type: string(agentzv1alpha1.InferencePoolConditionBackendReady), Status: backendStatus,
-			Reason: backendReason, Message: backendMessage,
-			ObservedGeneration: current.Generation,
-		})
-		membersStatus := metav1.ConditionFalse
-		membersReason := "MembersNotReady"
-		membersMessage := fmt.Sprintf("%d of %d members are ready", readyMembers, len(definition.Members))
-		if readyMembers == len(definition.Members) && len(definition.Members) > 0 {
-			membersStatus = metav1.ConditionTrue
-			membersReason = "MembersReady"
-			membersMessage = "all members are ready"
-		}
-		meta.SetStatusCondition(&status.Conditions, metav1.Condition{
-			Type: string(agentzv1alpha1.InferencePoolConditionMembersReady), Status: membersStatus,
-			Reason: membersReason, Message: membersMessage,
-			ObservedGeneration: current.Generation,
-		})
-		poolReady := status.State == agentzv1alpha1.InferencePoolStateReady
-		readyStatus := metav1.ConditionFalse
-		if poolReady {
-			readyStatus = metav1.ConditionTrue
-		}
-		meta.SetStatusCondition(&status.Conditions, metav1.Condition{
-			Type: string(agentzv1alpha1.InferencePoolConditionReady), Status: readyStatus,
-			Reason: string(status.State), Message: "pool state is " + string(status.State),
-			ObservedGeneration: current.Generation,
-		})
-		if reflect.DeepEqual(current.Status, status) {
-			return nil
-		}
-		current.Status = status
-		return r.Status().Update(ctx, current)
-	})
+			acceptedStatus := metav1.ConditionTrue
+			acceptedReason := "Accepted"
+			acceptedMessage := "pool configuration is valid"
+			if reconcileErr != nil {
+				acceptedStatus = metav1.ConditionFalse
+				acceptedReason = "ReconcileFailed"
+				acceptedMessage = reconcileErr.Error()
+			}
+			meta.SetStatusCondition(
+				&status.Conditions,
+				metav1.Condition{
+					Type: string(agentzv1alpha1.InferencePoolConditionAccepted), Status: acceptedStatus,
+					Reason: acceptedReason, Message: acceptedMessage,
+					ObservedGeneration: current.Generation,
+				},
+			)
+			backendStatus := metav1.ConditionFalse
+			backendReason := "BackendPending"
+			backendMessage := "waiting for AgentGateway to accept the backend"
+			switch {
+			case accepted:
+				backendStatus = metav1.ConditionTrue
+				backendReason = "BackendAccepted"
+				backendMessage = "AgentGateway accepted the backend"
+			case backendRejected:
+				backendReason = "BackendRejected"
+				backendMessage = "AgentGateway rejected the backend"
+			}
+			meta.SetStatusCondition(
+				&status.Conditions,
+				metav1.Condition{
+					Type: string(agentzv1alpha1.InferencePoolConditionBackendReady), Status: backendStatus,
+					Reason: backendReason, Message: backendMessage,
+					ObservedGeneration: current.Generation,
+				},
+			)
+			membersStatus := metav1.ConditionFalse
+			membersReason := "MembersNotReady"
+			membersMessage := fmt.Sprintf("%d of %d members are ready", readyMembers, len(definition.Members))
+			if readyMembers == len(definition.Members) && len(definition.Members) > 0 {
+				membersStatus = metav1.ConditionTrue
+				membersReason = "MembersReady"
+				membersMessage = "all members are ready"
+			}
+			meta.SetStatusCondition(
+				&status.Conditions,
+				metav1.Condition{
+					Type: string(agentzv1alpha1.InferencePoolConditionMembersReady), Status: membersStatus,
+					Reason: membersReason, Message: membersMessage,
+					ObservedGeneration: current.Generation,
+				},
+			)
+			poolReady := status.State == agentzv1alpha1.InferencePoolStateReady
+			readyStatus := metav1.ConditionFalse
+			if poolReady {
+				readyStatus = metav1.ConditionTrue
+			}
+			meta.SetStatusCondition(
+				&status.Conditions,
+				metav1.Condition{
+					Type: string(agentzv1alpha1.InferencePoolConditionReady), Status: readyStatus,
+					Reason: string(status.State), Message: "pool state is " + string(status.State),
+					ObservedGeneration: current.Generation,
+				},
+			)
+			if reflect.DeepEqual(current.Status, status) {
+				return nil
+			}
+			current.Status = status
+			return r.Status().Update(ctx, current)
+		},
+	)
 }

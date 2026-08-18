@@ -9,6 +9,7 @@ spec:
   image: murtazau/agentz-agent:latest
   imagePullPolicy: Never
   sandboxRef:
+    scope: Organisation
     name: cluster-debugger
   env:
   - name: OPENAI_API_KEY

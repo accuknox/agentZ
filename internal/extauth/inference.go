@@ -17,6 +17,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/oauth"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -46,6 +47,18 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 			slog.LevelError,
 		), attrs
 	}
+	attrs.sandboxNamespace = strings.TrimSpace(
+		request.GetHttp().GetHeaders()[inference.SandboxNamespaceHeader],
+	)
+	if attrs.sandboxNamespace == "" {
+		return denyDecision(
+			codes.Unavailable,
+			typev3.StatusCode_ServiceUnavailable,
+			"inference provider is unavailable",
+			"missing_sandbox_namespace_context",
+			slog.LevelError,
+		), attrs
+	}
 	attrs.sessionID = strings.TrimSpace(
 		request.GetHttp().GetHeaders()[sessionHeaderName],
 	)
@@ -61,7 +74,12 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 	}
 	attrs.sourceIP = sourceIP
 	err = s.authorizeInferenceTarget(
-		ctx, attrs.namespace, attrs.sandbox, attrs.provider, attrs.pool,
+		ctx,
+		attrs.namespace,
+		attrs.sandboxNamespace,
+		attrs.sandbox,
+		attrs.provider,
+		attrs.pool,
 	)
 	if err != nil {
 		code := codes.PermissionDenied
@@ -105,7 +123,10 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 			), attrs
 		}
 		return allowDecision(injectedRequest{
-			headersToRemove: []string{inference.SandboxHeader},
+			headersToRemove: []string{
+				inference.SandboxHeader,
+				inference.SandboxNamespaceHeader,
+			},
 		}), attrs
 	}
 	record, refreshed, err := s.resolveInferenceSubscription(ctx, provider)
@@ -123,19 +144,32 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 	return allowDecision(inferenceInjection(record)), attrs
 }
 
-func (s *Service) authorizeInferenceTarget(ctx context.Context, namespace, sandboxName, providerName, poolName string) error {
+func (s *Service) authorizeInferenceTarget(ctx context.Context, providerNamespace, sandboxNamespace, sandboxName, providerName, poolName string) error {
 	// Cilium authorizes the originating Agent against the controller-owned
 	// route path before AgentGateway. The L7 proxy then SNATs the connection,
 	// so extAuth binds the backend context to the route-overwritten sandbox
 	// header instead of treating the observed peer IP as workload identity.
 	sandbox := &agentzv1alpha1.Sandbox{}
-	key := ctrlclient.ObjectKey{Namespace: namespace, Name: sandboxName}
+	key := ctrlclient.ObjectKey{Namespace: sandboxNamespace, Name: sandboxName}
 	if err := s.kube.Get(ctx, key, sandbox); err != nil {
 		return fmt.Errorf("get inference target sandbox: %w: %w", err, errCredentialUnavailable)
 	}
 	if poolName == "" {
 		for _, model := range sandbox.Spec.Inference.Models {
-			if model.Provider == providerName {
+			if model.Provider != providerName {
+				continue
+			}
+			ns, err := scope.SelectedNamespace(
+				ctx,
+				s.kube,
+				sandboxNamespace,
+				scope.Selection{
+					Scope: model.Scope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  model.Provider,
+				},
+			)
+			if err == nil && ns == providerNamespace {
 				return nil
 			}
 		}
@@ -152,12 +186,26 @@ func (s *Service) authorizeInferenceTarget(ctx context.Context, namespace, sandb
 		return fmt.Errorf("sandbox %q does not include pool %q", sandboxName, poolName)
 	}
 	pool := &agentzv1alpha1.InferencePool{}
+	key.Namespace = sandboxNamespace
 	key.Name = poolName
 	if err := s.kube.Get(ctx, key, pool); err != nil {
 		return fmt.Errorf("get inference pool: %w: %w", err, errCredentialUnavailable)
 	}
 	for _, member := range pool.Spec.Members {
-		if member.Provider == providerName {
+		if member.Provider != providerName {
+			continue
+		}
+		ns, err := scope.SelectedNamespace(
+			ctx,
+			s.kube,
+			sandboxNamespace,
+			scope.Selection{
+				Scope: member.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  member.Provider,
+			},
+		)
+		if err == nil && ns == providerNamespace {
 			return nil
 		}
 	}
@@ -260,8 +308,11 @@ func inferenceInjection(record inference.SubscriptionRecord) injectedRequest {
 		)
 	}
 	return injectedRequest{
-		headers:         headers,
-		headersToRemove: []string{inference.SandboxHeader},
+		headers: headers,
+		headersToRemove: []string{
+			inference.SandboxHeader,
+			inference.SandboxNamespaceHeader,
+		},
 	}
 }
 

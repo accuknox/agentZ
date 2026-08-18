@@ -29,7 +29,6 @@ import {
   TerminalSquareIcon,
   WrenchIcon,
 } from "lucide-react"
-import { usePathname } from "next/navigation"
 import type { BundledLanguage } from "shiki"
 import { useState } from "react"
 import * as z from "zod"
@@ -299,18 +298,6 @@ function toolErrorBody(part: ToolPart) {
 
   if (parts.length <= 1) return cleaned
   return parts.slice(1).join(": ").trim() || cleaned
-}
-
-function taskHref(agentName: string, path: string, part: ToolPart) {
-  if (part.tool !== "task") return undefined
-  const metadata = toolMetadata(part)
-  const sessionID = nonEmptyString(metadata?.sessionId)
-
-  if (!sessionID) return undefined
-
-  const match = path.match(/^\/agents\/([^/]+)\/([^/]+|new)$/)
-  if (!match) return `/agents/${agentName}/${sessionID}`
-  return `/agents/${match[1]}/${sessionID}`
 }
 
 function toolIcon(tool: string) {
@@ -614,12 +601,13 @@ function WebsearchTool({ part }: ToolProps) {
   )
 }
 
-function TaskTool({ agentName, part }: ToolProps) {
-  const pathname = usePathname()
-  const href = taskHref(agentName, pathname, part)
+function TaskTool({ agentName, part, workspacePath }: ToolProps & { workspacePath: string }) {
   const type = nonEmptyString(part.state.input.subagent_type)
   const description = nonEmptyString(part.state.input.description)
   const sessionId = nonEmptyString(toolMetadata(part)?.sessionId)
+  const href = sessionId
+    ? `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`
+    : undefined
 
   return (
     <ToolCard
@@ -951,7 +939,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
   )
 }
 
-function ToolView({ agentName, part }: ToolProps) {
+function ToolView({ agentName, part, workspacePath }: ToolProps & { workspacePath: string }) {
   if (isQuestionDismissed(part)) {
     return <div className="text-muted-foreground text-sm">Question dismissed</div>
   }
@@ -992,7 +980,7 @@ function ToolView({ agentName, part }: ToolProps) {
     case "websearch":
       return <WebsearchTool agentName={agentName} part={part} />
     case "task":
-      return <TaskTool agentName={agentName} part={part} />
+      return <TaskTool agentName={agentName} part={part} workspacePath={workspacePath} />
     case "bash":
       return <BashTool agentName={agentName} part={part} />
     case "edit":
@@ -1012,10 +1000,18 @@ function ToolView({ agentName, part }: ToolProps) {
   }
 }
 
-export function ToolEntries({ agentName, entry }: { agentName: string; entry: ToolEntry }) {
+export function ToolEntries({
+  agentName,
+  entry,
+  workspacePath,
+}: {
+  agentName: string
+  entry: ToolEntry
+  workspacePath: string
+}) {
   if (entry.type === "context") {
     return <ContextToolGroup parts={entry.parts} />
   }
 
-  return <ToolView agentName={agentName} part={entry.part} />
+  return <ToolView agentName={agentName} part={entry.part} workspacePath={workspacePath} />
 }

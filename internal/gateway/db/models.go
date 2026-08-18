@@ -5,10 +5,618 @@
 package gatewaydb
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type AgentShareCapability string
+
+const (
+	AgentShareCapabilityShareNonAuthored   AgentShareCapability = "share_non_authored"
+	AgentShareCapabilityUseShared          AgentShareCapability = "use_shared"
+	AgentShareCapabilityReadSharedSecret   AgentShareCapability = "read_shared_secret"
+	AgentShareCapabilityWriteSharedSecret  AgentShareCapability = "write_shared_secret"
+	AgentShareCapabilityDeleteSharedSecret AgentShareCapability = "delete_shared_secret"
+)
+
+func (e *AgentShareCapability) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AgentShareCapability(s)
+	case string:
+		*e = AgentShareCapability(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AgentShareCapability: %T", src)
+	}
+	return nil
+}
+
+type NullAgentShareCapability struct {
+	AgentShareCapability AgentShareCapability `json:"agent_share_capability"`
+	Valid                bool                 `json:"valid"` // Valid is true if AgentShareCapability is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAgentShareCapability) Scan(value interface{}) error {
+	if value == nil {
+		ns.AgentShareCapability, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AgentShareCapability.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAgentShareCapability) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AgentShareCapability), nil
+}
+
+type ApiKeyTargetType string
+
+const (
+	ApiKeyTargetTypeAgent    ApiKeyTargetType = "agent"
+	ApiKeyTargetTypeWorkflow ApiKeyTargetType = "workflow"
+)
+
+func (e *ApiKeyTargetType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ApiKeyTargetType(s)
+	case string:
+		*e = ApiKeyTargetType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ApiKeyTargetType: %T", src)
+	}
+	return nil
+}
+
+type NullApiKeyTargetType struct {
+	ApiKeyTargetType ApiKeyTargetType `json:"api_key_target_type"`
+	Valid            bool             `json:"valid"` // Valid is true if ApiKeyTargetType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullApiKeyTargetType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ApiKeyTargetType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ApiKeyTargetType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ApiKeyTargetType), nil
+}
+
+type CleanupState string
+
+const (
+	CleanupStatePending   CleanupState = "pending"
+	CleanupStateRunning   CleanupState = "running"
+	CleanupStateSucceeded CleanupState = "succeeded"
+	CleanupStateFailed    CleanupState = "failed"
+	CleanupStateRetrying  CleanupState = "retrying"
+)
+
+func (e *CleanupState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CleanupState(s)
+	case string:
+		*e = CleanupState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CleanupState: %T", src)
+	}
+	return nil
+}
+
+type NullCleanupState struct {
+	CleanupState CleanupState `json:"cleanup_state"`
+	Valid        bool         `json:"valid"` // Valid is true if CleanupState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCleanupState) Scan(value interface{}) error {
+	if value == nil {
+		ns.CleanupState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CleanupState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCleanupState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CleanupState), nil
+}
+
+type DestructiveOperation string
+
+const (
+	DestructiveOperationMembershipDisable DestructiveOperation = "membership_disable"
+	DestructiveOperationMembershipRemove  DestructiveOperation = "membership_remove"
+	DestructiveOperationTeamDelete        DestructiveOperation = "team_delete"
+	DestructiveOperationRoleReduce        DestructiveOperation = "role_reduce"
+	DestructiveOperationAccessRevoke      DestructiveOperation = "access_revoke"
+	DestructiveOperationWorkspaceDelete   DestructiveOperation = "workspace_delete"
+)
+
+func (e *DestructiveOperation) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DestructiveOperation(s)
+	case string:
+		*e = DestructiveOperation(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DestructiveOperation: %T", src)
+	}
+	return nil
+}
+
+type NullDestructiveOperation struct {
+	DestructiveOperation DestructiveOperation `json:"destructive_operation"`
+	Valid                bool                 `json:"valid"` // Valid is true if DestructiveOperation is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDestructiveOperation) Scan(value interface{}) error {
+	if value == nil {
+		ns.DestructiveOperation, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DestructiveOperation.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDestructiveOperation) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DestructiveOperation), nil
+}
+
+type DestructiveTarget string
+
+const (
+	DestructiveTargetOrganizationMembership DestructiveTarget = "organization_membership"
+	DestructiveTargetTeam                   DestructiveTarget = "team"
+	DestructiveTargetRole                   DestructiveTarget = "role"
+	DestructiveTargetWorkspaceAccess        DestructiveTarget = "workspace_access"
+	DestructiveTargetWorkspace              DestructiveTarget = "workspace"
+)
+
+func (e *DestructiveTarget) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DestructiveTarget(s)
+	case string:
+		*e = DestructiveTarget(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DestructiveTarget: %T", src)
+	}
+	return nil
+}
+
+type NullDestructiveTarget struct {
+	DestructiveTarget DestructiveTarget `json:"destructive_target"`
+	Valid             bool              `json:"valid"` // Valid is true if DestructiveTarget is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDestructiveTarget) Scan(value interface{}) error {
+	if value == nil {
+		ns.DestructiveTarget, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DestructiveTarget.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDestructiveTarget) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DestructiveTarget), nil
+}
+
+type EventTrailActor string
+
+const (
+	EventTrailActorUser   EventTrailActor = "user"
+	EventTrailActorApiKey EventTrailActor = "api_key"
+	EventTrailActorSystem EventTrailActor = "system"
+)
+
+func (e *EventTrailActor) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventTrailActor(s)
+	case string:
+		*e = EventTrailActor(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventTrailActor: %T", src)
+	}
+	return nil
+}
+
+type NullEventTrailActor struct {
+	EventTrailActor EventTrailActor `json:"event_trail_actor"`
+	Valid           bool            `json:"valid"` // Valid is true if EventTrailActor is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventTrailActor) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventTrailActor, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventTrailActor.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventTrailActor) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventTrailActor), nil
+}
+
+type EventTrailResult string
+
+const (
+	EventTrailResultSucceeded EventTrailResult = "succeeded"
+	EventTrailResultDenied    EventTrailResult = "denied"
+	EventTrailResultFailed    EventTrailResult = "failed"
+)
+
+func (e *EventTrailResult) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventTrailResult(s)
+	case string:
+		*e = EventTrailResult(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventTrailResult: %T", src)
+	}
+	return nil
+}
+
+type NullEventTrailResult struct {
+	EventTrailResult EventTrailResult `json:"event_trail_result"`
+	Valid            bool             `json:"valid"` // Valid is true if EventTrailResult is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventTrailResult) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventTrailResult, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventTrailResult.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventTrailResult) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventTrailResult), nil
+}
+
+type EventTrailTarget string
+
+const (
+	EventTrailTargetOrganization           EventTrailTarget = "organization"
+	EventTrailTargetOrganizationMembership EventTrailTarget = "organization_membership"
+	EventTrailTargetTeam                   EventTrailTarget = "team"
+	EventTrailTargetMcpConnection          EventTrailTarget = "mcp_connection"
+	EventTrailTargetInferenceProvider      EventTrailTarget = "inference_provider"
+	EventTrailTargetInferencePool          EventTrailTarget = "inference_pool"
+	EventTrailTargetRole                   EventTrailTarget = "role"
+	EventTrailTargetSandbox                EventTrailTarget = "sandbox"
+	EventTrailTargetSkill                  EventTrailTarget = "skill"
+	EventTrailTargetAgent                  EventTrailTarget = "agent"
+	EventTrailTargetApiKey                 EventTrailTarget = "api_key"
+	EventTrailTargetWorkspaceAccess        EventTrailTarget = "workspace_access"
+	EventTrailTargetWorkspace              EventTrailTarget = "workspace"
+)
+
+func (e *EventTrailTarget) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EventTrailTarget(s)
+	case string:
+		*e = EventTrailTarget(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EventTrailTarget: %T", src)
+	}
+	return nil
+}
+
+type NullEventTrailTarget struct {
+	EventTrailTarget EventTrailTarget `json:"event_trail_target"`
+	Valid            bool             `json:"valid"` // Valid is true if EventTrailTarget is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEventTrailTarget) Scan(value interface{}) error {
+	if value == nil {
+		ns.EventTrailTarget, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EventTrailTarget.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEventTrailTarget) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EventTrailTarget), nil
+}
+
+type PermissionAction string
+
+const (
+	PermissionActionRead               PermissionAction = "read"
+	PermissionActionCreate             PermissionAction = "create"
+	PermissionActionModify             PermissionAction = "modify"
+	PermissionActionDelete             PermissionAction = "delete"
+	PermissionActionAuthor             PermissionAction = "author"
+	PermissionActionShareAuthored      PermissionAction = "share_authored"
+	PermissionActionShareNonAuthored   PermissionAction = "share_non_authored"
+	PermissionActionUseShared          PermissionAction = "use_shared"
+	PermissionActionReadSharedSecret   PermissionAction = "read_shared_secret"
+	PermissionActionWriteSharedSecret  PermissionAction = "write_shared_secret"
+	PermissionActionDeleteSharedSecret PermissionAction = "delete_shared_secret"
+)
+
+func (e *PermissionAction) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PermissionAction(s)
+	case string:
+		*e = PermissionAction(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PermissionAction: %T", src)
+	}
+	return nil
+}
+
+type NullPermissionAction struct {
+	PermissionAction PermissionAction `json:"permission_action"`
+	Valid            bool             `json:"valid"` // Valid is true if PermissionAction is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPermissionAction) Scan(value interface{}) error {
+	if value == nil {
+		ns.PermissionAction, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PermissionAction.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPermissionAction) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PermissionAction), nil
+}
+
+type PermissionResource string
+
+const (
+	PermissionResourceMcpConnection     PermissionResource = "mcp_connection"
+	PermissionResourceSkill             PermissionResource = "skill"
+	PermissionResourceSandbox           PermissionResource = "sandbox"
+	PermissionResourceInferenceProvider PermissionResource = "inference_provider"
+	PermissionResourceInferencePool     PermissionResource = "inference_pool"
+	PermissionResourceAgent             PermissionResource = "agent"
+	PermissionResourceApiKey            PermissionResource = "api_key"
+	PermissionResourceObservability     PermissionResource = "observability"
+)
+
+func (e *PermissionResource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PermissionResource(s)
+	case string:
+		*e = PermissionResource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PermissionResource: %T", src)
+	}
+	return nil
+}
+
+type NullPermissionResource struct {
+	PermissionResource PermissionResource `json:"permission_resource"`
+	Valid              bool               `json:"valid"` // Valid is true if PermissionResource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPermissionResource) Scan(value interface{}) error {
+	if value == nil {
+		ns.PermissionResource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PermissionResource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPermissionResource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PermissionResource), nil
+}
+
+type SystemRole string
+
+const (
+	SystemRoleSuperadmin     SystemRole = "superadmin"
+	SystemRoleWorkspaceAdmin SystemRole = "workspace_admin"
+)
+
+func (e *SystemRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SystemRole(s)
+	case string:
+		*e = SystemRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SystemRole: %T", src)
+	}
+	return nil
+}
+
+type NullSystemRole struct {
+	SystemRole SystemRole `json:"system_role"`
+	Valid      bool       `json:"valid"` // Valid is true if SystemRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSystemRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.SystemRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SystemRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSystemRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SystemRole), nil
+}
+
+type ThemePreference string
+
+const (
+	ThemePreferenceSystem ThemePreference = "system"
+	ThemePreferenceLight  ThemePreference = "light"
+	ThemePreferenceDark   ThemePreference = "dark"
+)
+
+func (e *ThemePreference) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ThemePreference(s)
+	case string:
+		*e = ThemePreference(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ThemePreference: %T", src)
+	}
+	return nil
+}
+
+type NullThemePreference struct {
+	ThemePreference ThemePreference `json:"theme_preference"`
+	Valid           bool            `json:"valid"` // Valid is true if ThemePreference is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullThemePreference) Scan(value interface{}) error {
+	if value == nil {
+		ns.ThemePreference, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ThemePreference.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullThemePreference) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ThemePreference), nil
+}
+
+type WorkspaceState string
+
+const (
+	WorkspaceStateProvisioning WorkspaceState = "provisioning"
+	WorkspaceStateReady        WorkspaceState = "ready"
+	WorkspaceStateFailed       WorkspaceState = "failed"
+	WorkspaceStateDeleting     WorkspaceState = "deleting"
+)
+
+func (e *WorkspaceState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceState(s)
+	case string:
+		*e = WorkspaceState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceState struct {
+	WorkspaceState WorkspaceState `json:"workspace_state"`
+	Valid          bool           `json:"valid"` // Valid is true if WorkspaceState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceState), nil
+}
+
+type Account struct {
+	ID                    string           `json:"id"`
+	AccountID             string           `json:"account_id"`
+	ProviderID            string           `json:"provider_id"`
+	UserID                string           `json:"user_id"`
+	AccessToken           pgtype.Text      `json:"access_token"`
+	RefreshToken          pgtype.Text      `json:"refresh_token"`
+	IDToken               pgtype.Text      `json:"id_token"`
+	AccessTokenExpiresAt  pgtype.Timestamp `json:"access_token_expires_at"`
+	RefreshTokenExpiresAt pgtype.Timestamp `json:"refresh_token_expires_at"`
+	Scope                 pgtype.Text      `json:"scope"`
+	Password              pgtype.Text      `json:"password"`
+	CreatedAt             pgtype.Timestamp `json:"created_at"`
+	UpdatedAt             pgtype.Timestamp `json:"updated_at"`
+}
 
 type Agent struct {
 	TenantNamespace string    `json:"tenant_namespace"`
@@ -17,29 +625,173 @@ type Agent struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+type AgentOwner struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	AgentName      string             `json:"agent_name"`
+	CreatorUserID  string             `json:"creator_user_id"`
+	OwnerUserID    string             `json:"owner_user_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AgentShare struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	AgentName      string             `json:"agent_name"`
+	TargetUserID   pgtype.Text        `json:"target_user_id"`
+	TargetTeamID   pgtype.Text        `json:"target_team_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type AgentShareGrant struct {
+	ShareID    string               `json:"share_id"`
+	Capability AgentShareCapability `json:"capability"`
+}
+
+type ApiKeyScope struct {
+	ApiKeyID       string             `json:"api_key_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	CreatorUserID  string             `json:"creator_user_id"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedReason  pgtype.Text        `json:"revoked_reason"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type ApiKeyTarget struct {
+	ApiKeyID     string           `json:"api_key_id"`
+	TargetType   ApiKeyTargetType `json:"target_type"`
+	AgentName    string           `json:"agent_name"`
+	WorkflowName string           `json:"workflow_name"`
+}
+
 type Apikey struct {
-	ID                  string             `json:"id"`
-	ConfigID            string             `json:"config_id"`
-	Name                pgtype.Text        `json:"name"`
-	Start               pgtype.Text        `json:"start"`
-	ReferenceID         string             `json:"reference_id"`
-	Prefix              pgtype.Text        `json:"prefix"`
-	Key                 string             `json:"key"`
-	RefillInterval      pgtype.Int8        `json:"refill_interval"`
-	RefillAmount        pgtype.Int8        `json:"refill_amount"`
-	LastRefillAt        pgtype.Timestamptz `json:"last_refill_at"`
-	Enabled             bool               `json:"enabled"`
-	RateLimitEnabled    bool               `json:"rate_limit_enabled"`
-	RateLimitTimeWindow pgtype.Int8        `json:"rate_limit_time_window"`
-	RateLimitMax        pgtype.Int8        `json:"rate_limit_max"`
-	RequestCount        int64              `json:"request_count"`
-	Remaining           pgtype.Int8        `json:"remaining"`
-	LastRequest         pgtype.Timestamptz `json:"last_request"`
-	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt           time.Time          `json:"created_at"`
-	UpdatedAt           time.Time          `json:"updated_at"`
-	Permissions         pgtype.Text        `json:"permissions"`
-	Metadata            pgtype.Text        `json:"metadata"`
+	ID                  string           `json:"id"`
+	ConfigID            string           `json:"config_id"`
+	Name                pgtype.Text      `json:"name"`
+	Start               pgtype.Text      `json:"start"`
+	ReferenceID         string           `json:"reference_id"`
+	Prefix              pgtype.Text      `json:"prefix"`
+	Key                 string           `json:"key"`
+	RefillInterval      pgtype.Int4      `json:"refill_interval"`
+	RefillAmount        pgtype.Int4      `json:"refill_amount"`
+	LastRefillAt        pgtype.Timestamp `json:"last_refill_at"`
+	Enabled             pgtype.Bool      `json:"enabled"`
+	RateLimitEnabled    pgtype.Bool      `json:"rate_limit_enabled"`
+	RateLimitTimeWindow pgtype.Int4      `json:"rate_limit_time_window"`
+	RateLimitMax        pgtype.Int4      `json:"rate_limit_max"`
+	RequestCount        pgtype.Int4      `json:"request_count"`
+	Remaining           pgtype.Int4      `json:"remaining"`
+	LastRequest         pgtype.Timestamp `json:"last_request"`
+	ExpiresAt           pgtype.Timestamp `json:"expires_at"`
+	CreatedAt           pgtype.Timestamp `json:"created_at"`
+	UpdatedAt           pgtype.Timestamp `json:"updated_at"`
+	Permissions         pgtype.Text      `json:"permissions"`
+	Metadata            pgtype.Text      `json:"metadata"`
+}
+
+type CleanupJob struct {
+	ID             string               `json:"id"`
+	OrganizationID string               `json:"organization_id"`
+	WorkspaceID    pgtype.Text          `json:"workspace_id"`
+	Operation      DestructiveOperation `json:"operation"`
+	TargetType     DestructiveTarget    `json:"target_type"`
+	TargetID       string               `json:"target_id"`
+	State          CleanupState         `json:"state"`
+	Payload        []byte               `json:"payload"`
+	Attempts       int32                `json:"attempts"`
+	NextAttemptAt  pgtype.Timestamptz   `json:"next_attempt_at"`
+	LeaseToken     pgtype.Text          `json:"lease_token"`
+	LeaseExpiresAt pgtype.Timestamptz   `json:"lease_expires_at"`
+	LastError      pgtype.Text          `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz   `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz   `json:"updated_at"`
+	CompletedAt    pgtype.Timestamptz   `json:"completed_at"`
+}
+
+type EventTrailEvent struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	ActorType      EventTrailActor    `json:"actor_type"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	TargetType     EventTrailTarget   `json:"target_type"`
+	TargetID       string             `json:"target_id"`
+	Category       string             `json:"category"`
+	Action         string             `json:"action"`
+	Result         EventTrailResult   `json:"result"`
+	Before         []byte             `json:"before"`
+	After          []byte             `json:"after"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type Invitation struct {
+	ID             string           `json:"id"`
+	OrganizationID string           `json:"organization_id"`
+	Email          string           `json:"email"`
+	Role           pgtype.Text      `json:"role"`
+	Status         string           `json:"status"`
+	ExpiresAt      pgtype.Timestamp `json:"expires_at"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	InviterID      string           `json:"inviter_id"`
+	TeamID         pgtype.Text      `json:"team_id"`
+}
+
+type InvitationRole struct {
+	InvitationID   string             `json:"invitation_id"`
+	RoleID         string             `json:"role_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type InvitationTeam struct {
+	InvitationID   string             `json:"invitation_id"`
+	TeamID         string             `json:"team_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type Jwk struct {
+	ID         string           `json:"id"`
+	PublicKey  string           `json:"public_key"`
+	PrivateKey string           `json:"private_key"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	ExpiresAt  pgtype.Timestamp `json:"expires_at"`
+}
+
+type LastAccessibleContext struct {
+	UserID         string             `json:"user_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	Route          string             `json:"route"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Member struct {
+	ID             string           `json:"id"`
+	OrganizationID string           `json:"organization_id"`
+	UserID         string           `json:"user_id"`
+	Role           string           `json:"role"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	DisabledAt     pgtype.Timestamp `json:"disabled_at"`
+}
+
+type MemberRole struct {
+	MemberID       string             `json:"member_id"`
+	RoleID         string             `json:"role_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type MemberRoleAssignment struct {
+	MemberID       string      `json:"member_id"`
+	UserID         string      `json:"user_id"`
+	OrganizationID string      `json:"organization_id"`
+	RoleID         string      `json:"role_id"`
+	TeamID         pgtype.Text `json:"team_id"`
 }
 
 type ObserverFileEvent struct {
@@ -252,4 +1004,195 @@ type ObserverTraceSpansDefault struct {
 	ResourceAttributes []byte    `json:"resource_attributes"`
 	SpanAttributes     []byte    `json:"span_attributes"`
 	IngestedAt         time.Time `json:"ingested_at"`
+}
+
+type Organization struct {
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	Slug      string           `json:"slug"`
+	Logo      pgtype.Text      `json:"logo"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	Metadata  pgtype.Text      `json:"metadata"`
+}
+
+type OrganizationInvitation struct {
+	ID             string           `json:"id"`
+	OrganizationID string           `json:"organization_id"`
+	TokenHash      string           `json:"token_hash"`
+	Status         string           `json:"status"`
+	ExpiresAt      pgtype.Timestamp `json:"expires_at"`
+	InviterID      string           `json:"inviter_id"`
+	AcceptedBy     pgtype.Text      `json:"accepted_by"`
+	AcceptedAt     pgtype.Timestamp `json:"accepted_at"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
+type OrganizationRole struct {
+	ID             string           `json:"id"`
+	OrganizationID string           `json:"organization_id"`
+	Role           string           `json:"role"`
+	Permission     string           `json:"permission"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+}
+
+type PermissionGrant struct {
+	RoleID         string             `json:"role_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	Resource       PermissionResource `json:"resource"`
+	Action         PermissionAction   `json:"action"`
+	Locked         bool               `json:"locked"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type RateLimit struct {
+	ID          string `json:"id"`
+	Key         string `json:"key"`
+	Count       int32  `json:"count"`
+	LastRequest int64  `json:"last_request"`
+}
+
+type RoleScope struct {
+	RoleID         string             `json:"role_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	DisplayName    string             `json:"display_name"`
+	SystemRole     NullSystemRole     `json:"system_role"`
+	Immutable      bool               `json:"immutable"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Session struct {
+	ID                   string           `json:"id"`
+	ExpiresAt            pgtype.Timestamp `json:"expires_at"`
+	Token                string           `json:"token"`
+	CreatedAt            pgtype.Timestamp `json:"created_at"`
+	UpdatedAt            pgtype.Timestamp `json:"updated_at"`
+	IpAddress            pgtype.Text      `json:"ip_address"`
+	UserAgent            pgtype.Text      `json:"user_agent"`
+	UserID               string           `json:"user_id"`
+	ActiveOrganizationID pgtype.Text      `json:"active_organization_id"`
+	ActiveTeamID         pgtype.Text      `json:"active_team_id"`
+}
+
+type SocialAdmissionDefaultRole struct {
+	OrganizationID string `json:"organization_id"`
+	RoleID         string `json:"role_id"`
+}
+
+type SocialAdmissionDefaultTeam struct {
+	OrganizationID string `json:"organization_id"`
+	TeamID         string `json:"team_id"`
+}
+
+type SocialAdmissionGithubRule struct {
+	ID                 string      `json:"id"`
+	OrganizationID     string      `json:"organization_id"`
+	GithubOrganization string      `json:"github_organization"`
+	GithubTeam         pgtype.Text `json:"github_team"`
+}
+
+type SocialAdmissionGoogleDomain struct {
+	OrganizationID string `json:"organization_id"`
+	Domain         string `json:"domain"`
+}
+
+type SocialAdmissionPolicy struct {
+	OrganizationID string             `json:"organization_id"`
+	Enabled        bool               `json:"enabled"`
+	GoogleEnabled  bool               `json:"google_enabled"`
+	GithubEnabled  bool               `json:"github_enabled"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Team struct {
+	ID             string           `json:"id"`
+	Name           string           `json:"name"`
+	OrganizationID string           `json:"organization_id"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+}
+
+type TeamMember struct {
+	ID        string           `json:"id"`
+	TeamID    string           `json:"team_id"`
+	UserID    string           `json:"user_id"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+}
+
+type TeamRole struct {
+	TeamID         string             `json:"team_id"`
+	RoleID         string             `json:"role_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type TwoFactor struct {
+	ID                      string           `json:"id"`
+	Secret                  string           `json:"secret"`
+	BackupCodes             string           `json:"backup_codes"`
+	UserID                  string           `json:"user_id"`
+	Verified                pgtype.Bool      `json:"verified"`
+	FailedVerificationCount pgtype.Int4      `json:"failed_verification_count"`
+	LockedUntil             pgtype.Timestamp `json:"locked_until"`
+}
+
+type User struct {
+	ID               string           `json:"id"`
+	Name             string           `json:"name"`
+	Email            string           `json:"email"`
+	EmailVerified    bool             `json:"email_verified"`
+	Image            pgtype.Text      `json:"image"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	TwoFactorEnabled pgtype.Bool      `json:"two_factor_enabled"`
+}
+
+type UserPreference struct {
+	UserID        string           `json:"user_id"`
+	UpdateSandbox bool             `json:"update_sandbox"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
+	UpdatedAt     pgtype.Timestamp `json:"updated_at"`
+	Theme         ThemePreference  `json:"theme"`
+}
+
+type Verification struct {
+	ID         string           `json:"id"`
+	Identifier string           `json:"identifier"`
+	Value      string           `json:"value"`
+	ExpiresAt  pgtype.Timestamp `json:"expires_at"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+}
+
+type Workspace struct {
+	ID                  string             `json:"id"`
+	OrganizationID      string             `json:"organization_id"`
+	Name                string             `json:"name"`
+	Slug                string             `json:"slug"`
+	Namespace           string             `json:"namespace"`
+	State               WorkspaceState     `json:"state"`
+	ProvisioningAttempt int64              `json:"provisioning_attempt"`
+	FailureReason       pgtype.Text        `json:"failure_reason"`
+	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WorkspaceInheritedResource struct {
+	WorkspaceID    string             `json:"workspace_id"`
+	OrganizationID string             `json:"organization_id"`
+	Resource       PermissionResource `json:"resource"`
+	ResourceName   string             `json:"resource_name"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkspaceSlugHistory struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Slug           string             `json:"slug"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }

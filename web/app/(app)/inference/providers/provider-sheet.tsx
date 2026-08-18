@@ -7,10 +7,14 @@ import {
   Check,
   ChevronsUpDown,
   CircleAlert,
+  Cloud,
   ExternalLink,
   KeyRound,
   Pencil,
   Plus,
+  Save,
+  ShieldCheck,
+  ShieldOff,
   Tag,
   Trash2,
   TriangleAlert,
@@ -83,6 +87,7 @@ import {
   saveInferenceProviderAction,
   startInferenceProviderOAuthAction,
   suggestInferenceModelsAction,
+  type InferenceProviderActionScope,
 } from "@/data/inference-provider.actions"
 import { formatCompactNumber } from "@/lib/format"
 import {
@@ -680,10 +685,12 @@ export function ProviderSheet({
   provider,
   open,
   onOpenChange,
+  scope,
 }: {
   provider?: InferenceProvider
   open: boolean
   onOpenChange: (open: boolean) => void
+  scope: InferenceProviderActionScope
 }) {
   const defaults = provider
     ? zInferenceProviderWriteDiscriminatorWritable.parse(
@@ -881,7 +888,7 @@ export function ProviderSheet({
     }
 
     let ignore = false
-    void listInferenceProviderCatalogAction().then((result) => {
+    void listInferenceProviderCatalogAction(scope).then((result) => {
       if (ignore) {
         return
       }
@@ -896,7 +903,7 @@ export function ProviderSheet({
     return () => {
       ignore = true
     }
-  }, [open])
+  }, [open, scope])
 
   React.useEffect(() => {
     if (!open || !catalogProvider || (isSubscription && !provider)) {
@@ -904,12 +911,12 @@ export function ProviderSheet({
     }
 
     let ignore = false
-    let request = suggestInferenceModelsAction(catalogProvider, kind)
+    let request = suggestInferenceModelsAction(scope, catalogProvider, kind)
     if (isSubscription) {
       if (!provider) {
         return
       }
-      request = refreshInferenceProviderModelsAction(provider.id)
+      request = refreshInferenceProviderModelsAction(scope, provider.id)
     }
     void request.then((result) => {
       if (ignore) {
@@ -926,7 +933,7 @@ export function ProviderSheet({
     return () => {
       ignore = true
     }
-  }, [catalogProvider, isSubscription, kind, open, provider])
+  }, [catalogProvider, isSubscription, kind, open, provider, scope])
 
   React.useEffect(() => {
     if (!open || subscriptionOAuth.status !== "challenge") {
@@ -937,7 +944,7 @@ export function ProviderSheet({
     let timer: ReturnType<typeof setTimeout>
     const poll = (interval: number) => {
       timer = setTimeout(() => {
-        void pollInferenceProviderOAuthAction().then((result) => {
+        void pollInferenceProviderOAuthAction(scope).then((result) => {
           if (cancelled) {
             return
           }
@@ -964,7 +971,7 @@ export function ProviderSheet({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [models, open, subscriptionOAuth])
+  }, [models, open, scope, subscriptionOAuth])
 
   const selectedCatalogEntry = catalog.find(
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
@@ -977,7 +984,7 @@ export function ProviderSheet({
     setSubscriptionOAuth({ status: "starting" })
     setSubmitError("")
     startTransition(async () => {
-      const result = await startInferenceProviderOAuthAction(kind)
+      const result = await startInferenceProviderOAuthAction(scope, kind)
       setSubscriptionOAuth(result)
       if (result.status !== "challenge") {
         return
@@ -992,14 +999,14 @@ export function ProviderSheet({
     form.clearErrors()
     startTransition(async () => {
       const result = provider
-        ? await saveInferenceProviderAction({
+        ? await saveInferenceProviderAction(scope, {
             providerName: provider.id,
             body: {
               provider: values,
               resource_version: provider.resource_version,
             },
           })
-        : await saveInferenceProviderAction({
+        : await saveInferenceProviderAction(scope, {
             body: {
               provider: values,
               oauth_ticket:
@@ -1067,7 +1074,7 @@ export function ProviderSheet({
     }
 
     startTransition(async () => {
-      const result = await getInferenceProviderUsageAction(provider.id)
+      const result = await getInferenceProviderUsageAction(scope, provider.id)
       if (result.error) {
         setSubmitError(result.error.message)
         return
@@ -1165,7 +1172,7 @@ export function ProviderSheet({
                         className="w-(--radix-popover-trigger-width) p-0"
                       >
                         <Command>
-                          <CommandInput placeholder="Search providers…" />
+                          <CommandInput placeholder="Search providers..." />
                           <CommandList>
                             <CommandEmpty>No provider found.</CommandEmpty>
                             <CommandGroup>
@@ -1379,8 +1386,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="AccessKey">AWS access keys</SelectItem>
-                            <SelectItem value="BearerToken">Bedrock API key</SelectItem>
+                            <SelectItem value="AccessKey">
+                              <KeyRound /> AWS access keys
+                            </SelectItem>
+                            <SelectItem value="BearerToken">
+                              <KeyRound /> Bedrock API key
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1414,8 +1425,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="OpenAI">Azure OpenAI</SelectItem>
-                            <SelectItem value="Foundry">Azure AI Foundry</SelectItem>
+                            <SelectItem value="OpenAI">
+                              <Cloud /> Azure OpenAI
+                            </SelectItem>
+                            <SelectItem value="Foundry">
+                              <Cloud /> Azure AI Foundry
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1477,8 +1492,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="APIKey">API key</SelectItem>
-                            <SelectItem value="ServicePrincipal">Service principal</SelectItem>
+                            <SelectItem value="APIKey">
+                              <KeyRound /> API key
+                            </SelectItem>
+                            <SelectItem value="ServicePrincipal">
+                              <ShieldCheck /> Service principal
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1544,8 +1563,12 @@ export function ProviderSheet({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="APIKey">API key</SelectItem>
-                            <SelectItem value="None">No authentication</SelectItem>
+                            <SelectItem value="APIKey">
+                              <KeyRound /> API key
+                            </SelectItem>
+                            <SelectItem value="None">
+                              <ShieldOff /> No authentication
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -1870,7 +1893,7 @@ export function ProviderSheet({
                         </a>
                       </Button>
                       <p className="text-muted-foreground flex items-center gap-2 text-xs">
-                        <Spinner className="size-3" /> Waiting for you to finish signing in…
+                        <Spinner className="size-3" /> Waiting for you to finish signing in...
                       </p>
                     </div>
                   ) : null}
@@ -2017,6 +2040,7 @@ export function ProviderSheet({
                       [...models.fields, ...suggestions].map((model) => [
                         model.id,
                         {
+                          icon: Brain,
                           label:
                             model.display_name === model.id
                               ? model.id
@@ -2028,7 +2052,7 @@ export function ProviderSheet({
                   ]}
                   placeholder="Select models"
                   searchPlaceholder={
-                    isSubscription ? "Search available models…" : "Search or enter a model ID…"
+                    isSubscription ? "Search available models..." : "Search or enter a model ID..."
                   }
                   emptyMessage={
                     isSubscription
@@ -2059,7 +2083,7 @@ export function ProviderSheet({
                   className="text-muted-foreground flex items-center gap-2 text-sm"
                 >
                   <Spinner />
-                  Loading model catalog…
+                  Loading model catalog...
                 </p>
               )}
               {modelCatalogState === "error" && (
@@ -2153,7 +2177,7 @@ export function ProviderSheet({
                   (!provider && isSubscription && subscriptionOAuth.status !== "connected")
                 }
               >
-                {pending ? <Spinner /> : null}
+                {pending ? <Spinner /> : <Save data-icon="inline-start" />}
                 {provider ? "Save changes" : "Add provider"}
               </Button>
             </div>

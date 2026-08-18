@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { Route } from "next"
 import Link from "next/link"
-import { useSelectedLayoutSegments } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { FolderTree } from "lucide-react"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import {
@@ -43,6 +43,7 @@ const labels = new Map<string, string>([
   ["mcps", "MCP"],
   ["network", "Network Telemetry"],
   ["new", "New"],
+  ["orgs", "Organisations"],
   ["process", "Process Telemetry"],
   ["preferences", "Preferences"],
   ["runs", "Runs"],
@@ -56,39 +57,52 @@ const labels = new Map<string, string>([
   ["traces", "Traces"],
   ["triggers", "Triggers"],
   ["update", "Update"],
+  ["event-trail", "Event Trail"],
+  ["general", "General"],
+  ["workspaces", "Workspaces"],
   ["workflows", "Workflows"],
 ])
 
 const pageRoutes = new Set([
   "/",
-  "/agents/[name]/[sessionId]",
-  "/agents/[name]/session/new",
-  "/lens/mcp",
-  "/lens/runtime-telemetry",
-  "/lens/runtime-telemetry/file",
-  "/lens/runtime-telemetry/network",
-  "/lens/runtime-telemetry/process",
-  "/lens/traces",
-  "/mcps",
-  "/sandboxes",
-  "/sandboxes/new",
-  "/sandboxes/update/[name]",
-  "/secrets",
-  "/skills",
+  "/orgs/[orgSlug]",
+  "/orgs/[orgSlug]/event-trail",
+  "/orgs/[orgSlug]/general",
+  "/orgs/[orgSlug]/mcps",
+  "/orgs/[orgSlug]/skills",
+  "/orgs/[orgSlug]/workspaces",
+  "/orgs/[orgSlug]/workspaces/new",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/sessions/[sessionId]",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/sessions/new",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/secrets",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/graphs",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs/graph",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/mcps",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/mcp",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/file",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/network",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces",
+  "/orgs/[orgSlug]/workspaces/[workspaceSlug]/skills",
   "/settings/account",
-  "/settings/api-keys",
   "/settings/preferences",
   "/settings/sessions",
-  "/workflows/graphs",
-  "/workflows/triggers",
-  "/workflows/triggers/runs",
-  "/workflows/triggers/runs/graph",
 ])
 
-export function PageBreadcrumb(): React.JSX.Element {
-  const segments = useSelectedLayoutSegments().filter((segment) => !segment.startsWith("("))
-  const pathKey = segments.join("/")
-  const agent = segments[0] === "agents" ? segments[1] : undefined
+export function PageBreadcrumb({
+  labels: resolvedLabels,
+}: {
+  labels?: Readonly<Record<number, string>>
+}): React.JSX.Element {
+  const pathname = usePathname()
+  const segments = pathname.split("/").filter(Boolean)
+  const pathKey = pathname
+  const agent = segments[4] === "agents" && segments[6] === "sessions" ? segments[5] : undefined
   const { dirtyAgent, openAgent, toggleAgent } = useFileWorkspace()
   const filesOpen = agent === openAgent
   const filesDirty = agent === dirtyAgent
@@ -99,7 +113,7 @@ export function PageBreadcrumb(): React.JSX.Element {
   for (const [index, segment] of segments.entries()) {
     const pathSegments = segments.slice(0, index + 1)
     const href = `/${pathSegments.join("/")}` as Route
-    const label = labels.get(segment) ?? segment
+    const label = resolvedLabels?.[index] ?? labels.get(segment) ?? segment
 
     crumbs.push(pageRoutes.has(routePattern(pathSegments)) ? { href, label } : { label })
   }
@@ -258,20 +272,21 @@ function BreadcrumbCrumbs({
 }
 
 function routePattern(segments: string[]): string {
-  if (segments[0] === "agents" && segments[1] && segments[2] === "session") {
-    if (segments[3] !== "new") {
-      return `/${segments.join("/")}`
+  if (segments[0] === "orgs" && segments[1]) {
+    const pattern = [...segments]
+    pattern[1] = "[orgSlug]"
+
+    if (pattern[2] === "workspaces" && pattern[3] && pattern[3] !== "new") {
+      pattern[3] = "[workspaceSlug]"
+    }
+    if (pattern[4] === "agents" && pattern[5]) {
+      pattern[5] = "[agentName]"
+    }
+    if (pattern[6] === "sessions" && pattern[7] && pattern[7] !== "new") {
+      pattern[7] = "[sessionId]"
     }
 
-    return "/agents/[name]/session/new"
-  }
-
-  if (segments[0] === "agents" && segments[1] && segments[2]) {
-    return "/agents/[name]/[sessionId]"
-  }
-
-  if (segments[0] === "sandboxes" && segments[1] === "update" && segments[2]) {
-    return "/sandboxes/update/[name]"
+    return `/${pattern.join("/")}`
   }
 
   return `/${segments.join("/")}`

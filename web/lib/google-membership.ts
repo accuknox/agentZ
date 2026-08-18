@@ -1,7 +1,11 @@
 import type { OAuth2Tokens } from "@better-auth/core/oauth2"
+import { and, eq } from "drizzle-orm"
+import { getOAuthState } from "better-auth/api"
 import { createRemoteJWKSet, jwtVerify } from "jose"
 import * as z from "zod"
+import { getDB, schema } from "@/db"
 import { getEnv } from "@/lib/env"
+import { socialOAuthStateSchema } from "@/lib/github-membership"
 
 const googleIssuerJWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"))
 
@@ -39,10 +43,8 @@ export async function getGoogleUserInfo(token: OAuth2Tokens) {
       return null
     }
     profile = parsed.data
-  } catch (error) {
-    console.warn("google sign-in rejected: id token verification failed", {
-      message: error instanceof Error ? error.message : "unknown error",
-    })
+  } catch {
+    console.warn("google sign-in rejected: id token verification failed")
     return null
   }
 
@@ -51,17 +53,45 @@ export async function getGoogleUserInfo(token: OAuth2Tokens) {
     return null
   }
 
+  const state = socialOAuthStateSchema.safeParse(await getOAuthState())
+  const socialAdmission = state.success && state.data.provider === "google"
+  if (socialAdmission) {
+    const domain = profile.email.slice(profile.email.lastIndexOf("@") + 1).toLowerCase()
+    const [rule] = await getDB()
+      .select({ domain: schema.socialAdmissionGoogleDomains.domain })
+      .from(schema.socialAdmissionGoogleDomains)
+      .innerJoin(
+        schema.socialAdmissionPolicies,
+        and(
+          eq(
+            schema.socialAdmissionPolicies.organizationId,
+            schema.socialAdmissionGoogleDomains.organizationId
+          ),
+          eq(schema.socialAdmissionPolicies.enabled, true),
+          eq(schema.socialAdmissionPolicies.googleEnabled, true)
+        )
+      )
+      .where(
+        and(
+          eq(schema.socialAdmissionGoogleDomains.organizationId, state.data.organizationId),
+          eq(schema.socialAdmissionGoogleDomains.domain, domain)
+        )
+      )
+      .limit(1)
+    if (!rule) {
+      console.warn("google sign-in rejected: organisation admission rule not matched")
+      return null
+    }
+  }
+
   // An unset allowlist means unrestricted sign-up: skip the domain gate. When
   // set, only emails whose domain is in the (lowercased, deduped) list are
   // permitted
   const allowedDomains = env.GOOGLE_ALLOWED_EMAIL_DOMAINS
-  if (allowedDomains) {
+  if (allowedDomains && !socialAdmission) {
     const domain = (profile.email.split("@").pop() ?? "").toLowerCase()
     if (!allowedDomains.includes(domain)) {
-      console.warn("google sign-in rejected: domain not allowed", {
-        domain,
-        allowed: allowedDomains,
-      })
+      console.warn("google sign-in rejected: domain not allowed")
       return null
     }
   }

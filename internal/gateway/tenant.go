@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -28,9 +29,22 @@ type authContextKey struct{}
 
 type tenantContextKey struct{}
 
+type requestActorType string
+
+const (
+	requestActorUser   requestActorType = "user"
+	requestActorAPIKey requestActorType = "api_key"
+	requestActorSystem requestActorType = "system"
+)
+
 type requestAuth struct {
 	claims          *gatewayClaims
 	apiKeyID        string
+	actorType       requestActorType
+	actorID         string
+	actorName       string
+	organizationID  string
+	workspaceID     string
 	tenantName      string
 	tenantNamespace string
 }
@@ -43,50 +57,81 @@ type tenantRequest struct {
 func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		writeError(w, r, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing bearer claims",
-			errors.New("missing bearer claims"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusUnauthorized,
+				"unauthorized",
+				"missing bearer claims",
+				errors.New("missing bearer claims"),
+			),
+		)
 		return
 	}
 
-	tenantName := agentzv1alpha1.TenantName(auth.claims.TenantID)
-	var tenant agentzv1alpha1.Tenant
-	err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Name: tenantName}, &tenant)
+	tenant, err := s.findTenant(r.Context(), auth)
 	if err != nil {
 		writeError(w, r, mapKubeHTTPError("get tenant", err))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tenantView(&tenant))
+	view, err := s.tenantView(r.Context(), *auth.claims, tenant)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 // EnsureTenant handles PUT /api/tenant.
 func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		writeError(w, r, newAPIError(
-			http.StatusUnauthorized,
-			"unauthorized",
-			"missing bearer claims",
-			errors.New("missing bearer claims"),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusUnauthorized,
+				"unauthorized",
+				"missing bearer claims",
+				errors.New("missing bearer claims"),
+			),
+		)
 		return
 	}
 
-	tenantName := agentzv1alpha1.TenantName(auth.claims.TenantID)
-	tenant := agentzv1alpha1.Tenant{
+	tenant, err := s.findTenant(r.Context(), auth)
+	if err == nil {
+		view, err := s.tenantView(r.Context(), *auth.claims, tenant)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+		return
+	}
+	if !apierrors.IsNotFound(err) {
+		writeError(w, r, mapKubeHTTPError("get tenant", err))
+		return
+	}
+
+	tenantName := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		auth.claims.OrganizationID,
+	)
+	created := agentzv1alpha1.Tenant{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tenantName,
+			Labels: map[string]string{
+				agentzv1alpha1.TenantOrganizationIDLabel: tenantName,
+			},
 		},
 		Spec: agentzv1alpha1.TenantSpec{
-			OrganizationID: auth.claims.TenantID,
-			UserID:         auth.claims.UserID,
+			OrganizationID: auth.claims.OrganizationID,
 		},
 	}
-	err := s.k8sClient.Create(r.Context(), &tenant)
+	err = s.k8sClient.Create(r.Context(), &created)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		writeError(w, r, mapKubeHTTPError("create tenant", err))
 		return
@@ -95,7 +140,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		err = s.k8sClient.Get(
 			r.Context(),
 			ctrlclient.ObjectKey{Name: tenantName},
-			&tenant,
+			&created,
 		)
 		if err != nil {
 			writeError(w, r, mapKubeHTTPError("get tenant", err))
@@ -103,31 +148,41 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	organizationMismatch := tenant.Spec.OrganizationID != auth.claims.TenantID
-	userMismatch := tenant.Spec.UserID != auth.claims.UserID
-	if organizationMismatch || userMismatch {
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"conflict",
-			"tenant identity conflicts with current state",
-			errors.New("tenant identity conflict"),
-		))
+	if created.Spec.OrganizationID != auth.claims.OrganizationID {
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"tenant identity conflicts with current state",
+				errors.New("tenant identity conflict"),
+			),
+		)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tenantView(&tenant))
+	view, err := s.tenantView(r.Context(), *auth.claims, &created)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
-func tenantView(tenant *agentzv1alpha1.Tenant) gatewayapi.Tenant {
+func (s *Service) tenantView(ctx context.Context, claims gatewayClaims, tenant *agentzv1alpha1.Tenant) (gatewayapi.Tenant, error) {
 	conditions := make([]gatewayapi.TenantCondition, 0, len(tenant.Status.Conditions))
 	var ready, degraded bool
 	for _, cond := range tenant.Status.Conditions {
-		conditions = append(conditions, gatewayapi.TenantCondition{
-			Message: cond.Message,
-			Reason:  cond.Reason,
-			Status:  gatewayapi.TenantConditionStatus(cond.Status),
-			Type:    cond.Type,
-		})
+		conditions = append(
+			conditions,
+			gatewayapi.TenantCondition{
+				Message: cond.Message,
+				Reason:  cond.Reason,
+				Status:  gatewayapi.TenantConditionStatus(cond.Status),
+				Type:    cond.Type,
+			},
+		)
 		if cond.Type == agentzv1alpha1.TenantConditionReady && cond.Status == metav1.ConditionTrue {
 			ready = true
 		}
@@ -144,14 +199,22 @@ func tenantView(tenant *agentzv1alpha1.Tenant) gatewayapi.Tenant {
 		phase = gatewayapi.FAILED
 	}
 
-	return gatewayapi.Tenant{
-		Conditions: conditions,
-		Namespace:  tenant.Status.Namespace,
-		Phase:      phase,
-		Ready:      ready,
-		TenantId:   tenant.Spec.OrganizationID,
-		UserId:     tenant.Spec.UserID,
+	capabilities, err := s.resolveResourceCapabilities(ctx, claims, "")
+	if err != nil {
+		return gatewayapi.Tenant{}, err
 	}
+	return gatewayapi.Tenant{
+		Conditions:                    conditions,
+		SkillCapabilities:             capabilities.skill,
+		McpConnectionCapabilities:     capabilities.mcp,
+		SandboxCapabilities:           capabilities.sandbox,
+		InferenceProviderCapabilities: capabilities.inferenceProvider,
+		InferencePoolCapabilities:     capabilities.inferencePool,
+		Namespace:                     tenant.Status.Namespace,
+		Phase:                         phase,
+		Ready:                         ready,
+		OrganizationId:                tenant.Spec.OrganizationID,
+	}, nil
 }
 
 func requireGatewayAuth(s *Service) func(http.Handler) http.Handler {
@@ -183,6 +246,30 @@ func requireGatewayAuth(s *Service) func(http.Handler) http.Handler {
 	}
 }
 
+func requireExplicitCapability(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bearer, bearerMapped := r.Context().Value(gatewayapi.GatewayBearerScopes).([]string)
+		apiKey, apiKeyMapped := r.Context().Value(gatewayapi.GatewayAPIKeyScopes).([]string)
+		bearerValid := bearerMapped && len(bearer) == 1 && bearer[0] != ""
+		apiKeyValid := apiKeyMapped && len(apiKey) == 1 && apiKey[0] != ""
+		if bearerValid != apiKeyValid {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"operation has no unambiguous capability mapping",
+				fmt.Errorf("generated operation capability mapping is missing or ambiguous"),
+			),
+		)
+	})
+}
+
 func requireTenantRequest(s *Service) func(http.Handler) http.Handler {
 	auth := requireGatewayAuth(s)
 	tenant := loadTenant(s)
@@ -196,12 +283,16 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth, ok := requestAuthState(r.Context())
 			if !ok {
-				writeError(w, r, newAPIError(
-					http.StatusUnauthorized,
-					"unauthorized",
-					"missing request auth",
-					fmt.Errorf("missing request auth"),
-				))
+				writeError(
+					w,
+					r,
+					newAPIError(
+						http.StatusUnauthorized,
+						"unauthorized",
+						"missing request auth",
+						fmt.Errorf("missing request auth"),
+					),
+				)
 				return
 			}
 
@@ -217,8 +308,9 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 			case apierrors.IsNotFound(err):
 				cleanupNamespace := auth.tenantNamespace
 				if cleanupNamespace == "" && auth.claims != nil {
-					cleanupNamespace = agentzv1alpha1.TenantName(
-						auth.claims.TenantID,
+					cleanupNamespace = agentzv1alpha1.ScopeNamespace(
+						agentzv1alpha1.ResourceScopeOrganisation,
+						auth.claims.OrganizationID,
 					)
 				}
 				if cleanupNamespace != "" {
@@ -235,12 +327,16 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 					next.ServeHTTP(w, r)
 					return
 				}
-				writeError(w, r, newAPIError(
-					http.StatusNotFound,
-					"tenant_not_found",
-					"tenant is not initialized",
-					err,
-				))
+				writeError(
+					w,
+					r,
+					newAPIError(
+						http.StatusNotFound,
+						"tenant_not_found",
+						"tenant is not initialized",
+						err,
+					),
+				)
 			default:
 				if apiErr, ok := errors.AsType[*apiError](err); ok {
 					writeError(w, r, apiErr)
@@ -261,17 +357,26 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 
 		req, ok := tenantState(r.Context())
 		if !ok || req.tenant == nil {
-			writeError(w, r, newAPIError(
-				http.StatusNotFound,
-				"tenant_not_found",
-				"tenant is not initialized",
-				fmt.Errorf("missing tenant context"),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusNotFound,
+					"tenant_not_found",
+					"tenant is not initialized",
+					fmt.Errorf("missing tenant context"),
+				),
+			)
 			return
 		}
 
 		if tenantReady(req.tenant) {
-			err := s.syncTenantAgentRows(r.Context(), req.tenant.Status.Namespace)
+			ns, err := tenantNamespace(r.Context())
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+			err = s.syncTenantAgentRows(r.Context(), ns)
 			if err != nil {
 				writeInternalError(w, r, err)
 				return
@@ -280,12 +385,16 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 			return
 		}
 
-		writeError(w, r, newAPIError(
-			http.StatusConflict,
-			"tenant_not_ready",
-			"tenant is not ready",
-			fmt.Errorf("tenant %q is not ready", req.tenant.Name),
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusConflict,
+				"tenant_not_ready",
+				"tenant is not ready",
+				fmt.Errorf("tenant %q is not ready", req.tenant.Name),
+			),
+		)
 	})
 }
 
@@ -344,12 +453,14 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 }
 
 func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
-	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-	if strings.HasPrefix(strings.ToLower(authHeader), "basic ") {
-		return s.resolveOpenCodeAPIKeyAuth(r)
-	}
 	if _, ok := r.Context().Value(gatewayapi.GatewayAPIKeyScopes).([]string); ok {
 		return s.resolveWebhookAPIKeyAuth(r)
+	}
+	if _, ok := r.Context().Value(gatewayapi.GatewayBearerScopes).([]string); !ok {
+		authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+		if strings.HasPrefix(strings.ToLower(authHeader), "basic ") {
+			return s.resolveOpenCodeAPIKeyAuth(r)
+		}
 	}
 
 	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
@@ -369,7 +480,34 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 
 	claims, err := s.parseGatewayClaims(token)
 	if err == nil {
-		return requestAuth{claims: &claims}, nil
+		effective, resolveErr := authorization.New(s.queries).Resolve(
+			r.Context(),
+			authorization.Subject{
+				UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+			},
+		)
+		if resolveErr != nil {
+			return requestAuth{}, newAPIError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"unexpected server error",
+				fmt.Errorf("resolve bearer Membership: %w", resolveErr),
+			)
+		}
+		if !effective.Active() {
+			return requestAuth{}, newAPIError(
+				http.StatusForbidden,
+				"forbidden",
+				"Organisation Membership is not active",
+				errors.New("bearer subject has no active Organisation Membership"),
+			)
+		}
+		return requestAuth{
+			claims:    &claims,
+			actorType: requestActorUser,
+			actorID:   claims.UserID,
+			actorName: claims.UserName,
+		}, nil
 	}
 
 	auth, reviewErr := s.resolveAgentRequestAuth(r, token)
@@ -402,22 +540,48 @@ func (s *Service) parseGatewayClaims(token string) (gatewayClaims, error) {
 	if err != nil {
 		return gatewayClaims{}, fmt.Errorf("verify external bearer: %w", err)
 	}
-	if strings.TrimSpace(claims.TenantID) == "" {
-		return gatewayClaims{}, fmt.Errorf("missing tenant_id claim")
+	if strings.TrimSpace(claims.OrganizationID) == "" {
+		return gatewayClaims{}, fmt.Errorf("missing organization_id claim")
 	}
 	if strings.TrimSpace(claims.UserID) == "" {
 		return gatewayClaims{}, fmt.Errorf("missing user_id claim")
 	}
+	if strings.TrimSpace(claims.ScopeID) == "" {
+		return gatewayClaims{}, fmt.Errorf("missing scope_id claim")
+	}
+	if claims.Capabilities == nil {
+		return gatewayClaims{}, fmt.Errorf("missing capabilities claim")
+	}
+	if claims.AdministrativeBypass == nil {
+		return gatewayClaims{}, fmt.Errorf("missing administrative_bypass claim")
+	}
+	if claims.AgentACL == nil {
+		return gatewayClaims{}, fmt.Errorf("missing agent_acl claim")
+	}
+
+	switch claims.ScopeType {
+	case gatewayScopeOrganization:
+		if claims.ScopeID != claims.OrganizationID {
+			return gatewayClaims{}, fmt.Errorf("organization scope does not match organization_id")
+		}
+		if len(*claims.AgentACL) != 0 {
+			return gatewayClaims{}, fmt.Errorf("organization scope cannot contain an Agent ACL")
+		}
+	case gatewayScopeWorkspace:
+		claims.WorkspaceID = claims.ScopeID
+	default:
+		return gatewayClaims{}, fmt.Errorf("invalid scope_type claim")
+	}
 	return claims, nil
 }
 
-func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, tenantNamespace string) (requestAuth, error) {
+func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, namespace string) (requestAuth, error) {
 	review, err := s.reviewServiceAccountToken(ctx, token)
 	if err != nil {
 		return requestAuth{}, err
 	}
 
-	tenant, err := s.findTenantByNamespace(ctx, tenantNamespace)
+	tenant, err := s.findTenantForNamespace(ctx, namespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return requestAuth{}, newAPIError(
@@ -447,7 +611,8 @@ func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, tenantNam
 
 	return requestAuth{
 		tenantName:      tenant.Name,
-		tenantNamespace: tenant.Status.Namespace,
+		tenantNamespace: namespace,
+		actorType:       requestActorSystem,
 	}, nil
 }
 
@@ -521,6 +686,9 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 
 	return requestAuth{
 		tenantNamespace: agt.Namespace,
+		actorType:       requestActorSystem,
+		actorID:         user.namespace + ":" + user.name,
+		actorName:       user.name,
 	}, nil
 }
 
@@ -703,6 +871,11 @@ func tenantState(ctx context.Context) (tenantRequest, bool) {
 }
 
 func tenantNamespace(ctx context.Context) (string, error) {
+	auth, ok := requestAuthState(ctx)
+	if ok && strings.TrimSpace(auth.tenantNamespace) != "" {
+		return auth.tenantNamespace, nil
+	}
+
 	req, ok := tenantState(ctx)
 	if !ok || req.tenant == nil {
 		return "", fmt.Errorf("missing tenant context")
@@ -739,22 +912,44 @@ func tenantReady(tenant *agentzv1alpha1.Tenant) bool {
 }
 
 func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1alpha1.Tenant, error) {
+	organizationID := auth.organizationID
 	if auth.claims != nil {
-		tenant := &agentzv1alpha1.Tenant{}
-		name := agentzv1alpha1.TenantName(auth.claims.TenantID)
-		err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: name}, tenant)
-		if err != nil {
-			return nil, err
+		organizationID = auth.claims.OrganizationID
+	}
+	if organizationID != "" {
+		list := &agentzv1alpha1.TenantList{}
+		selector := ctrlclient.MatchingLabels{
+			agentzv1alpha1.TenantOrganizationIDLabel: agentzv1alpha1.ScopeNamespace(
+				agentzv1alpha1.ResourceScopeOrganisation,
+				organizationID,
+			),
 		}
-		if !tenantMatchesClaims(tenant, auth.claims) {
-			return nil, newAPIError(
-				http.StatusForbidden,
-				"forbidden",
-				"tenant identity does not match bearer claims",
-				fmt.Errorf("tenant identity mismatch"),
-			)
+		if err := s.k8sClient.List(ctx, list, selector); err != nil {
+			return nil, fmt.Errorf("list tenants: %w", err)
 		}
-		return tenant, nil
+		var match *agentzv1alpha1.Tenant
+		for i := range list.Items {
+			tenant := &list.Items[i]
+			if tenant.Spec.OrganizationID != organizationID {
+				continue
+			}
+			if match != nil {
+				return nil, newAPIError(
+					http.StatusConflict,
+					"conflict",
+					"multiple tenants represent the current Organisation",
+					fmt.Errorf("duplicate tenant identity"),
+				)
+			}
+			match = tenant
+		}
+		if match != nil {
+			return match, nil
+		}
+		return nil, apierrors.NewNotFound(
+			agentzv1alpha1.Resource("tenant"),
+			organizationID,
+		)
 	}
 
 	if auth.tenantName != "" {
@@ -766,29 +961,54 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1al
 		return tenant, nil
 	}
 
-	return s.findTenantByNamespace(ctx, auth.tenantNamespace)
+	return s.findTenantForNamespace(ctx, auth.tenantNamespace)
 }
 
-func tenantMatchesClaims(tenant *agentzv1alpha1.Tenant, claims *gatewayClaims) bool {
-	if tenant == nil || claims == nil {
-		return false
-	}
-	return tenant.Spec.OrganizationID == strings.TrimSpace(claims.TenantID) && tenant.Spec.UserID == strings.TrimSpace(claims.UserID)
-}
-
-func (s *Service) findTenantByNamespace(ctx context.Context, tenantNamespace string) (*agentzv1alpha1.Tenant, error) {
-	list := &agentzv1alpha1.TenantList{}
-	if err := s.k8sClient.List(ctx, list); err != nil {
-		return nil, fmt.Errorf("list tenants: %w", err)
-	}
-	for i := range list.Items {
-		tenant := &list.Items[i]
-		if tenant.Status.Namespace == tenantNamespace {
-			return tenant, nil
+func (s *Service) findTenantForNamespace(ctx context.Context, namespace string) (*agentzv1alpha1.Tenant, error) {
+	tenant := &agentzv1alpha1.Tenant{}
+	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: namespace}, tenant)
+	if err == nil {
+		if tenant.Status.Namespace != namespace {
+			return nil, apierrors.NewNotFound(
+				agentzv1alpha1.Resource("tenant"),
+				namespace,
+			)
 		}
+		return tenant, nil
 	}
-	return nil, apierrors.NewNotFound(
-		agentzv1alpha1.Resource("tenant"),
-		tenantNamespace,
+	if !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+
+	workspace := &agentzv1alpha1.Workspace{}
+	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: namespace}, workspace)
+	if err != nil {
+		return nil, err
+	}
+	expectedWorkspace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeWorkspace,
+		workspace.Spec.WorkspaceID,
 	)
+	if workspace.Name != expectedWorkspace || workspace.Status.Namespace != workspace.Name {
+		return nil, apierrors.NewNotFound(
+			agentzv1alpha1.Resource("workspace"),
+			namespace,
+		)
+	}
+
+	tenantName := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		workspace.Spec.OrganizationID,
+	)
+	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: tenantName}, tenant)
+	if err != nil {
+		return nil, err
+	}
+	if tenant.Spec.OrganizationID != workspace.Spec.OrganizationID || tenant.Status.Namespace != tenant.Name {
+		return nil, apierrors.NewNotFound(
+			agentzv1alpha1.Resource("tenant"),
+			tenantName,
+		)
+	}
+	return tenant, nil
 }

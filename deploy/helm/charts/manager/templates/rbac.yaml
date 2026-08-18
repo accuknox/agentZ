@@ -1,4 +1,4 @@
-{{- if .Values.rbac.create }}
+{{- if and .Values.enabled .Values.rbac.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -7,14 +7,11 @@ metadata:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
-    resources: ["configmaps", "pods", "serviceaccounts", "services"]
+    resources: ["configmaps", "persistentvolumeclaims", "pods", "secrets", "serviceaccounts", "services"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: [""]
-    resources: ["persistentvolumeclaims"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: [""]
-    resources: ["namespaces", "secrets"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+    resources: ["namespaces"]
+    verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["external-secrets.io"]
     resources: ["externalsecrets"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
@@ -43,21 +40,15 @@ rules:
     resources: ["agents"]
     verbs: ["create-workflow", "create-workflow-schedule", "delete-workflow-schedule", "delete-workflows", "get", "get-workflow", "list", "list-workflow-schedules", "list-workflows", "patch", "set-workflowrun-status", "update", "update-workflow-schedule", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["inferencepools", "inferenceproviders", "mcpconnections", "secrets"]
+    resources: ["inferencepools", "inferenceproviders", "mcpconnections", "sandboxes", "secrets"]
     verbs: ["get", "list", "patch", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes"]
-    verbs: ["get", "list", "patch", "update", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["skills"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources:
       - agents/finalizers
       - inferencepools/finalizers
       - inferenceproviders/finalizers
-      - sandboxes/finalizers
       - mcpconnections/finalizers
+      - sandboxes/finalizers
       - secrets/finalizers
       - skills/finalizers
       - workflowruns/finalizers
@@ -67,27 +58,28 @@ rules:
       - agents/status
       - inferencepools/status
       - inferenceproviders/status
-      - sandboxes/status
       - mcpconnections/status
+      - sandboxes/status
       - secrets/status
       - tenants/status
       - workflowruns/status
       - workflowschedules/status
+      - workspaces/status
     verbs: ["get", "patch", "update"]
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["tenants"]
-    verbs: ["get", "list", "use", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowschedules"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowruns"]
+    resources: ["skills", "workflowruns"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["agentz.accuknox.com"]
+    resources: ["tenants"]
+    verbs: ["get", "list", "patch", "update", "use", "watch"]
+  - apiGroups: ["agentz.accuknox.com"]
+    resources: ["workflowschedules", "workspaces"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["gateway.networking.k8s.io"]
-    resources: ["gateways", "httproutes"]
+    resources: ["gateways", "httproutes", "referencegrants"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
-    resources: ["clusterroles", "clusterrolebindings"]
+    resources: ["clusterrolebindings", "clusterroles"]
     verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["rolebindings", "roles"]
@@ -180,276 +172,4 @@ metadata:
 rules:
   - nonResourceURLs: ["/metrics"]
     verbs: ["get"]
-{{- if .Values.rbac.createUserRoles }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-tenant-admin-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["tenants"]
-    verbs: ["*"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["tenants/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-tenant-editor-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["tenants"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["tenants/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-tenant-viewer-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["tenants"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["tenants/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-agent-admin-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["agents"]
-    verbs: ["*"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["agents/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-agent-editor-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["agents"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["agents/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-agent-viewer-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["agents"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["agents/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-sandbox-admin-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes"]
-    verbs: ["*"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-sandbox-editor-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-sandbox-viewer-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["sandboxes/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-mcpconnection-admin-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections"]
-    verbs: ["*"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-mcpconnection-editor-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-mcpconnection-viewer-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-workflowrun-admin-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowruns"]
-    verbs: ["*"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowruns/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-workflowrun-editor-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowruns"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowruns/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-workflowrun-viewer-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowruns"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowruns/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-workflowschedule-admin-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowschedules"]
-    verbs: ["*"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowschedules/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-workflowschedule-editor-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowschedules"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowschedules/status"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ include "manager.fullname" . }}-workflowschedule-viewer-role
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "manager.labels" . | nindent 4 }}
-rules:
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowschedules"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["workflowschedules/status"]
-    verbs: ["get"]
-{{- end }}
 {{- end }}

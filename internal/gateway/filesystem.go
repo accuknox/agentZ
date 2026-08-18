@@ -83,12 +83,12 @@ func (s *Service) ListAgentMutableSkills(w http.ResponseWriter, r *http.Request,
 }
 
 // DeleteAgentMutableSkills handles DELETE /api/agent/{agentName}/skill.
-func (s *Service) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+func (s *Service) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, _ gatewayapi.DeleteAgentMutableSkillsParams) {
 	s.proxyFilesystem(w, r, agentName, "/skill")
 }
 
 // ExportAgentMutableSkills handles POST /api/agent/{agentName}/skill/export.
-func (s *Service) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
+func (s *Service) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, _ gatewayapi.ExportAgentMutableSkillsParams) {
 	s.proxyFilesystem(w, r, agentName, "/skill/export")
 }
 
@@ -110,12 +110,16 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 	skillRequest := strings.HasPrefix(upstreamPath, "/skill")
 	if skillRequest {
 		if statusFromAgent(resolved.Agent).Phase != agentPhaseReady {
-			writeError(w, r, newAPIError(
-				http.StatusConflict,
-				"agent_not_ready",
-				"agent is not ready",
-				errBadRequest,
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusConflict,
+					"agent_not_ready",
+					"agent is not ready",
+					errBadRequest,
+				),
+			)
 			return
 		}
 	}
@@ -123,12 +127,16 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 	target, err := s.filesystemTarget(resolved)
 	if err != nil {
 		if skillRequest {
-			writeError(w, r, newAPIError(
-				http.StatusBadGateway,
-				"filesystem_unavailable",
-				"agent filesystem is unavailable",
-				err,
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusBadGateway,
+					"filesystem_unavailable",
+					"agent filesystem is unavailable",
+					err,
+				),
+			)
 			return
 		}
 		writeInternalError(w, r, err)
@@ -136,12 +144,16 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 	}
 
 	if r.ContentLength > filesystemProxyBodyLimit {
-		writeError(w, r, newAPIError(
-			http.StatusRequestEntityTooLarge,
-			"request_too_large",
-			"request body exceeds the maximum allowed size",
-			nil,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusRequestEntityTooLarge,
+				"request_too_large",
+				"request body exceeds the maximum allowed size",
+				nil,
+			),
+		)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, filesystemProxyBodyLimit)
@@ -164,20 +176,28 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				writeError(rw, req, newAPIError(
-					http.StatusRequestEntityTooLarge,
-					"request_too_large",
-					"request body exceeds the maximum allowed size",
-					proxyErr,
-				))
+				writeError(
+					rw,
+					req,
+					newAPIError(
+						http.StatusRequestEntityTooLarge,
+						"request_too_large",
+						"request body exceeds the maximum allowed size",
+						proxyErr,
+					),
+				)
 				return
 			}
-			writeError(rw, req, newAPIError(
-				http.StatusBadGateway,
-				"filesystem_unavailable",
-				"agent filesystem is unavailable",
-				proxyErr,
-			))
+			writeError(
+				rw,
+				req,
+				newAPIError(
+					http.StatusBadGateway,
+					"filesystem_unavailable",
+					"agent filesystem is unavailable",
+					proxyErr,
+				),
+			)
 		},
 	}
 	proxy.ServeHTTP(w, r)

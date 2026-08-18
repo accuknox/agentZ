@@ -6,12 +6,21 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+type resolvePoolInvalidMembershipCase struct {
+	name      string
+	members   []agentzv1alpha1.InferencePoolMember
+	configure func()
+	field     string
+}
 
 func TestResolvePoolContract(t *testing.T) {
 	t.Parallel()
@@ -57,12 +66,12 @@ func TestResolvePoolContract(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(primary, secondary).Build()
+	reader := poolTestReader(t, scheme, primary, secondary)
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
-			{Provider: primary.Name, Model: "model"},
-			{Provider: secondary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "model"},
 		}},
 	}
 	definition, issues, err := ResolvePool(context.Background(), reader, pool)
@@ -117,12 +126,12 @@ func TestResolvePoolResponsesAPI(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(primary, secondary).Build()
+	reader := poolTestReader(t, scheme, primary, secondary)
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
-			{Provider: primary.Name, Model: "model"},
-			{Provider: secondary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "model"},
 		}},
 	}
 	definition, issues, err := ResolvePool(context.Background(), reader, pool)
@@ -149,12 +158,12 @@ func TestResolvePoolRejectsUnsupportedAPIConversion(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(primary, secondary).Build()
+	reader := poolTestReader(t, scheme, primary, secondary)
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
-			{Provider: primary.Name, Model: "model"},
-			{Provider: secondary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "model"},
+			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "model"},
 		}},
 	}
 	_, issues, err := ResolvePool(context.Background(), reader, pool)
@@ -174,49 +183,49 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	tests := []struct {
-		name      string
-		members   []agentzv1alpha1.InferencePoolMember
-		configure func()
-		field     string
-	}{
+	tests := []resolvePoolInvalidMembershipCase{
 		{name: "empty", field: "members"},
+		{
+			name:    "unavailable workspace scope",
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeWorkspace, Provider: "provider", Model: "model"}},
+			field:   "members.0.scope",
+		},
 		{
 			name: "too many",
 			members: []agentzv1alpha1.InferencePoolMember{
-				{Provider: "provider", Model: "1"},
-				{Provider: "provider", Model: "2"},
-				{Provider: "provider", Model: "3"},
-				{Provider: "provider", Model: "4"},
-				{Provider: "provider", Model: "5"},
-				{Provider: "provider", Model: "6"},
-				{Provider: "provider", Model: "7"},
-				{Provider: "provider", Model: "8"},
-				{Provider: "provider", Model: "9"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "1"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "2"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "3"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "4"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "5"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "6"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "7"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "8"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "9"},
 			},
 			field: "members",
 		},
 		{
 			name: "duplicate",
 			members: []agentzv1alpha1.InferencePoolMember{
-				{Provider: "provider", Model: "model"},
-				{Provider: "provider", Model: "model"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model"},
+				{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model"},
 			},
 			field: "members.1",
 		},
 		{
 			name:    "missing provider",
-			members: []agentzv1alpha1.InferencePoolMember{{Provider: "missing", Model: "model"}},
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "missing", Model: "model"}},
 			field:   "members.0.provider",
 		},
 		{
 			name:    "missing model",
-			members: []agentzv1alpha1.InferencePoolMember{{Provider: "provider", Model: "missing"}},
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "missing"}},
 			field:   "members.0.model",
 		},
 		{
 			name:    "missing text output",
-			members: []agentzv1alpha1.InferencePoolMember{{Provider: "provider", Model: "model"}},
+			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model"}},
 			configure: func() {
 				provider.Spec.Models[0].Modalities.Output = []agentzv1alpha1.InferenceModelModality{
 					agentzv1alpha1.InferenceModelModalityAudio,
@@ -226,23 +235,26 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if test.configure != nil {
-				test.configure()
-			}
-			reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(provider.DeepCopy()).Build()
-			pool := &agentzv1alpha1.InferencePool{
-				ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
-				Spec:       agentzv1alpha1.InferencePoolSpec{Members: test.members},
-			}
-			_, issues, err := ResolvePool(context.Background(), reader, pool)
-			if err != nil {
-				t.Fatalf("ResolvePool() error = %v", err)
-			}
-			if len(issues) == 0 || issues[0].Field != test.field {
-				t.Fatalf("ResolvePool() issues = %#v, want first field %q", issues, test.field)
-			}
-		})
+		t.Run(
+			test.name,
+			func(t *testing.T) {
+				if test.configure != nil {
+					test.configure()
+				}
+				reader := poolTestReader(t, scheme, provider.DeepCopy())
+				pool := &agentzv1alpha1.InferencePool{
+					ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
+					Spec:       agentzv1alpha1.InferencePoolSpec{Members: test.members},
+				}
+				_, issues, err := ResolvePool(context.Background(), reader, pool)
+				if err != nil {
+					t.Fatalf("ResolvePool() error = %v", err)
+				}
+				if len(issues) == 0 || issues[0].Field != test.field {
+					t.Fatalf("ResolvePool() issues = %#v, want first field %q", issues, test.field)
+				}
+			},
+		)
 	}
 }
 
@@ -257,11 +269,11 @@ func TestRenderPoolBackend(t *testing.T) {
 	}
 	definition := PoolDefinition{Members: []ResolvedPoolMember{
 		{
-			Ref:      agentzv1alpha1.InferencePoolMember{Provider: primary.Name, Model: "gpt"},
+			Ref:      agentzv1alpha1.InferencePoolMember{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "gpt"},
 			Provider: primary,
 		},
 		{
-			Ref:      agentzv1alpha1.InferencePoolMember{Provider: secondary.Name, Model: "claude"},
+			Ref:      agentzv1alpha1.InferencePoolMember{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "claude"},
 			Provider: secondary,
 		},
 	}}
@@ -279,6 +291,13 @@ func TestRenderPoolBackend(t *testing.T) {
 	}
 	if *openAI.Model != "gpt" {
 		t.Fatalf("primary model override = %#v, want gpt", groups[0].Providers[0].OpenAI)
+	}
+	auth := groups[0].Providers[0].Policies.Auth
+	if auth == nil || auth.SecretRef == nil || string(auth.SecretRef.Name) != "logical-primary" {
+		t.Fatalf("primary credential projection = %#v, want logical-primary", auth)
+	}
+	if auth.SecretRef.Key != nil {
+		t.Fatalf("primary credential key = %q, want Agentgateway default", *auth.SecretRef.Key)
 	}
 	anthropic := groups[1].Providers[0].Anthropic
 	if anthropic == nil || anthropic.Model == nil {
@@ -330,14 +349,21 @@ func TestRenderPoolBackend(t *testing.T) {
 func TestRenderSandboxPoolTarget(t *testing.T) {
 	t.Parallel()
 
-	runtime := RenderSandboxTarget("default", "sandbox", SandboxTarget{
-		Name: "pool", Backend: "pool", Path: SandboxPoolPath("sandbox", "pool"),
-		Models: []string{"pool"}, Labels: map[string]string{PoolLabel: "pool"},
-		Retries: 1,
-	})
+	runtime := RenderSandboxTarget(
+		"default",
+		"sandbox",
+		SandboxTarget{
+			Name: "pool", Backend: "pool", Path: SandboxPoolPath("sandbox", "pool"),
+			Models: []string{"pool"}, Labels: map[string]string{PoolLabel: "pool"},
+			Retries: 1,
+		},
+	)
 	match := runtime.Route.Spec.Rules[0].Matches[0].Path
 	if match == nil || match.Value == nil || *match.Value != "/sandboxes/sandbox/pools/pool" {
 		t.Fatalf("route path = %#v", match)
+	}
+	if len(runtime.Route.Spec.Rules[0].Filters) != 0 {
+		t.Fatalf("route filters = %#v, want none", runtime.Route.Spec.Rules[0].Filters)
 	}
 	expressions := runtime.Policy.Spec.Traffic.Authorization.Policy.MatchExpressions
 	if len(expressions) != 1 {
@@ -364,4 +390,27 @@ func poolProvider(name string, kind agentzv1alpha1.InferenceProviderKind) *agent
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
 		Spec:       providerSpec(kind),
 	}
+}
+
+func poolTestReader(t testing.TB, scheme *runtime.Scheme, providers ...*agentzv1alpha1.InferenceProvider) client.Reader {
+	t.Helper()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	objects := make([]client.Object, 0, len(providers)+1)
+	objects = append(
+		objects,
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "default",
+				Labels: map[string]string{
+					agentzv1alpha1.TenantNameLabel: "default",
+				},
+			},
+		},
+	)
+	for _, provider := range providers {
+		objects = append(objects, provider)
+	}
+	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 }

@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,6 +8,9 @@ metadata:
     {{- include "observer.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "observer.selectorLabels" . | nindent 6 }}
@@ -23,13 +27,24 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "observer.serviceAccountName" . }}
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: observer
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/agentz"]
           args:
@@ -37,11 +52,10 @@ spec:
             - serve
             - --log-level={{ .Values.config.logLevel }}
             - --log-format={{ .Values.config.logFormat }}
-            - --postgres-dsn={{ required "observer.config.postgresDSN is required" .Values.config.postgresDSN }}
+            - "--postgres-dsn=$(AGENTZ_POSTGRES_DSN)"
             - --kubearmor-relay-addr={{ .Values.config.kubearmorRelayAddr }}
             - --hubble-relay-addr={{ .Values.config.hubbleRelayAddr }}
             - "--otlp-trace-grpc-addr=:{{ .Values.service.otlpGrpcPort }}"
-            - --namespace={{ .Values.config.namespace }}
             - --batch-size={{ .Values.config.batchSize }}
             - --flush-interval={{ .Values.config.flushInterval }}
             {{- if .Values.config.logWithSource }}
@@ -54,6 +68,27 @@ spec:
             - name: otlp-grpc
               containerPort: {{ .Values.service.otlpGrpcPort }}
               protocol: TCP
+          env:
+            - name: AGENTZ_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "observer.config.postgresSecretName is required" .Values.config.postgresSecretName }}
+                  key: {{ required "observer.config.postgresSecretKey is required" .Values.config.postgresSecretKey }}
+          startupProbe:
+            tcpSocket:
+              port: otlp-grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: otlp-grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: otlp-grpc
+            periodSeconds: 20
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
@@ -68,3 +103,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

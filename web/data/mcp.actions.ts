@@ -2,7 +2,6 @@
 
 import { updateTag } from "next/cache"
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 import {
   createMcpConnection,
   deleteMcpConnection,
@@ -21,6 +20,9 @@ import { oauthErrorFieldNames } from "@/lib/mcp-oauth-shared"
 import { mcpsTag } from "@/data/cache"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { activateOrganization } from "@/data/organizations"
+
+export type McpActionScope = { basePath: string; organizationId: string; workspaceId?: string }
 
 export type McpFormState =
   | {
@@ -63,6 +65,7 @@ export type SubmitMcpFormAction =
 
 export type DeleteMcpFormState = {
   error?: GatewayError
+  success?: boolean
 }
 
 function invalidMcpFormState(error: {
@@ -102,7 +105,8 @@ function bearerAuth(input: ReturnType<typeof parseMcpForm>) {
 }
 
 async function persistBearerMutation(
-  form: ReturnType<typeof parseMcpForm>
+  form: ReturnType<typeof parseMcpForm>,
+  workspaceId?: string
 ): Promise<GatewayError | undefined> {
   const auth = bearerAuth(form)
   const credentials = form.bearerToken
@@ -123,7 +127,8 @@ async function persistBearerMutation(
       auth,
       credentials,
     },
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
   })
   if (createResult.error) {
     return createResult.error
@@ -131,10 +136,14 @@ async function persistBearerMutation(
   return undefined
 }
 
-export async function submitMcpFormAction(
+export async function submitScopedMcpFormAction(
+  scope: McpActionScope,
   _: McpFormState,
   action: SubmitMcpFormAction
 ): Promise<McpFormState> {
+  if (!(await activateOrganization(scope.organizationId))) {
+    return { error: { code: "FORBIDDEN", message: "Organisation access is unavailable." } }
+  }
   if (action.type === "reset") {
     return {}
   }
@@ -161,6 +170,7 @@ export async function submitMcpFormAction(
       operation: {
         kind: "create",
         form,
+        workspaceId: scope.workspaceId,
       },
     })
     if (!result.ok) {
@@ -211,7 +221,7 @@ export async function submitMcpFormAction(
     }
   }
 
-  const mutationError = await persistBearerMutation(form)
+  const mutationError = await persistBearerMutation(form, scope.workspaceId)
   if (mutationError) {
     return { error: mutationError }
   }
@@ -220,18 +230,23 @@ export async function submitMcpFormAction(
   return { status: "success", success: true }
 }
 
-export async function deleteMcpFormAction(
+export async function deleteScopedMcpFormAction(
+  scope: McpActionScope,
   name: string,
   _: DeleteMcpFormState,
   _formData: FormData
 ): Promise<DeleteMcpFormState> {
+  if (!(await activateOrganization(scope.organizationId))) {
+    return { error: { code: "FORBIDDEN", message: "Organisation access is unavailable." } }
+  }
   const parsedName = zMcpConnectionName.safeParse(name)
   if (!parsedName.success) {
     return invalidMcpNameState(parsedName.error)
   }
 
   const result = await deleteMcpConnection({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(scope.workspaceId),
+    headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
     path: { name: parsedName.data },
   })
   if (result.error) {
@@ -239,5 +254,5 @@ export async function deleteMcpFormAction(
   }
 
   updateTag(mcpsTag)
-  redirect("/mcps")
+  return { success: true }
 }

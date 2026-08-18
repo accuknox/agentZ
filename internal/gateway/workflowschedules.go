@@ -30,13 +30,17 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	workflowName = strings.TrimSpace(workflowName)
 	fields := workflow.ValidateScheduleCreateRequest(agentName, workflowName, &req)
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -53,13 +57,17 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -90,13 +98,17 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 	agentName := strings.TrimSpace(agtName)
 	fields := workflow.ValidateAgentScheduleList(agentName)
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -105,12 +117,16 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"limit must be between 1 and 200",
-			errBadRequest,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 200",
+				errBadRequest,
+			),
+		)
 		return
 	}
 
@@ -154,13 +170,17 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 	workflowName = strings.TrimSpace(workflowName)
 	fields := workflow.ValidateScheduleList(agentName, workflowName)
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -169,12 +189,16 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"limit must be between 1 and 200",
-			errBadRequest,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 200",
+				errBadRequest,
+			),
+		)
 		return
 	}
 
@@ -219,13 +243,17 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	scheduleName = strings.TrimSpace(scheduleName)
 	fields := workflow.ValidateScheduleLookup(agentName, workflowName, scheduleName)
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -239,12 +267,16 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrScheduleAgentMismatch) {
-			writeError(w, r, newAPIError(
-				http.StatusNotFound,
-				"not_found",
-				"delete workflow schedule not found",
-				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusNotFound,
+					"not_found",
+					"delete workflow schedule not found",
+					apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
+				),
+			)
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("delete workflow schedule", err))
@@ -277,13 +309,17 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		&req,
 	)
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -300,13 +336,17 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -321,12 +361,16 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrScheduleAgentMismatch) {
-			writeError(w, r, newAPIError(
-				http.StatusNotFound,
-				"not_found",
-				"update workflow schedule not found",
-				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusNotFound,
+					"not_found",
+					"update workflow schedule not found",
+					apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
+				),
+			)
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("update workflow schedule", err))
@@ -349,13 +393,17 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	scheduleName = strings.TrimSpace(scheduleName)
 	fields := workflow.ValidateScheduleLookup(agtName, workflowName, scheduleName)
 	if len(fields) > 0 {
-		writeError(w, r, newAPIError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
+		writeError(
+			w,
+			r,
+			newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -369,12 +417,16 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
-			writeError(w, r, newAPIError(
-				http.StatusNotFound,
-				"not_found",
-				"create workflow run not found",
-				apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
-			))
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusNotFound,
+					"not_found",
+					"create workflow run not found",
+					apierrors.NewNotFound(agentzv1alpha1.Resource("workflowschedule"), scheduleName),
+				),
+			)
 			return
 		}
 		writeError(w, r, mapKubeHTTPError("create workflow run", err))

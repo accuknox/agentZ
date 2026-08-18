@@ -29,6 +29,12 @@ const (
 	GatewayBearerScopes = "GatewayBearer.Scopes"
 )
 
+// Defines values for AgentAccessTargetKind.
+const (
+	AgentAccessTargetKindTeam AgentAccessTargetKind = "team"
+	AgentAccessTargetKindUser AgentAccessTargetKind = "user"
+)
+
 // Defines values for AgentFileConflictCode.
 const (
 	FileVersionConflict AgentFileConflictCode = "file_version_conflict"
@@ -38,6 +44,15 @@ const (
 const (
 	AgentFileTypeDirectory AgentFileType = "directory"
 	AgentFileTypeFile      AgentFileType = "file"
+)
+
+// Defines values for AgentShareCapability.
+const (
+	AgentShareCapabilityDeleteSharedSecret AgentShareCapability = "delete_shared_secret"
+	AgentShareCapabilityReadSharedSecret   AgentShareCapability = "read_shared_secret"
+	AgentShareCapabilityShareNonAuthored   AgentShareCapability = "share_non_authored"
+	AgentShareCapabilityUseShared          AgentShareCapability = "use_shared"
+	AgentShareCapabilityWriteSharedSecret  AgentShareCapability = "write_shared_secret"
 )
 
 // Defines values for AgentStatus.
@@ -119,9 +134,55 @@ const (
 	CreateInferenceProviderOAuthTicketRequestKindOpenAICodex   CreateInferenceProviderOAuthTicketRequestKind = "OpenAICodex"
 )
 
-// Defines values for CreateSkillImportDecisionAction.
+// Defines values for EventTrailActorType.
 const (
-	Create CreateSkillImportDecisionAction = "create"
+	EventTrailActorTypeApiKey EventTrailActorType = "api_key"
+	EventTrailActorTypeSystem EventTrailActorType = "system"
+	EventTrailActorTypeUser   EventTrailActorType = "user"
+)
+
+// Defines values for EventTrailFieldField.
+const (
+	EventTrailFieldMemberID            EventTrailFieldField = "member_id"
+	EventTrailFieldName                EventTrailFieldField = "name"
+	EventTrailFieldProvisioningAttempt EventTrailFieldField = "provisioning_attempt"
+	EventTrailFieldRole                EventTrailFieldField = "role"
+	EventTrailFieldSlug                EventTrailFieldField = "slug"
+	EventTrailFieldState               EventTrailFieldField = "state"
+	EventTrailFieldUserID              EventTrailFieldField = "user_id"
+)
+
+// Defines values for EventTrailFilterField.
+const (
+	ActorId     EventTrailFilterField = "actor_id"
+	ActorType   EventTrailFilterField = "actor_type"
+	Category    EventTrailFilterField = "category"
+	CreatedAt   EventTrailFilterField = "created_at"
+	Result      EventTrailFilterField = "result"
+	TargetType  EventTrailFilterField = "target_type"
+	WorkspaceId EventTrailFilterField = "workspace_id"
+)
+
+// Defines values for EventTrailResult.
+const (
+	EventTrailResultDenied    EventTrailResult = "denied"
+	EventTrailResultFailed    EventTrailResult = "failed"
+	EventTrailResultSucceeded EventTrailResult = "succeeded"
+)
+
+// Defines values for EventTrailTargetType.
+const (
+	EventTrailTargetAgent                  EventTrailTargetType = "agent"
+	EventTrailTargetInferencePool          EventTrailTargetType = "inference_pool"
+	EventTrailTargetInferenceProvider      EventTrailTargetType = "inference_provider"
+	EventTrailTargetMCPConnection          EventTrailTargetType = "mcp_connection"
+	EventTrailTargetOrganization           EventTrailTargetType = "organization"
+	EventTrailTargetOrganizationMembership EventTrailTargetType = "organization_membership"
+	EventTrailTargetRole                   EventTrailTargetType = "role"
+	EventTrailTargetSandbox                EventTrailTargetType = "sandbox"
+	EventTrailTargetSkill                  EventTrailTargetType = "skill"
+	EventTrailTargetTeam                   EventTrailTargetType = "team"
+	EventTrailTargetWorkspace              EventTrailTargetType = "workspace"
 )
 
 // Defines values for GeminiInferenceProviderReadKind.
@@ -217,6 +278,14 @@ const (
 	InferenceProviderKindOpenAICodex         InferenceProviderKind = "OpenAICodex"
 	InferenceProviderKindOpenAICompatible    InferenceProviderKind = "OpenAICompatible"
 	InferenceProviderKindVertexAI            InferenceProviderKind = "VertexAI"
+)
+
+// Defines values for InheritedResourceType.
+const (
+	InheritedResourceTypeInferenceProvider InheritedResourceType = "inference_provider"
+	InheritedResourceTypeMCPConnection     InheritedResourceType = "mcp_connection"
+	InheritedResourceTypeSandbox           InheritedResourceType = "sandbox"
+	InheritedResourceTypeSkill             InheritedResourceType = "skill"
 )
 
 // Defines values for MCPConnectionLifecycle.
@@ -523,7 +592,7 @@ const (
 
 // Defines values for OpencodeUserMessageRole.
 const (
-	User OpencodeUserMessageRole = "user"
+	OpencodeUserMessageRoleUser OpencodeUserMessageRole = "user"
 )
 
 // Defines values for OpencodeeffectHttpApiErrorBadRequestTag.
@@ -536,14 +605,19 @@ const (
 	InternalServerError OpencodeeffectHttpApiErrorInternalServerErrorTag = "InternalServerError"
 )
 
-// Defines values for OverwriteSkillImportDecisionAction.
+// Defines values for ResourceLifecycle.
 const (
-	Overwrite OverwriteSkillImportDecisionAction = "overwrite"
+	ResourceLifecycleAccepted ResourceLifecycle = "Accepted"
+	ResourceLifecycleDegraded ResourceLifecycle = "Degraded"
+	ResourceLifecycleError    ResourceLifecycle = "Error"
+	ResourceLifecycleNotReady ResourceLifecycle = "NotReady"
+	ResourceLifecycleReady    ResourceLifecycle = "Ready"
 )
 
-// Defines values for RenameSkillImportDecisionAction.
+// Defines values for ResourceScope.
 const (
-	Rename RenameSkillImportDecisionAction = "rename"
+	ResourceScopeOrganisation ResourceScope = "Organisation"
+	ResourceScopeWorkspace    ResourceScope = "Workspace"
 )
 
 // Defines values for SecretState.
@@ -565,12 +639,6 @@ const (
 	SkillImportAgentResultStatusSucceeded SkillImportAgentResultStatus = "succeeded"
 )
 
-// Defines values for SkillKind.
-const (
-	Immutable SkillKind = "immutable"
-	Mutable   SkillKind = "mutable"
-)
-
 // Defines values for TenantConditionStatus.
 const (
 	TenantConditionStatusFalse   TenantConditionStatus = "False"
@@ -583,6 +651,12 @@ const (
 	BOOTSTRAPPING TenantPhase = "BOOTSTRAPPING"
 	FAILED        TenantPhase = "FAILED"
 	READY         TenantPhase = "READY"
+)
+
+// Defines values for UpdateWorkspaceLifecycleRequestState.
+const (
+	UpdateWorkspaceLifecycleRequestStateFailed UpdateWorkspaceLifecycleRequestState = "failed"
+	UpdateWorkspaceLifecycleRequestStateReady  UpdateWorkspaceLifecycleRequestState = "ready"
 )
 
 // Defines values for VertexAIInferenceProviderReadKind.
@@ -639,14 +713,22 @@ const (
 
 // Defines values for WorkflowRunTerminalPhase.
 const (
-	Failed    WorkflowRunTerminalPhase = "Failed"
-	Succeeded WorkflowRunTerminalPhase = "Succeeded"
+	WorkflowRunTerminalPhaseFailed    WorkflowRunTerminalPhase = "Failed"
+	WorkflowRunTerminalPhaseSucceeded WorkflowRunTerminalPhase = "Succeeded"
 )
 
 // Defines values for WorkflowRunTriggerType.
 const (
 	Schedule WorkflowRunTriggerType = "Schedule"
 	Webhook  WorkflowRunTriggerType = "Webhook"
+)
+
+// Defines values for WorkspaceState.
+const (
+	WorkspaceStateDeleting     WorkspaceState = "deleting"
+	WorkspaceStateFailed       WorkspaceState = "failed"
+	WorkspaceStateProvisioning WorkspaceState = "provisioning"
+	WorkspaceStateReady        WorkspaceState = "ready"
 )
 
 // Defines values for SessionListParamsScope.
@@ -677,16 +759,43 @@ type APIKeyID = string
 
 // Agent defines model for Agent.
 type Agent struct {
-	CreatedAt    time.Time         `json:"created_at"`
-	LastActivity time.Time         `json:"last_activity"`
-	Memory       AgentMemoryConfig `json:"memory"`
-	ModifiedAt   time.Time         `json:"modified_at"`
-	Name         AgentName         `json:"name"`
+	Capabilities   AgentCapabilities   `json:"capabilities"`
+	CreatedAt      time.Time           `json:"created_at"`
+	CreatedBy      ResourceActor       `json:"created_by"`
+	LastActivity   time.Time           `json:"last_activity"`
+	LastModifiedBy ResourceActor       `json:"last_modified_by"`
+	Memory         AgentMemoryConfig   `json:"memory"`
+	ModifiedAt     time.Time           `json:"modified_at"`
+	Name           AgentName           `json:"name"`
+	Sandbox        ResourceReference   `json:"sandbox"`
+	Skills         []ResourceReference `json:"skills"`
+	Status         AgentStatus         `json:"status"`
+}
 
-	// SandboxName Sandbox resource name.
-	SandboxName SandboxName `json:"sandboxName"`
-	Skills      []SkillName `json:"skills"`
-	Status      AgentStatus `json:"status"`
+// AgentAccessTarget defines model for AgentAccessTarget.
+type AgentAccessTarget struct {
+	CanOwn       bool                   `json:"can_own"`
+	Capabilities []AgentShareCapability `json:"capabilities"`
+	Email        *string                `json:"email"`
+	Id           string                 `json:"id"`
+	Image        *string                `json:"image"`
+	Kind         AgentAccessTargetKind  `json:"kind"`
+	Label        string                 `json:"label"`
+}
+
+// AgentAccessTargetKind defines model for AgentAccessTargetKind.
+type AgentAccessTargetKind string
+
+// AgentCapabilities defines model for AgentCapabilities.
+type AgentCapabilities struct {
+	Delete          bool `json:"delete"`
+	DeleteSecrets   bool `json:"delete_secrets"`
+	ManageOwnership bool `json:"manage_ownership"`
+	Modify          bool `json:"modify"`
+	ReadSecrets     bool `json:"read_secrets"`
+	Share           bool `json:"share"`
+	Use             bool `json:"use"`
+	WriteSecrets    bool `json:"write_secrets"`
 }
 
 // AgentFile defines model for AgentFile.
@@ -737,8 +846,36 @@ type AgentOpencodeConfig struct {
 	Instruction *string `json:"instruction,omitempty"`
 }
 
+// AgentOwner defines model for AgentOwner.
+type AgentOwner struct {
+	AgentName     AgentName `json:"agent_name"`
+	CreatedAt     time.Time `json:"created_at"`
+	CreatorUserId string    `json:"creator_user_id"`
+	OwnerUserId   string    `json:"owner_user_id"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// AgentShare defines model for AgentShare.
+type AgentShare struct {
+	AgentName    AgentName              `json:"agent_name"`
+	Capabilities []AgentShareCapability `json:"capabilities"`
+	CreatedAt    time.Time              `json:"created_at"`
+	CreatedBy    string                 `json:"created_by"`
+	Id           string                 `json:"id"`
+	TargetTeamId *string                `json:"target_team_id"`
+	TargetUserId *string                `json:"target_user_id"`
+}
+
+// AgentShareCapability defines model for AgentShareCapability.
+type AgentShareCapability string
+
 // AgentStatus defines model for AgentStatus.
 type AgentStatus string
+
+// AgentWorkspaceCapabilities defines model for AgentWorkspaceCapabilities.
+type AgentWorkspaceCapabilities struct {
+	Author bool `json:"author"`
+}
 
 // AnthropicCompatibleInferenceProviderRead defines model for AnthropicCompatibleInferenceProviderRead.
 type AnthropicCompatibleInferenceProviderRead struct {
@@ -889,10 +1026,8 @@ type CreateAgentRequest struct {
 	Memory   *AgentMemoryConfig   `json:"memory,omitempty"`
 	Name     AgentName            `json:"name"`
 	Opencode *AgentOpencodeConfig `json:"opencode,omitempty"`
-
-	// SandboxName Sandbox resource name.
-	SandboxName SandboxName  `json:"sandboxName"`
-	Skills      *[]SkillName `json:"skills,omitempty"`
+	Sandbox  ResourceReference    `json:"sandbox"`
+	Skills   *[]ResourceReference `json:"skills,omitempty"`
 }
 
 // CreateInferencePoolRequest defines model for CreateInferencePoolRequest.
@@ -938,9 +1073,9 @@ type CreateSandboxRequest struct {
 	McpConnectionRefs *[]MCPConnectionRef `json:"mcp_connection_refs,omitempty"`
 
 	// Name Sandbox resource name.
-	Name     SandboxName  `json:"name"`
-	Packages *[]string    `json:"packages,omitempty"`
-	Skills   *[]SkillName `json:"skills,omitempty"`
+	Name     SandboxName          `json:"name"`
+	Packages *[]string            `json:"packages,omitempty"`
+	Skills   *[]ResourceReference `json:"skills,omitempty"`
 }
 
 // CreateSecretRequest defines model for CreateSecretRequest.
@@ -964,17 +1099,6 @@ type CreateSecretRequest struct {
 	// Value Secret value. Max 48 KB.
 	Value *SecretValue `json:"value,omitempty"`
 }
-
-// CreateSkillImportDecision defines model for CreateSkillImportDecision.
-type CreateSkillImportDecision struct {
-	Action CreateSkillImportDecisionAction `json:"action"`
-
-	// Name Immutable Skill resource name.
-	Name SkillName `json:"name"`
-}
-
-// CreateSkillImportDecisionAction defines model for CreateSkillImportDecision.Action.
-type CreateSkillImportDecisionAction string
 
 // CreateSkillRequest defines model for CreateSkillRequest.
 type CreateSkillRequest struct {
@@ -1014,6 +1138,13 @@ type CreateWorkflowScheduleRequest struct {
 	TimeoutSeconds             int32                `json:"timeout_seconds"`
 }
 
+// CreateWorkspaceRequest defines model for CreateWorkspaceRequest.
+type CreateWorkspaceRequest struct {
+	AdminMemberIds                []string                      `json:"admin_member_ids"`
+	Name                          string                        `json:"name"`
+	SelectedOrganizationResources SelectedOrganizationResources `json:"selected_organization_resources"`
+}
+
 // DeleteSecretsRequest defines model for DeleteSecretsRequest.
 type DeleteSecretsRequest struct {
 	Keys []SecretKey `json:"keys"`
@@ -1037,8 +1168,101 @@ type Error struct {
 	Message string        `json:"message"`
 }
 
-// ExportSkillsRequest defines model for ExportSkillsRequest.
-type ExportSkillsRequest struct {
+// EventTrailActor defines model for EventTrailActor.
+type EventTrailActor struct {
+	Email *openapi_types.Email `json:"email,omitempty"`
+	Id    *string              `json:"id,omitempty"`
+	Name  *string              `json:"name,omitempty"`
+	Type  EventTrailActorType  `json:"type"`
+}
+
+// EventTrailActorFilter defines model for EventTrailActorFilter.
+type EventTrailActorFilter struct {
+	Email *openapi_types.Email `json:"email,omitempty"`
+	Id    *string              `json:"id,omitempty"`
+	Name  *string              `json:"name,omitempty"`
+	Type  EventTrailActorType  `json:"type"`
+}
+
+// EventTrailActorType defines model for EventTrailActorType.
+type EventTrailActorType string
+
+// EventTrailEvent defines model for EventTrailEvent.
+type EventTrailEvent struct {
+	Action    string               `json:"action"`
+	Actor     EventTrailActor      `json:"actor"`
+	After     []EventTrailField    `json:"after"`
+	Before    []EventTrailField    `json:"before"`
+	Category  string               `json:"category"`
+	CreatedAt time.Time            `json:"created_at"`
+	Id        string               `json:"id"`
+	Result    EventTrailResult     `json:"result"`
+	Target    EventTrailTarget     `json:"target"`
+	Workspace *EventTrailWorkspace `json:"workspace,omitempty"`
+}
+
+// EventTrailField defines model for EventTrailField.
+type EventTrailField struct {
+	Field EventTrailFieldField `json:"field"`
+	Value string               `json:"value"`
+}
+
+// EventTrailFieldField defines model for EventTrailField.Field.
+type EventTrailFieldField string
+
+// EventTrailFilter defines model for EventTrailFilter.
+type EventTrailFilter struct {
+	Field  EventTrailFilterField `json:"field"`
+	Values []string              `json:"values"`
+}
+
+// EventTrailFilterField defines model for EventTrailFilterField.
+type EventTrailFilterField string
+
+// EventTrailFilters defines model for EventTrailFilters.
+type EventTrailFilters struct {
+	Actors      []EventTrailActorFilter     `json:"actors"`
+	Categories  []string                    `json:"categories"`
+	TargetTypes []EventTrailTargetType      `json:"target_types"`
+	Workspaces  []EventTrailWorkspaceFilter `json:"workspaces"`
+}
+
+// EventTrailResult defines model for EventTrailResult.
+type EventTrailResult string
+
+// EventTrailTarget defines model for EventTrailTarget.
+type EventTrailTarget struct {
+	Id   string               `json:"id"`
+	Name *string              `json:"name,omitempty"`
+	Slug *string              `json:"slug,omitempty"`
+	Type EventTrailTargetType `json:"type"`
+}
+
+// EventTrailTargetType defines model for EventTrailTargetType.
+type EventTrailTargetType string
+
+// EventTrailWorkspace defines model for EventTrailWorkspace.
+type EventTrailWorkspace struct {
+	Id   string  `json:"id"`
+	Name *string `json:"name,omitempty"`
+	Slug *string `json:"slug,omitempty"`
+}
+
+// EventTrailWorkspaceFilter defines model for EventTrailWorkspaceFilter.
+type EventTrailWorkspaceFilter struct {
+	Id   string  `json:"id"`
+	Name *string `json:"name,omitempty"`
+	Slug *string `json:"slug,omitempty"`
+}
+
+// ExportImmutableSkillsRequest defines model for ExportImmutableSkillsRequest.
+type ExportImmutableSkillsRequest struct {
+	// Skills Skill references whose names are unique across scopes.
+	Skills []ResourceReference `json:"skills"`
+}
+
+// ExportMutableSkillsRequest defines model for ExportMutableSkillsRequest.
+type ExportMutableSkillsRequest struct {
 	SkillNames []SkillName `json:"skill_names"`
 }
 
@@ -1124,24 +1348,36 @@ type GitHubCopilotInferenceProviderWriteCatalogProvider string
 // GitHubCopilotInferenceProviderWriteKind defines model for GitHubCopilotInferenceProviderWrite.Kind.
 type GitHubCopilotInferenceProviderWriteKind string
 
+// ImmutableSkillImportPreviewItem defines model for ImmutableSkillImportPreviewItem.
+type ImmutableSkillImportPreviewItem struct {
+	Conflict bool `json:"conflict"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+}
+
+// ImmutableSkillImportPreviewResponse defines model for ImmutableSkillImportPreviewResponse.
+type ImmutableSkillImportPreviewResponse struct {
+	Skills []ImmutableSkillImportPreviewItem `json:"skills"`
+}
+
 // ImmutableSkillSummary defines model for ImmutableSkillSummary.
 type ImmutableSkillSummary struct {
-	Agents      []AgentName `json:"agents"`
-	Description string      `json:"description"`
-	FileCount   int         `json:"file_count"`
-	ModifiedAt  *time.Time  `json:"modified_at"`
+	Agents         []AgentName   `json:"agents"`
+	CanDelete      bool          `json:"can_delete"`
+	CanModify      bool          `json:"can_modify"`
+	CreatedBy      ResourceActor `json:"created_by"`
+	Description    string        `json:"description"`
+	FileCount      int           `json:"file_count"`
+	LastModifiedBy ResourceActor `json:"last_modified_by"`
+	ModifiedAt     *time.Time    `json:"modified_at"`
 
 	// Name Immutable Skill resource name.
 	Name      SkillName     `json:"name"`
 	Sandboxes []SandboxName `json:"sandboxes"`
+	Scope     ResourceScope `json:"scope"`
 	SizeBytes int64         `json:"size_bytes"`
 	Version   int64         `json:"version"`
-}
-
-// ImportSkillsResponse defines model for ImportSkillsResponse.
-type ImportSkillsResponse struct {
-	Agents []SkillImportAgentResult `json:"agents"`
-	Skills []SkillName              `json:"skills"`
 }
 
 // InferenceModel defines model for InferenceModel.
@@ -1205,6 +1441,8 @@ type InferenceModelSuggestionsProvenance string
 // InferencePool defines model for InferencePool.
 type InferencePool struct {
 	AutomaticFailover bool                         `json:"automatic_failover"`
+	CanDelete         bool                         `json:"can_delete"`
+	CanModify         bool                         `json:"can_modify"`
 	Conditions        []InferenceProviderCondition `json:"conditions"`
 	Contract          *InferencePoolContract       `json:"contract,omitempty"`
 	CreatedAt         time.Time                    `json:"created_at"`
@@ -1236,6 +1474,7 @@ type InferencePoolMember struct {
 
 	// Provider Stable tenant-scoped inference provider ID.
 	Provider InferenceProviderName `json:"provider"`
+	Scope    ResourceScope         `json:"scope"`
 }
 
 // InferencePoolMemberStatus defines model for InferencePoolMemberStatus.
@@ -1248,6 +1487,7 @@ type InferencePoolMemberStatus struct {
 	Provider InferenceProviderName `json:"provider"`
 	Ready    bool                  `json:"ready"`
 	Reason   string                `json:"reason"`
+	Scope    ResourceScope         `json:"scope"`
 }
 
 // InferencePoolName Stable tenant-scoped inference Pool ID.
@@ -1284,16 +1524,21 @@ type InferenceProtocol string
 
 // InferenceProvider defines model for InferenceProvider.
 type InferenceProvider struct {
+	CanDelete       bool                         `json:"can_delete"`
+	CanModify       bool                         `json:"can_modify"`
 	CatalogProvider string                       `json:"catalog_provider"`
 	Conditions      []InferenceProviderCondition `json:"conditions"`
 	CreatedAt       time.Time                    `json:"created_at"`
+	CreatedBy       ResourceActor                `json:"created_by"`
 	DisplayName     string                       `json:"display_name"`
 
 	// Id Stable tenant-scoped inference provider ID.
 	Id              InferenceProviderName  `json:"id"`
+	LastModifiedBy  ResourceActor          `json:"last_modified_by"`
 	ModelCount      int                    `json:"model_count"`
 	Models          []InferenceModel       `json:"models"`
 	ResourceVersion string                 `json:"resource_version"`
+	Scope           ResourceScope          `json:"scope"`
 	State           InferenceProviderState `json:"state"`
 	UpdatedAt       time.Time              `json:"updated_at"`
 	UsageCount      int                    `json:"usage_count"`
@@ -1404,6 +1649,15 @@ type InferenceProviderWriteDiscriminator struct {
 	union json.RawMessage
 }
 
+// InheritedResourceConsumer defines model for InheritedResourceConsumer.
+type InheritedResourceConsumer struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+// InheritedResourceType defines model for InheritedResourceType.
+type InheritedResourceType string
+
 // JSONObject defines model for JSONObject.
 type JSONObject map[string]*JSONValue
 
@@ -1427,21 +1681,47 @@ type JSONValue3 = []JSONValue
 // JSONValue4 defines model for .
 type JSONValue4 map[string]*JSONValue
 
+// ListAgentAccessTargetsResponse defines model for ListAgentAccessTargetsResponse.
+type ListAgentAccessTargetsResponse struct {
+	Targets []AgentAccessTarget `json:"targets"`
+}
+
+// ListAgentSharesResponse defines model for ListAgentSharesResponse.
+type ListAgentSharesResponse struct {
+	NextPageToken string       `json:"next_page_token"`
+	Shares        []AgentShare `json:"shares"`
+}
+
 // ListAgentsResponse defines model for ListAgentsResponse.
 type ListAgentsResponse struct {
 	Agents        []Agent `json:"agents"`
 	NextPageToken string  `json:"next_page_token"`
 }
 
-// ListFileObservabilityResponse defines model for ListFileObservabilityResponse.
-type ListFileObservabilityResponse struct {
-	Events        []ListFileObservabilityResponse_Events_Item `json:"events"`
-	NextPageToken string                                      `json:"next_page_token"`
+// ListEventTrailEventsRequest defines model for ListEventTrailEventsRequest.
+type ListEventTrailEventsRequest struct {
+	Filters   []EventTrailFilter `json:"filters"`
+	Limit     int32              `json:"limit"`
+	PageToken *string            `json:"page_token,omitempty"`
 }
 
-// ListFileObservabilityResponse_Events_Item defines model for ListFileObservabilityResponse.events.Item.
-type ListFileObservabilityResponse_Events_Item struct {
-	union json.RawMessage
+// ListEventTrailEventsResponse defines model for ListEventTrailEventsResponse.
+type ListEventTrailEventsResponse struct {
+	Events        []EventTrailEvent `json:"events"`
+	FilterOptions EventTrailFilters `json:"filter_options"`
+	NextPageToken string            `json:"next_page_token"`
+}
+
+// ListFileObservabilityResponse defines model for ListFileObservabilityResponse.
+type ListFileObservabilityResponse struct {
+	Events        []FileObservabilityEvent `json:"events"`
+	NextPageToken string                   `json:"next_page_token"`
+}
+
+// ListFileObservabilitySummaryResponse defines model for ListFileObservabilitySummaryResponse.
+type ListFileObservabilitySummaryResponse struct {
+	Events        []FileObservabilityEventAggregated `json:"events"`
+	NextPageToken string                             `json:"next_page_token"`
 }
 
 // ListImmutableSkillSummariesResponse defines model for ListImmutableSkillSummariesResponse.
@@ -1476,24 +1756,26 @@ type ListMutableSkillsResponse struct {
 
 // ListNetworkObservabilityResponse defines model for ListNetworkObservabilityResponse.
 type ListNetworkObservabilityResponse struct {
-	Events        []ListNetworkObservabilityResponse_Events_Item `json:"events"`
-	NextPageToken string                                         `json:"next_page_token"`
+	Events        []NetworkObservabilityEvent `json:"events"`
+	NextPageToken string                      `json:"next_page_token"`
 }
 
-// ListNetworkObservabilityResponse_Events_Item defines model for ListNetworkObservabilityResponse.events.Item.
-type ListNetworkObservabilityResponse_Events_Item struct {
-	union json.RawMessage
+// ListNetworkObservabilitySummaryResponse defines model for ListNetworkObservabilitySummaryResponse.
+type ListNetworkObservabilitySummaryResponse struct {
+	Events        []NetworkObservabilityEventAggregated `json:"events"`
+	NextPageToken string                                `json:"next_page_token"`
 }
 
 // ListProcessObservabilityResponse defines model for ListProcessObservabilityResponse.
 type ListProcessObservabilityResponse struct {
-	Events        []ListProcessObservabilityResponse_Events_Item `json:"events"`
-	NextPageToken string                                         `json:"next_page_token"`
+	Events        []ProcessObservabilityEvent `json:"events"`
+	NextPageToken string                      `json:"next_page_token"`
 }
 
-// ListProcessObservabilityResponse_Events_Item defines model for ListProcessObservabilityResponse.events.Item.
-type ListProcessObservabilityResponse_Events_Item struct {
-	union json.RawMessage
+// ListProcessObservabilitySummaryResponse defines model for ListProcessObservabilitySummaryResponse.
+type ListProcessObservabilitySummaryResponse struct {
+	Events        []ProcessObservabilityEventAggregated `json:"events"`
+	NextPageToken string                                `json:"next_page_token"`
 }
 
 // ListSandboxesResponse defines model for ListSandboxesResponse.
@@ -1544,6 +1826,25 @@ type ListWorkflowWebhookTriggersResponse struct {
 	WebhookTriggers []WorkflowWebhookTrigger `json:"webhook_triggers"`
 }
 
+// ListWorkspaceInheritedResourcesResponse defines model for ListWorkspaceInheritedResourcesResponse.
+type ListWorkspaceInheritedResourcesResponse struct {
+	ResourceType InheritedResourceType        `json:"resource_type"`
+	Resources    []WorkspaceInheritedResource `json:"resources"`
+}
+
+// ListWorkspaceMemberCandidatesResponse defines model for ListWorkspaceMemberCandidatesResponse.
+type ListWorkspaceMemberCandidatesResponse struct {
+	Members []WorkspaceMemberCandidate `json:"members"`
+}
+
+// ListWorkspacesResponse defines model for ListWorkspacesResponse.
+type ListWorkspacesResponse struct {
+	CanCreate            bool        `json:"can_create"`
+	CanEnterOrganization bool        `json:"can_enter_organization"`
+	NextPageToken        string      `json:"next_page_token"`
+	Workspaces           []Workspace `json:"workspaces"`
+}
+
 // MCPConnectionAuth defines model for MCPConnectionAuth.
 type MCPConnectionAuth struct {
 	Bearer *MCPConnectionBearerAuth `json:"bearer,omitempty"`
@@ -1580,14 +1881,20 @@ type MCPConnectionCredentials struct {
 
 // MCPConnectionDetail defines model for MCPConnectionDetail.
 type MCPConnectionDetail struct {
-	Auth      MCPConnectionAuth     `json:"auth"`
-	CreatedAt time.Time             `json:"created_at"`
-	Endpoint  MCPConnectionEndpoint `json:"endpoint"`
-	Message   string                `json:"message"`
+	Auth MCPConnectionAuth `json:"auth"`
+
+	// CanDelete Whether the current principal may delete this connection in the selected scope.
+	CanDelete      bool                  `json:"can_delete"`
+	CreatedAt      time.Time             `json:"created_at"`
+	CreatedBy      ResourceActor         `json:"created_by"`
+	Endpoint       MCPConnectionEndpoint `json:"endpoint"`
+	LastModifiedBy ResourceActor         `json:"last_modified_by"`
+	Message        string                `json:"message"`
 
 	// Name MCPConnection resource name.
 	Name             MCPConnectionName      `json:"name"`
 	Reason           MCPConnectionReason    `json:"reason"`
+	Scope            ResourceScope          `json:"scope"`
 	Status           MCPConnectionLifecycle `json:"status"`
 	ToolCatalogReady bool                   `json:"tool_catalog_ready"`
 	Tools            []MCPConnectionTool    `json:"tools"`
@@ -1649,19 +1956,26 @@ type MCPConnectionReason string
 type MCPConnectionRef struct {
 	// Name MCPConnection resource name.
 	Name  MCPConnectionName      `json:"name"`
+	Scope ResourceScope          `json:"scope"`
 	Tools []MCPConnectionToolRef `json:"tools"`
 }
 
 // MCPConnectionSummary defines model for MCPConnectionSummary.
 type MCPConnectionSummary struct {
-	AuthMode    string    `json:"auth_mode"`
-	CreatedAt   time.Time `json:"created_at"`
-	EndpointUrl string    `json:"endpoint_url"`
-	Message     string    `json:"message"`
+	AuthMode string `json:"auth_mode"`
+
+	// CanDelete Whether the current principal may delete this connection in the selected scope.
+	CanDelete      bool          `json:"can_delete"`
+	CreatedAt      time.Time     `json:"created_at"`
+	CreatedBy      ResourceActor `json:"created_by"`
+	EndpointUrl    string        `json:"endpoint_url"`
+	LastModifiedBy ResourceActor `json:"last_modified_by"`
+	Message        string        `json:"message"`
 
 	// Name MCPConnection resource name.
 	Name             MCPConnectionName      `json:"name"`
 	Reason           MCPConnectionReason    `json:"reason"`
+	Scope            ResourceScope          `json:"scope"`
 	Status           MCPConnectionLifecycle `json:"status"`
 	ToolCatalogReady bool                   `json:"tool_catalog_ready"`
 	ToolCount        int64                  `json:"tool_count"`
@@ -1717,6 +2031,19 @@ type MCPGraphTool struct {
 	ConnectionId string `json:"connection_id"`
 	Id           string `json:"id"`
 	Name         string `json:"name"`
+}
+
+// MutableSkillImportPreviewItem defines model for MutableSkillImportPreviewItem.
+type MutableSkillImportPreviewItem struct {
+	ConflictAgents []AgentName `json:"conflict_agents"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+}
+
+// MutableSkillImportPreviewResponse defines model for MutableSkillImportPreviewResponse.
+type MutableSkillImportPreviewResponse struct {
+	Skills []MutableSkillImportPreviewItem `json:"skills"`
 }
 
 // MutableSkillSummary defines model for MutableSkillSummary.
@@ -2142,6 +2469,11 @@ type OpencodePermissionRule struct {
 
 // OpencodePermissionRuleset defines model for OpencodePermissionRuleset.
 type OpencodePermissionRuleset = []OpencodePermissionRule
+
+// OpencodePromptPartInput defines model for OpencodePromptPartInput.
+type OpencodePromptPartInput struct {
+	union json.RawMessage
+}
 
 // OpencodeProviderAuthError defines model for OpencodeProviderAuthError.
 type OpencodeProviderAuthError struct {
@@ -2635,17 +2967,6 @@ type OpencodeeffectHttpApiErrorInternalServerErrorTag string
 // OptionalSpanID Lowercase hexadecimal OTLP span ID, or empty for root spans.
 type OptionalSpanID = string
 
-// OverwriteSkillImportDecision defines model for OverwriteSkillImportDecision.
-type OverwriteSkillImportDecision struct {
-	Action OverwriteSkillImportDecisionAction `json:"action"`
-
-	// Name Immutable Skill resource name.
-	Name SkillName `json:"name"`
-}
-
-// OverwriteSkillImportDecisionAction defines model for OverwriteSkillImportDecision.Action.
-type OverwriteSkillImportDecisionAction string
-
 // PatchWorkflowRunNodeStatusRequest defines model for PatchWorkflowRunNodeStatusRequest.
 type PatchWorkflowRunNodeStatusRequest struct {
 	Message *string                   `json:"message,omitempty"`
@@ -2696,25 +3017,48 @@ type RenameAgentEntryRequest struct {
 	Target string `json:"target"`
 }
 
-// RenameSkillImportDecision defines model for RenameSkillImportDecision.
-type RenameSkillImportDecision struct {
-	Action RenameSkillImportDecisionAction `json:"action"`
-
-	// Name Immutable Skill resource name.
-	Name SkillName `json:"name"`
-
-	// Rename Immutable Skill resource name.
-	Rename SkillName `json:"rename"`
+// ReplaceWorkspaceInheritedResourcesRequest defines model for ReplaceWorkspaceInheritedResourcesRequest.
+type ReplaceWorkspaceInheritedResourcesRequest struct {
+	Names []string `json:"names"`
 }
 
-// RenameSkillImportDecisionAction defines model for RenameSkillImportDecision.Action.
-type RenameSkillImportDecisionAction string
+// ResourceActor defines model for ResourceActor.
+type ResourceActor struct {
+	Email *openapi_types.Email `json:"email"`
+	Id    string               `json:"id"`
+	Image *string              `json:"image"`
+	Name  *string              `json:"name"`
+}
+
+// ResourceCapabilities defines model for ResourceCapabilities.
+type ResourceCapabilities struct {
+	Create bool `json:"create"`
+	Delete bool `json:"delete"`
+	Modify bool `json:"modify"`
+	Read   bool `json:"read"`
+}
+
+// ResourceLifecycle defines model for ResourceLifecycle.
+type ResourceLifecycle string
+
+// ResourceReference defines model for ResourceReference.
+type ResourceReference struct {
+	Name  string        `json:"name"`
+	Scope ResourceScope `json:"scope"`
+}
+
+// ResourceScope defines model for ResourceScope.
+type ResourceScope string
 
 // Sandbox defines model for Sandbox.
 type Sandbox struct {
 	AllowedHosts      []string           `json:"allowed_hosts"`
+	CanDelete         bool               `json:"can_delete"`
+	CanModify         bool               `json:"can_modify"`
 	CreatedAt         time.Time          `json:"created_at"`
+	CreatedBy         ResourceActor      `json:"created_by"`
 	Inference         SandboxInference   `json:"inference"`
+	LastModifiedBy    ResourceActor      `json:"last_modified_by"`
 	McpConnectionRefs []MCPConnectionRef `json:"mcp_connection_refs"`
 	Metadata          struct {
 		AllowedHostCount  int32 `json:"allowed_host_count"`
@@ -2724,9 +3068,10 @@ type Sandbox struct {
 	} `json:"metadata"`
 
 	// Name Sandbox resource name.
-	Name     SandboxName `json:"name"`
-	Packages []string    `json:"packages"`
-	Skills   []SkillName `json:"skills"`
+	Name     SandboxName         `json:"name"`
+	Packages []string            `json:"packages"`
+	Scope    ResourceScope       `json:"scope"`
+	Skills   []ResourceReference `json:"skills"`
 }
 
 // SandboxInference defines model for SandboxInference.
@@ -2743,6 +3088,7 @@ type SandboxInferenceModelRef struct {
 
 	// Provider Stable tenant-scoped inference provider ID.
 	Provider InferenceProviderName `json:"provider"`
+	Scope    ResourceScope         `json:"scope"`
 }
 
 // SandboxName Sandbox resource name.
@@ -2756,18 +3102,20 @@ type SecretKey = string
 
 // SecretListItem defines model for SecretListItem.
 type SecretListItem struct {
-	CreatedAt time.Time    `json:"created_at"`
-	Hosts     []SecretHost `json:"hosts"`
+	CreatedAt time.Time     `json:"created_at"`
+	CreatedBy ResourceActor `json:"created_by"`
+	Hosts     []SecretHost  `json:"hosts"`
 
 	// Key Secret key name. Must be a valid environment variable name.
-	Key             SecretKey   `json:"key"`
-	LastRefreshTime *time.Time  `json:"last_refresh_time,omitempty"`
-	Message         string      `json:"message"`
-	Provider        *string     `json:"provider,omitempty"`
-	Reason          string      `json:"reason"`
-	Status          SecretState `json:"status"`
-	TokenExpiryTime *time.Time  `json:"token_expiry_time,omitempty"`
-	Type            SecretType  `json:"type"`
+	Key             SecretKey     `json:"key"`
+	LastModifiedBy  ResourceActor `json:"last_modified_by"`
+	LastRefreshTime *time.Time    `json:"last_refresh_time,omitempty"`
+	Message         string        `json:"message"`
+	Provider        *string       `json:"provider,omitempty"`
+	Reason          string        `json:"reason"`
+	Status          SecretState   `json:"status"`
+	TokenExpiryTime *time.Time    `json:"token_expiry_time,omitempty"`
+	Type            SecretType    `json:"type"`
 }
 
 // SecretOAuthConfig defines model for SecretOAuthConfig.
@@ -2803,15 +3151,28 @@ type SecretType string
 // SecretValue Secret value. Max 48 KB.
 type SecretValue = string
 
+// SelectedOrganizationResources defines model for SelectedOrganizationResources.
+type SelectedOrganizationResources struct {
+	InferenceProviders []string `json:"inference_providers"`
+	McpConnections     []string `json:"mcp_connections"`
+	Sandboxes          []string `json:"sandboxes"`
+	Skills             []string `json:"skills"`
+}
+
 // Skill defines model for Skill.
 type Skill struct {
-	Agents      []AgentName `json:"agents"`
-	CreatedAt   time.Time   `json:"created_at"`
-	Description string      `json:"description"`
+	Agents         []AgentName   `json:"agents"`
+	CanDelete      bool          `json:"can_delete"`
+	CanModify      bool          `json:"can_modify"`
+	CreatedAt      time.Time     `json:"created_at"`
+	CreatedBy      ResourceActor `json:"created_by"`
+	Description    string        `json:"description"`
+	LastModifiedBy ResourceActor `json:"last_modified_by"`
 
 	// Name Immutable Skill resource name.
 	Name        SkillName     `json:"name"`
 	Sandboxes   []SandboxName `json:"sandboxes"`
+	Scope       ResourceScope `json:"scope"`
 	StoragePath string        `json:"storage_path"`
 	Version     int64         `json:"version"`
 }
@@ -2836,27 +3197,11 @@ type SkillImportAgentResult struct {
 // SkillImportAgentResultStatus defines model for SkillImportAgentResult.Status.
 type SkillImportAgentResultStatus string
 
-// SkillImportDecision defines model for SkillImportDecision.
-type SkillImportDecision struct {
-	union json.RawMessage
+// SkillImportResponse defines model for SkillImportResponse.
+type SkillImportResponse struct {
+	Agents []SkillImportAgentResult `json:"agents"`
+	Skills []SkillName              `json:"skills"`
 }
-
-// SkillImportPreviewItem defines model for SkillImportPreviewItem.
-type SkillImportPreviewItem struct {
-	ImmutableConflict     bool        `json:"immutable_conflict"`
-	MutableConflictAgents []AgentName `json:"mutable_conflict_agents"`
-
-	// Name Immutable Skill resource name.
-	Name SkillName `json:"name"`
-}
-
-// SkillImportPreviewResponse defines model for SkillImportPreviewResponse.
-type SkillImportPreviewResponse struct {
-	Skills []SkillImportPreviewItem `json:"skills"`
-}
-
-// SkillKind defines model for SkillKind.
-type SkillKind string
 
 // SkillName Immutable Skill resource name.
 type SkillName = string
@@ -2960,12 +3305,16 @@ type SpanPayload struct {
 
 // Tenant defines model for Tenant.
 type Tenant struct {
-	Conditions []TenantCondition `json:"conditions"`
-	Namespace  string            `json:"namespace"`
-	Phase      TenantPhase       `json:"phase"`
-	Ready      bool              `json:"ready"`
-	TenantId   string            `json:"tenant_id"`
-	UserId     string            `json:"user_id"`
+	Conditions                    []TenantCondition    `json:"conditions"`
+	InferencePoolCapabilities     ResourceCapabilities `json:"inference_pool_capabilities"`
+	InferenceProviderCapabilities ResourceCapabilities `json:"inference_provider_capabilities"`
+	McpConnectionCapabilities     ResourceCapabilities `json:"mcp_connection_capabilities"`
+	Namespace                     string               `json:"namespace"`
+	OrganizationId                string               `json:"organization_id"`
+	Phase                         TenantPhase          `json:"phase"`
+	Ready                         bool                 `json:"ready"`
+	SandboxCapabilities           ResourceCapabilities `json:"sandbox_capabilities"`
+	SkillCapabilities             ResourceCapabilities `json:"skill_capabilities"`
 }
 
 // TenantCondition defines model for TenantCondition.
@@ -3012,15 +3361,18 @@ type TraceSession struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// TransferAgentOwnerRequest defines model for TransferAgentOwnerRequest.
+type TransferAgentOwnerRequest struct {
+	OwnerUserId string `json:"owner_user_id"`
+}
+
 // UpdateAgentRequest defines model for UpdateAgentRequest.
 type UpdateAgentRequest struct {
 	Env      *map[string]string   `json:"env,omitempty"`
 	Memory   *AgentMemoryConfig   `json:"memory,omitempty"`
 	Opencode *AgentOpencodeConfig `json:"opencode,omitempty"`
-
-	// SandboxName Sandbox resource name.
-	SandboxName *SandboxName `json:"sandboxName,omitempty"`
-	Skills      *[]SkillName `json:"skills,omitempty"`
+	Sandbox  *ResourceReference   `json:"sandbox,omitempty"`
+	Skills   *[]ResourceReference `json:"skills,omitempty"`
 }
 
 // UpdateInferencePoolRequest defines model for UpdateInferencePoolRequest.
@@ -3037,11 +3389,11 @@ type UpdateInferenceProviderRequest struct {
 
 // UpdateSandboxRequest defines model for UpdateSandboxRequest.
 type UpdateSandboxRequest struct {
-	AllowedHosts      []string           `json:"allowed_hosts"`
-	Inference         SandboxInference   `json:"inference"`
-	McpConnectionRefs []MCPConnectionRef `json:"mcp_connection_refs"`
-	Packages          []string           `json:"packages"`
-	Skills            []SkillName        `json:"skills"`
+	AllowedHosts      []string            `json:"allowed_hosts"`
+	Inference         SandboxInference    `json:"inference"`
+	McpConnectionRefs []MCPConnectionRef  `json:"mcp_connection_refs"`
+	Packages          []string            `json:"packages"`
+	Skills            []ResourceReference `json:"skills"`
 }
 
 // UpdateSkillRequest defines model for UpdateSkillRequest.
@@ -3059,6 +3411,23 @@ type UpdateWorkflowScheduleRequest struct {
 	Suspend                    *bool      `json:"suspend,omitempty"`
 	TimeZone                   *string    `json:"time_zone,omitempty"`
 	TimeoutSeconds             int32      `json:"timeout_seconds"`
+}
+
+// UpdateWorkspaceLifecycleRequest defines model for UpdateWorkspaceLifecycleRequest.
+type UpdateWorkspaceLifecycleRequest struct {
+	FailureReason       *string                              `json:"failure_reason,omitempty"`
+	ProvisioningAttempt int64                                `json:"provisioning_attempt"`
+	State               UpdateWorkspaceLifecycleRequestState `json:"state"`
+}
+
+// UpdateWorkspaceLifecycleRequestState defines model for UpdateWorkspaceLifecycleRequest.State.
+type UpdateWorkspaceLifecycleRequestState string
+
+// UpsertAgentShareRequest defines model for UpsertAgentShareRequest.
+type UpsertAgentShareRequest struct {
+	Capabilities []AgentShareCapability `json:"capabilities"`
+	TargetTeamId *string                `json:"target_team_id,omitempty"`
+	TargetUserId *string                `json:"target_user_id,omitempty"`
 }
 
 // VertexAIInferenceProviderRead defines model for VertexAIInferenceProviderRead.
@@ -3116,7 +3485,7 @@ type WatchInferenceProvidersEvent struct {
 
 // WatchInferenceProvidersRequest defines model for WatchInferenceProvidersRequest.
 type WatchInferenceProvidersRequest struct {
-	ProviderIds *[]InferenceProviderName `json:"provider_ids,omitempty"`
+	Providers *[]ResourceReference `json:"providers,omitempty"`
 }
 
 // WatchMCPConnectionsEvent defines model for WatchMCPConnectionsEvent.
@@ -3126,7 +3495,7 @@ type WatchMCPConnectionsEvent struct {
 
 // WatchMCPConnectionsRequest defines model for WatchMCPConnectionsRequest.
 type WatchMCPConnectionsRequest struct {
-	Names *[]MCPConnectionName `json:"names,omitempty"`
+	Connections *[]ResourceReference `json:"connections,omitempty"`
 }
 
 // WatchSecretsEvent defines model for WatchSecretsEvent.
@@ -3365,6 +3734,56 @@ type WorkflowWebhookTrigger struct {
 	WorkflowName WorkflowName `json:"workflow_name"`
 }
 
+// Workspace defines model for Workspace.
+type Workspace struct {
+	Capabilities        WorkspaceCapabilities `json:"capabilities"`
+	CreatedAt           time.Time             `json:"created_at"`
+	FailureReason       *string               `json:"failure_reason,omitempty"`
+	Id                  string                `json:"id"`
+	Name                string                `json:"name"`
+	Namespace           string                `json:"namespace"`
+	ProvisioningAttempt int64                 `json:"provisioning_attempt"`
+	Slug                string                `json:"slug"`
+	State               WorkspaceState        `json:"state"`
+	UpdatedAt           time.Time             `json:"updated_at"`
+	WorkspaceAdminCount int64                 `json:"workspace_admin_count"`
+}
+
+// WorkspaceCapabilities defines model for WorkspaceCapabilities.
+type WorkspaceCapabilities struct {
+	Administer         bool                       `json:"administer"`
+	Agents             AgentWorkspaceCapabilities `json:"agents"`
+	ApiKeys            ResourceCapabilities       `json:"api_keys"`
+	InferencePools     ResourceCapabilities       `json:"inference_pools"`
+	InferenceProviders ResourceCapabilities       `json:"inference_providers"`
+	McpConnections     ResourceCapabilities       `json:"mcp_connections"`
+	Observability      ResourceCapabilities       `json:"observability"`
+	Sandboxes          ResourceCapabilities       `json:"sandboxes"`
+	Skills             ResourceCapabilities       `json:"skills"`
+}
+
+// WorkspaceInheritedResource defines model for WorkspaceInheritedResource.
+type WorkspaceInheritedResource struct {
+	Consumers      []InheritedResourceConsumer `json:"consumers"`
+	DisabledReason *string                     `json:"disabled_reason,omitempty"`
+	Message        *string                     `json:"message,omitempty"`
+	Name           string                      `json:"name"`
+	Selected       bool                        `json:"selected"`
+	Status         ResourceLifecycle           `json:"status"`
+}
+
+// WorkspaceMemberCandidate defines model for WorkspaceMemberCandidate.
+type WorkspaceMemberCandidate struct {
+	Email    openapi_types.Email `json:"email"`
+	Image    *string             `json:"image"`
+	MemberId string              `json:"member_id"`
+	Name     string              `json:"name"`
+	UserId   string              `json:"user_id"`
+}
+
+// WorkspaceState defines model for WorkspaceState.
+type WorkspaceState string
+
 // WriteAgentFileRequest defines model for WriteAgentFileRequest.
 type WriteAgentFileRequest struct {
 	Content         string `json:"content"`
@@ -3385,14 +3804,23 @@ type AgentNamePath = AgentName
 // AgentNameQueryOptional defines model for AgentNameQueryOptional.
 type AgentNameQueryOptional = AgentName
 
-// AggregatedQuery defines model for AggregatedQuery.
-type AggregatedQuery = bool
+// AgentShareIDPath defines model for AgentShareIDPath.
+type AgentShareIDPath = string
 
 // EventTimeAfterQuery defines model for EventTimeAfterQuery.
 type EventTimeAfterQuery = time.Time
 
+// EventTimeAfterRequiredQuery defines model for EventTimeAfterRequiredQuery.
+type EventTimeAfterRequiredQuery = time.Time
+
 // EventTimeBeforeQuery defines model for EventTimeBeforeQuery.
 type EventTimeBeforeQuery = time.Time
+
+// EventTimeBeforeRequiredQuery defines model for EventTimeBeforeRequiredQuery.
+type EventTimeBeforeRequiredQuery = time.Time
+
+// EventTrailEventIDPath defines model for EventTrailEventIDPath.
+type EventTrailEventIDPath = string
 
 // FilePathQuery defines model for FilePathQuery.
 type FilePathQuery = string
@@ -3406,6 +3834,9 @@ type InferencePoolNamePath = InferencePoolName
 // InferenceProviderNamePath Stable tenant-scoped inference provider ID.
 type InferenceProviderNamePath = InferenceProviderName
 
+// InheritedResourceTypePath defines model for InheritedResourceTypePath.
+type InheritedResourceTypePath = InheritedResourceType
+
 // LimitQuery defines model for LimitQuery.
 type LimitQuery = int32
 
@@ -3414,6 +3845,9 @@ type MCPConnectionNamePath = MCPConnectionName
 
 // PageTokenQuery defines model for PageTokenQuery.
 type PageTokenQuery = string
+
+// ResourceScopeQuery defines model for ResourceScopeQuery.
+type ResourceScopeQuery = ResourceScope
 
 // SkillNamePath Immutable Skill resource name.
 type SkillNamePath = SkillName
@@ -3430,6 +3864,15 @@ type ToDateQuery = openapi_types.Date
 // UpdateSandboxQuery defines model for UpdateSandboxQuery.
 type UpdateSandboxQuery = bool
 
+// WorkspaceIDHeader defines model for WorkspaceIDHeader.
+type WorkspaceIDHeader = string
+
+// WorkspaceIDPath defines model for WorkspaceIDPath.
+type WorkspaceIDPath = string
+
+// WorkspaceSlugPath defines model for WorkspaceSlugPath.
+type WorkspaceSlugPath = string
+
 // BadGateway defines model for BadGateway.
 type BadGateway = Error
 
@@ -3438,6 +3881,9 @@ type BadRequest = Error
 
 // Conflict defines model for Conflict.
 type Conflict = Error
+
+// Forbidden defines model for Forbidden.
+type Forbidden = Error
 
 // InternalError defines model for InternalError.
 type InternalError = Error
@@ -3467,6 +3913,33 @@ type ListAgentsParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
+// ImportMutableSkillsMultipartBody defines parameters for ImportMutableSkills.
+type ImportMutableSkillsMultipartBody struct {
+	Agents []AgentName `json:"agents"`
+
+	// Decisions JSON-encoded array of SkillImportDecision objects.
+	Decisions string             `json:"decisions"`
+	File      openapi_types.File `json:"file"`
+}
+
+// ImportMutableSkillsParams defines parameters for ImportMutableSkills.
+type ImportMutableSkillsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// PreviewMutableSkillImportMultipartBody defines parameters for PreviewMutableSkillImport.
+type PreviewMutableSkillImportMultipartBody struct {
+	Agents []AgentName        `json:"agents"`
+	File   openapi_types.File `json:"file"`
+}
+
+// PreviewMutableSkillImportParams defines parameters for PreviewMutableSkillImport.
+type PreviewMutableSkillImportParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // DeleteAgentEntryParams defines parameters for DeleteAgentEntry.
@@ -3499,6 +3972,21 @@ type StatAgentFileParams struct {
 	Path FilePathQuery `form:"path" json:"path"`
 }
 
+// ListAgentSharesParams defines parameters for ListAgentShares.
+type ListAgentSharesParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
+// DeleteAgentMutableSkillsParams defines parameters for DeleteAgentMutableSkills.
+type DeleteAgentMutableSkillsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
 // ListAgentMutableSkillsParams defines parameters for ListAgentMutableSkills.
 type ListAgentMutableSkillsParams struct {
 	// Limit Maximum number of items to return.
@@ -3506,6 +3994,27 @@ type ListAgentMutableSkillsParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ExportAgentMutableSkillsParams defines parameters for ExportAgentMutableSkills.
+type ExportAgentMutableSkillsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ListEventTrailEventsParams defines parameters for ListEventTrailEvents.
+type ListEventTrailEventsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetEventTrailEventParams defines parameters for GetEventTrailEvent.
+type GetEventTrailEventParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // ListInferencePoolsParams defines parameters for ListInferencePools.
@@ -3514,7 +4023,38 @@ type ListInferencePoolsParams struct {
 	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
 
 	// PageToken Opaque pagination token from a previous response.
-	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+	PageToken          *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+	XAgentZWorkspaceID string          `json:"X-AgentZ-Workspace-ID"`
+}
+
+// CreateInferencePoolParams defines parameters for CreateInferencePool.
+type CreateInferencePoolParams struct {
+	XAgentZWorkspaceID string `json:"X-AgentZ-Workspace-ID"`
+}
+
+// WatchInferencePoolsParams defines parameters for WatchInferencePools.
+type WatchInferencePoolsParams struct {
+	XAgentZWorkspaceID string `json:"X-AgentZ-Workspace-ID"`
+}
+
+// DeleteInferencePoolParams defines parameters for DeleteInferencePool.
+type DeleteInferencePoolParams struct {
+	XAgentZWorkspaceID string `json:"X-AgentZ-Workspace-ID"`
+}
+
+// GetInferencePoolParams defines parameters for GetInferencePool.
+type GetInferencePoolParams struct {
+	XAgentZWorkspaceID string `json:"X-AgentZ-Workspace-ID"`
+}
+
+// UpdateInferencePoolParams defines parameters for UpdateInferencePool.
+type UpdateInferencePoolParams struct {
+	XAgentZWorkspaceID string `json:"X-AgentZ-Workspace-ID"`
+}
+
+// GetInferencePoolUsageParams defines parameters for GetInferencePoolUsage.
+type GetInferencePoolUsageParams struct {
+	XAgentZWorkspaceID string `json:"X-AgentZ-Workspace-ID"`
 }
 
 // ListInferenceProvidersParams defines parameters for ListInferenceProviders.
@@ -3524,16 +4064,79 @@ type ListInferenceProvidersParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// CreateInferenceProviderParams defines parameters for CreateInferenceProvider.
+type CreateInferenceProviderParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // ListInferenceProviderCatalogParams defines parameters for ListInferenceProviderCatalog.
 type ListInferenceProviderCatalogParams struct {
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // ListInferenceModelSuggestionsParams defines parameters for ListInferenceModelSuggestions.
 type ListInferenceModelSuggestionsParams struct {
 	ProviderKind InferenceProviderKind `form:"provider_kind" json:"provider_kind"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// CreateInferenceProviderOAuthTicketParams defines parameters for CreateInferenceProviderOAuthTicket.
+type CreateInferenceProviderOAuthTicketParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// WatchInferenceProvidersParams defines parameters for WatchInferenceProviders.
+type WatchInferenceProvidersParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// DeleteInferenceProviderParams defines parameters for DeleteInferenceProvider.
+type DeleteInferenceProviderParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetInferenceProviderParams defines parameters for GetInferenceProvider.
+type GetInferenceProviderParams struct {
+	Scope ResourceScopeQuery `form:"scope" json:"scope"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// UpdateInferenceProviderParams defines parameters for UpdateInferenceProvider.
+type UpdateInferenceProviderParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// RefreshInferenceProviderModelsParams defines parameters for RefreshInferenceProviderModels.
+type RefreshInferenceProviderModelsParams struct {
+	Scope ResourceScopeQuery `form:"scope" json:"scope"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetInferenceProviderUsageParams defines parameters for GetInferenceProviderUsage.
+type GetInferenceProviderUsageParams struct {
+	Scope ResourceScopeQuery `form:"scope" json:"scope"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // GetMCPGraphParams defines parameters for GetMCPGraph.
@@ -3561,9 +4164,24 @@ type ListFileObservabilityParams struct {
 
 	// Action Optional observability action filter.
 	Action *ActionQuery `form:"action,omitempty" json:"action,omitempty"`
+}
 
-	// Aggregated When true, returns aggregated events with occurrence counts over the time range.
-	Aggregated *AggregatedQuery `form:"aggregated,omitempty" json:"aggregated,omitempty"`
+// ListFileObservabilitySummaryParams defines parameters for ListFileObservabilitySummary.
+type ListFileObservabilitySummaryParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// EventTimeAfter Inclusive lower bound for event time.
+	EventTimeAfter EventTimeAfterRequiredQuery `form:"event_time_after" json:"event_time_after"`
+
+	// EventTimeBefore Inclusive upper bound for event time.
+	EventTimeBefore EventTimeBeforeRequiredQuery `form:"event_time_before" json:"event_time_before"`
+
+	// Action Optional observability action filter.
+	Action *ActionQuery `form:"action,omitempty" json:"action,omitempty"`
 }
 
 // ListNetworkObservabilityParams defines parameters for ListNetworkObservability.
@@ -3582,9 +4200,24 @@ type ListNetworkObservabilityParams struct {
 
 	// Action Optional observability action filter.
 	Action *ActionQuery `form:"action,omitempty" json:"action,omitempty"`
+}
 
-	// Aggregated When true, returns aggregated events with occurrence counts over the time range.
-	Aggregated *AggregatedQuery `form:"aggregated,omitempty" json:"aggregated,omitempty"`
+// ListNetworkObservabilitySummaryParams defines parameters for ListNetworkObservabilitySummary.
+type ListNetworkObservabilitySummaryParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// EventTimeAfter Inclusive lower bound for event time.
+	EventTimeAfter EventTimeAfterRequiredQuery `form:"event_time_after" json:"event_time_after"`
+
+	// EventTimeBefore Inclusive upper bound for event time.
+	EventTimeBefore EventTimeBeforeRequiredQuery `form:"event_time_before" json:"event_time_before"`
+
+	// Action Optional observability action filter.
+	Action *ActionQuery `form:"action,omitempty" json:"action,omitempty"`
 }
 
 // ListProcessObservabilityParams defines parameters for ListProcessObservability.
@@ -3603,9 +4236,24 @@ type ListProcessObservabilityParams struct {
 
 	// Action Optional observability action filter.
 	Action *ActionQuery `form:"action,omitempty" json:"action,omitempty"`
+}
 
-	// Aggregated When true, returns aggregated events with occurrence counts over the time range.
-	Aggregated *AggregatedQuery `form:"aggregated,omitempty" json:"aggregated,omitempty"`
+// ListProcessObservabilitySummaryParams defines parameters for ListProcessObservabilitySummary.
+type ListProcessObservabilitySummaryParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// EventTimeAfter Inclusive lower bound for event time.
+	EventTimeAfter EventTimeAfterRequiredQuery `form:"event_time_after" json:"event_time_after"`
+
+	// EventTimeBefore Inclusive upper bound for event time.
+	EventTimeBefore EventTimeBeforeRequiredQuery `form:"event_time_before" json:"event_time_before"`
+
+	// Action Optional observability action filter.
+	Action *ActionQuery `form:"action,omitempty" json:"action,omitempty"`
 }
 
 // ListTraceSessionsParams defines parameters for ListTraceSessions.
@@ -3639,6 +4287,35 @@ type ListMCPConnectionsParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// CreateMCPConnectionParams defines parameters for CreateMCPConnection.
+type CreateMCPConnectionParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// WatchMCPConnectionsParams defines parameters for WatchMCPConnections.
+type WatchMCPConnectionsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// DeleteMCPConnectionParams defines parameters for DeleteMCPConnection.
+type DeleteMCPConnectionParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetMCPConnectionParams defines parameters for GetMCPConnection.
+type GetMCPConnectionParams struct {
+	Scope ResourceScopeQuery `form:"scope" json:"scope"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // V2SkillListParams defines parameters for V2SkillList.
@@ -3814,22 +4491,17 @@ type SessionPromptJSONBody struct {
 		ModelID    string `json:"modelID"`
 		ProviderID string `json:"providerID"`
 	} `json:"model,omitempty"`
-	NoReply *bool                              `json:"noReply,omitempty"`
-	Parts   []SessionPromptJSONBody_Parts_Item `json:"parts"`
-	System  *string                            `json:"system,omitempty"`
-	Tools   *map[string]bool                   `json:"tools,omitempty"`
-	Variant *string                            `json:"variant,omitempty"`
+	NoReply *bool                     `json:"noReply,omitempty"`
+	Parts   []OpencodePromptPartInput `json:"parts"`
+	System  *string                   `json:"system,omitempty"`
+	Tools   *map[string]bool          `json:"tools,omitempty"`
+	Variant *string                   `json:"variant,omitempty"`
 }
 
 // SessionPromptParams defines parameters for SessionPrompt.
 type SessionPromptParams struct {
 	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
 	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
-}
-
-// SessionPromptJSONBody_Parts_Item defines parameters for SessionPrompt.
-type SessionPromptJSONBody_Parts_Item struct {
-	union json.RawMessage
 }
 
 // SessionDeleteMessageParams defines parameters for SessionDeleteMessage.
@@ -3879,22 +4551,17 @@ type SessionPromptAsyncJSONBody struct {
 		ModelID    string `json:"modelID"`
 		ProviderID string `json:"providerID"`
 	} `json:"model,omitempty"`
-	NoReply *bool                                   `json:"noReply,omitempty"`
-	Parts   []SessionPromptAsyncJSONBody_Parts_Item `json:"parts"`
-	System  *string                                 `json:"system,omitempty"`
-	Tools   *map[string]bool                        `json:"tools,omitempty"`
-	Variant *string                                 `json:"variant,omitempty"`
+	NoReply *bool                     `json:"noReply,omitempty"`
+	Parts   []OpencodePromptPartInput `json:"parts"`
+	System  *string                   `json:"system,omitempty"`
+	Tools   *map[string]bool          `json:"tools,omitempty"`
+	Variant *string                   `json:"variant,omitempty"`
 }
 
 // SessionPromptAsyncParams defines parameters for SessionPromptAsync.
 type SessionPromptAsyncParams struct {
 	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
 	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
-}
-
-// SessionPromptAsyncJSONBody_Parts_Item defines parameters for SessionPromptAsync.
-type SessionPromptAsyncJSONBody_Parts_Item struct {
-	union json.RawMessage
 }
 
 // SessionRevertJSONBody defines parameters for SessionRevert.
@@ -3970,6 +4637,27 @@ type ListSandboxesParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// CreateSandboxParams defines parameters for CreateSandbox.
+type CreateSandboxParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// DeleteSandboxParams defines parameters for DeleteSandbox.
+type DeleteSandboxParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// UpdateSandboxParams defines parameters for UpdateSandbox.
+type UpdateSandboxParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // ListSecretsParams defines parameters for ListSecrets.
@@ -3987,6 +4675,12 @@ type PutSecretParams struct {
 	UpdateSandbox *UpdateSandboxQuery `form:"update_sandbox,omitempty" json:"update_sandbox,omitempty"`
 }
 
+// DeleteImmutableSkillsParams defines parameters for DeleteImmutableSkills.
+type DeleteImmutableSkillsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
 // ListSkillsParams defines parameters for ListSkills.
 type ListSkillsParams struct {
 	// AgentName Optional Agent name.
@@ -3997,20 +4691,48 @@ type ListSkillsParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
-// ImportSkillsMultipartBody defines parameters for ImportSkills.
-type ImportSkillsMultipartBody struct {
-	Agents    *[]AgentName          `json:"agents,omitempty"`
-	Decisions []SkillImportDecision `json:"decisions"`
-	File      openapi_types.File    `json:"file"`
-	Kind      SkillKind             `json:"kind"`
+// CreateSkillParams defines parameters for CreateSkill.
+type CreateSkillParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
-// PreviewSkillImportMultipartBody defines parameters for PreviewSkillImport.
-type PreviewSkillImportMultipartBody struct {
-	Agents *[]AgentName       `json:"agents,omitempty"`
-	File   openapi_types.File `json:"file"`
+// ExportImmutableSkillsParams defines parameters for ExportImmutableSkills.
+type ExportImmutableSkillsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ImportImmutableSkillsMultipartBody defines parameters for ImportImmutableSkills.
+type ImportImmutableSkillsMultipartBody struct {
+	// Agents Workspace Agents to attach imported skills to.
+	Agents *[]AgentName `json:"agents,omitempty"`
+
+	// Decisions JSON-encoded array of SkillImportDecision objects.
+	Decisions string             `json:"decisions"`
+	File      openapi_types.File `json:"file"`
+}
+
+// ImportImmutableSkillsParams defines parameters for ImportImmutableSkills.
+type ImportImmutableSkillsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// PreviewImmutableSkillImportMultipartBody defines parameters for PreviewImmutableSkillImport.
+type PreviewImmutableSkillImportMultipartBody struct {
+	File openapi_types.File `json:"file"`
+}
+
+// PreviewImmutableSkillImportParams defines parameters for PreviewImmutableSkillImport.
+type PreviewImmutableSkillImportParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // ListImmutableSkillSummariesParams defines parameters for ListImmutableSkillSummaries.
@@ -4023,6 +4745,37 @@ type ListImmutableSkillSummariesParams struct {
 
 	// PageToken Opaque pagination token from a previous response.
 	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// DeleteSkillParams defines parameters for DeleteSkill.
+type DeleteSkillParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// UpdateSkillParams defines parameters for UpdateSkill.
+type UpdateSkillParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetSkillReferencesParams defines parameters for GetSkillReferences.
+type GetSkillReferencesParams struct {
+	Scope ResourceScopeQuery `form:"scope" json:"scope"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ListImmutableSkillVersionsParams defines parameters for ListImmutableSkillVersions.
+type ListImmutableSkillVersionsParams struct {
+	Scope ResourceScopeQuery `form:"scope" json:"scope"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
 // ListAgentWorkflowSchedulesParams defines parameters for ListAgentWorkflowSchedules.
@@ -4079,8 +4832,23 @@ type InvokeWorkflowWebhookParams struct {
 	TimeoutSeconds *int32 `form:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
 }
 
+// ListWorkspacesParams defines parameters for ListWorkspaces.
+type ListWorkspacesParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+}
+
 // CreateAgentJSONRequestBody defines body for CreateAgent for application/json ContentType.
 type CreateAgentJSONRequestBody = CreateAgentRequest
+
+// ImportMutableSkillsMultipartRequestBody defines body for ImportMutableSkills for multipart/form-data ContentType.
+type ImportMutableSkillsMultipartRequestBody ImportMutableSkillsMultipartBody
+
+// PreviewMutableSkillImportMultipartRequestBody defines body for PreviewMutableSkillImport for multipart/form-data ContentType.
+type PreviewMutableSkillImportMultipartRequestBody PreviewMutableSkillImportMultipartBody
 
 // WatchAgentsJSONRequestBody defines body for WatchAgents for application/json ContentType.
 type WatchAgentsJSONRequestBody = WatchAgentsRequest
@@ -4100,11 +4868,20 @@ type WriteAgentFileJSONRequestBody = WriteAgentFileRequest
 // RenameAgentEntryJSONRequestBody defines body for RenameAgentEntry for application/json ContentType.
 type RenameAgentEntryJSONRequestBody = RenameAgentEntryRequest
 
+// TransferAgentOwnerJSONRequestBody defines body for TransferAgentOwner for application/json ContentType.
+type TransferAgentOwnerJSONRequestBody = TransferAgentOwnerRequest
+
+// UpsertAgentShareJSONRequestBody defines body for UpsertAgentShare for application/json ContentType.
+type UpsertAgentShareJSONRequestBody = UpsertAgentShareRequest
+
 // DeleteAgentMutableSkillsJSONRequestBody defines body for DeleteAgentMutableSkills for application/json ContentType.
 type DeleteAgentMutableSkillsJSONRequestBody = DeleteSkillsRequest
 
 // ExportAgentMutableSkillsJSONRequestBody defines body for ExportAgentMutableSkills for application/json ContentType.
-type ExportAgentMutableSkillsJSONRequestBody = ExportSkillsRequest
+type ExportAgentMutableSkillsJSONRequestBody = ExportMutableSkillsRequest
+
+// ListEventTrailEventsJSONRequestBody defines body for ListEventTrailEvents for application/json ContentType.
+type ListEventTrailEventsJSONRequestBody = ListEventTrailEventsRequest
 
 // CreateInferencePoolJSONRequestBody defines body for CreateInferencePool for application/json ContentType.
 type CreateInferencePoolJSONRequestBody = CreateInferencePoolRequest
@@ -4191,13 +4968,13 @@ type DeleteImmutableSkillsJSONRequestBody = DeleteSkillsRequest
 type CreateSkillJSONRequestBody = CreateSkillRequest
 
 // ExportImmutableSkillsJSONRequestBody defines body for ExportImmutableSkills for application/json ContentType.
-type ExportImmutableSkillsJSONRequestBody = ExportSkillsRequest
+type ExportImmutableSkillsJSONRequestBody = ExportImmutableSkillsRequest
 
-// ImportSkillsMultipartRequestBody defines body for ImportSkills for multipart/form-data ContentType.
-type ImportSkillsMultipartRequestBody ImportSkillsMultipartBody
+// ImportImmutableSkillsMultipartRequestBody defines body for ImportImmutableSkills for multipart/form-data ContentType.
+type ImportImmutableSkillsMultipartRequestBody ImportImmutableSkillsMultipartBody
 
-// PreviewSkillImportMultipartRequestBody defines body for PreviewSkillImport for multipart/form-data ContentType.
-type PreviewSkillImportMultipartRequestBody PreviewSkillImportMultipartBody
+// PreviewImmutableSkillImportMultipartRequestBody defines body for PreviewImmutableSkillImport for multipart/form-data ContentType.
+type PreviewImmutableSkillImportMultipartRequestBody PreviewImmutableSkillImportMultipartBody
 
 // UpdateSkillJSONRequestBody defines body for UpdateSkill for application/json ContentType.
 type UpdateSkillJSONRequestBody = UpdateSkillRequest
@@ -4225,6 +5002,15 @@ type UpdateWorkflowScheduleJSONRequestBody = UpdateWorkflowScheduleRequest
 
 // InvokeWorkflowWebhookJSONRequestBody defines body for InvokeWorkflowWebhook for application/json ContentType.
 type InvokeWorkflowWebhookJSONRequestBody = WorkflowRunInputs
+
+// CreateWorkspaceJSONRequestBody defines body for CreateWorkspace for application/json ContentType.
+type CreateWorkspaceJSONRequestBody = CreateWorkspaceRequest
+
+// ReplaceWorkspaceInheritedResourcesJSONRequestBody defines body for ReplaceWorkspaceInheritedResources for application/json ContentType.
+type ReplaceWorkspaceInheritedResourcesJSONRequestBody = ReplaceWorkspaceInheritedResourcesRequest
+
+// UpdateWorkspaceLifecycleJSONRequestBody defines body for UpdateWorkspaceLifecycle for application/json ContentType.
+type UpdateWorkspaceLifecycleJSONRequestBody = UpdateWorkspaceLifecycleRequest
 
 // AsOpenAIInferenceProviderRead returns the union data inside the InferenceProvider as a OpenAIInferenceProviderRead
 func (t InferenceProvider) AsOpenAIInferenceProviderRead() (OpenAIInferenceProviderRead, error) {
@@ -4499,6 +5285,16 @@ func (t InferenceProvider) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	object["can_delete"], err = json.Marshal(t.CanDelete)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'can_delete': %w", err)
+	}
+
+	object["can_modify"], err = json.Marshal(t.CanModify)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'can_modify': %w", err)
+	}
+
 	object["catalog_provider"], err = json.Marshal(t.CatalogProvider)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'catalog_provider': %w", err)
@@ -4516,6 +5312,11 @@ func (t InferenceProvider) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("error marshaling 'created_at': %w", err)
 	}
 
+	object["created_by"], err = json.Marshal(t.CreatedBy)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'created_by': %w", err)
+	}
+
 	object["display_name"], err = json.Marshal(t.DisplayName)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'display_name': %w", err)
@@ -4524,6 +5325,11 @@ func (t InferenceProvider) MarshalJSON() ([]byte, error) {
 	object["id"], err = json.Marshal(t.Id)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'id': %w", err)
+	}
+
+	object["last_modified_by"], err = json.Marshal(t.LastModifiedBy)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'last_modified_by': %w", err)
 	}
 
 	object["model_count"], err = json.Marshal(t.ModelCount)
@@ -4541,6 +5347,11 @@ func (t InferenceProvider) MarshalJSON() ([]byte, error) {
 	object["resource_version"], err = json.Marshal(t.ResourceVersion)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'resource_version': %w", err)
+	}
+
+	object["scope"], err = json.Marshal(t.Scope)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'scope': %w", err)
 	}
 
 	object["state"], err = json.Marshal(t.State)
@@ -4573,6 +5384,20 @@ func (t *InferenceProvider) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
+	if raw, found := object["can_delete"]; found {
+		err = json.Unmarshal(raw, &t.CanDelete)
+		if err != nil {
+			return fmt.Errorf("error reading 'can_delete': %w", err)
+		}
+	}
+
+	if raw, found := object["can_modify"]; found {
+		err = json.Unmarshal(raw, &t.CanModify)
+		if err != nil {
+			return fmt.Errorf("error reading 'can_modify': %w", err)
+		}
+	}
+
 	if raw, found := object["catalog_provider"]; found {
 		err = json.Unmarshal(raw, &t.CatalogProvider)
 		if err != nil {
@@ -4594,6 +5419,13 @@ func (t *InferenceProvider) UnmarshalJSON(b []byte) error {
 		}
 	}
 
+	if raw, found := object["created_by"]; found {
+		err = json.Unmarshal(raw, &t.CreatedBy)
+		if err != nil {
+			return fmt.Errorf("error reading 'created_by': %w", err)
+		}
+	}
+
 	if raw, found := object["display_name"]; found {
 		err = json.Unmarshal(raw, &t.DisplayName)
 		if err != nil {
@@ -4605,6 +5437,13 @@ func (t *InferenceProvider) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Id)
 		if err != nil {
 			return fmt.Errorf("error reading 'id': %w", err)
+		}
+	}
+
+	if raw, found := object["last_modified_by"]; found {
+		err = json.Unmarshal(raw, &t.LastModifiedBy)
+		if err != nil {
+			return fmt.Errorf("error reading 'last_modified_by': %w", err)
 		}
 	}
 
@@ -4626,6 +5465,13 @@ func (t *InferenceProvider) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.ResourceVersion)
 		if err != nil {
 			return fmt.Errorf("error reading 'resource_version': %w", err)
+		}
+	}
+
+	if raw, found := object["scope"]; found {
+		err = json.Unmarshal(raw, &t.Scope)
+		if err != nil {
+			return fmt.Errorf("error reading 'scope': %w", err)
 		}
 	}
 
@@ -5451,192 +6297,6 @@ func (t *JSONValue) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsFileObservabilityEvent returns the union data inside the ListFileObservabilityResponse_Events_Item as a FileObservabilityEvent
-func (t ListFileObservabilityResponse_Events_Item) AsFileObservabilityEvent() (FileObservabilityEvent, error) {
-	var body FileObservabilityEvent
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFileObservabilityEvent overwrites any union data inside the ListFileObservabilityResponse_Events_Item as the provided FileObservabilityEvent
-func (t *ListFileObservabilityResponse_Events_Item) FromFileObservabilityEvent(v FileObservabilityEvent) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFileObservabilityEvent performs a merge with any union data inside the ListFileObservabilityResponse_Events_Item, using the provided FileObservabilityEvent
-func (t *ListFileObservabilityResponse_Events_Item) MergeFileObservabilityEvent(v FileObservabilityEvent) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFileObservabilityEventAggregated returns the union data inside the ListFileObservabilityResponse_Events_Item as a FileObservabilityEventAggregated
-func (t ListFileObservabilityResponse_Events_Item) AsFileObservabilityEventAggregated() (FileObservabilityEventAggregated, error) {
-	var body FileObservabilityEventAggregated
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFileObservabilityEventAggregated overwrites any union data inside the ListFileObservabilityResponse_Events_Item as the provided FileObservabilityEventAggregated
-func (t *ListFileObservabilityResponse_Events_Item) FromFileObservabilityEventAggregated(v FileObservabilityEventAggregated) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFileObservabilityEventAggregated performs a merge with any union data inside the ListFileObservabilityResponse_Events_Item, using the provided FileObservabilityEventAggregated
-func (t *ListFileObservabilityResponse_Events_Item) MergeFileObservabilityEventAggregated(v FileObservabilityEventAggregated) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ListFileObservabilityResponse_Events_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ListFileObservabilityResponse_Events_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsNetworkObservabilityEvent returns the union data inside the ListNetworkObservabilityResponse_Events_Item as a NetworkObservabilityEvent
-func (t ListNetworkObservabilityResponse_Events_Item) AsNetworkObservabilityEvent() (NetworkObservabilityEvent, error) {
-	var body NetworkObservabilityEvent
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromNetworkObservabilityEvent overwrites any union data inside the ListNetworkObservabilityResponse_Events_Item as the provided NetworkObservabilityEvent
-func (t *ListNetworkObservabilityResponse_Events_Item) FromNetworkObservabilityEvent(v NetworkObservabilityEvent) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeNetworkObservabilityEvent performs a merge with any union data inside the ListNetworkObservabilityResponse_Events_Item, using the provided NetworkObservabilityEvent
-func (t *ListNetworkObservabilityResponse_Events_Item) MergeNetworkObservabilityEvent(v NetworkObservabilityEvent) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsNetworkObservabilityEventAggregated returns the union data inside the ListNetworkObservabilityResponse_Events_Item as a NetworkObservabilityEventAggregated
-func (t ListNetworkObservabilityResponse_Events_Item) AsNetworkObservabilityEventAggregated() (NetworkObservabilityEventAggregated, error) {
-	var body NetworkObservabilityEventAggregated
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromNetworkObservabilityEventAggregated overwrites any union data inside the ListNetworkObservabilityResponse_Events_Item as the provided NetworkObservabilityEventAggregated
-func (t *ListNetworkObservabilityResponse_Events_Item) FromNetworkObservabilityEventAggregated(v NetworkObservabilityEventAggregated) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeNetworkObservabilityEventAggregated performs a merge with any union data inside the ListNetworkObservabilityResponse_Events_Item, using the provided NetworkObservabilityEventAggregated
-func (t *ListNetworkObservabilityResponse_Events_Item) MergeNetworkObservabilityEventAggregated(v NetworkObservabilityEventAggregated) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ListNetworkObservabilityResponse_Events_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ListNetworkObservabilityResponse_Events_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsProcessObservabilityEvent returns the union data inside the ListProcessObservabilityResponse_Events_Item as a ProcessObservabilityEvent
-func (t ListProcessObservabilityResponse_Events_Item) AsProcessObservabilityEvent() (ProcessObservabilityEvent, error) {
-	var body ProcessObservabilityEvent
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromProcessObservabilityEvent overwrites any union data inside the ListProcessObservabilityResponse_Events_Item as the provided ProcessObservabilityEvent
-func (t *ListProcessObservabilityResponse_Events_Item) FromProcessObservabilityEvent(v ProcessObservabilityEvent) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeProcessObservabilityEvent performs a merge with any union data inside the ListProcessObservabilityResponse_Events_Item, using the provided ProcessObservabilityEvent
-func (t *ListProcessObservabilityResponse_Events_Item) MergeProcessObservabilityEvent(v ProcessObservabilityEvent) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsProcessObservabilityEventAggregated returns the union data inside the ListProcessObservabilityResponse_Events_Item as a ProcessObservabilityEventAggregated
-func (t ListProcessObservabilityResponse_Events_Item) AsProcessObservabilityEventAggregated() (ProcessObservabilityEventAggregated, error) {
-	var body ProcessObservabilityEventAggregated
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromProcessObservabilityEventAggregated overwrites any union data inside the ListProcessObservabilityResponse_Events_Item as the provided ProcessObservabilityEventAggregated
-func (t *ListProcessObservabilityResponse_Events_Item) FromProcessObservabilityEventAggregated(v ProcessObservabilityEventAggregated) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeProcessObservabilityEventAggregated performs a merge with any union data inside the ListProcessObservabilityResponse_Events_Item, using the provided ProcessObservabilityEventAggregated
-func (t *ListProcessObservabilityResponse_Events_Item) MergeProcessObservabilityEventAggregated(v ProcessObservabilityEventAggregated) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ListProcessObservabilityResponse_Events_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ListProcessObservabilityResponse_Events_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
 // AsOpencodeProviderAuthError returns the union data inside the OpencodeAssistantMessage_Error as a OpencodeProviderAuthError
 func (t OpencodeAssistantMessage_Error) AsOpencodeProviderAuthError() (OpencodeProviderAuthError, error) {
 	var body OpencodeProviderAuthError
@@ -6389,6 +7049,155 @@ func (t *OpencodePart) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsOpencodeTextPartInput returns the union data inside the OpencodePromptPartInput as a OpencodeTextPartInput
+func (t OpencodePromptPartInput) AsOpencodeTextPartInput() (OpencodeTextPartInput, error) {
+	var body OpencodeTextPartInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeTextPartInput overwrites any union data inside the OpencodePromptPartInput as the provided OpencodeTextPartInput
+func (t *OpencodePromptPartInput) FromOpencodeTextPartInput(v OpencodeTextPartInput) error {
+	v.Type = "text"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeTextPartInput performs a merge with any union data inside the OpencodePromptPartInput, using the provided OpencodeTextPartInput
+func (t *OpencodePromptPartInput) MergeOpencodeTextPartInput(v OpencodeTextPartInput) error {
+	v.Type = "text"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeFilePartInput returns the union data inside the OpencodePromptPartInput as a OpencodeFilePartInput
+func (t OpencodePromptPartInput) AsOpencodeFilePartInput() (OpencodeFilePartInput, error) {
+	var body OpencodeFilePartInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeFilePartInput overwrites any union data inside the OpencodePromptPartInput as the provided OpencodeFilePartInput
+func (t *OpencodePromptPartInput) FromOpencodeFilePartInput(v OpencodeFilePartInput) error {
+	v.Type = "file"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeFilePartInput performs a merge with any union data inside the OpencodePromptPartInput, using the provided OpencodeFilePartInput
+func (t *OpencodePromptPartInput) MergeOpencodeFilePartInput(v OpencodeFilePartInput) error {
+	v.Type = "file"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeAgentPartInput returns the union data inside the OpencodePromptPartInput as a OpencodeAgentPartInput
+func (t OpencodePromptPartInput) AsOpencodeAgentPartInput() (OpencodeAgentPartInput, error) {
+	var body OpencodeAgentPartInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeAgentPartInput overwrites any union data inside the OpencodePromptPartInput as the provided OpencodeAgentPartInput
+func (t *OpencodePromptPartInput) FromOpencodeAgentPartInput(v OpencodeAgentPartInput) error {
+	v.Type = "agent"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeAgentPartInput performs a merge with any union data inside the OpencodePromptPartInput, using the provided OpencodeAgentPartInput
+func (t *OpencodePromptPartInput) MergeOpencodeAgentPartInput(v OpencodeAgentPartInput) error {
+	v.Type = "agent"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSubtaskPartInput returns the union data inside the OpencodePromptPartInput as a OpencodeSubtaskPartInput
+func (t OpencodePromptPartInput) AsOpencodeSubtaskPartInput() (OpencodeSubtaskPartInput, error) {
+	var body OpencodeSubtaskPartInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSubtaskPartInput overwrites any union data inside the OpencodePromptPartInput as the provided OpencodeSubtaskPartInput
+func (t *OpencodePromptPartInput) FromOpencodeSubtaskPartInput(v OpencodeSubtaskPartInput) error {
+	v.Type = "subtask"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSubtaskPartInput performs a merge with any union data inside the OpencodePromptPartInput, using the provided OpencodeSubtaskPartInput
+func (t *OpencodePromptPartInput) MergeOpencodeSubtaskPartInput(v OpencodeSubtaskPartInput) error {
+	v.Type = "subtask"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodePromptPartInput) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t OpencodePromptPartInput) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "agent":
+		return t.AsOpencodeAgentPartInput()
+	case "file":
+		return t.AsOpencodeFilePartInput()
+	case "subtask":
+		return t.AsOpencodeSubtaskPartInput()
+	case "text":
+		return t.AsOpencodeTextPartInput()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t OpencodePromptPartInput) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodePromptPartInput) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOpencodeSessionStatus0 returns the union data inside the OpencodeSessionStatus as a OpencodeSessionStatus0
 func (t OpencodeSessionStatus) AsOpencodeSessionStatus0() (OpencodeSessionStatus0, error) {
 	var body OpencodeSessionStatus0
@@ -6591,125 +7400,6 @@ func (t *OpencodeToolState) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsCreateSkillImportDecision returns the union data inside the SkillImportDecision as a CreateSkillImportDecision
-func (t SkillImportDecision) AsCreateSkillImportDecision() (CreateSkillImportDecision, error) {
-	var body CreateSkillImportDecision
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCreateSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided CreateSkillImportDecision
-func (t *SkillImportDecision) FromCreateSkillImportDecision(v CreateSkillImportDecision) error {
-	v.Action = "create"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCreateSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided CreateSkillImportDecision
-func (t *SkillImportDecision) MergeCreateSkillImportDecision(v CreateSkillImportDecision) error {
-	v.Action = "create"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsOverwriteSkillImportDecision returns the union data inside the SkillImportDecision as a OverwriteSkillImportDecision
-func (t SkillImportDecision) AsOverwriteSkillImportDecision() (OverwriteSkillImportDecision, error) {
-	var body OverwriteSkillImportDecision
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromOverwriteSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided OverwriteSkillImportDecision
-func (t *SkillImportDecision) FromOverwriteSkillImportDecision(v OverwriteSkillImportDecision) error {
-	v.Action = "overwrite"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeOverwriteSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided OverwriteSkillImportDecision
-func (t *SkillImportDecision) MergeOverwriteSkillImportDecision(v OverwriteSkillImportDecision) error {
-	v.Action = "overwrite"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsRenameSkillImportDecision returns the union data inside the SkillImportDecision as a RenameSkillImportDecision
-func (t SkillImportDecision) AsRenameSkillImportDecision() (RenameSkillImportDecision, error) {
-	var body RenameSkillImportDecision
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromRenameSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided RenameSkillImportDecision
-func (t *SkillImportDecision) FromRenameSkillImportDecision(v RenameSkillImportDecision) error {
-	v.Action = "rename"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeRenameSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided RenameSkillImportDecision
-func (t *SkillImportDecision) MergeRenameSkillImportDecision(v RenameSkillImportDecision) error {
-	v.Action = "rename"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t SkillImportDecision) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"action"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t SkillImportDecision) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "create":
-		return t.AsCreateSkillImportDecision()
-	case "overwrite":
-		return t.AsOverwriteSkillImportDecision()
-	case "rename":
-		return t.AsRenameSkillImportDecision()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
-}
-
-func (t SkillImportDecision) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *SkillImportDecision) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
 // AsWorkflowInputScalarValue0 returns the union data inside the WorkflowInputScalarValue as a WorkflowInputScalarValue0
 func (t WorkflowInputScalarValue) AsWorkflowInputScalarValue0() (WorkflowInputScalarValue0, error) {
 	var body WorkflowInputScalarValue0
@@ -6879,6 +7569,12 @@ type ClientInterface interface {
 
 	CreateAgent(ctx context.Context, body CreateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ImportMutableSkillsWithBody request with any body
+	ImportMutableSkillsWithBody(ctx context.Context, params *ImportMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewMutableSkillImportWithBody request with any body
+	PreviewMutableSkillImportWithBody(ctx context.Context, params *PreviewMutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WatchAgentsWithBody request with any body
 	WatchAgentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -6891,6 +7587,9 @@ type ClientInterface interface {
 	UpdateAgentWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentAccessTargets request
+	ListAgentAccessTargets(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateAgentDirectoryWithBody request with any body
 	CreateAgentDirectoryWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6927,53 +7626,80 @@ type ClientInterface interface {
 	// StatAgentFile request
 	StatAgentFile(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteAgentMutableSkillsWithBody request with any body
-	DeleteAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetAgentOwner request
+	GetAgentOwner(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	DeleteAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// TransferAgentOwnerWithBody request with any body
+	TransferAgentOwnerWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TransferAgentOwner(ctx context.Context, agentName AgentNamePath, body TransferAgentOwnerJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentShares request
+	ListAgentShares(ctx context.Context, agentName AgentNamePath, params *ListAgentSharesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpsertAgentShareWithBody request with any body
+	UpsertAgentShareWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpsertAgentShare(ctx context.Context, agentName AgentNamePath, body UpsertAgentShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentShare request
+	DeleteAgentShare(ctx context.Context, agentName AgentNamePath, shareId AgentShareIDPath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentMutableSkillsWithBody request with any body
+	DeleteAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteAgentMutableSkills(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAgentMutableSkills request
 	ListAgentMutableSkills(ctx context.Context, agentName AgentNamePath, params *ListAgentMutableSkillsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ExportAgentMutableSkillsWithBody request with any body
-	ExportAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ExportAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEventTrailEventsWithBody request with any body
+	ListEventTrailEventsWithBody(ctx context.Context, params *ListEventTrailEventsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ListEventTrailEvents(ctx context.Context, params *ListEventTrailEventsParams, body ListEventTrailEventsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEventTrailEvent request
+	GetEventTrailEvent(ctx context.Context, eventId EventTrailEventIDPath, params *GetEventTrailEventParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListInferencePools request
 	ListInferencePools(ctx context.Context, params *ListInferencePoolsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateInferencePoolWithBody request with any body
-	CreateInferencePoolWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateInferencePoolWithBody(ctx context.Context, params *CreateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateInferencePool(ctx context.Context, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateInferencePool(ctx context.Context, params *CreateInferencePoolParams, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WatchInferencePoolsWithBody request with any body
-	WatchInferencePoolsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WatchInferencePoolsWithBody(ctx context.Context, params *WatchInferencePoolsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	WatchInferencePools(ctx context.Context, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WatchInferencePools(ctx context.Context, params *WatchInferencePoolsParams, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteInferencePool request
-	DeleteInferencePool(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteInferencePool(ctx context.Context, poolName InferencePoolNamePath, params *DeleteInferencePoolParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetInferencePool request
-	GetInferencePool(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetInferencePool(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateInferencePoolWithBody request with any body
-	UpdateInferencePoolWithBody(ctx context.Context, poolName InferencePoolNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateInferencePoolWithBody(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateInferencePool(ctx context.Context, poolName InferencePoolNamePath, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateInferencePool(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetInferencePoolUsage request
-	GetInferencePoolUsage(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetInferencePoolUsage(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolUsageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListInferenceProviders request
 	ListInferenceProviders(ctx context.Context, params *ListInferenceProvidersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateInferenceProviderWithBody request with any body
-	CreateInferenceProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateInferenceProviderWithBody(ctx context.Context, params *CreateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateInferenceProvider(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateInferenceProvider(ctx context.Context, params *CreateInferenceProviderParams, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListInferenceProviderCatalog request
 	ListInferenceProviderCatalog(ctx context.Context, params *ListInferenceProviderCatalogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6982,31 +7708,31 @@ type ClientInterface interface {
 	ListInferenceModelSuggestions(ctx context.Context, catalogProvider string, params *ListInferenceModelSuggestionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateInferenceProviderOAuthTicketWithBody request with any body
-	CreateInferenceProviderOAuthTicketWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateInferenceProviderOAuthTicketWithBody(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateInferenceProviderOAuthTicket(ctx context.Context, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateInferenceProviderOAuthTicket(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WatchInferenceProvidersWithBody request with any body
-	WatchInferenceProvidersWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WatchInferenceProvidersWithBody(ctx context.Context, params *WatchInferenceProvidersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	WatchInferenceProviders(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WatchInferenceProviders(ctx context.Context, params *WatchInferenceProvidersParams, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteInferenceProvider request
-	DeleteInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, params *DeleteInferenceProviderParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetInferenceProvider request
-	GetInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateInferenceProviderWithBody request with any body
-	UpdateInferenceProviderWithBody(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateInferenceProviderWithBody(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RefreshInferenceProviderModels request
-	RefreshInferenceProviderModels(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	RefreshInferenceProviderModels(ctx context.Context, providerName InferenceProviderNamePath, params *RefreshInferenceProviderModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetInferenceProviderUsage request
-	GetInferenceProviderUsage(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetInferenceProviderUsage(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderUsageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMCPGraph request
 	GetMCPGraph(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7014,11 +7740,20 @@ type ClientInterface interface {
 	// ListFileObservability request
 	ListFileObservability(ctx context.Context, agentName AgentNamePath, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListFileObservabilitySummary request
+	ListFileObservabilitySummary(ctx context.Context, agentName AgentNamePath, params *ListFileObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListNetworkObservability request
 	ListNetworkObservability(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListNetworkObservabilitySummary request
+	ListNetworkObservabilitySummary(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListProcessObservability request
 	ListProcessObservability(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListProcessObservabilitySummary request
+	ListProcessObservabilitySummary(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListTraceSessions request
 	ListTraceSessions(ctx context.Context, agentName AgentNamePath, sessionID string, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7033,20 +7768,20 @@ type ClientInterface interface {
 	ListMCPConnections(ctx context.Context, params *ListMCPConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateMCPConnectionWithBody request with any body
-	CreateMCPConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateMCPConnectionWithBody(ctx context.Context, params *CreateMCPConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateMCPConnection(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateMCPConnection(ctx context.Context, params *CreateMCPConnectionParams, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WatchMCPConnectionsWithBody request with any body
-	WatchMCPConnectionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WatchMCPConnectionsWithBody(ctx context.Context, params *WatchMCPConnectionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	WatchMCPConnections(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WatchMCPConnections(ctx context.Context, params *WatchMCPConnectionsParams, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteMCPConnection request
-	DeleteMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteMCPConnection(ctx context.Context, name MCPConnectionNamePath, params *DeleteMCPConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMCPConnection request
-	GetMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetMCPConnection(ctx context.Context, name MCPConnectionNamePath, params *GetMCPConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V2SkillList request
 	V2SkillList(ctx context.Context, agentName string, params *V2SkillListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7160,17 +7895,17 @@ type ClientInterface interface {
 	ListSandboxes(ctx context.Context, params *ListSandboxesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateSandboxWithBody request with any body
-	CreateSandboxWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateSandboxWithBody(ctx context.Context, params *CreateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateSandbox(ctx context.Context, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateSandbox(ctx context.Context, params *CreateSandboxParams, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteSandbox request
-	DeleteSandbox(ctx context.Context, sandboxName SandboxName, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteSandbox(ctx context.Context, sandboxName SandboxName, params *DeleteSandboxParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSandboxWithBody request with any body
-	UpdateSandboxWithBody(ctx context.Context, sandboxName SandboxName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSandboxWithBody(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateSandbox(ctx context.Context, sandboxName SandboxName, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSandbox(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListSecrets request
 	ListSecrets(ctx context.Context, agentName AgentNamePath, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7191,45 +7926,45 @@ type ClientInterface interface {
 	WatchSecrets(ctx context.Context, agentName AgentNamePath, body WatchSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteImmutableSkillsWithBody request with any body
-	DeleteImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteImmutableSkillsWithBody(ctx context.Context, params *DeleteImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	DeleteImmutableSkills(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteImmutableSkills(ctx context.Context, params *DeleteImmutableSkillsParams, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListSkills request
 	ListSkills(ctx context.Context, params *ListSkillsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateSkillWithBody request with any body
-	CreateSkillWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateSkillWithBody(ctx context.Context, params *CreateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateSkill(ctx context.Context, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateSkill(ctx context.Context, params *CreateSkillParams, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ExportImmutableSkillsWithBody request with any body
-	ExportImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ExportImmutableSkillsWithBody(ctx context.Context, params *ExportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	ExportImmutableSkills(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ExportImmutableSkills(ctx context.Context, params *ExportImmutableSkillsParams, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ImportSkillsWithBody request with any body
-	ImportSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ImportImmutableSkillsWithBody request with any body
+	ImportImmutableSkillsWithBody(ctx context.Context, params *ImportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PreviewSkillImportWithBody request with any body
-	PreviewSkillImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PreviewImmutableSkillImportWithBody request with any body
+	PreviewImmutableSkillImportWithBody(ctx context.Context, params *PreviewImmutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListImmutableSkillSummaries request
 	ListImmutableSkillSummaries(ctx context.Context, params *ListImmutableSkillSummariesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteSkill request
-	DeleteSkill(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteSkill(ctx context.Context, skillName SkillNamePath, params *DeleteSkillParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSkillWithBody request with any body
-	UpdateSkillWithBody(ctx context.Context, skillName SkillNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSkillWithBody(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateSkill(ctx context.Context, skillName SkillNamePath, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSkill(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSkillReferences request
-	GetSkillReferences(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetSkillReferences(ctx context.Context, skillName SkillNamePath, params *GetSkillReferencesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListImmutableSkillVersions request
-	ListImmutableSkillVersions(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ListImmutableSkillVersions(ctx context.Context, skillName SkillNamePath, params *ListImmutableSkillVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTenant request
 	GetTenant(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7306,6 +8041,39 @@ type ClientInterface interface {
 	InvokeWorkflowWebhookWithBody(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, params *InvokeWorkflowWebhookParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	InvokeWorkflowWebhook(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, params *InvokeWorkflowWebhookParams, body InvokeWorkflowWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListWorkspaces request
+	ListWorkspaces(ctx context.Context, params *ListWorkspacesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateWorkspaceWithBody request with any body
+	CreateWorkspaceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateWorkspace(ctx context.Context, body CreateWorkspaceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListWorkspaceMemberCandidates request
+	ListWorkspaceMemberCandidates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ResolveWorkspaceSlug request
+	ResolveWorkspaceSlug(ctx context.Context, workspaceSlug WorkspaceSlugPath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetWorkspace request
+	GetWorkspace(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListWorkspaceInheritedResources request
+	ListWorkspaceInheritedResources(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceWorkspaceInheritedResourcesWithBody request with any body
+	ReplaceWorkspaceInheritedResourcesWithBody(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceWorkspaceInheritedResources(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, body ReplaceWorkspaceInheritedResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateWorkspaceLifecycleWithBody request with any body
+	UpdateWorkspaceLifecycleWithBody(ctx context.Context, workspaceId WorkspaceIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateWorkspaceLifecycle(ctx context.Context, workspaceId WorkspaceIDPath, body UpdateWorkspaceLifecycleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RetryWorkspace request
+	RetryWorkspace(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) ListAgents(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7334,6 +8102,30 @@ func (c *Client) CreateAgentWithBody(ctx context.Context, contentType string, bo
 
 func (c *Client) CreateAgent(ctx context.Context, body CreateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAgentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ImportMutableSkillsWithBody(ctx context.Context, params *ImportMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewImportMutableSkillsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PreviewMutableSkillImportWithBody(ctx context.Context, params *PreviewMutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewMutableSkillImportRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7394,6 +8186,18 @@ func (c *Client) UpdateAgentWithBody(ctx context.Context, agentName AgentNamePat
 
 func (c *Client) UpdateAgent(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateAgentRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentAccessTargets(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentAccessTargetsRequest(c.Server, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -7560,8 +8364,8 @@ func (c *Client) StatAgentFile(ctx context.Context, agentName AgentNamePath, par
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteAgentMutableSkillsRequestWithBody(c.Server, agentName, contentType, body)
+func (c *Client) GetAgentOwner(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentOwnerRequest(c.Server, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -7572,8 +8376,92 @@ func (c *Client) DeleteAgentMutableSkillsWithBody(ctx context.Context, agentName
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteAgentMutableSkillsRequest(c.Server, agentName, body)
+func (c *Client) TransferAgentOwnerWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTransferAgentOwnerRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TransferAgentOwner(ctx context.Context, agentName AgentNamePath, body TransferAgentOwnerJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTransferAgentOwnerRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentShares(ctx context.Context, agentName AgentNamePath, params *ListAgentSharesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentSharesRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertAgentShareWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertAgentShareRequestWithBody(c.Server, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertAgentShare(ctx context.Context, agentName AgentNamePath, body UpsertAgentShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertAgentShareRequest(c.Server, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentShare(ctx context.Context, agentName AgentNamePath, shareId AgentShareIDPath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentShareRequest(c.Server, agentName, shareId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentMutableSkillsRequestWithBody(c.Server, agentName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentMutableSkills(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentMutableSkillsRequest(c.Server, agentName, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7596,8 +8484,8 @@ func (c *Client) ListAgentMutableSkills(ctx context.Context, agentName AgentName
 	return c.Client.Do(req)
 }
 
-func (c *Client) ExportAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExportAgentMutableSkillsRequestWithBody(c.Server, agentName, contentType, body)
+func (c *Client) ExportAgentMutableSkillsWithBody(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportAgentMutableSkillsRequestWithBody(c.Server, agentName, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7608,8 +8496,44 @@ func (c *Client) ExportAgentMutableSkillsWithBody(ctx context.Context, agentName
 	return c.Client.Do(req)
 }
 
-func (c *Client) ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExportAgentMutableSkillsRequest(c.Server, agentName, body)
+func (c *Client) ExportAgentMutableSkills(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportAgentMutableSkillsRequest(c.Server, agentName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListEventTrailEventsWithBody(ctx context.Context, params *ListEventTrailEventsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEventTrailEventsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListEventTrailEvents(ctx context.Context, params *ListEventTrailEventsParams, body ListEventTrailEventsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEventTrailEventsRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetEventTrailEvent(ctx context.Context, eventId EventTrailEventIDPath, params *GetEventTrailEventParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEventTrailEventRequest(c.Server, eventId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7632,8 +8556,8 @@ func (c *Client) ListInferencePools(ctx context.Context, params *ListInferencePo
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateInferencePoolWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInferencePoolRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateInferencePoolWithBody(ctx context.Context, params *CreateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferencePoolRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7644,8 +8568,8 @@ func (c *Client) CreateInferencePoolWithBody(ctx context.Context, contentType st
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateInferencePool(ctx context.Context, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInferencePoolRequest(c.Server, body)
+func (c *Client) CreateInferencePool(ctx context.Context, params *CreateInferencePoolParams, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferencePoolRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7656,8 +8580,8 @@ func (c *Client) CreateInferencePool(ctx context.Context, body CreateInferencePo
 	return c.Client.Do(req)
 }
 
-func (c *Client) WatchInferencePoolsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchInferencePoolsRequestWithBody(c.Server, contentType, body)
+func (c *Client) WatchInferencePoolsWithBody(ctx context.Context, params *WatchInferencePoolsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchInferencePoolsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7668,8 +8592,8 @@ func (c *Client) WatchInferencePoolsWithBody(ctx context.Context, contentType st
 	return c.Client.Do(req)
 }
 
-func (c *Client) WatchInferencePools(ctx context.Context, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchInferencePoolsRequest(c.Server, body)
+func (c *Client) WatchInferencePools(ctx context.Context, params *WatchInferencePoolsParams, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchInferencePoolsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7680,8 +8604,8 @@ func (c *Client) WatchInferencePools(ctx context.Context, body WatchInferencePoo
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteInferencePool(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteInferencePoolRequest(c.Server, poolName)
+func (c *Client) DeleteInferencePool(ctx context.Context, poolName InferencePoolNamePath, params *DeleteInferencePoolParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteInferencePoolRequest(c.Server, poolName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7692,8 +8616,8 @@ func (c *Client) DeleteInferencePool(ctx context.Context, poolName InferencePool
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetInferencePool(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetInferencePoolRequest(c.Server, poolName)
+func (c *Client) GetInferencePool(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInferencePoolRequest(c.Server, poolName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7704,8 +8628,8 @@ func (c *Client) GetInferencePool(ctx context.Context, poolName InferencePoolNam
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateInferencePoolWithBody(ctx context.Context, poolName InferencePoolNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateInferencePoolRequestWithBody(c.Server, poolName, contentType, body)
+func (c *Client) UpdateInferencePoolWithBody(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInferencePoolRequestWithBody(c.Server, poolName, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7716,8 +8640,8 @@ func (c *Client) UpdateInferencePoolWithBody(ctx context.Context, poolName Infer
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateInferencePool(ctx context.Context, poolName InferencePoolNamePath, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateInferencePoolRequest(c.Server, poolName, body)
+func (c *Client) UpdateInferencePool(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInferencePoolRequest(c.Server, poolName, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7728,8 +8652,8 @@ func (c *Client) UpdateInferencePool(ctx context.Context, poolName InferencePool
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetInferencePoolUsage(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetInferencePoolUsageRequest(c.Server, poolName)
+func (c *Client) GetInferencePoolUsage(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolUsageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInferencePoolUsageRequest(c.Server, poolName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7752,8 +8676,8 @@ func (c *Client) ListInferenceProviders(ctx context.Context, params *ListInferen
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateInferenceProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInferenceProviderRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateInferenceProviderWithBody(ctx context.Context, params *CreateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferenceProviderRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7764,8 +8688,8 @@ func (c *Client) CreateInferenceProviderWithBody(ctx context.Context, contentTyp
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateInferenceProvider(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInferenceProviderRequest(c.Server, body)
+func (c *Client) CreateInferenceProvider(ctx context.Context, params *CreateInferenceProviderParams, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferenceProviderRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7800,8 +8724,8 @@ func (c *Client) ListInferenceModelSuggestions(ctx context.Context, catalogProvi
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateInferenceProviderOAuthTicketWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInferenceProviderOAuthTicketRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateInferenceProviderOAuthTicketWithBody(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferenceProviderOAuthTicketRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7812,8 +8736,8 @@ func (c *Client) CreateInferenceProviderOAuthTicketWithBody(ctx context.Context,
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateInferenceProviderOAuthTicket(ctx context.Context, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInferenceProviderOAuthTicketRequest(c.Server, body)
+func (c *Client) CreateInferenceProviderOAuthTicket(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInferenceProviderOAuthTicketRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7824,8 +8748,8 @@ func (c *Client) CreateInferenceProviderOAuthTicket(ctx context.Context, body Cr
 	return c.Client.Do(req)
 }
 
-func (c *Client) WatchInferenceProvidersWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchInferenceProvidersRequestWithBody(c.Server, contentType, body)
+func (c *Client) WatchInferenceProvidersWithBody(ctx context.Context, params *WatchInferenceProvidersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchInferenceProvidersRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7836,8 +8760,8 @@ func (c *Client) WatchInferenceProvidersWithBody(ctx context.Context, contentTyp
 	return c.Client.Do(req)
 }
 
-func (c *Client) WatchInferenceProviders(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchInferenceProvidersRequest(c.Server, body)
+func (c *Client) WatchInferenceProviders(ctx context.Context, params *WatchInferenceProvidersParams, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchInferenceProvidersRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7848,8 +8772,8 @@ func (c *Client) WatchInferenceProviders(ctx context.Context, body WatchInferenc
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteInferenceProviderRequest(c.Server, providerName)
+func (c *Client) DeleteInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, params *DeleteInferenceProviderParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteInferenceProviderRequest(c.Server, providerName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7860,8 +8784,8 @@ func (c *Client) DeleteInferenceProvider(ctx context.Context, providerName Infer
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetInferenceProviderRequest(c.Server, providerName)
+func (c *Client) GetInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInferenceProviderRequest(c.Server, providerName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7872,8 +8796,8 @@ func (c *Client) GetInferenceProvider(ctx context.Context, providerName Inferenc
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateInferenceProviderWithBody(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateInferenceProviderRequestWithBody(c.Server, providerName, contentType, body)
+func (c *Client) UpdateInferenceProviderWithBody(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInferenceProviderRequestWithBody(c.Server, providerName, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7884,8 +8808,8 @@ func (c *Client) UpdateInferenceProviderWithBody(ctx context.Context, providerNa
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateInferenceProviderRequest(c.Server, providerName, body)
+func (c *Client) UpdateInferenceProvider(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInferenceProviderRequest(c.Server, providerName, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7896,8 +8820,8 @@ func (c *Client) UpdateInferenceProvider(ctx context.Context, providerName Infer
 	return c.Client.Do(req)
 }
 
-func (c *Client) RefreshInferenceProviderModels(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRefreshInferenceProviderModelsRequest(c.Server, providerName)
+func (c *Client) RefreshInferenceProviderModels(ctx context.Context, providerName InferenceProviderNamePath, params *RefreshInferenceProviderModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRefreshInferenceProviderModelsRequest(c.Server, providerName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7908,8 +8832,8 @@ func (c *Client) RefreshInferenceProviderModels(ctx context.Context, providerNam
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetInferenceProviderUsage(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetInferenceProviderUsageRequest(c.Server, providerName)
+func (c *Client) GetInferenceProviderUsage(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderUsageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInferenceProviderUsageRequest(c.Server, providerName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7944,6 +8868,18 @@ func (c *Client) ListFileObservability(ctx context.Context, agentName AgentNameP
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListFileObservabilitySummary(ctx context.Context, agentName AgentNamePath, params *ListFileObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListFileObservabilitySummaryRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListNetworkObservability(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListNetworkObservabilityRequest(c.Server, agentName, params)
 	if err != nil {
@@ -7956,8 +8892,32 @@ func (c *Client) ListNetworkObservability(ctx context.Context, agentName AgentNa
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListNetworkObservabilitySummary(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNetworkObservabilitySummaryRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListProcessObservability(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListProcessObservabilityRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListProcessObservabilitySummary(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProcessObservabilitySummaryRequest(c.Server, agentName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8016,8 +8976,8 @@ func (c *Client) ListMCPConnections(ctx context.Context, params *ListMCPConnecti
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateMCPConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateMCPConnectionRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateMCPConnectionWithBody(ctx context.Context, params *CreateMCPConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMCPConnectionRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8028,8 +8988,8 @@ func (c *Client) CreateMCPConnectionWithBody(ctx context.Context, contentType st
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateMCPConnection(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateMCPConnectionRequest(c.Server, body)
+func (c *Client) CreateMCPConnection(ctx context.Context, params *CreateMCPConnectionParams, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMCPConnectionRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8040,8 +9000,8 @@ func (c *Client) CreateMCPConnection(ctx context.Context, body CreateMCPConnecti
 	return c.Client.Do(req)
 }
 
-func (c *Client) WatchMCPConnectionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchMCPConnectionsRequestWithBody(c.Server, contentType, body)
+func (c *Client) WatchMCPConnectionsWithBody(ctx context.Context, params *WatchMCPConnectionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchMCPConnectionsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8052,8 +9012,8 @@ func (c *Client) WatchMCPConnectionsWithBody(ctx context.Context, contentType st
 	return c.Client.Do(req)
 }
 
-func (c *Client) WatchMCPConnections(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWatchMCPConnectionsRequest(c.Server, body)
+func (c *Client) WatchMCPConnections(ctx context.Context, params *WatchMCPConnectionsParams, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchMCPConnectionsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8064,8 +9024,8 @@ func (c *Client) WatchMCPConnections(ctx context.Context, body WatchMCPConnectio
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteMCPConnectionRequest(c.Server, name)
+func (c *Client) DeleteMCPConnection(ctx context.Context, name MCPConnectionNamePath, params *DeleteMCPConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMCPConnectionRequest(c.Server, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8076,8 +9036,8 @@ func (c *Client) DeleteMCPConnection(ctx context.Context, name MCPConnectionName
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetMCPConnection(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetMCPConnectionRequest(c.Server, name)
+func (c *Client) GetMCPConnection(ctx context.Context, name MCPConnectionNamePath, params *GetMCPConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMCPConnectionRequest(c.Server, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8580,8 +9540,8 @@ func (c *Client) ListSandboxes(ctx context.Context, params *ListSandboxesParams,
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateSandboxWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateSandboxRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateSandboxWithBody(ctx context.Context, params *CreateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSandboxRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8592,8 +9552,8 @@ func (c *Client) CreateSandboxWithBody(ctx context.Context, contentType string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateSandbox(ctx context.Context, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateSandboxRequest(c.Server, body)
+func (c *Client) CreateSandbox(ctx context.Context, params *CreateSandboxParams, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSandboxRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8604,8 +9564,8 @@ func (c *Client) CreateSandbox(ctx context.Context, body CreateSandboxJSONReques
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteSandbox(ctx context.Context, sandboxName SandboxName, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteSandboxRequest(c.Server, sandboxName)
+func (c *Client) DeleteSandbox(ctx context.Context, sandboxName SandboxName, params *DeleteSandboxParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSandboxRequest(c.Server, sandboxName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8616,8 +9576,8 @@ func (c *Client) DeleteSandbox(ctx context.Context, sandboxName SandboxName, req
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateSandboxWithBody(ctx context.Context, sandboxName SandboxName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateSandboxRequestWithBody(c.Server, sandboxName, contentType, body)
+func (c *Client) UpdateSandboxWithBody(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSandboxRequestWithBody(c.Server, sandboxName, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8628,8 +9588,8 @@ func (c *Client) UpdateSandboxWithBody(ctx context.Context, sandboxName SandboxN
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateSandbox(ctx context.Context, sandboxName SandboxName, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateSandboxRequest(c.Server, sandboxName, body)
+func (c *Client) UpdateSandbox(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSandboxRequest(c.Server, sandboxName, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8724,8 +9684,8 @@ func (c *Client) WatchSecrets(ctx context.Context, agentName AgentNamePath, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteImmutableSkillsRequestWithBody(c.Server, contentType, body)
+func (c *Client) DeleteImmutableSkillsWithBody(ctx context.Context, params *DeleteImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteImmutableSkillsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8736,8 +9696,8 @@ func (c *Client) DeleteImmutableSkillsWithBody(ctx context.Context, contentType 
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteImmutableSkills(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteImmutableSkillsRequest(c.Server, body)
+func (c *Client) DeleteImmutableSkills(ctx context.Context, params *DeleteImmutableSkillsParams, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteImmutableSkillsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8760,8 +9720,8 @@ func (c *Client) ListSkills(ctx context.Context, params *ListSkillsParams, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateSkillWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateSkillRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateSkillWithBody(ctx context.Context, params *CreateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSkillRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8772,8 +9732,8 @@ func (c *Client) CreateSkillWithBody(ctx context.Context, contentType string, bo
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateSkill(ctx context.Context, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateSkillRequest(c.Server, body)
+func (c *Client) CreateSkill(ctx context.Context, params *CreateSkillParams, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSkillRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8784,8 +9744,8 @@ func (c *Client) CreateSkill(ctx context.Context, body CreateSkillJSONRequestBod
 	return c.Client.Do(req)
 }
 
-func (c *Client) ExportImmutableSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExportImmutableSkillsRequestWithBody(c.Server, contentType, body)
+func (c *Client) ExportImmutableSkillsWithBody(ctx context.Context, params *ExportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportImmutableSkillsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8796,8 +9756,8 @@ func (c *Client) ExportImmutableSkillsWithBody(ctx context.Context, contentType 
 	return c.Client.Do(req)
 }
 
-func (c *Client) ExportImmutableSkills(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExportImmutableSkillsRequest(c.Server, body)
+func (c *Client) ExportImmutableSkills(ctx context.Context, params *ExportImmutableSkillsParams, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportImmutableSkillsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8808,8 +9768,8 @@ func (c *Client) ExportImmutableSkills(ctx context.Context, body ExportImmutable
 	return c.Client.Do(req)
 }
 
-func (c *Client) ImportSkillsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewImportSkillsRequestWithBody(c.Server, contentType, body)
+func (c *Client) ImportImmutableSkillsWithBody(ctx context.Context, params *ImportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewImportImmutableSkillsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8820,8 +9780,8 @@ func (c *Client) ImportSkillsWithBody(ctx context.Context, contentType string, b
 	return c.Client.Do(req)
 }
 
-func (c *Client) PreviewSkillImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPreviewSkillImportRequestWithBody(c.Server, contentType, body)
+func (c *Client) PreviewImmutableSkillImportWithBody(ctx context.Context, params *PreviewImmutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewImmutableSkillImportRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8844,8 +9804,8 @@ func (c *Client) ListImmutableSkillSummaries(ctx context.Context, params *ListIm
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteSkill(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteSkillRequest(c.Server, skillName)
+func (c *Client) DeleteSkill(ctx context.Context, skillName SkillNamePath, params *DeleteSkillParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSkillRequest(c.Server, skillName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8856,8 +9816,8 @@ func (c *Client) DeleteSkill(ctx context.Context, skillName SkillNamePath, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateSkillWithBody(ctx context.Context, skillName SkillNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateSkillRequestWithBody(c.Server, skillName, contentType, body)
+func (c *Client) UpdateSkillWithBody(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSkillRequestWithBody(c.Server, skillName, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8868,8 +9828,8 @@ func (c *Client) UpdateSkillWithBody(ctx context.Context, skillName SkillNamePat
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateSkill(ctx context.Context, skillName SkillNamePath, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateSkillRequest(c.Server, skillName, body)
+func (c *Client) UpdateSkill(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSkillRequest(c.Server, skillName, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8880,8 +9840,8 @@ func (c *Client) UpdateSkill(ctx context.Context, skillName SkillNamePath, body 
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetSkillReferences(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetSkillReferencesRequest(c.Server, skillName)
+func (c *Client) GetSkillReferences(ctx context.Context, skillName SkillNamePath, params *GetSkillReferencesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSkillReferencesRequest(c.Server, skillName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8892,8 +9852,8 @@ func (c *Client) GetSkillReferences(ctx context.Context, skillName SkillNamePath
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListImmutableSkillVersions(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListImmutableSkillVersionsRequest(c.Server, skillName)
+func (c *Client) ListImmutableSkillVersions(ctx context.Context, skillName SkillNamePath, params *ListImmutableSkillVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListImmutableSkillVersionsRequest(c.Server, skillName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9240,6 +10200,150 @@ func (c *Client) InvokeWorkflowWebhook(ctx context.Context, agentName AgentNameP
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListWorkspaces(ctx context.Context, params *ListWorkspacesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWorkspacesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkspaceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkspaceRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkspace(ctx context.Context, body CreateWorkspaceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkspaceRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListWorkspaceMemberCandidates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWorkspaceMemberCandidatesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ResolveWorkspaceSlug(ctx context.Context, workspaceSlug WorkspaceSlugPath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResolveWorkspaceSlugRequest(c.Server, workspaceSlug)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetWorkspace(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWorkspaceRequest(c.Server, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListWorkspaceInheritedResources(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWorkspaceInheritedResourcesRequest(c.Server, workspaceId, resourceType)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceWorkspaceInheritedResourcesWithBody(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceWorkspaceInheritedResourcesRequestWithBody(c.Server, workspaceId, resourceType, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceWorkspaceInheritedResources(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, body ReplaceWorkspaceInheritedResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceWorkspaceInheritedResourcesRequest(c.Server, workspaceId, resourceType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkspaceLifecycleWithBody(ctx context.Context, workspaceId WorkspaceIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkspaceLifecycleRequestWithBody(c.Server, workspaceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkspaceLifecycle(ctx context.Context, workspaceId WorkspaceIDPath, body UpdateWorkspaceLifecycleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkspaceLifecycleRequest(c.Server, workspaceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RetryWorkspace(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRetryWorkspaceRequest(c.Server, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // NewListAgentsRequest generates requests for ListAgents
 func NewListAgentsRequest(server string, params *ListAgentsParams) (*http.Request, error) {
 	var err error
@@ -9361,6 +10465,94 @@ func NewCreateAgentRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
+// NewImportMutableSkillsRequestWithBody generates requests for ImportMutableSkills with any type of body
+func NewImportMutableSkillsRequestWithBody(server string, params *ImportMutableSkillsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/skill/import")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPreviewMutableSkillImportRequestWithBody generates requests for PreviewMutableSkillImport with any type of body
+func NewPreviewMutableSkillImportRequestWithBody(server string, params *PreviewMutableSkillImportParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/skill/import/preview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewWatchAgentsRequest calls the generic WatchAgents builder with application/json body
 func NewWatchAgentsRequest(server string, body WatchAgentsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -9478,6 +10670,40 @@ func NewUpdateAgentRequestWithBody(server string, agentName AgentNamePath, conte
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAgentAccessTargetsRequest generates requests for ListAgentAccessTargets
+func NewListAgentAccessTargetsRequest(server string, agentName AgentNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/access-targets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -9932,19 +11158,260 @@ func NewStatAgentFileRequest(server string, agentName AgentNamePath, params *Sta
 	return req, nil
 }
 
-// NewDeleteAgentMutableSkillsRequest calls the generic DeleteAgentMutableSkills builder with application/json body
-func NewDeleteAgentMutableSkillsRequest(server string, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody) (*http.Request, error) {
+// NewGetAgentOwnerRequest generates requests for GetAgentOwner
+func NewGetAgentOwnerRequest(server string, agentName AgentNamePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/owner", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTransferAgentOwnerRequest calls the generic TransferAgentOwner builder with application/json body
+func NewTransferAgentOwnerRequest(server string, agentName AgentNamePath, body TransferAgentOwnerJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewDeleteAgentMutableSkillsRequestWithBody(server, agentName, "application/json", bodyReader)
+	return NewTransferAgentOwnerRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewTransferAgentOwnerRequestWithBody generates requests for TransferAgentOwner with any type of body
+func NewTransferAgentOwnerRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/owner", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAgentSharesRequest generates requests for ListAgentShares
+func NewListAgentSharesRequest(server string, agentName AgentNamePath, params *ListAgentSharesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/share", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpsertAgentShareRequest calls the generic UpsertAgentShare builder with application/json body
+func NewUpsertAgentShareRequest(server string, agentName AgentNamePath, body UpsertAgentShareJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpsertAgentShareRequestWithBody(server, agentName, "application/json", bodyReader)
+}
+
+// NewUpsertAgentShareRequestWithBody generates requests for UpsertAgentShare with any type of body
+func NewUpsertAgentShareRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/share", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAgentShareRequest generates requests for DeleteAgentShare
+func NewDeleteAgentShareRequest(server string, agentName AgentNamePath, shareId AgentShareIDPath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "shareId", runtime.ParamLocationPath, shareId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/share/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteAgentMutableSkillsRequest calls the generic DeleteAgentMutableSkills builder with application/json body
+func NewDeleteAgentMutableSkillsRequest(server string, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, body DeleteAgentMutableSkillsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteAgentMutableSkillsRequestWithBody(server, agentName, params, "application/json", bodyReader)
 }
 
 // NewDeleteAgentMutableSkillsRequestWithBody generates requests for DeleteAgentMutableSkills with any type of body
-func NewDeleteAgentMutableSkillsRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+func NewDeleteAgentMutableSkillsRequestWithBody(server string, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -9975,6 +11442,21 @@ func NewDeleteAgentMutableSkillsRequestWithBody(server string, agentName AgentNa
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -10048,22 +11530,37 @@ func NewListAgentMutableSkillsRequest(server string, agentName AgentNamePath, pa
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewExportAgentMutableSkillsRequest calls the generic ExportAgentMutableSkills builder with application/json body
-func NewExportAgentMutableSkillsRequest(server string, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody) (*http.Request, error) {
+func NewExportAgentMutableSkillsRequest(server string, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, body ExportAgentMutableSkillsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewExportAgentMutableSkillsRequestWithBody(server, agentName, "application/json", bodyReader)
+	return NewExportAgentMutableSkillsRequestWithBody(server, agentName, params, "application/json", bodyReader)
 }
 
 // NewExportAgentMutableSkillsRequestWithBody generates requests for ExportAgentMutableSkills with any type of body
-func NewExportAgentMutableSkillsRequestWithBody(server string, agentName AgentNamePath, contentType string, body io.Reader) (*http.Request, error) {
+func NewExportAgentMutableSkillsRequestWithBody(server string, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10094,6 +11591,125 @@ func NewExportAgentMutableSkillsRequestWithBody(server string, agentName AgentNa
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListEventTrailEventsRequest calls the generic ListEventTrailEvents builder with application/json body
+func NewListEventTrailEventsRequest(server string, params *ListEventTrailEventsParams, body ListEventTrailEventsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewListEventTrailEventsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewListEventTrailEventsRequestWithBody generates requests for ListEventTrailEvents with any type of body
+func NewListEventTrailEventsRequestWithBody(server string, params *ListEventTrailEventsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/event-trail-event")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetEventTrailEventRequest generates requests for GetEventTrailEvent
+func NewGetEventTrailEventRequest(server string, eventId EventTrailEventIDPath, params *GetEventTrailEventParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "eventId", runtime.ParamLocationPath, eventId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/event-trail-event/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -10160,22 +11776,35 @@ func NewListInferencePoolsRequest(server string, params *ListInferencePoolsParam
 		return nil, err
 	}
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewCreateInferencePoolRequest calls the generic CreateInferencePool builder with application/json body
-func NewCreateInferencePoolRequest(server string, body CreateInferencePoolJSONRequestBody) (*http.Request, error) {
+func NewCreateInferencePoolRequest(server string, params *CreateInferencePoolParams, body CreateInferencePoolJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateInferencePoolRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateInferencePoolRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewCreateInferencePoolRequestWithBody generates requests for CreateInferencePool with any type of body
-func NewCreateInferencePoolRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateInferencePoolRequestWithBody(server string, params *CreateInferencePoolParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -10200,22 +11829,35 @@ func NewCreateInferencePoolRequestWithBody(server string, contentType string, bo
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewWatchInferencePoolsRequest calls the generic WatchInferencePools builder with application/json body
-func NewWatchInferencePoolsRequest(server string, body WatchInferencePoolsJSONRequestBody) (*http.Request, error) {
+func NewWatchInferencePoolsRequest(server string, params *WatchInferencePoolsParams, body WatchInferencePoolsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewWatchInferencePoolsRequestWithBody(server, "application/json", bodyReader)
+	return NewWatchInferencePoolsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewWatchInferencePoolsRequestWithBody generates requests for WatchInferencePools with any type of body
-func NewWatchInferencePoolsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewWatchInferencePoolsRequestWithBody(server string, params *WatchInferencePoolsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -10240,11 +11882,24 @@ func NewWatchInferencePoolsRequestWithBody(server string, contentType string, bo
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteInferencePoolRequest generates requests for DeleteInferencePool
-func NewDeleteInferencePoolRequest(server string, poolName InferencePoolNamePath) (*http.Request, error) {
+func NewDeleteInferencePoolRequest(server string, poolName InferencePoolNamePath, params *DeleteInferencePoolParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10274,11 +11929,24 @@ func NewDeleteInferencePoolRequest(server string, poolName InferencePoolNamePath
 		return nil, err
 	}
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewGetInferencePoolRequest generates requests for GetInferencePool
-func NewGetInferencePoolRequest(server string, poolName InferencePoolNamePath) (*http.Request, error) {
+func NewGetInferencePoolRequest(server string, poolName InferencePoolNamePath, params *GetInferencePoolParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10308,22 +11976,35 @@ func NewGetInferencePoolRequest(server string, poolName InferencePoolNamePath) (
 		return nil, err
 	}
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewUpdateInferencePoolRequest calls the generic UpdateInferencePool builder with application/json body
-func NewUpdateInferencePoolRequest(server string, poolName InferencePoolNamePath, body UpdateInferencePoolJSONRequestBody) (*http.Request, error) {
+func NewUpdateInferencePoolRequest(server string, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, body UpdateInferencePoolJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateInferencePoolRequestWithBody(server, poolName, "application/json", bodyReader)
+	return NewUpdateInferencePoolRequestWithBody(server, poolName, params, "application/json", bodyReader)
 }
 
 // NewUpdateInferencePoolRequestWithBody generates requests for UpdateInferencePool with any type of body
-func NewUpdateInferencePoolRequestWithBody(server string, poolName InferencePoolNamePath, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateInferencePoolRequestWithBody(server string, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10355,11 +12036,24 @@ func NewUpdateInferencePoolRequestWithBody(server string, poolName InferencePool
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewGetInferencePoolUsageRequest generates requests for GetInferencePoolUsage
-func NewGetInferencePoolUsageRequest(server string, poolName InferencePoolNamePath) (*http.Request, error) {
+func NewGetInferencePoolUsageRequest(server string, poolName InferencePoolNamePath, params *GetInferencePoolUsageParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10387,6 +12081,19 @@ func NewGetInferencePoolUsageRequest(server string, poolName InferencePoolNamePa
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
 	}
 
 	return req, nil
@@ -10454,22 +12161,37 @@ func NewListInferenceProvidersRequest(server string, params *ListInferenceProvid
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewCreateInferenceProviderRequest calls the generic CreateInferenceProvider builder with application/json body
-func NewCreateInferenceProviderRequest(server string, body CreateInferenceProviderJSONRequestBody) (*http.Request, error) {
+func NewCreateInferenceProviderRequest(server string, params *CreateInferenceProviderParams, body CreateInferenceProviderJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateInferenceProviderRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateInferenceProviderRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewCreateInferenceProviderRequestWithBody generates requests for CreateInferenceProvider with any type of body
-func NewCreateInferenceProviderRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateInferenceProviderRequestWithBody(server string, params *CreateInferenceProviderParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -10493,6 +12215,21 @@ func NewCreateInferenceProviderRequestWithBody(server string, contentType string
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -10541,6 +12278,21 @@ func NewListInferenceProviderCatalogRequest(server string, params *ListInference
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -10595,22 +12347,37 @@ func NewListInferenceModelSuggestionsRequest(server string, catalogProvider stri
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewCreateInferenceProviderOAuthTicketRequest calls the generic CreateInferenceProviderOAuthTicket builder with application/json body
-func NewCreateInferenceProviderOAuthTicketRequest(server string, body CreateInferenceProviderOAuthTicketJSONRequestBody) (*http.Request, error) {
+func NewCreateInferenceProviderOAuthTicketRequest(server string, params *CreateInferenceProviderOAuthTicketParams, body CreateInferenceProviderOAuthTicketJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateInferenceProviderOAuthTicketRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateInferenceProviderOAuthTicketRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewCreateInferenceProviderOAuthTicketRequestWithBody generates requests for CreateInferenceProviderOAuthTicket with any type of body
-func NewCreateInferenceProviderOAuthTicketRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateInferenceProviderOAuthTicketRequestWithBody(server string, params *CreateInferenceProviderOAuthTicketParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -10635,22 +12402,37 @@ func NewCreateInferenceProviderOAuthTicketRequestWithBody(server string, content
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewWatchInferenceProvidersRequest calls the generic WatchInferenceProviders builder with application/json body
-func NewWatchInferenceProvidersRequest(server string, body WatchInferenceProvidersJSONRequestBody) (*http.Request, error) {
+func NewWatchInferenceProvidersRequest(server string, params *WatchInferenceProvidersParams, body WatchInferenceProvidersJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewWatchInferenceProvidersRequestWithBody(server, "application/json", bodyReader)
+	return NewWatchInferenceProvidersRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewWatchInferenceProvidersRequestWithBody generates requests for WatchInferenceProviders with any type of body
-func NewWatchInferenceProvidersRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewWatchInferenceProvidersRequestWithBody(server string, params *WatchInferenceProvidersParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -10675,11 +12457,26 @@ func NewWatchInferenceProvidersRequestWithBody(server string, contentType string
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteInferenceProviderRequest generates requests for DeleteInferenceProvider
-func NewDeleteInferenceProviderRequest(server string, providerName InferenceProviderNamePath) (*http.Request, error) {
+func NewDeleteInferenceProviderRequest(server string, providerName InferenceProviderNamePath, params *DeleteInferenceProviderParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10709,11 +12506,26 @@ func NewDeleteInferenceProviderRequest(server string, providerName InferenceProv
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetInferenceProviderRequest generates requests for GetInferenceProvider
-func NewGetInferenceProviderRequest(server string, providerName InferenceProviderNamePath) (*http.Request, error) {
+func NewGetInferenceProviderRequest(server string, providerName InferenceProviderNamePath, params *GetInferenceProviderParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10738,27 +12550,60 @@ func NewGetInferenceProviderRequest(server string, providerName InferenceProvide
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scope", runtime.ParamLocationQuery, params.Scope); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
 	}
 
 	return req, nil
 }
 
 // NewUpdateInferenceProviderRequest calls the generic UpdateInferenceProvider builder with application/json body
-func NewUpdateInferenceProviderRequest(server string, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody) (*http.Request, error) {
+func NewUpdateInferenceProviderRequest(server string, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, body UpdateInferenceProviderJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateInferenceProviderRequestWithBody(server, providerName, "application/json", bodyReader)
+	return NewUpdateInferenceProviderRequestWithBody(server, providerName, params, "application/json", bodyReader)
 }
 
 // NewUpdateInferenceProviderRequestWithBody generates requests for UpdateInferenceProvider with any type of body
-func NewUpdateInferenceProviderRequestWithBody(server string, providerName InferenceProviderNamePath, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateInferenceProviderRequestWithBody(server string, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10790,11 +12635,26 @@ func NewUpdateInferenceProviderRequestWithBody(server string, providerName Infer
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewRefreshInferenceProviderModelsRequest generates requests for RefreshInferenceProviderModels
-func NewRefreshInferenceProviderModelsRequest(server string, providerName InferenceProviderNamePath) (*http.Request, error) {
+func NewRefreshInferenceProviderModelsRequest(server string, providerName InferenceProviderNamePath, params *RefreshInferenceProviderModelsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10819,16 +12679,49 @@ func NewRefreshInferenceProviderModelsRequest(server string, providerName Infere
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scope", runtime.ParamLocationQuery, params.Scope); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
 	}
 
 	return req, nil
 }
 
 // NewGetInferenceProviderUsageRequest generates requests for GetInferenceProviderUsage
-func NewGetInferenceProviderUsageRequest(server string, providerName InferenceProviderNamePath) (*http.Request, error) {
+func NewGetInferenceProviderUsageRequest(server string, providerName InferenceProviderNamePath, params *GetInferenceProviderUsageParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -10853,9 +12746,42 @@ func NewGetInferenceProviderUsageRequest(server string, providerName InferencePr
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scope", runtime.ParamLocationQuery, params.Scope); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -11034,9 +12960,105 @@ func NewListFileObservabilityRequest(server string, agentName AgentNamePath, par
 
 		}
 
-		if params.Aggregated != nil {
+		queryURL.RawQuery = queryValues.Encode()
+	}
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "aggregated", runtime.ParamLocationQuery, *params.Aggregated); err != nil {
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListFileObservabilitySummaryRequest generates requests for ListFileObservabilitySummary
+func NewListFileObservabilitySummaryRequest(server string, agentName AgentNamePath, params *ListFileObservabilitySummaryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/lens/%s/observability/file/summary", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "event_time_after", runtime.ParamLocationQuery, params.EventTimeAfter); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "event_time_before", runtime.ParamLocationQuery, params.EventTimeBefore); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Action != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "action", runtime.ParamLocationQuery, *params.Action); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -11170,9 +13192,105 @@ func NewListNetworkObservabilityRequest(server string, agentName AgentNamePath, 
 
 		}
 
-		if params.Aggregated != nil {
+		queryURL.RawQuery = queryValues.Encode()
+	}
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "aggregated", runtime.ParamLocationQuery, *params.Aggregated); err != nil {
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListNetworkObservabilitySummaryRequest generates requests for ListNetworkObservabilitySummary
+func NewListNetworkObservabilitySummaryRequest(server string, agentName AgentNamePath, params *ListNetworkObservabilitySummaryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/lens/%s/observability/network/summary", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "event_time_after", runtime.ParamLocationQuery, params.EventTimeAfter); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "event_time_before", runtime.ParamLocationQuery, params.EventTimeBefore); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Action != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "action", runtime.ParamLocationQuery, *params.Action); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -11306,9 +13424,105 @@ func NewListProcessObservabilityRequest(server string, agentName AgentNamePath, 
 
 		}
 
-		if params.Aggregated != nil {
+		queryURL.RawQuery = queryValues.Encode()
+	}
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "aggregated", runtime.ParamLocationQuery, *params.Aggregated); err != nil {
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListProcessObservabilitySummaryRequest generates requests for ListProcessObservabilitySummary
+func NewListProcessObservabilitySummaryRequest(server string, agentName AgentNamePath, params *ListProcessObservabilitySummaryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/lens/%s/observability/process/summary", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "event_time_after", runtime.ParamLocationQuery, params.EventTimeAfter); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "event_time_before", runtime.ParamLocationQuery, params.EventTimeBefore); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Action != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "action", runtime.ParamLocationQuery, *params.Action); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -11647,22 +13861,37 @@ func NewListMCPConnectionsRequest(server string, params *ListMCPConnectionsParam
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewCreateMCPConnectionRequest calls the generic CreateMCPConnection builder with application/json body
-func NewCreateMCPConnectionRequest(server string, body CreateMCPConnectionJSONRequestBody) (*http.Request, error) {
+func NewCreateMCPConnectionRequest(server string, params *CreateMCPConnectionParams, body CreateMCPConnectionJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateMCPConnectionRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateMCPConnectionRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewCreateMCPConnectionRequestWithBody generates requests for CreateMCPConnection with any type of body
-func NewCreateMCPConnectionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateMCPConnectionRequestWithBody(server string, params *CreateMCPConnectionParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -11687,22 +13916,37 @@ func NewCreateMCPConnectionRequestWithBody(server string, contentType string, bo
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewWatchMCPConnectionsRequest calls the generic WatchMCPConnections builder with application/json body
-func NewWatchMCPConnectionsRequest(server string, body WatchMCPConnectionsJSONRequestBody) (*http.Request, error) {
+func NewWatchMCPConnectionsRequest(server string, params *WatchMCPConnectionsParams, body WatchMCPConnectionsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewWatchMCPConnectionsRequestWithBody(server, "application/json", bodyReader)
+	return NewWatchMCPConnectionsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewWatchMCPConnectionsRequestWithBody generates requests for WatchMCPConnections with any type of body
-func NewWatchMCPConnectionsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewWatchMCPConnectionsRequestWithBody(server string, params *WatchMCPConnectionsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -11727,11 +13971,26 @@ func NewWatchMCPConnectionsRequestWithBody(server string, contentType string, bo
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteMCPConnectionRequest generates requests for DeleteMCPConnection
-func NewDeleteMCPConnectionRequest(server string, name MCPConnectionNamePath) (*http.Request, error) {
+func NewDeleteMCPConnectionRequest(server string, name MCPConnectionNamePath, params *DeleteMCPConnectionParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11761,11 +14020,26 @@ func NewDeleteMCPConnectionRequest(server string, name MCPConnectionNamePath) (*
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetMCPConnectionRequest generates requests for GetMCPConnection
-func NewGetMCPConnectionRequest(server string, name MCPConnectionNamePath) (*http.Request, error) {
+func NewGetMCPConnectionRequest(server string, name MCPConnectionNamePath, params *GetMCPConnectionParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11790,9 +14064,42 @@ func NewGetMCPConnectionRequest(server string, name MCPConnectionNamePath) (*htt
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scope", runtime.ParamLocationQuery, params.Scope); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -14377,22 +16684,37 @@ func NewListSandboxesRequest(server string, params *ListSandboxesParams) (*http.
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewCreateSandboxRequest calls the generic CreateSandbox builder with application/json body
-func NewCreateSandboxRequest(server string, body CreateSandboxJSONRequestBody) (*http.Request, error) {
+func NewCreateSandboxRequest(server string, params *CreateSandboxParams, body CreateSandboxJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateSandboxRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateSandboxRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewCreateSandboxRequestWithBody generates requests for CreateSandbox with any type of body
-func NewCreateSandboxRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateSandboxRequestWithBody(server string, params *CreateSandboxParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14417,11 +16739,26 @@ func NewCreateSandboxRequestWithBody(server string, contentType string, body io.
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteSandboxRequest generates requests for DeleteSandbox
-func NewDeleteSandboxRequest(server string, sandboxName SandboxName) (*http.Request, error) {
+func NewDeleteSandboxRequest(server string, sandboxName SandboxName, params *DeleteSandboxParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -14451,22 +16788,37 @@ func NewDeleteSandboxRequest(server string, sandboxName SandboxName) (*http.Requ
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewUpdateSandboxRequest calls the generic UpdateSandbox builder with application/json body
-func NewUpdateSandboxRequest(server string, sandboxName SandboxName, body UpdateSandboxJSONRequestBody) (*http.Request, error) {
+func NewUpdateSandboxRequest(server string, sandboxName SandboxName, params *UpdateSandboxParams, body UpdateSandboxJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateSandboxRequestWithBody(server, sandboxName, "application/json", bodyReader)
+	return NewUpdateSandboxRequestWithBody(server, sandboxName, params, "application/json", bodyReader)
 }
 
 // NewUpdateSandboxRequestWithBody generates requests for UpdateSandbox with any type of body
-func NewUpdateSandboxRequestWithBody(server string, sandboxName SandboxName, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateSandboxRequestWithBody(server string, sandboxName SandboxName, params *UpdateSandboxParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -14497,6 +16849,21 @@ func NewUpdateSandboxRequestWithBody(server string, sandboxName SandboxName, con
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -14737,18 +17104,18 @@ func NewWatchSecretsRequestWithBody(server string, agentName AgentNamePath, cont
 }
 
 // NewDeleteImmutableSkillsRequest calls the generic DeleteImmutableSkills builder with application/json body
-func NewDeleteImmutableSkillsRequest(server string, body DeleteImmutableSkillsJSONRequestBody) (*http.Request, error) {
+func NewDeleteImmutableSkillsRequest(server string, params *DeleteImmutableSkillsParams, body DeleteImmutableSkillsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewDeleteImmutableSkillsRequestWithBody(server, "application/json", bodyReader)
+	return NewDeleteImmutableSkillsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewDeleteImmutableSkillsRequestWithBody generates requests for DeleteImmutableSkills with any type of body
-func NewDeleteImmutableSkillsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewDeleteImmutableSkillsRequestWithBody(server string, params *DeleteImmutableSkillsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14772,6 +17139,21 @@ func NewDeleteImmutableSkillsRequestWithBody(server string, contentType string, 
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -14854,22 +17236,37 @@ func NewListSkillsRequest(server string, params *ListSkillsParams) (*http.Reques
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewCreateSkillRequest calls the generic CreateSkill builder with application/json body
-func NewCreateSkillRequest(server string, body CreateSkillJSONRequestBody) (*http.Request, error) {
+func NewCreateSkillRequest(server string, params *CreateSkillParams, body CreateSkillJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateSkillRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateSkillRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewCreateSkillRequestWithBody generates requests for CreateSkill with any type of body
-func NewCreateSkillRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateSkillRequestWithBody(server string, params *CreateSkillParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14894,22 +17291,37 @@ func NewCreateSkillRequestWithBody(server string, contentType string, body io.Re
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewExportImmutableSkillsRequest calls the generic ExportImmutableSkills builder with application/json body
-func NewExportImmutableSkillsRequest(server string, body ExportImmutableSkillsJSONRequestBody) (*http.Request, error) {
+func NewExportImmutableSkillsRequest(server string, params *ExportImmutableSkillsParams, body ExportImmutableSkillsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewExportImmutableSkillsRequestWithBody(server, "application/json", bodyReader)
+	return NewExportImmutableSkillsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewExportImmutableSkillsRequestWithBody generates requests for ExportImmutableSkills with any type of body
-func NewExportImmutableSkillsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewExportImmutableSkillsRequestWithBody(server string, params *ExportImmutableSkillsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14934,11 +17346,26 @@ func NewExportImmutableSkillsRequestWithBody(server string, contentType string, 
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
-// NewImportSkillsRequestWithBody generates requests for ImportSkills with any type of body
-func NewImportSkillsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewImportImmutableSkillsRequestWithBody generates requests for ImportImmutableSkills with any type of body
+func NewImportImmutableSkillsRequestWithBody(server string, params *ImportImmutableSkillsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14963,11 +17390,26 @@ func NewImportSkillsRequestWithBody(server string, contentType string, body io.R
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
-// NewPreviewSkillImportRequestWithBody generates requests for PreviewSkillImport with any type of body
-func NewPreviewSkillImportRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewPreviewImmutableSkillImportRequestWithBody generates requests for PreviewImmutableSkillImport with any type of body
+func NewPreviewImmutableSkillImportRequestWithBody(server string, params *PreviewImmutableSkillImportParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14991,6 +17433,21 @@ func NewPreviewSkillImportRequestWithBody(server string, contentType string, bod
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -15073,11 +17530,26 @@ func NewListImmutableSkillSummariesRequest(server string, params *ListImmutableS
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteSkillRequest generates requests for DeleteSkill
-func NewDeleteSkillRequest(server string, skillName SkillNamePath) (*http.Request, error) {
+func NewDeleteSkillRequest(server string, skillName SkillNamePath, params *DeleteSkillParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -15107,22 +17579,37 @@ func NewDeleteSkillRequest(server string, skillName SkillNamePath) (*http.Reques
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewUpdateSkillRequest calls the generic UpdateSkill builder with application/json body
-func NewUpdateSkillRequest(server string, skillName SkillNamePath, body UpdateSkillJSONRequestBody) (*http.Request, error) {
+func NewUpdateSkillRequest(server string, skillName SkillNamePath, params *UpdateSkillParams, body UpdateSkillJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateSkillRequestWithBody(server, skillName, "application/json", bodyReader)
+	return NewUpdateSkillRequestWithBody(server, skillName, params, "application/json", bodyReader)
 }
 
 // NewUpdateSkillRequestWithBody generates requests for UpdateSkill with any type of body
-func NewUpdateSkillRequestWithBody(server string, skillName SkillNamePath, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateSkillRequestWithBody(server string, skillName SkillNamePath, params *UpdateSkillParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -15154,11 +17641,26 @@ func NewUpdateSkillRequestWithBody(server string, skillName SkillNamePath, conte
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetSkillReferencesRequest generates requests for GetSkillReferences
-func NewGetSkillReferencesRequest(server string, skillName SkillNamePath) (*http.Request, error) {
+func NewGetSkillReferencesRequest(server string, skillName SkillNamePath, params *GetSkillReferencesParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -15183,16 +17685,49 @@ func NewGetSkillReferencesRequest(server string, skillName SkillNamePath) (*http
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scope", runtime.ParamLocationQuery, params.Scope); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
 	}
 
 	return req, nil
 }
 
 // NewListImmutableSkillVersionsRequest generates requests for ListImmutableSkillVersions
-func NewListImmutableSkillVersionsRequest(server string, skillName SkillNamePath) (*http.Request, error) {
+func NewListImmutableSkillVersionsRequest(server string, skillName SkillNamePath, params *ListImmutableSkillVersionsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -15217,9 +17752,42 @@ func NewListImmutableSkillVersionsRequest(server string, skillName SkillNamePath
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scope", runtime.ParamLocationQuery, params.Scope); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -16380,6 +18948,382 @@ func NewInvokeWorkflowWebhookRequestWithBody(server string, agentName AgentNameP
 	return req, nil
 }
 
+// NewListWorkspacesRequest generates requests for ListWorkspaces
+func NewListWorkspacesRequest(server string, params *ListWorkspacesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateWorkspaceRequest calls the generic CreateWorkspace builder with application/json body
+func NewCreateWorkspaceRequest(server string, body CreateWorkspaceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateWorkspaceRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateWorkspaceRequestWithBody generates requests for CreateWorkspace with any type of body
+func NewCreateWorkspaceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListWorkspaceMemberCandidatesRequest generates requests for ListWorkspaceMemberCandidates
+func NewListWorkspaceMemberCandidatesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace/member-candidate")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewResolveWorkspaceSlugRequest generates requests for ResolveWorkspaceSlug
+func NewResolveWorkspaceSlugRequest(server string, workspaceSlug WorkspaceSlugPath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceSlug", runtime.ParamLocationPath, workspaceSlug)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace/slug/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetWorkspaceRequest generates requests for GetWorkspace
+func NewGetWorkspaceRequest(server string, workspaceId WorkspaceIDPath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListWorkspaceInheritedResourcesRequest generates requests for ListWorkspaceInheritedResources
+func NewListWorkspaceInheritedResourcesRequest(server string, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "resourceType", runtime.ParamLocationPath, resourceType)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace/%s/inherited-resource/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplaceWorkspaceInheritedResourcesRequest calls the generic ReplaceWorkspaceInheritedResources builder with application/json body
+func NewReplaceWorkspaceInheritedResourcesRequest(server string, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, body ReplaceWorkspaceInheritedResourcesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceWorkspaceInheritedResourcesRequestWithBody(server, workspaceId, resourceType, "application/json", bodyReader)
+}
+
+// NewReplaceWorkspaceInheritedResourcesRequestWithBody generates requests for ReplaceWorkspaceInheritedResources with any type of body
+func NewReplaceWorkspaceInheritedResourcesRequestWithBody(server string, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "resourceType", runtime.ParamLocationPath, resourceType)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace/%s/inherited-resource/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpdateWorkspaceLifecycleRequest calls the generic UpdateWorkspaceLifecycle builder with application/json body
+func NewUpdateWorkspaceLifecycleRequest(server string, workspaceId WorkspaceIDPath, body UpdateWorkspaceLifecycleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateWorkspaceLifecycleRequestWithBody(server, workspaceId, "application/json", bodyReader)
+}
+
+// NewUpdateWorkspaceLifecycleRequestWithBody generates requests for UpdateWorkspaceLifecycle with any type of body
+func NewUpdateWorkspaceLifecycleRequestWithBody(server string, workspaceId WorkspaceIDPath, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace/%s/lifecycle", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRetryWorkspaceRequest generates requests for RetryWorkspace
+func NewRetryWorkspaceRequest(server string, workspaceId WorkspaceIDPath) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspace/%s/retry", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -16431,6 +19375,12 @@ type ClientWithResponsesInterface interface {
 
 	CreateAgentWithResponse(ctx context.Context, body CreateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentResp, error)
 
+	// ImportMutableSkillsWithBodyWithResponse request with any body
+	ImportMutableSkillsWithBodyWithResponse(ctx context.Context, params *ImportMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportMutableSkillsResp, error)
+
+	// PreviewMutableSkillImportWithBodyWithResponse request with any body
+	PreviewMutableSkillImportWithBodyWithResponse(ctx context.Context, params *PreviewMutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewMutableSkillImportResp, error)
+
 	// WatchAgentsWithBodyWithResponse request with any body
 	WatchAgentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchAgentsResp, error)
 
@@ -16443,6 +19393,9 @@ type ClientWithResponsesInterface interface {
 	UpdateAgentWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
 
 	UpdateAgentWithResponse(ctx context.Context, agentName AgentNamePath, body UpdateAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
+
+	// ListAgentAccessTargetsWithResponse request
+	ListAgentAccessTargetsWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*ListAgentAccessTargetsResp, error)
 
 	// CreateAgentDirectoryWithBodyWithResponse request with any body
 	CreateAgentDirectoryWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentDirectoryResp, error)
@@ -16479,53 +19432,80 @@ type ClientWithResponsesInterface interface {
 	// StatAgentFileWithResponse request
 	StatAgentFileWithResponse(ctx context.Context, agentName AgentNamePath, params *StatAgentFileParams, reqEditors ...RequestEditorFn) (*StatAgentFileResp, error)
 
-	// DeleteAgentMutableSkillsWithBodyWithResponse request with any body
-	DeleteAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error)
+	// GetAgentOwnerWithResponse request
+	GetAgentOwnerWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*GetAgentOwnerResp, error)
 
-	DeleteAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error)
+	// TransferAgentOwnerWithBodyWithResponse request with any body
+	TransferAgentOwnerWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferAgentOwnerResp, error)
+
+	TransferAgentOwnerWithResponse(ctx context.Context, agentName AgentNamePath, body TransferAgentOwnerJSONRequestBody, reqEditors ...RequestEditorFn) (*TransferAgentOwnerResp, error)
+
+	// ListAgentSharesWithResponse request
+	ListAgentSharesWithResponse(ctx context.Context, agentName AgentNamePath, params *ListAgentSharesParams, reqEditors ...RequestEditorFn) (*ListAgentSharesResp, error)
+
+	// UpsertAgentShareWithBodyWithResponse request with any body
+	UpsertAgentShareWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertAgentShareResp, error)
+
+	UpsertAgentShareWithResponse(ctx context.Context, agentName AgentNamePath, body UpsertAgentShareJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAgentShareResp, error)
+
+	// DeleteAgentShareWithResponse request
+	DeleteAgentShareWithResponse(ctx context.Context, agentName AgentNamePath, shareId AgentShareIDPath, reqEditors ...RequestEditorFn) (*DeleteAgentShareResp, error)
+
+	// DeleteAgentMutableSkillsWithBodyWithResponse request with any body
+	DeleteAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error)
+
+	DeleteAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error)
 
 	// ListAgentMutableSkillsWithResponse request
 	ListAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, params *ListAgentMutableSkillsParams, reqEditors ...RequestEditorFn) (*ListAgentMutableSkillsResp, error)
 
 	// ExportAgentMutableSkillsWithBodyWithResponse request with any body
-	ExportAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error)
+	ExportAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error)
 
-	ExportAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error)
+	ExportAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error)
+
+	// ListEventTrailEventsWithBodyWithResponse request with any body
+	ListEventTrailEventsWithBodyWithResponse(ctx context.Context, params *ListEventTrailEventsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListEventTrailEventsResp, error)
+
+	ListEventTrailEventsWithResponse(ctx context.Context, params *ListEventTrailEventsParams, body ListEventTrailEventsJSONRequestBody, reqEditors ...RequestEditorFn) (*ListEventTrailEventsResp, error)
+
+	// GetEventTrailEventWithResponse request
+	GetEventTrailEventWithResponse(ctx context.Context, eventId EventTrailEventIDPath, params *GetEventTrailEventParams, reqEditors ...RequestEditorFn) (*GetEventTrailEventResp, error)
 
 	// ListInferencePoolsWithResponse request
 	ListInferencePoolsWithResponse(ctx context.Context, params *ListInferencePoolsParams, reqEditors ...RequestEditorFn) (*ListInferencePoolsResp, error)
 
 	// CreateInferencePoolWithBodyWithResponse request with any body
-	CreateInferencePoolWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error)
+	CreateInferencePoolWithBodyWithResponse(ctx context.Context, params *CreateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error)
 
-	CreateInferencePoolWithResponse(ctx context.Context, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error)
+	CreateInferencePoolWithResponse(ctx context.Context, params *CreateInferencePoolParams, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error)
 
 	// WatchInferencePoolsWithBodyWithResponse request with any body
-	WatchInferencePoolsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error)
+	WatchInferencePoolsWithBodyWithResponse(ctx context.Context, params *WatchInferencePoolsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error)
 
-	WatchInferencePoolsWithResponse(ctx context.Context, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error)
+	WatchInferencePoolsWithResponse(ctx context.Context, params *WatchInferencePoolsParams, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error)
 
 	// DeleteInferencePoolWithResponse request
-	DeleteInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*DeleteInferencePoolResp, error)
+	DeleteInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *DeleteInferencePoolParams, reqEditors ...RequestEditorFn) (*DeleteInferencePoolResp, error)
 
 	// GetInferencePoolWithResponse request
-	GetInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*GetInferencePoolResp, error)
+	GetInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolParams, reqEditors ...RequestEditorFn) (*GetInferencePoolResp, error)
 
 	// UpdateInferencePoolWithBodyWithResponse request with any body
-	UpdateInferencePoolWithBodyWithResponse(ctx context.Context, poolName InferencePoolNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error)
+	UpdateInferencePoolWithBodyWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error)
 
-	UpdateInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error)
+	UpdateInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error)
 
 	// GetInferencePoolUsageWithResponse request
-	GetInferencePoolUsageWithResponse(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*GetInferencePoolUsageResp, error)
+	GetInferencePoolUsageWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolUsageParams, reqEditors ...RequestEditorFn) (*GetInferencePoolUsageResp, error)
 
 	// ListInferenceProvidersWithResponse request
 	ListInferenceProvidersWithResponse(ctx context.Context, params *ListInferenceProvidersParams, reqEditors ...RequestEditorFn) (*ListInferenceProvidersResp, error)
 
 	// CreateInferenceProviderWithBodyWithResponse request with any body
-	CreateInferenceProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error)
+	CreateInferenceProviderWithBodyWithResponse(ctx context.Context, params *CreateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error)
 
-	CreateInferenceProviderWithResponse(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error)
+	CreateInferenceProviderWithResponse(ctx context.Context, params *CreateInferenceProviderParams, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error)
 
 	// ListInferenceProviderCatalogWithResponse request
 	ListInferenceProviderCatalogWithResponse(ctx context.Context, params *ListInferenceProviderCatalogParams, reqEditors ...RequestEditorFn) (*ListInferenceProviderCatalogResp, error)
@@ -16534,31 +19514,31 @@ type ClientWithResponsesInterface interface {
 	ListInferenceModelSuggestionsWithResponse(ctx context.Context, catalogProvider string, params *ListInferenceModelSuggestionsParams, reqEditors ...RequestEditorFn) (*ListInferenceModelSuggestionsResp, error)
 
 	// CreateInferenceProviderOAuthTicketWithBodyWithResponse request with any body
-	CreateInferenceProviderOAuthTicketWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error)
+	CreateInferenceProviderOAuthTicketWithBodyWithResponse(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error)
 
-	CreateInferenceProviderOAuthTicketWithResponse(ctx context.Context, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error)
+	CreateInferenceProviderOAuthTicketWithResponse(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error)
 
 	// WatchInferenceProvidersWithBodyWithResponse request with any body
-	WatchInferenceProvidersWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error)
+	WatchInferenceProvidersWithBodyWithResponse(ctx context.Context, params *WatchInferenceProvidersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error)
 
-	WatchInferenceProvidersWithResponse(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error)
+	WatchInferenceProvidersWithResponse(ctx context.Context, params *WatchInferenceProvidersParams, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error)
 
 	// DeleteInferenceProviderWithResponse request
-	DeleteInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*DeleteInferenceProviderResp, error)
+	DeleteInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *DeleteInferenceProviderParams, reqEditors ...RequestEditorFn) (*DeleteInferenceProviderResp, error)
 
 	// GetInferenceProviderWithResponse request
-	GetInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderResp, error)
+	GetInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderParams, reqEditors ...RequestEditorFn) (*GetInferenceProviderResp, error)
 
 	// UpdateInferenceProviderWithBodyWithResponse request with any body
-	UpdateInferenceProviderWithBodyWithResponse(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error)
+	UpdateInferenceProviderWithBodyWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error)
 
-	UpdateInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error)
+	UpdateInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error)
 
 	// RefreshInferenceProviderModelsWithResponse request
-	RefreshInferenceProviderModelsWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*RefreshInferenceProviderModelsResp, error)
+	RefreshInferenceProviderModelsWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *RefreshInferenceProviderModelsParams, reqEditors ...RequestEditorFn) (*RefreshInferenceProviderModelsResp, error)
 
 	// GetInferenceProviderUsageWithResponse request
-	GetInferenceProviderUsageWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderUsageResp, error)
+	GetInferenceProviderUsageWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderUsageParams, reqEditors ...RequestEditorFn) (*GetInferenceProviderUsageResp, error)
 
 	// GetMCPGraphWithResponse request
 	GetMCPGraphWithResponse(ctx context.Context, agentName AgentNamePath, params *GetMCPGraphParams, reqEditors ...RequestEditorFn) (*GetMCPGraphResp, error)
@@ -16566,11 +19546,20 @@ type ClientWithResponsesInterface interface {
 	// ListFileObservabilityWithResponse request
 	ListFileObservabilityWithResponse(ctx context.Context, agentName AgentNamePath, params *ListFileObservabilityParams, reqEditors ...RequestEditorFn) (*ListFileObservabilityResp, error)
 
+	// ListFileObservabilitySummaryWithResponse request
+	ListFileObservabilitySummaryWithResponse(ctx context.Context, agentName AgentNamePath, params *ListFileObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*ListFileObservabilitySummaryResp, error)
+
 	// ListNetworkObservabilityWithResponse request
 	ListNetworkObservabilityWithResponse(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilityParams, reqEditors ...RequestEditorFn) (*ListNetworkObservabilityResp, error)
 
+	// ListNetworkObservabilitySummaryWithResponse request
+	ListNetworkObservabilitySummaryWithResponse(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*ListNetworkObservabilitySummaryResp, error)
+
 	// ListProcessObservabilityWithResponse request
 	ListProcessObservabilityWithResponse(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilityParams, reqEditors ...RequestEditorFn) (*ListProcessObservabilityResp, error)
+
+	// ListProcessObservabilitySummaryWithResponse request
+	ListProcessObservabilitySummaryWithResponse(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*ListProcessObservabilitySummaryResp, error)
 
 	// ListTraceSessionsWithResponse request
 	ListTraceSessionsWithResponse(ctx context.Context, agentName AgentNamePath, sessionID string, params *ListTraceSessionsParams, reqEditors ...RequestEditorFn) (*ListTraceSessionsResp, error)
@@ -16585,20 +19574,20 @@ type ClientWithResponsesInterface interface {
 	ListMCPConnectionsWithResponse(ctx context.Context, params *ListMCPConnectionsParams, reqEditors ...RequestEditorFn) (*ListMCPConnectionsResp, error)
 
 	// CreateMCPConnectionWithBodyWithResponse request with any body
-	CreateMCPConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error)
+	CreateMCPConnectionWithBodyWithResponse(ctx context.Context, params *CreateMCPConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error)
 
-	CreateMCPConnectionWithResponse(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error)
+	CreateMCPConnectionWithResponse(ctx context.Context, params *CreateMCPConnectionParams, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error)
 
 	// WatchMCPConnectionsWithBodyWithResponse request with any body
-	WatchMCPConnectionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error)
+	WatchMCPConnectionsWithBodyWithResponse(ctx context.Context, params *WatchMCPConnectionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error)
 
-	WatchMCPConnectionsWithResponse(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error)
+	WatchMCPConnectionsWithResponse(ctx context.Context, params *WatchMCPConnectionsParams, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error)
 
 	// DeleteMCPConnectionWithResponse request
-	DeleteMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionResp, error)
+	DeleteMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, params *DeleteMCPConnectionParams, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionResp, error)
 
 	// GetMCPConnectionWithResponse request
-	GetMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*GetMCPConnectionResp, error)
+	GetMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, params *GetMCPConnectionParams, reqEditors ...RequestEditorFn) (*GetMCPConnectionResp, error)
 
 	// V2SkillListWithResponse request
 	V2SkillListWithResponse(ctx context.Context, agentName string, params *V2SkillListParams, reqEditors ...RequestEditorFn) (*V2SkillListResp, error)
@@ -16712,17 +19701,17 @@ type ClientWithResponsesInterface interface {
 	ListSandboxesWithResponse(ctx context.Context, params *ListSandboxesParams, reqEditors ...RequestEditorFn) (*ListSandboxesResp, error)
 
 	// CreateSandboxWithBodyWithResponse request with any body
-	CreateSandboxWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error)
+	CreateSandboxWithBodyWithResponse(ctx context.Context, params *CreateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error)
 
-	CreateSandboxWithResponse(ctx context.Context, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error)
+	CreateSandboxWithResponse(ctx context.Context, params *CreateSandboxParams, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error)
 
 	// DeleteSandboxWithResponse request
-	DeleteSandboxWithResponse(ctx context.Context, sandboxName SandboxName, reqEditors ...RequestEditorFn) (*DeleteSandboxResp, error)
+	DeleteSandboxWithResponse(ctx context.Context, sandboxName SandboxName, params *DeleteSandboxParams, reqEditors ...RequestEditorFn) (*DeleteSandboxResp, error)
 
 	// UpdateSandboxWithBodyWithResponse request with any body
-	UpdateSandboxWithBodyWithResponse(ctx context.Context, sandboxName SandboxName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error)
+	UpdateSandboxWithBodyWithResponse(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error)
 
-	UpdateSandboxWithResponse(ctx context.Context, sandboxName SandboxName, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error)
+	UpdateSandboxWithResponse(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error)
 
 	// ListSecretsWithResponse request
 	ListSecretsWithResponse(ctx context.Context, agentName AgentNamePath, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*ListSecretsResp, error)
@@ -16743,45 +19732,45 @@ type ClientWithResponsesInterface interface {
 	WatchSecretsWithResponse(ctx context.Context, agentName AgentNamePath, body WatchSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchSecretsResp, error)
 
 	// DeleteImmutableSkillsWithBodyWithResponse request with any body
-	DeleteImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error)
+	DeleteImmutableSkillsWithBodyWithResponse(ctx context.Context, params *DeleteImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error)
 
-	DeleteImmutableSkillsWithResponse(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error)
+	DeleteImmutableSkillsWithResponse(ctx context.Context, params *DeleteImmutableSkillsParams, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error)
 
 	// ListSkillsWithResponse request
 	ListSkillsWithResponse(ctx context.Context, params *ListSkillsParams, reqEditors ...RequestEditorFn) (*ListSkillsResp, error)
 
 	// CreateSkillWithBodyWithResponse request with any body
-	CreateSkillWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSkillResp, error)
+	CreateSkillWithBodyWithResponse(ctx context.Context, params *CreateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSkillResp, error)
 
-	CreateSkillWithResponse(ctx context.Context, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSkillResp, error)
+	CreateSkillWithResponse(ctx context.Context, params *CreateSkillParams, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSkillResp, error)
 
 	// ExportImmutableSkillsWithBodyWithResponse request with any body
-	ExportImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error)
+	ExportImmutableSkillsWithBodyWithResponse(ctx context.Context, params *ExportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error)
 
-	ExportImmutableSkillsWithResponse(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error)
+	ExportImmutableSkillsWithResponse(ctx context.Context, params *ExportImmutableSkillsParams, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error)
 
-	// ImportSkillsWithBodyWithResponse request with any body
-	ImportSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportSkillsResp, error)
+	// ImportImmutableSkillsWithBodyWithResponse request with any body
+	ImportImmutableSkillsWithBodyWithResponse(ctx context.Context, params *ImportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportImmutableSkillsResp, error)
 
-	// PreviewSkillImportWithBodyWithResponse request with any body
-	PreviewSkillImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewSkillImportResp, error)
+	// PreviewImmutableSkillImportWithBodyWithResponse request with any body
+	PreviewImmutableSkillImportWithBodyWithResponse(ctx context.Context, params *PreviewImmutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewImmutableSkillImportResp, error)
 
 	// ListImmutableSkillSummariesWithResponse request
 	ListImmutableSkillSummariesWithResponse(ctx context.Context, params *ListImmutableSkillSummariesParams, reqEditors ...RequestEditorFn) (*ListImmutableSkillSummariesResp, error)
 
 	// DeleteSkillWithResponse request
-	DeleteSkillWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*DeleteSkillResp, error)
+	DeleteSkillWithResponse(ctx context.Context, skillName SkillNamePath, params *DeleteSkillParams, reqEditors ...RequestEditorFn) (*DeleteSkillResp, error)
 
 	// UpdateSkillWithBodyWithResponse request with any body
-	UpdateSkillWithBodyWithResponse(ctx context.Context, skillName SkillNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error)
+	UpdateSkillWithBodyWithResponse(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error)
 
-	UpdateSkillWithResponse(ctx context.Context, skillName SkillNamePath, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error)
+	UpdateSkillWithResponse(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error)
 
 	// GetSkillReferencesWithResponse request
-	GetSkillReferencesWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*GetSkillReferencesResp, error)
+	GetSkillReferencesWithResponse(ctx context.Context, skillName SkillNamePath, params *GetSkillReferencesParams, reqEditors ...RequestEditorFn) (*GetSkillReferencesResp, error)
 
 	// ListImmutableSkillVersionsWithResponse request
-	ListImmutableSkillVersionsWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*ListImmutableSkillVersionsResp, error)
+	ListImmutableSkillVersionsWithResponse(ctx context.Context, skillName SkillNamePath, params *ListImmutableSkillVersionsParams, reqEditors ...RequestEditorFn) (*ListImmutableSkillVersionsResp, error)
 
 	// GetTenantWithResponse request
 	GetTenantWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTenantResp, error)
@@ -16858,6 +19847,39 @@ type ClientWithResponsesInterface interface {
 	InvokeWorkflowWebhookWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, params *InvokeWorkflowWebhookParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InvokeWorkflowWebhookResp, error)
 
 	InvokeWorkflowWebhookWithResponse(ctx context.Context, agentName AgentNamePath, workflowName WorkflowName, params *InvokeWorkflowWebhookParams, body InvokeWorkflowWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*InvokeWorkflowWebhookResp, error)
+
+	// ListWorkspacesWithResponse request
+	ListWorkspacesWithResponse(ctx context.Context, params *ListWorkspacesParams, reqEditors ...RequestEditorFn) (*ListWorkspacesResp, error)
+
+	// CreateWorkspaceWithBodyWithResponse request with any body
+	CreateWorkspaceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceResp, error)
+
+	CreateWorkspaceWithResponse(ctx context.Context, body CreateWorkspaceJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceResp, error)
+
+	// ListWorkspaceMemberCandidatesWithResponse request
+	ListWorkspaceMemberCandidatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListWorkspaceMemberCandidatesResp, error)
+
+	// ResolveWorkspaceSlugWithResponse request
+	ResolveWorkspaceSlugWithResponse(ctx context.Context, workspaceSlug WorkspaceSlugPath, reqEditors ...RequestEditorFn) (*ResolveWorkspaceSlugResp, error)
+
+	// GetWorkspaceWithResponse request
+	GetWorkspaceWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*GetWorkspaceResp, error)
+
+	// ListWorkspaceInheritedResourcesWithResponse request
+	ListWorkspaceInheritedResourcesWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, reqEditors ...RequestEditorFn) (*ListWorkspaceInheritedResourcesResp, error)
+
+	// ReplaceWorkspaceInheritedResourcesWithBodyWithResponse request with any body
+	ReplaceWorkspaceInheritedResourcesWithBodyWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceWorkspaceInheritedResourcesResp, error)
+
+	ReplaceWorkspaceInheritedResourcesWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, body ReplaceWorkspaceInheritedResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceWorkspaceInheritedResourcesResp, error)
+
+	// UpdateWorkspaceLifecycleWithBodyWithResponse request with any body
+	UpdateWorkspaceLifecycleWithBodyWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkspaceLifecycleResp, error)
+
+	UpdateWorkspaceLifecycleWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, body UpdateWorkspaceLifecycleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkspaceLifecycleResp, error)
+
+	// RetryWorkspaceWithResponse request
+	RetryWorkspaceWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*RetryWorkspaceResp, error)
 }
 
 type ListAgentsResp struct {
@@ -16905,6 +19927,62 @@ func (r CreateAgentResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateAgentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ImportMutableSkillsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SkillImportResponse
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON413      *PayloadTooLarge
+	JSON415      *UnsupportedMediaType
+	JSON422      *UnprocessableContent
+	JSON502      *BadGateway
+}
+
+// Status returns HTTPResponse.Status
+func (r ImportMutableSkillsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ImportMutableSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PreviewMutableSkillImportResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MutableSkillImportPreviewResponse
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON413      *PayloadTooLarge
+	JSON415      *UnsupportedMediaType
+	JSON422      *UnprocessableContent
+	JSON502      *BadGateway
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewMutableSkillImportResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewMutableSkillImportResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16982,6 +20060,32 @@ func (r UpdateAgentResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateAgentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentAccessTargetsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListAgentAccessTargetsResponse
+	JSON400      *BadRequest
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentAccessTargetsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentAccessTargetsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17226,6 +20330,141 @@ func (r StatAgentFileResp) StatusCode() int {
 	return 0
 }
 
+type GetAgentOwnerResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentOwner
+	JSON400      *BadRequest
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentOwnerResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentOwnerResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TransferAgentOwnerResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentOwner
+	JSON400      *BadRequest
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON415      *UnsupportedMediaType
+	JSON422      *UnprocessableContent
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r TransferAgentOwnerResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TransferAgentOwnerResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentSharesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListAgentSharesResponse
+	JSON400      *BadRequest
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentSharesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentSharesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpsertAgentShareResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentShare
+	JSON400      *BadRequest
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON415      *UnsupportedMediaType
+	JSON422      *UnprocessableContent
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpsertAgentShareResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpsertAgentShareResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentShareResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentShareResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentShareResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type DeleteAgentMutableSkillsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17297,6 +20536,58 @@ func (r ExportAgentMutableSkillsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ExportAgentMutableSkillsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListEventTrailEventsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListEventTrailEventsResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEventTrailEventsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEventTrailEventsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetEventTrailEventResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventTrailEvent
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEventTrailEventResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEventTrailEventResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17805,6 +21096,31 @@ func (r ListFileObservabilityResp) StatusCode() int {
 	return 0
 }
 
+type ListFileObservabilitySummaryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListFileObservabilitySummaryResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListFileObservabilitySummaryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListFileObservabilitySummaryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListNetworkObservabilityResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17830,6 +21146,31 @@ func (r ListNetworkObservabilityResp) StatusCode() int {
 	return 0
 }
 
+type ListNetworkObservabilitySummaryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListNetworkObservabilitySummaryResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNetworkObservabilitySummaryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNetworkObservabilitySummaryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListProcessObservabilityResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17849,6 +21190,31 @@ func (r ListProcessObservabilityResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListProcessObservabilityResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListProcessObservabilitySummaryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListProcessObservabilitySummaryResponse
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProcessObservabilitySummaryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProcessObservabilitySummaryResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17935,6 +21301,8 @@ type ListMCPConnectionsResp struct {
 	HTTPResponse *http.Response
 	JSON200      *ListMCPConnectionsResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON500      *InternalError
 }
 
@@ -17959,6 +21327,8 @@ type CreateMCPConnectionResp struct {
 	HTTPResponse *http.Response
 	JSON201      *MCPConnectionDetail
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON409      *Conflict
 	JSON415      *UnsupportedMediaType
 	JSON422      *UnprocessableContent
@@ -17985,6 +21355,8 @@ type WatchMCPConnectionsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON415      *UnsupportedMediaType
 	JSON422      *UnprocessableContent
 	JSON500      *InternalError
@@ -18010,6 +21382,8 @@ type DeleteMCPConnectionResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON404      *NotFound
 	JSON409      *Conflict
 	JSON500      *InternalError
@@ -18036,6 +21410,8 @@ type GetMCPConnectionResp struct {
 	HTTPResponse *http.Response
 	JSON200      *MCPConnectionDetail
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON404      *NotFound
 	JSON500      *InternalError
 }
@@ -18799,6 +22175,8 @@ type ListSandboxesResp struct {
 	HTTPResponse *http.Response
 	JSON200      *ListSandboxesResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON500      *InternalError
 }
 
@@ -18823,6 +22201,8 @@ type CreateSandboxResp struct {
 	HTTPResponse *http.Response
 	JSON201      *Sandbox
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON409      *Conflict
 	JSON415      *UnsupportedMediaType
 	JSON422      *UnprocessableContent
@@ -18849,6 +22229,8 @@ type DeleteSandboxResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON404      *NotFound
 	JSON500      *InternalError
 }
@@ -18874,6 +22256,8 @@ type UpdateSandboxResp struct {
 	HTTPResponse *http.Response
 	JSON200      *Sandbox
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON404      *NotFound
 	JSON415      *UnsupportedMediaType
 	JSON422      *UnprocessableContent
@@ -19104,10 +22488,10 @@ func (r ExportImmutableSkillsResp) StatusCode() int {
 	return 0
 }
 
-type ImportSkillsResp struct {
+type ImportImmutableSkillsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ImportSkillsResponse
+	JSON200      *SkillImportResponse
 	JSON400      *BadRequest
 	JSON413      *PayloadTooLarge
 	JSON415      *UnsupportedMediaType
@@ -19115,7 +22499,7 @@ type ImportSkillsResp struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ImportSkillsResp) Status() string {
+func (r ImportImmutableSkillsResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -19123,17 +22507,17 @@ func (r ImportSkillsResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ImportSkillsResp) StatusCode() int {
+func (r ImportImmutableSkillsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PreviewSkillImportResp struct {
+type PreviewImmutableSkillImportResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *SkillImportPreviewResponse
+	JSON200      *ImmutableSkillImportPreviewResponse
 	JSON400      *BadRequest
 	JSON413      *PayloadTooLarge
 	JSON415      *UnsupportedMediaType
@@ -19141,7 +22525,7 @@ type PreviewSkillImportResp struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PreviewSkillImportResp) Status() string {
+func (r PreviewImmutableSkillImportResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -19149,7 +22533,7 @@ func (r PreviewSkillImportResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PreviewSkillImportResp) StatusCode() int {
+func (r PreviewImmutableSkillImportResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -19795,6 +23179,240 @@ func (r InvokeWorkflowWebhookResp) StatusCode() int {
 	return 0
 }
 
+type ListWorkspacesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListWorkspacesResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWorkspacesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWorkspacesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateWorkspaceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Workspace
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON422      *UnprocessableContent
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateWorkspaceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateWorkspaceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListWorkspaceMemberCandidatesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListWorkspaceMemberCandidatesResponse
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWorkspaceMemberCandidatesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWorkspaceMemberCandidatesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ResolveWorkspaceSlugResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Workspace
+	JSON401      *Unauthorized
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ResolveWorkspaceSlugResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ResolveWorkspaceSlugResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetWorkspaceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Workspace
+	JSON401      *Unauthorized
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWorkspaceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWorkspaceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListWorkspaceInheritedResourcesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListWorkspaceInheritedResourcesResponse
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWorkspaceInheritedResourcesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWorkspaceInheritedResourcesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReplaceWorkspaceInheritedResourcesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListWorkspaceInheritedResourcesResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceWorkspaceInheritedResourcesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceWorkspaceInheritedResourcesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateWorkspaceLifecycleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateWorkspaceLifecycleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateWorkspaceLifecycleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RetryWorkspaceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Workspace
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r RetryWorkspaceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RetryWorkspaceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // ListAgentsWithResponse request returning *ListAgentsResp
 func (c *ClientWithResponses) ListAgentsWithResponse(ctx context.Context, params *ListAgentsParams, reqEditors ...RequestEditorFn) (*ListAgentsResp, error) {
 	rsp, err := c.ListAgents(ctx, params, reqEditors...)
@@ -19819,6 +23437,24 @@ func (c *ClientWithResponses) CreateAgentWithResponse(ctx context.Context, body 
 		return nil, err
 	}
 	return ParseCreateAgentResp(rsp)
+}
+
+// ImportMutableSkillsWithBodyWithResponse request with arbitrary body returning *ImportMutableSkillsResp
+func (c *ClientWithResponses) ImportMutableSkillsWithBodyWithResponse(ctx context.Context, params *ImportMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportMutableSkillsResp, error) {
+	rsp, err := c.ImportMutableSkillsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseImportMutableSkillsResp(rsp)
+}
+
+// PreviewMutableSkillImportWithBodyWithResponse request with arbitrary body returning *PreviewMutableSkillImportResp
+func (c *ClientWithResponses) PreviewMutableSkillImportWithBodyWithResponse(ctx context.Context, params *PreviewMutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewMutableSkillImportResp, error) {
+	rsp, err := c.PreviewMutableSkillImportWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewMutableSkillImportResp(rsp)
 }
 
 // WatchAgentsWithBodyWithResponse request with arbitrary body returning *WatchAgentsResp
@@ -19862,6 +23498,15 @@ func (c *ClientWithResponses) UpdateAgentWithResponse(ctx context.Context, agent
 		return nil, err
 	}
 	return ParseUpdateAgentResp(rsp)
+}
+
+// ListAgentAccessTargetsWithResponse request returning *ListAgentAccessTargetsResp
+func (c *ClientWithResponses) ListAgentAccessTargetsWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*ListAgentAccessTargetsResp, error) {
+	rsp, err := c.ListAgentAccessTargets(ctx, agentName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentAccessTargetsResp(rsp)
 }
 
 // CreateAgentDirectoryWithBodyWithResponse request with arbitrary body returning *CreateAgentDirectoryResp
@@ -19977,17 +23622,78 @@ func (c *ClientWithResponses) StatAgentFileWithResponse(ctx context.Context, age
 	return ParseStatAgentFileResp(rsp)
 }
 
+// GetAgentOwnerWithResponse request returning *GetAgentOwnerResp
+func (c *ClientWithResponses) GetAgentOwnerWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*GetAgentOwnerResp, error) {
+	rsp, err := c.GetAgentOwner(ctx, agentName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentOwnerResp(rsp)
+}
+
+// TransferAgentOwnerWithBodyWithResponse request with arbitrary body returning *TransferAgentOwnerResp
+func (c *ClientWithResponses) TransferAgentOwnerWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferAgentOwnerResp, error) {
+	rsp, err := c.TransferAgentOwnerWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTransferAgentOwnerResp(rsp)
+}
+
+func (c *ClientWithResponses) TransferAgentOwnerWithResponse(ctx context.Context, agentName AgentNamePath, body TransferAgentOwnerJSONRequestBody, reqEditors ...RequestEditorFn) (*TransferAgentOwnerResp, error) {
+	rsp, err := c.TransferAgentOwner(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTransferAgentOwnerResp(rsp)
+}
+
+// ListAgentSharesWithResponse request returning *ListAgentSharesResp
+func (c *ClientWithResponses) ListAgentSharesWithResponse(ctx context.Context, agentName AgentNamePath, params *ListAgentSharesParams, reqEditors ...RequestEditorFn) (*ListAgentSharesResp, error) {
+	rsp, err := c.ListAgentShares(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentSharesResp(rsp)
+}
+
+// UpsertAgentShareWithBodyWithResponse request with arbitrary body returning *UpsertAgentShareResp
+func (c *ClientWithResponses) UpsertAgentShareWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertAgentShareResp, error) {
+	rsp, err := c.UpsertAgentShareWithBody(ctx, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertAgentShareResp(rsp)
+}
+
+func (c *ClientWithResponses) UpsertAgentShareWithResponse(ctx context.Context, agentName AgentNamePath, body UpsertAgentShareJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAgentShareResp, error) {
+	rsp, err := c.UpsertAgentShare(ctx, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertAgentShareResp(rsp)
+}
+
+// DeleteAgentShareWithResponse request returning *DeleteAgentShareResp
+func (c *ClientWithResponses) DeleteAgentShareWithResponse(ctx context.Context, agentName AgentNamePath, shareId AgentShareIDPath, reqEditors ...RequestEditorFn) (*DeleteAgentShareResp, error) {
+	rsp, err := c.DeleteAgentShare(ctx, agentName, shareId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentShareResp(rsp)
+}
+
 // DeleteAgentMutableSkillsWithBodyWithResponse request with arbitrary body returning *DeleteAgentMutableSkillsResp
-func (c *ClientWithResponses) DeleteAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error) {
-	rsp, err := c.DeleteAgentMutableSkillsWithBody(ctx, agentName, contentType, body, reqEditors...)
+func (c *ClientWithResponses) DeleteAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error) {
+	rsp, err := c.DeleteAgentMutableSkillsWithBody(ctx, agentName, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseDeleteAgentMutableSkillsResp(rsp)
 }
 
-func (c *ClientWithResponses) DeleteAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error) {
-	rsp, err := c.DeleteAgentMutableSkills(ctx, agentName, body, reqEditors...)
+func (c *ClientWithResponses) DeleteAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, params *DeleteAgentMutableSkillsParams, body DeleteAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAgentMutableSkillsResp, error) {
+	rsp, err := c.DeleteAgentMutableSkills(ctx, agentName, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20004,20 +23710,46 @@ func (c *ClientWithResponses) ListAgentMutableSkillsWithResponse(ctx context.Con
 }
 
 // ExportAgentMutableSkillsWithBodyWithResponse request with arbitrary body returning *ExportAgentMutableSkillsResp
-func (c *ClientWithResponses) ExportAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error) {
-	rsp, err := c.ExportAgentMutableSkillsWithBody(ctx, agentName, contentType, body, reqEditors...)
+func (c *ClientWithResponses) ExportAgentMutableSkillsWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error) {
+	rsp, err := c.ExportAgentMutableSkillsWithBody(ctx, agentName, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseExportAgentMutableSkillsResp(rsp)
 }
 
-func (c *ClientWithResponses) ExportAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error) {
-	rsp, err := c.ExportAgentMutableSkills(ctx, agentName, body, reqEditors...)
+func (c *ClientWithResponses) ExportAgentMutableSkillsWithResponse(ctx context.Context, agentName AgentNamePath, params *ExportAgentMutableSkillsParams, body ExportAgentMutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportAgentMutableSkillsResp, error) {
+	rsp, err := c.ExportAgentMutableSkills(ctx, agentName, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseExportAgentMutableSkillsResp(rsp)
+}
+
+// ListEventTrailEventsWithBodyWithResponse request with arbitrary body returning *ListEventTrailEventsResp
+func (c *ClientWithResponses) ListEventTrailEventsWithBodyWithResponse(ctx context.Context, params *ListEventTrailEventsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListEventTrailEventsResp, error) {
+	rsp, err := c.ListEventTrailEventsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEventTrailEventsResp(rsp)
+}
+
+func (c *ClientWithResponses) ListEventTrailEventsWithResponse(ctx context.Context, params *ListEventTrailEventsParams, body ListEventTrailEventsJSONRequestBody, reqEditors ...RequestEditorFn) (*ListEventTrailEventsResp, error) {
+	rsp, err := c.ListEventTrailEvents(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEventTrailEventsResp(rsp)
+}
+
+// GetEventTrailEventWithResponse request returning *GetEventTrailEventResp
+func (c *ClientWithResponses) GetEventTrailEventWithResponse(ctx context.Context, eventId EventTrailEventIDPath, params *GetEventTrailEventParams, reqEditors ...RequestEditorFn) (*GetEventTrailEventResp, error) {
+	rsp, err := c.GetEventTrailEvent(ctx, eventId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEventTrailEventResp(rsp)
 }
 
 // ListInferencePoolsWithResponse request returning *ListInferencePoolsResp
@@ -20030,16 +23762,16 @@ func (c *ClientWithResponses) ListInferencePoolsWithResponse(ctx context.Context
 }
 
 // CreateInferencePoolWithBodyWithResponse request with arbitrary body returning *CreateInferencePoolResp
-func (c *ClientWithResponses) CreateInferencePoolWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error) {
-	rsp, err := c.CreateInferencePoolWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateInferencePoolWithBodyWithResponse(ctx context.Context, params *CreateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error) {
+	rsp, err := c.CreateInferencePoolWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateInferencePoolResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateInferencePoolWithResponse(ctx context.Context, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error) {
-	rsp, err := c.CreateInferencePool(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateInferencePoolWithResponse(ctx context.Context, params *CreateInferencePoolParams, body CreateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferencePoolResp, error) {
+	rsp, err := c.CreateInferencePool(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20047,16 +23779,16 @@ func (c *ClientWithResponses) CreateInferencePoolWithResponse(ctx context.Contex
 }
 
 // WatchInferencePoolsWithBodyWithResponse request with arbitrary body returning *WatchInferencePoolsResp
-func (c *ClientWithResponses) WatchInferencePoolsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error) {
-	rsp, err := c.WatchInferencePoolsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) WatchInferencePoolsWithBodyWithResponse(ctx context.Context, params *WatchInferencePoolsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error) {
+	rsp, err := c.WatchInferencePoolsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseWatchInferencePoolsResp(rsp)
 }
 
-func (c *ClientWithResponses) WatchInferencePoolsWithResponse(ctx context.Context, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error) {
-	rsp, err := c.WatchInferencePools(ctx, body, reqEditors...)
+func (c *ClientWithResponses) WatchInferencePoolsWithResponse(ctx context.Context, params *WatchInferencePoolsParams, body WatchInferencePoolsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferencePoolsResp, error) {
+	rsp, err := c.WatchInferencePools(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20064,8 +23796,8 @@ func (c *ClientWithResponses) WatchInferencePoolsWithResponse(ctx context.Contex
 }
 
 // DeleteInferencePoolWithResponse request returning *DeleteInferencePoolResp
-func (c *ClientWithResponses) DeleteInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*DeleteInferencePoolResp, error) {
-	rsp, err := c.DeleteInferencePool(ctx, poolName, reqEditors...)
+func (c *ClientWithResponses) DeleteInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *DeleteInferencePoolParams, reqEditors ...RequestEditorFn) (*DeleteInferencePoolResp, error) {
+	rsp, err := c.DeleteInferencePool(ctx, poolName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20073,8 +23805,8 @@ func (c *ClientWithResponses) DeleteInferencePoolWithResponse(ctx context.Contex
 }
 
 // GetInferencePoolWithResponse request returning *GetInferencePoolResp
-func (c *ClientWithResponses) GetInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*GetInferencePoolResp, error) {
-	rsp, err := c.GetInferencePool(ctx, poolName, reqEditors...)
+func (c *ClientWithResponses) GetInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolParams, reqEditors ...RequestEditorFn) (*GetInferencePoolResp, error) {
+	rsp, err := c.GetInferencePool(ctx, poolName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20082,16 +23814,16 @@ func (c *ClientWithResponses) GetInferencePoolWithResponse(ctx context.Context, 
 }
 
 // UpdateInferencePoolWithBodyWithResponse request with arbitrary body returning *UpdateInferencePoolResp
-func (c *ClientWithResponses) UpdateInferencePoolWithBodyWithResponse(ctx context.Context, poolName InferencePoolNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error) {
-	rsp, err := c.UpdateInferencePoolWithBody(ctx, poolName, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UpdateInferencePoolWithBodyWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error) {
+	rsp, err := c.UpdateInferencePoolWithBody(ctx, poolName, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseUpdateInferencePoolResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error) {
-	rsp, err := c.UpdateInferencePool(ctx, poolName, body, reqEditors...)
+func (c *ClientWithResponses) UpdateInferencePoolWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *UpdateInferencePoolParams, body UpdateInferencePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferencePoolResp, error) {
+	rsp, err := c.UpdateInferencePool(ctx, poolName, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20099,8 +23831,8 @@ func (c *ClientWithResponses) UpdateInferencePoolWithResponse(ctx context.Contex
 }
 
 // GetInferencePoolUsageWithResponse request returning *GetInferencePoolUsageResp
-func (c *ClientWithResponses) GetInferencePoolUsageWithResponse(ctx context.Context, poolName InferencePoolNamePath, reqEditors ...RequestEditorFn) (*GetInferencePoolUsageResp, error) {
-	rsp, err := c.GetInferencePoolUsage(ctx, poolName, reqEditors...)
+func (c *ClientWithResponses) GetInferencePoolUsageWithResponse(ctx context.Context, poolName InferencePoolNamePath, params *GetInferencePoolUsageParams, reqEditors ...RequestEditorFn) (*GetInferencePoolUsageResp, error) {
+	rsp, err := c.GetInferencePoolUsage(ctx, poolName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20117,16 +23849,16 @@ func (c *ClientWithResponses) ListInferenceProvidersWithResponse(ctx context.Con
 }
 
 // CreateInferenceProviderWithBodyWithResponse request with arbitrary body returning *CreateInferenceProviderResp
-func (c *ClientWithResponses) CreateInferenceProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error) {
-	rsp, err := c.CreateInferenceProviderWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateInferenceProviderWithBodyWithResponse(ctx context.Context, params *CreateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error) {
+	rsp, err := c.CreateInferenceProviderWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateInferenceProviderResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateInferenceProviderWithResponse(ctx context.Context, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error) {
-	rsp, err := c.CreateInferenceProvider(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateInferenceProviderWithResponse(ctx context.Context, params *CreateInferenceProviderParams, body CreateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderResp, error) {
+	rsp, err := c.CreateInferenceProvider(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20152,16 +23884,16 @@ func (c *ClientWithResponses) ListInferenceModelSuggestionsWithResponse(ctx cont
 }
 
 // CreateInferenceProviderOAuthTicketWithBodyWithResponse request with arbitrary body returning *CreateInferenceProviderOAuthTicketResp
-func (c *ClientWithResponses) CreateInferenceProviderOAuthTicketWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error) {
-	rsp, err := c.CreateInferenceProviderOAuthTicketWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateInferenceProviderOAuthTicketWithBodyWithResponse(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error) {
+	rsp, err := c.CreateInferenceProviderOAuthTicketWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateInferenceProviderOAuthTicketResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateInferenceProviderOAuthTicketWithResponse(ctx context.Context, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error) {
-	rsp, err := c.CreateInferenceProviderOAuthTicket(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateInferenceProviderOAuthTicketWithResponse(ctx context.Context, params *CreateInferenceProviderOAuthTicketParams, body CreateInferenceProviderOAuthTicketJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInferenceProviderOAuthTicketResp, error) {
+	rsp, err := c.CreateInferenceProviderOAuthTicket(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20169,16 +23901,16 @@ func (c *ClientWithResponses) CreateInferenceProviderOAuthTicketWithResponse(ctx
 }
 
 // WatchInferenceProvidersWithBodyWithResponse request with arbitrary body returning *WatchInferenceProvidersResp
-func (c *ClientWithResponses) WatchInferenceProvidersWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error) {
-	rsp, err := c.WatchInferenceProvidersWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) WatchInferenceProvidersWithBodyWithResponse(ctx context.Context, params *WatchInferenceProvidersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error) {
+	rsp, err := c.WatchInferenceProvidersWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseWatchInferenceProvidersResp(rsp)
 }
 
-func (c *ClientWithResponses) WatchInferenceProvidersWithResponse(ctx context.Context, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error) {
-	rsp, err := c.WatchInferenceProviders(ctx, body, reqEditors...)
+func (c *ClientWithResponses) WatchInferenceProvidersWithResponse(ctx context.Context, params *WatchInferenceProvidersParams, body WatchInferenceProvidersJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchInferenceProvidersResp, error) {
+	rsp, err := c.WatchInferenceProviders(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20186,8 +23918,8 @@ func (c *ClientWithResponses) WatchInferenceProvidersWithResponse(ctx context.Co
 }
 
 // DeleteInferenceProviderWithResponse request returning *DeleteInferenceProviderResp
-func (c *ClientWithResponses) DeleteInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*DeleteInferenceProviderResp, error) {
-	rsp, err := c.DeleteInferenceProvider(ctx, providerName, reqEditors...)
+func (c *ClientWithResponses) DeleteInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *DeleteInferenceProviderParams, reqEditors ...RequestEditorFn) (*DeleteInferenceProviderResp, error) {
+	rsp, err := c.DeleteInferenceProvider(ctx, providerName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20195,8 +23927,8 @@ func (c *ClientWithResponses) DeleteInferenceProviderWithResponse(ctx context.Co
 }
 
 // GetInferenceProviderWithResponse request returning *GetInferenceProviderResp
-func (c *ClientWithResponses) GetInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderResp, error) {
-	rsp, err := c.GetInferenceProvider(ctx, providerName, reqEditors...)
+func (c *ClientWithResponses) GetInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderParams, reqEditors ...RequestEditorFn) (*GetInferenceProviderResp, error) {
+	rsp, err := c.GetInferenceProvider(ctx, providerName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20204,16 +23936,16 @@ func (c *ClientWithResponses) GetInferenceProviderWithResponse(ctx context.Conte
 }
 
 // UpdateInferenceProviderWithBodyWithResponse request with arbitrary body returning *UpdateInferenceProviderResp
-func (c *ClientWithResponses) UpdateInferenceProviderWithBodyWithResponse(ctx context.Context, providerName InferenceProviderNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error) {
-	rsp, err := c.UpdateInferenceProviderWithBody(ctx, providerName, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UpdateInferenceProviderWithBodyWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error) {
+	rsp, err := c.UpdateInferenceProviderWithBody(ctx, providerName, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseUpdateInferenceProviderResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error) {
-	rsp, err := c.UpdateInferenceProvider(ctx, providerName, body, reqEditors...)
+func (c *ClientWithResponses) UpdateInferenceProviderWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *UpdateInferenceProviderParams, body UpdateInferenceProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInferenceProviderResp, error) {
+	rsp, err := c.UpdateInferenceProvider(ctx, providerName, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20221,8 +23953,8 @@ func (c *ClientWithResponses) UpdateInferenceProviderWithResponse(ctx context.Co
 }
 
 // RefreshInferenceProviderModelsWithResponse request returning *RefreshInferenceProviderModelsResp
-func (c *ClientWithResponses) RefreshInferenceProviderModelsWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*RefreshInferenceProviderModelsResp, error) {
-	rsp, err := c.RefreshInferenceProviderModels(ctx, providerName, reqEditors...)
+func (c *ClientWithResponses) RefreshInferenceProviderModelsWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *RefreshInferenceProviderModelsParams, reqEditors ...RequestEditorFn) (*RefreshInferenceProviderModelsResp, error) {
+	rsp, err := c.RefreshInferenceProviderModels(ctx, providerName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20230,8 +23962,8 @@ func (c *ClientWithResponses) RefreshInferenceProviderModelsWithResponse(ctx con
 }
 
 // GetInferenceProviderUsageWithResponse request returning *GetInferenceProviderUsageResp
-func (c *ClientWithResponses) GetInferenceProviderUsageWithResponse(ctx context.Context, providerName InferenceProviderNamePath, reqEditors ...RequestEditorFn) (*GetInferenceProviderUsageResp, error) {
-	rsp, err := c.GetInferenceProviderUsage(ctx, providerName, reqEditors...)
+func (c *ClientWithResponses) GetInferenceProviderUsageWithResponse(ctx context.Context, providerName InferenceProviderNamePath, params *GetInferenceProviderUsageParams, reqEditors ...RequestEditorFn) (*GetInferenceProviderUsageResp, error) {
+	rsp, err := c.GetInferenceProviderUsage(ctx, providerName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20256,6 +23988,15 @@ func (c *ClientWithResponses) ListFileObservabilityWithResponse(ctx context.Cont
 	return ParseListFileObservabilityResp(rsp)
 }
 
+// ListFileObservabilitySummaryWithResponse request returning *ListFileObservabilitySummaryResp
+func (c *ClientWithResponses) ListFileObservabilitySummaryWithResponse(ctx context.Context, agentName AgentNamePath, params *ListFileObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*ListFileObservabilitySummaryResp, error) {
+	rsp, err := c.ListFileObservabilitySummary(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListFileObservabilitySummaryResp(rsp)
+}
+
 // ListNetworkObservabilityWithResponse request returning *ListNetworkObservabilityResp
 func (c *ClientWithResponses) ListNetworkObservabilityWithResponse(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilityParams, reqEditors ...RequestEditorFn) (*ListNetworkObservabilityResp, error) {
 	rsp, err := c.ListNetworkObservability(ctx, agentName, params, reqEditors...)
@@ -20265,6 +24006,15 @@ func (c *ClientWithResponses) ListNetworkObservabilityWithResponse(ctx context.C
 	return ParseListNetworkObservabilityResp(rsp)
 }
 
+// ListNetworkObservabilitySummaryWithResponse request returning *ListNetworkObservabilitySummaryResp
+func (c *ClientWithResponses) ListNetworkObservabilitySummaryWithResponse(ctx context.Context, agentName AgentNamePath, params *ListNetworkObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*ListNetworkObservabilitySummaryResp, error) {
+	rsp, err := c.ListNetworkObservabilitySummary(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNetworkObservabilitySummaryResp(rsp)
+}
+
 // ListProcessObservabilityWithResponse request returning *ListProcessObservabilityResp
 func (c *ClientWithResponses) ListProcessObservabilityWithResponse(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilityParams, reqEditors ...RequestEditorFn) (*ListProcessObservabilityResp, error) {
 	rsp, err := c.ListProcessObservability(ctx, agentName, params, reqEditors...)
@@ -20272,6 +24022,15 @@ func (c *ClientWithResponses) ListProcessObservabilityWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseListProcessObservabilityResp(rsp)
+}
+
+// ListProcessObservabilitySummaryWithResponse request returning *ListProcessObservabilitySummaryResp
+func (c *ClientWithResponses) ListProcessObservabilitySummaryWithResponse(ctx context.Context, agentName AgentNamePath, params *ListProcessObservabilitySummaryParams, reqEditors ...RequestEditorFn) (*ListProcessObservabilitySummaryResp, error) {
+	rsp, err := c.ListProcessObservabilitySummary(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProcessObservabilitySummaryResp(rsp)
 }
 
 // ListTraceSessionsWithResponse request returning *ListTraceSessionsResp
@@ -20311,16 +24070,16 @@ func (c *ClientWithResponses) ListMCPConnectionsWithResponse(ctx context.Context
 }
 
 // CreateMCPConnectionWithBodyWithResponse request with arbitrary body returning *CreateMCPConnectionResp
-func (c *ClientWithResponses) CreateMCPConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error) {
-	rsp, err := c.CreateMCPConnectionWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateMCPConnectionWithBodyWithResponse(ctx context.Context, params *CreateMCPConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error) {
+	rsp, err := c.CreateMCPConnectionWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateMCPConnectionResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateMCPConnectionWithResponse(ctx context.Context, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error) {
-	rsp, err := c.CreateMCPConnection(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateMCPConnectionWithResponse(ctx context.Context, params *CreateMCPConnectionParams, body CreateMCPConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMCPConnectionResp, error) {
+	rsp, err := c.CreateMCPConnection(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20328,16 +24087,16 @@ func (c *ClientWithResponses) CreateMCPConnectionWithResponse(ctx context.Contex
 }
 
 // WatchMCPConnectionsWithBodyWithResponse request with arbitrary body returning *WatchMCPConnectionsResp
-func (c *ClientWithResponses) WatchMCPConnectionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error) {
-	rsp, err := c.WatchMCPConnectionsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) WatchMCPConnectionsWithBodyWithResponse(ctx context.Context, params *WatchMCPConnectionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error) {
+	rsp, err := c.WatchMCPConnectionsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseWatchMCPConnectionsResp(rsp)
 }
 
-func (c *ClientWithResponses) WatchMCPConnectionsWithResponse(ctx context.Context, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error) {
-	rsp, err := c.WatchMCPConnections(ctx, body, reqEditors...)
+func (c *ClientWithResponses) WatchMCPConnectionsWithResponse(ctx context.Context, params *WatchMCPConnectionsParams, body WatchMCPConnectionsJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchMCPConnectionsResp, error) {
+	rsp, err := c.WatchMCPConnections(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20345,8 +24104,8 @@ func (c *ClientWithResponses) WatchMCPConnectionsWithResponse(ctx context.Contex
 }
 
 // DeleteMCPConnectionWithResponse request returning *DeleteMCPConnectionResp
-func (c *ClientWithResponses) DeleteMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionResp, error) {
-	rsp, err := c.DeleteMCPConnection(ctx, name, reqEditors...)
+func (c *ClientWithResponses) DeleteMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, params *DeleteMCPConnectionParams, reqEditors ...RequestEditorFn) (*DeleteMCPConnectionResp, error) {
+	rsp, err := c.DeleteMCPConnection(ctx, name, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20354,8 +24113,8 @@ func (c *ClientWithResponses) DeleteMCPConnectionWithResponse(ctx context.Contex
 }
 
 // GetMCPConnectionWithResponse request returning *GetMCPConnectionResp
-func (c *ClientWithResponses) GetMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, reqEditors ...RequestEditorFn) (*GetMCPConnectionResp, error) {
-	rsp, err := c.GetMCPConnection(ctx, name, reqEditors...)
+func (c *ClientWithResponses) GetMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, params *GetMCPConnectionParams, reqEditors ...RequestEditorFn) (*GetMCPConnectionResp, error) {
+	rsp, err := c.GetMCPConnection(ctx, name, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20720,16 +24479,16 @@ func (c *ClientWithResponses) ListSandboxesWithResponse(ctx context.Context, par
 }
 
 // CreateSandboxWithBodyWithResponse request with arbitrary body returning *CreateSandboxResp
-func (c *ClientWithResponses) CreateSandboxWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error) {
-	rsp, err := c.CreateSandboxWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateSandboxWithBodyWithResponse(ctx context.Context, params *CreateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error) {
+	rsp, err := c.CreateSandboxWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateSandboxResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateSandboxWithResponse(ctx context.Context, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error) {
-	rsp, err := c.CreateSandbox(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateSandboxWithResponse(ctx context.Context, params *CreateSandboxParams, body CreateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSandboxResp, error) {
+	rsp, err := c.CreateSandbox(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20737,8 +24496,8 @@ func (c *ClientWithResponses) CreateSandboxWithResponse(ctx context.Context, bod
 }
 
 // DeleteSandboxWithResponse request returning *DeleteSandboxResp
-func (c *ClientWithResponses) DeleteSandboxWithResponse(ctx context.Context, sandboxName SandboxName, reqEditors ...RequestEditorFn) (*DeleteSandboxResp, error) {
-	rsp, err := c.DeleteSandbox(ctx, sandboxName, reqEditors...)
+func (c *ClientWithResponses) DeleteSandboxWithResponse(ctx context.Context, sandboxName SandboxName, params *DeleteSandboxParams, reqEditors ...RequestEditorFn) (*DeleteSandboxResp, error) {
+	rsp, err := c.DeleteSandbox(ctx, sandboxName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20746,16 +24505,16 @@ func (c *ClientWithResponses) DeleteSandboxWithResponse(ctx context.Context, san
 }
 
 // UpdateSandboxWithBodyWithResponse request with arbitrary body returning *UpdateSandboxResp
-func (c *ClientWithResponses) UpdateSandboxWithBodyWithResponse(ctx context.Context, sandboxName SandboxName, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error) {
-	rsp, err := c.UpdateSandboxWithBody(ctx, sandboxName, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UpdateSandboxWithBodyWithResponse(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error) {
+	rsp, err := c.UpdateSandboxWithBody(ctx, sandboxName, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseUpdateSandboxResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateSandboxWithResponse(ctx context.Context, sandboxName SandboxName, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error) {
-	rsp, err := c.UpdateSandbox(ctx, sandboxName, body, reqEditors...)
+func (c *ClientWithResponses) UpdateSandboxWithResponse(ctx context.Context, sandboxName SandboxName, params *UpdateSandboxParams, body UpdateSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSandboxResp, error) {
+	rsp, err := c.UpdateSandbox(ctx, sandboxName, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20823,16 +24582,16 @@ func (c *ClientWithResponses) WatchSecretsWithResponse(ctx context.Context, agen
 }
 
 // DeleteImmutableSkillsWithBodyWithResponse request with arbitrary body returning *DeleteImmutableSkillsResp
-func (c *ClientWithResponses) DeleteImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error) {
-	rsp, err := c.DeleteImmutableSkillsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) DeleteImmutableSkillsWithBodyWithResponse(ctx context.Context, params *DeleteImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error) {
+	rsp, err := c.DeleteImmutableSkillsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseDeleteImmutableSkillsResp(rsp)
 }
 
-func (c *ClientWithResponses) DeleteImmutableSkillsWithResponse(ctx context.Context, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error) {
-	rsp, err := c.DeleteImmutableSkills(ctx, body, reqEditors...)
+func (c *ClientWithResponses) DeleteImmutableSkillsWithResponse(ctx context.Context, params *DeleteImmutableSkillsParams, body DeleteImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteImmutableSkillsResp, error) {
+	rsp, err := c.DeleteImmutableSkills(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20849,16 +24608,16 @@ func (c *ClientWithResponses) ListSkillsWithResponse(ctx context.Context, params
 }
 
 // CreateSkillWithBodyWithResponse request with arbitrary body returning *CreateSkillResp
-func (c *ClientWithResponses) CreateSkillWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSkillResp, error) {
-	rsp, err := c.CreateSkillWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateSkillWithBodyWithResponse(ctx context.Context, params *CreateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSkillResp, error) {
+	rsp, err := c.CreateSkillWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateSkillResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateSkillWithResponse(ctx context.Context, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSkillResp, error) {
-	rsp, err := c.CreateSkill(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateSkillWithResponse(ctx context.Context, params *CreateSkillParams, body CreateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSkillResp, error) {
+	rsp, err := c.CreateSkill(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20866,38 +24625,38 @@ func (c *ClientWithResponses) CreateSkillWithResponse(ctx context.Context, body 
 }
 
 // ExportImmutableSkillsWithBodyWithResponse request with arbitrary body returning *ExportImmutableSkillsResp
-func (c *ClientWithResponses) ExportImmutableSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error) {
-	rsp, err := c.ExportImmutableSkillsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) ExportImmutableSkillsWithBodyWithResponse(ctx context.Context, params *ExportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error) {
+	rsp, err := c.ExportImmutableSkillsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseExportImmutableSkillsResp(rsp)
 }
 
-func (c *ClientWithResponses) ExportImmutableSkillsWithResponse(ctx context.Context, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error) {
-	rsp, err := c.ExportImmutableSkills(ctx, body, reqEditors...)
+func (c *ClientWithResponses) ExportImmutableSkillsWithResponse(ctx context.Context, params *ExportImmutableSkillsParams, body ExportImmutableSkillsJSONRequestBody, reqEditors ...RequestEditorFn) (*ExportImmutableSkillsResp, error) {
+	rsp, err := c.ExportImmutableSkills(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseExportImmutableSkillsResp(rsp)
 }
 
-// ImportSkillsWithBodyWithResponse request with arbitrary body returning *ImportSkillsResp
-func (c *ClientWithResponses) ImportSkillsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportSkillsResp, error) {
-	rsp, err := c.ImportSkillsWithBody(ctx, contentType, body, reqEditors...)
+// ImportImmutableSkillsWithBodyWithResponse request with arbitrary body returning *ImportImmutableSkillsResp
+func (c *ClientWithResponses) ImportImmutableSkillsWithBodyWithResponse(ctx context.Context, params *ImportImmutableSkillsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportImmutableSkillsResp, error) {
+	rsp, err := c.ImportImmutableSkillsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseImportSkillsResp(rsp)
+	return ParseImportImmutableSkillsResp(rsp)
 }
 
-// PreviewSkillImportWithBodyWithResponse request with arbitrary body returning *PreviewSkillImportResp
-func (c *ClientWithResponses) PreviewSkillImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewSkillImportResp, error) {
-	rsp, err := c.PreviewSkillImportWithBody(ctx, contentType, body, reqEditors...)
+// PreviewImmutableSkillImportWithBodyWithResponse request with arbitrary body returning *PreviewImmutableSkillImportResp
+func (c *ClientWithResponses) PreviewImmutableSkillImportWithBodyWithResponse(ctx context.Context, params *PreviewImmutableSkillImportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewImmutableSkillImportResp, error) {
+	rsp, err := c.PreviewImmutableSkillImportWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePreviewSkillImportResp(rsp)
+	return ParsePreviewImmutableSkillImportResp(rsp)
 }
 
 // ListImmutableSkillSummariesWithResponse request returning *ListImmutableSkillSummariesResp
@@ -20910,8 +24669,8 @@ func (c *ClientWithResponses) ListImmutableSkillSummariesWithResponse(ctx contex
 }
 
 // DeleteSkillWithResponse request returning *DeleteSkillResp
-func (c *ClientWithResponses) DeleteSkillWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*DeleteSkillResp, error) {
-	rsp, err := c.DeleteSkill(ctx, skillName, reqEditors...)
+func (c *ClientWithResponses) DeleteSkillWithResponse(ctx context.Context, skillName SkillNamePath, params *DeleteSkillParams, reqEditors ...RequestEditorFn) (*DeleteSkillResp, error) {
+	rsp, err := c.DeleteSkill(ctx, skillName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20919,16 +24678,16 @@ func (c *ClientWithResponses) DeleteSkillWithResponse(ctx context.Context, skill
 }
 
 // UpdateSkillWithBodyWithResponse request with arbitrary body returning *UpdateSkillResp
-func (c *ClientWithResponses) UpdateSkillWithBodyWithResponse(ctx context.Context, skillName SkillNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error) {
-	rsp, err := c.UpdateSkillWithBody(ctx, skillName, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UpdateSkillWithBodyWithResponse(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error) {
+	rsp, err := c.UpdateSkillWithBody(ctx, skillName, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseUpdateSkillResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateSkillWithResponse(ctx context.Context, skillName SkillNamePath, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error) {
-	rsp, err := c.UpdateSkill(ctx, skillName, body, reqEditors...)
+func (c *ClientWithResponses) UpdateSkillWithResponse(ctx context.Context, skillName SkillNamePath, params *UpdateSkillParams, body UpdateSkillJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSkillResp, error) {
+	rsp, err := c.UpdateSkill(ctx, skillName, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20936,8 +24695,8 @@ func (c *ClientWithResponses) UpdateSkillWithResponse(ctx context.Context, skill
 }
 
 // GetSkillReferencesWithResponse request returning *GetSkillReferencesResp
-func (c *ClientWithResponses) GetSkillReferencesWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*GetSkillReferencesResp, error) {
-	rsp, err := c.GetSkillReferences(ctx, skillName, reqEditors...)
+func (c *ClientWithResponses) GetSkillReferencesWithResponse(ctx context.Context, skillName SkillNamePath, params *GetSkillReferencesParams, reqEditors ...RequestEditorFn) (*GetSkillReferencesResp, error) {
+	rsp, err := c.GetSkillReferences(ctx, skillName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -20945,8 +24704,8 @@ func (c *ClientWithResponses) GetSkillReferencesWithResponse(ctx context.Context
 }
 
 // ListImmutableSkillVersionsWithResponse request returning *ListImmutableSkillVersionsResp
-func (c *ClientWithResponses) ListImmutableSkillVersionsWithResponse(ctx context.Context, skillName SkillNamePath, reqEditors ...RequestEditorFn) (*ListImmutableSkillVersionsResp, error) {
-	rsp, err := c.ListImmutableSkillVersions(ctx, skillName, reqEditors...)
+func (c *ClientWithResponses) ListImmutableSkillVersionsWithResponse(ctx context.Context, skillName SkillNamePath, params *ListImmutableSkillVersionsParams, reqEditors ...RequestEditorFn) (*ListImmutableSkillVersionsResp, error) {
+	rsp, err := c.ListImmutableSkillVersions(ctx, skillName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -21197,6 +24956,111 @@ func (c *ClientWithResponses) InvokeWorkflowWebhookWithResponse(ctx context.Cont
 	return ParseInvokeWorkflowWebhookResp(rsp)
 }
 
+// ListWorkspacesWithResponse request returning *ListWorkspacesResp
+func (c *ClientWithResponses) ListWorkspacesWithResponse(ctx context.Context, params *ListWorkspacesParams, reqEditors ...RequestEditorFn) (*ListWorkspacesResp, error) {
+	rsp, err := c.ListWorkspaces(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWorkspacesResp(rsp)
+}
+
+// CreateWorkspaceWithBodyWithResponse request with arbitrary body returning *CreateWorkspaceResp
+func (c *ClientWithResponses) CreateWorkspaceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceResp, error) {
+	rsp, err := c.CreateWorkspaceWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkspaceResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateWorkspaceWithResponse(ctx context.Context, body CreateWorkspaceJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceResp, error) {
+	rsp, err := c.CreateWorkspace(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkspaceResp(rsp)
+}
+
+// ListWorkspaceMemberCandidatesWithResponse request returning *ListWorkspaceMemberCandidatesResp
+func (c *ClientWithResponses) ListWorkspaceMemberCandidatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListWorkspaceMemberCandidatesResp, error) {
+	rsp, err := c.ListWorkspaceMemberCandidates(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWorkspaceMemberCandidatesResp(rsp)
+}
+
+// ResolveWorkspaceSlugWithResponse request returning *ResolveWorkspaceSlugResp
+func (c *ClientWithResponses) ResolveWorkspaceSlugWithResponse(ctx context.Context, workspaceSlug WorkspaceSlugPath, reqEditors ...RequestEditorFn) (*ResolveWorkspaceSlugResp, error) {
+	rsp, err := c.ResolveWorkspaceSlug(ctx, workspaceSlug, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseResolveWorkspaceSlugResp(rsp)
+}
+
+// GetWorkspaceWithResponse request returning *GetWorkspaceResp
+func (c *ClientWithResponses) GetWorkspaceWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*GetWorkspaceResp, error) {
+	rsp, err := c.GetWorkspace(ctx, workspaceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWorkspaceResp(rsp)
+}
+
+// ListWorkspaceInheritedResourcesWithResponse request returning *ListWorkspaceInheritedResourcesResp
+func (c *ClientWithResponses) ListWorkspaceInheritedResourcesWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, reqEditors ...RequestEditorFn) (*ListWorkspaceInheritedResourcesResp, error) {
+	rsp, err := c.ListWorkspaceInheritedResources(ctx, workspaceId, resourceType, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWorkspaceInheritedResourcesResp(rsp)
+}
+
+// ReplaceWorkspaceInheritedResourcesWithBodyWithResponse request with arbitrary body returning *ReplaceWorkspaceInheritedResourcesResp
+func (c *ClientWithResponses) ReplaceWorkspaceInheritedResourcesWithBodyWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceWorkspaceInheritedResourcesResp, error) {
+	rsp, err := c.ReplaceWorkspaceInheritedResourcesWithBody(ctx, workspaceId, resourceType, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceWorkspaceInheritedResourcesResp(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceWorkspaceInheritedResourcesWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath, body ReplaceWorkspaceInheritedResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceWorkspaceInheritedResourcesResp, error) {
+	rsp, err := c.ReplaceWorkspaceInheritedResources(ctx, workspaceId, resourceType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceWorkspaceInheritedResourcesResp(rsp)
+}
+
+// UpdateWorkspaceLifecycleWithBodyWithResponse request with arbitrary body returning *UpdateWorkspaceLifecycleResp
+func (c *ClientWithResponses) UpdateWorkspaceLifecycleWithBodyWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkspaceLifecycleResp, error) {
+	rsp, err := c.UpdateWorkspaceLifecycleWithBody(ctx, workspaceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkspaceLifecycleResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateWorkspaceLifecycleWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, body UpdateWorkspaceLifecycleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkspaceLifecycleResp, error) {
+	rsp, err := c.UpdateWorkspaceLifecycle(ctx, workspaceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkspaceLifecycleResp(rsp)
+}
+
+// RetryWorkspaceWithResponse request returning *RetryWorkspaceResp
+func (c *ClientWithResponses) RetryWorkspaceWithResponse(ctx context.Context, workspaceId WorkspaceIDPath, reqEditors ...RequestEditorFn) (*RetryWorkspaceResp, error) {
+	rsp, err := c.RetryWorkspace(ctx, workspaceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRetryWorkspaceResp(rsp)
+}
+
 // ParseListAgentsResp parses an HTTP response from a ListAgentsWithResponse call
 func ParseListAgentsResp(rsp *http.Response) (*ListAgentsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -21292,6 +25156,142 @@ func ParseCreateAgentResp(rsp *http.Response) (*CreateAgentResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseImportMutableSkillsResp parses an HTTP response from a ImportMutableSkillsWithResponse call
+func ParseImportMutableSkillsResp(rsp *http.Response) (*ImportMutableSkillsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ImportMutableSkillsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SkillImportResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePreviewMutableSkillImportResp parses an HTTP response from a PreviewMutableSkillImportWithResponse call
+func ParsePreviewMutableSkillImportResp(rsp *http.Response) (*PreviewMutableSkillImportResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreviewMutableSkillImportResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MutableSkillImportPreviewResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
@@ -21440,6 +25440,60 @@ func ParseUpdateAgentResp(rsp *http.Response) (*UpdateAgentResp, error) {
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentAccessTargetsResp parses an HTTP response from a ListAgentAccessTargetsWithResponse call
+func ParseListAgentAccessTargetsResp(rsp *http.Response) (*ListAgentAccessTargetsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentAccessTargetsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListAgentAccessTargetsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -21967,6 +26021,311 @@ func ParseStatAgentFileResp(rsp *http.Response) (*StatAgentFileResp, error) {
 	return response, nil
 }
 
+// ParseGetAgentOwnerResp parses an HTTP response from a GetAgentOwnerWithResponse call
+func ParseGetAgentOwnerResp(rsp *http.Response) (*GetAgentOwnerResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentOwnerResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentOwner
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTransferAgentOwnerResp parses an HTTP response from a TransferAgentOwnerWithResponse call
+func ParseTransferAgentOwnerResp(rsp *http.Response) (*TransferAgentOwnerResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TransferAgentOwnerResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentOwner
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentSharesResp parses an HTTP response from a ListAgentSharesWithResponse call
+func ParseListAgentSharesResp(rsp *http.Response) (*ListAgentSharesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentSharesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListAgentSharesResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpsertAgentShareResp parses an HTTP response from a UpsertAgentShareWithResponse call
+func ParseUpsertAgentShareResp(rsp *http.Response) (*UpsertAgentShareResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpsertAgentShareResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentShare
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentShareResp parses an HTTP response from a DeleteAgentShareWithResponse call
+func ParseDeleteAgentShareResp(rsp *http.Response) (*DeleteAgentShareResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentShareResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseDeleteAgentMutableSkillsResp parses an HTTP response from a DeleteAgentMutableSkillsWithResponse call
 func ParseDeleteAgentMutableSkillsResp(rsp *http.Response) (*DeleteAgentMutableSkillsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -22116,6 +26475,114 @@ func ParseExportAgentMutableSkillsResp(rsp *http.Response) (*ExportAgentMutableS
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListEventTrailEventsResp parses an HTTP response from a ListEventTrailEventsWithResponse call
+func ParseListEventTrailEventsResp(rsp *http.Response) (*ListEventTrailEventsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEventTrailEventsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListEventTrailEventsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEventTrailEventResp parses an HTTP response from a GetEventTrailEventWithResponse call
+func ParseGetEventTrailEventResp(rsp *http.Response) (*GetEventTrailEventResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEventTrailEventResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventTrailEvent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -23076,6 +27543,53 @@ func ParseListFileObservabilityResp(rsp *http.Response) (*ListFileObservabilityR
 	return response, nil
 }
 
+// ParseListFileObservabilitySummaryResp parses an HTTP response from a ListFileObservabilitySummaryWithResponse call
+func ParseListFileObservabilitySummaryResp(rsp *http.Response) (*ListFileObservabilitySummaryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListFileObservabilitySummaryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListFileObservabilitySummaryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListNetworkObservabilityResp parses an HTTP response from a ListNetworkObservabilityWithResponse call
 func ParseListNetworkObservabilityResp(rsp *http.Response) (*ListNetworkObservabilityResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -23123,6 +27637,53 @@ func ParseListNetworkObservabilityResp(rsp *http.Response) (*ListNetworkObservab
 	return response, nil
 }
 
+// ParseListNetworkObservabilitySummaryResp parses an HTTP response from a ListNetworkObservabilitySummaryWithResponse call
+func ParseListNetworkObservabilitySummaryResp(rsp *http.Response) (*ListNetworkObservabilitySummaryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNetworkObservabilitySummaryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListNetworkObservabilitySummaryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListProcessObservabilityResp parses an HTTP response from a ListProcessObservabilityWithResponse call
 func ParseListProcessObservabilityResp(rsp *http.Response) (*ListProcessObservabilityResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -23139,6 +27700,53 @@ func ParseListProcessObservabilityResp(rsp *http.Response) (*ListProcessObservab
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ListProcessObservabilityResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListProcessObservabilitySummaryResp parses an HTTP response from a ListProcessObservabilitySummaryWithResponse call
+func ParseListProcessObservabilitySummaryResp(rsp *http.Response) (*ListProcessObservabilitySummaryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProcessObservabilitySummaryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListProcessObservabilitySummaryResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -23339,6 +27947,20 @@ func ParseListMCPConnectionsResp(rsp *http.Response) (*ListMCPConnectionsResp, e
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -23378,6 +28000,20 @@ func ParseCreateMCPConnectionResp(rsp *http.Response) (*CreateMCPConnectionResp,
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest Conflict
@@ -23433,6 +28069,20 @@ func ParseWatchMCPConnectionsResp(rsp *http.Response) (*WatchMCPConnectionsResp,
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
 		var dest UnsupportedMediaType
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -23479,6 +28129,20 @@ func ParseDeleteMCPConnectionResp(rsp *http.Response) (*DeleteMCPConnectionResp,
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
@@ -23533,6 +28197,20 @@ func ParseGetMCPConnectionResp(rsp *http.Response) (*GetMCPConnectionResp, error
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
@@ -24767,6 +29445,20 @@ func ParseListSandboxesResp(rsp *http.Response) (*ListSandboxesResp, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -24806,6 +29498,20 @@ func ParseCreateSandboxResp(rsp *http.Response) (*CreateSandboxResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest Conflict
@@ -24861,6 +29567,20 @@ func ParseDeleteSandboxResp(rsp *http.Response) (*DeleteSandboxResp, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -24907,6 +29627,20 @@ func ParseUpdateSandboxResp(rsp *http.Response) (*UpdateSandboxResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
@@ -25373,22 +30107,22 @@ func ParseExportImmutableSkillsResp(rsp *http.Response) (*ExportImmutableSkillsR
 	return response, nil
 }
 
-// ParseImportSkillsResp parses an HTTP response from a ImportSkillsWithResponse call
-func ParseImportSkillsResp(rsp *http.Response) (*ImportSkillsResp, error) {
+// ParseImportImmutableSkillsResp parses an HTTP response from a ImportImmutableSkillsWithResponse call
+func ParseImportImmutableSkillsResp(rsp *http.Response) (*ImportImmutableSkillsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ImportSkillsResp{
+	response := &ImportImmutableSkillsResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ImportSkillsResponse
+		var dest SkillImportResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -25427,22 +30161,22 @@ func ParseImportSkillsResp(rsp *http.Response) (*ImportSkillsResp, error) {
 	return response, nil
 }
 
-// ParsePreviewSkillImportResp parses an HTTP response from a PreviewSkillImportWithResponse call
-func ParsePreviewSkillImportResp(rsp *http.Response) (*PreviewSkillImportResp, error) {
+// ParsePreviewImmutableSkillImportResp parses an HTTP response from a PreviewImmutableSkillImportWithResponse call
+func ParsePreviewImmutableSkillImportResp(rsp *http.Response) (*PreviewImmutableSkillImportResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PreviewSkillImportResp{
+	response := &PreviewImmutableSkillImportResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SkillImportPreviewResponse
+		var dest ImmutableSkillImportPreviewResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -26754,6 +31488,492 @@ func ParseInvokeWorkflowWebhookResp(rsp *http.Response) (*InvokeWorkflowWebhookR
 	return response, nil
 }
 
+// ParseListWorkspacesResp parses an HTTP response from a ListWorkspacesWithResponse call
+func ParseListWorkspacesResp(rsp *http.Response) (*ListWorkspacesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWorkspacesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListWorkspacesResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateWorkspaceResp parses an HTTP response from a CreateWorkspaceWithResponse call
+func ParseCreateWorkspaceResp(rsp *http.Response) (*CreateWorkspaceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateWorkspaceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Workspace
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListWorkspaceMemberCandidatesResp parses an HTTP response from a ListWorkspaceMemberCandidatesWithResponse call
+func ParseListWorkspaceMemberCandidatesResp(rsp *http.Response) (*ListWorkspaceMemberCandidatesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWorkspaceMemberCandidatesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListWorkspaceMemberCandidatesResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseResolveWorkspaceSlugResp parses an HTTP response from a ResolveWorkspaceSlugWithResponse call
+func ParseResolveWorkspaceSlugResp(rsp *http.Response) (*ResolveWorkspaceSlugResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ResolveWorkspaceSlugResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Workspace
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetWorkspaceResp parses an HTTP response from a GetWorkspaceWithResponse call
+func ParseGetWorkspaceResp(rsp *http.Response) (*GetWorkspaceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWorkspaceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Workspace
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListWorkspaceInheritedResourcesResp parses an HTTP response from a ListWorkspaceInheritedResourcesWithResponse call
+func ParseListWorkspaceInheritedResourcesResp(rsp *http.Response) (*ListWorkspaceInheritedResourcesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWorkspaceInheritedResourcesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListWorkspaceInheritedResourcesResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceWorkspaceInheritedResourcesResp parses an HTTP response from a ReplaceWorkspaceInheritedResourcesWithResponse call
+func ParseReplaceWorkspaceInheritedResourcesResp(rsp *http.Response) (*ReplaceWorkspaceInheritedResourcesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceWorkspaceInheritedResourcesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListWorkspaceInheritedResourcesResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateWorkspaceLifecycleResp parses an HTTP response from a UpdateWorkspaceLifecycleWithResponse call
+func ParseUpdateWorkspaceLifecycleResp(rsp *http.Response) (*UpdateWorkspaceLifecycleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateWorkspaceLifecycleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRetryWorkspaceResp parses an HTTP response from a RetryWorkspaceWithResponse call
+func ParseRetryWorkspaceResp(rsp *http.Response) (*RetryWorkspaceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RetryWorkspaceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Workspace
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// List paginated agent summaries.
@@ -26762,6 +31982,12 @@ type ServerInterface interface {
 	// Create an Agent resource.
 	// (POST /api/agent)
 	CreateAgent(w http.ResponseWriter, r *http.Request)
+	// Import mutable skills into selected Agents.
+	// (POST /api/agent/skill/import)
+	ImportMutableSkills(w http.ResponseWriter, r *http.Request, params ImportMutableSkillsParams)
+	// Parse a mutable skill import and report Agent conflicts.
+	// (POST /api/agent/skill/import/preview)
+	PreviewMutableSkillImport(w http.ResponseWriter, r *http.Request, params PreviewMutableSkillImportParams)
 	// Watch agent status changes.
 	// (POST /api/agent/watch)
 	WatchAgents(w http.ResponseWriter, r *http.Request)
@@ -26771,6 +31997,9 @@ type ServerInterface interface {
 	// Update an Agent resource.
 	// (PUT /api/agent/{agentName})
 	UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// List Agent access targets and their eligible capabilities.
+	// (GET /api/agent/{agentName}/access-targets)
+	ListAgentAccessTargets(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
 	// Create a directory in the agent workspace.
 	// (POST /api/agent/{agentName}/fs/directory)
 	CreateAgentDirectory(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
@@ -26798,42 +32027,63 @@ type ServerInterface interface {
 	// Read agent workspace entry metadata.
 	// (GET /api/agent/{agentName}/fs/stat)
 	StatAgentFile(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params StatAgentFileParams)
+	// Read Agent ownership metadata.
+	// (GET /api/agent/{agentName}/owner)
+	GetAgentOwner(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Transfer Agent ownership.
+	// (PUT /api/agent/{agentName}/owner)
+	TransferAgentOwner(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// List Agent Shares.
+	// (GET /api/agent/{agentName}/share)
+	ListAgentShares(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListAgentSharesParams)
+	// Create or replace an Agent Share.
+	// (POST /api/agent/{agentName}/share)
+	UpsertAgentShare(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// Delete an Agent Share.
+	// (DELETE /api/agent/{agentName}/share/{shareId})
+	DeleteAgentShare(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, shareId AgentShareIDPath)
 	// Delete mutable skills from an Agent workspace.
 	// (DELETE /api/agent/{agentName}/skill)
-	DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params DeleteAgentMutableSkillsParams)
 	// List mutable skills stored in an Agent workspace.
 	// (GET /api/agent/{agentName}/skill)
 	ListAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListAgentMutableSkillsParams)
 	// Stream mutable Agent skills as a ZIP archive.
 	// (POST /api/agent/{agentName}/skill/export)
-	ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ExportAgentMutableSkillsParams)
+	// List Organisation event trail events.
+	// (POST /api/event-trail-event)
+	ListEventTrailEvents(w http.ResponseWriter, r *http.Request, params ListEventTrailEventsParams)
+	// Get an Organisation event trail event.
+	// (GET /api/event-trail-event/{eventId})
+	GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eventId EventTrailEventIDPath, params GetEventTrailEventParams)
 	// List paginated inference Pools.
 	// (GET /api/inference/pool)
 	ListInferencePools(w http.ResponseWriter, r *http.Request, params ListInferencePoolsParams)
 	// Create an inference Pool with ordered provider-model members.
 	// (POST /api/inference/pool)
-	CreateInferencePool(w http.ResponseWriter, r *http.Request)
+	CreateInferencePool(w http.ResponseWriter, r *http.Request, params CreateInferencePoolParams)
 	// Watch inference Pool status and usage changes.
 	// (POST /api/inference/pool/watch)
-	WatchInferencePools(w http.ResponseWriter, r *http.Request)
+	WatchInferencePools(w http.ResponseWriter, r *http.Request, params WatchInferencePoolsParams)
 	// Delete an inference Pool not referenced by a Sandbox.
 	// (DELETE /api/inference/pool/{poolName})
-	DeleteInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath)
+	DeleteInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params DeleteInferencePoolParams)
 	// Get an inference Pool and its derived contract.
 	// (GET /api/inference/pool/{poolName})
-	GetInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath)
+	GetInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params GetInferencePoolParams)
 	// Replace Pool membership or routing behavior.
 	// (PUT /api/inference/pool/{poolName})
-	UpdateInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath)
+	UpdateInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params UpdateInferencePoolParams)
 	// List Sandboxes directly referencing an inference Pool.
 	// (GET /api/inference/pool/{poolName}/usage)
-	GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath)
+	GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params GetInferencePoolUsageParams)
 	// List paginated inference providers.
 	// (GET /api/inference/provider)
 	ListInferenceProviders(w http.ResponseWriter, r *http.Request, params ListInferenceProvidersParams)
 	// Create an inference provider and its write-only credentials.
 	// (POST /api/inference/provider)
-	CreateInferenceProvider(w http.ResponseWriter, r *http.Request)
+	CreateInferenceProvider(w http.ResponseWriter, r *http.Request, params CreateInferenceProviderParams)
 	// Search the pinned OpenCode provider catalog.
 	// (GET /api/inference/provider/catalog)
 	ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Request, params ListInferenceProviderCatalogParams)
@@ -26842,37 +32092,46 @@ type ServerInterface interface {
 	ListInferenceModelSuggestions(w http.ResponseWriter, r *http.Request, catalogProvider string, params ListInferenceModelSuggestionsParams)
 	// Store subscription credentials and return a single-use provider ticket.
 	// (POST /api/inference/provider/oauth-ticket)
-	CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request)
+	CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request, params CreateInferenceProviderOAuthTicketParams)
 	// Watch inference provider status changes.
 	// (POST /api/inference/provider/watch)
-	WatchInferenceProviders(w http.ResponseWriter, r *http.Request)
+	WatchInferenceProviders(w http.ResponseWriter, r *http.Request, params WatchInferenceProvidersParams)
 	// Delete an unreferenced inference provider.
 	// (DELETE /api/inference/provider/{providerName})
-	DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params DeleteInferenceProviderParams)
 	// Get an inference provider without credential material.
 	// (GET /api/inference/provider/{providerName})
-	GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params GetInferenceProviderParams)
 	// Replace provider configuration and optionally rotate credentials.
 	// (PUT /api/inference/provider/{providerName})
-	UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params UpdateInferenceProviderParams)
 	// Refresh non-secret model metadata for a subscription provider.
 	// (GET /api/inference/provider/{providerName}/models)
-	RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params RefreshInferenceProviderModelsParams)
 	// List Sandboxes referencing an inference provider.
 	// (GET /api/inference/provider/{providerName}/usage)
-	GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath)
+	GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params GetInferenceProviderUsageParams)
 	// Get MCP observability graph data for an agent given a date range.
 	// (GET /api/lens/{agentName}/mcp/graph)
 	GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params GetMCPGraphParams)
 	// List paginated file observability events.
 	// (GET /api/lens/{agentName}/observability/file)
 	ListFileObservability(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListFileObservabilityParams)
+	// List paginated file observability summaries.
+	// (GET /api/lens/{agentName}/observability/file/summary)
+	ListFileObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListFileObservabilitySummaryParams)
 	// List paginated network observability events.
 	// (GET /api/lens/{agentName}/observability/network)
 	ListNetworkObservability(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListNetworkObservabilityParams)
+	// List paginated network observability summaries.
+	// (GET /api/lens/{agentName}/observability/network/summary)
+	ListNetworkObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListNetworkObservabilitySummaryParams)
 	// List paginated process observability events.
 	// (GET /api/lens/{agentName}/observability/process)
 	ListProcessObservability(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListProcessObservabilityParams)
+	// List paginated process observability summaries.
+	// (GET /api/lens/{agentName}/observability/process/summary)
+	ListProcessObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListProcessObservabilitySummaryParams)
 	// List paginated per-session trace summaries.
 	// (GET /api/lens/{agentName}/{sessionID}/trace)
 	ListTraceSessions(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, sessionID string, params ListTraceSessionsParams)
@@ -26887,16 +32146,16 @@ type ServerInterface interface {
 	ListMCPConnections(w http.ResponseWriter, r *http.Request, params ListMCPConnectionsParams)
 	// Create an MCPConnection resource.
 	// (POST /api/mcp-connection)
-	CreateMCPConnection(w http.ResponseWriter, r *http.Request)
+	CreateMCPConnection(w http.ResponseWriter, r *http.Request, params CreateMCPConnectionParams)
 	// Watch MCP connection status changes.
 	// (POST /api/mcp-connection/watch)
-	WatchMCPConnections(w http.ResponseWriter, r *http.Request)
+	WatchMCPConnections(w http.ResponseWriter, r *http.Request, params WatchMCPConnectionsParams)
 	// Delete an MCPConnection resource.
 	// (DELETE /api/mcp-connection/{name})
-	DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath)
+	DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath, params DeleteMCPConnectionParams)
 	// Get an MCPConnection resource.
 	// (GET /api/mcp-connection/{name})
-	GetMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath)
+	GetMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath, params GetMCPConnectionParams)
 	// List skills
 	// (GET /api/opencode/{agentName}/api/skill)
 	V2SkillList(w http.ResponseWriter, r *http.Request, agentName string, params V2SkillListParams)
@@ -26986,13 +32245,13 @@ type ServerInterface interface {
 	ListSandboxes(w http.ResponseWriter, r *http.Request, params ListSandboxesParams)
 	// Create a Sandbox resource.
 	// (POST /api/sandbox)
-	CreateSandbox(w http.ResponseWriter, r *http.Request)
+	CreateSandbox(w http.ResponseWriter, r *http.Request, params CreateSandboxParams)
 	// Delete a Sandbox resource.
 	// (DELETE /api/sandbox/{sandboxName})
-	DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName)
+	DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName, params DeleteSandboxParams)
 	// Update a Sandbox resource.
 	// (PUT /api/sandbox/{sandboxName})
-	UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName)
+	UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName, params UpdateSandboxParams)
 	// List secret keys for an agent.
 	// (GET /api/secret/{agentName})
 	ListSecrets(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListSecretsParams)
@@ -27007,37 +32266,37 @@ type ServerInterface interface {
 	WatchSecrets(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
 	// Delete immutable Skill resources in one request.
 	// (DELETE /api/skill)
-	DeleteImmutableSkills(w http.ResponseWriter, r *http.Request)
+	DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, params DeleteImmutableSkillsParams)
 	// List immutable Skill resources.
 	// (GET /api/skill)
 	ListSkills(w http.ResponseWriter, r *http.Request, params ListSkillsParams)
 	// Create an immutable Skill resource.
 	// (POST /api/skill)
-	CreateSkill(w http.ResponseWriter, r *http.Request)
+	CreateSkill(w http.ResponseWriter, r *http.Request, params CreateSkillParams)
 	// Stream selected active immutable Skill versions as ZIP.
 	// (POST /api/skill/export)
-	ExportImmutableSkills(w http.ResponseWriter, r *http.Request)
-	// Import mutable or immutable skills.
+	ExportImmutableSkills(w http.ResponseWriter, r *http.Request, params ExportImmutableSkillsParams)
+	// Import immutable skills.
 	// (POST /api/skill/import)
-	ImportSkills(w http.ResponseWriter, r *http.Request)
-	// Parse a skill import and report live conflicts.
+	ImportImmutableSkills(w http.ResponseWriter, r *http.Request, params ImportImmutableSkillsParams)
+	// Parse an immutable skill import and report scope conflicts.
 	// (POST /api/skill/import/preview)
-	PreviewSkillImport(w http.ResponseWriter, r *http.Request)
+	PreviewImmutableSkillImport(w http.ResponseWriter, r *http.Request, params PreviewImmutableSkillImportParams)
 	// List immutable skills with active version file summaries.
 	// (GET /api/skill/summary)
 	ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Request, params ListImmutableSkillSummariesParams)
 	// Delete an immutable Skill resource.
 	// (DELETE /api/skill/{skillName})
-	DeleteSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath)
+	DeleteSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params DeleteSkillParams)
 	// Update an immutable Skill active version and references.
 	// (PUT /api/skill/{skillName})
-	UpdateSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath)
+	UpdateSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params UpdateSkillParams)
 	// List Agents and Sandboxes referencing an immutable Skill.
 	// (GET /api/skill/{skillName}/references)
-	GetSkillReferences(w http.ResponseWriter, r *http.Request, skillName SkillNamePath)
+	GetSkillReferences(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params GetSkillReferencesParams)
 	// List stored versions for an immutable Skill.
 	// (GET /api/skill/{skillName}/version)
-	ListImmutableSkillVersions(w http.ResponseWriter, r *http.Request, skillName SkillNamePath)
+	ListImmutableSkillVersions(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params ListImmutableSkillVersionsParams)
 	// Get the current tenant bootstrap state.
 	// (GET /api/tenant)
 	GetTenant(w http.ResponseWriter, r *http.Request)
@@ -27098,6 +32357,33 @@ type ServerInterface interface {
 	// Trigger a workflow run through a webhook API key.
 	// (POST /api/workflow/{agentName}/{workflowName}/webhook)
 	InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, workflowName WorkflowName, params InvokeWorkflowWebhookParams)
+	// List accessible Workspaces.
+	// (GET /api/workspace)
+	ListWorkspaces(w http.ResponseWriter, r *http.Request, params ListWorkspacesParams)
+	// Create a Workspace.
+	// (POST /api/workspace)
+	CreateWorkspace(w http.ResponseWriter, r *http.Request)
+	// List eligible initial Workspace Admins.
+	// (GET /api/workspace/member-candidate)
+	ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.Request)
+	// Resolve an accessible Workspace slug.
+	// (GET /api/workspace/slug/{workspaceSlug})
+	ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, workspaceSlug WorkspaceSlugPath)
+	// Get an accessible Workspace.
+	// (GET /api/workspace/{workspaceId})
+	GetWorkspace(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath)
+	// List Organisation resources available for Workspace inheritance.
+	// (GET /api/workspace/{workspaceId}/inherited-resource/{resourceType})
+	ListWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath)
+	// Replace one type of explicitly inherited Organisation resource.
+	// (PUT /api/workspace/{workspaceId}/inherited-resource/{resourceType})
+	ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath)
+	// Record observed Workspace lifecycle state.
+	// (PATCH /api/workspace/{workspaceId}/lifecycle)
+	UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath)
+	// Retry failed Workspace provisioning.
+	// (POST /api/workspace/{workspaceId}/retry)
+	RetryWorkspace(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -27116,6 +32402,18 @@ func (_ Unimplemented) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Import mutable skills into selected Agents.
+// (POST /api/agent/skill/import)
+func (_ Unimplemented) ImportMutableSkills(w http.ResponseWriter, r *http.Request, params ImportMutableSkillsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Parse a mutable skill import and report Agent conflicts.
+// (POST /api/agent/skill/import/preview)
+func (_ Unimplemented) PreviewMutableSkillImport(w http.ResponseWriter, r *http.Request, params PreviewMutableSkillImportParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Watch agent status changes.
 // (POST /api/agent/watch)
 func (_ Unimplemented) WatchAgents(w http.ResponseWriter, r *http.Request) {
@@ -27131,6 +32429,12 @@ func (_ Unimplemented) DeleteAgent(w http.ResponseWriter, r *http.Request, agent
 // Update an Agent resource.
 // (PUT /api/agent/{agentName})
 func (_ Unimplemented) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List Agent access targets and their eligible capabilities.
+// (GET /api/agent/{agentName}/access-targets)
+func (_ Unimplemented) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27188,9 +32492,39 @@ func (_ Unimplemented) StatAgentFile(w http.ResponseWriter, r *http.Request, age
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Read Agent ownership metadata.
+// (GET /api/agent/{agentName}/owner)
+func (_ Unimplemented) GetAgentOwner(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Transfer Agent ownership.
+// (PUT /api/agent/{agentName}/owner)
+func (_ Unimplemented) TransferAgentOwner(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List Agent Shares.
+// (GET /api/agent/{agentName}/share)
+func (_ Unimplemented) ListAgentShares(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListAgentSharesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create or replace an Agent Share.
+// (POST /api/agent/{agentName}/share)
+func (_ Unimplemented) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete an Agent Share.
+// (DELETE /api/agent/{agentName}/share/{shareId})
+func (_ Unimplemented) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, shareId AgentShareIDPath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Delete mutable skills from an Agent workspace.
 // (DELETE /api/agent/{agentName}/skill)
-func (_ Unimplemented) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+func (_ Unimplemented) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params DeleteAgentMutableSkillsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27202,7 +32536,19 @@ func (_ Unimplemented) ListAgentMutableSkills(w http.ResponseWriter, r *http.Req
 
 // Stream mutable Agent skills as a ZIP archive.
 // (POST /api/agent/{agentName}/skill/export)
-func (_ Unimplemented) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
+func (_ Unimplemented) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ExportAgentMutableSkillsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List Organisation event trail events.
+// (POST /api/event-trail-event)
+func (_ Unimplemented) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, params ListEventTrailEventsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get an Organisation event trail event.
+// (GET /api/event-trail-event/{eventId})
+func (_ Unimplemented) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eventId EventTrailEventIDPath, params GetEventTrailEventParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27214,37 +32560,37 @@ func (_ Unimplemented) ListInferencePools(w http.ResponseWriter, r *http.Request
 
 // Create an inference Pool with ordered provider-model members.
 // (POST /api/inference/pool)
-func (_ Unimplemented) CreateInferencePool(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) CreateInferencePool(w http.ResponseWriter, r *http.Request, params CreateInferencePoolParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Watch inference Pool status and usage changes.
 // (POST /api/inference/pool/watch)
-func (_ Unimplemented) WatchInferencePools(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) WatchInferencePools(w http.ResponseWriter, r *http.Request, params WatchInferencePoolsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Delete an inference Pool not referenced by a Sandbox.
 // (DELETE /api/inference/pool/{poolName})
-func (_ Unimplemented) DeleteInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath) {
+func (_ Unimplemented) DeleteInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params DeleteInferencePoolParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get an inference Pool and its derived contract.
 // (GET /api/inference/pool/{poolName})
-func (_ Unimplemented) GetInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath) {
+func (_ Unimplemented) GetInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params GetInferencePoolParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Replace Pool membership or routing behavior.
 // (PUT /api/inference/pool/{poolName})
-func (_ Unimplemented) UpdateInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath) {
+func (_ Unimplemented) UpdateInferencePool(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params UpdateInferencePoolParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // List Sandboxes directly referencing an inference Pool.
 // (GET /api/inference/pool/{poolName}/usage)
-func (_ Unimplemented) GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath) {
+func (_ Unimplemented) GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, poolName InferencePoolNamePath, params GetInferencePoolUsageParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27256,7 +32602,7 @@ func (_ Unimplemented) ListInferenceProviders(w http.ResponseWriter, r *http.Req
 
 // Create an inference provider and its write-only credentials.
 // (POST /api/inference/provider)
-func (_ Unimplemented) CreateInferenceProvider(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) CreateInferenceProvider(w http.ResponseWriter, r *http.Request, params CreateInferenceProviderParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27274,43 +32620,43 @@ func (_ Unimplemented) ListInferenceModelSuggestions(w http.ResponseWriter, r *h
 
 // Store subscription credentials and return a single-use provider ticket.
 // (POST /api/inference/provider/oauth-ticket)
-func (_ Unimplemented) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request, params CreateInferenceProviderOAuthTicketParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Watch inference provider status changes.
 // (POST /api/inference/provider/watch)
-func (_ Unimplemented) WatchInferenceProviders(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) WatchInferenceProviders(w http.ResponseWriter, r *http.Request, params WatchInferenceProvidersParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Delete an unreferenced inference provider.
 // (DELETE /api/inference/provider/{providerName})
-func (_ Unimplemented) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+func (_ Unimplemented) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params DeleteInferenceProviderParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get an inference provider without credential material.
 // (GET /api/inference/provider/{providerName})
-func (_ Unimplemented) GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+func (_ Unimplemented) GetInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params GetInferenceProviderParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Replace provider configuration and optionally rotate credentials.
 // (PUT /api/inference/provider/{providerName})
-func (_ Unimplemented) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+func (_ Unimplemented) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params UpdateInferenceProviderParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Refresh non-secret model metadata for a subscription provider.
 // (GET /api/inference/provider/{providerName}/models)
-func (_ Unimplemented) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+func (_ Unimplemented) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params RefreshInferenceProviderModelsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // List Sandboxes referencing an inference provider.
 // (GET /api/inference/provider/{providerName}/usage)
-func (_ Unimplemented) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath) {
+func (_ Unimplemented) GetInferenceProviderUsage(w http.ResponseWriter, r *http.Request, providerName InferenceProviderNamePath, params GetInferenceProviderUsageParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27326,15 +32672,33 @@ func (_ Unimplemented) ListFileObservability(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List paginated file observability summaries.
+// (GET /api/lens/{agentName}/observability/file/summary)
+func (_ Unimplemented) ListFileObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListFileObservabilitySummaryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List paginated network observability events.
 // (GET /api/lens/{agentName}/observability/network)
 func (_ Unimplemented) ListNetworkObservability(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListNetworkObservabilityParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List paginated network observability summaries.
+// (GET /api/lens/{agentName}/observability/network/summary)
+func (_ Unimplemented) ListNetworkObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListNetworkObservabilitySummaryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List paginated process observability events.
 // (GET /api/lens/{agentName}/observability/process)
 func (_ Unimplemented) ListProcessObservability(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListProcessObservabilityParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List paginated process observability summaries.
+// (GET /api/lens/{agentName}/observability/process/summary)
+func (_ Unimplemented) ListProcessObservabilitySummary(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListProcessObservabilitySummaryParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27364,25 +32728,25 @@ func (_ Unimplemented) ListMCPConnections(w http.ResponseWriter, r *http.Request
 
 // Create an MCPConnection resource.
 // (POST /api/mcp-connection)
-func (_ Unimplemented) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) CreateMCPConnection(w http.ResponseWriter, r *http.Request, params CreateMCPConnectionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Watch MCP connection status changes.
 // (POST /api/mcp-connection/watch)
-func (_ Unimplemented) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) WatchMCPConnections(w http.ResponseWriter, r *http.Request, params WatchMCPConnectionsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Delete an MCPConnection resource.
 // (DELETE /api/mcp-connection/{name})
-func (_ Unimplemented) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath) {
+func (_ Unimplemented) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath, params DeleteMCPConnectionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get an MCPConnection resource.
 // (GET /api/mcp-connection/{name})
-func (_ Unimplemented) GetMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath) {
+func (_ Unimplemented) GetMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath, params GetMCPConnectionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27560,19 +32924,19 @@ func (_ Unimplemented) ListSandboxes(w http.ResponseWriter, r *http.Request, par
 
 // Create a Sandbox resource.
 // (POST /api/sandbox)
-func (_ Unimplemented) CreateSandbox(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) CreateSandbox(w http.ResponseWriter, r *http.Request, params CreateSandboxParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Delete a Sandbox resource.
 // (DELETE /api/sandbox/{sandboxName})
-func (_ Unimplemented) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName) {
+func (_ Unimplemented) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName, params DeleteSandboxParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Update a Sandbox resource.
 // (PUT /api/sandbox/{sandboxName})
-func (_ Unimplemented) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName) {
+func (_ Unimplemented) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxName SandboxName, params UpdateSandboxParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27602,7 +32966,7 @@ func (_ Unimplemented) WatchSecrets(w http.ResponseWriter, r *http.Request, agen
 
 // Delete immutable Skill resources in one request.
 // (DELETE /api/skill)
-func (_ Unimplemented) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, params DeleteImmutableSkillsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27614,25 +32978,25 @@ func (_ Unimplemented) ListSkills(w http.ResponseWriter, r *http.Request, params
 
 // Create an immutable Skill resource.
 // (POST /api/skill)
-func (_ Unimplemented) CreateSkill(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) CreateSkill(w http.ResponseWriter, r *http.Request, params CreateSkillParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Stream selected active immutable Skill versions as ZIP.
 // (POST /api/skill/export)
-func (_ Unimplemented) ExportImmutableSkills(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ExportImmutableSkills(w http.ResponseWriter, r *http.Request, params ExportImmutableSkillsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Import mutable or immutable skills.
+// Import immutable skills.
 // (POST /api/skill/import)
-func (_ Unimplemented) ImportSkills(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) ImportImmutableSkills(w http.ResponseWriter, r *http.Request, params ImportImmutableSkillsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Parse a skill import and report live conflicts.
+// Parse an immutable skill import and report scope conflicts.
 // (POST /api/skill/import/preview)
-func (_ Unimplemented) PreviewSkillImport(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) PreviewImmutableSkillImport(w http.ResponseWriter, r *http.Request, params PreviewImmutableSkillImportParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27644,25 +33008,25 @@ func (_ Unimplemented) ListImmutableSkillSummaries(w http.ResponseWriter, r *htt
 
 // Delete an immutable Skill resource.
 // (DELETE /api/skill/{skillName})
-func (_ Unimplemented) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath) {
+func (_ Unimplemented) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params DeleteSkillParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Update an immutable Skill active version and references.
 // (PUT /api/skill/{skillName})
-func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath) {
+func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params UpdateSkillParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // List Agents and Sandboxes referencing an immutable Skill.
 // (GET /api/skill/{skillName}/references)
-func (_ Unimplemented) GetSkillReferences(w http.ResponseWriter, r *http.Request, skillName SkillNamePath) {
+func (_ Unimplemented) GetSkillReferences(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params GetSkillReferencesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // List stored versions for an immutable Skill.
 // (GET /api/skill/{skillName}/version)
-func (_ Unimplemented) ListImmutableSkillVersions(w http.ResponseWriter, r *http.Request, skillName SkillNamePath) {
+func (_ Unimplemented) ListImmutableSkillVersions(w http.ResponseWriter, r *http.Request, skillName SkillNamePath, params ListImmutableSkillVersionsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -27786,6 +33150,60 @@ func (_ Unimplemented) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List accessible Workspaces.
+// (GET /api/workspace)
+func (_ Unimplemented) ListWorkspaces(w http.ResponseWriter, r *http.Request, params ListWorkspacesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a Workspace.
+// (POST /api/workspace)
+func (_ Unimplemented) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List eligible initial Workspace Admins.
+// (GET /api/workspace/member-candidate)
+func (_ Unimplemented) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Resolve an accessible Workspace slug.
+// (GET /api/workspace/slug/{workspaceSlug})
+func (_ Unimplemented) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, workspaceSlug WorkspaceSlugPath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get an accessible Workspace.
+// (GET /api/workspace/{workspaceId})
+func (_ Unimplemented) GetWorkspace(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List Organisation resources available for Workspace inheritance.
+// (GET /api/workspace/{workspaceId}/inherited-resource/{resourceType})
+func (_ Unimplemented) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace one type of explicitly inherited Organisation resource.
+// (PUT /api/workspace/{workspaceId}/inherited-resource/{resourceType})
+func (_ Unimplemented) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath, resourceType InheritedResourceTypePath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Record observed Workspace lifecycle state.
+// (PATCH /api/workspace/{workspaceId}/lifecycle)
+func (_ Unimplemented) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Retry failed Workspace provisioning.
+// (POST /api/workspace/{workspaceId}/retry)
+func (_ Unimplemented) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspaceId WorkspaceIDPath) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler            ServerInterface
@@ -27802,7 +33220,7 @@ func (siw *ServerInterfaceWrapper) ListAgents(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -27849,7 +33267,7 @@ func (siw *ServerInterfaceWrapper) CreateAgent(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.author"})
 
 	r = r.WithContext(ctx)
 
@@ -27864,12 +33282,104 @@ func (siw *ServerInterfaceWrapper) CreateAgent(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ImportMutableSkills operation middleware
+func (siw *ServerInterfaceWrapper) ImportMutableSkills(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ImportMutableSkillsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportMutableSkills(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewMutableSkillImport operation middleware
+func (siw *ServerInterfaceWrapper) PreviewMutableSkillImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewMutableSkillImportParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewMutableSkillImport(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // WatchAgents operation middleware
 func (siw *ServerInterfaceWrapper) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -27900,7 +33410,7 @@ func (siw *ServerInterfaceWrapper) DeleteAgent(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -27931,12 +33441,43 @@ func (siw *ServerInterfaceWrapper) UpdateAgent(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateAgent(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAgentAccessTargets operation middleware
+func (siw *ServerInterfaceWrapper) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgentAccessTargets(w, r, agentName)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -27962,7 +33503,7 @@ func (siw *ServerInterfaceWrapper) CreateAgentDirectory(w http.ResponseWriter, r
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -27993,7 +33534,7 @@ func (siw *ServerInterfaceWrapper) DeleteAgentEntry(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28042,7 +33583,7 @@ func (siw *ServerInterfaceWrapper) ReadAgentFile(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28091,7 +33632,7 @@ func (siw *ServerInterfaceWrapper) CreateAgentFile(w http.ResponseWriter, r *htt
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28122,7 +33663,7 @@ func (siw *ServerInterfaceWrapper) WriteAgentFile(w http.ResponseWriter, r *http
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28153,7 +33694,7 @@ func (siw *ServerInterfaceWrapper) ReadAgentFileRaw(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28202,7 +33743,7 @@ func (siw *ServerInterfaceWrapper) WriteAgentFileRaw(w http.ResponseWriter, r *h
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28251,7 +33792,7 @@ func (siw *ServerInterfaceWrapper) RenameAgentEntry(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28282,7 +33823,7 @@ func (siw *ServerInterfaceWrapper) StatAgentFile(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28315,6 +33856,189 @@ func (siw *ServerInterfaceWrapper) StatAgentFile(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetAgentOwner operation middleware
+func (siw *ServerInterfaceWrapper) GetAgentOwner(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgentOwner(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TransferAgentOwner operation middleware
+func (siw *ServerInterfaceWrapper) TransferAgentOwner(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TransferAgentOwner(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAgentShares operation middleware
+func (siw *ServerInterfaceWrapper) ListAgentShares(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAgentSharesParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgentShares(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpsertAgentShare operation middleware
+func (siw *ServerInterfaceWrapper) UpsertAgentShare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpsertAgentShare(w, r, agentName)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAgentShare operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAgentShare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "shareId" -------------
+	var shareId AgentShareIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "shareId", chi.URLParam(r, "shareId"), &shareId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "shareId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAgentShare(w, r, agentName, shareId)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteAgentMutableSkills operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAgentMutableSkills(w http.ResponseWriter, r *http.Request) {
 
@@ -28331,12 +34055,36 @@ func (siw *ServerInterfaceWrapper) DeleteAgentMutableSkills(w http.ResponseWrite
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAgentMutableSkillsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteAgentMutableSkills(w, r, agentName)
+		siw.Handler.DeleteAgentMutableSkills(w, r, agentName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28362,7 +34110,7 @@ func (siw *ServerInterfaceWrapper) ListAgentMutableSkills(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -28383,6 +34131,27 @@ func (siw *ServerInterfaceWrapper) ListAgentMutableSkills(w http.ResponseWriter,
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
 		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28412,12 +34181,137 @@ func (siw *ServerInterfaceWrapper) ExportAgentMutableSkills(w http.ResponseWrite
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportAgentMutableSkillsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ExportAgentMutableSkills(w, r, agentName)
+		siw.Handler.ExportAgentMutableSkills(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventTrailEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListEventTrailEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListEventTrailEventsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventTrailEvents(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetEventTrailEvent operation middleware
+func (siw *ServerInterfaceWrapper) GetEventTrailEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventTrailEventIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEventTrailEventParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEventTrailEvent(w, r, eventId, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28434,7 +34328,7 @@ func (siw *ServerInterfaceWrapper) ListInferencePools(w http.ResponseWriter, r *
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_pool.read"})
 
 	r = r.WithContext(ctx)
 
@@ -28457,6 +34351,31 @@ func (siw *ServerInterfaceWrapper) ListInferencePools(w http.ResponseWriter, r *
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListInferencePools(w, r, params)
 	}))
@@ -28471,14 +34390,44 @@ func (siw *ServerInterfaceWrapper) ListInferencePools(w http.ResponseWriter, r *
 // CreateInferencePool operation middleware
 func (siw *ServerInterfaceWrapper) CreateInferencePool(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_pool.create"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateInferencePoolParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateInferencePool(w, r)
+		siw.Handler.CreateInferencePool(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28491,14 +34440,44 @@ func (siw *ServerInterfaceWrapper) CreateInferencePool(w http.ResponseWriter, r 
 // WatchInferencePools operation middleware
 func (siw *ServerInterfaceWrapper) WatchInferencePools(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_pool.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WatchInferencePoolsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.WatchInferencePools(w, r)
+		siw.Handler.WatchInferencePools(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28524,12 +34503,40 @@ func (siw *ServerInterfaceWrapper) DeleteInferencePool(w http.ResponseWriter, r 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_pool.delete"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteInferencePoolParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteInferencePool(w, r, poolName)
+		siw.Handler.DeleteInferencePool(w, r, poolName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28555,12 +34562,40 @@ func (siw *ServerInterfaceWrapper) GetInferencePool(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_pool.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetInferencePoolParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetInferencePool(w, r, poolName)
+		siw.Handler.GetInferencePool(w, r, poolName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28586,12 +34621,40 @@ func (siw *ServerInterfaceWrapper) UpdateInferencePool(w http.ResponseWriter, r 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_pool.modify"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateInferencePoolParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateInferencePool(w, r, poolName)
+		siw.Handler.UpdateInferencePool(w, r, poolName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28617,12 +34680,40 @@ func (siw *ServerInterfaceWrapper) GetInferencePoolUsage(w http.ResponseWriter, 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_pool.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetInferencePoolUsageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetInferencePoolUsage(w, r, poolName)
+		siw.Handler.GetInferencePoolUsage(w, r, poolName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28639,7 +34730,7 @@ func (siw *ServerInterfaceWrapper) ListInferenceProviders(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.read"})
 
 	r = r.WithContext(ctx)
 
@@ -28662,6 +34753,27 @@ func (siw *ServerInterfaceWrapper) ListInferenceProviders(w http.ResponseWriter,
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListInferenceProviders(w, r, params)
 	}))
@@ -28676,14 +34788,40 @@ func (siw *ServerInterfaceWrapper) ListInferenceProviders(w http.ResponseWriter,
 // CreateInferenceProvider operation middleware
 func (siw *ServerInterfaceWrapper) CreateInferenceProvider(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.create"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateInferenceProviderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateInferenceProvider(w, r)
+		siw.Handler.CreateInferenceProvider(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28700,7 +34838,7 @@ func (siw *ServerInterfaceWrapper) ListInferenceProviderCatalog(w http.ResponseW
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.read"})
 
 	r = r.WithContext(ctx)
 
@@ -28713,6 +34851,27 @@ func (siw *ServerInterfaceWrapper) ListInferenceProviderCatalog(w http.ResponseW
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
 		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28742,7 +34901,7 @@ func (siw *ServerInterfaceWrapper) ListInferenceModelSuggestions(w http.Response
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.read"})
 
 	r = r.WithContext(ctx)
 
@@ -28764,6 +34923,27 @@ func (siw *ServerInterfaceWrapper) ListInferenceModelSuggestions(w http.Response
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListInferenceModelSuggestions(w, r, catalogProvider, params)
 	}))
@@ -28778,14 +34958,40 @@ func (siw *ServerInterfaceWrapper) ListInferenceModelSuggestions(w http.Response
 // CreateInferenceProviderOAuthTicket operation middleware
 func (siw *ServerInterfaceWrapper) CreateInferenceProviderOAuthTicket(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.create"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateInferenceProviderOAuthTicketParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateInferenceProviderOAuthTicket(w, r)
+		siw.Handler.CreateInferenceProviderOAuthTicket(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28798,14 +35004,40 @@ func (siw *ServerInterfaceWrapper) CreateInferenceProviderOAuthTicket(w http.Res
 // WatchInferenceProviders operation middleware
 func (siw *ServerInterfaceWrapper) WatchInferenceProviders(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WatchInferenceProvidersParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.WatchInferenceProviders(w, r)
+		siw.Handler.WatchInferenceProviders(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28831,12 +35063,36 @@ func (siw *ServerInterfaceWrapper) DeleteInferenceProvider(w http.ResponseWriter
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.delete"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteInferenceProviderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteInferenceProvider(w, r, providerName)
+		siw.Handler.DeleteInferenceProvider(w, r, providerName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28862,12 +35118,51 @@ func (siw *ServerInterfaceWrapper) GetInferenceProvider(w http.ResponseWriter, r
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetInferenceProviderParams
+
+	// ------------- Required query parameter "scope" -------------
+
+	if paramValue := r.URL.Query().Get("scope"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetInferenceProvider(w, r, providerName)
+		siw.Handler.GetInferenceProvider(w, r, providerName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28893,12 +35188,36 @@ func (siw *ServerInterfaceWrapper) UpdateInferenceProvider(w http.ResponseWriter
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.modify"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateInferenceProviderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateInferenceProvider(w, r, providerName)
+		siw.Handler.UpdateInferenceProvider(w, r, providerName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28924,12 +35243,51 @@ func (siw *ServerInterfaceWrapper) RefreshInferenceProviderModels(w http.Respons
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RefreshInferenceProviderModelsParams
+
+	// ------------- Required query parameter "scope" -------------
+
+	if paramValue := r.URL.Query().Get("scope"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RefreshInferenceProviderModels(w, r, providerName)
+		siw.Handler.RefreshInferenceProviderModels(w, r, providerName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28955,12 +35313,51 @@ func (siw *ServerInterfaceWrapper) GetInferenceProviderUsage(w http.ResponseWrit
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"inference_provider.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetInferenceProviderUsageParams
+
+	// ------------- Required query parameter "scope" -------------
+
+	if paramValue := r.URL.Query().Get("scope"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetInferenceProviderUsage(w, r, providerName)
+		siw.Handler.GetInferenceProviderUsage(w, r, providerName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -28986,7 +35383,7 @@ func (siw *ServerInterfaceWrapper) GetMCPGraph(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29050,7 +35447,7 @@ func (siw *ServerInterfaceWrapper) ListFileObservability(w http.ResponseWriter, 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29097,16 +35494,96 @@ func (siw *ServerInterfaceWrapper) ListFileObservability(w http.ResponseWriter, 
 		return
 	}
 
-	// ------------- Optional query parameter "aggregated" -------------
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFileObservability(w, r, agentName, params)
+	}))
 
-	err = runtime.BindQueryParameter("form", true, false, "aggregated", r.URL.Query(), &params.Aggregated)
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFileObservabilitySummary operation middleware
+func (siw *ServerInterfaceWrapper) ListFileObservabilitySummary(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "aggregated", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListFileObservabilitySummaryParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "event_time_after" -------------
+
+	if paramValue := r.URL.Query().Get("event_time_after"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "event_time_after"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "event_time_after", r.URL.Query(), &params.EventTimeAfter)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "event_time_after", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "event_time_before" -------------
+
+	if paramValue := r.URL.Query().Get("event_time_before"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "event_time_before"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "event_time_before", r.URL.Query(), &params.EventTimeBefore)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "event_time_before", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "action", r.URL.Query(), &params.Action)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListFileObservability(w, r, agentName, params)
+		siw.Handler.ListFileObservabilitySummary(w, r, agentName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -29132,7 +35609,7 @@ func (siw *ServerInterfaceWrapper) ListNetworkObservability(w http.ResponseWrite
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29179,16 +35656,96 @@ func (siw *ServerInterfaceWrapper) ListNetworkObservability(w http.ResponseWrite
 		return
 	}
 
-	// ------------- Optional query parameter "aggregated" -------------
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNetworkObservability(w, r, agentName, params)
+	}))
 
-	err = runtime.BindQueryParameter("form", true, false, "aggregated", r.URL.Query(), &params.Aggregated)
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListNetworkObservabilitySummary operation middleware
+func (siw *ServerInterfaceWrapper) ListNetworkObservabilitySummary(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "aggregated", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListNetworkObservabilitySummaryParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "event_time_after" -------------
+
+	if paramValue := r.URL.Query().Get("event_time_after"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "event_time_after"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "event_time_after", r.URL.Query(), &params.EventTimeAfter)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "event_time_after", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "event_time_before" -------------
+
+	if paramValue := r.URL.Query().Get("event_time_before"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "event_time_before"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "event_time_before", r.URL.Query(), &params.EventTimeBefore)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "event_time_before", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "action", r.URL.Query(), &params.Action)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListNetworkObservability(w, r, agentName, params)
+		siw.Handler.ListNetworkObservabilitySummary(w, r, agentName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -29214,7 +35771,7 @@ func (siw *ServerInterfaceWrapper) ListProcessObservability(w http.ResponseWrite
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29261,16 +35818,96 @@ func (siw *ServerInterfaceWrapper) ListProcessObservability(w http.ResponseWrite
 		return
 	}
 
-	// ------------- Optional query parameter "aggregated" -------------
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProcessObservability(w, r, agentName, params)
+	}))
 
-	err = runtime.BindQueryParameter("form", true, false, "aggregated", r.URL.Query(), &params.Aggregated)
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProcessObservabilitySummary operation middleware
+func (siw *ServerInterfaceWrapper) ListProcessObservabilitySummary(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "aggregated", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListProcessObservabilitySummaryParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "event_time_after" -------------
+
+	if paramValue := r.URL.Query().Get("event_time_after"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "event_time_after"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "event_time_after", r.URL.Query(), &params.EventTimeAfter)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "event_time_after", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "event_time_before" -------------
+
+	if paramValue := r.URL.Query().Get("event_time_before"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "event_time_before"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "event_time_before", r.URL.Query(), &params.EventTimeBefore)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "event_time_before", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "action", r.URL.Query(), &params.Action)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListProcessObservability(w, r, agentName, params)
+		siw.Handler.ListProcessObservabilitySummary(w, r, agentName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -29305,7 +35942,7 @@ func (siw *ServerInterfaceWrapper) ListTraceSessions(w http.ResponseWriter, r *h
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29389,7 +36026,7 @@ func (siw *ServerInterfaceWrapper) ListSpans(w http.ResponseWriter, r *http.Requ
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29466,7 +36103,7 @@ func (siw *ServerInterfaceWrapper) GetSpanDetail(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"observability.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29488,7 +36125,7 @@ func (siw *ServerInterfaceWrapper) ListMCPConnections(w http.ResponseWriter, r *
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"mcp_connection.read"})
 
 	r = r.WithContext(ctx)
 
@@ -29511,6 +36148,27 @@ func (siw *ServerInterfaceWrapper) ListMCPConnections(w http.ResponseWriter, r *
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListMCPConnections(w, r, params)
 	}))
@@ -29525,14 +36183,40 @@ func (siw *ServerInterfaceWrapper) ListMCPConnections(w http.ResponseWriter, r *
 // CreateMCPConnection operation middleware
 func (siw *ServerInterfaceWrapper) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"mcp_connection.create"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateMCPConnectionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateMCPConnection(w, r)
+		siw.Handler.CreateMCPConnection(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -29545,14 +36229,40 @@ func (siw *ServerInterfaceWrapper) CreateMCPConnection(w http.ResponseWriter, r 
 // WatchMCPConnections operation middleware
 func (siw *ServerInterfaceWrapper) WatchMCPConnections(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"mcp_connection.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WatchMCPConnectionsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.WatchMCPConnections(w, r)
+		siw.Handler.WatchMCPConnections(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -29578,12 +36288,36 @@ func (siw *ServerInterfaceWrapper) DeleteMCPConnection(w http.ResponseWriter, r 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"mcp_connection.delete"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteMCPConnectionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteMCPConnection(w, r, name)
+		siw.Handler.DeleteMCPConnection(w, r, name, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -29609,12 +36343,51 @@ func (siw *ServerInterfaceWrapper) GetMCPConnection(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"mcp_connection.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMCPConnectionParams
+
+	// ------------- Required query parameter "scope" -------------
+
+	if paramValue := r.URL.Query().Get("scope"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetMCPConnection(w, r, name)
+		siw.Handler.GetMCPConnection(w, r, name, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -29637,6 +36410,12 @@ func (siw *ServerInterfaceWrapper) V2SkillList(w http.ResponseWriter, r *http.Re
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V2SkillListParams
@@ -29676,7 +36455,7 @@ func (siw *ServerInterfaceWrapper) SessionList(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -29774,7 +36553,7 @@ func (siw *ServerInterfaceWrapper) SessionCreate(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -29824,7 +36603,7 @@ func (siw *ServerInterfaceWrapper) SessionStatus(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -29883,7 +36662,7 @@ func (siw *ServerInterfaceWrapper) SessionDelete(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -29942,7 +36721,7 @@ func (siw *ServerInterfaceWrapper) SessionGet(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30001,7 +36780,7 @@ func (siw *ServerInterfaceWrapper) SessionUpdate(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30060,7 +36839,7 @@ func (siw *ServerInterfaceWrapper) SessionAbort(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30119,7 +36898,7 @@ func (siw *ServerInterfaceWrapper) SessionChildren(w http.ResponseWriter, r *htt
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30178,7 +36957,7 @@ func (siw *ServerInterfaceWrapper) SessionCommand(w http.ResponseWriter, r *http
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30237,7 +37016,7 @@ func (siw *ServerInterfaceWrapper) SessionDiff(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30304,7 +37083,7 @@ func (siw *ServerInterfaceWrapper) SessionFork(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30363,7 +37142,7 @@ func (siw *ServerInterfaceWrapper) SessionInit(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30422,7 +37201,7 @@ func (siw *ServerInterfaceWrapper) SessionMessages(w http.ResponseWriter, r *htt
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30497,7 +37276,7 @@ func (siw *ServerInterfaceWrapper) SessionPrompt(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30565,7 +37344,7 @@ func (siw *ServerInterfaceWrapper) SessionDeleteMessage(w http.ResponseWriter, r
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30633,7 +37412,7 @@ func (siw *ServerInterfaceWrapper) SessionMessage(w http.ResponseWriter, r *http
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30710,7 +37489,7 @@ func (siw *ServerInterfaceWrapper) PartDelete(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30787,7 +37566,7 @@ func (siw *ServerInterfaceWrapper) PartUpdate(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30855,7 +37634,7 @@ func (siw *ServerInterfaceWrapper) PermissionRespond(w http.ResponseWriter, r *h
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30914,7 +37693,7 @@ func (siw *ServerInterfaceWrapper) SessionPromptAsync(w http.ResponseWriter, r *
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -30973,7 +37752,7 @@ func (siw *ServerInterfaceWrapper) SessionRevert(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -31032,7 +37811,7 @@ func (siw *ServerInterfaceWrapper) SessionUnshare(w http.ResponseWriter, r *http
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -31091,7 +37870,7 @@ func (siw *ServerInterfaceWrapper) SessionShare(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -31150,7 +37929,7 @@ func (siw *ServerInterfaceWrapper) SessionShell(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -31209,7 +37988,7 @@ func (siw *ServerInterfaceWrapper) SessionSummarize(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -31268,7 +38047,7 @@ func (siw *ServerInterfaceWrapper) SessionTodo(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -31327,7 +38106,7 @@ func (siw *ServerInterfaceWrapper) SessionUnrevert(w http.ResponseWriter, r *htt
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -31368,7 +38147,7 @@ func (siw *ServerInterfaceWrapper) ListSandboxes(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"sandbox.read"})
 
 	r = r.WithContext(ctx)
 
@@ -31391,6 +38170,27 @@ func (siw *ServerInterfaceWrapper) ListSandboxes(w http.ResponseWriter, r *http.
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListSandboxes(w, r, params)
 	}))
@@ -31405,14 +38205,40 @@ func (siw *ServerInterfaceWrapper) ListSandboxes(w http.ResponseWriter, r *http.
 // CreateSandbox operation middleware
 func (siw *ServerInterfaceWrapper) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"sandbox.create"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateSandboxParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateSandbox(w, r)
+		siw.Handler.CreateSandbox(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31438,12 +38264,36 @@ func (siw *ServerInterfaceWrapper) DeleteSandbox(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"sandbox.delete"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteSandboxParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteSandbox(w, r, sandboxName)
+		siw.Handler.DeleteSandbox(w, r, sandboxName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31469,12 +38319,36 @@ func (siw *ServerInterfaceWrapper) UpdateSandbox(w http.ResponseWriter, r *http.
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"sandbox.modify"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateSandboxParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateSandbox(w, r, sandboxName)
+		siw.Handler.UpdateSandbox(w, r, sandboxName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31500,7 +38374,7 @@ func (siw *ServerInterfaceWrapper) ListSecrets(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.read_shared_secret"})
 
 	r = r.WithContext(ctx)
 
@@ -31550,7 +38424,7 @@ func (siw *ServerInterfaceWrapper) PutSecret(w http.ResponseWriter, r *http.Requ
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.write_shared_secret"})
 
 	r = r.WithContext(ctx)
 
@@ -31592,7 +38466,7 @@ func (siw *ServerInterfaceWrapper) DeleteSecret(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.delete_shared_secret"})
 
 	r = r.WithContext(ctx)
 
@@ -31623,7 +38497,7 @@ func (siw *ServerInterfaceWrapper) WatchSecrets(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.read_shared_secret"})
 
 	r = r.WithContext(ctx)
 
@@ -31641,14 +38515,40 @@ func (siw *ServerInterfaceWrapper) WatchSecrets(w http.ResponseWriter, r *http.R
 // DeleteImmutableSkills operation middleware
 func (siw *ServerInterfaceWrapper) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.delete"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteImmutableSkillsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteImmutableSkills(w, r)
+		siw.Handler.DeleteImmutableSkills(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31665,7 +38565,7 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.read"})
 
 	r = r.WithContext(ctx)
 
@@ -31696,6 +38596,27 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListSkills(w, r, params)
 	}))
@@ -31710,14 +38631,40 @@ func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Req
 // CreateSkill operation middleware
 func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.create"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateSkillParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateSkill(w, r)
+		siw.Handler.CreateSkill(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31730,14 +38677,40 @@ func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Re
 // ExportImmutableSkills operation middleware
 func (siw *ServerInterfaceWrapper) ExportImmutableSkills(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportImmutableSkillsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ExportImmutableSkills(w, r)
+		siw.Handler.ExportImmutableSkills(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31747,17 +38720,43 @@ func (siw *ServerInterfaceWrapper) ExportImmutableSkills(w http.ResponseWriter, 
 	handler.ServeHTTP(w, r)
 }
 
-// ImportSkills operation middleware
-func (siw *ServerInterfaceWrapper) ImportSkills(w http.ResponseWriter, r *http.Request) {
+// ImportImmutableSkills operation middleware
+func (siw *ServerInterfaceWrapper) ImportImmutableSkills(w http.ResponseWriter, r *http.Request) {
+
+	var err error
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.create"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ImportImmutableSkillsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ImportSkills(w, r)
+		siw.Handler.ImportImmutableSkills(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31767,17 +38766,43 @@ func (siw *ServerInterfaceWrapper) ImportSkills(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
-// PreviewSkillImport operation middleware
-func (siw *ServerInterfaceWrapper) PreviewSkillImport(w http.ResponseWriter, r *http.Request) {
+// PreviewImmutableSkillImport operation middleware
+func (siw *ServerInterfaceWrapper) PreviewImmutableSkillImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewImmutableSkillImportParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PreviewSkillImport(w, r)
+		siw.Handler.PreviewImmutableSkillImport(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31794,7 +38819,7 @@ func (siw *ServerInterfaceWrapper) ListImmutableSkillSummaries(w http.ResponseWr
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.read"})
 
 	r = r.WithContext(ctx)
 
@@ -31825,6 +38850,27 @@ func (siw *ServerInterfaceWrapper) ListImmutableSkillSummaries(w http.ResponseWr
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListImmutableSkillSummaries(w, r, params)
 	}))
@@ -31852,12 +38898,36 @@ func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.delete"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteSkillParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteSkill(w, r, skillName)
+		siw.Handler.DeleteSkill(w, r, skillName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31883,12 +38953,36 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.modify"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateSkillParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateSkill(w, r, skillName)
+		siw.Handler.UpdateSkill(w, r, skillName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31914,12 +39008,51 @@ func (siw *ServerInterfaceWrapper) GetSkillReferences(w http.ResponseWriter, r *
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSkillReferencesParams
+
+	// ------------- Required query parameter "scope" -------------
+
+	if paramValue := r.URL.Query().Get("scope"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSkillReferences(w, r, skillName)
+		siw.Handler.GetSkillReferences(w, r, skillName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31945,12 +39078,51 @@ func (siw *ServerInterfaceWrapper) ListImmutableSkillVersions(w http.ResponseWri
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"skill.read"})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListImmutableSkillVersionsParams
+
+	// ------------- Required query parameter "scope" -------------
+
+	if paramValue := r.URL.Query().Get("scope"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListImmutableSkillVersions(w, r, skillName)
+		siw.Handler.ListImmutableSkillVersions(w, r, skillName, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -31965,7 +39137,7 @@ func (siw *ServerInterfaceWrapper) GetTenant(w http.ResponseWriter, r *http.Requ
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.member"})
 
 	r = r.WithContext(ctx)
 
@@ -31985,7 +39157,7 @@ func (siw *ServerInterfaceWrapper) EnsureTenant(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.member"})
 
 	r = r.WithContext(ctx)
 
@@ -32016,7 +39188,7 @@ func (siw *ServerInterfaceWrapper) DeleteWorkflows(w http.ResponseWriter, r *htt
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32047,7 +39219,7 @@ func (siw *ServerInterfaceWrapper) ListWorkflowSummaries(w http.ResponseWriter, 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32078,7 +39250,7 @@ func (siw *ServerInterfaceWrapper) CreateWorkflow(w http.ResponseWriter, r *http
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32109,7 +39281,7 @@ func (siw *ServerInterfaceWrapper) ListAgentWorkflowSchedules(w http.ResponseWri
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32159,7 +39331,7 @@ func (siw *ServerInterfaceWrapper) ListWorkflowWebhookTriggers(w http.ResponseWr
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32218,7 +39390,7 @@ func (siw *ServerInterfaceWrapper) GetWorkflow(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32258,7 +39430,7 @@ func (siw *ServerInterfaceWrapper) ListWorkflowRuns(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32349,7 +39521,7 @@ func (siw *ServerInterfaceWrapper) WatchWorkflowRuns(w http.ResponseWriter, r *h
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32398,7 +39570,7 @@ func (siw *ServerInterfaceWrapper) DeleteWorkflowRun(w http.ResponseWriter, r *h
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32447,7 +39619,7 @@ func (siw *ServerInterfaceWrapper) GetWorkflowRun(w http.ResponseWriter, r *http
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32505,7 +39677,7 @@ func (siw *ServerInterfaceWrapper) PatchWorkflowRunNodeStatus(w http.ResponseWri
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"workflow_run.report"})
 
 	r = r.WithContext(ctx)
 
@@ -32554,7 +39726,7 @@ func (siw *ServerInterfaceWrapper) PatchWorkflowRunStatus(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"workflow_run.report"})
 
 	r = r.WithContext(ctx)
 
@@ -32594,7 +39766,7 @@ func (siw *ServerInterfaceWrapper) ListWorkflowSchedules(w http.ResponseWriter, 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32653,7 +39825,7 @@ func (siw *ServerInterfaceWrapper) CreateWorkflowSchedule(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32702,7 +39874,7 @@ func (siw *ServerInterfaceWrapper) DeleteWorkflowSchedule(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32751,7 +39923,7 @@ func (siw *ServerInterfaceWrapper) UpdateWorkflowSchedule(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32800,7 +39972,7 @@ func (siw *ServerInterfaceWrapper) CreateWorkflowRun(w http.ResponseWriter, r *h
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
 
 	r = r.WithContext(ctx)
 
@@ -32840,7 +40012,7 @@ func (siw *ServerInterfaceWrapper) InvokeWorkflowWebhook(w http.ResponseWriter, 
 
 	ctx := r.Context()
 
-	ctx = context.WithValue(ctx, GatewayAPIKeyScopes, []string{})
+	ctx = context.WithValue(ctx, GatewayAPIKeyScopes, []string{"api_key.workflow_invoke"})
 
 	r = r.WithContext(ctx)
 
@@ -32857,6 +40029,291 @@ func (siw *ServerInterfaceWrapper) InvokeWorkflowWebhook(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.InvokeWorkflowWebhook(w, r, agentName, workflowName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListWorkspaces operation middleware
+func (siw *ServerInterfaceWrapper) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.member"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListWorkspacesParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListWorkspaces(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateWorkspace operation middleware
+func (siw *ServerInterfaceWrapper) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.administer"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateWorkspace(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListWorkspaceMemberCandidates operation middleware
+func (siw *ServerInterfaceWrapper) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.administer"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListWorkspaceMemberCandidates(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResolveWorkspaceSlug operation middleware
+func (siw *ServerInterfaceWrapper) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "workspaceSlug" -------------
+	var workspaceSlug WorkspaceSlugPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workspaceSlug", chi.URLParam(r, "workspaceSlug"), &workspaceSlug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceSlug", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.member"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResolveWorkspaceSlug(w, r, workspaceSlug)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetWorkspace operation middleware
+func (siw *ServerInterfaceWrapper) GetWorkspace(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "workspaceId" -------------
+	var workspaceId WorkspaceIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workspaceId", chi.URLParam(r, "workspaceId"), &workspaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.member"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetWorkspace(w, r, workspaceId)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListWorkspaceInheritedResources operation middleware
+func (siw *ServerInterfaceWrapper) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "workspaceId" -------------
+	var workspaceId WorkspaceIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workspaceId", chi.URLParam(r, "workspaceId"), &workspaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "resourceType" -------------
+	var resourceType InheritedResourceTypePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "resourceType", chi.URLParam(r, "resourceType"), &resourceType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resourceType", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.administer"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListWorkspaceInheritedResources(w, r, workspaceId, resourceType)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceWorkspaceInheritedResources operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "workspaceId" -------------
+	var workspaceId WorkspaceIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workspaceId", chi.URLParam(r, "workspaceId"), &workspaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "resourceType" -------------
+	var resourceType InheritedResourceTypePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "resourceType", chi.URLParam(r, "resourceType"), &resourceType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resourceType", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.administer"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceWorkspaceInheritedResources(w, r, workspaceId, resourceType)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateWorkspaceLifecycle operation middleware
+func (siw *ServerInterfaceWrapper) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "workspaceId" -------------
+	var workspaceId WorkspaceIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workspaceId", chi.URLParam(r, "workspaceId"), &workspaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.administer"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateWorkspaceLifecycle(w, r, workspaceId)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RetryWorkspace operation middleware
+func (siw *ServerInterfaceWrapper) RetryWorkspace(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "workspaceId" -------------
+	var workspaceId WorkspaceIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workspaceId", chi.URLParam(r, "workspaceId"), &workspaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"organization.administer"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RetryWorkspace(w, r, workspaceId)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -32986,6 +40443,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/agent", wrapper.CreateAgent)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/skill/import", wrapper.ImportMutableSkills)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/skill/import/preview", wrapper.PreviewMutableSkillImport)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/agent/watch", wrapper.WatchAgents)
 	})
 	r.Group(func(r chi.Router) {
@@ -32993,6 +40456,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/api/agent/{agentName}", wrapper.UpdateAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/access-targets", wrapper.ListAgentAccessTargets)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/agent/{agentName}/fs/directory", wrapper.CreateAgentDirectory)
@@ -33022,6 +40488,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/agent/{agentName}/fs/stat", wrapper.StatAgentFile)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/owner", wrapper.GetAgentOwner)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/agent/{agentName}/owner", wrapper.TransferAgentOwner)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/share", wrapper.ListAgentShares)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/{agentName}/share", wrapper.UpsertAgentShare)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/agent/{agentName}/share/{shareId}", wrapper.DeleteAgentShare)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/agent/{agentName}/skill", wrapper.DeleteAgentMutableSkills)
 	})
 	r.Group(func(r chi.Router) {
@@ -33029,6 +40510,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/agent/{agentName}/skill/export", wrapper.ExportAgentMutableSkills)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/event-trail-event", wrapper.ListEventTrailEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/event-trail-event/{eventId}", wrapper.GetEventTrailEvent)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/inference/pool", wrapper.ListInferencePools)
@@ -33091,10 +40578,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/lens/{agentName}/observability/file", wrapper.ListFileObservability)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/lens/{agentName}/observability/file/summary", wrapper.ListFileObservabilitySummary)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/{agentName}/observability/network", wrapper.ListNetworkObservability)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/lens/{agentName}/observability/network/summary", wrapper.ListNetworkObservabilitySummary)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/{agentName}/observability/process", wrapper.ListProcessObservability)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/lens/{agentName}/observability/process/summary", wrapper.ListProcessObservabilitySummary)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/lens/{agentName}/{sessionID}/trace", wrapper.ListTraceSessions)
@@ -33241,10 +40737,10 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/skill/export", wrapper.ExportImmutableSkills)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/skill/import", wrapper.ImportSkills)
+		r.Post(options.BaseURL+"/api/skill/import", wrapper.ImportImmutableSkills)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/skill/import/preview", wrapper.PreviewSkillImport)
+		r.Post(options.BaseURL+"/api/skill/import/preview", wrapper.PreviewImmutableSkillImport)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/skill/summary", wrapper.ListImmutableSkillSummaries)
@@ -33321,6 +40817,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/workflow/{agentName}/{workflowName}/webhook", wrapper.InvokeWorkflowWebhook)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/workspace", wrapper.ListWorkspaces)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/workspace", wrapper.CreateWorkspace)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/workspace/member-candidate", wrapper.ListWorkspaceMemberCandidates)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/workspace/slug/{workspaceSlug}", wrapper.ResolveWorkspaceSlug)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/workspace/{workspaceId}", wrapper.GetWorkspace)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/workspace/{workspaceId}/inherited-resource/{resourceType}", wrapper.ListWorkspaceInheritedResources)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/workspace/{workspaceId}/inherited-resource/{resourceType}", wrapper.ReplaceWorkspaceInheritedResources)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/workspace/{workspaceId}/lifecycle", wrapper.UpdateWorkspaceLifecycle)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/workspace/{workspaceId}/retry", wrapper.RetryWorkspace)
+	})
 
 	return r
 }
@@ -33328,413 +40851,496 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

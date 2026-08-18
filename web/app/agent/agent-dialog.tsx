@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Plus } from "lucide-react"
+import { Box, Plus, Save, Wrench } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,16 +29,23 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import { createAgentFormAction, updateAgentFormAction } from "@/data/agent.actions"
+import {
+  createAgentFormAction,
+  updateAgentFormAction,
+  type AgentActionScope,
+} from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema } from "@/data/schema"
-import type { Sandbox, Skill } from "@/lib/gateway/client"
+import type { CreateAgentFormState } from "@/data/types"
+import type { ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
 import type * as z from "zod"
+import { toast } from "sonner"
 
 type Mode = "create" | "update"
 
 type AgentDialogProps = {
   mode: Mode
+  actionScope: AgentActionScope
   sandboxes: Sandbox[]
   immutableSkills: Skill[]
   initialHasNextSandboxPage: boolean
@@ -67,6 +74,7 @@ function SandboxSelect({
   onBlurAction,
   onValueChangeAction,
   value,
+  workspaceId,
 }: {
   "aria-invalid"?: boolean
   disabled?: boolean
@@ -78,6 +86,7 @@ function SandboxSelect({
   onBlurAction: () => void
   onValueChangeAction: (value: string) => void
   value: string
+  workspaceId?: string
 }) {
   const [sandboxes, setSandboxes] = useState(() => {
     return Array.from(new Map(initialSandboxes.map((sandbox) => [sandbox.name, sandbox])).values())
@@ -92,10 +101,13 @@ function SandboxSelect({
 
     setLoading(true)
     setError(undefined)
-    const result = await listSandboxesAction({
-      limit: 50,
-      page_token: nextPageToken,
-    })
+    const result = await listSandboxesAction(
+      {
+        limit: 50,
+        page_token: nextPageToken,
+      },
+      workspaceId
+    )
     setLoading(false)
 
     if (result.error) {
@@ -158,6 +170,7 @@ function SandboxSelect({
         <SelectGroup>
           {options.map((sandbox) => (
             <SelectItem key={sandbox.name} value={sandbox.name}>
+              <Box />
               {sandbox.name}
             </SelectItem>
           ))}
@@ -178,6 +191,7 @@ function SandboxSelect({
 }
 
 export function AgentDialog({
+  actionScope,
   mode,
   sandboxes,
   immutableSkills,
@@ -196,13 +210,25 @@ export function AgentDialog({
   const dialogOpen = open ?? internalOpen
   const skills = initialSkills ?? []
   const hasSandboxes = sandboxes.length > 0
-  const formAction =
-    mode === "update" && agentName
-      ? updateAgentFormAction.bind(null, agentName)
-      : createAgentFormAction
-  const [state, action, isPending] = useActionState(formAction, {})
+  const [state, action, isPending] = useActionState<CreateAgentFormState, FormData>(
+    async (state, formData) => {
+      const result =
+        mode === "update" && agentName
+          ? await updateAgentFormAction(actionScope, agentName, state, formData)
+          : await createAgentFormAction(actionScope, state, formData)
+      if (result.success) {
+        toast.success(mode === "update" ? "Agent updated" : "Agent created")
+        onOpenChangeAction?.(false)
+        setInternalOpen(false)
+        router.refresh()
+      }
+      return result
+    },
+    {}
+  )
   const defaultValues: AgentFormValues = {
     name: agentName ?? "",
+    sandboxScope: "Organisation",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills,
     memoryEnabled: initialMemoryEnabled,
@@ -218,6 +244,13 @@ export function AgentDialog({
     name: "skills",
     defaultValue: skills,
   })
+  const selectedSandboxName = useWatch({
+    control: form.control,
+    name: "sandboxName",
+    defaultValue: defaultValues.sandboxName,
+  })
+  const selectedSandbox = sandboxes.find((sandbox) => sandbox.name === selectedSandboxName)
+  const sandboxScope: ResourceScope = selectedSandbox?.scope ?? defaultValues.sandboxScope
 
   useEffect(() => {
     if (!state.error?.errors) {
@@ -300,6 +333,7 @@ export function AgentDialog({
           </DialogDescription>
         </DialogHeader>
         <form id="agent-form-simple" action={submit} className="space-y-5">
+          <input type="hidden" name="sandboxScope" value={sandboxScope} />
           {selectedSkills.map((skill) => (
             <input key={skill} type="hidden" name="skills" value={skill} />
           ))}
@@ -350,6 +384,7 @@ export function AgentDialog({
                     initialSandboxes={sandboxes}
                     initialHasNextPage={initialHasNextSandboxPage}
                     initialNextPageToken={initialNextSandboxPageToken}
+                    workspaceId={actionScope.workspaceId}
                     onBlurAction={field.onBlur}
                     onValueChangeAction={field.onChange}
                     aria-invalid={fieldState.invalid}
@@ -363,7 +398,7 @@ export function AgentDialog({
                         className="text-foreground underline"
                         onClick={() => {
                           onOpenChange(false)
-                          router.push("/sandboxes/new")
+                          router.push(`${actionScope.workspacePath}/sandboxes/new`)
                         }}
                       >
                         here
@@ -385,6 +420,7 @@ export function AgentDialog({
                     id="agent-form-skills"
                     invalid={fieldState.invalid}
                     options={immutableSkills.map((skill) => ({
+                      icon: Wrench,
                       label: skill.name,
                       value: skill.name,
                     }))}
@@ -435,7 +471,7 @@ export function AgentDialog({
             </Button>
           </DialogClose>
           <Button type="submit" form="agent-form-simple" disabled={isPending || !hasSandboxes}>
-            {isPending ? <Spinner aria-hidden="true" /> : null}
+            {isPending ? <Spinner aria-hidden="true" /> : <Save data-icon="inline-start" />}
             {mode === "create" ? "Create agent" : "Update agent"}
           </Button>
         </DialogFooter>

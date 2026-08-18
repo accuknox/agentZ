@@ -80,13 +80,17 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 	}
 
 	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName)
-	_, err = p.client.Logical().WriteWithContext(ctx, rolePath, map[string]any{
-		"bound_service_account_names":      opts.ServiceAccountName,
-		"bound_service_account_namespaces": opts.Namespace,
-		"token_policies":                   opts.PolicyName,
-		"token_period":                     "1h",
-		"token_type":                       "service",
-	})
+	_, err = p.client.Logical().WriteWithContext(
+		ctx,
+		rolePath,
+		map[string]any{
+			"bound_service_account_names":      opts.ServiceAccountName,
+			"bound_service_account_namespaces": opts.Namespace,
+			"token_policies":                   opts.PolicyName,
+			"token_period":                     "1h",
+			"token_type":                       "service",
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("put openbao kubernetes role: %w", err)
 	}
@@ -96,8 +100,18 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 func renderSinjectorPolicy(mount, namespace, agentName string) (string, error) {
 	mount = strings.Trim(mount, "/")
 	data := sinjectorPolicyData{
-		DataPath:     fmt.Sprintf("%s/data/%s/%s/*", mount, namespace, agentName),
-		MetadataPath: fmt.Sprintf("%s/metadata/%s/%s/*", mount, namespace, agentName),
+		DataPath: fmt.Sprintf(
+			"%s/data/%s/agent-secrets/%s/*",
+			mount,
+			namespace,
+			agentName,
+		),
+		MetadataPath: fmt.Sprintf(
+			"%s/metadata/%s/agent-secrets/%s/*",
+			mount,
+			namespace,
+			agentName,
+		),
 	}
 	var out bytes.Buffer
 	if err := sinjectorPolicy.Execute(&out, data); err != nil {

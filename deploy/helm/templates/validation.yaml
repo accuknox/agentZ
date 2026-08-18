@@ -1,0 +1,30 @@
+{{- if and .Values.manager.enabled (not .Values.gateway.enabled) (not .Values.manager.config.gatewayURL) }}
+{{- fail "manager.config.gatewayURL is required when gateway.enabled=false" }}
+{{- end }}
+{{- if and .Values.manager.enabled (eq .Values.manager.config.agentgatewayTraceMode "service") (not .Values.observer.enabled) (not .Values.manager.config.agentgatewayTraceServiceName) }}
+{{- fail "manager.config.agentgatewayTraceServiceName is required when observer.enabled=false" }}
+{{- end }}
+{{- if and .Values.gateway.enabled (not .Values.web.enabled) (not .Values.gateway.config.externalJWTJWKSURL) }}
+{{- fail "gateway.config.externalJWTJWKSURL is required when web.enabled=false" }}
+{{- end }}
+{{- if and .Values.gateway.enabled (not .Values.observer.enabled) (not .Values.gateway.config.agentTraceEndpoint) }}
+{{- fail "gateway.config.agentTraceEndpoint is required when observer.enabled=false" }}
+{{- end }}
+{{- if and .Values.manager.enabled .Values.gateway.enabled (or .Values.gateway.nameOverride .Values.gateway.fullnameOverride) (not .Values.manager.config.gatewayURL) }}
+{{- fail "manager.config.gatewayURL is required when the gateway name is overridden" }}
+{{- end }}
+{{- if and .Values.manager.enabled .Values.observer.enabled (eq .Values.manager.config.agentgatewayTraceMode "service") (or .Values.observer.nameOverride .Values.observer.fullnameOverride) (not .Values.manager.config.agentgatewayTraceServiceName) }}
+{{- fail "manager.config.agentgatewayTraceServiceName is required when the observer name is overridden" }}
+{{- end }}
+{{- if and .Values.gateway.enabled .Values.web.enabled (or .Values.web.nameOverride .Values.web.fullnameOverride) (not .Values.gateway.config.externalJWTJWKSURL) }}
+{{- fail "gateway.config.externalJWTJWKSURL is required when the web name is overridden" }}
+{{- end }}
+{{- if and .Values.gateway.enabled .Values.observer.enabled (or .Values.observer.nameOverride .Values.observer.fullnameOverride) (not .Values.gateway.config.agentTraceEndpoint) }}
+{{- fail "gateway.config.agentTraceEndpoint is required when the observer name is overridden" }}
+{{- end }}
+{{- if and .Values.web.enabled .Values.gateway.enabled (or .Values.gateway.nameOverride .Values.gateway.fullnameOverride) (not .Values.web.env.internalGatewayBaseURL) }}
+{{- fail "web.env.internalGatewayBaseURL is required when the gateway name is overridden" }}
+{{- end }}
+{{- if and .Values.manager.enabled .Values.gateway.enabled .Values.gateway.serviceAccount.name (not .Values.manager.config.gatewayServiceAccountName) }}
+{{- fail "manager.config.gatewayServiceAccountName is required when gateway.serviceAccount.name is set" }}
+{{- end }}

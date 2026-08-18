@@ -27,18 +27,21 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 	if len(b.processes) > 0 {
 		rows := make([][]any, 0, len(b.processes))
 		for _, ev := range b.processes {
-			rows = append(rows, []any{
-				ev.tenantNamespace,
-				ev.agentName,
-				ev.eventTime,
-				ev.podNamespace,
-				ev.podName,
-				ev.process,
-				ev.parentProcess,
-				ev.commandInvocation,
-				ev.action,
-				ev.source,
-			})
+			rows = append(
+				rows,
+				[]any{
+					ev.tenantNamespace,
+					ev.agentName,
+					ev.eventTime,
+					ev.podNamespace,
+					ev.podName,
+					ev.process,
+					ev.parentProcess,
+					ev.commandInvocation,
+					ev.action,
+					ev.source,
+				},
+			)
 		}
 		_, err = tx.CopyFrom(
 			ctx,
@@ -65,18 +68,21 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 	if len(b.files) > 0 {
 		rows := make([][]any, 0, len(b.files))
 		for _, ev := range b.files {
-			rows = append(rows, []any{
-				ev.tenantNamespace,
-				ev.agentName,
-				ev.eventTime,
-				ev.podNamespace,
-				ev.podName,
-				ev.filePathAccessed,
-				ev.process,
-				ev.commandInvocation,
-				ev.action,
-				ev.source,
-			})
+			rows = append(
+				rows,
+				[]any{
+					ev.tenantNamespace,
+					ev.agentName,
+					ev.eventTime,
+					ev.podNamespace,
+					ev.podName,
+					ev.filePathAccessed,
+					ev.process,
+					ev.commandInvocation,
+					ev.action,
+					ev.source,
+				},
+			)
 		}
 		_, err = tx.CopyFrom(
 			ctx,
@@ -103,19 +109,22 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 	if len(b.networks) > 0 {
 		rows := make([][]any, 0, len(b.networks))
 		for _, ev := range b.networks {
-			rows = append(rows, []any{
-				ev.tenantNamespace,
-				ev.agentName,
-				ev.eventTime,
-				ev.podNamespace,
-				ev.podName,
-				ev.destinationDomain,
-				ev.destinationIP,
-				ev.destinationPort,
-				ev.protocol,
-				ev.action,
-				ev.source,
-			})
+			rows = append(
+				rows,
+				[]any{
+					ev.tenantNamespace,
+					ev.agentName,
+					ev.eventTime,
+					ev.podNamespace,
+					ev.podName,
+					ev.destinationDomain,
+					ev.destinationIP,
+					ev.destinationPort,
+					ev.protocol,
+					ev.action,
+					ev.source,
+				},
+			)
 		}
 		_, err = tx.CopyFrom(
 			ctx,
@@ -163,59 +172,68 @@ func insertTraceEventBatch(ctx context.Context, tx pgx.Tx, traces []traceSpanEve
 	seenTraceSessions := make(map[string]struct{}, len(traces))
 	mcpLastCalledByKey := make(map[string]observerdb.UpsertMCPToolLastCalledParams, len(traces))
 	for _, ev := range traces {
-		spans = append(spans, observerdb.InsertTraceSpanParams{
-			TenantNamespace:    ev.tenantNamespace,
-			AgentName:          ev.agentName,
-			SessionID:          ev.sessionID,
-			TraceID:            ev.traceID,
-			SpanID:             ev.spanID,
-			ParentSpanID:       ev.parentSpanID,
-			StartTime:          ev.startTime,
-			EndTime:            ev.endTime,
-			DurationNs:         ev.durationNS,
-			Name:               ev.name,
-			SpanClass:          ev.spanClass,
-			OperationName:      ev.operationName,
-			Kind:               ev.kind,
-			StatusCode:         ev.statusCode,
-			ErrorType:          ev.errorType,
-			ErrorMessage:       ev.errorMessage,
-			Model:              ev.model,
-			ToolName:           ev.toolName,
-			InputTokens:        ev.inputTokens,
-			OutputTokens:       ev.outputTokens,
-			CachedInputTokens:  ev.cachedInputTokens,
-			CachedWriteTokens:  ev.cachedWriteTokens,
-			CostUsd:            ev.costUSD,
-			LlmFinishReason:    ev.llmFinishReason,
-			ResourceAttributes: ev.resourceAttributes,
-			SpanAttributes:     ev.spanAttributes,
-		})
+		spans = append(
+			spans,
+			observerdb.InsertTraceSpanParams{
+				TenantNamespace:    ev.tenantNamespace,
+				AgentName:          ev.agentName,
+				SessionID:          ev.sessionID,
+				TraceID:            ev.traceID,
+				SpanID:             ev.spanID,
+				ParentSpanID:       ev.parentSpanID,
+				StartTime:          ev.startTime,
+				EndTime:            ev.endTime,
+				DurationNs:         ev.durationNS,
+				Name:               ev.name,
+				SpanClass:          ev.spanClass,
+				OperationName:      ev.operationName,
+				Kind:               ev.kind,
+				StatusCode:         ev.statusCode,
+				ErrorType:          ev.errorType,
+				ErrorMessage:       ev.errorMessage,
+				Model:              ev.model,
+				ToolName:           ev.toolName,
+				InputTokens:        ev.inputTokens,
+				OutputTokens:       ev.outputTokens,
+				CachedInputTokens:  ev.cachedInputTokens,
+				CachedWriteTokens:  ev.cachedWriteTokens,
+				CostUsd:            ev.costUSD,
+				LlmFinishReason:    ev.llmFinishReason,
+				ResourceAttributes: ev.resourceAttributes,
+				SpanAttributes:     ev.spanAttributes,
+			},
+		)
 		p := ev.payload
-		payloads = append(payloads, observerdb.InsertTraceSpanPayloadParams{
-			TraceID:        ev.traceID,
-			SpanID:         ev.spanID,
-			StartTime:      ev.startTime,
-			InputMessages:  p.inputMessages,
-			OutputMessages: p.outputMessages,
-			ToolArguments:  p.toolArguments,
-			ToolResult:     p.toolResult,
-		})
+		payloads = append(
+			payloads,
+			observerdb.InsertTraceSpanPayloadParams{
+				TraceID:        ev.traceID,
+				SpanID:         ev.spanID,
+				StartTime:      ev.startTime,
+				InputMessages:  p.inputMessages,
+				OutputMessages: p.outputMessages,
+				ToolArguments:  p.toolArguments,
+				ToolResult:     p.toolResult,
+			},
+		)
 		if ev.mcpToolCall != nil {
 			call := ev.mcpToolCall
-			mcpInvocations = append(mcpInvocations, observerdb.InsertMCPToolInvocationParams{
-				TenantNamespace:   ev.tenantNamespace,
-				AgentName:         call.agentName,
-				TraceID:           call.traceID,
-				SpanID:            call.spanID,
-				StartTime:         call.startTime,
-				EndTime:           call.endTime,
-				DurationNs:        call.durationNS,
-				McpConnectionName: call.mcpConnectionName,
-				ToolName:          call.toolName,
-				SessionID:         call.sessionID,
-				Failed:            call.failed,
-			})
+			mcpInvocations = append(
+				mcpInvocations,
+				observerdb.InsertMCPToolInvocationParams{
+					TenantNamespace:   ev.tenantNamespace,
+					AgentName:         call.agentName,
+					TraceID:           call.traceID,
+					SpanID:            call.spanID,
+					StartTime:         call.startTime,
+					EndTime:           call.endTime,
+					DurationNs:        call.durationNS,
+					McpConnectionName: call.mcpConnectionName,
+					ToolName:          call.toolName,
+					SessionID:         call.sessionID,
+					Failed:            call.failed,
+				},
+			)
 
 			lastCalledKey := ev.tenantNamespace + "\x00" + call.agentName + "\x00" + call.mcpConnectionName + "\x00" + call.toolName
 			lastCalled := observerdb.UpsertMCPToolLastCalledParams{
@@ -242,10 +260,13 @@ func insertTraceEventBatch(ctx context.Context, tx pgx.Tx, traces []traceSpanEve
 			continue
 		}
 		seenTraceSessions[sessionKey] = struct{}{}
-		traceSessions = append(traceSessions, observerdb.RefreshTraceSessionSummaryParams{
-			TraceID:   ev.traceID,
-			SessionID: ev.sessionID,
-		})
+		traceSessions = append(
+			traceSessions,
+			observerdb.RefreshTraceSessionSummaryParams{
+				TraceID:   ev.traceID,
+				SessionID: ev.sessionID,
+			},
+		)
 	}
 
 	var batchErr error

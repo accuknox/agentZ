@@ -39,6 +39,7 @@ import { MessageResponse } from "@/components/ai-elements/message"
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ai-elements/file-tree"
 import { type FileTab, useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ErrorState } from "@/components/error-state"
 import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
@@ -105,6 +106,7 @@ type FilesWorkspaceProps = {
   agentName: string
   onPreviewerOpenChange: (open: boolean) => void
   sessionId?: string
+  workspaceId: string
 }
 
 type Draft = {
@@ -138,6 +140,7 @@ type DirectoryTreeProps = {
   onMove: (path: string, directory: string) => void
   path: string
   root: string
+  workspaceId: string
 }
 
 type MoveOperation = {
@@ -148,10 +151,16 @@ type MoveOperation = {
 const fileDragType = "application/x-agentz-file-path"
 const maxPreviewBytes = 8 << 20
 
-async function downloadAgentFile(agentName: string, path: string, filename: string): Promise<void> {
-  const toastId = toast.loading(`Downloading ${filename}…`)
+async function downloadAgentFile(
+  agentName: string,
+  workspaceId: string,
+  path: string,
+  filename: string
+): Promise<void> {
+  const toastId = toast.loading(`Downloading ${filename}...`)
   try {
     const { data } = await readAgentFileRaw({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
       parseAs: "blob",
       path: { agentName },
       query: { path },
@@ -175,10 +184,15 @@ async function downloadAgentFile(agentName: string, path: string, filename: stri
   }
 }
 
-function agentFilesQueryOptions(agentName: string, root: string, path: string) {
+function agentFilesQueryOptions(
+  agentName: string,
+  workspaceId: string,
+  root: string,
+  path: string
+) {
   return queryOptions({
     queryFn: async ({ signal }) => {
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const { data } = await client.file.list(
         { directory: root, path },
         { signal, throwOnError: true }
@@ -190,7 +204,7 @@ function agentFilesQueryOptions(agentName: string, root: string, path: string) {
         return a.name.localeCompare(b.name)
       })
     },
-    queryKey: ["opencode-files", agentName, root, path],
+    queryKey: ["opencode-files", workspaceId, agentName, root, path],
     staleTime: 60_000,
   })
 }
@@ -199,6 +213,7 @@ export function FilesWorkspace({
   agentName,
   onPreviewerOpenChange,
   sessionId,
+  workspaceId,
 }: FilesWorkspaceProps): React.JSX.Element {
   const { openAgent } = useFileWorkspace()
   const filesOpen = openAgent === agentName
@@ -211,13 +226,19 @@ export function FilesWorkspace({
           key={agentName}
           onPreviewerOpenChange={onPreviewerOpenChange}
           sessionId={sessionId}
+          workspaceId={workspaceId}
         />
       ) : null}
     </AnimatePresence>
   )
 }
 
-function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: FilesWorkspaceProps) {
+function OpenFilesWorkspace({
+  agentName,
+  onPreviewerOpenChange,
+  sessionId,
+  workspaceId,
+}: FilesWorkspaceProps) {
   const [explorerWidth, setExplorerWidth] = React.useState(290)
   const [workspaceWidth, setWorkspaceWidth] = React.useState(760)
   const [expandedWidth, setExpandedWidth] = React.useState(760)
@@ -267,7 +288,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
   const rootQuery = useQuery(
     queryOptions({
       queryFn: async ({ signal }) => {
-        const client = await createAgentOpencodeClient(agentName)
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
         if (sessionId) {
           const { data } = await client.session.get(
             { sessionID: sessionId },
@@ -279,7 +300,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
         const { data } = await client.path.get({}, { signal, throwOnError: true })
         return data.directory
       },
-      queryKey: ["agent-workspace-root", agentName, sessionId ?? "new"],
+      queryKey: ["agent-workspace-root", workspaceId, agentName, sessionId ?? "new"],
       retry: 2,
       staleTime: 60_000,
     })
@@ -361,7 +382,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
             role="status"
             style={{ width: explorerWidth }}
           >
-            <Spinner /> Loading workspace…
+            <Spinner /> Loading workspace...
           </div>
         ) : rootQuery.isError ? (
           <div
@@ -390,6 +411,7 @@ function OpenFilesWorkspace({ agentName, onPreviewerOpenChange, sessionId }: Fil
             root={rootQuery.data}
             setExplorerWidth={setExplorerWidth}
             workspaceWidth={renderedWidth}
+            workspaceId={workspaceId}
           />
         )}
       </div>
@@ -408,6 +430,7 @@ function WorkspaceBody({
   root,
   setExplorerWidth,
   workspaceWidth,
+  workspaceId,
 }: {
   agentName: string
   editorOpen: boolean
@@ -419,11 +442,15 @@ function WorkspaceBody({
   root: string
   setExplorerWidth: React.Dispatch<React.SetStateAction<number>>
   workspaceWidth: number
+  workspaceId: string
 }) {
   const queryClient = useQueryClient()
   const workspaceKey = `${agentName}:${root}`
   const editorWidth = workspaceWidth - explorerWidth - 4
-  const filesQueryKey = agentFilesQueryOptions(agentName, root, ".").queryKey.slice(0, 3)
+  const filesQueryKey = agentFilesQueryOptions(agentName, workspaceId, root, ".").queryKey.slice(
+    0,
+    3
+  )
   const filesFetching =
     useIsFetching({
       queryKey: filesQueryKey,
@@ -502,10 +529,10 @@ function WorkspaceBody({
 
       await Promise.allSettled([
         queryClient.invalidateQueries({
-          queryKey: agentFilesQueryOptions(agentName, root, sourceDirectory).queryKey,
+          queryKey: agentFilesQueryOptions(agentName, workspaceId, root, sourceDirectory).queryKey,
         }),
         queryClient.invalidateQueries({
-          queryKey: agentFilesQueryOptions(agentName, root, targetDirectory).queryKey,
+          queryKey: agentFilesQueryOptions(agentName, workspaceId, root, targetDirectory).queryKey,
         }),
       ])
       moveDrafts(path, target)
@@ -537,9 +564,13 @@ function WorkspaceBody({
         return
       }
 
-      move({ body: { path, target }, path: { agentName } })
+      move({
+        body: { path, target },
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        path: { agentName },
+      })
     },
-    [agentName, move, movePending]
+    [agentName, move, movePending, workspaceId]
   )
   const setSelectedDraft = React.useCallback(
     (draft: Draft) => {
@@ -867,6 +898,7 @@ function WorkspaceBody({
                     draft={drafts[selected]}
                     path={selected}
                     setDraft={setSelectedDraft}
+                    workspaceId={workspaceId}
                   />
                 ) : (
                   <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
@@ -985,7 +1017,7 @@ function WorkspaceBody({
               {moveOperation.directory === "."
                 ? "workspace root"
                 : moveOperation.directory.slice(moveOperation.directory.lastIndexOf("/") + 1)}
-              …
+              ...
             </span>
           </div>
         ) : null}
@@ -1014,6 +1046,7 @@ function WorkspaceBody({
               onMove={moveFile}
               path="."
               root={root}
+              workspaceId={workspaceId}
             />
           </FileTree>
         </div>
@@ -1050,6 +1083,7 @@ function WorkspaceBody({
           }}
           onOpen={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
           root={root}
+          workspaceId={workspaceId}
         />
       ) : null}
       <Dialog open={confirmation !== null} onOpenChange={(open) => !open && setConfirmation(null)}>
@@ -1086,9 +1120,10 @@ function DirectoryTree({
   onMove,
   path,
   root,
+  workspaceId,
 }: DirectoryTreeProps) {
   const [dropPath, setDropPath] = React.useState<string | null>(null)
-  const directoryQuery = useQuery(agentFilesQueryOptions(agentName, root, path))
+  const directoryQuery = useQuery(agentFilesQueryOptions(agentName, workspaceId, root, path))
 
   if (directoryQuery.isPending) {
     return (
@@ -1097,7 +1132,7 @@ function DirectoryTree({
         className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
         role="status"
       >
-        <Spinner className="size-3" /> Loading…
+        <Spinner className="size-3" /> Loading...
       </div>
     )
   }
@@ -1134,7 +1169,9 @@ function DirectoryTree({
             </ContextMenuItem>
             {!directory ? (
               <ContextMenuItem
-                onSelect={() => void downloadAgentFile(agentName, entryPath, entry.name)}
+                onSelect={() =>
+                  void downloadAgentFile(agentName, workspaceId, entryPath, entry.name)
+                }
               >
                 <Download /> Save
               </ContextMenuItem>
@@ -1220,6 +1257,7 @@ function DirectoryTree({
                   onMove={onMove}
                   path={entry.path}
                   root={root}
+                  workspaceId={workspaceId}
                 />
               </FileTreeFolder>
             </ContextMenuTrigger>
@@ -1289,18 +1327,21 @@ function EditorPane({
   draft,
   path,
   setDraft,
+  workspaceId,
 }: {
   agentName: string
   draft?: Draft
   path: string
   setDraft: (draft: Draft) => void
+  workspaceId: string
 }) {
   const queryClient = useQueryClient()
   const draftRef = React.useRef(draft)
   const reducedMotion = useReducedMotion()
   const [preview, setPreview] = React.useState(false)
+  const headers = { "X-AgentZ-Workspace-ID": workspaceId }
   const statQuery = useQuery({
-    ...statAgentFileOptions({ path: { agentName }, query: { path } }),
+    ...statAgentFileOptions({ headers, path: { agentName }, query: { path } }),
     refetchInterval: 2_000,
   })
   const mediaType = statQuery.data?.media_type
@@ -1319,7 +1360,7 @@ function EditorPane({
           : undefined
   const readText = mediaType !== undefined && binaryPreview === undefined && !presentation
   const fileQuery = useQuery({
-    ...readAgentFileOptions({ path: { agentName }, query: { path } }),
+    ...readAgentFileOptions({ headers, path: { agentName }, query: { path } }),
     enabled: readText,
     retry: (failures, error) => error.code !== "unsupported_media_type" && failures < 3,
   })
@@ -1352,7 +1393,7 @@ function EditorPane({
         version: metadata.version,
       })
       queryClient.setQueryData(
-        readAgentFileQueryKey({ path: { agentName }, query: { path } }),
+        readAgentFileQueryKey({ headers, path: { agentName }, query: { path } }),
         (current) =>
           current
             ? {
@@ -1364,7 +1405,7 @@ function EditorPane({
             : current
       )
       queryClient.setQueryData(
-        statAgentFileQueryKey({ path: { agentName }, query: { path } }),
+        statAgentFileQueryKey({ headers, path: { agentName }, query: { path } }),
         metadata
       )
       toast.success("File saved")
@@ -1436,6 +1477,7 @@ function EditorPane({
         overwrite,
         path,
       },
+      headers,
       path: { agentName },
     })
   }
@@ -1447,7 +1489,7 @@ function EditorPane({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading {filename}…
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -1455,22 +1497,13 @@ function EditorPane({
   if (statQuery.isError || (fileQuery.isError && !unsupportedText)) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <Alert variant="destructive">
-          <AlertTitle>Could not open {filename}</AlertTitle>
-          <AlertDescription className="mt-1">
-            The file may have moved or become unavailable.
-          </AlertDescription>
-          <Button
-            className="mt-3"
-            onClick={() => {
-              void statQuery.refetch()
-              if (readText) void fileQuery.refetch()
-            }}
-            size="sm"
-          >
-            <RefreshCw /> Retry
-          </Button>
-        </Alert>
+        <ErrorState
+          kind="unreadable"
+          onRetry={() => {
+            void statQuery.refetch()
+            if (readText) void fileQuery.refetch()
+          }}
+        />
       </div>
     )
   }
@@ -1484,6 +1517,7 @@ function EditorPane({
         presentation={presentation}
         preview={binaryPreview}
         size={statQuery.data.size}
+        workspaceId={workspaceId}
       />
     )
   }
@@ -1495,7 +1529,7 @@ function EditorPane({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading {filename}…
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -1534,13 +1568,13 @@ function EditorPane({
               {save.isPending ? <Spinner aria-hidden="true" /> : <Save />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{save.isPending ? "Saving…" : "Save file"}</TooltipContent>
+          <TooltipContent>{save.isPending ? "Saving..." : "Save file"}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               aria-label="Download file"
-              onClick={() => void downloadAgentFile(agentName, path, filename)}
+              onClick={() => void downloadAgentFile(agentName, workspaceId, path, filename)}
               size="icon-sm"
               variant="ghost"
             >
@@ -1684,6 +1718,7 @@ function BinaryPane({
   presentation,
   preview,
   size,
+  workspaceId,
 }: {
   agentName: string
   filename: string
@@ -1691,6 +1726,7 @@ function BinaryPane({
   presentation: boolean
   preview?: BinaryPreview
   size: number
+  workspaceId: string
 }) {
   const tooLarge = size > maxPreviewBytes && (preview === "document" || preview === "spreadsheet")
 
@@ -1704,7 +1740,7 @@ function BinaryPane({
           <TooltipTrigger asChild>
             <Button
               aria-label="Download file"
-              onClick={() => void downloadAgentFile(agentName, path, filename)}
+              onClick={() => void downloadAgentFile(agentName, workspaceId, path, filename)}
               size="icon-sm"
               variant="ghost"
             >
@@ -1716,7 +1752,13 @@ function BinaryPane({
       </div>
       <div className="min-h-0 flex-1">
         {preview && !tooLarge ? (
-          <RawPreview agentName={agentName} filename={filename} path={path} preview={preview} />
+          <RawPreview
+            agentName={agentName}
+            filename={filename}
+            path={path}
+            preview={preview}
+            workspaceId={workspaceId}
+          />
         ) : (
           <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
             {presentation ? <Presentation className="size-8" /> : <File className="size-8" />}
@@ -1754,14 +1796,21 @@ function RawPreview({
   filename,
   path,
   preview,
+  workspaceId,
 }: {
   agentName: string
   filename: string
   path: string
   preview: BinaryPreview
+  workspaceId: string
 }) {
   const rawQuery = useQuery({
-    ...readAgentFileRawOptions({ parseAs: "blob", path: { agentName }, query: { path } }),
+    ...readAgentFileRawOptions({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      parseAs: "blob",
+      path: { agentName },
+      query: { path },
+    }),
     gcTime: 0,
   })
   const url = useObjectURL(
@@ -1783,7 +1832,7 @@ function RawPreview({
         className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
         role="status"
       >
-        <Spinner /> Loading preview…
+        <Spinner /> Loading preview...
       </div>
     )
   }
@@ -1818,6 +1867,7 @@ function EntryDialog({
   onOpen,
   onRename,
   root,
+  workspaceId,
 }: {
   action: EntryAction
   agentName: string
@@ -1826,6 +1876,7 @@ function EntryDialog({
   onOpen: (path: string) => void
   onRename: (path: string, target: string) => void
   root: string
+  workspaceId: string
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = React.useState("entry" in action ? action.entry.name : "")
@@ -1837,12 +1888,12 @@ function EntryDialog({
     createFile.isPending || createDirectory.isPending || rename.isPending || remove.isPending
   const pendingLabel =
     action.kind === "file"
-      ? "Creating file…"
+      ? "Creating file..."
       : action.kind === "directory"
-        ? "Creating folder…"
+        ? "Creating folder..."
         : action.kind === "rename"
-          ? "Renaming…"
-          : "Deleting…"
+          ? "Renaming..."
+          : "Deleting..."
 
   const label =
     action.kind === "file"
@@ -1877,7 +1928,7 @@ function EntryDialog({
             disabled={pending}
             name="entry-name"
             onChange={(event) => setName(event.target.value)}
-            placeholder={action.kind === "directory" ? "folder-name…" : "filename.md…"}
+            placeholder={action.kind === "directory" ? "folder-name..." : "filename.md..."}
             spellCheck={false}
             value={name}
           />
@@ -1896,12 +1947,22 @@ function EntryDialog({
                 const directoryPath = action.parent === "." ? "." : `${action.parent}/`
                 const mutation = action.kind === "file" ? createFile : createDirectory
                 mutation.mutate(
-                  { body: { path }, path: { agentName } },
+                  {
+                    body: { path },
+                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                    path: { agentName },
+                  },
                   {
                     onError: (error) => toast.error(label, { description: error.message }),
                     onSuccess: () => {
+                      toast.success(action.kind === "file" ? "File created" : "Folder created")
                       void queryClient.invalidateQueries({
-                        queryKey: agentFilesQueryOptions(agentName, root, directoryPath).queryKey,
+                        queryKey: agentFilesQueryOptions(
+                          agentName,
+                          workspaceId,
+                          root,
+                          directoryPath
+                        ).queryKey,
                       })
                       if (action.kind === "file") {
                         onOpen(path)
@@ -1920,14 +1981,19 @@ function EntryDialog({
                 rename.mutate(
                   {
                     body: { path: action.entry.path, target },
+                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
                     path: { agentName },
                   },
                   {
                     onError: (error) => toast.error(label, { description: error.message }),
                     onSuccess: () => {
+                      toast.success(
+                        action.entry.type === "directory" ? "Folder renamed" : "File renamed"
+                      )
                       void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
+                          workspaceId,
                           root,
                           slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
                         ).queryKey,
@@ -1942,13 +2008,21 @@ function EntryDialog({
 
               const slash = action.entry.path.lastIndexOf("/")
               remove.mutate(
-                { path: { agentName }, query: { path: action.entry.path } },
+                {
+                  headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                  path: { agentName },
+                  query: { path: action.entry.path },
+                },
                 {
                   onError: (error) => toast.error(label, { description: error.message }),
                   onSuccess: () => {
+                    toast.success(
+                      action.entry.type === "directory" ? "Folder deleted" : "File deleted"
+                    )
                     void queryClient.invalidateQueries({
                       queryKey: agentFilesQueryOptions(
                         agentName,
+                        workspaceId,
                         root,
                         slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
                       ).queryKey,

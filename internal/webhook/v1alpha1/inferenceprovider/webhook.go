@@ -52,10 +52,13 @@ func RegisterWithManager(mgr ctrl.Manager) error {
 func (v *Validator) ValidateCreate(_ context.Context, provider *agentzv1alpha1.InferenceProvider) (admission.Warnings, error) {
 	fields := issuesToFields(inference.ValidateProvider(provider.Spec))
 	if provider.Name == agentzv1alpha1.InferencePoolProvider {
-		fields = append(fields, field.Forbidden(
-			field.NewPath("metadata").Child("name"),
-			"name is reserved for inference pools",
-		))
+		fields = append(
+			fields,
+			field.Forbidden(
+				field.NewPath("metadata").Child("name"),
+				"name is reserved for inference pools",
+			),
+		)
 	}
 	if len(fields) == 0 {
 		return nil, nil
@@ -67,15 +70,23 @@ func (v *Validator) ValidateCreate(_ context.Context, provider *agentzv1alpha1.I
 func (v *Validator) ValidateUpdate(ctx context.Context, oldProvider, newProvider *agentzv1alpha1.InferenceProvider) (admission.Warnings, error) {
 	fields := issuesToFields(inference.ValidateProvider(newProvider.Spec))
 	if oldProvider.Spec.Kind != newProvider.Spec.Kind {
-		fields = append(fields, field.Invalid(
-			field.NewPath("spec").Child("kind"), newProvider.Spec.Kind, "field is immutable",
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				field.NewPath("spec").Child("kind"),
+				newProvider.Spec.Kind,
+				"field is immutable",
+			),
+		)
 	}
 	if newProvider.Name == agentzv1alpha1.InferencePoolProvider {
-		fields = append(fields, field.Forbidden(
-			field.NewPath("metadata").Child("name"),
-			"name is reserved for inference pools",
-		))
+		fields = append(
+			fields,
+			field.Forbidden(
+				field.NewPath("metadata").Child("name"),
+				"name is reserved for inference pools",
+			),
+		)
 	}
 
 	modelIssues, err := inference.ValidateModelRemoval(ctx, v.client, oldProvider, newProvider)
@@ -97,9 +108,14 @@ func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.Inferenc
 func issuesToFields(issues []inference.Issue) field.ErrorList {
 	fields := make(field.ErrorList, 0, len(issues))
 	for _, issue := range issues {
-		fields = append(fields, field.Invalid(
-			field.NewPath("spec"), "", issue.Field+": "+issue.Message,
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				field.NewPath("spec"),
+				"",
+				issue.Field+": "+issue.Message,
+			),
+		)
 	}
 	return fields
 }

@@ -18,6 +18,8 @@
 helm.sh/chart: {{ include "observer.chart" . }}
 app.kubernetes.io/name: {{ include "observer.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/part-of: agentz
+app.kubernetes.io/component: observer
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}

@@ -205,7 +205,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	errCh := make(chan error, 1)
 	go func() {
 		slog.InfoContext(
-			ctx, "starting secret injection proxy",
+			ctx,
+			"starting secret injection proxy",
 			slog.String("addr", cfg.Addr),
 			slog.String("agent_name", cfg.AgentName),
 		)
@@ -369,11 +370,16 @@ func (r *resolver) refreshOAuth(ctx context.Context, key string, record secretst
 		return record, nil
 	}
 
-	token, scopes, err := oauth.Refresh(ctx, r.http, oauth.AuthConfig{
-		TokenEndpoint: record.Config.TokenEndpoint,
-		Resource:      record.Config.Resource,
-		Scopes:        record.Config.Scopes,
-	}, record.Record)
+	token, scopes, err := oauth.Refresh(
+		ctx,
+		r.http,
+		oauth.AuthConfig{
+			TokenEndpoint: record.Config.TokenEndpoint,
+			Resource:      record.Config.Resource,
+			Scopes:        record.Config.Scopes,
+		},
+		record.Record,
+	)
 	if err != nil {
 		return secretstore.OAuthRecord{}, err
 	}

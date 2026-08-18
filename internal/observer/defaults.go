@@ -9,8 +9,6 @@ const (
 	DefaultHubbleRelayAddr = "localhost:4245"
 	// DefaultOTLPTraceGRPCAddr is the OTLP/gRPC trace receiver address.
 	DefaultOTLPTraceGRPCAddr = ":4317"
-	// DefaultNamespace is the namespace watched by the observer.
-	DefaultNamespace = "default"
 	// DefaultBatchSize balances COPY throughput with bounded shutdown drain.
 	DefaultBatchSize = 500
 	// DefaultFlushInterval caps event visibility latency in PostgreSQL.

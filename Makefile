@@ -5,6 +5,7 @@ IMAGE ?= murtazau/agentz:latest
 AGENT_IMAGE ?= murtazau/agentz-agent:latest
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
+POSTGRES_DSN ?= postgresql://postgres:postgres@localhost:5432/postgres
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
 OPENBAO_AUTH_SERVICE_ACCOUNT ?= default
@@ -31,7 +32,7 @@ generate:
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
 	oapi-codegen \
-		--include-tags agents,tenants,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
+		--include-tags agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,session \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
@@ -77,14 +78,14 @@ build:
 run-gateway:
 	umask 077; \
 		$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"
-	AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
+	@AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz gateway serve \
 		--log-level=info \
 		--addr=0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--filesystem-target-override=localhost:4097 \
-		--postgres-dsn=postgresql://postgres:postgres@localhost:5432/postgres \
+		--postgres-dsn="$(POSTGRES_DSN)" \
 		--external-jwt-jwks-url=$(BETTER_AUTH_URL)/api/auth/.well-known/jwks.json \
 		--external-jwt-issuer=$(BETTER_AUTH_URL) \
 		--external-jwt-audience=$(GATEWAY_JWT_AUDIENCE) \
@@ -104,7 +105,7 @@ run-manager:
 	umask 077; \
 		$(KUBECTL) -n $(K8S_NAMESPACE) create token default --duration=24h > "$(OPENBAO_TOKEN_PATH)"; \
 		$(KUBECTL) -n $(K8S_NAMESPACE) create token default --audience=$(GATEWAY_JWT_AUDIENCE) --duration=24h > /tmp/gateway-sa-token
-	AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
+	@AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz manager \
 		--health-probe-bind-address=:8888 \
@@ -120,10 +121,13 @@ run-manager:
 		--manager-gateway-token-path=/tmp/gateway-sa-token \
 		--manager-service-account-name=default \
 		--manager-service-account-namespace=$(K8S_NAMESPACE) \
+		--gateway-service-account-name=default \
+		--gateway-service-account-namespace=$(K8S_NAMESPACE) \
 		--sinjector-ca-secret-name=sinjector \
 		--nix-store-pvc=nix-store \
-		--tenant-nix-store-size=5Gi \
-		--tenant-nix-store-access-mode=ReadWriteOnce \
+		--nix-store-size=5Gi \
+		--nix-store-access-mode=ReadWriteOnce \
+		--nix-cache-endpoint=https://cache.nixos.org \
 		--skills-s3-endpoint=$(SKILLS_S3_ENDPOINT) \
 		--skills-s3-region=$(SKILLS_S3_REGION) \
 		--skills-s3-bucket=$(SKILLS_S3_BUCKET) \
@@ -135,7 +139,7 @@ run-manager:
 
 .PHONY: run-observer
 run-observer:
-	go run ./cmd/agentz observer serve --postgres-dsn postgresql://postgres:postgres@localhost:5432/postgres
+	go run ./cmd/agentz observer serve --postgres-dsn "$(POSTGRES_DSN)"
 
 .PHONY: run-extauth
 run-extauth:

@@ -1,10 +1,12 @@
 "use client"
 
 import Link from "next/link"
+import type { Route } from "next"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Trash2 } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import type { Sandbox } from "@/lib/gateway/client"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -22,8 +24,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "sonner"
 import type { DeleteSandboxFormState } from "@/data/types"
-import { formatTimestamp } from "@/lib/format"
+import { TableRelativeTime } from "@/components/ui/table"
+import { UserAvatar } from "@/components/ui/avatar"
 
 type DeleteSandboxAction = (
   name: string,
@@ -32,7 +36,9 @@ type DeleteSandboxAction = (
 ) => Promise<DeleteSandboxFormState>
 
 export function createSandboxColumns(
-  deleteSandboxAction: DeleteSandboxAction
+  basePath: string,
+  deleteSandboxAction: DeleteSandboxAction,
+  showOrganisation: boolean
 ): ColumnDef<Sandbox>[] {
   return [
     {
@@ -50,26 +56,27 @@ export function createSandboxColumns(
       cell: ({ row }) => {
         const sandbox = row.original
 
-        return <span className="font-medium">{sandbox.name}</span>
+        return (
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate font-medium">{sandbox.name}</span>
+            {showOrganisation && sandbox.scope === "Organisation" ? (
+              <Badge variant="secondary">Organisation</Badge>
+            ) : null}
+          </div>
+        )
       },
     },
     {
       accessorFn: (sandbox) => sandbox.metadata.package_count,
       id: "packages",
       header: "Packages",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("packages")
-        return `${count} package${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("packages"),
     },
     {
       accessorFn: (sandbox) => sandbox.metadata.allowed_host_count,
       id: "allowed_hosts",
       header: "Allowed hosts",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("allowed_hosts")
-        return `${count} host${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("allowed_hosts"),
     },
     {
       accessorFn: (sandbox) => sandbox.inference.models.length,
@@ -80,19 +87,23 @@ export function createSandboxColumns(
       accessorFn: (sandbox) => sandbox.mcp_connection_refs.length,
       id: "mcps",
       header: "MCP",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("mcps")
-        return `${count} MCP${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("mcps"),
     },
     {
       accessorFn: (sandbox) => sandbox.metadata.skill_count,
       id: "skills",
       header: "Skills",
-      cell: ({ row }) => {
-        const count = row.getValue<number>("skills")
-        return `${count} skill${count === 1 ? "" : "s"}`
-      },
+      cell: ({ row }) => row.getValue<number>("skills"),
+    },
+    {
+      accessorKey: "created_by",
+      header: "Created",
+      cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+    },
+    {
+      accessorKey: "last_modified_by",
+      header: "Modified",
+      cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
     },
     {
       accessorKey: "created_at",
@@ -102,18 +113,24 @@ export function createSandboxColumns(
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Created
+          Created at
           <ArrowUpDown />
         </Button>
       ),
-      cell: ({ row }) => formatTimestamp(row.getValue("created_at")),
+      cell: ({ row }) => <TableRelativeTime value={row.getValue("created_at")} />,
     },
     {
       id: "actions",
       cell: ({ row }) => {
         const sandbox = row.original
 
-        return <SandboxActions sandbox={sandbox} deleteSandboxAction={deleteSandboxAction} />
+        return (
+          <SandboxActions
+            basePath={basePath}
+            sandbox={sandbox}
+            deleteSandboxAction={deleteSandboxAction}
+          />
+        )
       },
     },
   ]
@@ -121,9 +138,11 @@ export function createSandboxColumns(
 
 function SandboxActions({
   sandbox,
+  basePath,
   deleteSandboxAction,
 }: {
   sandbox: Sandbox
+  basePath: string
   deleteSandboxAction: DeleteSandboxAction
 }) {
   const [open, setOpen] = React.useState(false)
@@ -135,27 +154,36 @@ function SandboxActions({
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <span className="sr-only">Open menu</span>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href={`/sandboxes/update/${sandbox.name}`}>Edit</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={referenced}
-            onSelect={() => setOpen(true)}
-          >
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {sandbox.can_modify || sandbox.can_delete ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {sandbox.can_modify ? (
+              <DropdownMenuItem asChild>
+                <Link href={`${basePath}/update/${sandbox.name}` as Route}>
+                  <Pencil />
+                  Edit
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {sandbox.can_delete ? (
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={referenced}
+                onSelect={() => setOpen(true)}
+              >
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       <DeleteSandboxDialog
         sandbox={sandbox}
         deleteSandboxAction={deleteSandboxAction}
@@ -183,10 +211,11 @@ function DeleteSandboxDialog({
   )
 
   React.useEffect(() => {
-    if (!pending && !state.error) {
+    if (state.success) {
+      toast.success("Sandbox deleted")
       setOpen(false)
     }
-  }, [pending, setOpen, state.error])
+  }, [setOpen, state.success])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

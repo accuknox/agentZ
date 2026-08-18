@@ -25,10 +25,10 @@ export function agentIsGettingReady(status: AgentStatus): boolean {
   return gettingReadyStatuses.has(status)
 }
 
-export function watchAgentsQueryOptions(initialAgents: Agent[] = []) {
+export function watchAgentsQueryOptions(workspaceId: string, initialAgents: Agent[] = []) {
   return queryOptions({
     placeholderData: initialAgents,
-    queryFn: streamedQuery<WatchAgentsResponse, Agent[], ["watchAgents"]>({
+    queryFn: streamedQuery<WatchAgentsResponse, Agent[], ["watchAgents", string]>({
       initialValue: initialAgents,
       refetchMode: "reset",
       reducer: (agents, event) => {
@@ -52,12 +52,13 @@ export function watchAgentsQueryOptions(initialAgents: Agent[] = []) {
       streamFn: async ({ signal }) => {
         const result = await watchAgents({
           baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
           signal,
         })
         return result.stream
       },
     }),
-    queryKey: ["watchAgents"],
+    queryKey: ["watchAgents", workspaceId],
     refetchOnMount: "always",
     refetchOnReconnect: "always",
     refetchOnWindowFocus: false,
@@ -69,10 +70,11 @@ export function watchAgentsQueryOptions(initialAgents: Agent[] = []) {
 
 export function useAgentReadiness(
   agentName: string | undefined,
+  workspaceId: string,
   initialStatus?: AgentStatus
 ): AgentReadiness {
   const { data } = useQuery({
-    ...watchAgentsQueryOptions(),
+    ...watchAgentsQueryOptions(workspaceId),
     enabled: agentName !== undefined,
     select: (agents) => agents.find((agent) => agent.name === agentName)?.status,
   })

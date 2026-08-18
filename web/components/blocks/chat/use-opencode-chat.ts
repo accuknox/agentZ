@@ -466,38 +466,40 @@ function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
   }
 }
 
-function chatOverlayQueryKey(agentName: string, sessionID?: string) {
-  return ["opencode", "chatOverlay", agentName, sessionID ?? "new"] as const
+function chatOverlayQueryKey(workspaceId: string, agentName: string, sessionID?: string) {
+  return ["opencode", "chatOverlay", workspaceId, agentName, sessionID ?? "new"] as const
 }
 
-export function sessionInfoQueryKey(agentName: string, sessionID: string) {
-  return ["opencode", "sessionInfo", agentName, sessionID] as const
+export function sessionInfoQueryKey(workspaceId: string, agentName: string, sessionID: string) {
+  return ["opencode", "sessionInfo", workspaceId, agentName, sessionID] as const
 }
 
-function sessionMessagesBaseQueryKey(agentName: string, sessionID: string) {
-  return ["opencode", "sessionMessages", agentName, sessionID] as const
+function sessionMessagesBaseQueryKey(workspaceId: string, agentName: string, sessionID: string) {
+  return ["opencode", "sessionMessages", workspaceId, agentName, sessionID] as const
 }
 
 export function addOptimisticUserMessage(
   queryClient: QueryClient,
+  workspaceId: string,
   agentName: string,
   sessionID: string | undefined,
   message: OptimisticUserMessage
 ) {
   queryClient.setQueryData<OptimisticUserMessage[]>(
-    chatOverlayQueryKey(agentName, sessionID),
+    chatOverlayQueryKey(workspaceId, agentName, sessionID),
     (current) => [...(current ?? []), message].slice(-MAX_CHAT_TURNS)
   )
 }
 
 export function markOptimisticUserMessageFailed(
   queryClient: QueryClient,
+  workspaceId: string,
   agentName: string,
   sessionID: string | undefined,
   messageID: string
 ) {
   queryClient.setQueryData<OptimisticUserMessage[]>(
-    chatOverlayQueryKey(agentName, sessionID),
+    chatOverlayQueryKey(workspaceId, agentName, sessionID),
     (current) =>
       (current ?? []).map((item) => {
         if (item.id !== messageID) return item
@@ -509,10 +511,10 @@ export function markOptimisticUserMessageFailed(
   )
 }
 
-function sessionInfoQueryOptions(agentName: string, sessionID: string) {
+function sessionInfoQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.get({
         sessionID,
       })
@@ -523,16 +525,21 @@ function sessionInfoQueryOptions(agentName: string, sessionID: string) {
 
       return result.data
     },
-    queryKey: sessionInfoQueryKey(agentName, sessionID),
+    queryKey: sessionInfoQueryKey(workspaceId, agentName, sessionID),
     retry: false,
     staleTime: 60_000,
   })
 }
 
-function sessionMessagesQueryOptions(agentName: string, sessionID: string, directory: string) {
+function sessionMessagesQueryOptions(
+  agentName: string,
+  workspaceId: string,
+  sessionID: string,
+  directory: string
+) {
   return queryOptions({
     queryFn: async () => {
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.messages({
         directory,
         sessionID,
@@ -544,16 +551,19 @@ function sessionMessagesQueryOptions(agentName: string, sessionID: string, direc
 
       return result.data
     },
-    queryKey: [...sessionMessagesBaseQueryKey(agentName, sessionID), directory] as const,
+    queryKey: [
+      ...sessionMessagesBaseQueryKey(workspaceId, agentName, sessionID),
+      directory,
+    ] as const,
     retry: false,
     staleTime: 5_000,
   })
 }
 
-function sessionTreeQueryOptions(agentName: string, directory: string) {
+function sessionTreeQueryOptions(agentName: string, workspaceId: string, directory: string) {
   return queryOptions({
     queryFn: async () => {
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const [sessionResult, questionResult, permissionResult] = await Promise.all([
         client.session.list({
           directory,
@@ -589,16 +599,20 @@ function sessionTreeQueryOptions(agentName: string, directory: string) {
         sessions: sessionResult.data ?? [],
       } satisfies HitlStore
     },
-    queryKey: ["opencode", "chatHitl", agentName, directory],
+    queryKey: ["opencode", "chatHitl", workspaceId, agentName, directory],
     retry: false,
     staleTime: 5_000,
   })
 }
 
-export function sessionStatusQueryOptions(agentName: string, directory: string) {
+export function sessionStatusQueryOptions(
+  agentName: string,
+  workspaceId: string,
+  directory: string
+) {
   return queryOptions({
     queryFn: async () => {
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.status({ directory })
 
       if (result.error || !result.data) {
@@ -607,12 +621,16 @@ export function sessionStatusQueryOptions(agentName: string, directory: string) 
 
       return result.data
     },
-    queryKey: ["opencode", "sessionStatus", agentName, directory] as const,
+    queryKey: ["opencode", "sessionStatus", workspaceId, agentName, directory] as const,
     retry: false,
   })
 }
 
-export function useOpencodeChat(agentName: string, sessionID?: string): UseOpencodeChatResult {
+export function useOpencodeChat(
+  agentName: string,
+  workspaceId: string,
+  sessionID?: string
+): UseOpencodeChatResult {
   const queryClient = useQueryClient()
   const [liveStore, setLiveStore] = useState<{
     key: string
@@ -622,28 +640,37 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
   const [streamError, setStreamError] = useState<string>()
   const [streamEpoch, setStreamEpoch] = useState(0)
   const session = useQuery({
-    ...sessionInfoQueryOptions(agentName, sessionID ?? ""),
+    ...sessionInfoQueryOptions(agentName, workspaceId, sessionID ?? ""),
     enabled: Boolean(sessionID),
   })
   const history = useQuery({
-    ...sessionMessagesQueryOptions(agentName, sessionID ?? "", session.data?.directory ?? ""),
+    ...sessionMessagesQueryOptions(
+      agentName,
+      workspaceId,
+      sessionID ?? "",
+      session.data?.directory ?? ""
+    ),
     enabled: false,
   })
   const hitl = useQuery({
-    ...sessionTreeQueryOptions(agentName, session.data?.directory ?? ""),
+    ...sessionTreeQueryOptions(agentName, workspaceId, session.data?.directory ?? ""),
     enabled: false,
   })
   const refetchSession = session.refetch
   const refetchHistory = history.refetch
   const refetchHitl = hitl.refetch
-  const sessionStatusOptions = sessionStatusQueryOptions(agentName, session.data?.directory ?? "")
+  const sessionStatusOptions = sessionStatusQueryOptions(
+    agentName,
+    workspaceId,
+    session.data?.directory ?? ""
+  )
   const sessionStatusKey = sessionStatusOptions.queryKey
   const status = useQuery({ ...sessionStatusOptions, enabled: false })
   const refetchStatus = status.refetch
   const localMessages = useQuery({
     ...queryOptions({
       queryFn: (): OptimisticUserMessage[] => [],
-      queryKey: chatOverlayQueryKey(agentName, sessionID),
+      queryKey: chatOverlayQueryKey(workspaceId, agentName, sessionID),
       staleTime: Infinity,
     }),
     initialData: [],
@@ -792,7 +819,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
 
     async function consume() {
       try {
-        const client = await createAgentOpencodeClient(agentName)
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
         const result = await client.event.subscribe(
           {
             directory,
@@ -800,7 +827,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
           {
             onSseError: () => {
               if (abortController.signal.aborted) return
-              setStreamError("Connection lost. Reconnecting…")
+              setStreamError("Connection lost. Reconnecting...")
             },
             signal: abortController.signal,
           }
@@ -823,14 +850,14 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
         flushQueue()
         if (abortController.signal.aborted) return
 
-        setStreamError("Connection closed. Reconnecting…")
+        setStreamError("Connection closed. Reconnecting...")
         reconnectTimer = setTimeout(() => {
           setStreamEpoch((current) => current + 1)
         }, 1_000)
       } catch {
         if (abortController.signal.aborted) return
 
-        setStreamError("Failed to subscribe to session events. Reconnecting…")
+        setStreamError("Failed to subscribe to session events. Reconnecting...")
         reconnectTimer = setTimeout(() => {
           setStreamEpoch((current) => current + 1)
         }, 1_000)
@@ -853,6 +880,7 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     session.data?.directory,
     sessionID,
     streamEpoch,
+    workspaceId,
   ])
 
   const messages = useMemo(() => {
@@ -924,10 +952,17 @@ export function useOpencodeChat(agentName: string, sessionID?: string): UseOpenc
     if (!localMessages.data.some((message) => acknowledgedLocalMessageIDs.has(message.id))) return
 
     queryClient.setQueryData<OptimisticUserMessage[]>(
-      chatOverlayQueryKey(agentName, sessionID),
+      chatOverlayQueryKey(workspaceId, agentName, sessionID),
       (current) => (current ?? []).filter((item) => !acknowledgedLocalMessageIDs.has(item.id))
     )
-  }, [acknowledgedLocalMessageIDs, agentName, localMessages.data, queryClient, sessionID])
+  }, [
+    acknowledgedLocalMessageIDs,
+    agentName,
+    localMessages.data,
+    queryClient,
+    sessionID,
+    workspaceId,
+  ])
 
   const todos = useMemo(() => {
     if (!sessionID) return []

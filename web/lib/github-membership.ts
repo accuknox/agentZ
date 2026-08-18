@@ -1,6 +1,10 @@
 import type { OAuth2Tokens } from "@better-auth/core/oauth2"
 import { Octokit } from "@octokit/rest"
+import { RequestError } from "@octokit/request-error"
+import { and, eq } from "drizzle-orm"
+import { getOAuthState } from "better-auth/api"
 import * as z from "zod"
+import { getDB, schema } from "@/db"
 import { getEnv } from "@/lib/env"
 
 type GithubProfile = Awaited<ReturnType<Octokit["rest"]["users"]["getAuthenticated"]>>["data"]
@@ -8,48 +12,11 @@ type GithubEmail = Awaited<
   ReturnType<Octokit["rest"]["users"]["listEmailsForAuthenticatedUser"]>
 >["data"][number]
 
-const githubMembershipErrorSchema = z
-  .object({
-    name: z.string().optional(),
-    message: z.string().optional(),
-    status: z.number().optional(),
-    request: z
-      .object({
-        method: z.string().optional(),
-        url: z.string().optional(),
-      })
-      .optional(),
-    response: z
-      .object({
-        url: z.string().optional(),
-      })
-      .optional(),
-  })
-  .catch({})
-
-function githubErrorDetails(err: unknown) {
-  const e = githubMembershipErrorSchema.parse(err)
-  return {
-    error:
-      err instanceof Error
-        ? {
-            message: err.message,
-            name: err.name,
-          }
-        : {
-            message: e.message ?? "unknown error",
-            name: e.name ?? "unknown",
-          },
-    method: e.request?.method,
-    requestUrl: e.request?.url,
-    responseUrl: e.response?.url,
-    status: e.status,
-  }
-}
-
-function githubErrorStatus(err: unknown) {
-  return githubMembershipErrorSchema.parse(err).status
-}
+export const socialOAuthStateSchema = z.object({
+  agentzEnrollment: z.literal("social"),
+  organizationId: z.string().min(1),
+  provider: z.enum(["github", "google"]),
+})
 
 async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
   const env = getEnv()
@@ -66,19 +33,15 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
     .getMembershipForAuthenticatedUser({
       org: env.GITHUB_ORG,
     })
-    .catch((err: unknown) => {
-      if (githubErrorStatus(err) === 404) {
+    .catch((error: RequestError) => {
+      if (error.status === 404) {
         return null
       }
-      throw err
+      throw error
     })
 
   if (!orgMembership || orgMembership.data.state !== "active") {
-    console.warn("github org membership rejected", {
-      login: profile.login,
-      org: env.GITHUB_ORG,
-      membership: orgMembership?.data.state ?? null,
-    })
+    console.warn("github sign-in rejected: organisation membership not active")
     return false
   }
 
@@ -92,24 +55,78 @@ async function isGithubUserAllowed(octokit: Octokit, profile: GithubProfile) {
       team_slug: env.GITHUB_TEAM_SLUG,
       username: profile.login,
     })
-    .catch((err: unknown) => {
-      if (githubErrorStatus(err) === 404) {
+    .catch((error: RequestError) => {
+      if (error.status === 404) {
         return null
       }
-      throw err
+      throw error
     })
 
   if (!teamMembership || teamMembership.data.state !== "active") {
-    console.warn("github team membership rejected", {
-      login: profile.login,
-      org: env.GITHUB_ORG,
-      team: env.GITHUB_TEAM_SLUG,
-      membership: teamMembership?.data.state ?? null,
-    })
+    console.warn("github sign-in rejected: team membership not active")
     return false
   }
 
   return true
+}
+
+async function matchesSocialAdmissionRule(octokit: Octokit, profile: GithubProfile) {
+  const state = socialOAuthStateSchema.safeParse(await getOAuthState())
+  if (!state.success || state.data.provider !== "github") {
+    return undefined
+  }
+
+  const rules = await getDB()
+    .select({
+      organization: schema.socialAdmissionGithubRules.githubOrganization,
+      team: schema.socialAdmissionGithubRules.githubTeam,
+    })
+    .from(schema.socialAdmissionGithubRules)
+    .innerJoin(
+      schema.socialAdmissionPolicies,
+      and(
+        eq(
+          schema.socialAdmissionPolicies.organizationId,
+          schema.socialAdmissionGithubRules.organizationId
+        ),
+        eq(schema.socialAdmissionPolicies.enabled, true),
+        eq(schema.socialAdmissionPolicies.githubEnabled, true)
+      )
+    )
+    .where(eq(schema.socialAdmissionGithubRules.organizationId, state.data.organizationId))
+  for (const rule of rules) {
+    const organization = await octokit.rest.orgs
+      .getMembershipForAuthenticatedUser({ org: rule.organization })
+      .catch((error: RequestError) => {
+        if (error.status === 404) {
+          return null
+        }
+        throw error
+      })
+    if (organization?.data.state !== "active") {
+      continue
+    }
+    if (!rule.team) {
+      return true
+    }
+
+    const team = await octokit.rest.teams
+      .getMembershipForUserInOrg({
+        org: rule.organization,
+        team_slug: rule.team,
+        username: profile.login,
+      })
+      .catch((error: RequestError) => {
+        if (error.status === 404) {
+          return null
+        }
+        throw error
+      })
+    if (team?.data.state === "active") {
+      return true
+    }
+  }
+  return false
 }
 
 // getGithubUserInfo reads the authenticated GitHub profile and enforces the
@@ -119,13 +136,16 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
     return null
   }
 
-  const env = getEnv()
   const octokit = new Octokit({ auth: token.accessToken })
 
   try {
     const { data: profile } = await octokit.rest.users.getAuthenticated()
 
-    if (!(await isGithubUserAllowed(octokit, profile))) {
+    const socialAdmission = await matchesSocialAdmissionRule(octokit, profile)
+    if (socialAdmission === false) {
+      return null
+    }
+    if (socialAdmission === undefined && !(await isGithubUserAllowed(octokit, profile))) {
       return null
     }
 
@@ -134,13 +154,11 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
     try {
       const { data: emails } = await octokit.rest.users.listEmailsForAuthenticatedUser()
       primary = emails.find((email) => email.primary) ?? emails[0]
-    } catch (err) {
-      console.warn("github email lookup failed", {
-        login: profile.login,
-        org: env.GITHUB_ORG,
-        team: env.GITHUB_TEAM_SLUG,
-        ...githubErrorDetails(err),
-      })
+    } catch {
+      console.warn("github sign-in rejected: email lookup failed")
+    }
+    if (socialAdmission !== undefined && !primary?.verified) {
+      return null
     }
 
     const email = profile.email ?? primary?.email ?? `github-${profile.id}@auth.accuknox.invalid`
@@ -156,13 +174,8 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
       },
       data: profile satisfies GithubProfile,
     }
-  } catch (err) {
-    console.error("github auth gate failed", {
-      allowedUserId: env.GITHUB_ALLOWED_USER_ID,
-      org: env.GITHUB_ORG,
-      team: env.GITHUB_TEAM_SLUG,
-      ...githubErrorDetails(err),
-    })
+  } catch {
+    console.error("github sign-in rejected: provider gate failed")
     return null
   }
 }

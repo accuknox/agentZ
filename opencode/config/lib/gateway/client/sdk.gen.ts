@@ -46,6 +46,9 @@ import type {
   CreateWorkflowScheduleData,
   CreateWorkflowScheduleErrors,
   CreateWorkflowScheduleResponses,
+  CreateWorkspaceData,
+  CreateWorkspaceErrors,
+  CreateWorkspaceResponses,
   DeleteAgentData,
   DeleteAgentEntryData,
   DeleteAgentEntryErrors,
@@ -55,6 +58,9 @@ import type {
   DeleteAgentMutableSkillsErrors,
   DeleteAgentMutableSkillsResponses,
   DeleteAgentResponses,
+  DeleteAgentShareData,
+  DeleteAgentShareErrors,
+  DeleteAgentShareResponses,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
@@ -94,6 +100,12 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetAgentOwnerData,
+  GetAgentOwnerErrors,
+  GetAgentOwnerResponses,
+  GetEventTrailEventData,
+  GetEventTrailEventErrors,
+  GetEventTrailEventResponses,
   GetInferencePoolData,
   GetInferencePoolErrors,
   GetInferencePoolResponses,
@@ -127,24 +139,42 @@ import type {
   GetWorkflowRunData,
   GetWorkflowRunErrors,
   GetWorkflowRunResponses,
-  ImportSkillsData,
-  ImportSkillsErrors,
-  ImportSkillsResponses,
+  GetWorkspaceData,
+  GetWorkspaceErrors,
+  GetWorkspaceResponses,
+  ImportImmutableSkillsData,
+  ImportImmutableSkillsErrors,
+  ImportImmutableSkillsResponses,
+  ImportMutableSkillsData,
+  ImportMutableSkillsErrors,
+  ImportMutableSkillsResponses,
   InvokeWorkflowWebhookData,
   InvokeWorkflowWebhookErrors,
   InvokeWorkflowWebhookResponses,
+  ListAgentAccessTargetsData,
+  ListAgentAccessTargetsErrors,
+  ListAgentAccessTargetsResponses,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsErrors,
   ListAgentMutableSkillsResponses,
   ListAgentsData,
   ListAgentsErrors,
+  ListAgentSharesData,
+  ListAgentSharesErrors,
+  ListAgentSharesResponses,
   ListAgentsResponses,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
+  ListEventTrailEventsData,
+  ListEventTrailEventsErrors,
+  ListEventTrailEventsResponses,
   ListFileObservabilityData,
   ListFileObservabilityErrors,
   ListFileObservabilityResponses,
+  ListFileObservabilitySummaryData,
+  ListFileObservabilitySummaryErrors,
+  ListFileObservabilitySummaryResponses,
   ListImmutableSkillSummariesData,
   ListImmutableSkillSummariesErrors,
   ListImmutableSkillSummariesResponses,
@@ -169,9 +199,15 @@ import type {
   ListNetworkObservabilityData,
   ListNetworkObservabilityErrors,
   ListNetworkObservabilityResponses,
+  ListNetworkObservabilitySummaryData,
+  ListNetworkObservabilitySummaryErrors,
+  ListNetworkObservabilitySummaryResponses,
   ListProcessObservabilityData,
   ListProcessObservabilityErrors,
   ListProcessObservabilityResponses,
+  ListProcessObservabilitySummaryData,
+  ListProcessObservabilitySummaryErrors,
+  ListProcessObservabilitySummaryResponses,
   ListSandboxesData,
   ListSandboxesErrors,
   ListSandboxesResponses,
@@ -199,15 +235,27 @@ import type {
   ListWorkflowWebhookTriggersData,
   ListWorkflowWebhookTriggersErrors,
   ListWorkflowWebhookTriggersResponses,
+  ListWorkspaceInheritedResourcesData,
+  ListWorkspaceInheritedResourcesErrors,
+  ListWorkspaceInheritedResourcesResponses,
+  ListWorkspaceMemberCandidatesData,
+  ListWorkspaceMemberCandidatesErrors,
+  ListWorkspaceMemberCandidatesResponses,
+  ListWorkspacesData,
+  ListWorkspacesErrors,
+  ListWorkspacesResponses,
   PatchWorkflowRunNodeStatusData,
   PatchWorkflowRunNodeStatusErrors,
   PatchWorkflowRunNodeStatusResponses,
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
-  PreviewSkillImportData,
-  PreviewSkillImportErrors,
-  PreviewSkillImportResponses,
+  PreviewImmutableSkillImportData,
+  PreviewImmutableSkillImportErrors,
+  PreviewImmutableSkillImportResponses,
+  PreviewMutableSkillImportData,
+  PreviewMutableSkillImportErrors,
+  PreviewMutableSkillImportResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
@@ -223,9 +271,21 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
+  ReplaceWorkspaceInheritedResourcesData,
+  ReplaceWorkspaceInheritedResourcesErrors,
+  ReplaceWorkspaceInheritedResourcesResponses,
+  ResolveWorkspaceSlugData,
+  ResolveWorkspaceSlugErrors,
+  ResolveWorkspaceSlugResponses,
+  RetryWorkspaceData,
+  RetryWorkspaceErrors,
+  RetryWorkspaceResponses,
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  TransferAgentOwnerData,
+  TransferAgentOwnerErrors,
+  TransferAgentOwnerResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
@@ -244,6 +304,12 @@ import type {
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
+  UpdateWorkspaceLifecycleData,
+  UpdateWorkspaceLifecycleErrors,
+  UpdateWorkspaceLifecycleResponses,
+  UpsertAgentShareData,
+  UpsertAgentShareErrors,
+  UpsertAgentShareResponses,
   WatchAgentsData,
   WatchAgentsErrors,
   WatchAgentsResponse,
@@ -282,73 +348,129 @@ import {
   zCreateAgentFileBody,
   zCreateAgentFilePath,
   zCreateInferencePoolBody,
+  zCreateInferencePoolHeaders,
   zCreateInferenceProviderBody,
+  zCreateInferenceProviderHeaders,
   zCreateInferenceProviderOAuthTicketBody,
+  zCreateInferenceProviderOAuthTicketHeaders,
   zCreateMcpConnectionBody,
+  zCreateMcpConnectionHeaders,
   zCreateSandboxBody,
+  zCreateSandboxHeaders,
   zCreateSkillBody,
+  zCreateSkillHeaders,
   zCreateWorkflowBody,
   zCreateWorkflowPath,
   zCreateWorkflowRunPath,
   zCreateWorkflowScheduleBody,
   zCreateWorkflowSchedulePath,
+  zCreateWorkspaceBody,
   zDeleteAgentEntryPath,
   zDeleteAgentEntryQuery,
   zDeleteAgentMutableSkillsBody,
+  zDeleteAgentMutableSkillsHeaders,
   zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
+  zDeleteAgentSharePath,
   zDeleteImmutableSkillsBody,
+  zDeleteImmutableSkillsHeaders,
+  zDeleteInferencePoolHeaders,
   zDeleteInferencePoolPath,
+  zDeleteInferenceProviderHeaders,
   zDeleteInferenceProviderPath,
+  zDeleteMcpConnectionHeaders,
   zDeleteMcpConnectionPath,
+  zDeleteSandboxHeaders,
   zDeleteSandboxPath,
   zDeleteSecretBody,
   zDeleteSecretPath,
+  zDeleteSkillHeaders,
   zDeleteSkillPath,
   zDeleteWorkflowRunPath,
   zDeleteWorkflowsBody,
   zDeleteWorkflowSchedulePath,
   zDeleteWorkflowsPath,
   zExportAgentMutableSkillsBody,
+  zExportAgentMutableSkillsHeaders,
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
+  zExportImmutableSkillsHeaders,
+  zGetAgentOwnerPath,
+  zGetEventTrailEventHeaders,
+  zGetEventTrailEventPath,
+  zGetInferencePoolHeaders,
   zGetInferencePoolPath,
+  zGetInferencePoolUsageHeaders,
   zGetInferencePoolUsagePath,
+  zGetInferenceProviderHeaders,
   zGetInferenceProviderPath,
+  zGetInferenceProviderQuery,
+  zGetInferenceProviderUsageHeaders,
   zGetInferenceProviderUsagePath,
+  zGetInferenceProviderUsageQuery,
+  zGetMcpConnectionHeaders,
   zGetMcpConnectionPath,
+  zGetMcpConnectionQuery,
   zGetMcpGraphPath,
   zGetMcpGraphQuery,
+  zGetSkillReferencesHeaders,
   zGetSkillReferencesPath,
+  zGetSkillReferencesQuery,
   zGetSpanDetailPath,
   zGetWorkflowPath,
   zGetWorkflowRunPath,
-  zImportSkillsBody,
+  zGetWorkspacePath,
+  zImportImmutableSkillsBody,
+  zImportImmutableSkillsHeaders,
+  zImportMutableSkillsBody,
+  zImportMutableSkillsHeaders,
   zInvokeWorkflowWebhookBody,
   zInvokeWorkflowWebhookPath,
   zInvokeWorkflowWebhookQuery,
+  zListAgentAccessTargetsPath,
+  zListAgentMutableSkillsHeaders,
   zListAgentMutableSkillsPath,
   zListAgentMutableSkillsQuery,
+  zListAgentSharesPath,
+  zListAgentSharesQuery,
   zListAgentsQuery,
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
+  zListEventTrailEventsBody,
+  zListEventTrailEventsHeaders,
   zListFileObservabilityPath,
   zListFileObservabilityQuery,
+  zListFileObservabilitySummaryPath,
+  zListFileObservabilitySummaryQuery,
+  zListImmutableSkillSummariesHeaders,
   zListImmutableSkillSummariesQuery,
+  zListImmutableSkillVersionsHeaders,
   zListImmutableSkillVersionsPath,
+  zListImmutableSkillVersionsQuery,
+  zListInferenceModelSuggestionsHeaders,
   zListInferenceModelSuggestionsPath,
   zListInferenceModelSuggestionsQuery,
+  zListInferencePoolsHeaders,
   zListInferencePoolsQuery,
+  zListInferenceProviderCatalogHeaders,
   zListInferenceProviderCatalogQuery,
+  zListInferenceProvidersHeaders,
   zListInferenceProvidersQuery,
+  zListMcpConnectionsHeaders,
   zListMcpConnectionsQuery,
   zListNetworkObservabilityPath,
   zListNetworkObservabilityQuery,
+  zListNetworkObservabilitySummaryPath,
+  zListNetworkObservabilitySummaryQuery,
   zListProcessObservabilityPath,
   zListProcessObservabilityQuery,
+  zListProcessObservabilitySummaryPath,
+  zListProcessObservabilitySummaryQuery,
+  zListSandboxesHeaders,
   zListSandboxesQuery,
   zListSecretsPath,
   zListSecretsQuery,
+  zListSkillsHeaders,
   zListSkillsQuery,
   zListSpansPath,
   zListSpansQuery,
@@ -361,11 +483,16 @@ import {
   zListWorkflowSummariesPath,
   zListWorkflowWebhookTriggersPath,
   zListWorkflowWebhookTriggersQuery,
+  zListWorkspaceInheritedResourcesPath,
+  zListWorkspacesQuery,
   zPatchWorkflowRunNodeStatusBody,
   zPatchWorkflowRunNodeStatusPath,
   zPatchWorkflowRunStatusBody,
   zPatchWorkflowRunStatusPath,
-  zPreviewSkillImportBody,
+  zPreviewImmutableSkillImportBody,
+  zPreviewImmutableSkillImportHeaders,
+  zPreviewMutableSkillImportBody,
+  zPreviewMutableSkillImportHeaders,
   zPutSecretBody,
   zPutSecretPath,
   zPutSecretQuery,
@@ -373,27 +500,46 @@ import {
   zReadAgentFileQuery,
   zReadAgentFileRawPath,
   zReadAgentFileRawQuery,
+  zRefreshInferenceProviderModelsHeaders,
   zRefreshInferenceProviderModelsPath,
+  zRefreshInferenceProviderModelsQuery,
   zRenameAgentEntryBody,
   zRenameAgentEntryPath,
+  zReplaceWorkspaceInheritedResourcesBody,
+  zReplaceWorkspaceInheritedResourcesPath,
+  zResolveWorkspaceSlugPath,
+  zRetryWorkspacePath,
   zStatAgentFilePath,
   zStatAgentFileQuery,
+  zTransferAgentOwnerBody,
+  zTransferAgentOwnerPath,
   zUpdateAgentBody,
   zUpdateAgentPath,
   zUpdateInferencePoolBody,
+  zUpdateInferencePoolHeaders,
   zUpdateInferencePoolPath,
   zUpdateInferenceProviderBody,
+  zUpdateInferenceProviderHeaders,
   zUpdateInferenceProviderPath,
   zUpdateSandboxBody,
+  zUpdateSandboxHeaders,
   zUpdateSandboxPath,
   zUpdateSkillBody,
+  zUpdateSkillHeaders,
   zUpdateSkillPath,
   zUpdateWorkflowScheduleBody,
   zUpdateWorkflowSchedulePath,
+  zUpdateWorkspaceLifecycleBody,
+  zUpdateWorkspaceLifecyclePath,
+  zUpsertAgentShareBody,
+  zUpsertAgentSharePath,
   zWatchAgentsBody,
   zWatchInferencePoolsBody,
+  zWatchInferencePoolsHeaders,
   zWatchInferenceProvidersBody,
+  zWatchInferenceProvidersHeaders,
   zWatchMcpConnectionsBody,
+  zWatchMcpConnectionsHeaders,
   zWatchSecretsBody,
   zWatchSecretsPath,
   zWatchWorkflowRunsBody,
@@ -422,6 +568,66 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+/**
+ * List Organisation event trail events.
+ *
+ * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
+ *
+ */
+export const listEventTrailEvents = <ThrowOnError extends boolean = false>(
+  options: Options<ListEventTrailEventsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ListEventTrailEventsResponses,
+    ListEventTrailEventsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zListEventTrailEventsBody,
+          headers: zListEventTrailEventsHeaders.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/event-trail-event",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get an Organisation event trail event.
+ *
+ * Returns one event from the selected scope's rolling event trail history. Workspace Admins are restricted to the Workspace bound into the bearer; Superadmins may read Organisation-wide events.
+ *
+ */
+export const getEventTrailEvent = <ThrowOnError extends boolean = false>(
+  options: Options<GetEventTrailEventData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetEventTrailEventResponses,
+    GetEventTrailEventErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          headers: zGetEventTrailEventHeaders.optional(),
+          path: zGetEventTrailEventPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/event-trail-event/{eventId}",
+    ...options,
+  })
 
 /**
  * Get the current tenant bootstrap state.
@@ -464,6 +670,239 @@ export const ensureTenant = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/tenant",
     ...options,
+  })
+
+/**
+ * List accessible Workspaces.
+ *
+ * Lists nondeleted Workspaces accessible to the current active Organisation membership. Superadmins receive every Workspace.
+ *
+ */
+export const listWorkspaces = <ThrowOnError extends boolean = false>(
+  options?: Options<ListWorkspacesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListWorkspacesResponses, ListWorkspacesErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: zListWorkspacesQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace",
+    ...options,
+  })
+
+/**
+ * Create a Workspace.
+ *
+ * Creates the complete relational Workspace aggregate and starts cluster provisioning. Only an active Superadmin may create a Workspace or assign its initial Workspace Admins.
+ *
+ */
+export const createWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateWorkspaceResponses, CreateWorkspaceErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateWorkspaceBody,
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List eligible initial Workspace Admins.
+ *
+ * Lists active, non-Superadmin members of the current Organisation. Only an active Superadmin may inspect the candidates.
+ *
+ */
+export const listWorkspaceMemberCandidates = <ThrowOnError extends boolean = false>(
+  options?: Options<ListWorkspaceMemberCandidatesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListWorkspaceMemberCandidatesResponses,
+    ListWorkspaceMemberCandidatesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/member-candidate",
+    ...options,
+  })
+
+/**
+ * Resolve an accessible Workspace slug.
+ *
+ * Resolves current and historical slugs inside the active Organisation without exposing inaccessible Workspace identity.
+ *
+ */
+export const resolveWorkspaceSlug = <ThrowOnError extends boolean = false>(
+  options: Options<ResolveWorkspaceSlugData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ResolveWorkspaceSlugResponses,
+    ResolveWorkspaceSlugErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zResolveWorkspaceSlugPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/slug/{workspaceSlug}",
+    ...options,
+  })
+
+/**
+ * Get an accessible Workspace.
+ */
+export const getWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetWorkspaceResponses, GetWorkspaceErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetWorkspacePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}",
+    ...options,
+  })
+
+/**
+ * List Organisation resources available for Workspace inheritance.
+ *
+ * Only an active Superadmin may browse and manage inheritance.
+ */
+export const listWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkspaceInheritedResourcesResponses,
+    ListWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListWorkspaceInheritedResourcesPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+  })
+
+/**
+ * Replace one type of explicitly inherited Organisation resource.
+ *
+ * Consumed resources cannot be unselected.
+ */
+export const replaceWorkspaceInheritedResources = <ThrowOnError extends boolean = false>(
+  options: Options<ReplaceWorkspaceInheritedResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    ReplaceWorkspaceInheritedResourcesResponses,
+    ReplaceWorkspaceInheritedResourcesErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zReplaceWorkspaceInheritedResourcesBody,
+          path: zReplaceWorkspaceInheritedResourcesPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Retry failed Workspace provisioning.
+ *
+ * Only an active Superadmin may retry a failed Workspace.
+ */
+export const retryWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<RetryWorkspaceData, ThrowOnError>
+) =>
+  (options.client ?? client).post<RetryWorkspaceResponses, RetryWorkspaceErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zRetryWorkspacePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/retry",
+    ...options,
+  })
+
+/**
+ * Record observed Workspace lifecycle state.
+ *
+ * Accepts a controller-observed terminal state for the current provisioning attempt. Stale attempts cannot overwrite current state.
+ *
+ */
+export const updateWorkspaceLifecycle = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateWorkspaceLifecycleData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateWorkspaceLifecycleResponses,
+    UpdateWorkspaceLifecycleErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpdateWorkspaceLifecycleBody,
+          path: zUpdateWorkspaceLifecyclePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workspace/{workspaceId}/lifecycle",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**
@@ -723,6 +1162,149 @@ export const writeAgentFileRaw = <ThrowOnError extends boolean = false>(
   )
 
 /**
+ * Read Agent ownership metadata.
+ */
+export const getAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<GetAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAgentOwnerResponses, GetAgentOwnerErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zGetAgentOwnerPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+  })
+
+/**
+ * Transfer Agent ownership.
+ */
+export const transferAgentOwner = <ThrowOnError extends boolean = false>(
+  options: Options<TransferAgentOwnerData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    TransferAgentOwnerResponses,
+    TransferAgentOwnerErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zTransferAgentOwnerBody,
+          path: zTransferAgentOwnerPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/owner",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List Agent Shares.
+ */
+export const listAgentShares = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentSharesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAgentSharesResponses, ListAgentSharesErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListAgentSharesPath,
+          query: zListAgentSharesQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+  })
+
+/**
+ * Create or replace an Agent Share.
+ *
+ * Creates or replaces one User or Team Agent Share. UseShared permits Agent sessions, files, and workflows; it does not permit Agent modification, deletion, sharing, ownership, or secret access.
+ *
+ */
+export const upsertAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<UpsertAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).post<UpsertAgentShareResponses, UpsertAgentShareErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zUpsertAgentShareBody,
+          path: zUpsertAgentSharePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an Agent Share.
+ */
+export const deleteAgentShare = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentShareData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteAgentShareResponses,
+    DeleteAgentShareErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zDeleteAgentSharePath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/share/{shareId}",
+    ...options,
+  })
+
+/**
+ * List Agent access targets and their eligible capabilities.
+ */
+export const listAgentAccessTargets = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentAccessTargetsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListAgentAccessTargetsResponses,
+    ListAgentAccessTargetsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListAgentAccessTargetsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/access-targets",
+    ...options,
+  })
+
+/**
  * Create a directory in the agent workspace.
  */
 export const createAgentDirectory = <ThrowOnError extends boolean = false>(
@@ -813,6 +1395,7 @@ export const deleteAgentMutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zDeleteAgentMutableSkillsBody,
+          headers: zDeleteAgentMutableSkillsHeaders.optional(),
           path: zDeleteAgentMutableSkillsPath,
           query: z.never().optional(),
         })
@@ -841,6 +1424,7 @@ export const listAgentMutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListAgentMutableSkillsHeaders.optional(),
           path: zListAgentMutableSkillsPath,
           query: zListAgentMutableSkillsQuery.optional(),
         })
@@ -865,6 +1449,7 @@ export const exportAgentMutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zExportAgentMutableSkillsBody,
+          headers: zExportAgentMutableSkillsHeaders.optional(),
           path: zExportAgentMutableSkillsPath,
           query: z.never().optional(),
         })
@@ -879,21 +1464,82 @@ export const exportAgentMutableSkills = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Parse a skill import and report live conflicts.
+ * Parse a mutable skill import and report Agent conflicts.
  */
-export const previewSkillImport = <ThrowOnError extends boolean = false>(
-  options: Options<PreviewSkillImportData, ThrowOnError>
+export const previewMutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewMutableSkillImportData, ThrowOnError>
 ) =>
   (options.client ?? client).post<
-    PreviewSkillImportResponses,
-    PreviewSkillImportErrors,
+    PreviewMutableSkillImportResponses,
+    PreviewMutableSkillImportErrors,
     ThrowOnError
   >({
     ...formDataBodySerializer,
     requestValidator: async (data) =>
       await z
         .object({
-          body: zPreviewSkillImportBody,
+          body: zPreviewMutableSkillImportBody,
+          headers: zPreviewMutableSkillImportHeaders.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import/preview",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Import mutable skills into selected Agents.
+ */
+export const importMutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportMutableSkillsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ImportMutableSkillsResponses,
+    ImportMutableSkillsErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zImportMutableSkillsBody,
+          headers: zImportMutableSkillsHeaders.optional(),
+          path: z.never().optional(),
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/skill/import",
+    ...options,
+    headers: {
+      "Content-Type": null,
+      ...options.headers,
+    },
+  })
+
+/**
+ * Parse an immutable skill import and report scope conflicts.
+ */
+export const previewImmutableSkillImport = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewImmutableSkillImportData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PreviewImmutableSkillImportResponses,
+    PreviewImmutableSkillImportErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zPreviewImmutableSkillImportBody,
+          headers: zPreviewImmutableSkillImportHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -908,17 +1554,22 @@ export const previewSkillImport = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Import mutable or immutable skills.
+ * Import immutable skills.
  */
-export const importSkills = <ThrowOnError extends boolean = false>(
-  options: Options<ImportSkillsData, ThrowOnError>
+export const importImmutableSkills = <ThrowOnError extends boolean = false>(
+  options: Options<ImportImmutableSkillsData, ThrowOnError>
 ) =>
-  (options.client ?? client).post<ImportSkillsResponses, ImportSkillsErrors, ThrowOnError>({
+  (options.client ?? client).post<
+    ImportImmutableSkillsResponses,
+    ImportImmutableSkillsErrors,
+    ThrowOnError
+  >({
     ...formDataBodySerializer,
     requestValidator: async (data) =>
       await z
         .object({
-          body: zImportSkillsBody,
+          body: zImportImmutableSkillsBody,
+          headers: zImportImmutableSkillsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -947,6 +1598,7 @@ export const deleteImmutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zDeleteImmutableSkillsBody,
+          headers: zDeleteImmutableSkillsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -971,6 +1623,7 @@ export const listSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListSkillsHeaders.optional(),
           path: z.never().optional(),
           query: zListSkillsQuery.optional(),
         })
@@ -991,6 +1644,7 @@ export const createSkill = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateSkillBody,
+          headers: zCreateSkillHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1019,6 +1673,7 @@ export const listImmutableSkillSummaries = <ThrowOnError extends boolean = false
       await z
         .object({
           body: z.never().optional(),
+          headers: zListImmutableSkillSummariesHeaders.optional(),
           path: z.never().optional(),
           query: zListImmutableSkillSummariesQuery.optional(),
         })
@@ -1043,6 +1698,7 @@ export const exportImmutableSkills = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zExportImmutableSkillsBody,
+          headers: zExportImmutableSkillsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1067,6 +1723,7 @@ export const deleteSkill = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteSkillHeaders.optional(),
           path: zDeleteSkillPath,
           query: z.never().optional(),
         })
@@ -1087,6 +1744,7 @@ export const updateSkill = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateSkillBody,
+          headers: zUpdateSkillHeaders.optional(),
           path: zUpdateSkillPath,
           query: z.never().optional(),
         })
@@ -1115,8 +1773,9 @@ export const getSkillReferences = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetSkillReferencesHeaders.optional(),
           path: zGetSkillReferencesPath,
-          query: z.never().optional(),
+          query: zGetSkillReferencesQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1139,8 +1798,9 @@ export const listImmutableSkillVersions = <ThrowOnError extends boolean = false>
       await z
         .object({
           body: z.never().optional(),
+          headers: zListImmutableSkillVersionsHeaders.optional(),
           path: zListImmutableSkillVersionsPath,
-          query: z.never().optional(),
+          query: zListImmutableSkillVersionsQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1235,6 +1895,30 @@ export const listProcessObservability = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated process observability summaries.
+ */
+export const listProcessObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListProcessObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListProcessObservabilitySummaryResponses,
+    ListProcessObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListProcessObservabilitySummaryPath,
+          query: zListProcessObservabilitySummaryQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/process/summary",
+    ...options,
+  })
+
+/**
  * List paginated file observability events.
  */
 export const listFileObservability = <ThrowOnError extends boolean = false>(
@@ -1259,6 +1943,30 @@ export const listFileObservability = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * List paginated file observability summaries.
+ */
+export const listFileObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListFileObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListFileObservabilitySummaryResponses,
+    ListFileObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListFileObservabilitySummaryPath,
+          query: zListFileObservabilitySummaryQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/file/summary",
+    ...options,
+  })
+
+/**
  * List paginated network observability events.
  */
 export const listNetworkObservability = <ThrowOnError extends boolean = false>(
@@ -1279,6 +1987,30 @@ export const listNetworkObservability = <ThrowOnError extends boolean = false>(
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/lens/{agentName}/observability/network",
+    ...options,
+  })
+
+/**
+ * List paginated network observability summaries.
+ */
+export const listNetworkObservabilitySummary = <ThrowOnError extends boolean = false>(
+  options: Options<ListNetworkObservabilitySummaryData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListNetworkObservabilitySummaryResponses,
+    ListNetworkObservabilitySummaryErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          path: zListNetworkObservabilitySummaryPath,
+          query: zListNetworkObservabilitySummaryQuery,
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/{agentName}/observability/network/summary",
     ...options,
   })
 
@@ -1417,6 +2149,7 @@ export const listSandboxes = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListSandboxesHeaders.optional(),
           path: z.never().optional(),
           query: zListSandboxesQuery.optional(),
         })
@@ -1437,6 +2170,7 @@ export const createSandbox = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateSandboxBody,
+          headers: zCreateSandboxHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1465,6 +2199,7 @@ export const listInferenceProviders = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferenceProvidersHeaders.optional(),
           path: z.never().optional(),
           query: zListInferenceProvidersQuery.optional(),
         })
@@ -1489,6 +2224,7 @@ export const createInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateInferenceProviderBody,
+          headers: zCreateInferenceProviderHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1520,6 +2256,7 @@ export const createInferenceProviderOAuthTicket = <ThrowOnError extends boolean 
       await z
         .object({
           body: zCreateInferenceProviderOAuthTicketBody,
+          headers: zCreateInferenceProviderOAuthTicketHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1548,6 +2285,7 @@ export const deleteInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteInferenceProviderHeaders.optional(),
           path: zDeleteInferenceProviderPath,
           query: z.never().optional(),
         })
@@ -1572,8 +2310,9 @@ export const getInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferenceProviderHeaders.optional(),
           path: zGetInferenceProviderPath,
-          query: z.never().optional(),
+          query: zGetInferenceProviderQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1596,6 +2335,7 @@ export const updateInferenceProvider = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateInferenceProviderBody,
+          headers: zUpdateInferenceProviderHeaders.optional(),
           path: zUpdateInferenceProviderPath,
           query: z.never().optional(),
         })
@@ -1627,6 +2367,7 @@ export const watchInferenceProviders = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zWatchInferenceProvidersBody.optional(),
+          headers: zWatchInferenceProvidersHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1655,8 +2396,9 @@ export const getInferenceProviderUsage = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferenceProviderUsageHeaders.optional(),
           path: zGetInferenceProviderUsagePath,
-          query: z.never().optional(),
+          query: zGetInferenceProviderUsageQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1679,8 +2421,9 @@ export const refreshInferenceProviderModels = <ThrowOnError extends boolean = fa
       await z
         .object({
           body: z.never().optional(),
+          headers: zRefreshInferenceProviderModelsHeaders.optional(),
           path: zRefreshInferenceProviderModelsPath,
-          query: z.never().optional(),
+          query: zRefreshInferenceProviderModelsQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -1703,6 +2446,7 @@ export const listInferenceProviderCatalog = <ThrowOnError extends boolean = fals
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferenceProviderCatalogHeaders.optional(),
           path: z.never().optional(),
           query: zListInferenceProviderCatalogQuery.optional(),
         })
@@ -1727,6 +2471,7 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferenceModelSuggestionsHeaders.optional(),
           path: zListInferenceModelSuggestionsPath,
           query: zListInferenceModelSuggestionsQuery,
         })
@@ -1740,9 +2485,9 @@ export const listInferenceModelSuggestions = <ThrowOnError extends boolean = fal
  * List paginated inference Pools.
  */
 export const listInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<ListInferencePoolsData, ThrowOnError>
+  options: Options<ListInferencePoolsData, ThrowOnError>
 ) =>
-  (options?.client ?? client).get<
+  (options.client ?? client).get<
     ListInferencePoolsResponses,
     ListInferencePoolsErrors,
     ThrowOnError
@@ -1751,6 +2496,7 @@ export const listInferencePools = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListInferencePoolsHeaders,
           path: z.never().optional(),
           query: zListInferencePoolsQuery.optional(),
         })
@@ -1775,6 +2521,7 @@ export const createInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateInferencePoolBody,
+          headers: zCreateInferencePoolHeaders,
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1803,6 +2550,7 @@ export const deleteInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteInferencePoolHeaders,
           path: zDeleteInferencePoolPath,
           query: z.never().optional(),
         })
@@ -1823,6 +2571,7 @@ export const getInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferencePoolHeaders,
           path: zGetInferencePoolPath,
           query: z.never().optional(),
         })
@@ -1847,6 +2596,7 @@ export const updateInferencePool = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateInferencePoolBody,
+          headers: zUpdateInferencePoolHeaders,
           path: zUpdateInferencePoolPath,
           query: z.never().optional(),
         })
@@ -1875,6 +2625,7 @@ export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetInferencePoolUsageHeaders,
           path: zGetInferencePoolUsagePath,
           query: z.never().optional(),
         })
@@ -1891,9 +2642,9 @@ export const getInferencePoolUsage = <ThrowOnError extends boolean = false>(
  *
  */
 export const watchInferencePools = <ThrowOnError extends boolean = false>(
-  options?: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
+  options: Options<WatchInferencePoolsData, ThrowOnError, WatchInferencePoolsResponse>
 ) =>
-  (options?.client ?? client).sse.post<
+  (options.client ?? client).sse.post<
     WatchInferencePoolsResponses,
     WatchInferencePoolsErrors,
     ThrowOnError
@@ -1902,6 +2653,7 @@ export const watchInferencePools = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zWatchInferencePoolsBody.optional(),
+          headers: zWatchInferencePoolsHeaders,
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -1911,7 +2663,7 @@ export const watchInferencePools = <ThrowOnError extends boolean = false>(
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...options?.headers,
+      ...options.headers,
     },
   })
 
@@ -1926,6 +2678,7 @@ export const deleteSandbox = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteSandboxHeaders.optional(),
           path: zDeleteSandboxPath,
           query: z.never().optional(),
         })
@@ -1949,6 +2702,7 @@ export const updateSandbox = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zUpdateSandboxBody,
+          headers: zUpdateSandboxHeaders.optional(),
           path: zUpdateSandboxPath,
           query: z.never().optional(),
         })
@@ -1977,6 +2731,7 @@ export const listMcpConnections = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zListMcpConnectionsHeaders.optional(),
           path: z.never().optional(),
           query: zListMcpConnectionsQuery.optional(),
         })
@@ -2001,6 +2756,7 @@ export const createMcpConnection = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zCreateMcpConnectionBody,
+          headers: zCreateMcpConnectionHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })
@@ -2029,6 +2785,7 @@ export const deleteMcpConnection = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zDeleteMcpConnectionHeaders.optional(),
           path: zDeleteMcpConnectionPath,
           query: z.never().optional(),
         })
@@ -2049,8 +2806,9 @@ export const getMcpConnection = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: z.never().optional(),
+          headers: zGetMcpConnectionHeaders.optional(),
           path: zGetMcpConnectionPath,
-          query: z.never().optional(),
+          query: zGetMcpConnectionQuery,
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],
@@ -2076,6 +2834,7 @@ export const watchMcpConnections = <ThrowOnError extends boolean = false>(
       await z
         .object({
           body: zWatchMcpConnectionsBody.optional(),
+          headers: zWatchMcpConnectionsHeaders.optional(),
           path: z.never().optional(),
           query: z.never().optional(),
         })

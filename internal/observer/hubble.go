@@ -60,7 +60,8 @@ func (c *dnsCache) put(agentName, podName, ip, domain string, now time.Time, ttl
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.items[dnsCacheKey{agentName: agentName, podName: podName, ip: ip}] = dnsCacheEntry{
+	key := dnsCacheKey{agentName: agentName, podName: podName, ip: ip}
+	c.items[key] = dnsCacheEntry{
 		domain:   domain,
 		deadline: now.Add(d),
 	}

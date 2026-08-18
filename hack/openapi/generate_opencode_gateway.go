@@ -19,7 +19,7 @@ const (
 	baseSpecPath      = "openapi/base.yaml"
 	outputSpecPath    = "openapi/gateway.yaml"
 	routeManifestPath = "internal/gateway/opencode.routes.gen.go"
-	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/refs/tags/v1.18.11/packages/sdk/openapi.json"
+	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/refs/tags/v1.18.16/packages/sdk/openapi.json"
 	opencodePrefix    = "/api/opencode/{agentName}"
 	opencodeNS        = "Opencode"
 )
@@ -29,8 +29,182 @@ type routeManifest struct {
 }
 
 type routeSpec struct {
-	Method string `json:"method"`
-	Path   string `json:"path"`
+	Method    string `json:"method"`
+	Path      string `json:"path"`
+	Operation string `json:"operation"`
+}
+
+type operationCapability struct {
+	Scheme string
+	Scope  string
+}
+
+var baseOperationCapabilities = map[string][]string{
+	"agent.author": {
+		"createAgent",
+	},
+	"agent.delete_shared_secret": {
+		"deleteSecret",
+	},
+	"agent.read_shared_secret": {
+		"listSecrets", "watchSecrets",
+	},
+	"agent.use_shared": {
+		"createAgentDirectory",
+		"createAgentFile",
+		"createWorkflow",
+		"createWorkflowRun",
+		"createWorkflowSchedule",
+		"deleteAgent",
+		"deleteAgentEntry",
+		"deleteAgentMutableSkills",
+		"deleteAgentShare",
+		"deleteWorkflowRun",
+		"deleteWorkflows",
+		"deleteWorkflowSchedule",
+		"exportAgentMutableSkills",
+		"importMutableSkills",
+		"getAgentOwner",
+		"getWorkflow",
+		"getWorkflowRun",
+		"listAgents",
+		"listAgentAccessTargets",
+		"listAgentMutableSkills",
+		"listAgentShares",
+		"listAgentWorkflowSchedules",
+		"previewMutableSkillImport",
+		"listWorkflowRuns",
+		"listWorkflowSchedules",
+		"listWorkflowSummaries",
+		"listWorkflowWebhookTriggers",
+		"readAgentFile",
+		"readAgentFileRaw",
+		"renameAgentEntry",
+		"statAgentFile",
+		"transferAgentOwner",
+		"updateAgent",
+		"updateWorkflowSchedule",
+		"upsertAgentShare",
+		"watchAgents",
+		"watchWorkflowRuns",
+		"writeAgentFile",
+		"writeAgentFileRaw",
+	},
+	"agent.write_shared_secret": {
+		"putSecret",
+	},
+	"api_key.workflow_invoke": {
+		"invokeWorkflowWebhook",
+	},
+	"inference_pool.create": {
+		"createInferencePool",
+	},
+	"inference_pool.delete": {
+		"deleteInferencePool",
+	},
+	"inference_pool.modify": {
+		"updateInferencePool",
+	},
+	"inference_pool.read": {
+		"getInferencePool",
+		"getInferencePoolUsage",
+		"listInferencePools",
+		"watchInferencePools",
+	},
+	"inference_provider.create": {
+		"createInferenceProvider",
+		"createInferenceProviderOAuthTicket",
+	},
+	"inference_provider.delete": {
+		"deleteInferenceProvider",
+	},
+	"inference_provider.modify": {
+		"updateInferenceProvider",
+	},
+	"inference_provider.read": {
+		"getInferenceProvider",
+		"getInferenceProviderUsage",
+		"listInferenceModelSuggestions",
+		"listInferenceProviderCatalog",
+		"listInferenceProviders",
+		"refreshInferenceProviderModels",
+		"watchInferenceProviders",
+	},
+	"mcp_connection.create": {
+		"createMCPConnection",
+	},
+	"mcp_connection.delete": {
+		"deleteMCPConnection",
+	},
+	"mcp_connection.read": {
+		"getMCPConnection",
+		"listMCPConnections",
+		"watchMCPConnections",
+	},
+	"observability.read": {
+		"getEventTrailEvent",
+		"getMCPGraph",
+		"getSpanDetail",
+		"listEventTrailEvents",
+		"listFileObservability",
+		"listFileObservabilitySummary",
+		"listNetworkObservability",
+		"listNetworkObservabilitySummary",
+		"listProcessObservability",
+		"listProcessObservabilitySummary",
+		"listSpans",
+		"listTraceSessions",
+	},
+	"organization.administer": {
+		"createWorkspace",
+		"listWorkspaceInheritedResources",
+		"listWorkspaceMemberCandidates",
+		"replaceWorkspaceInheritedResources",
+		"retryWorkspace",
+		"updateWorkspaceLifecycle",
+	},
+	"organization.member": {
+		"ensureTenant",
+		"getTenant",
+		"getWorkspace",
+		"listWorkspaces",
+		"resolveWorkspaceSlug",
+	},
+	"sandbox.create": {
+		"createSandbox",
+	},
+	"sandbox.delete": {
+		"deleteSandbox",
+	},
+	"sandbox.modify": {
+		"updateSandbox",
+	},
+	"sandbox.read": {
+		"listSandboxes",
+	},
+	"skill.create": {
+		"createSkill",
+		"importImmutableSkills",
+	},
+	"skill.delete": {
+		"deleteImmutableSkills",
+		"deleteSkill",
+	},
+	"skill.modify": {
+		"updateSkill",
+	},
+	"skill.read": {
+		"exportImmutableSkills",
+		"getSkillReferences",
+		"listImmutableSkillSummaries",
+		"listImmutableSkillVersions",
+		"listSkills",
+		"previewImmutableSkillImport",
+	},
+	"workflow_run.report": {
+		"patchWorkflowRunNodeStatus",
+		"patchWorkflowRunStatus",
+	},
 }
 
 func main() {
@@ -45,6 +219,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := applyBaseCapabilities(base); err != nil {
+		return err
+	}
 
 	upstream, err := fetchJSON(upstreamSpecURL)
 	if err != nil {
@@ -52,7 +229,9 @@ func run() error {
 	}
 
 	rewriteOpenAPI31Keywords(upstream)
-	applyOAPICodegenFixups(upstream)
+	if err := applyOAPICodegenFixups(upstream); err != nil {
+		return err
+	}
 	rewritten, manifest, err := rewriteOpenCode(upstream)
 	if err != nil {
 		return err
@@ -129,9 +308,25 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 		filteredPaths[gatewayPath] = filteredItem
 
 		for _, method := range pathMethods(filteredItem) {
+			op, ok := filteredItem[method].(map[string]any)
+			if !ok {
+				return nil, routeManifest{}, fmt.Errorf("%s %s is not an operation", method, path)
+			}
+			operationID, ok := op["operationId"].(string)
+			if !ok {
+				return nil, routeManifest{}, fmt.Errorf("%s %s has no operationId", method, path)
+			}
+			operation, capability, err := opencodeOperation(operationID)
+			if err != nil {
+				return nil, routeManifest{}, fmt.Errorf("map %s %s: %w", method, path, err)
+			}
+			op["security"] = []any{map[string]any{
+				"GatewayBearer": []any{capability},
+			}}
 			manifest.Routes = append(manifest.Routes, routeSpec{
-				Method: strings.ToUpper(method),
-				Path:   gatewayPath,
+				Method:    strings.ToUpper(method),
+				Path:      gatewayPath,
+				Operation: operation,
 			})
 		}
 	}
@@ -161,6 +356,88 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 	}, manifest, nil
 }
 
+func applyBaseCapabilities(doc map[string]any) error {
+	capabilities := make(map[string]operationCapability)
+	for scope, operations := range baseOperationCapabilities {
+		scheme := "GatewayBearer"
+		if strings.HasPrefix(scope, "api_key.") {
+			scheme = "GatewayAPIKey"
+		}
+		for _, operation := range operations {
+			if _, exists := capabilities[operation]; exists {
+				return fmt.Errorf("base operation %q has multiple capability mappings", operation)
+			}
+			capabilities[operation] = operationCapability{Scheme: scheme, Scope: scope}
+		}
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("base spec has no paths")
+	}
+	seen := make(map[string]struct{})
+	for path, itemAny := range paths {
+		item, ok := itemAny.(map[string]any)
+		if !ok {
+			return fmt.Errorf("base path %s is not a path item", path)
+		}
+		for _, method := range pathMethods(item) {
+			op, ok := item[method].(map[string]any)
+			if !ok {
+				return fmt.Errorf("base operation %s %s is invalid", method, path)
+			}
+			operation, ok := op["operationId"].(string)
+			if !ok || strings.TrimSpace(operation) == "" {
+				return fmt.Errorf("base operation %s %s has no operationId", method, path)
+			}
+			capability, mapped := capabilities[operation]
+			if !mapped {
+				return fmt.Errorf("base operation %s %s (%q) has no capability mapping", method, path, operation)
+			}
+			op["security"] = []any{map[string]any{
+				capability.Scheme: []any{capability.Scope},
+			}}
+			seen[operation] = struct{}{}
+		}
+	}
+	for operation := range capabilities {
+		if _, ok := seen[operation]; !ok {
+			return fmt.Errorf("capability mapping references missing base operation %q", operation)
+		}
+	}
+	return nil
+}
+
+func opencodeOperation(operationID string) (string, string, error) {
+	switch operationID {
+	case "provider.auth",
+		"v2.integration.list",
+		"v2.integration.get",
+		"v2.integration.attempt.status":
+		return "readSharedSecret", "agent.read_shared_secret", nil
+	case "auth.set",
+		"mcp.add",
+		"mcp.auth.start",
+		"mcp.auth.callback",
+		"mcp.auth.authenticate",
+		"provider.oauth.authorize",
+		"provider.oauth.callback",
+		"v2.integration.connect.key",
+		"v2.integration.connect.oauth",
+		"v2.integration.attempt.cancel",
+		"v2.integration.attempt.complete",
+		"v2.credential.update":
+		return "writeSharedSecret", "agent.write_shared_secret", nil
+	case "auth.remove", "mcp.auth.remove", "v2.credential.remove":
+		return "deleteSharedSecret", "agent.delete_shared_secret", nil
+	default:
+		if strings.TrimSpace(operationID) == "" {
+			return "", "", fmt.Errorf("upstream operationId is missing")
+		}
+		return "useSharedAgent", "agent.use_shared", nil
+	}
+}
+
 func buildRefMap(components map[string]any) map[string]string {
 	out := make(map[string]string)
 	for _, bucket := range []string{
@@ -187,12 +464,13 @@ func buildRefMap(components map[string]any) map[string]string {
 func rewriteRefs(value any, refs map[string]string) {
 	switch node := value.(type) {
 	case map[string]any:
-		if raw, ok := node["$ref"].(string); ok {
-			if next, found := refs[raw]; found {
-				node["$ref"] = next
+		for key, child := range node {
+			if raw, ok := child.(string); ok {
+				if next, found := refs[raw]; found {
+					node[key] = next
+					continue
+				}
 			}
-		}
-		for _, child := range node {
 			rewriteRefs(child, refs)
 		}
 	case []any:
@@ -516,14 +794,84 @@ func samePrimitiveUnion(items []any) (string, bool) {
 	return primitiveType, true
 }
 
-func applyOAPICodegenFixups(doc map[string]any) {
-	schemas := componentBucket(ensureMap(doc, "components"), "schemas")
+func applyOAPICodegenFixups(doc map[string]any) error {
+	components, ok := doc["components"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no components")
+	}
+	schemas, ok := components["schemas"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no schemas")
+	}
+	schemas["PromptPartInput"] = map[string]any{
+		"discriminator": map[string]any{
+			"propertyName": "type",
+			"mapping": map[string]any{
+				"text":    "#/components/schemas/TextPartInput",
+				"file":    "#/components/schemas/FilePartInput",
+				"agent":   "#/components/schemas/AgentPartInput",
+				"subtask": "#/components/schemas/SubtaskPartInput",
+			},
+		},
+		"oneOf": []any{
+			map[string]any{"$ref": "#/components/schemas/TextPartInput"},
+			map[string]any{"$ref": "#/components/schemas/FilePartInput"},
+			map[string]any{"$ref": "#/components/schemas/AgentPartInput"},
+			map[string]any{"$ref": "#/components/schemas/SubtaskPartInput"},
+		},
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no paths")
+	}
+	for _, path := range []string{
+		"/session/{sessionID}/message",
+		"/session/{sessionID}/prompt_async",
+	} {
+		item, ok := paths[path].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream spec has no %s path", path)
+		}
+		post, ok := item["post"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream spec has no POST %s operation", path)
+		}
+		requestBody, ok := post["requestBody"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no request body", path)
+		}
+		content, ok := requestBody["content"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no request content", path)
+		}
+		jsonBody, ok := content["application/json"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no JSON request body", path)
+		}
+		schema, ok := jsonBody["schema"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s has no request schema", path)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s request has no properties", path)
+		}
+		parts, ok := properties["parts"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("upstream POST %s request has no parts", path)
+		}
+		parts["items"] = map[string]any{
+			"$ref": "#/components/schemas/PromptPartInput",
+		}
+	}
 
 	renameSchema(schemas, "EventTuiCommandExecute", "OpencodeTUICommandExecuteEvent")
 	renameSchema(schemas, "EventTuiPromptAppend", "OpencodeTUIPromptAppendEvent")
 	renameSchema(schemas, "EventTuiSessionSelect", "OpencodeTUISessionSelectEvent")
 	renameSchema(schemas, "EventTuiToastShow", "OpencodeTUIToastShowEvent")
 	renameSchema(schemas, "EventTuiToastShow1", "OpencodeTUIToastShowAltEvent")
+	return nil
 }
 
 func renameSchema(schemas map[string]any, name string, goName string) {
@@ -552,8 +900,8 @@ func writeRoutesGo(path string, manifest routeManifest) error {
 	buf.WriteString("// Code generated by hack/openapi. DO NOT EDIT.\n")
 	buf.WriteString("var opencodeRoutes = []opencodeRoute{\n")
 	for _, route := range manifest.Routes {
-		fmt.Fprintf(&buf, "\t{Method: %q, Path: %q},\n",
-			route.Method, route.Path)
+		fmt.Fprintf(&buf, "\t{Method: %q, Path: %q, Operation: %q},\n",
+			route.Method, route.Path, route.Operation)
 	}
 	buf.WriteString("}\n")
 

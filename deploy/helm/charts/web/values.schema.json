@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": { "type": "object" },
+    "enabled": { "type": "boolean" },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+    "strategy": { "$ref": "#/definitions/strategy" },
+    "image": { "$ref": "#/definitions/image" },
+    "imagePullSecrets": { "type": "array" },
+    "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+    "podAnnotations": { "type": "object" },
+    "podLabels": { "type": "object" },
+    "resources": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array" },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array" },
+    "priorityClassName": { "type": "string" },
+    "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
+    "podSecurityContext": { "type": "object" },
+    "containerSecurityContext": { "type": "object" },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "betterAuthURL": { "type": "string", "pattern": "^$|^https?://" },
+        "gatewayBaseURL": { "type": "string", "pattern": "^$|^https?://" },
+        "internalGatewayBaseURL": { "type": "string", "pattern": "^$|^https?://" },
+        "gatewayJWTAudience": { "type": "string", "minLength": 1 },
+        "enableEmailPasswordAuth": { "type": "boolean" },
+        "emailPasswordAuthAllowedUser": { "type": "string" },
+        "githubClientID": { "type": "string" },
+        "githubAllowedUserID": { "type": "string", "pattern": "^$|^[0-9]+$" },
+        "githubOrg": { "type": "string" },
+        "githubTeamSlug": { "type": "string" },
+        "googleClientID": { "type": "string" },
+        "googleAllowedEmailDomains": { "type": "string" },
+        "organizationAssetsS3Endpoint": { "type": "string", "pattern": "^$|^https?://" },
+        "organizationAssetsS3Region": { "type": "string" },
+        "organizationAssetsS3Bucket": { "type": "string" },
+        "organizationAssetsPublicBaseURL": { "type": "string", "pattern": "^$|^https?://" },
+        "organizationAssetsS3ForcePathStyle": { "type": "boolean" },
+        "nixosSearchESURL": { "type": "string" },
+        "nixosSearchESUsername": { "type": "string" },
+        "nixosSearchESSchemaVersion": { "type": "string" },
+        "nixosSearchESBranch": { "type": "string" }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "databaseURL": { "type": "string" },
+        "betterAuthSecret": { "type": "string", "pattern": "^$|^.{32,}$" },
+        "mcpOAuthCookieSecret": { "type": "string", "pattern": "^$|^.{32,}$" },
+        "githubClientSecret": { "type": "string" },
+        "googleClientSecret": { "type": "string" },
+        "organizationAssetsS3AccessKeyID": { "type": "string" },
+        "organizationAssetsS3SecretAccessKey": { "type": "string" },
+        "organizationAssetsS3SessionToken": { "type": "string" },
+        "nixosSearchESPassword": { "type": "string" }
+      }
+    }
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["Recreate", "RollingUpdate"] },
+        "rollingUpdate": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxUnavailable": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+%?$" }] },
+            "maxSurge": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+%?$" }] }
+          }
+        }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "maxUnavailable": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^[0-9]+%?$" }] }
+      }
+    }
+  }
+}

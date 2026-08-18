@@ -10,7 +10,8 @@ import {
 } from "@tanstack/react-table"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
-import { Button } from "@/components/ui/button"
+import { RoutedTableRow } from "@/components/routed-table-row"
+import { TokenTablePagination } from "@/components/table-pagination"
 import {
   Table,
   TableBody,
@@ -19,14 +20,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
-import { useTokenPagination } from "@/app/(app)/lens/traces/client-utils"
-import { ArrowLeft, ArrowRight } from "lucide-react"
 
 const columnClassName: Record<string, string> = {
   name: "min-w-40",
-  created_at: "w-44",
-  actions: "w-14",
+  created_by: "hidden lg:table-cell w-28",
+  last_modified_by: "hidden lg:table-cell w-28",
+  created_at: "w-32",
+  actions: "w-20",
 }
 
 export function AgentTable({
@@ -38,6 +40,7 @@ export function AgentTable({
   initialNextSandboxPageToken,
   nextPageToken,
   deleteAgentAction,
+  actionScope,
 }: {
   agents: Agent[]
   immutableSkills: Skill[]
@@ -51,11 +54,11 @@ export function AgentTable({
     state: DeleteAgentFormState,
     formData: FormData
   ) => Promise<DeleteAgentFormState>
+  actionScope: AgentActionScope
 }) {
   "use no memo"
 
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination()
   const columns = React.useMemo(
     () =>
       createAgentColumns(
@@ -63,7 +66,9 @@ export function AgentTable({
         immutableSkills,
         sandboxes,
         initialHasNextSandboxPage,
-        initialNextSandboxPageToken
+        initialNextSandboxPageToken,
+        actionScope,
+        agents.some((agent) => agent.capabilities.modify || agent.capabilities.delete)
       ),
     [
       deleteAgentAction,
@@ -71,6 +76,8 @@ export function AgentTable({
       sandboxes,
       initialHasNextSandboxPage,
       initialNextSandboxPageToken,
+      actionScope,
+      agents,
     ]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
@@ -86,9 +93,9 @@ export function AgentTable({
   })
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
+        <Table className="w-full table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -108,7 +115,12 @@ export function AgentTable({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <RoutedTableRow
+                  aria-label={`Open ${row.original.name} settings`}
+                  data-state={row.getIsSelected() && "selected"}
+                  href={`${actionScope.workspacePath}/agents/${encodeURIComponent(row.original.name)}`}
+                  key={row.id}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -117,33 +129,19 @@ export function AgentTable({
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
-                </TableRow>
+                </RoutedTableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No agents
+                  <span className="text-muted-foreground">_</span>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>
-          <ArrowLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => goNext(nextPageToken)}
-          disabled={!hasNextPage || pending}
-        >
-          Next
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </div>
+      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
     </div>
   )
 }

@@ -76,6 +76,9 @@ const (
 
 // InferencePoolMember references one enabled model on a provider.
 type InferencePoolMember struct {
+	// Scope selects the current Organisation or Workspace namespace.
+	Scope ResourceScope `json:"scope"`
+
 	// Provider is the immutable InferenceProvider metadata name.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
@@ -89,8 +92,16 @@ type InferencePoolMember struct {
 }
 
 // InferencePoolSpec defines one logical model backed by ordered members.
-// +kubebuilder:validation:XValidation:rule="self.members.all(m, self.members.exists_one(n, n.provider == m.provider && n.model == m.model))",message="pool members must be unique provider-model pairs"
+// +kubebuilder:validation:XValidation:rule="self.members.all(m, self.members.exists_one(n, n.scope == m.scope && n.provider == m.provider && n.model == m.model))",message="pool members must be unique scoped provider-model references"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.creatorUserID) || (has(self.creatorUserID) && self.creatorUserID == oldSelf.creatorUserID)",message="creatorUserID is immutable"
 type InferencePoolSpec struct {
+	// CreatorUserID is the immutable Better Auth User ID that created the
+	// InferencePool.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	// +optional
+	CreatorUserID string `json:"creatorUserID,omitempty"`
+
 	// DisplayName is the editable human-readable Pool label.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=128
@@ -128,6 +139,9 @@ type InferencePoolWarning struct {
 
 // InferencePoolMemberStatus reports one member's control-plane readiness.
 type InferencePoolMemberStatus struct {
+	// Scope identifies the referenced provider's infrastructure scope.
+	Scope ResourceScope `json:"scope"`
+
 	// Provider is the referenced InferenceProvider name.
 	Provider string `json:"provider"`
 	// Model is the referenced upstream model ID.

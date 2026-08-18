@@ -5,14 +5,19 @@ import { sandboxesTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function listSandboxesCachedQuery(
-  query?: ListSandboxesData["query"]
+  query?: ListSandboxesData["query"],
+  workspaceId?: string
 ): Promise<ListSandboxActionResponse> {
   "use cache: private"
 
   cacheLife("hours")
-  cacheTag(sandboxesTag)
+  cacheTag(sandboxesTag, `${sandboxesTag}:${workspaceId ?? "organization"}`)
 
-  const { data, error } = await listSandboxes({ query, client: getGatewayServerClient() })
+  const { data, error } = await listSandboxes({
+    query,
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+  })
   if (error) {
     return {
       sandboxes: undefined,

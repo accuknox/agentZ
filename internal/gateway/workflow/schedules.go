@@ -140,10 +140,13 @@ func ValidateRunInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace st
 
 	fields := make([]gatewayapi.FieldError, 0, len(issues))
 	for _, issue := range issues {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   issue.Field,
-			Message: issue.Message,
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   issue.Field,
+				Message: issue.Message,
+			},
+		)
 	}
 	return fields, nil
 }
@@ -229,12 +232,15 @@ func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, 
 		items = append(items, item)
 	}
 
-	slices.SortFunc(items, func(a, b gatewayapi.WorkflowSchedule) int {
-		if cmp := strings.Compare(a.Name, b.Name); cmp != 0 {
-			return cmp
-		}
-		return a.CreatedAt.Compare(b.CreatedAt)
-	})
+	slices.SortFunc(
+		items,
+		func(a, b gatewayapi.WorkflowSchedule) int {
+			if cmp := strings.Compare(a.Name, b.Name); cmp != 0 {
+				return cmp
+			}
+			return a.CreatedAt.Compare(b.CreatedAt)
+		},
+	)
 
 	start := min(offset, len(items))
 	end := min(start+limit, len(items))
@@ -289,19 +295,22 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	}
 
 	updated := &agentzv1alpha1.WorkflowSchedule{}
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := k8sClient.Get(ctx, key, current); err != nil {
-			return err
-		}
+	err = retry.RetryOnConflict(
+		retry.DefaultRetry,
+		func() error {
+			if err := k8sClient.Get(ctx, key, current); err != nil {
+				return err
+			}
 
-		applyScheduleSpec(&current.Spec, agtName, wfName, specInput, inputsJSON)
+			applyScheduleSpec(&current.Spec, agtName, wfName, specInput, inputsJSON)
 
-		if err := k8sClient.Update(ctx, current); err != nil {
-			return err
-		}
-		updated = current
-		return nil
-	})
+			if err := k8sClient.Update(ctx, current); err != nil {
+				return err
+			}
+			updated = current
+			return nil
+		},
+	)
 	if err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
 	}
@@ -362,27 +371,36 @@ func validateScheduleRequest(agtName string, wfName string, name string, specInp
 	fields = append(fields, validateScheduleDNSLabel("workflowName", wfName)...)
 	fields = append(fields, validateScheduleDNSLabel("scheduleName", name)...)
 	if specInput.schedule == "" {
-		fields = append(fields, gatewayapi.FieldError{
-			Field:   "schedule",
-			Message: "required",
-		})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "schedule",
+				Message: "required",
+			},
+		)
 	}
 	if specInput.schedule != "" {
 		err := inputworkflow.ValidateCronSchedule(specInput.schedule)
 		if err != nil {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "schedule",
-				Message: err.Error(),
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "schedule",
+					Message: err.Error(),
+				},
+			)
 		}
 	}
 	if specInput.timeZone != nil {
 		err := inputworkflow.ValidateTimeZone(*specInput.timeZone)
 		if err != nil {
-			fields = append(fields, gatewayapi.FieldError{
-				Field:   "time_zone",
-				Message: err.Error(),
-			})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "time_zone",
+					Message: err.Error(),
+				},
+			)
 		}
 	}
 	return fields

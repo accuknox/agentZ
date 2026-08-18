@@ -35,10 +35,14 @@ type Interface interface {
 	Sandboxes() SandboxInformer
 	// Secrets returns a SecretInformer.
 	Secrets() SecretInformer
+	// Tenants returns a TenantInformer.
+	Tenants() TenantInformer
 	// WorkflowRuns returns a WorkflowRunInformer.
 	WorkflowRuns() WorkflowRunInformer
 	// WorkflowSchedules returns a WorkflowScheduleInformer.
 	WorkflowSchedules() WorkflowScheduleInformer
+	// Workspaces returns a WorkspaceInformer.
+	Workspaces() WorkspaceInformer
 }
 
 type version struct {
@@ -82,6 +86,11 @@ func (v *version) Secrets() SecretInformer {
 	return &secretInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
+// Tenants returns a TenantInformer.
+func (v *version) Tenants() TenantInformer {
+	return &tenantInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
 // WorkflowRuns returns a WorkflowRunInformer.
 func (v *version) WorkflowRuns() WorkflowRunInformer {
 	return &workflowRunInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
@@ -90,4 +99,9 @@ func (v *version) WorkflowRuns() WorkflowRunInformer {
 // WorkflowSchedules returns a WorkflowScheduleInformer.
 func (v *version) WorkflowSchedules() WorkflowScheduleInformer {
 	return &workflowScheduleInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Workspaces returns a WorkspaceInformer.
+func (v *version) Workspaces() WorkspaceInformer {
+	return &workspaceInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

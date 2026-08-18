@@ -1,3 +1,21 @@
+{{- if .Values.enabled }}
+{{- if and .Values.config.enableWebhooks (not .Values.certManager.enabled) }}
+{{- fail "manager.config.enableWebhooks requires manager.certManager.enabled=true" }}
+{{- end }}
+{{- $umbrella := dig "agentz" "umbrella" false (.Values.global | default dict) }}
+{{- $gatewayURL := .Values.config.gatewayURL }}
+{{- if and $umbrella (not $gatewayURL) }}
+{{- $gatewayName := printf "%s-gateway" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- $gatewayURL = printf "http://%s.%s.svc.cluster.local:8090" $gatewayName .Release.Namespace }}
+{{- end }}
+{{- $traceServiceName := .Values.config.agentgatewayTraceServiceName }}
+{{- if and $umbrella (not $traceServiceName) }}
+{{- $traceServiceName = printf "%s-observer" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- $traceServiceNamespace := .Values.config.agentgatewayTraceServiceNamespace }}
+{{- if and $umbrella (not $traceServiceNamespace) }}
+{{- $traceServiceNamespace = .Release.Namespace }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -8,6 +26,9 @@ metadata:
     control-plane: controller-manager
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "manager.selectorLabels" . | nindent 6 }}
@@ -25,16 +46,24 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "manager.serviceAccountName" . }}
-      terminationGracePeriodSeconds: 10
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: manager
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/agentz"]
           args:
@@ -47,11 +76,11 @@ spec:
             - --enable-http2={{ .Values.config.enableHTTP2 }}
             - --workflowrun-orphan-retention={{ .Values.config.workflowRunOrphanRetention }}
             - --controller-image={{ .Values.config.controllerImage }}
-            - --gateway-url={{ .Values.config.gatewayURL }}
+            - --gateway-url={{ required "manager.config.gatewayURL is required for standalone installs" $gatewayURL }}
             - --agentgateway-trace-mode={{ required "manager.config.agentgatewayTraceMode is required" .Values.config.agentgatewayTraceMode }}
             {{- if eq .Values.config.agentgatewayTraceMode "service" }}
-            - --agentgateway-trace-service-name={{ required "manager.config.agentgatewayTraceServiceName is required" .Values.config.agentgatewayTraceServiceName }}
-            - --agentgateway-trace-service-namespace={{ required "manager.config.agentgatewayTraceServiceNamespace is required" .Values.config.agentgatewayTraceServiceNamespace }}
+            - --agentgateway-trace-service-name={{ required "manager.config.agentgatewayTraceServiceName is required for standalone installs" $traceServiceName }}
+            - --agentgateway-trace-service-namespace={{ required "manager.config.agentgatewayTraceServiceNamespace is required for standalone installs" $traceServiceNamespace }}
             - --agentgateway-trace-service-port={{ required "manager.config.agentgatewayTraceServicePort is required" .Values.config.agentgatewayTraceServicePort }}
             {{- end }}
             {{- if eq .Values.config.agentgatewayTraceMode "static" }}
@@ -64,12 +93,14 @@ spec:
             - --sinjector-openbao-k8s-auth-token-path={{ .Values.config.sinjectorOpenBaoK8sAuthTokenPath }}
             - --manager-openbao-k8s-auth-role={{ .Values.config.managerOpenBaoK8sAuthRole }}
             - --manager-openbao-k8s-auth-token-path={{ .Values.config.managerOpenBaoK8sAuthTokenPath }}
-            - --inference-secret-store-name={{ required "manager.inference.externalSecrets.storeName is required" .Values.inference.externalSecrets.storeName }}
+            - --inference-secret-store-name={{ include "manager.inferenceSecretStoreName" . }}
             - --inference-secret-refresh-interval={{ required "manager.inference.externalSecrets.refreshInterval is required" .Values.inference.externalSecrets.refreshInterval }}
             - --manager-gateway-token-path={{ .Values.config.managerGatewayTokenPath }}
             - --manager-gateway-token-audience={{ .Values.config.managerGatewayTokenAudience }}
             - --manager-service-account-name={{ include "manager.serviceAccountName" . }}
             - --manager-service-account-namespace={{ .Release.Namespace }}
+            - --gateway-service-account-name={{ default (printf "%s-gateway" .Release.Name) .Values.config.gatewayServiceAccountName }}
+            - --gateway-service-account-namespace={{ default .Release.Namespace .Values.config.gatewayServiceAccountNamespace }}
             - --sinjector-ca-secret-name={{ .Values.config.sinjectorCASecretName }}
             - --sinjector-ca-secret-cert-key={{ .Values.config.sinjectorCASecretCertKey }}
             - --sinjector-ca-secret-key-key={{ .Values.config.sinjectorCASecretKeyKey }}
@@ -77,14 +108,15 @@ spec:
             - --sinjector-ca-cert-path={{ .Values.config.sinjectorCACertPath }}
             - --sinjector-ca-key-path={{ .Values.config.sinjectorCAKeyPath }}
             - --agent-ca-bundle-path={{ .Values.config.agentCABundlePath }}
-            - --tenant-nix-store-size={{ .Values.config.tenantNixStoreSize }}
-            {{- range .Values.config.tenantNixStoreAccessModes }}
-            - --tenant-nix-store-access-mode={{ . }}
+            - --nix-store-size={{ .Values.config.nixStoreSize }}
+            {{- range .Values.config.nixStoreAccessModes }}
+            - --nix-store-access-mode={{ . }}
             {{- end }}
+            - --nix-cache-endpoint={{ required "manager.config.nixCacheEndpoint is required" .Values.config.nixCacheEndpoint }}
             - --skills-s3-endpoint={{ required "manager.config.skillsS3Endpoint is required" .Values.config.skillsS3Endpoint }}
             - --skills-s3-region={{ required "manager.config.skillsS3Region is required" .Values.config.skillsS3Region }}
             - --skills-s3-bucket={{ required "manager.config.skillsS3Bucket is required" .Values.config.skillsS3Bucket }}
-            - --tenant-sinjector-clusterissuer-name={{ .Values.config.tenantSinjectorClusterIssuerName }}
+            - --tenant-sinjector-clusterissuer-name={{ required "manager.config.tenantSinjectorClusterIssuerName is required" .Values.config.tenantSinjectorClusterIssuerName }}
             {{- if .Values.config.leaderElect }}
             - --leader-elect
             {{- end }}
@@ -100,11 +132,9 @@ spec:
             {{- if .Values.config.managerOpenBaoAddr }}
             - --manager-openbao-addr={{ .Values.config.managerOpenBaoAddr }}
             {{- end }}
-            {{- if .Values.config.nixStorePVC }}
-            - --nix-store-pvc={{ .Values.config.nixStorePVC }}
-            {{- end }}
-            {{- if .Values.config.tenantNixStoreStorageClass }}
-            - --tenant-nix-store-storage-class={{ .Values.config.tenantNixStoreStorageClass }}
+            - --nix-store-pvc={{ required "manager.config.nixStorePVC is required" .Values.config.nixStorePVC }}
+            {{- if .Values.config.nixStoreStorageClass }}
+            - --nix-store-storage-class={{ .Values.config.nixStoreStorageClass }}
             {{- end }}
             {{- if .Values.config.watchNamespace }}
             - --watch-namespace={{ .Values.config.watchNamespace }}
@@ -169,7 +199,7 @@ spec:
       {{- if .Values.config.enableWebhooks }}
         - name: webhook-certs
           secret:
-            secretName: {{ .Values.certManager.webhookSecretName }}
+            secretName: {{ include "manager.webhookSecretName" . }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -183,3 +213,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

@@ -1,20 +1,19 @@
 "use client"
 
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
+import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { Lock } from "lucide-react"
 import Link from "next/link"
+import type { WorkspacePath } from "@/data/types"
 
-export function NavSecrets() {
+export function NavSecrets({ workspacePath }: { workspacePath: WorkspacePath }) {
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton asChild tooltip="Secrets">
-          <Link href="/secrets">
-            <Lock />
-            <span>Secrets</span>
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild tooltip="Secrets">
+        <Link href={`${workspacePath}/secrets`}>
+          <Lock />
+          <span>Secrets</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   )
 }

@@ -51,12 +51,20 @@ func (c *FakeAgentzV1alpha1) Secrets(namespace string) v1alpha1.SecretInterface 
 	return newFakeSecrets(c, namespace)
 }
 
+func (c *FakeAgentzV1alpha1) Tenants() v1alpha1.TenantInterface {
+	return newFakeTenants(c)
+}
+
 func (c *FakeAgentzV1alpha1) WorkflowRuns(namespace string) v1alpha1.WorkflowRunInterface {
 	return newFakeWorkflowRuns(c, namespace)
 }
 
 func (c *FakeAgentzV1alpha1) WorkflowSchedules(namespace string) v1alpha1.WorkflowScheduleInterface {
 	return newFakeWorkflowSchedules(c, namespace)
+}
+
+func (c *FakeAgentzV1alpha1) Workspaces() v1alpha1.WorkspaceInterface {
+	return newFakeWorkspaces(c)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -104,18 +104,21 @@ var sinjectorServeCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return sinjector.Serve(ctx, sinjector.Config{
-			Addr:                    c.String("addr"),
-			OpenBaoAddr:             c.String("openbao-addr"),
-			OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
-			OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
-			OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
-			OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
-			AgentName:               c.String("agent-name"),
-			CACertPath:              c.String("ca-cert-path"),
-			CAKeyPath:               c.String("ca-key-path"),
-			SecretProbeInterval:     c.Duration("secret-probe-interval"),
-			Verbose:                 c.Bool("verbose"),
-		})
+		return sinjector.Serve(
+			ctx,
+			sinjector.Config{
+				Addr:                    c.String("addr"),
+				OpenBaoAddr:             c.String("openbao-addr"),
+				OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
+				OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
+				OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
+				OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
+				AgentName:               c.String("agent-name"),
+				CACertPath:              c.String("ca-cert-path"),
+				CAKeyPath:               c.String("ca-key-path"),
+				SecretProbeInterval:     c.Duration("secret-probe-interval"),
+				Verbose:                 c.Bool("verbose"),
+			},
+		)
 	},
 }

@@ -116,7 +116,10 @@ export async function GET(request: Request) {
             oauth: result.value.credentials,
           },
         },
-        client: getGatewayServerClient(),
+        client: getGatewayServerClient(pending.operation.workspaceId),
+        headers: pending.operation.workspaceId
+          ? { "X-AgentZ-Workspace-ID": pending.operation.workspaceId }
+          : undefined,
       })
       if (createResult.error) {
         console.error("mcp oauth connection save failed", {
@@ -148,7 +151,8 @@ export async function GET(request: Request) {
             },
           },
         } satisfies CreateSecretRequest,
-        client: getGatewayServerClient(),
+        client: getGatewayServerClient(pending.operation.workspaceId),
+        headers: { "X-AgentZ-Workspace-ID": pending.operation.workspaceId },
         path: { agentName: pending.operation.secret.agentName },
         query: {
           update_sandbox: preferences.updateSandbox,

@@ -38,6 +38,7 @@ export function chatAttachmentErrorMessage(code: "max_file_size" | "max_files") 
 
 export async function uploadChatAttachments(
   agentName: string,
+  workspaceId: string,
   sessionID: string,
   files: PromptInputFile[]
 ): Promise<ChatAttachment[]> {
@@ -80,6 +81,7 @@ export async function uploadChatAttachments(
       const result = await writeAgentFileRaw({
         baseUrl,
         body: item.file,
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
         path: { agentName },
         query: { path },
       })

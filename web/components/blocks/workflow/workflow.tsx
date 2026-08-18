@@ -164,7 +164,7 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
             <CollapsibleContent className="border-t px-3 py-2">
               <div className="flex flex-col gap-2">
                 <p className="text-muted-foreground text-sm">{workflow.summary}</p>
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
+                <p className="text-muted-foreground text-xs tracking-wide">
                   Inputs: {workflowInputSummary(workflow)}
                 </p>
               </div>
@@ -457,7 +457,7 @@ function Section({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{title}</p>
+      <p className="text-muted-foreground text-xs font-medium tracking-wide">{title}</p>
       <p className={clamp ? "line-clamp-3 text-sm" : "text-sm"}>{value}</p>
     </div>
   )
@@ -478,7 +478,7 @@ function PreferenceList({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{title}</p>
+      <p className="text-muted-foreground text-xs font-medium tracking-wide">{title}</p>
       <div className="flex flex-wrap gap-2">
         {totalItems > 0 ? (
           <>

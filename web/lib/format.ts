@@ -38,7 +38,7 @@ export function formatByteSize(bytes: number) {
 export function formatTimestamp(value: Date | string) {
   const date = dayjs(value)
   if (!date.isValid()) {
-    return "Unknown"
+    return "_"
   }
 
   return dateTimeFormatter.format(date.toDate())
@@ -47,12 +47,12 @@ export function formatTimestamp(value: Date | string) {
 /** formatTimestampWithAge renders an absolute timestamp with relative age. */
 export function formatTimestampWithAge(value: Date | string | null | undefined) {
   if (!value) {
-    return "Never"
+    return "_"
   }
 
   const date = dayjs(value)
   if (!date.isValid()) {
-    return "-"
+    return "_"
   }
 
   return `${dateTimeFormatter.format(date.toDate())} (${date.fromNow()})`
@@ -61,12 +61,12 @@ export function formatTimestampWithAge(value: Date | string | null | undefined) 
 /** formatAge renders relative time labels for table age columns. */
 export function formatAge(value: Date | string | null | undefined) {
   if (!value) {
-    return "Unknown"
+    return "_"
   }
 
   const date = dayjs(value)
   if (!date.isValid()) {
-    return "Unknown"
+    return "_"
   }
 
   return date.fromNow()

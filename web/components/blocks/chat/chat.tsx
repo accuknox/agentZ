@@ -52,6 +52,7 @@ import {
 import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
@@ -116,6 +117,7 @@ import {
 import { motion } from "motion/react"
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import { z } from "zod"
 import { useStickToBottomContext } from "use-stick-to-bottom"
 import {
   ModelSelector,
@@ -157,10 +159,23 @@ type ChatProps = {
   greetingIndex?: number
   promptMobile?: boolean
   sessionId?: string
+  workspaceId: string
+  workspacePath: string
 }
 
 type AuthSession = typeof authClient.$Infer.Session
 type AuthUser = AuthSession["user"]
+
+const messageActorProfilesSchema = z
+  .object({
+    profiles: z.array(
+      z
+        .object({ id: z.string().min(1), image: z.string().nullable(), name: z.string().min(1) })
+        .strict()
+    ),
+  })
+  .strict()
+type MessageActorProfile = z.infer<typeof messageActorProfilesSchema>["profiles"][number]
 
 const DEFAULT_REASONING_LEVEL = "__default__"
 const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
@@ -586,10 +601,12 @@ function ChatInner({
   greetingIndex,
   promptMobile = false,
   sessionId,
+  workspaceId,
+  workspacePath,
 }: ChatProps) {
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
-  const agentReadiness = useAgentReadiness(agentName)
+  const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
   const { data: authSession } = authClient.useSession()
 
@@ -612,7 +629,7 @@ function ChatInner({
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, activeSessionId)
+  } = useOpencodeChat(agentName, workspaceId, activeSessionId)
 
   useEffect(() => {
     const id = `chat:${agentName}:${activeSessionId ?? "new"}:history-error`
@@ -683,9 +700,9 @@ function ChatInner({
 
   const modelCatalog = useQuery(
     queryOptions({
-      queryKey: ["opencode", "modelCatalog", agentName],
+      queryKey: ["opencode", "modelCatalog", workspaceId, agentName],
       queryFn: async () => {
-        const client = await createAgentOpencodeClient(agentName)
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
         const [providersResult, configResult, agentsResult] = await Promise.all([
           client.config.providers(),
           client.config.get(),
@@ -827,6 +844,8 @@ function ChatInner({
   const contextUsage = getAssistantUsage(contextMessages, models)
   const { abortMessage, canSubmit, isStopping, sendMessage, sendState } = useOpencodeSend(
     agentName,
+    workspaceId,
+    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions`,
     activeSessionId,
     directory,
     isBusy || isPending || blocked || agentReadiness.isGettingReady,
@@ -847,7 +866,7 @@ function ChatInner({
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.question.reply({
         answers,
         requestID: questionRequest.id,
@@ -868,7 +887,7 @@ function ChatInner({
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.question.reject({
         requestID: questionRequest.id,
       })
@@ -888,7 +907,7 @@ function ChatInner({
       if (!permissionRequest) {
         throw new Error("No permission request is active")
       }
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.permission.reply({
         requestID: permissionRequest.id,
         reply,
@@ -909,7 +928,7 @@ function ChatInner({
   const applyRevert = useCallback(
     async (messageID?: string) => {
       if (!activeSessionId || isStopping) return
-      const client = await createAgentOpencodeClient(agentName)
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = messageID
         ? await client.session.revert({ directory, messageID, sessionID: activeSessionId })
         : await client.session.unrevert({ directory, sessionID: activeSessionId })
@@ -918,7 +937,7 @@ function ChatInner({
       }
       applyOptimisticSession(result.data)
     },
-    [activeSessionId, agentName, applyOptimisticSession, directory, isStopping]
+    [activeSessionId, agentName, applyOptimisticSession, directory, isStopping, workspaceId]
   )
 
   // A resendable composer draft (non-synthetic text + file attachments) for a
@@ -1056,6 +1075,39 @@ function ChatInner({
       textByPart,
     ]
   )
+  const actorUserIDs = useMemo(
+    () =>
+      [
+        ...new Set(
+          rows.flatMap((row) =>
+            row.type === "user" && row.actor?.type === "user" ? [row.actor.id] : []
+          )
+        ),
+      ].sort(),
+    [rows]
+  )
+  const actorProfilesQuery = useQuery(
+    queryOptions({
+      enabled: actorUserIDs.length > 0,
+      queryKey: ["message-actors", ...actorUserIDs],
+      queryFn: async () => {
+        const response = await fetch("/api/message-actors", {
+          body: JSON.stringify({ userIds: actorUserIDs }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        })
+        if (!response.ok) {
+          throw new Error("Failed to load message senders")
+        }
+        return messageActorProfilesSchema.parse(await response.json())
+      },
+      staleTime: 60_000,
+    })
+  )
+  const actorProfiles = useMemo(
+    () => new Map(actorProfilesQuery.data?.profiles.map((profile) => [profile.id, profile]) ?? []),
+    [actorProfilesQuery.data]
+  )
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
@@ -1091,6 +1143,7 @@ function ChatInner({
                 {rows.map((row) => (
                   <TimelineRowView
                     agentName={agentName}
+                    actorProfiles={actorProfiles}
                     isBusy={isBusy}
                     isLastBlock={rows.at(-1)?.key === row.key}
                     key={row.key}
@@ -1098,6 +1151,7 @@ function ChatInner({
                     revertDisabled={isBusy || isStopping || revertPending}
                     row={row}
                     user={authSession?.user}
+                    workspacePath={workspacePath}
                   />
                 ))}
                 <AgentWorkingIndicator isWorking={isBusy} />
@@ -1248,14 +1302,17 @@ function ChatInner({
                             size="sm"
                             variant="ghost"
                           >
-                            <GaugeIcon className="text-muted-foreground size-4" />
                             <SelectValue placeholder="Reasoning" />
                           </ReasoningSelectTrigger>
                           <SelectContent align="end" position="popper" side="top" sideOffset={8}>
                             <SelectGroup>
-                              <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
+                              <SelectItem value={DEFAULT_REASONING_LEVEL}>
+                                <GaugeIcon />
+                                Default
+                              </SelectItem>
                               {reasoningVariants.map((variant) => (
                                 <SelectItem key={variant} value={variant}>
+                                  <GaugeIcon />
                                   {variant.length
                                     ? variant[0]?.toUpperCase() + variant.slice(1)
                                     : variant}
@@ -1309,6 +1366,7 @@ function ChatInner({
                                     disabled={inputDisabled}
                                     value={DEFAULT_REASONING_LEVEL}
                                   >
+                                    <GaugeIcon />
                                     Default
                                   </DropdownMenuRadioItem>
                                   {reasoningVariants.map((variant) => (
@@ -1318,6 +1376,7 @@ function ChatInner({
                                       key={variant}
                                       value={variant}
                                     >
+                                      <GaugeIcon />
                                       {variant}
                                     </DropdownMenuRadioItem>
                                   ))}
@@ -1354,7 +1413,7 @@ function ChatInner({
                       </DropdownMenu>
                     </div>
                     <ModelSelectorContent>
-                      <ModelSelectorInput placeholder="Search models…" />
+                      <ModelSelectorInput placeholder="Search models..." />
                       <ModelSelectorList>
                         <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
                         {chefs.map((chef) => (
@@ -1425,40 +1484,57 @@ function MessageActionBar({ className, children }: { className?: string; childre
   )
 }
 
-function UserMessageAvatar({ user }: { user?: AuthUser }) {
-  const name = user?.name.trim() || "User"
-  const initials = name
+function UserMessageAvatar({
+  image,
+  name,
+  label,
+}: {
+  image?: string | null
+  name: string
+  label: string
+}) {
+  const displayName = name.trim() || "User"
+  const initials = displayName
     .split(/\s+/)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("")
 
   return (
-    <MessageAvatar>
-      <Avatar>
-        <AvatarImage alt={name} src={user?.image ?? undefined} />
-        <AvatarFallback>{initials || "U"}</AvatarFallback>
-      </Avatar>
-    </MessageAvatar>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <MessageAvatar aria-label={label}>
+          <Avatar>
+            <AvatarImage alt={displayName} src={image ?? undefined} />
+            <AvatarFallback>{initials || "U"}</AvatarFallback>
+          </Avatar>
+        </MessageAvatar>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
 function TimelineRowView({
   agentName,
+  actorProfiles,
   isBusy,
   isLastBlock,
   onRevert,
   revertDisabled,
   row,
   user,
+  workspacePath,
 }: {
   agentName: string
+  actorProfiles: Map<string, MessageActorProfile>
   isBusy: boolean
   isLastBlock: boolean
   onRevert: (messageID: string) => void
   revertDisabled: boolean
   row: TimelineRow
   user?: AuthUser
+  workspacePath: string
 }) {
   const { previewFile } = useFileWorkspace()
   const openAgentFile = useCallback(
@@ -1472,7 +1548,11 @@ function TimelineRowView({
     case "local": {
       return (
         <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
-          <UserMessageAvatar user={user} />
+          <UserMessageAvatar
+            image={user?.image}
+            label={user?.name ?? "You"}
+            name={user?.name ?? "You"}
+          />
           <MessageContent>
             <AIMessageContent
               className={cn(
@@ -1500,9 +1580,18 @@ function TimelineRowView({
 
     case "user": {
       const isEmpty = row.text.length === 0 && row.attachments.length === 0
+      const profile = row.actor?.type === "user" ? actorProfiles.get(row.actor.id) : undefined
+      const name = profile?.name ?? row.actor?.name
+      const label = row.actor
+        ? `${name} · ${
+            row.actor.type === "user" ? "User" : row.actor.type === "api_key" ? "API key" : "System"
+          }`
+        : undefined
       return (
         <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
-          {isEmpty ? null : <UserMessageAvatar user={user} />}
+          {isEmpty || !name || !label ? null : (
+            <UserMessageAvatar image={profile?.image} label={label} name={name} />
+          )}
           <MessageContent className={isEmpty ? "hidden" : undefined}>
             <AIMessageContent className={row.attachments.length > 0 ? "space-y-3" : undefined}>
               {row.attachments.length > 0 ? (
@@ -1573,7 +1662,12 @@ function TimelineRowView({
                           const toolEntry = entry.toolEntries[0]
                           if (!toolEntry) return null
                           return (
-                            <ToolEntries agentName={agentName} entry={toolEntry} key={entry.key} />
+                            <ToolEntries
+                              agentName={agentName}
+                              entry={toolEntry}
+                              key={entry.key}
+                              workspacePath={workspacePath}
+                            />
                           )
                         })}
                       </div>
@@ -1603,7 +1697,7 @@ function TimelineRowView({
         <div className="text-muted-foreground text-sm" key={row.key}>
           <span className="inline-flex items-center gap-2">
             <Spinner className="size-3.5" />
-            <span className="animate-pulse">Thinking…</span>
+            <span className="animate-pulse">Thinking...</span>
           </span>
         </div>
       )

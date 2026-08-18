@@ -102,11 +102,14 @@ func ValidateInputs(ctx context.Context, c *gatewayapi.ClientWithResponses, tknP
 
 	fields := make(field.ErrorList, 0, len(issues))
 	for _, issue := range issues {
-		fields = append(fields, field.Invalid(
-			childPath(path, issue.Field),
-			nil,
-			issue.Message,
-		))
+		fields = append(
+			fields,
+			field.Invalid(
+				childPath(path, issue.Field),
+				nil,
+				issue.Message,
+			),
+		)
 	}
 	return apierrors.NewInvalid(gk, name, fields)
 }

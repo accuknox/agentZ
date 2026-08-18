@@ -2,6 +2,109 @@
 
 import * as z from "zod"
 
+export const zEventTrailActorType = z.enum(["user", "api_key", "system"])
+
+export const zEventTrailResult = z.enum(["succeeded", "denied", "failed"])
+
+export const zEventTrailTargetType = z.enum([
+  "organization",
+  "organization_membership",
+  "workspace",
+  "role",
+  "sandbox",
+  "skill",
+  "team",
+  "mcp_connection",
+  "inference_provider",
+  "inference_pool",
+  "agent",
+])
+
+export const zEventTrailField = z.object({
+  field: z.enum(["member_id", "name", "provisioning_attempt", "role", "slug", "state", "user_id"]),
+  value: z.string(),
+})
+
+export const zEventTrailActor = z.object({
+  type: zEventTrailActorType,
+  id: z.string().optional(),
+  name: z.string().optional(),
+  email: z.email().optional(),
+})
+
+export const zEventTrailTarget = z.object({
+  type: zEventTrailTargetType,
+  id: z.string(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+})
+
+export const zEventTrailWorkspace = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+})
+
+export const zEventTrailEvent = z.object({
+  id: z.string(),
+  actor: zEventTrailActor,
+  target: zEventTrailTarget,
+  workspace: zEventTrailWorkspace.optional(),
+  category: z.string(),
+  action: z.string(),
+  result: zEventTrailResult,
+  before: z.array(zEventTrailField),
+  after: z.array(zEventTrailField),
+  created_at: z.iso.datetime(),
+})
+
+export const zEventTrailActorFilter = z.object({
+  id: z.string().optional(),
+  type: zEventTrailActorType,
+  name: z.string().optional(),
+  email: z.email().optional(),
+})
+
+export const zEventTrailWorkspaceFilter = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+})
+
+export const zEventTrailFilters = z.object({
+  actors: z.array(zEventTrailActorFilter),
+  categories: z.array(z.string()),
+  workspaces: z.array(zEventTrailWorkspaceFilter),
+  target_types: z.array(zEventTrailTargetType),
+})
+
+export const zEventTrailFilterField = z.enum([
+  "actor_type",
+  "actor_id",
+  "category",
+  "workspace_id",
+  "target_type",
+  "result",
+  "created_at",
+])
+
+export const zEventTrailFilter = z.object({
+  field: zEventTrailFilterField,
+  values: z.array(z.string().min(1).max(256)).min(1).max(100),
+})
+
+export const zListEventTrailEventsRequest = z.object({
+  filters: z.array(zEventTrailFilter).max(7),
+  limit: z.int().gte(1).lte(100).default(50),
+  page_token: z.string().optional(),
+})
+
+export const zListEventTrailEventsResponse = z.object({
+  events: z.array(zEventTrailEvent),
+  filter_options: zEventTrailFilters,
+  next_page_token: z.string(),
+})
+
 /**
  * Lowercase hexadecimal OTLP trace ID.
  */
@@ -35,13 +138,143 @@ export const zTenantCondition = z.object({
   message: z.string(),
 })
 
+export const zResourceCapabilities = z.object({
+  read: z.boolean(),
+  create: z.boolean(),
+  modify: z.boolean(),
+  delete: z.boolean(),
+})
+
+export const zResourceActor = z.object({
+  id: z.string().min(1),
+  name: z.string().nullable(),
+  email: z.email().nullable(),
+  image: z.string().nullable(),
+})
+
 export const zTenant = z.object({
-  tenant_id: z.string(),
-  user_id: z.string(),
+  organization_id: z.string(),
   namespace: z.string(),
   ready: z.boolean(),
   phase: zTenantPhase,
   conditions: z.array(zTenantCondition),
+  skill_capabilities: zResourceCapabilities,
+  mcp_connection_capabilities: zResourceCapabilities,
+  sandbox_capabilities: zResourceCapabilities,
+  inference_provider_capabilities: zResourceCapabilities,
+  inference_pool_capabilities: zResourceCapabilities,
+})
+
+export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
+
+export const zAgentWorkspaceCapabilities = z.object({
+  author: z.boolean(),
+})
+
+export const zWorkspaceCapabilities = z.object({
+  administer: z.boolean(),
+  agents: zAgentWorkspaceCapabilities,
+  skills: zResourceCapabilities,
+  mcp_connections: zResourceCapabilities,
+  sandboxes: zResourceCapabilities,
+  inference_providers: zResourceCapabilities,
+  inference_pools: zResourceCapabilities,
+  api_keys: zResourceCapabilities,
+  observability: zResourceCapabilities,
+})
+
+export const zWorkspace = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  namespace: z.string(),
+  state: zWorkspaceState,
+  provisioning_attempt: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  failure_reason: z.string().optional(),
+  capabilities: zWorkspaceCapabilities,
+  workspace_admin_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zListWorkspacesResponse = z.object({
+  workspaces: z.array(zWorkspace),
+  can_create: z.boolean(),
+  can_enter_organization: z.boolean(),
+  next_page_token: z.string(),
+})
+
+export const zInheritedResourceType = z.enum([
+  "skill",
+  "sandbox",
+  "mcp_connection",
+  "inference_provider",
+])
+
+export const zSelectedOrganizationResources = z.object({
+  skills: z.array(z.string().min(1)),
+  sandboxes: z.array(z.string().min(1)),
+  mcp_connections: z.array(z.string().min(1)),
+  inference_providers: z.array(z.string().min(1)),
+})
+
+export const zCreateWorkspaceRequest = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/.*\S.*/),
+  admin_member_ids: z.array(z.string().min(1).max(128)).max(100),
+  selected_organization_resources: zSelectedOrganizationResources,
+})
+
+export const zInheritedResourceConsumer = z.object({
+  kind: z.string(),
+  name: z.string(),
+})
+
+export const zResourceLifecycle = z.enum(["Accepted", "Ready", "NotReady", "Degraded", "Error"])
+
+export const zWorkspaceInheritedResource = z.object({
+  name: z.string(),
+  status: zResourceLifecycle,
+  message: z.string().optional(),
+  selected: z.boolean(),
+  consumers: z.array(zInheritedResourceConsumer),
+  disabled_reason: z.string().optional(),
+})
+
+export const zListWorkspaceInheritedResourcesResponse = z.object({
+  resource_type: zInheritedResourceType,
+  resources: z.array(zWorkspaceInheritedResource),
+})
+
+export const zReplaceWorkspaceInheritedResourcesRequest = z.object({
+  names: z.array(z.string().min(1)),
+})
+
+export const zWorkspaceMemberCandidate = z.object({
+  member_id: z.string(),
+  user_id: z.string(),
+  name: z.string(),
+  email: z.email(),
+  image: z.string().nullable(),
+})
+
+export const zListWorkspaceMemberCandidatesResponse = z.object({
+  members: z.array(zWorkspaceMemberCandidate),
+})
+
+export const zUpdateWorkspaceLifecycleRequest = z.object({
+  provisioning_attempt: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  state: z.enum(["ready", "failed"]),
+  failure_reason: z.string().min(1).max(1024).optional(),
 })
 
 export const zObservabilityAction = z.enum(["Allowed", "Blocked"])
@@ -51,6 +284,17 @@ export const zAgentName = z
   .min(1)
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zResourceScope = z.enum(["Organisation", "Workspace"])
+
+export const zResourceReference = z.object({
+  scope: zResourceScope,
+  name: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+})
 
 export const zAgentMemoryConfig = z.object({
   enabled: z.boolean(),
@@ -212,8 +456,69 @@ export const zPatchWorkflowRunNodeStatusRequest = z.object({
   message: z.string().max(4096).optional(),
 })
 
+export const zAgentCapabilities = z.object({
+  use: z.boolean(),
+  modify: z.boolean(),
+  delete: z.boolean(),
+  share: z.boolean(),
+  manage_ownership: z.boolean(),
+  read_secrets: z.boolean(),
+  write_secrets: z.boolean(),
+  delete_secrets: z.boolean(),
+})
+
+export const zAgentOwner = z.object({
+  agent_name: zAgentName,
+  creator_user_id: z.string(),
+  owner_user_id: z.string(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zAgentShareCapability = z.enum([
+  "share_non_authored",
+  "use_shared",
+  "read_shared_secret",
+  "write_shared_secret",
+  "delete_shared_secret",
+])
+
+export const zAgentShare = z.object({
+  id: z.string(),
+  agent_name: zAgentName,
+  target_user_id: z.string().nullable(),
+  target_team_id: z.string().nullable(),
+  created_by: z.string(),
+  capabilities: z.array(zAgentShareCapability),
+  created_at: z.iso.datetime(),
+})
+
+export const zListAgentSharesResponse = z.object({
+  shares: z.array(zAgentShare),
+  next_page_token: z.string(),
+})
+
+export const zAgentAccessTargetKind = z.enum(["user", "team"])
+
+export const zAgentAccessTarget = z.object({
+  kind: zAgentAccessTargetKind,
+  id: z.string(),
+  label: z.string(),
+  email: z.string().nullable(),
+  image: z.string().nullable(),
+  capabilities: z.array(zAgentShareCapability),
+  can_own: z.boolean(),
+})
+
+export const zListAgentAccessTargetsResponse = z.object({
+  targets: z.array(zAgentAccessTarget),
+})
+
 export const zSkill = z.object({
   name: zSkillName,
+  scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   description: z.string().min(1).max(1024),
   version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
@@ -222,14 +527,14 @@ export const zSkill = z.object({
   agents: z.array(zAgentName),
   sandboxes: z.array(zSandboxName),
   created_at: z.iso.datetime(),
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
 })
 
 export const zListSkillsResponse = z.object({
   skills: z.array(zSkill),
   next_page_token: z.string(),
 })
-
-export const zSkillKind = z.enum(["mutable", "immutable"])
 
 export const zSkillFileSummary = z.object({
   name: zSkillName,
@@ -250,6 +555,11 @@ export const zListMutableSkillsResponse = z.object({
 export const zImmutableSkillSummary = zSkillFileSummary.and(
   z.object({
     description: z.string(),
+    created_by: zResourceActor,
+    last_modified_by: zResourceActor,
+    scope: zResourceScope,
+    can_modify: z.boolean(),
+    can_delete: z.boolean(),
     version: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
       error: "Invalid value: Expected int64 to be <= 9223372036854775807",
     }),
@@ -267,8 +577,30 @@ export const zDeleteSkillsRequest = z.object({
   skill_names: z.array(zSkillName).min(1).max(200),
 })
 
-export const zExportSkillsRequest = z.object({
+export const zExportMutableSkillsRequest = z.object({
   skill_names: z.array(zSkillName).min(1).max(200),
+})
+
+export const zExportImmutableSkillsRequest = z.object({
+  skills: z.array(zResourceReference).min(1).max(200),
+})
+
+export const zImmutableSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  conflict: z.boolean(),
+})
+
+export const zImmutableSkillImportPreviewResponse = z.object({
+  skills: z.array(zImmutableSkillImportPreviewItem),
+})
+
+export const zMutableSkillImportPreviewItem = z.object({
+  name: zSkillName,
+  conflict_agents: z.array(zAgentName),
+})
+
+export const zMutableSkillImportPreviewResponse = z.object({
+  skills: z.array(zMutableSkillImportPreviewItem),
 })
 
 export const zCreateSkillImportDecision = z.object({
@@ -293,23 +625,13 @@ export const zSkillImportDecision = z.discriminatedUnion("action", [
   zRenameSkillImportDecision.extend({ action: z.literal("rename") }),
 ])
 
-export const zSkillImportPreviewItem = z.object({
-  name: zSkillName,
-  mutable_conflict_agents: z.array(zAgentName),
-  immutable_conflict: z.boolean(),
-})
-
-export const zSkillImportPreviewResponse = z.object({
-  skills: z.array(zSkillImportPreviewItem),
-})
-
 export const zSkillImportAgentResult = z.object({
   agent: zAgentName,
   status: z.enum(["succeeded", "failed"]),
   error: z.string().optional(),
 })
 
-export const zImportSkillsResponse = z.object({
+export const zSkillImportResponse = z.object({
   skills: z.array(zSkillName),
   agents: z.array(zSkillImportAgentResult),
 })
@@ -339,13 +661,16 @@ export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "D
 
 export const zAgent = z.object({
   name: zAgentName,
-  sandboxName: zSandboxName,
+  sandbox: zResourceReference,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   last_activity: z.iso.datetime(),
   memory: zAgentMemoryConfig,
   created_at: z.iso.datetime(),
   modified_at: z.iso.datetime(),
-  skills: z.array(zSkillName),
+  skills: z.array(zResourceReference),
   status: zAgentStatus,
+  capabilities: zAgentCapabilities,
 })
 
 export const zListAgentsResponse = z.object({
@@ -468,6 +793,16 @@ export const zDeleteWorkflowsRequest = z.object({
   workflow_names: z.array(zWorkflowName).min(1),
 })
 
+export const zTransferAgentOwnerRequest = z.object({
+  owner_user_id: z.string().min(1),
+})
+
+export const zUpsertAgentShareRequest = z.object({
+  target_user_id: z.string().min(1).optional(),
+  target_team_id: z.string().min(1).optional(),
+  capabilities: z.array(zAgentShareCapability).min(1),
+})
+
 export const zAgentOpencodeConfig = z.object({
   instruction: z.string().max(4096).optional(),
 })
@@ -476,16 +811,16 @@ export const zCreateAgentRequest = z.object({
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
-  sandboxName: zSandboxName,
-  skills: z.array(zSkillName).optional(),
+  sandbox: zResourceReference,
+  skills: z.array(zResourceReference).optional(),
   opencode: zAgentOpencodeConfig.optional(),
 })
 
 export const zUpdateAgentRequest = z.object({
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
-  sandboxName: zSandboxName.optional(),
-  skills: z.array(zSkillName).optional(),
+  sandbox: zResourceReference.optional(),
+  skills: z.array(zResourceReference).optional(),
   opencode: zAgentOpencodeConfig.optional(),
 })
 
@@ -685,6 +1020,11 @@ export const zProcessObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zListProcessObservabilityResponse = z.object({
+  events: z.array(zProcessObservabilityEvent),
+  next_page_token: z.string(),
+})
+
 export const zProcessObservabilityEventAggregated = z.object({
   agent_name: zAgentName,
   last_seen: z.iso.datetime(),
@@ -698,8 +1038,8 @@ export const zProcessObservabilityEventAggregated = z.object({
   }),
 })
 
-export const zListProcessObservabilityResponse = z.object({
-  events: z.array(z.union([zProcessObservabilityEvent, zProcessObservabilityEventAggregated])),
+export const zListProcessObservabilitySummaryResponse = z.object({
+  events: z.array(zProcessObservabilityEventAggregated),
   next_page_token: z.string(),
 })
 
@@ -719,6 +1059,11 @@ export const zFileObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zListFileObservabilityResponse = z.object({
+  events: z.array(zFileObservabilityEvent),
+  next_page_token: z.string(),
+})
+
 export const zFileObservabilityEventAggregated = z.object({
   agent_name: zAgentName,
   last_seen: z.iso.datetime(),
@@ -732,8 +1077,8 @@ export const zFileObservabilityEventAggregated = z.object({
   }),
 })
 
-export const zListFileObservabilityResponse = z.object({
-  events: z.array(z.union([zFileObservabilityEvent, zFileObservabilityEventAggregated])),
+export const zListFileObservabilitySummaryResponse = z.object({
+  events: z.array(zFileObservabilityEventAggregated),
   next_page_token: z.string(),
 })
 
@@ -756,6 +1101,11 @@ export const zNetworkObservabilityEvent = z.object({
   source: z.string(),
 })
 
+export const zListNetworkObservabilityResponse = z.object({
+  events: z.array(zNetworkObservabilityEvent),
+  next_page_token: z.string(),
+})
+
 export const zNetworkObservabilityEventAggregated = z.object({
   agent_name: zAgentName,
   last_seen: z.iso.datetime(),
@@ -772,8 +1122,8 @@ export const zNetworkObservabilityEventAggregated = z.object({
   }),
 })
 
-export const zListNetworkObservabilityResponse = z.object({
-  events: z.array(z.union([zNetworkObservabilityEvent, zNetworkObservabilityEventAggregated])),
+export const zListNetworkObservabilitySummaryResponse = z.object({
+  events: z.array(zNetworkObservabilityEventAggregated),
   next_page_token: z.string(),
 })
 
@@ -995,6 +1345,8 @@ export const zCreateSecretRequest = z.object({
 
 export const zSecretListItem = z.object({
   key: zSecretKey,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   type: zSecretType,
   hosts: z.array(zSecretHost),
   provider: z.string().optional(),
@@ -1028,6 +1380,7 @@ export const zWatchSecretsEvent = z.object({
 })
 
 export const zSandboxInferenceModelRef = z.object({
+  scope: zResourceScope,
   provider: zInferenceProviderName,
   model: z.string().min(1).max(512),
 })
@@ -1365,11 +1718,16 @@ export const zInferenceProvider = zInferenceProviderReadFields
   .and(
     z.object({
       id: zInferenceProviderName,
+      scope: zResourceScope,
+      created_by: zResourceActor,
+      last_modified_by: zResourceActor,
       resource_version: z.string(),
       state: z.enum(["Accepted", "Ready", "Degraded"]),
       conditions: z.array(zInferenceProviderCondition),
       model_count: z.int().gte(0),
       usage_count: z.int().gte(0),
+      can_modify: z.boolean(),
+      can_delete: z.boolean(),
       created_at: z.iso.datetime(),
       updated_at: z.iso.datetime(),
     })
@@ -1381,7 +1739,7 @@ export const zListInferenceProvidersResponse = z.object({
 })
 
 export const zWatchInferenceProvidersRequest = z.object({
-  provider_ids: z.array(zInferenceProviderName).max(200).optional(),
+  providers: z.array(zResourceReference).max(200).optional(),
 })
 
 export const zWatchInferenceProvidersEvent = z.object({
@@ -1395,6 +1753,7 @@ export const zInferenceProviderUsage = z.object({
 })
 
 export const zInferencePoolMember = z.object({
+  scope: zResourceScope,
   provider: zInferenceProviderName,
   model: z.string().min(1).max(512),
 })
@@ -1429,6 +1788,7 @@ export const zInferencePoolWarning = z.object({
 })
 
 export const zInferencePoolMemberStatus = z.object({
+  scope: zResourceScope,
   provider: zInferenceProviderName,
   model: z.string().min(1).max(512),
   protocol: zInferenceProtocol,
@@ -1450,6 +1810,8 @@ export const zInferencePool = z.object({
   warnings: z.array(zInferencePoolWarning),
   member_statuses: z.array(zInferencePoolMemberStatus),
   usage_count: z.int().gte(0),
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })
@@ -1514,17 +1876,23 @@ export const zMcpConnectionToolRef = z.object({
 })
 
 export const zMcpConnectionRef = z.object({
+  scope: zResourceScope,
   tools: z.array(zMcpConnectionToolRef).min(1),
   name: zMcpConnectionName,
 })
 
 export const zSandbox = z.object({
   name: zSandboxName,
+  scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
-  skills: z.array(zSkillName),
+  skills: z.array(zResourceReference),
   inference: zSandboxInference,
+  can_modify: z.boolean(),
+  can_delete: z.boolean(),
   created_at: z.iso.datetime(),
   metadata: z.object({
     package_count: z
@@ -1553,7 +1921,7 @@ export const zCreateSandboxRequest = z.object({
   packages: z.array(z.string().min(1)).optional(),
   allowed_hosts: z.array(z.string().min(1)).optional(),
   mcp_connection_refs: z.array(zMcpConnectionRef).optional(),
-  skills: z.array(zSkillName).optional(),
+  skills: z.array(zResourceReference).optional(),
   inference: zSandboxInference,
 })
 
@@ -1561,7 +1929,7 @@ export const zUpdateSandboxRequest = z.object({
   packages: z.array(z.string().min(1)),
   allowed_hosts: z.array(z.string().min(1)),
   mcp_connection_refs: z.array(zMcpConnectionRef),
-  skills: z.array(zSkillName),
+  skills: z.array(zResourceReference),
   inference: zSandboxInference,
 })
 
@@ -1614,8 +1982,6 @@ export const zMcpConnectionAuth = z.object({
   oauth: zMcpConnectionOAuthAuth.optional(),
 })
 
-export const zMcpConnectionLifecycle = z.enum(["Accepted", "Ready", "Error"])
-
 export const zMcpConnectionReason = z.enum([
   "Ready",
   "ProbePending",
@@ -1625,8 +1991,14 @@ export const zMcpConnectionReason = z.enum([
   "InternalError",
 ])
 
+export const zMcpConnectionLifecycle = z.enum(["Accepted", "Ready", "Error"])
+
 export const zMcpConnectionDetail = z.object({
+  can_delete: z.boolean(),
   name: zMcpConnectionName,
+  scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   endpoint: zMcpConnectionEndpoint,
   auth: zMcpConnectionAuth,
   created_at: z.iso.datetime(),
@@ -1638,7 +2010,11 @@ export const zMcpConnectionDetail = z.object({
 })
 
 export const zMcpConnectionSummary = z.object({
+  can_delete: z.boolean(),
   name: zMcpConnectionName,
+  scope: zResourceScope,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
   auth_mode: z.string(),
   endpoint_url: z.string(),
   created_at: z.iso.datetime(),
@@ -1657,7 +2033,7 @@ export const zListMcpConnectionsResponse = z.object({
 })
 
 export const zWatchMcpConnectionsRequest = z.object({
-  names: z.array(zMcpConnectionName).optional(),
+  connections: z.array(zResourceReference).optional(),
 })
 
 export const zWatchMcpConnectionsEvent = z.object({
@@ -1812,6 +2188,31 @@ export const zUpdateInferenceProviderRequestWritable = z.object({
 })
 
 /**
+ * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+ *
+ */
+export const zWorkspaceIdHeader = z.string().min(1).max(128)
+
+/**
+ * Stable Workspace ID.
+ */
+export const zWorkspaceIdPath = z.string().min(1).max(128)
+
+export const zInheritedResourceTypePath = zInheritedResourceType
+
+export const zResourceScopeQuery = zResourceScope
+
+/**
+ * Current or historical Workspace slug.
+ */
+export const zWorkspaceSlugPath = z.string().min(1).max(128)
+
+/**
+ * Stable event trail event ID.
+ */
+export const zEventTrailEventIdPath = z.string().min(1)
+
+/**
  * Agent name.
  */
 export const zAgentNameQuery = zAgentName
@@ -1825,6 +2226,11 @@ export const zAgentNameQueryOptional = zAgentName
  * Agent name.
  */
 export const zAgentNamePath = zAgentName
+
+/**
+ * Stable Agent Share ID.
+ */
+export const zAgentShareIdPath = z.string().min(1)
 
 /**
  * Stable inference provider ID.
@@ -1913,14 +2319,19 @@ export const zEventTimeAfterQuery = z.iso.datetime()
 export const zEventTimeBeforeQuery = z.iso.datetime()
 
 /**
+ * Inclusive lower bound for event time.
+ */
+export const zEventTimeAfterRequiredQuery = z.iso.datetime()
+
+/**
+ * Inclusive upper bound for event time.
+ */
+export const zEventTimeBeforeRequiredQuery = z.iso.datetime()
+
+/**
  * Optional observability action filter.
  */
 export const zActionQuery = zObservabilityAction
-
-/**
- * When true, returns aggregated events with occurrence counts over the time range.
- */
-export const zAggregatedQuery = z.boolean().default(false)
 
 /**
  * Inclusive lower bound for MCP tool activity date.
@@ -1933,6 +2344,16 @@ export const zFromDateQuery = z.iso.date()
 export const zToDateQuery = z.iso.date()
 
 /**
+ * Paginated scoped event trail events and filter options.
+ */
+export const zListEventTrailEventsResponse2 = zListEventTrailEventsResponse
+
+/**
+ * Scoped event trail event detail.
+ */
+export const zGetEventTrailEventResponse = zEventTrailEvent
+
+/**
  * Tenant bootstrap state.
  */
 export const zGetTenantResponse = zTenant
@@ -1941,6 +2362,51 @@ export const zGetTenantResponse = zTenant
  * Tenant exists and current bootstrap state is returned.
  */
 export const zEnsureTenantResponse = zTenant
+
+/**
+ * Accessible Workspaces and navigation capabilities.
+ */
+export const zListWorkspacesResponse2 = zListWorkspacesResponse
+
+/**
+ * Workspace creation was accepted for provisioning.
+ */
+export const zCreateWorkspaceResponse = zWorkspace
+
+/**
+ * Eligible Workspace Admin candidates.
+ */
+export const zListWorkspaceMemberCandidatesResponse2 = zListWorkspaceMemberCandidatesResponse
+
+/**
+ * Accessible Workspace and canonical slug.
+ */
+export const zResolveWorkspaceSlugResponse = zWorkspace
+
+/**
+ * Accessible Workspace lifecycle state.
+ */
+export const zGetWorkspaceResponse = zWorkspace
+
+/**
+ * Organisation resource selection state and consumers.
+ */
+export const zListWorkspaceInheritedResourcesResponse2 = zListWorkspaceInheritedResourcesResponse
+
+/**
+ * Updated Organisation resource selection state.
+ */
+export const zReplaceWorkspaceInheritedResourcesResponse = zListWorkspaceInheritedResourcesResponse
+
+/**
+ * Workspace returned to provisioning.
+ */
+export const zRetryWorkspaceResponse = zWorkspace
+
+/**
+ * Lifecycle observation recorded or already current.
+ */
+export const zUpdateWorkspaceLifecycleResponse = z.void()
 
 /**
  * Paginated agent summaries.
@@ -1998,6 +2464,36 @@ export const zReadAgentFileRawResponse = z.string()
 export const zWriteAgentFileRawResponse = zAgentFileMetadata
 
 /**
+ * Agent ownership metadata.
+ */
+export const zGetAgentOwnerResponse = zAgentOwner
+
+/**
+ * Agent owner transferred.
+ */
+export const zTransferAgentOwnerResponse = zAgentOwner
+
+/**
+ * Agent Shares for the selected Agent.
+ */
+export const zListAgentSharesResponse2 = zListAgentSharesResponse
+
+/**
+ * Agent Share created or replaced.
+ */
+export const zUpsertAgentShareResponse = zAgentShare
+
+/**
+ * Agent Share deleted.
+ */
+export const zDeleteAgentShareResponse = z.void()
+
+/**
+ * Active Users and Teams with their eligible Agent capabilities.
+ */
+export const zListAgentAccessTargetsResponse2 = zListAgentAccessTargetsResponse
+
+/**
  * Directory created.
  */
 export const zCreateAgentDirectoryResponse = zAgentFileMetadata
@@ -2028,14 +2524,24 @@ export const zListAgentMutableSkillsResponse = zListMutableSkillsResponse
 export const zExportAgentMutableSkillsResponse = z.string()
 
 /**
- * Parsed skills and current conflicts.
+ * Parsed skills and current Agent conflicts.
  */
-export const zPreviewSkillImportResponse = zSkillImportPreviewResponse
+export const zPreviewMutableSkillImportResponse = zMutableSkillImportPreviewResponse
 
 /**
- * A result for every targeted Agent.
+ * Imported skills and a result for every targeted Agent.
  */
-export const zImportSkillsResponse2 = zImportSkillsResponse
+export const zImportMutableSkillsResponse = zSkillImportResponse
+
+/**
+ * Parsed skills and current conflicts.
+ */
+export const zPreviewImmutableSkillImportResponse = zImmutableSkillImportPreviewResponse
+
+/**
+ * Imported skills and any requested Agent attachment results.
+ */
+export const zImportImmutableSkillsResponse = zSkillImportResponse
 
 /**
  * Skills deleted.
@@ -2107,14 +2613,29 @@ export const zGetSpanDetailResponse = zSpanDetailResponse
 export const zListProcessObservabilityResponse2 = zListProcessObservabilityResponse
 
 /**
+ * Paginated process observability summaries.
+ */
+export const zListProcessObservabilitySummaryResponse2 = zListProcessObservabilitySummaryResponse
+
+/**
  * Paginated file observability events.
  */
 export const zListFileObservabilityResponse2 = zListFileObservabilityResponse
 
 /**
+ * Paginated file observability summaries.
+ */
+export const zListFileObservabilitySummaryResponse2 = zListFileObservabilitySummaryResponse
+
+/**
  * Paginated network observability events.
  */
 export const zListNetworkObservabilityResponse2 = zListNetworkObservabilityResponse
+
+/**
+ * Paginated network observability summaries.
+ */
+export const zListNetworkObservabilitySummaryResponse2 = zListNetworkObservabilitySummaryResponse
 
 /**
  * Graph-ready MCP observability for an agent.

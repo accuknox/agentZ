@@ -20,15 +20,17 @@ export type ListSecretsQueryResponse =
 
 export async function listSecretsCachedQuery(
   agentName: string,
+  workspaceId: string,
   query?: { limit?: number; page_token?: string }
 ): Promise<ListSecretsQueryResponse> {
   "use cache: private"
 
   cacheLife("minutes")
-  cacheTag(secretsTag, agentSecretsTag(agentName))
+  cacheTag(secretsTag, `${agentSecretsTag(agentName)}:${workspaceId}`)
 
   const { data, error } = await listSecrets({
-    client: getGatewayServerClient(),
+    client: getGatewayServerClient(workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: { agentName },
     query,
   })

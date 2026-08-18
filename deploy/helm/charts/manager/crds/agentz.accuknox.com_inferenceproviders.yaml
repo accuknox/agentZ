@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: inferenceproviders.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -214,6 +214,12 @@ spec:
                 x-kubernetes-validations:
                 - message: catalog provider is immutable
                   rule: self == oldSelf
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID
+                  that created the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
               displayName:
                 description: DisplayName is the editable human-readable provider label.
                 maxLength: 128
@@ -242,6 +248,12 @@ spec:
                 - Bedrock
                 - VertexAI
                 - Azure
+                type: string
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that
+                  last changed the resource.
+                maxLength: 128
+                minLength: 1
                 type: string
               models:
                 description: Models lists the explicitly enabled upstream models.
@@ -499,8 +511,10 @@ spec:
                 type: object
             required:
             - catalogProvider
+            - createdByUserID
             - displayName
             - kind
+            - lastModifiedByUserID
             - models
             type: object
             x-kubernetes-validations:
@@ -552,6 +566,8 @@ spec:
                 ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) &&
                 !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock)
                 && !has(self.vertexAI) && !has(self.azure) : true'
+            - message: createdByUserID is immutable
+              rule: self.createdByUserID == oldSelf.createdByUserID
           status:
             description: Status describes the observed provider runtime.
             properties:

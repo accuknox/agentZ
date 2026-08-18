@@ -73,7 +73,6 @@ const (
 	agentRuntimeUID                = int64(1000)
 	agentRuntimeGID                = int64(1000)
 	nixPkgEnv                      = "NIX_PACKAGES"
-	packageJobLabelKey             = "agentz.accuknox.com/agent-package-job"
 	packageJobNameSuffix           = "-packages"
 	packageJobHashAnnotation       = "agentz.accuknox.com/package-job-hash"
 	packageJobRootVolume           = "nix-agent-root"
@@ -110,6 +109,7 @@ type RuntimeConfig struct {
 	AgentDefaultImage                string
 	GatewayURL                       string
 	SharedNixPVC                     string
+	NixCacheEndpoint                 string
 	AgentInitImage                   string
 	OpenBaoAddr                      string
 	ManagerOpenBaoAddr               string
@@ -144,7 +144,7 @@ func packageJobLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	maps.Copy(labels, agt.Labels)
 	labels["app.kubernetes.io/name"] = "agentz-agent-packages"
 	labels["app.kubernetes.io/instance"] = agt.Name
-	labels[packageJobLabelKey] = agt.Name
+	labels[agentzv1alpha1.AgentPackageJobLabel] = agt.Name
 	labels["agentz.accuknox.com/managed"] = "true"
 	return labels
 }
@@ -402,12 +402,13 @@ type configHashInput struct {
 }
 
 type packageJobHashInput struct {
-	Image    string                `json:"image"`
-	Endpoint string                `json:"endpoint"`
-	Region   string                `json:"region"`
-	Bucket   string                `json:"bucket"`
-	Packages []string              `json:"packages"`
-	Skills   []skill.ManifestSkill `json:"skills"`
+	Image            string                `json:"image"`
+	NixCacheEndpoint string                `json:"nixCacheEndpoint"`
+	S3Endpoint       string                `json:"s3Endpoint"`
+	Region           string                `json:"region"`
+	Bucket           string                `json:"bucket"`
+	Packages         []string              `json:"packages"`
+	Skills           []skill.ManifestSkill `json:"skills"`
 }
 
 func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) (string, error) {
@@ -437,14 +438,15 @@ func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, 
 	return fmt.Sprintf("%x", sum), nil
 }
 
-func packageJobHash(image string, store skill.Config, envCfg sandboxConfig) (string, error) {
+func packageJobHash(image, nixCacheEndpoint string, store skill.Config, envCfg sandboxConfig) (string, error) {
 	hashInput, err := json.Marshal(packageJobHashInput{
-		Image:    strings.TrimSpace(image),
-		Endpoint: store.Endpoint,
-		Region:   store.Region,
-		Bucket:   store.Bucket,
-		Packages: envCfg.Packages,
-		Skills:   envCfg.Skills,
+		Image:            strings.TrimSpace(image),
+		NixCacheEndpoint: nixCacheEndpoint,
+		S3Endpoint:       store.Endpoint,
+		Region:           store.Region,
+		Bucket:           store.Bucket,
+		Packages:         envCfg.Packages,
+		Skills:           envCfg.Skills,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal package job hash input: %w", err)
@@ -455,9 +457,12 @@ func packageJobHash(image string, store skill.Config, envCfg sandboxConfig) (str
 
 func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructionFile, error) {
 	var philosophy strings.Builder
-	err := philosophyTemplate.Execute(&philosophy, philosophyData{
-		AgentName: agt.Name,
-	})
+	err := philosophyTemplate.Execute(
+		&philosophy,
+		philosophyData{
+			AgentName: agt.Name,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("render agent philosophy: %w", err)
 	}
@@ -468,10 +473,13 @@ func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructio
 	}}
 
 	if instruction := strings.TrimSpace(agt.Spec.Instruction); instruction != "" {
-		files = append(files, opencodeInstructionFile{
-			Path:    opencodeInstructionPath,
-			Content: opencodeInstructionPreamble + "\n\n" + instruction,
-		})
+		files = append(
+			files,
+			opencodeInstructionFile{
+				Path:    opencodeInstructionPath,
+				Content: opencodeInstructionPreamble + "\n\n" + instruction,
+			},
+		)
 	}
 
 	return files, nil

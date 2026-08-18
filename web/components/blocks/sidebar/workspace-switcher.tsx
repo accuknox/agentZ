@@ -66,6 +66,24 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
         setOpenMobile(false)
       }
     }
+    const organizationEntry = (
+      <>
+        <OrganizationAvatar
+          className="size-7"
+          logo={scope.organization.logo}
+          name={scope.organization.name}
+        />
+        <span className="min-w-0">
+          <span
+            className="block truncate text-sm font-medium"
+            title={scope.organization.name}
+          >
+            {scope.organization.name}
+          </span>
+          <span className="text-muted-foreground block text-xs">Organisation</span>
+        </span>
+      </>
+    )
 
     return (
       <SidebarMenu>
@@ -109,33 +127,26 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
               className="w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-xl p-0"
               sideOffset={8}
             >
-              <button
-                aria-current={scope.kind === "organization" ? "page" : undefined}
-                className="hover:bg-muted/60 focus-visible:ring-ring/50 aria-[current=page]:bg-muted/60 mx-1 mt-1 flex w-[calc(100%-0.5rem)] min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!scope.canEnterOrganization || isPending}
-                onClick={() => {
-                  close()
-                  if (scope.kind === "workspace") {
-                    navigate(`${root}/workspaces` as Route)
-                  }
-                }}
-                type="button"
-              >
-                <OrganizationAvatar
-                  className="size-7"
-                  logo={scope.organization.logo}
-                  name={scope.organization.name}
-                />
-                <span className="min-w-0">
-                  <span
-                    className="block truncate text-sm font-medium"
-                    title={scope.organization.name}
-                  >
-                    {scope.organization.name}
-                  </span>
-                  <span className="text-muted-foreground block text-xs">Organisation</span>
-                </span>
-              </button>
+              {scope.canEnterOrganization ? (
+                <button
+                  aria-current={scope.kind === "organization" ? "page" : undefined}
+                  className="hover:bg-muted/60 focus-visible:ring-ring/50 aria-[current=page]:bg-muted/60 mx-1 mt-1 flex w-[calc(100%-0.5rem)] min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isPending}
+                  onClick={() => {
+                    close()
+                    if (scope.kind === "workspace") {
+                      navigate(`${root}/workspaces` as Route)
+                    }
+                  }}
+                  type="button"
+                >
+                  {organizationEntry}
+                </button>
+              ) : (
+                <div className="mx-1 mt-1 flex w-[calc(100%-0.5rem)] min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left">
+                  {organizationEntry}
+                </div>
+              )}
               <Command
                 className="border-border/60 rounded-none! border-t [&_[data-slot=command-input-wrapper]]:pt-0"
                 onValueChange={setSelected}

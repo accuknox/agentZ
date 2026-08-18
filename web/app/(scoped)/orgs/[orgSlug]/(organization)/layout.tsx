@@ -88,15 +88,14 @@ export default async function OrganizationLayout({
     )
   }
 
-  await activateOrganization(result.organization.id)
-  if (!result.organization.hasAccess) {
+  if (result.kind === "zero-access") {
     return (
       <>
         <ThemeSync theme={preferences.theme} />
         <AppShell
           sidebar={
             <AppSidebar
-              activeOrganizationId={result.organization.id}
+              activeOrganizationId={result.organizationSession.activeOrganizationId}
               organizations={result.organizationSession.organizations}
               scope={{ kind: "no-access", organization: result.organization }}
               user={{
@@ -118,6 +117,8 @@ export default async function OrganizationLayout({
       </>
     )
   }
+
+  await activateOrganization(result.organization.id)
 
   const tenant = await ensureTenant({
     client: getGatewayServerClient(),

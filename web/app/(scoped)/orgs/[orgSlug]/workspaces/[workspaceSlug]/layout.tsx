@@ -50,12 +50,12 @@ export default async function WorkspaceLayout({
   if (
     result.scope.kind === "forbidden" ||
     result.scope.kind === "disabled" ||
-    (result.scope.kind === "ready" && !result.scope.organization.hasAccess)
+    result.scope.kind === "zero-access"
   ) {
     const { organizationSession } = result.scope
     const disabled = result.scope.kind === "disabled"
     const noAccessOrganization =
-      result.scope.kind === "ready" ? result.scope.organization : undefined
+      result.scope.kind === "zero-access" ? result.scope.organization : undefined
     return (
       <>
         <ThemeSync theme={preferences.theme} />

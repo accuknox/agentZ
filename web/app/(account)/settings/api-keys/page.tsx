@@ -53,7 +53,7 @@ async function getAPIKeyContext() {
   const session = await getOrganizationSession()
   const activeId = session?.activeOrganizationId
   const organization = session?.organizations.find((item) => item.id === activeId)
-  if (!organization?.hasAccess) return { workspaces: [] }
+  if (!organization) return { workspaces: [] }
   const result = await getWorkspaceDirectory(organization.slug)
   if (!result.directory) return { workspaces: [] }
   const ready = result.directory.workspaces.filter((workspace) => workspace.state === "ready")

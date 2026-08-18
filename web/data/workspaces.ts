@@ -35,9 +35,6 @@ export const getWorkspaceDirectory = cache(async (orgSlug: string) => {
   if (scope.kind !== "ready") {
     return { scope }
   }
-  if (!scope.organization.hasAccess) {
-    return { kind: "zero-access" as const, scope }
-  }
 
   await activateOrganization(scope.organization.id)
   const client = getGatewayServerClient()
@@ -70,7 +67,7 @@ export const getWorkspaceDirectory = cache(async (orgSlug: string) => {
 
 export async function getWorkspacePage(orgSlug: string, pageToken?: string) {
   const scope = await resolveOrganizationSlug(orgSlug)
-  if (scope.kind !== "ready" || !scope.organization.hasAccess) return { scope }
+  if (scope.kind !== "ready") return { scope }
 
   await activateOrganization(scope.organization.id)
   const result = await listWorkspaces({
@@ -84,9 +81,6 @@ export async function getWorkspacePage(orgSlug: string, pageToken?: string) {
 export const getWorkspaceScope = cache(async (orgSlug: string, workspaceSlug: string) => {
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind !== "ready") {
-    return { scope }
-  }
-  if (!scope.organization.hasAccess) {
     return { scope }
   }
 

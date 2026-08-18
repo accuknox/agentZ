@@ -336,7 +336,7 @@ func (e Effective) AgentCapabilities(scope Scope, agent Agent) (AgentCapabilitie
 				"administrator":    cedar.Boolean(e.CanAdminister(scope)),
 				"owner":            cedar.NewEntityUID("User", cedar.String(agent.OwnerUserID)),
 				"share_grants":     cedar.NewSet(shareGrants...),
-				"workspace_access": cedar.Boolean(e.HasWorkspaceAccess(scope)),
+				"workspace_access": cedar.Boolean(e.HasAccess(scope)),
 				"workspace_grants": cedar.NewSet(workspaceGrants...),
 			}),
 		},
@@ -468,10 +468,10 @@ func (e Effective) CanAdminister(scope Scope) bool {
 	return ok
 }
 
-// HasWorkspaceAccess reports whether the subject has any active authority in
-// a Workspace. Agent ownership depends on this so an owned Agent cannot keep a
-// user inside a Workspace after all independent access is revoked.
-func (e Effective) HasWorkspaceAccess(scope Scope) bool {
+// HasAccess reports whether the subject has any active authority in the exact
+// scope. Agent ownership depends on this so ownership alone cannot retain
+// access after all independent authority is revoked.
+func (e Effective) HasAccess(scope Scope) bool {
 	if scope.OrganizationID != e.organizationID {
 		return false
 	}

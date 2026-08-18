@@ -53,11 +53,18 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 	if !ok {
 		return
 	}
-	canCreate, canEnter, err := s.workspaceAuthority(r.Context(), claims)
+	effective, err := authorization.New(s.queries).Resolve(
+		r.Context(),
+		authorization.Subject{
+			UserID:         claims.UserID,
+			OrganizationID: claims.OrganizationID,
+		},
+	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		writeInternalError(w, r, fmt.Errorf("resolve workspace authority: %w", err))
 		return
 	}
+	organizationScope := authorization.Scope{OrganizationID: claims.OrganizationID}
 	rows, err := s.workspaceAccessPage(
 		r.Context(),
 		claims,
@@ -79,16 +86,6 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		})
 	}
 	workspaces := make([]gatewayapi.Workspace, 0, len(rows))
-	effective, err := authorization.New(s.queries).Resolve(
-		r.Context(),
-		authorization.Subject{
-			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
-		},
-	)
-	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve workspace capabilities: %w", err))
-		return
-	}
 	for _, row := range rows {
 		capabilities := resourceCapabilities(effective, claims.OrganizationID, row.Workspace.ID)
 		workspaces = append(
@@ -106,8 +103,8 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		w,
 		http.StatusOK,
 		gatewayapi.ListWorkspacesResponse{
-			CanCreate:            canCreate,
-			CanEnterOrganization: canEnter,
+			CanCreate:            effective.CanAdminister(organizationScope),
+			CanEnterOrganization: effective.HasAccess(organizationScope),
 			NextPageToken:        next,
 			Workspaces:           workspaces,
 		},
@@ -961,11 +958,6 @@ func externalWorkspaceClaims(ctx context.Context) (gatewayClaims, *apiError) {
 }
 
 func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]gatewaydb.GatewayListAccessibleWorkspacesRow, error) {
-	_, _, err := s.workspaceAuthority(ctx, claims)
-	if err != nil {
-		return nil, err
-	}
-
 	var rows []gatewaydb.GatewayListAccessibleWorkspacesRow
 	var cursor workspacePageCursor
 	for {
@@ -980,30 +972,6 @@ func (s *Service) workspaceAccess(ctx context.Context, claims gatewayClaims) ([]
 		last := page[len(page)-1].Workspace
 		cursor = workspacePageCursor{Name: last.Name, ID: last.ID}
 	}
-}
-
-func (s *Service) workspaceAuthority(ctx context.Context, claims gatewayClaims) (bool, bool, error) {
-	member, err := s.queries.GatewayIsActiveOrganizationMember(
-		ctx,
-		gatewaydb.GatewayIsActiveOrganizationMemberParams{
-			UserID:         claims.UserID,
-			OrganizationID: claims.OrganizationID,
-		},
-	)
-	if err != nil {
-		return false, false, fmt.Errorf("authorize organization entry: %w", err)
-	}
-	superadmin, err := s.queries.GatewayIsActiveSuperadmin(
-		ctx,
-		gatewaydb.GatewayIsActiveSuperadminParams{
-			UserID:         claims.UserID,
-			OrganizationID: claims.OrganizationID,
-		},
-	)
-	if err != nil {
-		return false, false, fmt.Errorf("authorize workspace creation: %w", err)
-	}
-	return superadmin, member, nil
 }
 
 func (s *Service) workspaceAccessPage(ctx context.Context, claims gatewayClaims, cursor workspacePageCursor, cursorSet bool, limit int) ([]gatewaydb.GatewayListAccessibleWorkspacesRow, error) {

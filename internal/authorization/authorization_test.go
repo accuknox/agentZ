@@ -176,8 +176,8 @@ func TestResolverDirectRoleUnionAndScopeIsolation(t *testing.T) {
 		OrganizationID: "organization-b",
 		WorkspaceID:    "workspace-a",
 	}
-	if effective.HasWorkspaceAccess(crossOrganizationScope) {
-		t.Error("HasWorkspaceAccess() allowed a Workspace in another Organisation")
+	if effective.HasAccess(crossOrganizationScope) {
+		t.Error("HasAccess() allowed a Workspace in another Organisation")
 	}
 }
 

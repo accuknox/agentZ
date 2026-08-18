@@ -13,7 +13,6 @@ export type OrganizationSummary = {
   name: string
   slug: string
   superadmin: boolean
-  hasAccess: boolean
 }
 
 type OrganizationDatabase = Pick<ReturnType<typeof getDB>, "select">
@@ -168,11 +167,12 @@ export const getOrganizationSession = cache(async () => {
       .map(({ organizationId }) => organizationId)
   )
   const accessibleIds = new Set(assignments.map(({ organizationId }) => organizationId))
-  const organizations: OrganizationSummary[] = rows.map((organization) => ({
-    ...organization,
-    hasAccess: accessibleIds.has(organization.id),
-    superadmin: superadminIds.has(organization.id),
-  }))
+  const organizations: OrganizationSummary[] = rows
+    .filter((organization) => accessibleIds.has(organization.id))
+    .map((organization) => ({
+      ...organization,
+      superadmin: superadminIds.has(organization.id),
+    }))
 
   return {
     activeOrganizationId: session.session.activeOrganizationId,
@@ -221,6 +221,13 @@ export const resolveOrganizationSlug = cache(async (slug: string) => {
     if (membership?.disabledAt) {
       return {
         kind: "disabled" as const,
+        organizationSession,
+      }
+    }
+    if (membership) {
+      return {
+        kind: "zero-access" as const,
+        organization: { ...organization, superadmin: false },
         organizationSession,
       }
     }
@@ -356,9 +363,6 @@ export async function scheduleOrganizationRouteMemory(
 
 function organizationDestination(organization: OrganizationSummary, savedRoute?: string): Route {
   const root = `/orgs/${organization.slug}`
-  if (!organization.hasAccess) {
-    return root as Route
-  }
   if (savedRoute?.startsWith(`${root}/`)) {
     const segments = savedRoute.slice(root.length + 1).split("/")
     const workspaceLanding = segments[0] === "workspaces" && segments.length === 2

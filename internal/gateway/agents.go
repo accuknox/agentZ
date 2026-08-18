@@ -155,9 +155,9 @@ func (s *Service) agentOperationAllowed(ctx context.Context, access resourceAcce
 		return access.effective.Allows(scope, operation), nil
 	}
 	if operation == authorization.OperationListAgents || operation == authorization.OperationWatchAgents {
-		return access.effective.HasWorkspaceAccess(scope), nil
+		return access.effective.HasAccess(scope), nil
 	}
-	if name == "" || !access.effective.HasWorkspaceAccess(scope) {
+	if name == "" || !access.effective.HasAccess(scope) {
 		return false, nil
 	}
 	capabilities, err := s.agentCapabilityProjections(ctx, access, name)
@@ -981,7 +981,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		writeInternalError(w, r, fmt.Errorf("resolve new Agent owner permissions: %w", err))
 		return
 	}
-	hasWorkspace := effective.HasWorkspaceAccess(scope)
+	hasWorkspace := effective.HasAccess(scope)
 	canCreate := effective.Allows(scope, authorization.OperationCreateAgent)
 	if !hasWorkspace || !canCreate {
 		writeError(w, r, resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")))

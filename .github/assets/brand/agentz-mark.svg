@@ -1,0 +1,6 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AgentZ">
+  <rect width="64" height="64" rx="16" fill="#000025"/>
+  <rect x="17" y="17.6" width="30" height="8" rx="2.4" fill="#4f6bff"/>
+  <rect x="17" y="38.4" width="30" height="8" rx="2.4" fill="#4f6bff"/>
+  <path d="M43.7 21.6 L20.3 42.4" stroke="#2f4bd6" stroke-width="8" stroke-linecap="round"/>
+</svg>

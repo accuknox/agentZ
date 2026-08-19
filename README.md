@@ -323,7 +323,7 @@ Steps are skills that run in sequence or in parallel. Triggers start the run.
 Outputs come back when it finishes.
 
 <p align="center">
-  <img src=".github/assets/diagrams/workflow-anatomy.webp" alt="The four parts of an AgentZ workflow: inputs with a JSON schema and triggers feed the steps, and the steps produce outputs" width="860">
+  <img src=".github/assets/diagrams/workflow-anatomy.webp" alt="The four parts of an AgentZ workflow: inputs with a JSON schema and triggers feed the steps, and the steps produce outputs" width="900">
 </p>
 
 ### How one workflow uses the platform

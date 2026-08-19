@@ -7,5 +7,5 @@ interoperable with the OpenCode TUI client. You can connect to the agent
 using:
 
 ```
-opencode attach https://gw.agentz.accuknox.com/api/opencode/{AGENT_NAME}/
+opencode attach https://agentzharness.ai/api/opencode/{AGENT_NAME}/
 ```

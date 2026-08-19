@@ -1,10 +1,9 @@
 # Secret Injection
 
-AgentZ implements a zero-trust secret management model where agent
-containers never receive secret values directly. Instead, a per-agent proxy
-(sinjector) intercepts outbound requests, resolves secret references from
-OpenBao, and injects the actual values before forwarding traffic to upstream
-services.
+AgentZ implements a zero-trust secret management model where agent containers
+never receive secret values directly. Instead, a per-agent proxy (sinjector)
+intercepts outbound requests, resolves secret references from OpenBao, and
+injects the actual values before forwarding traffic to upstream services.
 
 ## Problem Statement
 

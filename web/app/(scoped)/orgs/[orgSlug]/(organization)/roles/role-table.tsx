@@ -124,7 +124,7 @@ export function RoleTable({
       ariaLabel={workspaceSlug ? "Workspace roles" : "Organization roles"}
       emptyState={
         <AdministrationState
-          description="Create a role to define reusable permissions and access."
+          description="Create a Role, choose its permissions, then assign it to members or Teams."
           kind="welcome"
           title="Let's create your first role"
         />

@@ -146,7 +146,7 @@ export function SecretTable({
       ariaLabel="Secrets"
       emptyState={
         <AdministrationState
-          description="Add a secret so your agents can authenticate with external services."
+          description="Store credentials for an Agent and restrict which hosts may receive them."
           kind={canCreate ? "welcome" : "empty"}
           title="Let's add your first secret"
         />

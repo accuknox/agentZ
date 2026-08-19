@@ -1,8 +1,8 @@
 ---
 name: example-skill
-description: A minimal valid Agent Skill.
+description: A valid Agent Skill you can copy and edit.
 ---
 
 # Example skill
 
-Use this file as the starting point for a skill import.
+Copy this file, replace the example text, and import the finished Markdown file.

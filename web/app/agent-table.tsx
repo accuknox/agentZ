@@ -107,7 +107,7 @@ export function AgentTable({
       ariaLabel="Agents"
       emptyState={
         <AdministrationState
-          description="Create an agent and give it a sandbox, skills, and tools."
+          description="Create an Agent, choose its Sandbox, and assign its immutable Skills."
           kind={canCreate ? "welcome" : "empty"}
           title="Let's create your first agent"
         />

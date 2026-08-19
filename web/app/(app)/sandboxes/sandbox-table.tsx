@@ -82,7 +82,7 @@ export function SandboxTable({
       ariaLabel="Sandboxes"
       emptyState={
         <AdministrationState
-          description="Create an isolated environment for your agents and their tools."
+          description="Create a Sandbox to isolate an Agent's packages, network access, and tools."
           kind={canCreate ? "welcome" : "empty"}
           title="Let's create your first sandbox"
         />

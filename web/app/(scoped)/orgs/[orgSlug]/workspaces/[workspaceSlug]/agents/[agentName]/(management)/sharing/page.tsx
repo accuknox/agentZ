@@ -69,7 +69,7 @@ export default async function AgentSharingPage({
               users={shareTargets.users}
             />
           }
-          description="Share this agent with an eligible user or team."
+          description="Share this Agent with a User or Team, then choose what they may do with it."
           kind="empty"
           title="No shares yet"
         />

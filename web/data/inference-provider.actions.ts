@@ -241,7 +241,7 @@ export async function pollInferenceProviderOAuthAction(
   const cookieStore = await cookies()
   const sealed = cookieStore.get(inferenceOAuthCookieName)?.value
   if (!sealed) {
-    return { status: "error", message: "Sign-in expired. Please try again." }
+    return { status: "error", message: "Sign-in expired. Start again." }
   }
 
   let pending: z.infer<typeof pendingInferenceOAuthSchema>
@@ -249,7 +249,7 @@ export async function pollInferenceProviderOAuthAction(
     pending = pendingInferenceOAuthSchema.parse(await openOAuthState(sealed, "inference-provider"))
   } catch {
     cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "Sign-in could not be completed. Please try again." }
+    return { status: "error", message: "We couldn't complete sign-in. Start again." }
   }
 
   const initiator = await currentGatewayAuthContext()
@@ -260,11 +260,11 @@ export async function pollInferenceProviderOAuthAction(
     pending.workspaceId !== scope.workspaceId
   ) {
     cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "Sign-in can no longer be used. Please try again." }
+    return { status: "error", message: "This sign-in is no longer valid. Start again." }
   }
   if (!dayjs(pending.expiresAt).isAfter(dayjs())) {
     cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "Sign-in expired. Please try again." }
+    return { status: "error", message: "Sign-in expired. Start again." }
   }
 
   try {
@@ -273,7 +273,7 @@ export async function pollInferenceProviderOAuthAction(
     }
     return await pollGitHubCopilot(pending, cookieStore, scope.workspaceId)
   } catch {
-    return { status: "error", message: "Sign-in could not be completed. Please try again." }
+    return { status: "error", message: "We couldn't complete sign-in. Start again." }
   }
 }
 

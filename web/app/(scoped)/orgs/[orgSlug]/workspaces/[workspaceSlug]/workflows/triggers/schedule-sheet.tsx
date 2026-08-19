@@ -412,9 +412,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     readOnly={isUpdate}
                   />
                   <input type="hidden" name={field.name} value={field.value} ref={field.ref} />
-                  <FieldDescription>
-                    Allowed: Lowercase alphabets, numbers and hyphens.
-                  </FieldDescription>
+                  <FieldDescription>Use lowercase letters, numbers, and hyphens.</FieldDescription>
                   {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
                 </Field>
               )}
@@ -452,7 +450,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  <FieldDescription>Saved workflow to run on this schedule.</FieldDescription>
+                  <FieldDescription>
+                    Choose the saved Workflow this schedule will run.
+                  </FieldDescription>
                   {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
                 </Field>
               )}
@@ -477,7 +477,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     aria-invalid={fieldState.invalid}
                     aria-required="true"
                   />
-                  <FieldDescription>Cron expression.</FieldDescription>
+                  <FieldDescription>Enter a 5-field cron expression.</FieldDescription>
                   {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
                 </Field>
               )}
@@ -508,7 +508,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     aria-required="true"
                   />
                   <FieldDescription>
-                    Maximum runtime for one scheduled workflow run.
+                    Stop a scheduled Workflow run after this many seconds.
                   </FieldDescription>
                   {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
                 </Field>
@@ -520,7 +520,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="successful-runs-history-limit" required>
-                    Successful Runs History Limit
+                    Successful run history limit
                   </FieldLabel>
                   <input
                     type="hidden"
@@ -542,7 +542,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       aria-required="true"
                     />
                   </div>
-                  <FieldDescription>Number of successful runs to retain.</FieldDescription>
+                  <FieldDescription>Keep this many successful runs.</FieldDescription>
                   {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
                 </Field>
               )}
@@ -553,7 +553,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="failed-runs-history-limit" required>
-                    Failed Runs History Limit
+                    Failed run history limit
                   </FieldLabel>
                   <input
                     type="hidden"
@@ -575,7 +575,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       aria-required="true"
                     />
                   </div>
-                  <FieldDescription>Number of failed runs to retain.</FieldDescription>
+                  <FieldDescription>Keep this many failed runs.</FieldDescription>
                   {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
                 </Field>
               )}

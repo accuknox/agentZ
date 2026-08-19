@@ -206,7 +206,7 @@ function DeleteAgentDialog({
         <DialogHeader>
           <DialogTitle>Delete {agent.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the agent permanently. This action cannot be undone.
+            Deleting this Agent removes it permanently. You cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

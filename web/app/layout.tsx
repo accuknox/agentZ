@@ -9,7 +9,8 @@ import Providers from "./providers"
 
 const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
 const socialTitle = "AgentZ | By Team AccuKnox"
-const description = "Build, run, and govern production agents. Secure by design."
+const description =
+  "Create and run agents with managed access, isolated sandboxes, skills, and tools."
 const socialImage = {
   url: "/agentz-social-card.png",
   alt: "AgentZ by Team AccuKnox",

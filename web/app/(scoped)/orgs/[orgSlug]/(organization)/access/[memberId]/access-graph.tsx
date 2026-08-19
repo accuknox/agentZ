@@ -170,7 +170,7 @@ function AccessSourceTable({ sources }: { sources: EffectiveAccessSource[] }) {
   if (sources.length === 0) {
     return (
       <AdministrationState
-        description="No effective grants exist in this scope or selected path."
+        description="No Role, Team, or share grants access through this scope and path."
         kind="empty"
         title="No effective access"
       />

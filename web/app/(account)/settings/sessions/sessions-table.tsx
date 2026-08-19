@@ -283,7 +283,7 @@ function DeleteSessionButton({
           <DialogHeader>
             <DialogTitle>Revoke session?</DialogTitle>
             <DialogDescription>
-              This will sign out that device immediately. This action cannot be undone.
+              We will sign out that device immediately. You cannot undo this action.
             </DialogDescription>
           </DialogHeader>
           {state.error ? (

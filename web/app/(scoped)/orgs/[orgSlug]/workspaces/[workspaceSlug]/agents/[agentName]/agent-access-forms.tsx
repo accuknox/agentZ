@@ -364,8 +364,8 @@ function AgentShareDialogForm({
               />
             )}
             <FieldDescription>
-              Only capabilities backed by the target&apos;s effective Workspace permissions are
-              available.
+              You may grant only capabilities already allowed by the target&apos;s Workspace
+              permissions.
             </FieldDescription>
           </Field>
         </FieldGroup>

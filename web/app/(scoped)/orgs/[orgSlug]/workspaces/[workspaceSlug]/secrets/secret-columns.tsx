@@ -219,7 +219,7 @@ function DeleteSecretDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {item.key}?</DialogTitle>
-          <DialogDescription>This will remove the secret permanently.</DialogDescription>
+          <DialogDescription>Deleting this secret removes it permanently.</DialogDescription>
         </DialogHeader>
         {state.error ? (
           <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">

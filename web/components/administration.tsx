@@ -134,14 +134,14 @@ export function AdministrationState({
   switch (kind) {
     case "provisioning":
       content = {
-        description: "Preparing resources.",
+        description: "We're creating this resource.",
         icon: <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />,
         title: "Provisioning in progress",
       }
       break
     case "deleting":
       content = {
-        description: "Cleanup in progress.",
+        description: "We're deleting this resource.",
         icon: <Trash2 aria-hidden="true" />,
         title: "Deletion in progress",
       }
@@ -155,7 +155,7 @@ export function AdministrationState({
       break
     case "forbidden":
       content = {
-        description: "Sorry, it seems like you do not have access to perform this action.",
+        description: "Your account does not have permission to do this.",
         icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
         title: "",
       }
@@ -352,7 +352,9 @@ export function ImpactReviewFrame({
           <Alert>
             <Clock3 aria-hidden="true" />
             <AlertTitle>No dependent changes</AlertTitle>
-            <AlertDescription>The requested action has no additional impact.</AlertDescription>
+            <AlertDescription>
+              This action does not change any dependent resources.
+            </AlertDescription>
           </Alert>
         )}
       </div>

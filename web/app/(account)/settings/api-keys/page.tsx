@@ -27,14 +27,14 @@ export default async function APIKeysPage({
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <AdministrationPageHeader
         actions={<APIKeyWorkspaceMenu workspaces={context.workspaces} />}
-        description="Personal credentials for Agents and workflow webhooks you can access."
+        description="Create and revoke your API keys for Agents and workflow webhooks."
         title="API keys"
       />
       {!context.workspaces.length ? (
         <Alert className="rounded-none border-x-0 px-4 md:px-6">
           <AlertTitle>No eligible Workspaces</AlertTitle>
           <AlertDescription>
-            You need access to a ready Workspace with at least one Agent before creating an API key.
+            To create an API key, choose a ready Workspace that has at least one Agent.
           </AlertDescription>
         </Alert>
       ) : null}

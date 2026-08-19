@@ -31,7 +31,7 @@ export default async function OrganizationPage({
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader title="Overview" />
       <AdministrationState
-        description="No workspace access is assigned to your account."
+        description="Your Roles and Teams do not grant access to any Workspace."
         kind="empty"
         title="No Workspace access"
       />

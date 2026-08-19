@@ -1615,7 +1615,7 @@ function EditorPane({
         <Alert className="m-2 w-auto" variant="warning">
           <AlertTitle>This file changed on disk</AlertTitle>
           <AlertDescription className="mt-1">
-            Reload the agent version or explicitly overwrite it with your draft.
+            Reload the Agent copy, or overwrite it with your draft.
           </AlertDescription>
           <div className="mt-2 flex gap-2">
             <Button

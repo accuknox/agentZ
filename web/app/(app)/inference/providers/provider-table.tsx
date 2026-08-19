@@ -220,7 +220,7 @@ export function InferenceProviderTable({
         ariaLabel="Inference providers"
         emptyState={
           <AdministrationState
-            description="Add a provider so your agents can access inference models."
+            description="Add provider credentials and choose which models Agents may use."
             kind={canCreate ? "welcome" : "empty"}
             title="Let's add your first inference provider"
           />
@@ -368,8 +368,8 @@ function DeleteProviderDialog({
         <DialogHeader>
           <DialogTitle>Delete {provider.display_name}?</DialogTitle>
           <DialogDescription>
-            This will delete the inference provider and its stored credentials. Providers used by
-            Pools or Sandboxes cannot be deleted.
+            This deletes the provider and its stored credentials. You cannot delete a provider while
+            a Pool or Sandbox uses it.
           </DialogDescription>
         </DialogHeader>
         {error ? (

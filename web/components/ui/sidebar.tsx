@@ -206,7 +206,7 @@ function Sidebar({
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetDescription>Use this panel to navigate on mobile.</SheetDescription>
           </SheetHeader>
           <Button
             aria-label="Close Sidebar"

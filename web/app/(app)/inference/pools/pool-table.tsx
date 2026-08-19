@@ -278,7 +278,7 @@ export function InferencePoolTable({
           ariaLabel="Inference pools"
           emptyState={
             <AdministrationState
-              description="Create a pool to route requests across compatible inference models."
+              description="Create a Pool and set the order in which models handle requests."
               kind={canCreate ? "welcome" : "empty"}
               title="Let's create your first pool"
             />
@@ -408,7 +408,7 @@ function DeletePoolDialog({
         <DialogHeader>
           <DialogTitle>Delete {pool.display_name}?</DialogTitle>
           <DialogDescription>
-            This Pool will no longer be available to Sandboxes. Remove it from every Sandbox first.
+            You cannot delete this Pool while a Sandbox uses it. Remove it from every Sandbox first.
           </DialogDescription>
         </DialogHeader>
         {error ? (
@@ -582,7 +582,7 @@ function PoolViewSheet({
                 </>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  Shared model support is still being calculated.
+                  We are still calculating the Pool Contract.
                 </p>
               )}
             </DetailSection>
@@ -644,7 +644,8 @@ function PoolViewSheet({
                     <TriangleAlert />
                     <AlertTitle>These models use different API formats</AlertTitle>
                     <AlertDescription>
-                      Provider-specific features may not carry over when this Pool switches models.
+                      A request that uses provider-specific fields may fail after this Pool switches
+                      models.
                     </AlertDescription>
                   </Alert>
                 ))

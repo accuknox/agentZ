@@ -159,7 +159,7 @@ export function McpTable({
           <AdministrationState
             description={
               canCreate
-                ? "Add an MCP connection to make its tools available to your agents."
+                ? "Connect an MCP server, then choose which of its tools Agents may use."
                 : "There are no MCP connections available in this scope."
             }
             kind={canCreate ? "welcome" : "empty"}

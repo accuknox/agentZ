@@ -121,7 +121,7 @@ function TeamAccessTable({
   if (sources.length === 0) {
     return (
       <AdministrationState
-        description="No effective grants exist in this scope or selected path."
+        description="No Role or Team grants access through this scope and path."
         kind="empty"
         title="No effective access"
       />

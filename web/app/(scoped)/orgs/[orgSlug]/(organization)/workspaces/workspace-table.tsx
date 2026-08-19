@@ -84,7 +84,7 @@ export function WorkspaceTable({
       ariaLabel="Workspaces"
       emptyState={
         <AdministrationState
-          description="Create a workspace to organize agents, resources, and access."
+          description="Create a Workspace with its own Agents, Sandboxes, secrets, and access rules."
           kind={canCreate ? "welcome" : "empty"}
           title="Let's create your first workspace"
         />

@@ -712,7 +712,7 @@ function McpToolsPanel({
   if (!detail.tool_catalog_ready) {
     return (
       <p className="text-muted-foreground text-sm">
-        Tool discovery is not ready yet. {detail.message}
+        We have not finished loading the tool catalog. {detail.message}
       </p>
     )
   }
@@ -724,7 +724,7 @@ function McpToolsPanel({
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-sm">
-        Enable the tools this sandbox may expose from <em>{connection.name}</em>.
+        Choose which tools from <em>{connection.name}</em> this Sandbox may expose to Agents.
       </p>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] overflow-hidden rounded border sm:mx-3">
@@ -734,8 +734,8 @@ function McpToolsPanel({
           const consentRequired = selectedTool?.requireConsent ?? false
           const consentLabel = consentRequired ? "Consent required" : "Consent not required"
           const consentActionLabel = consentRequired
-            ? `Consent required for ${tool.name}. Click to disable consent requirement.`
-            : `Consent not required for ${tool.name}. Click to require consent.`
+            ? `Consent required for ${tool.name}. Activate to remove the requirement.`
+            : `Consent not required for ${tool.name}. Activate to require consent.`
 
           const handleCheckedChange = (checked: boolean) => {
             if (checked) {
@@ -1406,7 +1406,7 @@ function ModelsStep({
             </EmptyMedia>
             <EmptyTitle>No inference providers are configured</EmptyTitle>
             <EmptyDescription>
-              Add a provider, then refresh this catalog without losing the rest of your draft.
+              Add a provider in a new tab, then refresh this catalog. Your draft will stay here.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -1466,7 +1466,7 @@ function ModelsStep({
                     Pools
                   </h2>
                   <p className="text-muted-foreground text-xs">
-                    One model name with built-in backups.
+                    A Pool routes one model name through an ordered list of models.
                   </p>
                 </div>
                 <div className="divide-y">
@@ -1539,7 +1539,7 @@ function ModelsStep({
                                   ? `${failures.map((member) => `${member.provider}/${member.model}`).join(", ")} unavailable. `
                                   : ""}
                                 {pool.warnings.length
-                                  ? "Some provider-specific features may not work when this Pool switches models."
+                                  ? "Requests that use provider-specific fields may fail when this Pool switches models."
                                   : ""}
                               </AlertDescription>
                             </Alert>
@@ -1595,7 +1595,7 @@ function ModelsStep({
                     <AccordionContent className="p-0">
                       {provider.models.length === 0 ? (
                         <p className="text-muted-foreground border-t px-3 py-4 text-sm">
-                          This provider has no models yet.
+                          This provider has no models.
                         </p>
                       ) : (
                         <div className="divide-y border-t">
@@ -1727,7 +1727,7 @@ function ModelsStep({
                     <SelectContent>{modelOptions}</SelectContent>
                   </Select>
                   <FieldDescription>
-                    Model used by default for new sessions and workflow runs.
+                    We use this model for new sessions and Workflow runs.
                   </FieldDescription>
                 </Field>
                 <Field>
@@ -1748,7 +1748,7 @@ function ModelsStep({
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    Optional image-capable model for images and scanned PDF pages.
+                    Optional model that processes images and scanned PDF pages.
                   </FieldDescription>
                 </Field>
                 <Field>
@@ -1769,7 +1769,7 @@ function ModelsStep({
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    Optional cheaper model for lightweight background tasks.
+                    Optional lower-cost model for lightweight background tasks.
                   </FieldDescription>
                 </Field>
                 {invalidSubmit && !inference ? (
@@ -1998,8 +1998,8 @@ function AllowedHostsStep({
       <FieldSet>
         <FieldLegend>Allowed hosts</FieldLegend>
         <FieldDescription>
-          Exact domains, `*.` single-label wildcards, `**.` deep wildcards, and IPv4 or IPv6 CIDR
-          ranges.
+          Add an exact domain or IP address, or an IPv4 or IPv6 CIDR range. `*.` matches one
+          subdomain label; `**.` matches any depth.
         </FieldDescription>
         <FieldGroup>
           <Field data-invalid={hostFieldInvalid}>

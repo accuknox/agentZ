@@ -104,7 +104,7 @@ const advancedAccordionItem = "advanced"
 const initialServerResults = 8
 const discoveryDebounceMs = 500
 const discoveryErrorMessage =
-  "If the MCP server supports OAuth, please fill in the required fields in advanced section manually."
+  "If the MCP server supports OAuth, enter its endpoints under Advanced."
 const discoveryURLSchema = z
   .url({ protocol: /^https?$/, error: "MCP server URL must be a valid HTTP(S) URL" })
   .refine(

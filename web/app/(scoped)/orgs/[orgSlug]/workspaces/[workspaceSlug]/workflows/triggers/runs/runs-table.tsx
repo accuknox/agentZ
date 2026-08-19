@@ -560,7 +560,7 @@ function DeleteRunDialog({
         <DialogHeader>
           <DialogTitle>Delete {item.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the workflow run permanently. This action cannot be undone.
+            Deleting this Workflow run removes it permanently. You cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

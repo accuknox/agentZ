@@ -442,7 +442,7 @@ export function AgentDialog({
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
                     <FieldDescription>
-                      Let this agent curate durable facts and keep a work journal.
+                      Allow this Agent to save facts and journal entries across sessions.
                     </FieldDescription>
                   </div>
                   {field.value ? <input type="hidden" name={field.name} /> : null}

@@ -117,7 +117,7 @@ export default async function OrganizationLayout({
             <AdministrationPageHeader title="Organization" />
             <div className="px-4 md:px-6">
               <AdministrationState
-                description="You joined this organisation, but no role or team grants product access yet."
+                description="You joined this organisation, but your Roles and Teams do not grant any permissions yet."
                 kind="forbidden"
                 title="Access not assigned"
               />

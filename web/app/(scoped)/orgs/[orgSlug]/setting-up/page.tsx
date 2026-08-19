@@ -20,7 +20,7 @@ export default function OrganizationProvisioningPage({
     <Suspense
       fallback={
         <main className="flex min-h-svh w-full items-center justify-center">
-          <Shimmer className="text-center">Loading organization provisioning…</Shimmer>
+          <Shimmer className="text-center">Checking Organisation provisioning…</Shimmer>
         </main>
       }
     >
@@ -53,7 +53,7 @@ async function OrganizationProvisioning({ params }: { params: Promise<{ orgSlug:
   return (
     <main className="flex min-h-svh w-full items-center justify-center">
       <meta httpEquiv="refresh" content="2" />
-      <Shimmer className="text-center">We&apos;re getting everything ready for you.</Shimmer>
+      <Shimmer className="text-center">We are provisioning this Organisation.</Shimmer>
     </main>
   )
 }

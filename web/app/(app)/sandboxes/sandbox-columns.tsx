@@ -207,7 +207,7 @@ function DeleteSandboxDialog({
         <DialogHeader>
           <DialogTitle>Delete {sandbox.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the sandbox permanently. This action cannot be undone.
+            Deleting this Sandbox removes it permanently. You cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

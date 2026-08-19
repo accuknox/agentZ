@@ -73,7 +73,7 @@ export function TeamTable({
       ariaLabel="Teams"
       emptyState={
         <AdministrationState
-          description="Create a team to manage members and access together."
+          description="Create a Team, add members, and assign Roles to the whole Team."
           kind="welcome"
           title="Let's create your first team"
         />

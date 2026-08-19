@@ -130,7 +130,7 @@ export function APIKeysTable({
       ariaLabel="API keys"
       emptyState={
         <AdministrationState
-          description="Create an API key to access this workspace programmatically."
+          description="Create a key for selected Agents and workflow webhooks in this Workspace."
           kind="empty"
           title="No API keys"
         />
@@ -262,7 +262,7 @@ function DeleteAPIKeyButton({
           <DialogHeader>
             <DialogTitle>Revoke API key?</DialogTitle>
             <DialogDescription>
-              This immediately denies every request using this key.
+              Revoking this key immediately denies every request that uses it.
             </DialogDescription>
           </DialogHeader>
           {state.error ? (

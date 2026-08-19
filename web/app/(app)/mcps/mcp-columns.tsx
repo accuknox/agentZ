@@ -266,7 +266,7 @@ function DeleteMcpDialog({
         <DialogHeader>
           <DialogTitle>Delete {connection.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the MCP connection and its stored credentials.
+            Deleting this MCP connection also removes its stored credentials.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

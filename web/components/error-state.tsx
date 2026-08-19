@@ -34,17 +34,17 @@ const errorContent: Record<ErrorKind, ErrorContent> = {
     title: "Service unavailable",
   },
   "not-found": {
-    description: "The page may have moved, been deleted, or never existed.",
+    description: "This address does not point to a page.",
     image: "/file-corrupted.svg",
     title: "Page not found",
   },
   timeout: {
-    description: "The service took too long to respond. Trying again usually resolves this.",
+    description: "The service took too long to respond. Try the request again.",
     image: "/cry-emoji.svg",
     title: "Request timed out",
   },
   unreadable: {
-    description: "The returned data could not be read. Try loading a fresh copy.",
+    description: "We couldn't read the response. Reload the data and try again.",
     image: "/file-corrupted.svg",
     title: "Data could not be read",
   },

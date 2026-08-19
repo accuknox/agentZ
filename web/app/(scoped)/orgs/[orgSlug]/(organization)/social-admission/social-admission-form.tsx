@@ -172,7 +172,8 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
           <FieldContent>
             <FieldLabel htmlFor="social-admission-enabled">Enable Social Sign Up</FieldLabel>
             <FieldDescription>
-              Let people join this Organization when they match the access rules below.
+              Allow people to join this Organization when their Google or GitHub account matches a
+              rule below.
             </FieldDescription>
           </FieldContent>
           <Switch
@@ -228,7 +229,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-semibold">Default access</h3>
               <p className="text-muted-foreground text-sm">
-                Assign roles and teams once when a qualifying account joins.
+                New members receive these roles and teams once, when they join.
               </p>
             </div>
             <FieldGroup
@@ -289,7 +290,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
               <div className="flex flex-col gap-1">
                 <h4 className="text-sm font-medium">Qualified workspaces</h4>
                 <p className="text-muted-foreground text-sm">
-                  Workspaces reached through the selected default roles and teams.
+                  The selected default roles and teams grant access to these Workspaces.
                 </p>
               </div>
               <div className="-mx-4 w-[100cqw] min-w-0 border-b md:-mx-6">
@@ -340,7 +341,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-semibold">External rules</h3>
               <p className="text-muted-foreground text-sm">
-                Define which Google and GitHub accounts qualify to join.
+                Set the Google email domains and GitHub organizations or teams that may join.
               </p>
             </div>
 
@@ -348,7 +349,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
               <ProviderHeading
                 checked={googleEnabled}
                 configured={data.googleConfigured}
-                description="Allow exact email domains."
+                description="Permit Google accounts with one of the listed email domains."
                 icon={<Google aria-hidden className="size-5" />}
                 id="google-enabled"
                 onCheckedChange={(checked) => {
@@ -424,7 +425,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
               <ProviderHeading
                 checked={githubEnabled}
                 configured={data.githubConfigured}
-                description="Allow an organization or one of its teams."
+                description="Permit members of a listed GitHub organization or team."
                 icon={
                   <>
                     <GitHubLight aria-hidden className="size-5 dark:hidden" />
@@ -563,10 +564,10 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             <Info aria-hidden="true" />
             <AlertTitle>Membership lifecycle</AlertTitle>
             <AlertDescription>
-              These rules are evaluated only when a qualifying Social account joins this
-              Organization. Default access is assigned once; later sign-ins do not recalculate or
-              remove it. Explicit Invitations bypass Social Admission rules and grant their
-              configured access to the signed-in User who accepts the link first.
+              We check these rules when a social account first joins this Organization. We assign
+              the default access once and do not recalculate it on later sign-ins. Invitation links
+              ignore these rules. The first signed-in User to accept a link receives the access
+              configured on that Invitation.
             </AlertDescription>
           </Alert>
 

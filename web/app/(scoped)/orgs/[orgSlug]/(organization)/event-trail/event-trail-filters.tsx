@@ -254,7 +254,7 @@ export function EventTrailFilters({
 
         const value =
           field.kind === "date"
-            ? `${dayjs(filter.values[0]).format("MMM D, YYYY")} – ${dayjs(filter.values[1]).format("MMM D, YYYY")}`
+            ? `${dayjs(filter.values[0]).format("MMM D, YYYY")} to ${dayjs(filter.values[1]).format("MMM D, YYYY")}`
             : filter.values.length === 1
               ? (field.options.find((option) => option.value === filter.values[0])?.label ??
                 filter.values[0])

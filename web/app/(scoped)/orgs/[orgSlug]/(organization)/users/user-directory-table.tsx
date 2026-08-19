@@ -231,7 +231,7 @@ function DirectoryTable<T>({
       ariaLabel={ariaLabel}
       emptyState={
         <AdministrationState
-          description="Invite people and assign their initial roles and teams."
+          description="Invite people and choose the Roles and Teams they receive when they join."
           kind="welcome"
           title="Let's invite your team"
         />

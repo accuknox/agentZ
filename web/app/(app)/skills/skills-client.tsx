@@ -438,7 +438,7 @@ export function SkillsClient({
       ) : null}
       {!query.isPending && !query.error && skills.length === 0 ? (
         <AdministrationState
-          description="Import a Markdown or ZIP skill bundle to extend what your agents can do."
+          description="Import a Markdown file or ZIP bundle, then assign its skills to Agents."
           kind={canImport ? "welcome" : "empty"}
           title="Let's add your first skill"
         />
@@ -698,15 +698,15 @@ function DeleteDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This will remove the skill permanently.</DialogDescription>
+          <DialogDescription>This permanently deletes the selected skill.</DialogDescription>
         </DialogHeader>
         {hasRefs ? (
           <Alert variant="warning">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <AlertDescription>
               Referenced by {agentRefs.size} agent{agentRefs.size === 1 ? "" : "s"} and{" "}
-              {sandboxRefs.size} sandbox{sandboxRefs.size === 1 ? "" : "es"}. Deletion detaches
-              those references and removes every stored version.
+              {sandboxRefs.size} sandbox{sandboxRefs.size === 1 ? "" : "es"}. Deleting it removes
+              those references and every stored version.
             </AlertDescription>
           </Alert>
         ) : null}

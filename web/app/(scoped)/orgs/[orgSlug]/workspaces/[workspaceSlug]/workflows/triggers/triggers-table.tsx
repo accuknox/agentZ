@@ -364,7 +364,7 @@ function RunScheduleDialog({
         <DialogHeader>
           <DialogTitle>Run {item.name} now?</DialogTitle>
           <DialogDescription>
-            This will trigger the workflow schedule immediately using its saved configuration.
+            We will start this schedule now with its saved configuration.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
@@ -427,7 +427,7 @@ function DeleteScheduleDialog({
         <DialogHeader>
           <DialogTitle>Delete {item.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the workflow schedule permanently. This action cannot be undone.
+            Deleting this Workflow schedule removes it permanently. You cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

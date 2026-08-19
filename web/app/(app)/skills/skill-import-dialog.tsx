@@ -302,9 +302,9 @@ export function SkillImportDialog({
         <DialogHeader>
           <DialogTitle>Import skills</DialogTitle>
           <DialogDescription>
-            Import one UTF-8 <code>.md</code> file or a strict <code>.zip</code> tree. Skill names
-            may contain up to 63 lowercase letters, numbers, and single hyphens. Uploads are limited
-            to 10 MiB and each <code>SKILL.md</code> to 64 KiB. ZIP files cannot contain unclaimed
+            Upload one UTF-8 <code>.md</code> file or a <code>.zip</code> archive. Skill names may
+            use up to 63 lowercase letters, numbers, and single hyphens. The upload limit is 10 MiB;
+            each <code>SKILL.md</code> may be up to 64 KiB. ZIP archives cannot contain unclaimed
             files, links, nested skill roots, or duplicate paths.{" "}
             <a className="underline underline-offset-4" download href="/examples/SKILL.md">
               Download a valid example

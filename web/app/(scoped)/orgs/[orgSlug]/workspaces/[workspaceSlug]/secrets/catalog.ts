@@ -22,7 +22,7 @@ export const oauthSecretCatalog: OAuthSecretCatalogItem[] = [
   {
     id: "custom",
     name: "Custom",
-    description: "Manual OAuth configuration",
+    description: "Enter the OAuth endpoints and client credentials yourself",
     key: "",
     hosts: [],
     serverUrl: "",
@@ -36,7 +36,7 @@ export const oauthSecretCatalog: OAuthSecretCatalogItem[] = [
   {
     id: "gws",
     name: "Google Workspace CLI",
-    description: "OAuth access token for gws via GOOGLE_WORKSPACE_CLI_TOKEN",
+    description: "Create an OAuth access token for the Google Workspace CLI",
     key: "GOOGLE_WORKSPACE_CLI_TOKEN",
     hosts: ["*.googleapis.com", "**.googleapis.com"],
     serverUrl: "https://www.googleapis.com/",

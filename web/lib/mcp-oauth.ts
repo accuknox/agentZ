@@ -698,7 +698,7 @@ function oauthFlowErrorFrom(error: unknown, fallback: OAuthFlowErrorCode): OAuth
         code: "manual_client_credentials_required",
         field: oauthErrorFieldNames[0],
         message:
-          "This OAuth server requires client credentials for re-authorization. Enter the client ID and client secret to continue.",
+          "Re-authorizing with this OAuth server requires a client ID and client secret. Enter both to continue.",
       }
     }
     return {

@@ -58,12 +58,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { DeleteWorkflowRunActionState } from "@/data/workflow-run.actions"
 
 const layout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  name: { minWidth: 224, contentMaxWidth: 320 },
   workflow_name: { minWidth: 176, contentMaxWidth: 288 },
   status: { minWidth: 160, width: 160 },
   duration_seconds: { minWidth: 112, width: 112 },
   created_at: { minWidth: 144, width: 144 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 const runStatusMeta = {
@@ -226,6 +226,7 @@ export function RunsTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
   })
 
   return (

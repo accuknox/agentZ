@@ -2111,6 +2111,52 @@ export type LimitQuery = number
 export type PageTokenQuery = string
 
 /**
+ * Sort direction. Defaults to ascending when sort_by is set.
+ */
+export type SortOrderQuery = "asc" | "desc"
+
+/**
+ * Resource field used to order results before pagination.
+ */
+export type ResourceSortByQuery = "name" | "created_at"
+
+/**
+ * Mutable skill field used to order results before pagination.
+ */
+export type MutableSkillSortByQuery = "name" | "file_count" | "size_bytes" | "modified_at"
+
+/**
+ * Immutable skill field used to order results before pagination.
+ */
+export type ImmutableSkillSortByQuery = "name" | "version"
+
+/**
+ * Skill summary field used to order results before pagination.
+ */
+export type SkillSummarySortByQuery =
+  "name" | "version" | "file_count" | "size_bytes" | "modified_at"
+
+/**
+ * Secret field used to order results before pagination.
+ */
+export type SecretSortByQuery = "key" | "created_at"
+
+/**
+ * Inherited resource field used to order results.
+ */
+export type InheritedResourceSortByQuery = "name" | "status"
+
+/**
+ * Sort direction. Defaults to ascending when sort_by is set.
+ */
+export type InheritedResourceSortOrderQuery = "asc" | "desc"
+
+/**
+ * Workflow schedule field used to order results before pagination.
+ */
+export type WorkflowScheduleSortByQuery = "name" | "workflow_name" | "schedule" | "created_at"
+
+/**
  * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
  *
  */
@@ -2539,7 +2585,16 @@ export type ListWorkspaceInheritedResourcesData = {
     workspaceId: string
     resourceType: InheritedResourceType
   }
-  query?: never
+  query?: {
+    /**
+     * Inherited resource field used to order results.
+     */
+    sort_by?: "name" | "status"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
+  }
   url: "/api/workspace/{workspaceId}/inherited-resource/{resourceType}"
 }
 
@@ -2745,6 +2800,14 @@ export type ListAgentsData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Resource field used to order results before pagination.
+     */
+    sort_by?: "name" | "created_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/agent"
 }
@@ -3758,6 +3821,14 @@ export type ListAgentMutableSkillsData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Mutable skill field used to order results before pagination.
+     */
+    sort_by?: "name" | "file_count" | "size_bytes" | "modified_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/agent/{agentName}/skill"
 }
@@ -4144,6 +4215,14 @@ export type ListSkillsData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Immutable skill field used to order results before pagination.
+     */
+    sort_by?: "name" | "version"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/skill"
 }
@@ -4247,6 +4326,14 @@ export type ListImmutableSkillSummariesData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Skill summary field used to order results before pagination.
+     */
+    sort_by?: "name" | "version" | "file_count" | "size_bytes" | "modified_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/skill/summary"
 }
@@ -5140,6 +5227,14 @@ export type ListSecretsData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Secret field used to order results before pagination.
+     */
+    sort_by?: "key" | "created_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/secret/{agentName}"
 }
@@ -5337,6 +5432,14 @@ export type ListSandboxesData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Resource field used to order results before pagination.
+     */
+    sort_by?: "name" | "created_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/sandbox"
 }
@@ -6397,6 +6500,14 @@ export type ListMcpConnectionsData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Resource field used to order results before pagination.
+     */
+    sort_by?: "name" | "created_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/mcp-connection"
 }
@@ -6854,6 +6965,14 @@ export type ListAgentWorkflowSchedulesData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Workflow schedule field used to order results before pagination.
+     */
+    sort_by?: "name" | "workflow_name" | "schedule" | "created_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/workflow/{agentName}/schedule"
 }
@@ -6903,6 +7022,14 @@ export type ListWorkflowSchedulesData = {
      * Opaque pagination token from a previous response.
      */
     page_token?: string
+    /**
+     * Workflow schedule field used to order results before pagination.
+     */
+    sort_by?: "name" | "workflow_name" | "schedule" | "created_at"
+    /**
+     * Sort direction. Defaults to ascending when sort_by is set.
+     */
+    sort_order?: "asc" | "desc"
   }
   url: "/api/workflow/{agentName}/{workflowName}/schedule"
 }

@@ -54,6 +54,7 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
     data,
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
   })
   const layout = columns.reduce<Record<string, AdminColumnLayout>>((result, column) => {
     result[column.key] = column.layout

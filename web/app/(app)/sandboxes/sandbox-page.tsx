@@ -13,10 +13,14 @@ import type { ResourceCapabilities } from "@/lib/gateway/client"
 
 const sandboxesSearchParamsSchema = z.object({
   page_token: searchParamStringSchema,
+  sort_by: searchParamStringSchema.pipe(z.enum(["name", "created_at"]).default("name")),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("asc")),
 })
 
 type SandboxesSearchParams = {
   page_token?: SearchParamStringInput
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
 }
 
 export default async function SandboxesPage({
@@ -66,7 +70,12 @@ async function Sandboxes({
 }) {
   const params = searchParams ? sandboxesSearchParamsSchema.parse(await searchParams) : undefined
   const result = await listSandboxesCachedQuery(
-    { limit: 50, page_token: params?.page_token },
+    {
+      limit: 50,
+      page_token: params?.page_token,
+      sort_by: params?.sort_by,
+      sort_order: params?.sort_order,
+    },
     workspaceId
   )
 
@@ -83,6 +92,8 @@ async function Sandboxes({
       sandboxes={result.sandboxes}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}
+      sortBy={params?.sort_by ?? "name"}
+      sortOrder={params?.sort_order ?? "asc"}
       basePath={basePath}
       deleteSandboxAction={deleteSandboxFormAction.bind(null, { basePath, workspaceId })}
       showOrganization={workspaceId !== undefined}

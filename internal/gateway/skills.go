@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -166,10 +167,22 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.Skill) int {
-			if a.Name != b.Name {
-				return strings.Compare(a.Name, b.Name)
+			order := cmp.Compare(a.Name, b.Name)
+			if params.SortBy != nil &&
+				*params.SortBy == gatewayapi.ListSkillsParamsSortByImmutableSkillSortVersion {
+				order = cmp.Compare(a.Version, b.Version)
 			}
-			return strings.Compare(string(a.Scope), string(b.Scope))
+			if params.SortOrder != nil &&
+				*params.SortOrder == gatewayapi.ListSkillsParamsSortOrderDesc {
+				order = -order
+			}
+			if order != 0 {
+				return order
+			}
+			if a.Name != b.Name {
+				return cmp.Compare(a.Name, b.Name)
+			}
+			return cmp.Compare(string(a.Scope), string(b.Scope))
 		},
 	)
 
@@ -2109,10 +2122,41 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.ImmutableSkillSummary) int {
-			if a.Name != b.Name {
-				return strings.Compare(a.Name, b.Name)
+			order := 0
+			switch {
+			case params.SortBy != nil &&
+				*params.SortBy == gatewayapi.ListImmutableSkillSummariesParamsSortBySkillSummarySortVersion:
+				order = cmp.Compare(a.Version, b.Version)
+			case params.SortBy != nil &&
+				*params.SortBy == gatewayapi.ListImmutableSkillSummariesParamsSortBySkillSummarySortFileCount:
+				order = cmp.Compare(a.FileCount, b.FileCount)
+			case params.SortBy != nil &&
+				*params.SortBy == gatewayapi.ListImmutableSkillSummariesParamsSortBySkillSummarySortSizeBytes:
+				order = cmp.Compare(a.SizeBytes, b.SizeBytes)
+			case params.SortBy != nil &&
+				*params.SortBy == gatewayapi.ListImmutableSkillSummariesParamsSortBySkillSummarySortModifiedAt:
+				switch {
+				case a.ModifiedAt == nil && b.ModifiedAt != nil:
+					order = -1
+				case a.ModifiedAt != nil && b.ModifiedAt == nil:
+					order = 1
+				case a.ModifiedAt != nil && b.ModifiedAt != nil:
+					order = a.ModifiedAt.Compare(*b.ModifiedAt)
+				}
+			default:
+				order = cmp.Compare(a.Name, b.Name)
 			}
-			return strings.Compare(string(a.Scope), string(b.Scope))
+			if params.SortOrder != nil &&
+				*params.SortOrder == gatewayapi.ListImmutableSkillSummariesParamsSortOrderDesc {
+				order = -order
+			}
+			if order != 0 {
+				return order
+			}
+			if a.Name != b.Name {
+				return cmp.Compare(a.Name, b.Name)
+			}
+			return cmp.Compare(string(a.Scope), string(b.Scope))
 		},
 	)
 	start := min(offset, len(items))

@@ -43,6 +43,7 @@ export function createSandboxColumns(
   return [
     {
       accessorKey: "name",
+      enableSorting: true,
       header: "Name",
       cell: ({ row }) => {
         const sandbox = row.original
@@ -98,6 +99,7 @@ export function createSandboxColumns(
     },
     {
       accessorKey: "created_at",
+      enableSorting: true,
       header: "Created at",
       cell: ({ row }) => <RelativeDateTime value={row.getValue("created_at")} />,
     },

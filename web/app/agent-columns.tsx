@@ -47,6 +47,7 @@ export function createAgentColumns(
   const columns: ColumnDef<Agent>[] = [
     {
       accessorKey: "name",
+      enableSorting: true,
       header: "Name",
       cell: ({ row }) => {
         const agent = row.original
@@ -66,6 +67,7 @@ export function createAgentColumns(
     },
     {
       accessorKey: "created_at",
+      enableSorting: true,
       header: "Created at",
       cell: ({ row }) => <RelativeDateTime value={row.getValue("created_at")} />,
     },

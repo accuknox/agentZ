@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache"
 import { listSecrets } from "@/lib/gateway/client"
-import type { Error, SecretListItem } from "@/lib/gateway/client"
+import type { Error, ListSecretsData, SecretListItem } from "@/lib/gateway/client"
 import { agentSecretsTag, secretsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
@@ -21,7 +21,7 @@ export type ListSecretsQueryResponse =
 export async function listSecretsCachedQuery(
   agentName: string,
   workspaceId: string,
-  query?: { limit?: number; page_token?: string }
+  query?: ListSecretsData["query"]
 ): Promise<ListSecretsQueryResponse> {
   "use cache: private"
 

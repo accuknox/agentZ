@@ -3,9 +3,10 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
+import { useSearchParams } from "next/navigation"
 import type { UrlObject } from "node:url"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef, SortingState } from "@tanstack/react-table"
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { defineStepper } from "@stepperize/react"
@@ -95,12 +96,14 @@ import {
   getMcpConnection,
   listMcpConnections,
   listSkills,
+  type ImmutableSkillSortByQuery,
   type McpConnectionSummary,
   type InferenceProvider,
   type InferencePool,
   type SandboxInference,
   type SandboxInferenceModelRef,
   type ResourceReference,
+  type ResourceSortByQuery,
   type SecretHost,
   type Skill,
 } from "@/lib/gateway/client"
@@ -112,6 +115,7 @@ import {
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { ProviderIcon, providerKindLabels } from "@/app/(app)/inference/providers/provider-shared"
 import { PackageSearch } from "./package-search"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 type SandboxWizardMode = "create" | "update"
 
@@ -265,18 +269,18 @@ type StepId = (typeof steps)[number]["id"]
 type NavigationRequest = { kind: "prev" } | { kind: "step"; step: StepId; index: number }
 
 const mcpLayout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 160, contentMaxWidth: 256, pin: "start" },
+  name: { minWidth: 160, contentMaxWidth: 256 },
   auth_mode: { minWidth: 128, width: 128 },
   endpoint: { minWidth: 224, contentMaxWidth: 320 },
   age: { minWidth: 112, width: 112 },
-  attach: { minWidth: 56, width: 56, pin: "end" },
+  attach: { minWidth: 56, width: 56 },
 }
 
 const skillLayout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  name: { minWidth: 224, contentMaxWidth: 320 },
   version: { minWidth: 112, width: 112 },
   modified: { minWidth: 128, width: 128 },
-  attach: { minWidth: 56, width: 56, pin: "end" },
+  attach: { minWidth: 56, width: 56 },
 }
 
 type CursorPage<T> = {
@@ -287,7 +291,9 @@ type CursorPage<T> = {
 function useCursorPage<T>(
   initialRows: T[],
   initialNextPageToken: string,
-  loadPage: (pageToken?: string) => Promise<CursorPage<T>>
+  loadPage: (pageToken?: string) => Promise<CursorPage<T>>,
+  refreshKey: string,
+  initialKey: string
 ) {
   const [page, setPage] = React.useState({
     currentPageToken: "",
@@ -297,6 +303,22 @@ function useCursorPage<T>(
   const [previousPageTokens, setPreviousPageTokens] = React.useState<string[]>([])
   const [error, setError] = React.useState<globalThis.Error>()
   const [pending, startTransition] = React.useTransition()
+  const loadedKey = React.useRef(initialKey)
+
+  React.useEffect(() => {
+    if (loadedKey.current === refreshKey) return
+    loadedKey.current = refreshKey
+    startTransition(async () => {
+      try {
+        const first = await loadPage()
+        setPage({ ...first, currentPageToken: "" })
+        setPreviousPageTokens([])
+        setError(undefined)
+      } catch {
+        setError(new globalThis.Error("Could not sort this table."))
+      }
+    })
+  }, [loadPage, refreshKey])
 
   const goNext = () => {
     if (!page.nextPageToken) return
@@ -511,6 +533,7 @@ function createMcpSelectionColumns({
   return [
     {
       accessorKey: "name",
+      enableSorting: true,
       header: "Name",
       cell: ({ row }) => {
         const connection = row.original
@@ -559,6 +582,7 @@ function createMcpSelectionColumns({
     {
       id: "age",
       accessorKey: "created_at",
+      enableSorting: true,
       header: "Age",
       cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },
@@ -596,6 +620,7 @@ function createSkillSelectionColumns({
   return [
     {
       accessorKey: "name",
+      enableSorting: true,
       header: "Name",
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
@@ -609,6 +634,7 @@ function createSkillSelectionColumns({
     {
       id: "version",
       accessorKey: "version",
+      enableSorting: true,
       header: "Version",
       cell: ({ row }) => `v${row.original.version}`,
     },
@@ -807,6 +833,20 @@ function McpStep({
   onNext,
   onPrev,
 }: McpStepProps) {
+  const searchParams = useSearchParams()
+  const requestedSortBy = z.enum(["name", "created_at"]).safeParse(searchParams.get("mcp_sort_by"))
+  const requestedSortOrder = z.enum(["asc", "desc"]).safeParse(searchParams.get("mcp_sort_order"))
+  const sortBy: ResourceSortByQuery = requestedSortBy.success ? requestedSortBy.data : "created_at"
+  const sortOrder = requestedSortOrder.success ? requestedSortOrder.data : "desc"
+  const sorting: SortingState = [
+    { id: sortBy === "created_at" ? "age" : "name", desc: sortOrder === "desc" },
+  ]
+  const { onSortingChange } = useServerSorting({
+    fields: { age: "created_at", name: "name" } satisfies Record<string, ResourceSortByQuery>,
+    sortByKey: "mcp_sort_by",
+    sortOrderKey: "mcp_sort_order",
+    sorting,
+  })
   const form = useForm<McpStepValues>({
     resolver: zodResolver(mcpStepSchema),
     defaultValues: {
@@ -920,7 +960,12 @@ function McpStep({
       const result = await listMcpConnections({
         baseUrl: await getGatewayBaseURL(),
         headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
-        query: { limit: 50, page_token: pageToken },
+        query: {
+          limit: 50,
+          page_token: pageToken,
+          sort_by: sortBy,
+          sort_order: sortOrder,
+        },
       })
       if (result.error) throw new globalThis.Error(result.error.message)
       return {
@@ -928,9 +973,15 @@ function McpStep({
         nextPageToken: result.data.next_page_token,
       }
     },
-    [workspaceId]
+    [sortBy, sortOrder, workspaceId]
   )
-  const page = useCursorPage(mcpConnections, initialNextPageToken, loadPage)
+  const page = useCursorPage(
+    mcpConnections,
+    initialNextPageToken,
+    loadPage,
+    `${sortBy}:${sortOrder}`,
+    "created_at:desc"
+  )
 
   const columns = React.useMemo(
     () =>
@@ -950,6 +1001,10 @@ function McpStep({
     data: page.rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (
@@ -1029,6 +1084,21 @@ function SkillsStep({
   onNext,
   onPrev,
 }: SkillsStepProps) {
+  const searchParams = useSearchParams()
+  const requestedSortBy = z.enum(["name", "version"]).safeParse(searchParams.get("skill_sort_by"))
+  const requestedSortOrder = z.enum(["asc", "desc"]).safeParse(searchParams.get("skill_sort_order"))
+  const sortBy: ImmutableSkillSortByQuery = requestedSortBy.success ? requestedSortBy.data : "name"
+  const sortOrder = requestedSortOrder.success ? requestedSortOrder.data : "asc"
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: { name: "name", version: "version" } satisfies Record<
+      string,
+      ImmutableSkillSortByQuery
+    >,
+    sortByKey: "skill_sort_by",
+    sortOrderKey: "skill_sort_order",
+    sorting,
+  })
   const form = useForm<SkillsStepValues>({
     resolver: zodResolver(skillsStepSchema),
     defaultValues: {
@@ -1067,7 +1137,12 @@ function SkillsStep({
       const result = await listSkills({
         baseUrl: await getGatewayBaseURL(),
         headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
-        query: { limit: 50, page_token: pageToken },
+        query: {
+          limit: 50,
+          page_token: pageToken,
+          sort_by: sortBy,
+          sort_order: sortOrder,
+        },
       })
       if (result.error) throw new globalThis.Error(result.error.message)
       return {
@@ -1075,9 +1150,15 @@ function SkillsStep({
         nextPageToken: result.data.next_page_token,
       }
     },
-    [workspaceId]
+    [sortBy, sortOrder, workspaceId]
   )
-  const page = useCursorPage(immutableSkills, initialNextPageToken, loadPage)
+  const page = useCursorPage(
+    immutableSkills,
+    initialNextPageToken,
+    loadPage,
+    `${sortBy}:${sortOrder}`,
+    "name:asc"
+  )
 
   const columns = React.useMemo(
     () =>
@@ -1093,6 +1174,10 @@ function SkillsStep({
     data: page.rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (

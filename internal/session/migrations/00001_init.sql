@@ -12,5 +12,8 @@ CREATE TABLE agents(
   PRIMARY KEY(tenant_namespace, agent_name)
 );
 
+CREATE INDEX agents_tenant_created_idx
+ON agents(tenant_namespace, created_at, agent_name);
+
 -- +goose Down
 DROP TABLE agents;

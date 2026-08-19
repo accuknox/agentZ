@@ -2,20 +2,27 @@
 
 import * as React from "react"
 import type { Route } from "next"
-import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
+import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table"
+import type {
+  Agent,
+  ResourceSortByQuery,
+  Sandbox,
+  Skill,
+  SortOrderQuery,
+} from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 const layout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  name: { minWidth: 224, contentMaxWidth: 320 },
   created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   created_at: { minWidth: 128, width: 128 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function AgentTable({
@@ -26,6 +33,8 @@ export function AgentTable({
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
   nextPageToken,
+  sortBy,
+  sortOrder,
   deleteAgentAction,
   actionScope,
 }: {
@@ -36,6 +45,8 @@ export function AgentTable({
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
   nextPageToken: string
+  sortBy: ResourceSortByQuery
+  sortOrder: SortOrderQuery
   deleteAgentAction: (
     agentName: string,
     state: DeleteAgentFormState,
@@ -44,6 +55,17 @@ export function AgentTable({
   actionScope: AgentActionScope
 }) {
   "use no memo"
+
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: { name: "name", created_at: "created_at" } satisfies Record<
+      string,
+      ResourceSortByQuery
+    >,
+    pageTokenKey: "page_token",
+    sorting,
+    tokenStackKey: "token_stack",
+  })
 
   const columns = React.useMemo(
     () =>
@@ -71,6 +93,10 @@ export function AgentTable({
     data: agents,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (

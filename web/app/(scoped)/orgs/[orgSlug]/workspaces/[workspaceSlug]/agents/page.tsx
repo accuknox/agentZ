@@ -6,17 +6,31 @@ import { deleteAgentFormAction, type AgentActionScope } from "@/data/agent.actio
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
+import * as z from "zod"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const unstable_instant = false
 
 export const metadata = { title: "Agents" }
+
+const searchSchema = z.object({
+  page_token: searchParamStringSchema,
+  sort_by: searchParamStringSchema.pipe(z.enum(["name", "created_at"]).default("created_at")),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("desc")),
+})
+
+type SearchParams = {
+  page_token?: SearchParamStringInput
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
+}
 
 export default async function WorkspaceAgentsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<{ page_token?: string | string[] }>
+  searchParams: Promise<SearchParams>
 }) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
@@ -24,10 +38,12 @@ export default async function WorkspaceAgentsPage({
     return <AdministrationState kind="forbidden" />
   }
 
-  const pageToken = await searchParams.then((value) => value.page_token)
+  const search = searchSchema.parse(await searchParams)
   const query = {
     limit: 50,
-    page_token: Array.isArray(pageToken) ? pageToken[0] : pageToken,
+    page_token: search.page_token,
+    sort_by: search.sort_by,
+    sort_order: search.sort_order,
   }
   const workspaceId = scope.workspace.id
   const agents = await listAgentsCachedQuery(query, workspaceId)
@@ -93,6 +109,8 @@ export default async function WorkspaceAgentsPage({
         initialHasNextSandboxPage={sandboxes?.hasNextPage ?? false}
         initialNextSandboxPageToken={sandboxes?.nextPageToken ?? ""}
         nextPageToken={agents.nextPageToken}
+        sortBy={search.sort_by}
+        sortOrder={search.sort_order}
         deleteAgentAction={deleteAgentFormAction.bind(null, actionScope)}
       />
     </div>

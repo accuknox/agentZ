@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -156,10 +157,19 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.Sandbox) int {
-			if a.Name != b.Name {
-				return strings.Compare(a.Name, b.Name)
+			order := cmp.Compare(a.Name, b.Name)
+			if params.SortBy != nil &&
+				*params.SortBy == gatewayapi.ListSandboxesParamsSortByResourceSortCreatedAt {
+				order = a.CreatedAt.Compare(b.CreatedAt)
 			}
-			return strings.Compare(string(a.Scope), string(b.Scope))
+			if params.SortOrder != nil &&
+				*params.SortOrder == gatewayapi.ListSandboxesParamsSortOrderDesc {
+				order = -order
+			}
+			if order != 0 {
+				return order
+			}
+			return cmp.Compare(string(a.Scope), string(b.Scope))
 		},
 	)
 

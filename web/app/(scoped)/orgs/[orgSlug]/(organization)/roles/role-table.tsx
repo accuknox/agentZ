@@ -12,7 +12,7 @@ import { RelativeDateTime } from "@/components/ui/table"
 import { RoleTableActions } from "./role-table-actions"
 
 const layout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  name: { minWidth: 224, contentMaxWidth: 320 },
   scope: { minWidth: 96, width: 96 },
   immutable: { minWidth: 80, width: 80 },
   users: { minWidth: 64, width: 64, align: "end" },
@@ -20,7 +20,7 @@ const layout: Record<string, AdminColumnLayout> = {
   permissions: { minWidth: 112, width: 112, align: "end" },
   dependencyState: { minWidth: 128, width: 128 },
   updatedAt: { minWidth: 144, width: 144 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function RoleTable({
@@ -112,7 +112,12 @@ export function RoleTable({
     [orgSlug, workspaceSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: roles, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: roles,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
 
   return (
     <AdminDataGrid

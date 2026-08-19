@@ -3,10 +3,12 @@
 import * as React from "react"
 import { experimental_streamedQuery as streamedQuery } from "@tanstack/react-query"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table"
 import {
   watchMcpConnections,
   type McpConnectionSummary,
+  type ResourceSortByQuery,
+  type SortOrderQuery,
   type WatchMcpConnectionsEvent,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
@@ -16,16 +18,17 @@ import { AdministrationState } from "@/components/administration"
 import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { createMcpColumns } from "./mcp-columns"
 import { McpViewSheet } from "./mcp-view-sheet"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 const columnLayout = {
-  name: { minWidth: 224, pin: "start" },
+  name: { minWidth: 224 },
   auth_mode: { minWidth: 96, width: 96 },
   status: { minWidth: 112, width: 112 },
   endpoint: { contentMaxWidth: 320, minWidth: 200 },
   created_by: { minWidth: 96, width: 96 },
   last_modified_by: { minWidth: 104, width: 104 },
   age: { minWidth: 104, width: 104 },
-  actions: { align: "end", minWidth: 64, pin: "end", width: 64 },
+  actions: { align: "end", minWidth: 64, width: 64 },
 } satisfies Record<string, AdminColumnLayout>
 
 const watchMcpConnectionsQueryOptions = (
@@ -86,6 +89,8 @@ export function McpTable({
   nextPageToken,
   deleteMcpAction,
   workspaceId,
+  sortBy,
+  sortOrder,
 }: {
   mcpConnections: McpConnectionSummary[]
   hasNextPage: boolean
@@ -96,8 +101,20 @@ export function McpTable({
     formData: FormData
   ) => Promise<DeleteMcpFormState>
   workspaceId?: string
+  sortBy: ResourceSortByQuery
+  sortOrder: SortOrderQuery
 }) {
   "use no memo"
+
+  const sorting: SortingState = [
+    { id: sortBy === "created_at" ? "age" : "name", desc: sortOrder === "desc" },
+  ]
+  const { onSortingChange } = useServerSorting({
+    fields: { age: "created_at", name: "name" } satisfies Record<string, ResourceSortByQuery>,
+    pageTokenKey: "page_token",
+    sorting,
+    tokenStackKey: "token_stack",
+  })
 
   const [viewConnection, setViewConnection] = React.useState<McpConnectionSummary>()
   const connectionNames = React.useMemo(
@@ -126,6 +143,10 @@ export function McpTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (

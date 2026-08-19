@@ -67,6 +67,7 @@ export function createMcpColumns(actions: {
   return [
     {
       accessorKey: "name",
+      enableSorting: true,
       header: "Name",
       cell: ({ row }) => (
         <McpNameCell connection={row.original} showOrganization={actions.showOrganization} />
@@ -110,6 +111,7 @@ export function createMcpColumns(actions: {
     {
       id: "age",
       accessorKey: "created_at",
+      enableSorting: true,
       header: "Age",
       cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },

@@ -11,11 +11,11 @@ import { RelativeDateTime } from "@/components/ui/table"
 import { WorkspaceTableActions } from "./workspace-table-actions"
 
 const layout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  name: { minWidth: 224, contentMaxWidth: 320 },
   state: { minWidth: 144, width: 144 },
   workspace_admin_count: { minWidth: 144, width: 144, align: "end" },
   updated_at: { minWidth: 128, width: 128 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function WorkspaceTable({
@@ -70,7 +70,12 @@ export function WorkspaceTable({
     [orgSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: workspaces, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: workspaces,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
 
   return (
     <AdminDataGrid

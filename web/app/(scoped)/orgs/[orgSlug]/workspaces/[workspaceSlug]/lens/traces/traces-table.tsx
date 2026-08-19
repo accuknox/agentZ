@@ -54,7 +54,7 @@ import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 const layout: Record<string, AdminColumnLayout> = {
-  trace: { minWidth: 160, contentMaxWidth: 256, pin: "start" },
+  trace: { minWidth: 160, contentMaxWidth: 256 },
   duration: { minWidth: 208, contentMaxWidth: 320 },
   graph: { minWidth: 288, contentMaxWidth: 448 },
   tokens: { minWidth: 192, contentMaxWidth: 288 },
@@ -176,6 +176,7 @@ export function TracesTable({
     data: data?.traces ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
   })
 
   function selectTrace(trace: TraceListItem) {
@@ -1054,7 +1055,7 @@ const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
   {
     key: "process",
     header: "Process",
-    layout: { minWidth: 144, contentMaxWidth: 256, pin: "start" },
+    layout: { minWidth: 144, contentMaxWidth: 256 },
     render: (event) => <TruncateCell value={event.primary} />,
   },
   {
@@ -1113,7 +1114,7 @@ const fileTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = 
   {
     key: "file",
     header: "File path accessed",
-    layout: { minWidth: 320, contentMaxWidth: 448, pin: "start" },
+    layout: { minWidth: 320, contentMaxWidth: 448 },
     render: (event) => <TruncateCell value={event.primary} />,
   },
   {
@@ -1172,7 +1173,7 @@ const networkTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
   {
     key: "domain",
     header: "Destination domain",
-    layout: { minWidth: 208, contentMaxWidth: 320, pin: "start" },
+    layout: { minWidth: 208, contentMaxWidth: 320 },
     render: (event) => <TruncateCell value={networkDestinationDomain(event)} />,
   },
   {

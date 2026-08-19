@@ -1,9 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import {
+  getCoreRowModel,
+  type ColumnDef,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table"
 import { Download, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
-import { useTokenPagination } from "@/lib/use-token-pagination"
+import { useServerSorting, useTokenPagination } from "@/lib/use-token-pagination"
 import { AgentGettingReady } from "@/components/agent-readiness"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { TablePagination } from "@/components/table-pagination"
@@ -23,10 +28,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
 import { formatByteSize } from "@/lib/format"
 import type { ImmutableSkill, Skill } from "./skills-client"
+import type {
+  MutableSkillSortByQuery,
+  SkillSummarySortByQuery,
+  SortOrderQuery,
+} from "@/lib/gateway/client"
 
 const layout: Record<string, AdminColumnLayout> = {
-  select: { minWidth: 48, width: 48, pin: "start" },
-  name: { minWidth: 288, contentMaxWidth: 384, pin: "start" },
+  select: { minWidth: 48, width: 48 },
+  name: { minWidth: 288, contentMaxWidth: 384 },
   version: { minWidth: 96, width: 96 },
   file_count: { minWidth: 96, width: 96 },
   size_bytes: { minWidth: 112, width: 112 },
@@ -34,7 +44,7 @@ const layout: Record<string, AdminColumnLayout> = {
   created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   modified_at: { minWidth: 176, width: 176 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function SkillTable({
@@ -50,6 +60,8 @@ export function SkillTable({
   nextPageToken,
   selected,
   setSelected,
+  sortBy,
+  sortOrder,
   onDelete,
   onEdit,
   onExport,
@@ -66,6 +78,8 @@ export function SkillTable({
   nextPageToken: string
   selected: Set<string>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+  sortBy: MutableSkillSortByQuery | SkillSummarySortByQuery
+  sortOrder: SortOrderQuery
   onDelete: (key: string) => void
   onEdit: (skill: ImmutableSkill) => void
   onExport: (key: string) => void
@@ -74,6 +88,19 @@ export function SkillTable({
 
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
     pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: {
+      name: "name",
+      version: "version",
+      file_count: "file_count",
+      size_bytes: "size_bytes",
+      modified_at: "modified_at",
+    } satisfies Record<string, MutableSkillSortByQuery | SkillSummarySortByQuery>,
+    pageTokenKey: "page_token",
+    sorting,
     tokenStackKey: "token_stack",
   })
   const columns = React.useMemo(
@@ -114,8 +141,11 @@ export function SkillTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
     getRowId: (row) => row.key,
-    state: { rowSelection },
+    manualSorting: true,
+    onSortingChange,
+    state: { rowSelection, sorting },
   })
 
   function clearSelectionAndGoPrevious() {
@@ -230,6 +260,7 @@ function createSkillColumns({
     },
     {
       accessorKey: "name",
+      enableSorting: true,
       header: "Name",
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
@@ -250,6 +281,7 @@ function createSkillColumns({
     columns.push(
       {
         accessorKey: "version",
+        enableSorting: true,
         header: "Version",
         cell: ({ row }) => {
           const skill = row.original
@@ -278,6 +310,7 @@ function createSkillColumns({
   columns.push(
     {
       accessorKey: "file_count",
+      enableSorting: true,
       header: "Files",
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">{row.original.file_count}</span>
@@ -285,6 +318,7 @@ function createSkillColumns({
     },
     {
       accessorKey: "size_bytes",
+      enableSorting: true,
       header: "Size",
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
@@ -307,6 +341,7 @@ function createSkillColumns({
   columns.push(
     {
       accessorKey: "modified_at",
+      enableSorting: true,
       header: "Modified at",
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">

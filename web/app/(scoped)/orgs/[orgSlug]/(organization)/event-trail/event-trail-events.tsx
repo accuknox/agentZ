@@ -27,7 +27,7 @@ import { EventTrailFilters } from "./event-trail-filters"
 const layout: Record<string, AdminColumnLayout> = {
   created_at: { minWidth: 144, width: 144 },
   actor: { minWidth: 224, contentMaxWidth: 288, hiddenBelow: "md" },
-  action: { minWidth: 192, contentMaxWidth: 288, pin: "start" },
+  action: { minWidth: 192, contentMaxWidth: 288 },
   target: { minWidth: 224, contentMaxWidth: 288 },
   workspace: { minWidth: 224, contentMaxWidth: 288, hiddenBelow: "lg" },
   result: { minWidth: 112, width: 112 },
@@ -126,6 +126,7 @@ export function EventTrailEvents({
     columns,
     data: eventTrail.events,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
   })
 
   return (

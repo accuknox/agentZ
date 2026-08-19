@@ -61,11 +61,10 @@ export async function listAgentsCachedQuery(
     }
   }
 
-  const agents = data.agents.filter((agent) => agent.status !== "DELETED")
   const nextPageToken = data.next_page_token
 
   return {
-    agents,
+    agents: data.agents,
     nextPageToken,
     hasNextPage: nextPageToken.length > 0,
     error: undefined,

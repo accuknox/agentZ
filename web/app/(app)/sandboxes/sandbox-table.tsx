@@ -1,16 +1,17 @@
 "use client"
 
 import * as React from "react"
-import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import type { Sandbox } from "@/lib/gateway/client"
+import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table"
+import type { ResourceSortByQuery, Sandbox, SortOrderQuery } from "@/lib/gateway/client"
 import { createSandboxColumns } from "./sandbox-columns"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { DeleteSandboxFormState } from "@/data/types"
 import type { Route } from "next"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 const layout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 208, contentMaxWidth: 288, pin: "start" },
+  name: { minWidth: 208, contentMaxWidth: 288 },
   packages: { minWidth: 96, width: 96 },
   allowed_hosts: { minWidth: 96, width: 96 },
   models: { minWidth: 128, width: 128 },
@@ -19,7 +20,7 @@ const layout: Record<string, AdminColumnLayout> = {
   created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   created_at: { minWidth: 112, width: 112 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function SandboxTable({
@@ -27,6 +28,8 @@ export function SandboxTable({
   basePath,
   hasNextPage,
   nextPageToken,
+  sortBy,
+  sortOrder,
   deleteSandboxAction,
   showOrganization,
 }: {
@@ -34,6 +37,8 @@ export function SandboxTable({
   basePath: string
   hasNextPage: boolean
   nextPageToken: string
+  sortBy: ResourceSortByQuery
+  sortOrder: SortOrderQuery
   showOrganization: boolean
   deleteSandboxAction: (
     name: string,
@@ -42,6 +47,17 @@ export function SandboxTable({
   ) => Promise<DeleteSandboxFormState>
 }) {
   "use no memo"
+
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: { name: "name", created_at: "created_at" } satisfies Record<
+      string,
+      ResourceSortByQuery
+    >,
+    pageTokenKey: "page_token",
+    sorting,
+    tokenStackKey: "token_stack",
+  })
 
   const columns = React.useMemo(
     () => createSandboxColumns(basePath, deleteSandboxAction, showOrganization),
@@ -52,6 +68,10 @@ export function SandboxTable({
     data: sandboxes,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (

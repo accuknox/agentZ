@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -31,7 +32,7 @@ type workspaceInheritedResourceKind struct {
 
 // ListWorkspaceInheritedResources handles GET
 // /api/workspace/{workspaceId}/inherited-resource/{resourceType}.
-func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath, resourceType gatewayapi.InheritedResourceTypePath) {
+func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath, resourceType gatewayapi.InheritedResourceTypePath, params gatewayapi.ListWorkspaceInheritedResourcesParams) {
 	_, workspace, ok := s.authorizeWorkspaceInheritance(w, r, workspaceID, "read")
 	if !ok {
 		return
@@ -41,6 +42,21 @@ func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http
 		writeInternalError(w, r, err)
 		return
 	}
+	slices.SortFunc(resources, func(a, b gatewayapi.WorkspaceInheritedResource) int {
+		order := cmp.Compare(a.Name, b.Name)
+		if params.SortBy != nil &&
+			*params.SortBy == gatewayapi.ListWorkspaceInheritedResourcesParamsSortByInheritedResourceSortByStatus {
+			order = cmp.Compare(string(a.Status), string(b.Status))
+		}
+		if params.SortOrder != nil &&
+			*params.SortOrder == gatewayapi.ListWorkspaceInheritedResourcesParamsSortOrderInheritedResourceSortOrderDesc {
+			order = -order
+		}
+		if order != 0 {
+			return order
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
 	writeJSON(
 		w,
 		http.StatusOK,
@@ -638,12 +654,6 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 			resources[i].DisabledReason = &reason
 		}
 	}
-	sort.Slice(
-		resources,
-		func(i, j int) bool {
-			return resources[i].Name < resources[j].Name
-		},
-	)
 	return resources, nil
 }
 

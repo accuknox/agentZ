@@ -379,8 +379,8 @@ export const zInferencePoolName = z
 export const zSkillName = z
   .string()
   .min(1)
-  .max(32)
-  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+  .max(63)
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
 
 /**
  * MCPConnection resource name.
@@ -2278,6 +2278,62 @@ export const zLimitQuery = z.int().gte(1).lte(200).default(50)
 export const zPageTokenQuery = z.string().min(1)
 
 /**
+ * Sort direction. Defaults to ascending when sort_by is set.
+ */
+export const zSortOrderQuery = z.enum(["asc", "desc"]).default("asc")
+
+/**
+ * Resource field used to order results before pagination.
+ */
+export const zResourceSortByQuery = z.enum(["name", "created_at"])
+
+/**
+ * Mutable skill field used to order results before pagination.
+ */
+export const zMutableSkillSortByQuery = z.enum(["name", "file_count", "size_bytes", "modified_at"])
+
+/**
+ * Immutable skill field used to order results before pagination.
+ */
+export const zImmutableSkillSortByQuery = z.enum(["name", "version"])
+
+/**
+ * Skill summary field used to order results before pagination.
+ */
+export const zSkillSummarySortByQuery = z.enum([
+  "name",
+  "version",
+  "file_count",
+  "size_bytes",
+  "modified_at",
+])
+
+/**
+ * Secret field used to order results before pagination.
+ */
+export const zSecretSortByQuery = z.enum(["key", "created_at"])
+
+/**
+ * Inherited resource field used to order results.
+ */
+export const zInheritedResourceSortByQuery = z.enum(["name", "status"])
+
+/**
+ * Sort direction. Defaults to ascending when sort_by is set.
+ */
+export const zInheritedResourceSortOrderQuery = z.enum(["asc", "desc"]).default("asc")
+
+/**
+ * Workflow schedule field used to order results before pagination.
+ */
+export const zWorkflowScheduleSortByQuery = z.enum([
+  "name",
+  "workflow_name",
+  "schedule",
+  "created_at",
+])
+
+/**
  * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
  *
  */
@@ -2422,6 +2478,11 @@ export const zListWorkspaceInheritedResourcesPath = z.object({
   resourceType: zInheritedResourceType,
 })
 
+export const zListWorkspaceInheritedResourcesQuery = z.object({
+  sort_by: z.enum(["name", "status"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
+})
+
 /**
  * Organisation resource selection state and consumers.
  */
@@ -2463,6 +2524,8 @@ export const zListAgentsQuery = z.object({
   agent_name: z.array(zAgentName).optional(),
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "created_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -2705,6 +2768,8 @@ export const zListAgentMutableSkillsPath = z.object({
 export const zListAgentMutableSkillsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "file_count", "size_bytes", "modified_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -2803,6 +2868,8 @@ export const zListSkillsQuery = z.object({
   agent_name: zAgentName.optional(),
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "version"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -2829,6 +2896,8 @@ export const zListImmutableSkillSummariesQuery = z.object({
   agent_name: zAgentName.optional(),
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "version", "file_count", "size_bytes", "modified_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -3081,6 +3150,8 @@ export const zListSecretsPath = z.object({
 export const zListSecretsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["key", "created_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -3132,6 +3203,8 @@ export const zListSandboxesHeaders = z.object({
 export const zListSandboxesQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "created_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -3433,6 +3506,8 @@ export const zListMcpConnectionsHeaders = z.object({
 export const zListMcpConnectionsQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "created_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -3540,6 +3615,8 @@ export const zListAgentWorkflowSchedulesPath = z.object({
 export const zListAgentWorkflowSchedulesQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "workflow_name", "schedule", "created_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**
@@ -3555,6 +3632,8 @@ export const zListWorkflowSchedulesPath = z.object({
 export const zListWorkflowSchedulesQuery = z.object({
   limit: z.int().gte(1).lte(200).optional().default(50),
   page_token: z.string().min(1).optional(),
+  sort_by: z.enum(["name", "workflow_name", "schedule", "created_at"]).optional(),
+  sort_order: z.enum(["asc", "desc"]).optional().default("asc"),
 })
 
 /**

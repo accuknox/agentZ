@@ -62,11 +62,11 @@ import { Spinner } from "@/components/ui/spinner"
 import { DisabledReason } from "@/components/ui/tooltip"
 
 const shareLayout: Record<string, AdminColumnLayout> = {
-  target_label: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  target_label: { minWidth: 224, contentMaxWidth: 320 },
   source: { minWidth: 144, width: 144 },
   capabilities: { minWidth: 224, contentMaxWidth: 352 },
   created_by_label: { minWidth: 224, contentMaxWidth: 288 },
-  actions: { minWidth: 64, width: 64, align: "end", pin: "end" },
+  actions: { minWidth: 64, width: 64, align: "end" },
 }
 
 const capabilityLabels = {
@@ -494,7 +494,12 @@ export function AgentSharesTable({
     [actionScope, agentName, teams, users]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: shares, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: shares,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
 
   return (
     <AdminDataGrid

@@ -61,6 +61,7 @@ export function createSecretColumns(
   const columns: ColumnDef<SecretListItem>[] = [
     {
       accessorKey: "key",
+      enableSorting: true,
       header: "Key",
       cell: ({ row }) => (
         <span className="block min-w-0 truncate font-mono text-sm" title={row.original.key}>
@@ -109,6 +110,7 @@ export function createSecretColumns(
     {
       id: "age",
       accessorKey: "created_at",
+      enableSorting: true,
       header: "Age",
       cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },

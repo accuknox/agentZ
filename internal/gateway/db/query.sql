@@ -60,16 +60,36 @@ WHERE ot.tenant_namespace = sqlc.arg(tenant_namespace)
 SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
 WHERE tenant_namespace = $1
-ORDER BY updated_at DESC, agent_name DESC
-LIMIT $2 OFFSET $3;
+ORDER BY
+  CASE WHEN sqlc.arg(sort_by)::text = 'name'
+    AND NOT sqlc.arg(sort_desc)::boolean THEN agent_name END ASC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name'
+    AND sqlc.arg(sort_desc)::boolean THEN agent_name END DESC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'created_at'
+    AND NOT sqlc.arg(sort_desc)::boolean THEN created_at END ASC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'created_at'
+    AND sqlc.arg(sort_desc)::boolean THEN created_at END DESC,
+  CASE WHEN sqlc.arg(sort_desc)::boolean THEN agent_name END DESC,
+  agent_name ASC
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GatewayListAgentsByName :many
 SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = ANY($2::text[])
-ORDER BY updated_at DESC, agent_name DESC
-LIMIT $3 OFFSET $4;
+ORDER BY
+  CASE WHEN sqlc.arg(sort_by)::text = 'name'
+    AND NOT sqlc.arg(sort_desc)::boolean THEN agent_name END ASC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name'
+    AND sqlc.arg(sort_desc)::boolean THEN agent_name END DESC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'created_at'
+    AND NOT sqlc.arg(sort_desc)::boolean THEN created_at END ASC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'created_at'
+    AND sqlc.arg(sort_desc)::boolean THEN created_at END DESC,
+  CASE WHEN sqlc.arg(sort_desc)::boolean THEN agent_name END DESC,
+  agent_name ASC
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GatewayListTraceSessions :many
 SELECT

@@ -22,11 +22,15 @@ export const metadata: Metadata = {
 const secretsSearchParamsSchema = z.object({
   page_token: searchParamStringSchema,
   agent_name: searchParamStringSchema,
+  sort_by: searchParamStringSchema.pipe(z.enum(["key", "created_at"]).default("key")),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("asc")),
 })
 
 type SearchParams = {
   page_token?: SearchParamStringInput
   agent_name?: SearchParamStringInput
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
 }
 
 export default async function SecretsPage({
@@ -66,6 +70,8 @@ export default async function SecretsPage({
   const result = await listSecretsCachedQuery(selectedAgent.name, workspace.workspace.id, {
     limit: 50,
     page_token: parsed.page_token,
+    sort_by: parsed.sort_by,
+    sort_order: parsed.sort_order,
   })
   if (result.error) {
     return (
@@ -105,6 +111,8 @@ export default async function SecretsPage({
         deleteSecretAction={deleteSecretFormAction.bind(null, actionScope)}
         canDelete={selectedAgent.capabilities.delete_secrets}
         workspaceId={workspace.workspace.id}
+        sortBy={parsed.sort_by}
+        sortOrder={parsed.sort_order}
       />
     </main>
   )

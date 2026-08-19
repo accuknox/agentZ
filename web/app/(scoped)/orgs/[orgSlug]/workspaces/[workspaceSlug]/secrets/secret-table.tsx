@@ -3,23 +3,30 @@
 import * as React from "react"
 import { experimental_streamedQuery as streamedQuery } from "@tanstack/react-query"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import { watchSecrets, type SecretListItem, type WatchSecretsEvent } from "@/lib/gateway/client"
+import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table"
+import {
+  watchSecrets,
+  type SecretListItem,
+  type SecretSortByQuery,
+  type SortOrderQuery,
+  type WatchSecretsEvent,
+} from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { createSecretColumns } from "./secret-columns"
 import type { DeleteSecretFormAction } from "@/data/types"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 const layout: Record<string, AdminColumnLayout> = {
-  key: { minWidth: 192, contentMaxWidth: 288, pin: "start" },
+  key: { minWidth: 192, contentMaxWidth: 288 },
   type: { minWidth: 96, width: 96 },
   status: { minWidth: 112, width: 112 },
   hosts: { minWidth: 192, contentMaxWidth: 320 },
   created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   age: { minWidth: 112, width: 112 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 const watchSecretsQueryOptions = (
@@ -88,6 +95,8 @@ export function SecretTable({
   deleteSecretAction,
   canDelete,
   workspaceId,
+  sortBy,
+  sortOrder,
 }: {
   agentName: string
   secrets: SecretListItem[]
@@ -96,8 +105,20 @@ export function SecretTable({
   deleteSecretAction: DeleteSecretFormAction
   canDelete: boolean
   workspaceId: string
+  sortBy: SecretSortByQuery
+  sortOrder: SortOrderQuery
 }) {
   "use no memo"
+
+  const sorting: SortingState = [
+    { id: sortBy === "created_at" ? "age" : "key", desc: sortOrder === "desc" },
+  ]
+  const { onSortingChange } = useServerSorting({
+    fields: { age: "created_at", key: "key" } satisfies Record<string, SecretSortByQuery>,
+    pageTokenKey: "page_token",
+    sorting,
+    tokenStackKey: "token_stack",
+  })
 
   const query = useQuery(watchSecretsQueryOptions(agentName, workspaceId, secrets))
   const rows = query.data ?? secrets
@@ -111,6 +132,10 @@ export function SecretTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (

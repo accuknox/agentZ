@@ -11,8 +11,16 @@ import { McpTable } from "./mcp-table"
 import { NewMcpButton } from "./new-mcp-button"
 import { resourceLabels } from "@/lib/resource-labels"
 
-const searchSchema = z.object({ page_token: searchParamStringSchema })
-type SearchParams = { page_token?: SearchParamStringInput }
+const searchSchema = z.object({
+  page_token: searchParamStringSchema,
+  sort_by: searchParamStringSchema.pipe(z.enum(["name", "created_at"]).default("created_at")),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("desc")),
+})
+type SearchParams = {
+  page_token?: SearchParamStringInput
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
+}
 
 export async function McpPage({
   basePath,
@@ -75,7 +83,12 @@ async function Connections({
 }) {
   const params = searchSchema.parse(await searchParams)
   const result = await listMcpConnectionsCachedQuery(
-    { limit: 50, page_token: params.page_token },
+    {
+      limit: 50,
+      page_token: params.page_token,
+      sort_by: params.sort_by,
+      sort_order: params.sort_order,
+    },
     workspaceId
   )
   if (result.error)
@@ -89,6 +102,8 @@ async function Connections({
       mcpConnections={result.mcpConnections}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}
+      sortBy={params.sort_by}
+      sortOrder={params.sort_order}
       deleteMcpAction={deleteScopedMcpFormAction.bind(null, {
         basePath,
         organizationId,

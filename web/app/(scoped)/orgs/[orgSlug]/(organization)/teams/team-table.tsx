@@ -10,12 +10,12 @@ import { RelativeDateTime } from "@/components/ui/table"
 import { TeamTableActions } from "./team-table-actions"
 
 const layout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  name: { minWidth: 224, contentMaxWidth: 320 },
   memberCount: { minWidth: 112, width: 112, align: "end" },
   roleCount: { minWidth: 96, width: 96, align: "end" },
   accessibleWorkspaceCount: { minWidth: 128, width: 128, align: "end" },
   updatedAt: { minWidth: 128, width: 128 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function TeamTable({
@@ -60,7 +60,12 @@ export function TeamTable({
     [orgSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: teams, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: teams,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
 
   return (
     <AdminDataGrid

@@ -18,7 +18,7 @@ export type WebhookTriggerRow = {
 }
 
 const layout: Record<string, AdminColumnLayout> = {
-  api_key: { minWidth: 256, contentMaxWidth: 352, pin: "start" },
+  api_key: { minWidth: 256, contentMaxWidth: 352 },
   workflow_name: { minWidth: 192, contentMaxWidth: 288 },
   last_triggered: { minWidth: 160, width: 160 },
 }
@@ -69,7 +69,12 @@ export function WebhookTriggersTable({
     []
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    data: rows,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
 
   return (
     <AdminDataGrid

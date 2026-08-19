@@ -61,7 +61,10 @@ import {
   updateSkill,
   type Agent,
   type ImmutableSkillSummary,
+  type MutableSkillSortByQuery,
   type MutableSkillSummary,
+  type SkillSummarySortByQuery,
+  type SortOrderQuery,
 } from "@/lib/gateway/client"
 import {
   listAgentMutableSkillsOptions,
@@ -137,6 +140,19 @@ export function SkillsClient({
   const scopeHeaders = workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined
   const routeType = requestedKind.success ? requestedKind.data : startType
   const routeAgentName = searchParams.get("agent_name") ?? ""
+  const mutableSort = z
+    .enum(["name", "file_count", "size_bytes", "modified_at"])
+    .safeParse(searchParams.get("sort_by"))
+  const immutableSort = z
+    .enum(["name", "version", "file_count", "size_bytes", "modified_at"])
+    .safeParse(searchParams.get("sort_by"))
+  const mutableSortBy: MutableSkillSortByQuery = mutableSort.success ? mutableSort.data : "name"
+  const immutableSortBy: SkillSummarySortByQuery = immutableSort.success
+    ? immutableSort.data
+    : "name"
+  const sortBy = type === "mutable" ? mutableSortBy : immutableSortBy
+  const requestedSortOrder = z.enum(["asc", "desc"]).safeParse(searchParams.get("sort_order"))
+  const sortOrder: SortOrderQuery = requestedSortOrder.success ? requestedSortOrder.data : "asc"
   const pageToken =
     routeType === type && (routeAgentName === "" || routeAgentName === agentName)
       ? (searchParams.get("page_token") ?? "")
@@ -146,7 +162,12 @@ export function SkillsClient({
   const mutableOptions = listAgentMutableSkillsOptions({
     headers: scopeHeaders,
     path: { agentName },
-    query: { limit: pageSize, page_token: pageToken || undefined },
+    query: {
+      limit: pageSize,
+      page_token: pageToken || undefined,
+      sort_by: mutableSortBy,
+      sort_order: sortOrder,
+    },
   })
   const immutableOptions = listImmutableSkillSummariesOptions({
     headers: scopeHeaders,
@@ -154,6 +175,8 @@ export function SkillsClient({
       agent_name: agentName === allAgentsValue ? undefined : agentName,
       limit: pageSize,
       page_token: pageToken || undefined,
+      sort_by: immutableSortBy,
+      sort_order: sortOrder,
     },
   })
   const mutableQuery = useQuery({
@@ -214,6 +237,8 @@ export function SkillsClient({
     }
     params.delete("page_token")
     params.delete("token_stack")
+    params.delete("sort_by")
+    params.delete("sort_order")
     return `${pathname}?${params}`
   }
 
@@ -439,6 +464,8 @@ export function SkillsClient({
           showImmutable={type === "immutable"}
           showOrganization={workspaceId !== undefined}
           setSelected={setSelected}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
           onDelete={(key) => setDeleteKeys([key])}
           onEdit={setEditingSkill}
           onExport={(key) => void exportSkills([key])}

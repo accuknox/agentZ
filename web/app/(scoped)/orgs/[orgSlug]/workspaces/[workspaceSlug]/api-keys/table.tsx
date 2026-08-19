@@ -33,14 +33,14 @@ import type { UserAPIKey } from "@/data/api-key.queries"
 import type { DeleteAPIKeyFormState } from "@/data/types"
 
 const columnLayout = {
-  name: { minWidth: 144, pin: "start" },
+  name: { minWidth: 144 },
   workspace: { minWidth: 160, width: 160 },
   key: { minWidth: 128, width: 128 },
   targets: { contentMaxWidth: 288, minWidth: 208 },
   status: { minWidth: 96, width: 96 },
   expiresAt: { minWidth: 104, width: 104 },
   age: { minWidth: 96, width: 96 },
-  actions: { align: "end", minWidth: 64, pin: "end", width: 64 },
+  actions: { align: "end", minWidth: 64, width: 64 },
 } satisfies Record<string, AdminColumnLayout>
 
 export function APIKeysTable({

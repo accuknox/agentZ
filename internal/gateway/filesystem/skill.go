@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"archive/zip"
+	"cmp"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -41,14 +42,16 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = value
 	}
-	var start string
+	offset := 0
 	if raw := r.URL.Query().Get("page_token"); raw != "" {
 		value, err := base64.RawURLEncoding.DecodeString(raw)
-		if err != nil || skill.ValidateName(string(value)) != nil {
+		if err == nil {
+			offset, err = strconv.Atoi(string(value))
+		}
+		if err != nil || offset < 0 {
 			writeFailure(w, r, badRequest("page token is invalid", err))
 			return
 		}
-		start = string(value)
 	}
 
 	entries, err := fs.ReadDir(s.root.FS(), mutableSkillsRoot)
@@ -66,17 +69,12 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, internalFailure("read mutable skills", err))
 		return
 	}
-	items := make([]gatewayapi.MutableSkillSummary, 0, min(limit, len(entries)))
-	var next string
+	items := make([]gatewayapi.MutableSkillSummary, 0, len(entries))
 	for _, entry := range entries {
 		name := entry.Name()
-		isSkill := entry.IsDir() && skill.ValidateName(name) == nil && name > start
+		isSkill := entry.IsDir() && skill.ValidateName(name) == nil
 		if !isSkill {
 			continue
-		}
-		if len(items) == limit {
-			next = base64.RawURLEncoding.EncodeToString([]byte(items[len(items)-1].Name))
-			break
 		}
 		var count int
 		var size int64
@@ -122,11 +120,47 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 			},
 		)
 	}
+	sortBy := r.URL.Query().Get("sort_by")
+	sortDesc := r.URL.Query().Get("sort_order") == string(gatewayapi.SortOrderQueryDesc)
+	slices.SortFunc(items, func(a, b gatewayapi.MutableSkillSummary) int {
+		order := 0
+		switch sortBy {
+		case string(gatewayapi.MutableSkillSortByQueryMutableSkillSortFileCount):
+			order = cmp.Compare(a.FileCount, b.FileCount)
+		case string(gatewayapi.MutableSkillSortByQueryMutableSkillSortSizeBytes):
+			order = cmp.Compare(a.SizeBytes, b.SizeBytes)
+		case string(gatewayapi.MutableSkillSortByQueryMutableSkillSortModifiedAt):
+			switch {
+			case a.ModifiedAt == nil && b.ModifiedAt != nil:
+				order = -1
+			case a.ModifiedAt != nil && b.ModifiedAt == nil:
+				order = 1
+			case a.ModifiedAt != nil && b.ModifiedAt != nil:
+				order = a.ModifiedAt.Compare(*b.ModifiedAt)
+			}
+		default:
+			order = cmp.Compare(a.Name, b.Name)
+		}
+		if sortDesc {
+			order = -order
+		}
+		if order != 0 {
+			return order
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
+
+	start := min(offset, len(items))
+	end := min(start+limit, len(items))
+	var next string
+	if end < len(items) {
+		next = base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(end)))
+	}
 	writeJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListMutableSkillsResponse{
-			Skills: items, NextPageToken: next,
+			Skills: items[start:end], NextPageToken: next,
 		},
 	)
 }

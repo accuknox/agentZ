@@ -10,3 +10,6 @@ CREATE TABLE agents(
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY(tenant_namespace, agent_name)
 );
+
+CREATE INDEX agents_tenant_created_idx
+ON agents(tenant_namespace, created_at, agent_name);

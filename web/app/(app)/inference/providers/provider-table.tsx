@@ -54,7 +54,7 @@ import { ProviderSheet } from "./provider-sheet"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
 
 const layout: Record<string, AdminColumnLayout> = {
-  display_name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  display_name: { minWidth: 224, contentMaxWidth: 320 },
   kind: { minWidth: 128, width: 128 },
   state: { minWidth: 128, width: 128 },
   model_count: { minWidth: 96, width: 96 },
@@ -62,7 +62,7 @@ const layout: Record<string, AdminColumnLayout> = {
   created_by: { minWidth: 96, width: 96, hiddenBelow: "lg" },
   last_modified_by: { minWidth: 104, width: 104, hiddenBelow: "lg" },
   updated_at: { minWidth: 128, width: 128 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 const providerStateMeta = {
@@ -208,6 +208,7 @@ export function InferenceProviderTable({
     data: watched,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
   })
 
   return (

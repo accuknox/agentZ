@@ -9,6 +9,8 @@ import {
   listMcpConnections,
   listSandboxes,
   listWorkspaceInheritedResources,
+  type InheritedResourceSortByQuery,
+  type InheritedResourceSortOrderQuery,
   listWorkspaceMemberCandidates,
   listWorkspaces,
   replaceWorkspaceInheritedResources,
@@ -214,7 +216,9 @@ export async function getWorkspaceCreation(orgSlug: string) {
 export async function getWorkspaceInheritedResources(
   orgSlug: string,
   workspaceSlug: string,
-  resourceType: InheritedResourceType
+  resourceType: InheritedResourceType,
+  sortBy: InheritedResourceSortByQuery,
+  sortOrder: InheritedResourceSortOrderQuery
 ) {
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (
@@ -227,6 +231,7 @@ export async function getWorkspaceInheritedResources(
   const result = await listWorkspaceInheritedResources({
     client: getGatewayServerClient(),
     path: { resourceType, workspaceId: scope.workspace.id },
+    query: { sort_by: sortBy, sort_order: sortOrder },
   })
   if (result.error) {
     throw new Error(result.error.message)

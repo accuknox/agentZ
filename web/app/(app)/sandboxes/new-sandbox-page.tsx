@@ -43,11 +43,14 @@ async function NewSandboxWizard({
   workspaceId?: string
 }) {
   const [result, skills, providers, pools] = await Promise.all([
-    listMcpConnectionsCachedQuery({ limit: 50 }, workspaceId),
+    listMcpConnectionsCachedQuery(
+      { limit: 50, sort_by: "created_at", sort_order: "desc" },
+      workspaceId
+    ),
     listSkills({
       client: getGatewayServerClient(workspaceId),
       headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
-      query: { limit: 50 },
+      query: { limit: 50, sort_by: "name", sort_order: "asc" },
     }),
     listInferenceProvidersCachedQuery(workspaceId),
     workspaceId

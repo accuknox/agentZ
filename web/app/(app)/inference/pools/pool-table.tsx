@@ -70,13 +70,13 @@ import { ProviderIcon } from "../providers/provider-shared"
 import { PoolSheet } from "./pool-sheet"
 
 const layout: Record<string, AdminColumnLayout> = {
-  display_name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  display_name: { minWidth: 224, contentMaxWidth: 320 },
   state: { minWidth: 176, width: 176 },
   members: { minWidth: 256, contentMaxWidth: 320 },
   automatic_failover: { minWidth: 160, width: 160 },
   usage_count: { minWidth: 96, width: 96 },
   updated_at: { minWidth: 112, width: 112 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 const stateMeta = {
@@ -265,6 +265,7 @@ export function InferencePoolTable({
     data: watched,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
   })
 
   return (

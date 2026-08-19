@@ -13,7 +13,7 @@ const columns: TelemetryTableColumn<FileTelemetryRow>[] = [
   {
     key: "filePath",
     header: "File path accessed",
-    layout: { minWidth: 320, contentMaxWidth: 448, pin: "start" },
+    layout: { minWidth: 320, contentMaxWidth: 448 },
     render: (row) => <TruncateCell value={row.filePath} />,
   },
   {

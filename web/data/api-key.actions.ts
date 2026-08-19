@@ -73,8 +73,7 @@ export async function createAPIKeyFormAction(
     }
   }
 
-  const agents = data.agents.filter((agent) => agent.status !== "DELETED")
-  const allowedAgents = new Set(agents.map((agent) => agent.name))
+  const allowedAgents = new Set(data.agents.map((agent) => agent.name))
   const agentNames = [...new Set(parsed.data.agentNames)].toSorted()
   for (const agentName of agentNames) {
     if (!allowedAgents.has(agentName)) {

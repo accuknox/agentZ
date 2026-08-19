@@ -4,7 +4,12 @@ import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 import { CheckCircle2, CircleAlert, CircleDashed, ListTree, XCircle } from "lucide-react"
-import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import {
+  getCoreRowModel,
+  type ColumnDef,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import {
@@ -19,14 +24,17 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
 import type {
   InheritedResourceType,
+  InheritedResourceSortByQuery,
+  InheritedResourceSortOrderQuery,
   ResourceLifecycle,
   WorkspaceInheritedResource,
 } from "@/lib/gateway/client"
 import { DisabledReason, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 const layout: Record<string, AdminColumnLayout> = {
-  selected: { minWidth: 64, width: 64, pin: "start" },
-  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  selected: { minWidth: 64, width: 64 },
+  name: { minWidth: 224, contentMaxWidth: 320 },
   source: { minWidth: 144, width: 144 },
   status: { minWidth: 128, width: 128 },
   consumers: { minWidth: 256, contentMaxWidth: 384 },
@@ -54,6 +62,8 @@ export function InheritedResourceForm({
   orgSlug,
   resourceType,
   resources,
+  sortBy,
+  sortOrder,
   workspaceSlug,
 }: {
   displayNames?: Record<string, string>
@@ -62,9 +72,20 @@ export function InheritedResourceForm({
   orgSlug: string
   resourceType: InheritedResourceType
   resources: WorkspaceInheritedResource[]
+  sortBy: InheritedResourceSortByQuery
+  sortOrder: InheritedResourceSortOrderQuery
   workspaceSlug: string
 }) {
   "use no memo"
+
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: { name: "name", status: "status" } satisfies Record<
+      string,
+      InheritedResourceSortByQuery
+    >,
+    sorting,
+  })
 
   const serverSelected = React.useMemo(
     () => resources.filter((resource) => resource.selected).map((resource) => resource.name),
@@ -133,6 +154,7 @@ export function InheritedResourceForm({
       },
       {
         id: "name",
+        enableSorting: true,
         accessorFn: (resource) => (displayNames ? displayNames[resource.name] : resource.name),
         header: "Name",
         cell: ({ row }) => {
@@ -174,6 +196,7 @@ export function InheritedResourceForm({
       },
       {
         accessorKey: "status",
+        enableSorting: true,
         header: "Readiness",
         cell: ({ row }) => {
           const meta = statusMeta[row.original.status]
@@ -230,6 +253,9 @@ export function InheritedResourceForm({
     data: resources,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (

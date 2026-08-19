@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -209,7 +210,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	return scheduleViewFromCRD(schedule)
 }
 
-func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, limit int, offset int) ([]gatewayapi.WorkflowSchedule, int, error) {
+func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, sortBy gatewayapi.WorkflowScheduleSortByQuery, sortOrder gatewayapi.SortOrderQuery, limit int, offset int) ([]gatewayapi.WorkflowSchedule, int, error) {
 	list := &agentzv1alpha1.WorkflowScheduleList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
@@ -235,10 +236,24 @@ func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, 
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.WorkflowSchedule) int {
-			if cmp := strings.Compare(a.Name, b.Name); cmp != 0 {
-				return cmp
+			order := 0
+			switch sortBy {
+			case gatewayapi.WorkflowScheduleSortByQueryWorkflowScheduleSortWorkflowName:
+				order = cmp.Compare(a.WorkflowName, b.WorkflowName)
+			case gatewayapi.WorkflowScheduleSortByQueryWorkflowScheduleSortSchedule:
+				order = cmp.Compare(a.Schedule, b.Schedule)
+			case gatewayapi.WorkflowScheduleSortByQueryWorkflowScheduleSortCreatedAt:
+				order = a.CreatedAt.Compare(b.CreatedAt)
+			default:
+				order = cmp.Compare(a.Name, b.Name)
 			}
-			return a.CreatedAt.Compare(b.CreatedAt)
+			if sortOrder == gatewayapi.SortOrderQueryDesc {
+				order = -order
+			}
+			if order != 0 {
+				return order
+			}
+			return cmp.Compare(a.Name, b.Name)
 		},
 	)
 

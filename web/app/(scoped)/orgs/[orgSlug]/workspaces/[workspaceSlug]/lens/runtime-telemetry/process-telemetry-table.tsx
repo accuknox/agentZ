@@ -13,7 +13,7 @@ const columns: TelemetryTableColumn<ProcessTelemetryRow>[] = [
   {
     key: "process",
     header: "Process",
-    layout: { minWidth: 144, contentMaxWidth: 256, pin: "start" },
+    layout: { minWidth: 144, contentMaxWidth: 256 },
     render: (row) => <TruncateCell value={row.process} />,
   },
   {

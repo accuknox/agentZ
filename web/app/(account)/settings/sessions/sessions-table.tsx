@@ -19,7 +19,7 @@ import {
   Ubuntu,
   Windows,
 } from "@ridemountainpig/svgl-react"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef, SortingState } from "@tanstack/react-table"
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { Globe, LogOut, Monitor, MoreHorizontal } from "lucide-react"
 import { formatTimestampWithAge } from "@/lib/format"
@@ -45,9 +45,11 @@ import { Spinner } from "@/components/ui/spinner"
 import type { SVGProps } from "react"
 import type { Auth } from "@/lib/auth"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 type SessionRow = Awaited<ReturnType<Auth["api"]["listSessions"]>>[number]
 type IconComponent = React.ComponentType<SVGProps<SVGSVGElement>>
+type SessionSortBy = "created_at" | "updated_at"
 
 const layout: Record<string, AdminColumnLayout> = {
   current: { minWidth: 112, width: 112 },
@@ -55,7 +57,7 @@ const layout: Record<string, AdminColumnLayout> = {
   updatedAt: { minWidth: 224, width: 224 },
   os: { minWidth: 144, width: 144 },
   browser: { minWidth: 144, width: 144 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 const browserIcons: Record<string, IconComponent> = {
@@ -83,6 +85,8 @@ export function SessionsTable({
   currentToken,
   deleteSessionAction,
   sessions,
+  sortBy,
+  sortOrder,
 }: {
   currentToken: string
   deleteSessionAction: (
@@ -90,8 +94,24 @@ export function SessionsTable({
     formData: FormData
   ) => Promise<DeleteSessionFormState>
   sessions: SessionRow[]
+  sortBy: SessionSortBy
+  sortOrder: "asc" | "desc"
 }) {
   "use no memo"
+
+  const sorting: SortingState = [
+    {
+      id: sortBy === "created_at" ? "createdAt" : "updatedAt",
+      desc: sortOrder === "desc",
+    },
+  ]
+  const { onSortingChange } = useServerSorting({
+    fields: { createdAt: "created_at", updatedAt: "updated_at" } satisfies Record<
+      string,
+      SessionSortBy
+    >,
+    sorting,
+  })
 
   const columns = React.useMemo<ColumnDef<SessionRow>[]>(
     () => [
@@ -110,6 +130,7 @@ export function SessionsTable({
       {
         id: "createdAt",
         accessorFn: (row) => row.createdAt,
+        enableSorting: true,
         header: "Created",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
@@ -120,6 +141,7 @@ export function SessionsTable({
       {
         id: "updatedAt",
         accessorFn: (row) => row.updatedAt,
+        enableSorting: true,
         header: "Last seen",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
@@ -158,6 +180,9 @@ export function SessionsTable({
     data: sessions,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (

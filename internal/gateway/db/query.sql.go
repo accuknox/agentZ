@@ -1808,18 +1808,36 @@ const gatewayListAgents = `-- name: GatewayListAgents :many
 SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
 WHERE tenant_namespace = $1
-ORDER BY updated_at DESC, agent_name DESC
-LIMIT $2 OFFSET $3
+ORDER BY
+  CASE WHEN $2::text = 'name'
+    AND NOT $3::boolean THEN agent_name END ASC,
+  CASE WHEN $2::text = 'name'
+    AND $3::boolean THEN agent_name END DESC,
+  CASE WHEN $2::text = 'created_at'
+    AND NOT $3::boolean THEN created_at END ASC,
+  CASE WHEN $2::text = 'created_at'
+    AND $3::boolean THEN created_at END DESC,
+  CASE WHEN $3::boolean THEN agent_name END DESC,
+  agent_name ASC
+LIMIT $5 OFFSET $4
 `
 
 type GatewayListAgentsParams struct {
 	TenantNamespace string `json:"tenant_namespace"`
-	Limit           int32  `json:"limit"`
-	Offset          int32  `json:"offset"`
+	SortBy          string `json:"sort_by"`
+	SortDesc        bool   `json:"sort_desc"`
+	PageOffset      int32  `json:"page_offset"`
+	PageSize        int32  `json:"page_size"`
 }
 
 func (q *Queries) GatewayListAgents(ctx context.Context, arg GatewayListAgentsParams) ([]Agent, error) {
-	rows, err := q.db.Query(ctx, gatewayListAgents, arg.TenantNamespace, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, gatewayListAgents,
+		arg.TenantNamespace,
+		arg.SortBy,
+		arg.SortDesc,
+		arg.PageOffset,
+		arg.PageSize,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1848,23 +1866,37 @@ SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = ANY($2::text[])
-ORDER BY updated_at DESC, agent_name DESC
-LIMIT $3 OFFSET $4
+ORDER BY
+  CASE WHEN $3::text = 'name'
+    AND NOT $4::boolean THEN agent_name END ASC,
+  CASE WHEN $3::text = 'name'
+    AND $4::boolean THEN agent_name END DESC,
+  CASE WHEN $3::text = 'created_at'
+    AND NOT $4::boolean THEN created_at END ASC,
+  CASE WHEN $3::text = 'created_at'
+    AND $4::boolean THEN created_at END DESC,
+  CASE WHEN $4::boolean THEN agent_name END DESC,
+  agent_name ASC
+LIMIT $6 OFFSET $5
 `
 
 type GatewayListAgentsByNameParams struct {
 	TenantNamespace string   `json:"tenant_namespace"`
 	Column2         []string `json:"column_2"`
-	Limit           int32    `json:"limit"`
-	Offset          int32    `json:"offset"`
+	SortBy          string   `json:"sort_by"`
+	SortDesc        bool     `json:"sort_desc"`
+	PageOffset      int32    `json:"page_offset"`
+	PageSize        int32    `json:"page_size"`
 }
 
 func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAgentsByNameParams) ([]Agent, error) {
 	rows, err := q.db.Query(ctx, gatewayListAgentsByName,
 		arg.TenantNamespace,
 		arg.Column2,
-		arg.Limit,
-		arg.Offset,
+		arg.SortBy,
+		arg.SortDesc,
+		arg.PageOffset,
+		arg.PageSize,
 	)
 	if err != nil {
 		return nil, err

@@ -12,7 +12,7 @@ const columns: TelemetryTableColumn<NetworkTelemetryRow>[] = [
   {
     key: "destinationDomain",
     header: "Destination domain",
-    layout: { minWidth: 208, contentMaxWidth: 320, pin: "start" },
+    layout: { minWidth: 208, contentMaxWidth: 320 },
     render: (row) => <span className="font-mono text-xs">{row.destinationDomain}</span>,
   },
   {

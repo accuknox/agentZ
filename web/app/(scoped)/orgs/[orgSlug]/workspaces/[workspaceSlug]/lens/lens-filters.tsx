@@ -45,6 +45,7 @@ export function LensFilters({
   function update(values: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams)
     params.delete("page_token")
+    params.delete("token_stack")
     for (const [key, value] of Object.entries(values)) {
       if (value) {
         params.set(key, value)

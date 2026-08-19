@@ -34,12 +34,18 @@ const workflowTriggersSearchParamsSchema = z.object({
   agent_name: searchParamStringSchema,
   type: searchParamStringSchema,
   page_token: searchParamStringSchema,
+  sort_by: searchParamStringSchema.pipe(
+    z.enum(["name", "workflow_name", "schedule", "created_at"]).default("created_at")
+  ),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("desc")),
 })
 
 type SearchParams = {
   agent_name?: SearchParamStringInput
   type?: SearchParamStringInput
   page_token?: SearchParamStringInput
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
 }
 
 type ResolvedSearchParams = z.output<typeof workflowTriggersSearchParamsSchema>
@@ -184,7 +190,12 @@ async function Triggers({
   const schedulesResult = await listWorkflowSchedulesCachedQuery(
     selectedAgent.name,
     actionScope.workspaceId,
-    { limit: 50, page_token: pageToken }
+    {
+      limit: 50,
+      page_token: pageToken,
+      sort_by: searchParams.sort_by,
+      sort_order: searchParams.sort_order,
+    }
   )
   if (schedulesResult.error) {
     return <ErrorPanel message={schedulesResult.error.message} />
@@ -205,6 +216,8 @@ async function Triggers({
       getWorkflowInputContractAction={getWorkflowInputContractAction.bind(null, actionScope)}
       hasNextPage={schedulesResult.hasNextPage}
       nextPageToken={schedulesResult.nextPageToken}
+      sortBy={searchParams.sort_by}
+      sortOrder={searchParams.sort_order}
       triggerWorkflowRunAction={triggerWorkflowRunAction.bind(null, actionScope)}
       updateWorkflowScheduleAction={updateWorkflowScheduleFormAction.bind(null, actionScope)}
       workflowSchedules={schedulesResult.workflowSchedules}

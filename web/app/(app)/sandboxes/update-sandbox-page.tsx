@@ -64,11 +64,14 @@ async function UpdateSandboxContent({
   workspaceId?: string
 }) {
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
-  const mcpResult = listMcpConnectionsCachedQuery({ limit: 50 }, workspaceId)
+  const mcpResult = listMcpConnectionsCachedQuery(
+    { limit: 50, sort_by: "created_at", sort_order: "desc" },
+    workspaceId
+  )
   const skillsResult = listSkills({
     client: getGatewayServerClient(workspaceId),
     headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
-    query: { limit: 50 },
+    query: { limit: 50, sort_by: "name", sort_order: "asc" },
   })
   const providersResult = listInferenceProvidersCachedQuery(workspaceId)
   const poolsResult = workspaceId

@@ -4,9 +4,19 @@ import * as React from "react"
 import type { Route } from "next"
 import { toast } from "sonner"
 import { useRouter } from "@bprogress/next/app"
-import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import {
+  getCoreRowModel,
+  type ColumnDef,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table"
 import { MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react"
-import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
+import type {
+  SortOrderQuery,
+  WorkflowSchedule,
+  WorkflowScheduleSortByQuery,
+  WorkflowSummary,
+} from "@/lib/gateway/client"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { Button } from "@/components/ui/button"
@@ -34,13 +44,14 @@ import type {
 } from "@/data/types"
 import type { TriggerWorkflowRunActionState } from "@/data/workflow-run.actions"
 import { ScheduleSheet } from "./schedule-sheet"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 const layout: Record<string, AdminColumnLayout> = {
-  name: { minWidth: 192, contentMaxWidth: 288, pin: "start" },
+  name: { minWidth: 192, contentMaxWidth: 288 },
   workflow_name: { minWidth: 192, contentMaxWidth: 288 },
   schedule: { minWidth: 192, contentMaxWidth: 288 },
   created_at: { minWidth: 144, width: 144 },
-  actions: { minWidth: 64, width: 64, pin: "end" },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function ScheduleTriggersTable({
@@ -50,6 +61,8 @@ export function ScheduleTriggersTable({
   workflowSchedules,
   hasNextPage,
   nextPageToken,
+  sortBy,
+  sortOrder,
   deleteWorkflowScheduleAction,
   getWorkflowInputContractAction,
   triggerWorkflowRunAction,
@@ -61,6 +74,8 @@ export function ScheduleTriggersTable({
   workflowSchedules: WorkflowSchedule[]
   hasNextPage: boolean
   nextPageToken: string
+  sortBy: WorkflowScheduleSortByQuery
+  sortOrder: SortOrderQuery
   deleteWorkflowScheduleAction: (
     agentName: string,
     state: DeleteWorkflowScheduleFormState,
@@ -84,6 +99,19 @@ export function ScheduleTriggersTable({
   ) => Promise<UpdateWorkflowScheduleFormState>
 }) {
   "use no memo"
+
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: {
+      name: "name",
+      workflow_name: "workflow_name",
+      schedule: "schedule",
+      created_at: "created_at",
+    } satisfies Record<string, WorkflowScheduleSortByQuery>,
+    pageTokenKey: "page_token",
+    sorting,
+    tokenStackKey: "token_stack",
+  })
 
   const columns = React.useMemo<ColumnDef<WorkflowSchedule>[]>(
     () =>
@@ -110,6 +138,10 @@ export function ScheduleTriggersTable({
     data: workflowSchedules,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (
@@ -155,21 +187,25 @@ function createColumns(
   return [
     {
       accessorKey: "name",
+      enableSorting: true,
       header: "Name",
       cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
     },
     {
       accessorKey: "workflow_name",
+      enableSorting: true,
       header: "Workflow",
       cell: ({ row }) => <span className="font-mono text-sm">{row.original.workflow_name}</span>,
     },
     {
       accessorKey: "schedule",
+      enableSorting: true,
       header: "Schedule",
       cell: ({ row }) => <span className="font-mono text-sm">{row.original.schedule}</span>,
     },
     {
       accessorKey: "created_at",
+      enableSorting: true,
       header: "Age",
       cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },

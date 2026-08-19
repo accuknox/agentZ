@@ -13,14 +13,14 @@ import type { ActiveMember, InvitationRow, MemberDirectory, MemberTab } from "@/
 import { DisabledUserActions, InvitationActions, UserTableActions } from "./member-actions"
 
 const memberLayout = {
-  user: { minWidth: 256, pin: "start" },
+  user: { minWidth: 256 },
   assignments: { minWidth: 176, width: 176 },
   ownedAgents: { align: "end", minWidth: 112, width: 112 },
   sharedAgents: { align: "end", minWidth: 96, width: 96 },
   apiKeys: { align: "end", minWidth: 96, width: 96 },
   lastActivity: { minWidth: 128, width: 128 },
   createdAt: { minWidth: 128, width: 128 },
-  actions: { align: "end", minWidth: 64, pin: "end", width: 64 },
+  actions: { align: "end", minWidth: 64, width: 64 },
 } satisfies Record<string, AdminColumnLayout>
 
 const invitationLayout = {
@@ -28,7 +28,7 @@ const invitationLayout = {
   assignments: { minWidth: 176 },
   inviter: { contentMaxWidth: 256, minWidth: 224 },
   expiresAt: { minWidth: 128, width: 128 },
-  actions: { align: "end", minWidth: 80, pin: "end", width: 80 },
+  actions: { align: "end", minWidth: 80, width: 80 },
 } satisfies Record<string, AdminColumnLayout>
 
 export function UserDirectoryTable({
@@ -129,7 +129,12 @@ function MemberTable({
     [disabled, orgSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: members, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: members,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
   return (
     <DirectoryTable
       ariaLabel={disabled ? "Disabled Users" : "Active Users"}
@@ -189,7 +194,12 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
     [orgSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: data.invited, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: data.invited,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
   return (
     <DirectoryTable
       ariaLabel="Pending Invitations"

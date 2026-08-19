@@ -400,7 +400,8 @@ function SessionItem({
           <DialogHeader>
             <DialogTitle>Delete session?</DialogTitle>
             <DialogDescription>
-              This will permanently delete <span className="font-medium">{session.title}</span>.
+              Deleting <span className="font-medium">{session.title}</span> removes the session
+              permanently.
             </DialogDescription>
           </DialogHeader>
           {pendingState.error ? (

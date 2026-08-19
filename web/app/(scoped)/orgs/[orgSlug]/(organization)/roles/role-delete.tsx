@@ -96,7 +96,7 @@ export function RoleDeleteDialog({
         <DialogHeader>
           <DialogTitle>Delete {name}?</DialogTitle>
           <DialogDescription>
-            This removes the reusable Role and all of its Permission Grants. This cannot be undone.
+            Deleting this Role removes all of its Permission Grants. You cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="flex flex-col gap-4">

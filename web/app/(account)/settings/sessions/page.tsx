@@ -1,59 +1,68 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import { AdministrationPageHeader } from "@/components/administration"
 import { headers } from "next/headers"
-import { getAuth, type Auth } from "@/lib/auth"
+import { and, asc, desc, eq, gt } from "drizzle-orm"
+import * as z from "zod"
+import { getAuth } from "@/lib/auth"
+import { getDB, schema } from "@/db"
 import { deleteSessionFormAction } from "@/data/session.actions"
 import { SessionsTable } from "./sessions-table"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Sessions",
 }
 
-export default function SessionsPage() {
+const searchSchema = z.object({
+  sort_by: searchParamStringSchema.pipe(z.enum(["created_at", "updated_at"]).default("updated_at")),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("desc")),
+})
+
+type SearchParams = {
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
+}
+
+export default function SessionsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Sessions</h1>
-        </div>
-      </div>
+      <AdministrationPageHeader title="Sessions" />
       <Suspense fallback={<TableSkeleton />}>
-        <Sessions />
+        <Sessions searchParams={searchParams} />
       </Suspense>
     </main>
   )
 }
 
-async function Sessions() {
-  const requestHeaders = await headers()
+async function Sessions({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const [requestHeaders, search] = await Promise.all([headers(), searchParams])
+  const sorting = searchSchema.parse(search)
   const auth = getAuth()
   let currentToken: string | undefined
-  let sessions: Awaited<ReturnType<Auth["api"]["listSessions"]>> | undefined
+  let sessions: (typeof schema.sessions.$inferSelect)[] | undefined
   let errorMessage: string | undefined
 
   try {
-    const [currentSession, listedSessions] = await Promise.all([
-      auth.api.getSession({
-        headers: requestHeaders,
-      }),
-      auth.api.listSessions({
-        headers: requestHeaders,
-      }),
-    ])
+    const currentSession = await auth.api.getSession({ headers: requestHeaders })
 
     if (!currentSession) {
       errorMessage = "Unauthorized"
     } else {
       currentToken = currentSession.session.token
-      sessions = listedSessions.toSorted((x, y) => {
-        if (x.token === currentSession.session.token) {
-          return -1
-        }
-        if (y.token === currentSession.session.token) {
-          return 1
-        }
-        return y.updatedAt.getTime() - x.updatedAt.getTime()
-      })
+      const column =
+        sorting.sort_by === "created_at" ? schema.sessions.createdAt : schema.sessions.updatedAt
+      const order = sorting.sort_order === "asc" ? asc(column) : desc(column)
+      sessions = await getDB()
+        .select()
+        .from(schema.sessions)
+        .where(
+          and(
+            eq(schema.sessions.userId, currentSession.user.id),
+            gt(schema.sessions.expiresAt, new Date())
+          )
+        )
+        .orderBy(desc(eq(schema.sessions.token, currentToken)), order, asc(schema.sessions.id))
     }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Failed to load sessions"
@@ -68,6 +77,8 @@ async function Sessions() {
       currentToken={currentToken}
       deleteSessionAction={deleteSessionFormAction}
       sessions={sessions}
+      sortBy={sorting.sort_by}
+      sortOrder={sorting.sort_order}
     />
   )
 }

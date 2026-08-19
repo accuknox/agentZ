@@ -356,7 +356,7 @@ export function PoolSheet({
             {pool ? "Edit Pool" : "New Pool"}
           </SheetTitle>
           <SheetDescription>
-            Choose a primary model and the backups to use if it becomes unavailable.
+            Choose a primary model, then set the order of its backups.
           </SheetDescription>
         </SheetHeader>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={form.handleSubmit(submit)}>
@@ -381,7 +381,8 @@ export function PoolSheet({
                     <div>
                       <FieldLabel>Automatic failover</FieldLabel>
                       <FieldDescription>
-                        If a model keeps failing, new requests use the next model until it recovers.
+                        When the active model keeps failing, new requests move to the next model
+                        until it recovers.
                       </FieldDescription>
                       <FieldError errors={[fieldState.error]} />
                     </div>
@@ -401,7 +402,7 @@ export function PoolSheet({
                 <div>
                   <h2 className="text-sm font-medium">Members</h2>
                   <p className="text-muted-foreground text-sm">
-                    The first model is preferred. Drag to arrange its backups.
+                    The first model is primary. Drag the others into fallback order.
                   </p>
                 </div>
                 <Button
@@ -474,7 +475,7 @@ export function PoolSheet({
               <div>
                 <h2 className="text-sm font-medium">Pool Contract</h2>
                 <p className="text-muted-foreground text-sm">
-                  What every model in this Pool can handle.
+                  Capabilities, data types, and token limits supported by every model in this Pool.
                 </p>
               </div>
               {contract ? (
@@ -489,11 +490,11 @@ export function PoolSheet({
                     }
                   />
                   <ContractDetail
-                    label="Input modalities"
+                    label="Input data types"
                     value={contract.modalities.input.join(", ")}
                   />
                   <ContractDetail
-                    label="Output modalities"
+                    label="Output data types"
                     value={contract.modalities.output.join(", ")}
                   />
                   <ContractDetail
@@ -503,7 +504,7 @@ export function PoolSheet({
                 </div>
               ) : (
                 <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
-                  Choose a provider and model in every row to see their shared support.
+                  Choose a provider and model in every row to calculate the Pool Contract.
                 </p>
               )}
             </section>
@@ -530,8 +531,8 @@ export function PoolSheet({
             <DialogHeader>
               <DialogTitle>Update a Pool used by Sandboxes?</DialogTitle>
               <DialogDescription>
-                Changing the models, their order, or failover setting changes where requests go.
-                Agents using these Sandboxes will pick up the change automatically.
+                Changing the models, their order, or failover setting changes where requests go. The
+                listed Sandboxes will use the new routing configuration after you save.
               </DialogDescription>
             </DialogHeader>
             {impact ? (

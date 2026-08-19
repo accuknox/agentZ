@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { resolveWorkspaceDestination } from "@/data/workspaces"
 
 export const metadata = { title: "Overview" }
@@ -15,5 +15,10 @@ export default async function WorkspacePage({
     redirect(destination)
   }
 
-  return <AdministrationState kind="forbidden" />
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <AdministrationPageHeader title="Overview" />
+      <AdministrationState kind="forbidden" />
+    </div>
+  )
 }

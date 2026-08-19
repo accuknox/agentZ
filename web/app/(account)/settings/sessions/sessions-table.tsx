@@ -19,15 +19,9 @@ import {
   Ubuntu,
   Windows,
 } from "@ridemountainpig/svgl-react"
-import type { ColumnDef } from "@tanstack/react-table"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
-import { ArrowUpDown, Globe, LogOut, Monitor, MoreHorizontal } from "lucide-react"
+import type { ColumnDef, SortingState } from "@tanstack/react-table"
+import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { Globe, LogOut, Monitor, MoreHorizontal } from "lucide-react"
 import { formatTimestampWithAge } from "@/lib/format"
 import type { DeleteSessionFormState } from "@/data/types"
 import { Badge } from "@/components/ui/badge"
@@ -48,27 +42,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type { SVGProps } from "react"
 import type { Auth } from "@/lib/auth"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
 type SessionRow = Awaited<ReturnType<Auth["api"]["listSessions"]>>[number]
 type IconComponent = React.ComponentType<SVGProps<SVGSVGElement>>
+type SessionSortBy = "created_at" | "updated_at"
 
-const columnClassName: Record<string, string> = {
-  current: "w-14",
-  createdAt: "w-56",
-  updatedAt: "w-56",
-  os: "w-36",
-  browser: "w-36",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  current: { minWidth: 112, width: 112 },
+  createdAt: { minWidth: 224, width: 224 },
+  updatedAt: { minWidth: 224, width: 224 },
+  os: { minWidth: 144, width: 144 },
+  browser: { minWidth: 144, width: 144 },
+  actions: { minWidth: 64, width: 64 },
 }
 
 const browserIcons: Record<string, IconComponent> = {
@@ -96,6 +85,8 @@ export function SessionsTable({
   currentToken,
   deleteSessionAction,
   sessions,
+  sortBy,
+  sortOrder,
 }: {
   currentToken: string
   deleteSessionAction: (
@@ -103,20 +94,31 @@ export function SessionsTable({
     formData: FormData
   ) => Promise<DeleteSessionFormState>
   sessions: SessionRow[]
+  sortBy: SessionSortBy
+  sortOrder: "asc" | "desc"
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: "current", desc: true },
-    { id: "updatedAt", desc: true },
-  ])
+  const sorting: SortingState = [
+    {
+      id: sortBy === "created_at" ? "createdAt" : "updatedAt",
+      desc: sortOrder === "desc",
+    },
+  ]
+  const { onSortingChange } = useServerSorting({
+    fields: { createdAt: "created_at", updatedAt: "updated_at" } satisfies Record<
+      string,
+      SessionSortBy
+    >,
+    sorting,
+  })
 
   const columns = React.useMemo<ColumnDef<SessionRow>[]>(
     () => [
       {
         id: "current",
         accessorFn: (row) => Number(row.token === currentToken),
-        header: "",
+        header: () => <span className="sr-only">Current session</span>,
         cell: ({ row }) =>
           row.original.token === currentToken ? (
             <Badge variant="success">
@@ -128,16 +130,8 @@ export function SessionsTable({
       {
         id: "createdAt",
         accessorFn: (row) => row.createdAt,
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Created
-            <ArrowUpDown />
-          </Button>
-        ),
+        enableSorting: true,
+        header: "Created",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {formatTimestampWithAge(row.original.createdAt)}
@@ -147,16 +141,8 @@ export function SessionsTable({
       {
         id: "updatedAt",
         accessorFn: (row) => row.updatedAt,
-        header: ({ column }) => (
-          <Button
-            className="-ml-2"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Last seen
-            <ArrowUpDown />
-          </Button>
-        ),
+        enableSorting: true,
+        header: "Last seen",
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {formatTimestampWithAge(row.original.updatedAt)}
@@ -194,58 +180,19 @@ export function SessionsTable({
     data: sessions,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (
-    <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id] ?? ""}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={`h-11 px-4 py-1.5 align-middle ${columnClassName[cell.column.id] ?? ""}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    <AdminDataGrid
+      ariaLabel="Account sessions"
+      emptyState={<p className="text-muted-foreground py-8 text-center">No sessions found.</p>}
+      layout={layout}
+      rows={sessions}
+      table={table}
+    />
   )
 }
 
@@ -336,7 +283,7 @@ function DeleteSessionButton({
           <DialogHeader>
             <DialogTitle>Revoke session?</DialogTitle>
             <DialogDescription>
-              This will sign out that device immediately. This action cannot be undone.
+              We will sign out that device immediately. You cannot undo this action.
             </DialogDescription>
           </DialogHeader>
           {state.error ? (

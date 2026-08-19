@@ -12,6 +12,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
+import { resourceLabels } from "@/lib/resource-labels"
 
 export function NavLens({ rootPath }: { rootPath: string }) {
   const path = usePathname()
@@ -21,9 +22,13 @@ export function NavLens({ rootPath }: { rootPath: string }) {
     {
       href: `${lensPath}/runtime-telemetry` as Route,
       icon: Server,
-      label: "Runtime Telemetry",
+      label: "Runtime telemetry",
     },
-    { href: `${lensPath}/mcp` as Route, icon: Cable, label: "MCP" },
+    {
+      href: `${lensPath}/mcp` as Route,
+      icon: Cable,
+      label: resourceLabels.mcpActivity.collection,
+    },
   ]
 
   return (

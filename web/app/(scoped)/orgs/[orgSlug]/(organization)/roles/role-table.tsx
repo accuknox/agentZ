@@ -1,40 +1,26 @@
 "use client"
 
 import type { Route } from "next"
-import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
-import { RoutedTableRow } from "@/components/routed-table-row"
-import { ScopeBadge } from "@/components/administration"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState, ScopeBadge } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type { OrganizationRoleSummary } from "@/data/roles"
-import { TableRelativeTime } from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { RoleTableActions } from "./role-table-actions"
 
-const headerClassName: Readonly<Record<string, string | undefined>> = {
-  actions: "w-16",
-  dependencyState: "w-32",
-  immutable: "w-20",
-  permissions: "w-28 text-right",
-  scope: "w-24",
-  teams: "w-16 text-right",
-  updatedAt: "w-36",
-  users: "w-16 text-right",
-}
-
-const cellClassName: Readonly<Record<string, string | undefined>> = {
-  name: "min-w-0",
-  permissions: "text-right tabular-nums",
-  teams: "text-right tabular-nums",
-  users: "text-right tabular-nums",
+const layout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 224, contentMaxWidth: 320 },
+  scope: { minWidth: 96, width: 96 },
+  immutable: { minWidth: 80, width: 80 },
+  users: { minWidth: 64, width: 64, align: "end" },
+  teams: { minWidth: 64, width: 64, align: "end" },
+  permissions: { minWidth: 112, width: 112, align: "end" },
+  dependencyState: { minWidth: 128, width: 128 },
+  updatedAt: { minWidth: 144, width: 144 },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function RoleTable({
@@ -104,7 +90,7 @@ export function RoleTable({
       {
         accessorKey: "updatedAt",
         header: "Updated",
-        cell: ({ row }) => <TableRelativeTime value={row.original.updatedAt} />,
+        cell: ({ row }) => <RelativeDateTime value={row.original.updatedAt} />,
       },
       ...(!workspaceSlug
         ? [
@@ -126,52 +112,30 @@ export function RoleTable({
     [orgSlug, workspaceSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: roles, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: roles,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="w-full min-w-0 border-b">
-        <Table
-          aria-label={workspaceSlug ? "Workspace Roles" : "Organisation Roles"}
-          className="w-full min-w-3xl table-fixed"
-        >
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableHead className={headerClassName[header.column.id]} key={header.id}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <RoutedTableRow
-                  aria-label={`Open ${row.original.name}`}
-                  href={`${root}/${row.original.id}/permissions` as Route}
-                  key={row.id}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell className={cellClassName[cell.column.id]} key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </RoutedTableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={nextPageToken !== ""} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel={workspaceSlug ? "Workspace roles" : "Organization roles"}
+      emptyState={
+        <AdministrationState
+          description="Create a Role, choose its permissions, then assign it to members or Teams."
+          kind="welcome"
+          title="Let's create your first role"
+        />
+      }
+      layout={layout}
+      pagination={
+        <TokenTablePagination hasNextPage={nextPageToken !== ""} nextPageToken={nextPageToken} />
+      }
+      rowHref={(role) => `${root}/${role.id}/permissions` as Route}
+      rows={roles}
+      table={table}
+    />
   )
 }

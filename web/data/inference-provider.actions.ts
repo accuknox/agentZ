@@ -35,6 +35,7 @@ import type { InferenceProvidersResult } from "@/data/inference-provider.queries
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { openOAuthState, sealOAuthState } from "@/lib/oauth-state"
+import { dayjs } from "@/lib/format"
 
 const inferenceOAuthCookieName = "agentz_inference_provider_oauth"
 const openAICodexClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
@@ -151,7 +152,7 @@ export async function startInferenceProviderOAuthAction(
       }
       const device = openAIDeviceResponseSchema.parse(await response.json())
       const interval = Number.parseInt(device.interval, 10)
-      const expiresAt = Date.now() + 10 * 60 * 1000
+      const expiresAt = dayjs().add(10, "minutes").valueOf()
       const cookieStore = await cookies()
       cookieStore.set(
         inferenceOAuthCookieName,
@@ -180,7 +181,7 @@ export async function startInferenceProviderOAuthAction(
         verificationUri: "https://auth.openai.com/codex/device",
         userCode: device.user_code,
         interval,
-        expiresAt: new Date(expiresAt).toISOString(),
+        expiresAt: dayjs(expiresAt).toISOString(),
       }
     }
 
@@ -199,7 +200,7 @@ export async function startInferenceProviderOAuthAction(
       return { status: "error", message: "GitHub sign-in could not be started" }
     }
     const device = gitHubDeviceResponseSchema.parse(await response.json())
-    const expiresAt = Date.now() + device.expires_in * 1000
+    const expiresAt = dayjs().add(device.expires_in, "seconds").valueOf()
     const cookieStore = await cookies()
     cookieStore.set(
       inferenceOAuthCookieName,
@@ -227,7 +228,7 @@ export async function startInferenceProviderOAuthAction(
       verificationUri: device.verification_uri,
       userCode: device.user_code,
       interval: device.interval,
-      expiresAt: new Date(expiresAt).toISOString(),
+      expiresAt: dayjs(expiresAt).toISOString(),
     }
   } catch {
     return { status: "error", message: "Sign-in could not be started" }
@@ -240,7 +241,7 @@ export async function pollInferenceProviderOAuthAction(
   const cookieStore = await cookies()
   const sealed = cookieStore.get(inferenceOAuthCookieName)?.value
   if (!sealed) {
-    return { status: "error", message: "Sign-in expired. Please try again." }
+    return { status: "error", message: "Sign-in expired. Start again." }
   }
 
   let pending: z.infer<typeof pendingInferenceOAuthSchema>
@@ -248,7 +249,7 @@ export async function pollInferenceProviderOAuthAction(
     pending = pendingInferenceOAuthSchema.parse(await openOAuthState(sealed, "inference-provider"))
   } catch {
     cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "Sign-in could not be completed. Please try again." }
+    return { status: "error", message: "We couldn't complete sign-in. Start again." }
   }
 
   const initiator = await currentGatewayAuthContext()
@@ -259,11 +260,11 @@ export async function pollInferenceProviderOAuthAction(
     pending.workspaceId !== scope.workspaceId
   ) {
     cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "Sign-in can no longer be used. Please try again." }
+    return { status: "error", message: "This sign-in is no longer valid. Start again." }
   }
-  if (pending.expiresAt <= Date.now()) {
+  if (!dayjs(pending.expiresAt).isAfter(dayjs())) {
     cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "Sign-in expired. Please try again." }
+    return { status: "error", message: "Sign-in expired. Start again." }
   }
 
   try {
@@ -272,7 +273,7 @@ export async function pollInferenceProviderOAuthAction(
     }
     return await pollGitHubCopilot(pending, cookieStore, scope.workspaceId)
   } catch {
-    return { status: "error", message: "Sign-in could not be completed. Please try again." }
+    return { status: "error", message: "We couldn't complete sign-in. Start again." }
   }
 }
 
@@ -327,7 +328,9 @@ async function pollOpenAICodex(
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         id_token: tokens.id_token,
-        expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
+        expires_at: dayjs()
+          .add(tokens.expires_in ?? 3600, "seconds")
+          .toISOString(),
       },
     },
     client: getGatewayServerClient(workspaceId),
@@ -374,7 +377,7 @@ async function pollGitHubCopilot(
       sameSite: "strict",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: Math.max(Math.ceil((pending.expiresAt - Date.now()) / 1000), 1),
+      maxAge: Math.max(Math.ceil(dayjs(pending.expiresAt).diff(dayjs(), "second", true)), 1),
     })
     return { status: "pending", interval: pending.interval }
   }

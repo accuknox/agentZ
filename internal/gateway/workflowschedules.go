@@ -134,6 +134,14 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
+	sortBy := gatewayapi.WorkflowScheduleSortByQueryWorkflowScheduleSortName
+	if params.SortBy != nil {
+		sortBy = gatewayapi.WorkflowScheduleSortByQuery(*params.SortBy)
+	}
+	sortOrder := gatewayapi.SortOrderQueryAsc
+	if params.SortOrder != nil {
+		sortOrder = gatewayapi.SortOrderQuery(*params.SortOrder)
+	}
 
 	items, nextOffset, err := workflow.ListSchedules(
 		r.Context(),
@@ -141,6 +149,8 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		ns,
 		agentName,
 		"",
+		sortBy,
+		sortOrder,
 		limit,
 		offset,
 	)
@@ -206,6 +216,14 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 	if !ok {
 		return
 	}
+	sortBy := gatewayapi.WorkflowScheduleSortByQueryWorkflowScheduleSortName
+	if params.SortBy != nil {
+		sortBy = gatewayapi.WorkflowScheduleSortByQuery(*params.SortBy)
+	}
+	sortOrder := gatewayapi.SortOrderQueryAsc
+	if params.SortOrder != nil {
+		sortOrder = gatewayapi.SortOrderQuery(*params.SortOrder)
+	}
 
 	items, nextOffset, err := workflow.ListSchedules(
 		r.Context(),
@@ -213,6 +231,8 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		ns,
 		agentName,
 		workflowName,
+		sortBy,
+		sortOrder,
 		limit,
 		offset,
 	)

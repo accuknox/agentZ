@@ -1132,7 +1132,7 @@ function DirectoryTree({
         className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
         role="status"
       >
-        <Spinner className="size-3" /> Loading...
+        <Spinner className="size-3" /> Loading…
       </div>
     )
   }
@@ -1568,7 +1568,7 @@ function EditorPane({
               {save.isPending ? <Spinner aria-hidden="true" /> : <Save />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{save.isPending ? "Saving..." : "Save file"}</TooltipContent>
+          <TooltipContent>{save.isPending ? "Saving…" : "Save file"}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1615,7 +1615,7 @@ function EditorPane({
         <Alert className="m-2 w-auto" variant="warning">
           <AlertTitle>This file changed on disk</AlertTitle>
           <AlertDescription className="mt-1">
-            Reload the agent version or explicitly overwrite it with your draft.
+            Reload the Agent copy, or overwrite it with your draft.
           </AlertDescription>
           <div className="mt-2 flex gap-2">
             <Button

@@ -4,6 +4,6 @@ export function POST(request: Request) {
   return handleOAuthDiscovery(request, {
     endpointLabel: "MCP server URL",
     manualMessage:
-      "Auto-discovery failed. If the MCP server supports OAuth, please fill in the required fields in advanced section manually.",
+      "Auto-discovery failed. If the MCP server supports OAuth, enter its endpoints under Advanced.",
   })
 }

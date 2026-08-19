@@ -268,12 +268,22 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 		)
 		return
 	}
+	sortBy := gatewayapi.ListAgentsParamsSortByResourceSortCreatedAt
+	if params.SortBy != nil {
+		sortBy = *params.SortBy
+	}
+	sortOrder := gatewayapi.ListAgentsParamsSortOrderDesc
+	if params.SortOrder != nil {
+		sortOrder = *params.SortOrder
+	}
 
 	items, next, err := s.listAgentItems(
 		r.Context(),
 		ns,
 		agentNames,
 		capabilities,
+		sortBy,
+		sortOrder,
 		limit,
 		offset,
 	)
@@ -1527,6 +1537,8 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 			ns,
 			names,
 			capabilities,
+			gatewayapi.ListAgentsParamsSortByResourceSortCreatedAt,
+			gatewayapi.ListAgentsParamsSortOrderDesc,
 			200,
 			0,
 		)
@@ -2269,7 +2281,7 @@ func agentShareNotFound(id string) *apiError {
 	)
 }
 
-func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []string, capabilities map[string]gatewayapi.AgentCapabilities, limit int, offset int) ([]gatewayapi.Agent, string, error) {
+func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []string, capabilities map[string]gatewayapi.AgentCapabilities, sortBy gatewayapi.ListAgentsParamsSortBy, sortOrder gatewayapi.ListAgentsParamsSortOrder, limit int, offset int) ([]gatewayapi.Agent, string, error) {
 	var rows []gatewaydb.Agent
 	var err error
 	if len(agentNames) > 0 {
@@ -2278,8 +2290,10 @@ func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []st
 			gatewaydb.GatewayListAgentsByNameParams{
 				TenantNamespace: ns,
 				Column2:         agentNames,
-				Limit:           int32(limit + 1),
-				Offset:          int32(offset),
+				SortBy:          string(sortBy),
+				SortDesc:        sortOrder == gatewayapi.ListAgentsParamsSortOrderDesc,
+				PageSize:        int32(limit + 1),
+				PageOffset:      int32(offset),
 			},
 		)
 	}
@@ -2288,8 +2302,10 @@ func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []st
 			ctx,
 			gatewaydb.GatewayListAgentsParams{
 				TenantNamespace: ns,
-				Limit:           int32(limit + 1),
-				Offset:          int32(offset),
+				SortBy:          string(sortBy),
+				SortDesc:        sortOrder == gatewayapi.ListAgentsParamsSortOrderDesc,
+				PageSize:        int32(limit + 1),
+				PageOffset:      int32(offset),
 			},
 		)
 	}

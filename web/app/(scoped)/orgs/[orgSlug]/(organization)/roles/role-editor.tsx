@@ -66,12 +66,12 @@ import type {
 } from "@/data/roles"
 
 const resourceDescriptions: Partial<Record<RoleResource, string>> = {
-  inference_pool: "Use and manage the inference pools available in this workspace.",
-  inference_provider: "View and manage configured inference providers.",
-  mcp_connection: "View and manage connections to MCP servers.",
-  observability: "View runtime telemetry and observability data in Lens.",
-  sandbox: "View and manage isolated environments used by agents.",
-  skill: "View and manage the immutable skills available to agents.",
+  inference_pool: "Pools that route requests through an ordered list of models.",
+  inference_provider: "Provider credentials, model catalogs, and model metadata.",
+  mcp_connection: "MCP server connections, credentials, and tool catalogs.",
+  observability: "Runtime events, traces, and telemetry shown in Lens.",
+  sandbox: "Isolated runtimes where Agents execute tools.",
+  skill: "Immutable Skill files assigned to Agents.",
 }
 
 const capabilityDescriptions: Partial<Record<RoleAction, string>> = {
@@ -192,7 +192,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
   const scopes = workspace
     ? [{ id: workspace.id, label: workspace.name, detail: "Workspace" }]
     : [
-        { id: "organisation", label: data.organization.name, detail: "Organisation" },
+        { id: "organisation", label: data.organization.name, detail: "Organization" },
         ...data.workspaces.map((item) => ({
           id: item.id,
           label: item.name,
@@ -342,7 +342,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
             <ShieldCheck aria-hidden="true" />
             <AlertTitle>Full Organisation authorization bypass</AlertTitle>
             <AlertDescription>
-              Superadmin includes every current and future Organisation and Workspace capability.
+              Superadmin grants every current and future Organisation and Workspace capability.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -351,8 +351,8 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
             <ShieldCheck aria-hidden="true" />
             <AlertTitle>Full Workspace authorization</AlertTitle>
             <AlertDescription>
-              Workspace Admin includes every current and future capability in {workspace.name}. Its
-              permissions are immutable; only a Superadmin can change assignments.
+              Workspace Admin grants every current and future capability in {workspace.name}. Only a
+              Superadmin can change its assignments; no one can edit its permission set.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -450,8 +450,8 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
               <div className="flex flex-col items-center gap-1 px-4 py-8 text-center">
                 <p className="font-medium">No permissions selected</p>
                 <p className="text-muted-foreground max-w-md text-sm">
-                  Add the smallest set of permissions this role needs. Required dependencies are
-                  included automatically.
+                  Choose only the permissions this Role needs. We will add their required
+                  dependencies.
                 </p>
               </div>
             ) : null}
@@ -591,15 +591,15 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
             <DialogHeader>
               <DialogTitle>Confirm role update</DialogTitle>
               <DialogDescription>
-                Review the access impact before updating {role.name}.
+                Check how this update changes access granted through {role.name}.
               </DialogDescription>
             </DialogHeader>
             <div className="max-h-[min(60dvh,36rem)] overflow-y-auto py-2">
               <ImpactReviewFrame
                 description={
                   state.preview.reduction
-                    ? "Review every removed capability before saving. Other direct Roles may preserve effective access."
-                    : "This change does not remove a currently stored capability."
+                    ? "Check each removed capability before saving. A member may keep access through another directly assigned Role."
+                    : "This change does not remove any stored capabilities."
                 }
                 items={state.preview.items}
                 title="Access impact"

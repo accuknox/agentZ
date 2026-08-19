@@ -63,8 +63,8 @@ export function SecretHostsField({
         Hosts
       </FieldLabel>
       <FieldDescription className="text-muted-foreground/80">
-        Exact host, wildcard host, IP, or CIDR. Use `*.` for one label and `**.` for any subdomain
-        depth.
+        Add an exact host, IP address, or CIDR range. `*.` matches one subdomain label; `**.`
+        matches any depth.
       </FieldDescription>
       <input type="hidden" name={name} ref={inputRef} value={value} readOnly />
       <InputGroup className="h-9">

@@ -184,15 +184,15 @@ const providerModelSchema = z.object({
   modalities: z.object(
     {
       input: z
-        .array(z.enum(modalities, { error: "Select a supported input modality" }), {
+        .array(z.enum(modalities, { error: "Select a supported input type" }), {
           error: "Choose the model's supported input types",
         })
-        .min(1, { error: "Select at least one input modality" }),
+        .min(1, { error: "Select at least one input type" }),
       output: z
-        .array(z.enum(modalities, { error: "Select a supported output modality" }), {
+        .array(z.enum(modalities, { error: "Select a supported output type" }), {
           error: "Choose the model's supported output types",
         })
-        .min(1, { error: "Select at least one output modality" }),
+        .min(1, { error: "Select at least one output type" }),
     },
     { error: "Choose the model's supported input and output types" }
   ),
@@ -1314,12 +1314,12 @@ export function ProviderSheet({
                 />
                 {providerCatalogState === "error" ? (
                   <FieldDescription>
-                    Provider catalog is unavailable. Reopen the form to retry.
+                    We could not load the provider catalog. Reopen the form to try again.
                   </FieldDescription>
                 ) : null}
                 {provider ? (
                   <FieldDescription>
-                    The provider and kind cannot be changed after creation.
+                    After creation, you cannot change the provider or kind.
                   </FieldDescription>
                 ) : null}
               </Field>
@@ -1705,7 +1705,9 @@ export function ProviderSheet({
                             )}
                             <Field>
                               <FieldLabel>Static headers</FieldLabel>
-                              <FieldDescription>Non-secret headers only.</FieldDescription>
+                              <FieldDescription>
+                                Do not enter secrets in these headers.
+                              </FieldDescription>
                               <div className="space-y-2">
                                 {headers.fields.map((header, index) => (
                                   <div
@@ -1779,7 +1781,7 @@ export function ProviderSheet({
                                   <div>
                                     <FieldLabel>Allow private endpoints</FieldLabel>
                                     <FieldDescription>
-                                      Permits connections to private network addresses.
+                                      Allow the provider URL to resolve to a private IP address.
                                     </FieldDescription>
                                   </div>
                                   <Switch
@@ -1805,7 +1807,7 @@ export function ProviderSheet({
                                   <div>
                                     <FieldLabel>Skip TLS verification</FieldLabel>
                                     <FieldDescription>
-                                      Accepts an unverified HTTPS certificate.
+                                      Disable certificate verification for this provider.
                                     </FieldDescription>
                                   </div>
                                   <Switch
@@ -1854,8 +1856,7 @@ export function ProviderSheet({
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Connect {providerKindLabels[kind]}</p>
                       <p className="text-muted-foreground text-sm">
-                        Sign in to your account in a new tab. This page will update when you are
-                        done.
+                        Complete sign-in in a new tab. We will detect when it finishes.
                       </p>
                     </div>
                     <Button
@@ -1875,7 +1876,7 @@ export function ProviderSheet({
                   {subscriptionOAuth.status === "challenge" ? (
                     <div className="bg-muted/40 space-y-3 rounded-md border p-3">
                       <p className="text-muted-foreground text-sm">
-                        Enter this one-time code on the sign-in page, then return here.
+                        Enter this one-time code on the provider sign-in page, then return here.
                       </p>
                       <div className="flex items-center gap-2">
                         <code className="bg-background flex-1 rounded border px-3 py-2 text-center text-lg font-semibold tracking-widest">
@@ -1902,7 +1903,7 @@ export function ProviderSheet({
                       <Check />
                       <AlertTitle>Connected</AlertTitle>
                       <AlertDescription>
-                        Choose the models you want to make available, then add the provider.
+                        Choose which models Agents may use, then add the provider.
                       </AlertDescription>
                     </Alert>
                   ) : null}
@@ -2194,8 +2195,8 @@ export function ProviderSheet({
             <DialogHeader>
               <DialogTitle>Update shared Pool contracts?</DialogTitle>
               <DialogDescription>
-                Model capabilities, modalities, or limits changed. Saving recalculates every
-                dependent Pool and regenerates configuration for affected Sandboxes and Agents.
+                The model capabilities, data types, or limits changed. Saving will recalculate the
+                listed Pools and update the listed Sandboxes and Agents.
               </DialogDescription>
             </DialogHeader>
             {impact ? (
@@ -2438,7 +2439,7 @@ function ModelMetadataDialog({
                 name={`models.${editingModel}.modalities.${direction}`}
                 render={({ field, fieldState }) => (
                   <Field>
-                    <FieldLabel className="capitalize">{direction} modalities</FieldLabel>
+                    <FieldLabel className="capitalize">{direction} data types</FieldLabel>
                     <div className="grid grid-cols-3 gap-2">
                       {modalities.map((modality) => (
                         <label

@@ -4,11 +4,12 @@ import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
-import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
+import { listSkills } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 
 type UpdateSandboxPageProps = {
   basePath: string
@@ -63,8 +64,15 @@ async function UpdateSandboxContent({
   workspaceId?: string
 }) {
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
-  const mcpResult = listMcpConnectionsCachedQuery({ limit: 200 }, workspaceId)
-  const skillsResult = listImmutableSkillsCachedQuery(workspaceId)
+  const mcpResult = listMcpConnectionsCachedQuery(
+    { limit: 50, sort_by: "created_at", sort_order: "desc" },
+    workspaceId
+  )
+  const skillsResult = listSkills({
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+    query: { limit: 50, sort_by: "name", sort_order: "asc" },
+  })
   const providersResult = listInferenceProvidersCachedQuery(workspaceId)
   const poolsResult = workspaceId
     ? listInferencePoolsCachedQuery(workspaceId)
@@ -113,9 +121,7 @@ async function UpdateSandboxContent({
 
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
-      <div className="min-w-0 px-4 pt-4 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-normal">Update sandbox</h1>
-      </div>
+      <AdministrationPageHeader title="Update sandbox" />
       <SandboxWizard
         key={wizardKey}
         mode="update"
@@ -127,10 +133,12 @@ async function UpdateSandboxContent({
         initialMcpConnectionRefs={mcpConnectionRefs}
         initialSkills={sandbox.skills}
         initialInference={sandbox.inference}
-        immutableSkills={skills.skills ?? []}
+        immutableSkills={skills.data?.skills ?? []}
+        immutableSkillsNextPageToken={skills.data?.next_page_token ?? ""}
         inferenceProviders={providers.providers ?? []}
         inferencePools={pools.pools ?? []}
         mcpConnections={mcpConnections.mcpConnections ?? []}
+        mcpConnectionsNextPageToken={mcpConnections.nextPageToken ?? ""}
       />
     </main>
   )

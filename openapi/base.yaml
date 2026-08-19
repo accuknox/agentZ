@@ -269,6 +269,8 @@ paths:
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDPath'
       - $ref: '#/components/parameters/InheritedResourceTypePath'
+      - $ref: '#/components/parameters/InheritedResourceSortByQuery'
+      - $ref: '#/components/parameters/InheritedResourceSortOrderQuery'
       responses:
         '200':
           description: Organisation resource selection state and consumers.
@@ -383,6 +385,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameFilterQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ResourceSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         '200':
           description: Paginated agent summaries.
@@ -929,6 +933,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/MutableSkillSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         '200':
           description: Paginated mutable skill summaries.
@@ -1195,6 +1201,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ImmutableSkillSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       security:
       - GatewayBearer: [skill.read]
       responses:
@@ -1279,6 +1287,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/SkillSummarySortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       security:
       - GatewayBearer: [skill.read]
       responses:
@@ -1736,6 +1746,8 @@ paths:
       - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/SecretSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         '200':
           description: Paginated secret keys.
@@ -1860,6 +1872,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ResourceSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         '200':
           description: Paginated sandboxes.
@@ -2494,6 +2508,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ResourceSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         '200':
           description: Paginated MCPConnections.
@@ -2767,6 +2783,8 @@ paths:
       - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         '200':
           description: Paginated workflow schedules for an agent.
@@ -2796,6 +2814,8 @@ paths:
           $ref: '#/components/schemas/WorkflowName'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         '200':
           description: Paginated workflow schedules for a workflow.
@@ -3490,6 +3510,120 @@ components:
       schema:
         type: string
         minLength: 1
+
+    SortOrderQuery:
+      name: sort_order
+      in: query
+      required: false
+      description: Sort direction. Defaults to ascending when sort_by is set.
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+
+    ResourceSortByQuery:
+      name: sort_by
+      in: query
+      required: false
+      description: Resource field used to order results before pagination.
+      schema:
+        type: string
+        enum: [name, created_at]
+        x-enum-varnames:
+        - ResourceSortName
+        - ResourceSortCreatedAt
+
+    MutableSkillSortByQuery:
+      name: sort_by
+      in: query
+      required: false
+      description: Mutable skill field used to order results before pagination.
+      schema:
+        type: string
+        enum: [name, file_count, size_bytes, modified_at]
+        x-enum-varnames:
+        - MutableSkillSortName
+        - MutableSkillSortFileCount
+        - MutableSkillSortSizeBytes
+        - MutableSkillSortModifiedAt
+
+    ImmutableSkillSortByQuery:
+      name: sort_by
+      in: query
+      required: false
+      description: Immutable skill field used to order results before pagination.
+      schema:
+        type: string
+        enum: [name, version]
+        x-enum-varnames:
+        - ImmutableSkillSortName
+        - ImmutableSkillSortVersion
+
+    SkillSummarySortByQuery:
+      name: sort_by
+      in: query
+      required: false
+      description: Skill summary field used to order results before pagination.
+      schema:
+        type: string
+        enum: [name, version, file_count, size_bytes, modified_at]
+        x-enum-varnames:
+        - SkillSummarySortName
+        - SkillSummarySortVersion
+        - SkillSummarySortFileCount
+        - SkillSummarySortSizeBytes
+        - SkillSummarySortModifiedAt
+
+    SecretSortByQuery:
+      name: sort_by
+      in: query
+      required: false
+      description: Secret field used to order results before pagination.
+      schema:
+        type: string
+        enum: [key, created_at]
+        x-enum-varnames:
+        - SecretSortKey
+        - SecretSortCreatedAt
+
+    InheritedResourceSortByQuery:
+      name: sort_by
+      in: query
+      required: false
+      description: Inherited resource field used to order results.
+      schema:
+        type: string
+        enum: [name, status]
+        x-enum-varnames:
+        - InheritedResourceSortByName
+        - InheritedResourceSortByStatus
+
+    InheritedResourceSortOrderQuery:
+      name: sort_order
+      in: query
+      required: false
+      description: Sort direction. Defaults to ascending when sort_by is set.
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+        x-enum-varnames:
+        - InheritedResourceSortOrderAsc
+        - InheritedResourceSortOrderDesc
+
+    WorkflowScheduleSortByQuery:
+      name: sort_by
+      in: query
+      required: false
+      description: Workflow schedule field used to order results before pagination.
+      schema:
+        type: string
+        enum: [name, workflow_name, schedule, created_at]
+        x-enum-varnames:
+        - WorkflowScheduleSortName
+        - WorkflowScheduleSortWorkflowName
+        - WorkflowScheduleSortSchedule
+        - WorkflowScheduleSortCreatedAt
 
     UpdateSandboxQuery:
       name: update_sandbox
@@ -4429,8 +4563,8 @@ components:
     SkillName:
       type: string
       minLength: 1
-      maxLength: 32
-      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+      maxLength: 63
+      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
       description: Immutable Skill resource name.
 
     MCPConnectionName:

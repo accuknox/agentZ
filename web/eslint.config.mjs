@@ -7,6 +7,22 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   prettier,
   ...pluginQuery.configs["flat/recommended-strict"],
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tanstack/react-table",
+              importNames: ["getFilteredRowModel", "getPaginationRowModel", "getSortedRowModel"],
+              message: "Table filtering, pagination, and sorting must run at the data source.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

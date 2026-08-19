@@ -169,12 +169,12 @@ async function JoinOrganizationContent({
   let errorMessage: string | undefined
   switch (error) {
     case "access_denied":
-      errorMessage = "Sign-in was cancelled. Choose an account when you’re ready."
+      errorMessage = "Sign-in was cancelled. Choose an account when you're ready."
       break
     case "state_mismatch":
     case "state_not_found":
     case "state_invalid":
-      errorMessage = "This sign-in attempt expired. Please start again."
+      errorMessage = "This sign-in attempt expired. Start again."
       break
     case "unable_to_get_user_info":
       errorMessage = "This account is not eligible to join this Organisation."
@@ -193,7 +193,7 @@ async function JoinOrganizationContent({
     case undefined:
       break
     default:
-      errorMessage = "We couldn’t complete your request. Please try again."
+      errorMessage = "We couldn't complete your request. Try again."
   }
 
   const available = googleAvailable || githubAvailable
@@ -228,8 +228,8 @@ async function JoinOrganizationContent({
         <p className="text-primary mt-4 text-sm font-semibold">Organisation invitation</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance">Join {org.name}</h1>
         <p className="text-muted-foreground mt-2 max-w-sm leading-6 text-balance">
-          Choose an account to verify that you’re eligible. Your access is granted only after
-          verification succeeds.
+          Choose an account to verify your eligibility. We grant access only after the check
+          succeeds.
         </p>
 
         {errorMessage ? (
@@ -263,7 +263,7 @@ async function JoinOrganizationContent({
             ) : null}
             <p className="text-muted-foreground mt-1 flex items-center justify-center gap-1.5 text-xs">
               <ShieldCheck aria-hidden="true" className="size-3.5" />
-              You’ll choose an account again before joining.
+              You will choose an account again before joining.
             </p>
           </div>
         ) : (

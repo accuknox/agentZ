@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ProviderSheet } from "./provider-sheet"
 import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
+import { resourceLabels } from "@/lib/resource-labels"
 
 /** NewInferenceProviderButton opens an empty provider sheet. */
 export function NewInferenceProviderButton({ scope }: { scope: InferenceProviderActionScope }) {
@@ -14,7 +15,7 @@ export function NewInferenceProviderButton({ scope }: { scope: InferenceProvider
     <>
       <Button onClick={() => setOpen(true)}>
         <Plus />
-        New provider
+        {resourceLabels.inference.action}
       </Button>
       <ProviderSheet
         key={open ? "new" : "closed"}

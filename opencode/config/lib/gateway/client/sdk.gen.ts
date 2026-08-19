@@ -484,6 +484,7 @@ import {
   zListWorkflowWebhookTriggersPath,
   zListWorkflowWebhookTriggersQuery,
   zListWorkspaceInheritedResourcesPath,
+  zListWorkspaceInheritedResourcesQuery,
   zListWorkspacesQuery,
   zPatchWorkflowRunNodeStatusBody,
   zPatchWorkflowRunNodeStatusPath,
@@ -814,7 +815,7 @@ export const listWorkspaceInheritedResources = <ThrowOnError extends boolean = f
         .object({
           body: z.never().optional(),
           path: zListWorkspaceInheritedResourcesPath,
-          query: z.never().optional(),
+          query: zListWorkspaceInheritedResourcesQuery.optional(),
         })
         .parseAsync(data),
     security: [{ scheme: "bearer", type: "http" }],

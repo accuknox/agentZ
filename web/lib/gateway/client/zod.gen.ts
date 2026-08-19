@@ -379,8 +379,8 @@ export const zInferencePoolName = z
 export const zSkillName = z
   .string()
   .min(1)
-  .max(32)
-  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+  .max(63)
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
 
 /**
  * MCPConnection resource name.
@@ -2276,6 +2276,62 @@ export const zLimitQuery = z.int().gte(1).lte(200).default(50)
  * Opaque pagination token from a previous response.
  */
 export const zPageTokenQuery = z.string().min(1)
+
+/**
+ * Sort direction. Defaults to ascending when sort_by is set.
+ */
+export const zSortOrderQuery = z.enum(["asc", "desc"]).default("asc")
+
+/**
+ * Resource field used to order results before pagination.
+ */
+export const zResourceSortByQuery = z.enum(["name", "created_at"])
+
+/**
+ * Mutable skill field used to order results before pagination.
+ */
+export const zMutableSkillSortByQuery = z.enum(["name", "file_count", "size_bytes", "modified_at"])
+
+/**
+ * Immutable skill field used to order results before pagination.
+ */
+export const zImmutableSkillSortByQuery = z.enum(["name", "version"])
+
+/**
+ * Skill summary field used to order results before pagination.
+ */
+export const zSkillSummarySortByQuery = z.enum([
+  "name",
+  "version",
+  "file_count",
+  "size_bytes",
+  "modified_at",
+])
+
+/**
+ * Secret field used to order results before pagination.
+ */
+export const zSecretSortByQuery = z.enum(["key", "created_at"])
+
+/**
+ * Inherited resource field used to order results.
+ */
+export const zInheritedResourceSortByQuery = z.enum(["name", "status"])
+
+/**
+ * Sort direction. Defaults to ascending when sort_by is set.
+ */
+export const zInheritedResourceSortOrderQuery = z.enum(["asc", "desc"]).default("asc")
+
+/**
+ * Workflow schedule field used to order results before pagination.
+ */
+export const zWorkflowScheduleSortByQuery = z.enum([
+  "name",
+  "workflow_name",
+  "schedule",
+  "created_at",
+])
 
 /**
  * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.

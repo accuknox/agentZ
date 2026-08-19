@@ -1,54 +1,55 @@
 "use client"
 
 import * as React from "react"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
-import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
+import type { Route } from "next"
+import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table"
+import type {
+  Agent,
+  ResourceSortByQuery,
+  Sandbox,
+  Skill,
+  SortOrderQuery,
+} from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
-import { RoutedTableRow } from "@/components/routed-table-row"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
+import { useServerSorting } from "@/lib/use-token-pagination"
 
-const columnClassName: Record<string, string> = {
-  name: "min-w-40",
-  created_by: "hidden lg:table-cell w-28",
-  last_modified_by: "hidden lg:table-cell w-28",
-  created_at: "w-32",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 224, contentMaxWidth: 320 },
+  created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
+  last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
+  created_at: { minWidth: 128, width: 128 },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function AgentTable({
   agents,
+  canCreate,
   immutableSkills,
   sandboxes,
   hasNextPage,
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
   nextPageToken,
+  sortBy,
+  sortOrder,
   deleteAgentAction,
   actionScope,
 }: {
   agents: Agent[]
+  canCreate: boolean
   immutableSkills: Skill[]
   sandboxes: Sandbox[]
   hasNextPage: boolean
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
   nextPageToken: string
+  sortBy: ResourceSortByQuery
+  sortOrder: SortOrderQuery
   deleteAgentAction: (
     agentName: string,
     state: DeleteAgentFormState,
@@ -58,7 +59,17 @@ export function AgentTable({
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: { name: "name", created_at: "created_at" } satisfies Record<
+      string,
+      ResourceSortByQuery
+    >,
+    pageTokenKey: "page_token",
+    sorting,
+    tokenStackKey: "token_stack",
+  })
+
   const columns = React.useMemo(
     () =>
       createAgentColumns(
@@ -85,63 +96,29 @@ export function AgentTable({
     data: agents,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: { sorting },
   })
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="w-full min-w-0 border-b">
-        <Table className="w-full table-fixed">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id]}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <RoutedTableRow
-                  aria-label={`Open ${row.original.name} settings`}
-                  data-state={row.getIsSelected() && "selected"}
-                  href={`${actionScope.workspacePath}/agents/${encodeURIComponent(row.original.name)}`}
-                  key={row.id}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id]}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </RoutedTableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel="Agents"
+      emptyState={
+        <AdministrationState
+          description="Create an Agent, choose its Sandbox, and assign its immutable Skills."
+          kind={canCreate ? "welcome" : "empty"}
+          title="Let's create your first agent"
+        />
+      }
+      layout={layout}
+      pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
+      rowHref={(agent) =>
+        `${actionScope.workspacePath}/agents/${encodeURIComponent(agent.name)}` as Route
+      }
+      rows={agents}
+      table={table}
+    />
   )
 }

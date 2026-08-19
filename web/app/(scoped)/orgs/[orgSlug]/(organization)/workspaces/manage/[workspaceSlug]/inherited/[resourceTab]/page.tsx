@@ -5,15 +5,33 @@ import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.que
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { getWorkspaceInheritedResources } from "@/data/workspaces"
 import type { InheritedResourceType } from "@/lib/gateway/client"
+import * as z from "zod"
+import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 
 export const metadata = { title: "Inherited resources" }
 
+const searchSchema = z.object({
+  sort_by: searchParamStringSchema.pipe(z.enum(["name", "status"]).default("name")),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("asc")),
+})
+
+type SearchParams = {
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
+}
+
 export default async function InheritedResourcePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string; resourceTab: string; workspaceSlug: string }>
+  searchParams: Promise<SearchParams>
 }) {
-  const { orgSlug, resourceTab, workspaceSlug } = await params
+  const [{ orgSlug, resourceTab, workspaceSlug }, search] = await Promise.all([
+    params,
+    searchParams,
+  ])
+  const sorting = searchSchema.parse(search)
   const resources: Record<string, { label: string; type: InheritedResourceType }> = {
     skills: { label: "Skills", type: "skill" },
     sandboxes: { label: "Sandboxes", type: "sandbox" },
@@ -22,7 +40,13 @@ export default async function InheritedResourcePage({
   }
   const resource = resources[resourceTab]
   if (!resource) notFound()
-  const result = await getWorkspaceInheritedResources(orgSlug, workspaceSlug, resource.type)
+  const result = await getWorkspaceInheritedResources(
+    orgSlug,
+    workspaceSlug,
+    resource.type,
+    sorting.sort_by,
+    sorting.sort_order
+  )
   if (!result) return <AdministrationState kind="forbidden" />
 
   let displayNames: Record<string, string> | undefined
@@ -55,6 +79,8 @@ export default async function InheritedResourcePage({
       orgSlug={orgSlug}
       resources={result.resources}
       resourceType={resource.type}
+      sortBy={sorting.sort_by}
+      sortOrder={sorting.sort_order}
       workspaceSlug={workspaceSlug}
     />
   )

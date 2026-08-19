@@ -9,6 +9,8 @@ import {
   listMcpConnections,
   listSandboxes,
   listWorkspaceInheritedResources,
+  type InheritedResourceSortByQuery,
+  type InheritedResourceSortOrderQuery,
   listWorkspaceMemberCandidates,
   listWorkspaces,
   replaceWorkspaceInheritedResources,
@@ -29,6 +31,7 @@ import { getDB, schema } from "@/db"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
+import { dayjs } from "@/lib/format"
 
 export const getWorkspaceDirectory = cache(async (orgSlug: string) => {
   const scope = await resolveOrganizationSlug(orgSlug)
@@ -213,7 +216,9 @@ export async function getWorkspaceCreation(orgSlug: string) {
 export async function getWorkspaceInheritedResources(
   orgSlug: string,
   workspaceSlug: string,
-  resourceType: InheritedResourceType
+  resourceType: InheritedResourceType,
+  sortBy: InheritedResourceSortByQuery,
+  sortOrder: InheritedResourceSortOrderQuery
 ) {
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (
@@ -226,6 +231,7 @@ export async function getWorkspaceInheritedResources(
   const result = await listWorkspaceInheritedResources({
     client: getGatewayServerClient(),
     path: { resourceType, workspaceId: scope.workspace.id },
+    query: { sort_by: sortBy, sort_order: sortOrder },
   })
   if (result.error) {
     throw new Error(result.error.message)
@@ -335,7 +341,7 @@ export async function updateWorkspaceName(orgSlug: string, workspaceId: string, 
     if (workspace.name !== name) {
       await tx
         .update(schema.workspaces)
-        .set({ name, updatedAt: new Date() })
+        .set({ name, updatedAt: dayjs().toDate() })
         .where(eq(schema.workspaces.id, workspace.id))
     }
     await tx.insert(schema.eventTrailEvents).values(eventTrail)

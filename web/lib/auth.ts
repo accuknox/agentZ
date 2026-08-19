@@ -21,6 +21,7 @@ import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config
 import { getEnv } from "@/lib/env"
 import { getGithubUserInfo, socialOAuthStateSchema } from "@/lib/github-membership"
 import { getGoogleUserInfo } from "@/lib/google-membership"
+import { dayjs } from "@/lib/format"
 import {
   createOrganizationMembership,
   organizationInvitation,
@@ -376,7 +377,7 @@ function buildAuth() {
               timingSafeEqual(tokenBytes, expectedTokenBytes) &&
               verificationRecord &&
               verificationRecord.value === newSession.user.id &&
-              verificationRecord.expiresAt > new Date()
+              dayjs(verificationRecord.expiresAt).isAfter(dayjs())
             ) {
               // Rotate the trusted-device record on each successful reuse so a
               // stolen old cookie cannot be replayed after the next login.
@@ -390,7 +391,7 @@ function buildAuth() {
               await ctx.context.internalAdapter.createVerificationValue({
                 value: newSession.user.id,
                 identifier: nextTrustIdentifier,
-                expiresAt: new Date(Date.now() + trustDeviceMaxAge * 1000),
+                expiresAt: dayjs().add(trustDeviceMaxAge, "seconds").toDate(),
               })
               await ctx.setSignedCookie(
                 trustDeviceCookie.name,
@@ -422,7 +423,7 @@ function buildAuth() {
         await ctx.context.internalAdapter.createVerificationValue({
           value: newSession.user.id,
           identifier: twoFactorIdentifier,
-          expiresAt: new Date(Date.now() + twoFactorCookieMaxAge * 1000),
+          expiresAt: dayjs().add(twoFactorCookieMaxAge, "seconds").toDate(),
         })
         await ctx.setSignedCookie(
           twoFactorCookie.name,

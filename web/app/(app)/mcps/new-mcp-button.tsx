@@ -1,25 +1,17 @@
 "use client"
 
-import * as React from "react"
 import { Plus } from "lucide-react"
+import { Dialog as SheetPrimitive } from "radix-ui"
 import { Button } from "@/components/ui/button"
-import type { McpFormState, SubmitMcpFormAction } from "@/data/mcp.actions"
-import { McpSheet } from "./mcp-sheet"
+import { resourceLabels } from "@/lib/resource-labels"
 
-export function NewMcpButton({
-  submitMcpAction,
-}: {
-  submitMcpAction: (_: McpFormState, action: SubmitMcpFormAction) => Promise<McpFormState>
-}) {
-  const [open, setOpen] = React.useState(false)
-
+export function NewMcpButton() {
   return (
-    <>
-      <Button onClick={() => setOpen(true)}>
-        <Plus />
-        New MCP
+    <SheetPrimitive.Trigger asChild>
+      <Button>
+        <Plus data-icon="inline-start" />
+        {resourceLabels.mcp.action}
       </Button>
-      <McpSheet open={open} onOpenChangeAction={setOpen} submitMcpAction={submitMcpAction} />
-    </>
+    </SheetPrimitive.Trigger>
   )
 }

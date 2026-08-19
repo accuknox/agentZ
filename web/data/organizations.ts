@@ -6,6 +6,7 @@ import { and, asc, countDistinct, eq, isNotNull, isNull, or } from "drizzle-orm"
 import { after } from "next/server"
 import { getDB, schema } from "@/db"
 import { getAuth, getAuthSession } from "@/lib/auth"
+import { dayjs } from "@/lib/format"
 
 export type OrganizationSummary = {
   id: string
@@ -354,7 +355,7 @@ export async function scheduleOrganizationRouteMemory(
         ],
         set: {
           route,
-          updatedAt: new Date(),
+          updatedAt: dayjs().toDate(),
           workspaceId,
         },
       })

@@ -4,7 +4,7 @@ import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import InferenceProvidersPage from "@/app/(app)/inference/providers/provider-page"
 
-export const metadata = { title: "Providers" }
+export const metadata = { title: "Inference providers" }
 
 export default async function OrganizationInferenceProvidersPage({
   params,
@@ -25,6 +25,7 @@ export default async function OrganizationInferenceProvidersPage({
     <InferenceProvidersPage
       capabilities={tenant.data.inference_provider_capabilities}
       pageToken={page_token}
+      pageScope={{ kind: "organization", organizationName: scope.organization.name }}
       scope={{}}
     />
   )

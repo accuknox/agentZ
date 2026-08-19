@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: sandboxes.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -316,8 +316,11 @@ spec:
             - lastModifiedByUserID
             type: object
             x-kubernetes-validations:
-            - message: skill names must not exceed 32 characters
-              rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 32)'
+            - message: skill names must not exceed 63 characters
+              rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 63)'
+            - message: skill names must use lowercase letters, digits, and single
+                hyphens
+              rule: '!has(self.skills) || self.skills.all(s, s.name.matches(''^[a-z0-9]+(-[a-z0-9]+)*$''))'
             - message: createdByUserID is immutable
               rule: self.createdByUserID == oldSelf.createdByUserID
           status:

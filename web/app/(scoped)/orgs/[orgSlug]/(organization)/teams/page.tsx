@@ -17,7 +17,14 @@ export default async function TeamsPage({
 }) {
   const [{ orgSlug }, { page_token }] = await Promise.all([params, searchParams])
   const data = await listTeams(orgSlug, page_token)
-  if (!data) return <AdministrationState kind="forbidden" />
+  if (!data) {
+    return (
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Teams" />
+        <AdministrationState kind="forbidden" />
+      </div>
+    )
+  }
   const root = `/orgs/${orgSlug}/teams`
 
   return (
@@ -26,7 +33,7 @@ export default async function TeamsPage({
         actions={
           <Button asChild>
             <Link href={`${root}/new` as Route}>
-              <Plus />
+              <Plus data-icon="inline-start" />
               Create team
             </Link>
           </Button>

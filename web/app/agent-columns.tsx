@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import Link from "next/link"
-import { ArrowUpDown, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { UserAvatar } from "@/components/ui/avatar"
 import { toast } from "sonner"
-import { TableRelativeTime } from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
 
@@ -47,16 +47,8 @@ export function createAgentColumns(
   const columns: ColumnDef<Agent>[] = [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown />
-        </Button>
-      ),
+      enableSorting: true,
+      header: "Name",
       cell: ({ row }) => {
         const agent = row.original
 
@@ -65,27 +57,19 @@ export function createAgentColumns(
     },
     {
       accessorKey: "created_by",
-      header: "Created",
+      header: "Created by",
       cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
     },
     {
       accessorKey: "last_modified_by",
-      header: "Modified",
+      header: "Modified by",
       cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
     },
     {
       accessorKey: "created_at",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Created at
-          <ArrowUpDown />
-        </Button>
-      ),
-      cell: ({ row }) => <TableRelativeTime value={row.getValue("created_at")} />,
+      enableSorting: true,
+      header: "Created at",
+      cell: ({ row }) => <RelativeDateTime value={row.getValue("created_at")} />,
     },
     {
       id: "actions",
@@ -222,7 +206,7 @@ function DeleteAgentDialog({
         <DialogHeader>
           <DialogTitle>Delete {agent.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the agent permanently. This action cannot be undone.
+            Deleting this Agent removes it permanently. You cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

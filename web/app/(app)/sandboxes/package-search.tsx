@@ -197,7 +197,7 @@ function PackageResult({
             ) : null
           ) : (
             <p className="text-foreground line-clamp-1 text-sm font-normal">
-              Package details are not loaded yet.
+              We have not loaded package details.
             </p>
           )}
           <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1">

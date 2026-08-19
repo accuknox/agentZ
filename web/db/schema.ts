@@ -17,6 +17,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core"
 import type { EventTrailField } from "@/lib/gateway/client/types.gen"
+import { dayjs } from "@/lib/format"
 import {
   apikeys,
   members,
@@ -116,7 +117,7 @@ export const userPreferences = pgTable("user_preferences", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .$onUpdate(() => dayjs().toDate())
     .notNull(),
 })
 
@@ -137,7 +138,7 @@ export const workspaces = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => dayjs().toDate())
       .notNull(),
   },
   (table) => [
@@ -224,7 +225,7 @@ export const roleScopes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => dayjs().toDate())
       .notNull(),
   },
   (table) => [
@@ -420,7 +421,7 @@ export const socialAdmissionPolicies = pgTable("social_admission_policies", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .$onUpdate(() => dayjs().toDate())
     .notNull(),
 })
 
@@ -563,7 +564,7 @@ export const agentOwners = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => dayjs().toDate())
       .notNull(),
   },
   (table) => [
@@ -674,7 +675,7 @@ export const cleanupJobs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => dayjs().toDate())
       .notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
@@ -756,7 +757,7 @@ export const lastAccessibleContexts = pgTable(
     route: text("route").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => dayjs().toDate())
       .notNull(),
   },
   (table) => [

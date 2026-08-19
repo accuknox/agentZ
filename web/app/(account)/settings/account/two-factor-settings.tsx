@@ -419,10 +419,7 @@ function SetupDialog({
             <div className="flex flex-col gap-6">
               {secretMode ? (
                 <div className="flex flex-col gap-4">
-                  <p className="font-medium">
-                    Step 1: Enter the secret code below in your authenticator app, then enter the
-                    6-digit code from the app.
-                  </p>
+                  <p className="font-medium">First, add this secret to your authenticator app.</p>
                   <div className="border-border flex min-h-44 flex-col items-center justify-center gap-4 rounded-lg border p-6">
                     <div className="border-border bg-background w-full rounded-md border px-4 py-3 text-center font-mono text-lg break-all">
                       {secret}
@@ -436,8 +433,7 @@ function SetupDialog({
               ) : (
                 <div className="flex flex-col gap-4">
                   <p className="font-medium">
-                    Step 1: Scan the QR code using your authenticator app, then enter the 6-digit
-                    code from the app.
+                    First, scan this QR code with your authenticator app.
                   </p>
                   <div className="border-border flex min-h-80 flex-col items-center justify-center gap-3 rounded-lg border p-6">
                     <div className="bg-background p-3 text-black">
@@ -452,7 +448,7 @@ function SetupDialog({
               <FieldGroup>
                 <Field data-invalid={!!codeError}>
                   <FieldLabel htmlFor="two-factor-code" required>
-                    Step 2: Enter your 6-digit code
+                    Then enter the 6-digit code
                   </FieldLabel>
                   <Input
                     id="two-factor-code"
@@ -535,8 +531,8 @@ function ReauthDialog({
       <DialogHeader>
         <DialogTitle>Confirm it&apos;s you</DialogTitle>
         <DialogDescription>
-          For your security, confirm it&apos;s you before{" "}
-          {action === "enable" ? "enabling" : "disabling"} two-factor authentication.
+          Confirm your identity before {action === "enable" ? "enabling" : "disabling"} two-factor
+          authentication.
         </DialogDescription>
       </DialogHeader>
       {credential ? (

@@ -1,17 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { TableRelativeTime } from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import type { ColumnDef } from "@tanstack/react-table"
-import {
-  ArrowUpDown,
-  CheckCircle2,
-  CircleDashed,
-  Eye,
-  MoreHorizontal,
-  Trash2,
-  XCircle,
-} from "lucide-react"
+import { CheckCircle2, CircleDashed, Eye, MoreHorizontal, Trash2, XCircle } from "lucide-react"
 import type { McpConnectionLifecycle, McpConnectionSummary } from "@/lib/gateway/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -64,7 +56,7 @@ const mcpStatusMeta = {
 >
 
 export function createMcpColumns(actions: {
-  showOrganisation: boolean
+  showOrganization: boolean
   onViewAction: (connection: McpConnectionSummary) => void
   deleteMcpAction: (
     name: string,
@@ -75,18 +67,10 @@ export function createMcpColumns(actions: {
   return [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown />
-        </Button>
-      ),
+      enableSorting: true,
+      header: "Name",
       cell: ({ row }) => (
-        <McpNameCell connection={row.original} showOrganisation={actions.showOrganisation} />
+        <McpNameCell connection={row.original} showOrganization={actions.showOrganization} />
       ),
     },
     {
@@ -116,28 +100,20 @@ export function createMcpColumns(actions: {
     },
     {
       accessorKey: "created_by",
-      header: "Created",
+      header: "Created by",
       cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
     },
     {
       accessorKey: "last_modified_by",
-      header: "Modified",
+      header: "Modified by",
       cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
     },
     {
       id: "age",
       accessorKey: "created_at",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Age
-          <ArrowUpDown />
-        </Button>
-      ),
-      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
+      enableSorting: true,
+      header: "Age",
+      cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },
     {
       id: "actions",
@@ -154,10 +130,10 @@ export function createMcpColumns(actions: {
 
 function McpNameCell({
   connection,
-  showOrganisation,
+  showOrganization,
 }: {
   connection: McpConnectionSummary
-  showOrganisation: boolean
+  showOrganization: boolean
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -166,8 +142,8 @@ function McpNameCell({
         className: "size-4 shrink-0",
       })}
       <span className="min-w-0 truncate font-medium">{connection.name}</span>
-      {showOrganisation && connection.scope === "Organisation" ? (
-        <Badge variant="secondary">Organisation</Badge>
+      {showOrganization && connection.scope === "Organisation" ? (
+        <Badge variant="secondary">Organization</Badge>
       ) : null}
     </div>
   )
@@ -290,7 +266,7 @@ function DeleteMcpDialog({
         <DialogHeader>
           <DialogTitle>Delete {connection.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the MCP connection and its stored credentials.
+            Deleting this MCP connection also removes its stored credentials.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

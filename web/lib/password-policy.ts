@@ -3,7 +3,7 @@ import { z } from "zod"
 export const minPasswordLength = 12
 
 export const passwordFieldDescription =
-  "Use 12+ characters with uppercase, lowercase, number, and symbol."
+  "Use at least 12 characters, including uppercase, lowercase, a number, and a symbol."
 
 export const passwordSchema = z.string().check(
   z.minLength(minPasswordLength, {

@@ -30,7 +30,6 @@ export default async function UserStatePage({
     { href: `${root}/status/invited` as Route, label: "Invited" },
     { href: `${root}/status/disabled` as Route, label: "Disabled" },
   ] satisfies RouteTab[]
-
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader

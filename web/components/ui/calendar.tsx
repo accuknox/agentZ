@@ -4,6 +4,7 @@ import * as React from "react"
 import { DayPicker, getDefaultClassNames, type DayButton, type Locale } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
+import { dayjs } from "@/lib/format"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
 
@@ -34,7 +35,7 @@ function Calendar({
       captionLayout={captionLayout}
       locale={locale}
       formatters={{
-        formatMonthDropdown: (date) => date.toLocaleString(locale?.code, { month: "short" }),
+        formatMonthDropdown: (date) => dayjs(date).format("MMM"),
         ...formatters,
       }}
       classNames={{
@@ -163,7 +164,7 @@ function CalendarDayButton({
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString(locale?.code)}
+      data-day={dayjs(day.date).format("YYYY-MM-DD")}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&

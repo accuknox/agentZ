@@ -5,8 +5,9 @@ import { createAuthEndpoint, sessionMiddleware } from "better-auth/api"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { getDB, schema } from "@/db"
+import { dayjs } from "@/lib/format"
 
-export const invitationExpiresIn = 48 * 60 * 60 * 1000
+export const invitationExpiresIn = dayjs.duration(48, "hours").asMilliseconds()
 export const organizationMembershipLimit = 100
 
 type MembershipDatabase = Pick<ReturnType<typeof getDB>, "insert" | "update">
@@ -23,7 +24,7 @@ type MembershipInput = {
 }
 
 export async function createOrganizationMembership(input: MembershipInput): Promise<Date> {
-  const now = new Date()
+  const now = dayjs().toDate()
   const memberId = generateId()
   await input.db.insert(schema.members).values({
     id: memberId,
@@ -106,7 +107,7 @@ export function organizationInvitation() {
             if (
               !invitation ||
               invitation.status !== "pending" ||
-              invitation.expiresAt.getTime() <= Date.now()
+              !dayjs(invitation.expiresAt).isAfter(dayjs())
             ) {
               return { kind: "unavailable" as const }
             }
@@ -244,7 +245,7 @@ export function organizationInvitation() {
           },
           createdAt: {
             type: "date",
-            defaultValue: () => new Date(),
+            defaultValue: () => dayjs().toDate(),
           },
         },
       },

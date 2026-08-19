@@ -87,7 +87,7 @@ export function DestructiveConfirmationDialog({
           <DialogDescription>
             {kind === "disable"
               ? "Access is revoked immediately. You can restore this Membership later."
-              : "This action is permanent and cannot be undone."}
+              : "You cannot undo this action."}
           </DialogDescription>
         </DialogHeader>
 

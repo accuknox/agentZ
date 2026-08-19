@@ -31,6 +31,7 @@ import {
 import { analyzeDestructiveImpact, type DestructiveTarget } from "@/data/operations"
 import { getAuth, projectMemberRoleTransports } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
+import { dayjs } from "@/lib/format"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { invitationExpiresIn } from "@/lib/organization-invitation"
 import { decodePageToken, encodePageToken } from "@/data/page-token"
@@ -268,11 +269,14 @@ export async function getMemberDirectory(
           page?.tab && page.tab !== "invited" ? sql`false` : undefined,
           invitationCursor
             ? or(
-                lt(schema.organizationInvitations.createdAt, new Date(invitationCursor.createdAt)),
+                lt(
+                  schema.organizationInvitations.createdAt,
+                  dayjs(invitationCursor.createdAt).toDate()
+                ),
                 and(
                   eq(
                     schema.organizationInvitations.createdAt,
-                    new Date(invitationCursor.createdAt)
+                    dayjs(invitationCursor.createdAt).toDate()
                   ),
                   lt(schema.organizationInvitations.id, invitationCursor.id)
                 )
@@ -447,9 +451,9 @@ export async function getMemberDirectory(
   for (const member of memberPage) {
     const row = {
       ...member,
-      createdAt: member.createdAt.toISOString(),
-      disabledAt: member.disabledAt?.toISOString() ?? null,
-      lastActivity: member.lastActivity?.toISOString() ?? null,
+      createdAt: dayjs(member.createdAt).toISOString(),
+      disabledAt: member.disabledAt ? dayjs(member.disabledAt).toISOString() : null,
+      lastActivity: member.lastActivity ? dayjs(member.lastActivity).toISOString() : null,
       roleIds: roleIdsByMember.get(member.id) ?? [],
       roles: rolesByMember.get(member.id) ?? [],
       superadmin: superadminMembers.has(member.id),
@@ -463,14 +467,14 @@ export async function getMemberDirectory(
     active.push(row)
   }
 
-  const now = Date.now()
+  const now = dayjs()
   const lastMember = memberPage.at(-1)
   const lastInvitation = invitationPage.at(-1)
   const nextPageToken =
     page?.tab === "invited"
       ? invitations.length > 50 && lastInvitation
         ? encodePageToken({
-            createdAt: lastInvitation.createdAt.toISOString(),
+            createdAt: dayjs(lastInvitation.createdAt).toISOString(),
             id: lastInvitation.id,
           })
         : ""
@@ -483,9 +487,9 @@ export async function getMemberDirectory(
     disabled,
     invited: invitationPage.map((invitation) => ({
       ...invitation,
-      createdAt: invitation.createdAt.toISOString(),
-      expired: invitation.expiresAt.getTime() <= now,
-      expiresAt: invitation.expiresAt.toISOString(),
+      createdAt: dayjs(invitation.createdAt).toISOString(),
+      expired: !dayjs(invitation.expiresAt).isAfter(now),
+      expiresAt: dayjs(invitation.expiresAt).toISOString(),
       roles: rolesByInvitation.get(invitation.id) ?? [],
       teams: teamsByInvitation.get(invitation.id) ?? [],
     })),
@@ -581,17 +585,17 @@ export const getMemberAdministration = cache(
       activity: activity.map(({ createdAt, ...event }) => ({
         ...event,
         actor: member.name,
-        createdAt: createdAt.toISOString(),
+        createdAt: dayjs(createdAt).toISOString(),
       })),
       agents: agents.map(({ updatedAt, ...agent }) => ({
         ...agent,
-        updatedAt: updatedAt.toISOString(),
+        updatedAt: dayjs(updatedAt).toISOString(),
       })),
       apiKeys: apiKeys.map(({ createdAt, revokedAt, ...key }) => ({
         ...key,
         name: key.name ?? "Unnamed API key",
-        createdAt: createdAt.toISOString(),
-        revokedAt: revokedAt?.toISOString() ?? null,
+        createdAt: dayjs(createdAt).toISOString(),
+        revokedAt: revokedAt ? dayjs(revokedAt).toISOString() : null,
       })),
       member,
       organization: directory.organization,
@@ -787,7 +791,7 @@ export async function saveMemberAssignments(
       if (affectedTeamIds.length) {
         await tx
           .update(schema.teams)
-          .set({ updatedAt: new Date() })
+          .set({ updatedAt: dayjs().toDate() })
           .where(
             and(
               eq(schema.teams.organizationId, actor.organization.id),
@@ -879,14 +883,14 @@ export async function createInvitation(orgSlug: string, input: InvitationAccess)
       return { error: "invalid" as const }
     }
 
-    const now = new Date()
+    const now = dayjs()
     await tx.insert(schema.organizationInvitations).values({
       id,
       organizationId: actor.organization.id,
       tokenHash,
-      expiresAt: new Date(now.getTime() + invitationExpiresIn),
+      expiresAt: now.add(invitationExpiresIn, "millisecond").toDate(),
       inviterId: actor.userId,
-      createdAt: now,
+      createdAt: now.toDate(),
     })
     if (roleIds.length) {
       await tx.insert(schema.invitationRoles).values(
@@ -1176,7 +1180,7 @@ export async function removeMembership(
       }
     }
 
-    const now = new Date()
+    const now = dayjs().toDate()
     const impactedKeys = await tx
       .selectDistinct({ id: schema.apiKeyScopes.apiKeyId })
       .from(schema.apiKeyScopes)
@@ -1581,7 +1585,7 @@ export async function saveSocialAdmission(
           enabled: input.enabled,
           githubEnabled: input.githubEnabled,
           googleEnabled: input.googleEnabled,
-          updatedAt: new Date(),
+          updatedAt: dayjs().toDate(),
         },
       })
     await tx
@@ -1701,7 +1705,7 @@ export async function getInvitationAcceptance(token: string) {
   if (
     !invitation ||
     invitation.status !== "pending" ||
-    invitation.expiresAt.getTime() <= Date.now()
+    !dayjs(invitation.expiresAt).isAfter(dayjs())
   ) {
     return { kind: "unavailable" as const }
   }

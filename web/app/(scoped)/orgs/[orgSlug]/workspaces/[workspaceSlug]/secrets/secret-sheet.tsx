@@ -123,7 +123,9 @@ export function SecretSheet({
       <SheetContent className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!">
         <SheetHeader className="shrink-0">
           <SheetTitle>New secret</SheetTitle>
-          <SheetDescription>Create a static secret. Values cannot be read later.</SheetDescription>
+          <SheetDescription>
+            Create a static secret. Its value becomes write-only after you save it.
+          </SheetDescription>
         </SheetHeader>
         <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4 p-4">
           <FieldGroup>
@@ -179,7 +181,7 @@ export function SecretSheet({
           <div className="shrink-0">
             <Button type="submit" disabled={isPending} className="w-full">
               {isPending ? <Spinner /> : <KeyRound data-icon="inline-start" />}
-              {isPending ? "Creating..." : "Create secret"}
+              {isPending ? "Creating…" : "Create secret"}
             </Button>
           </div>
         </form>

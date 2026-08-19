@@ -1,6 +1,6 @@
 import type { ListEventTrailEventsData } from "@/lib/gateway/client"
 import { EventTrailEvents } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/event-trail/event-trail-events"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { eventTrailQuerySchema, listWorkspaceEventTrailEvents } from "@/data/event-trail"
 
 export const unstable_instant = false
@@ -23,7 +23,12 @@ export default async function WorkspaceEventTrailPage({
   } satisfies ListEventTrailEventsData["body"]
   const result = await listWorkspaceEventTrailEvents(orgSlug, workspaceSlug, body)
   if (!result) {
-    return <AdministrationState kind="forbidden" />
+    return (
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Event trail" />
+        <AdministrationState kind="forbidden" />
+      </div>
+    )
   }
 
   return (

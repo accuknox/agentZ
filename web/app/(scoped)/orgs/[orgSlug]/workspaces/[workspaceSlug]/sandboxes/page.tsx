@@ -20,6 +20,11 @@ export default async function WorkspaceSandboxesPage({
     <SandboxesPage
       basePath={basePath}
       capabilities={scope.workspace.capabilities.sandboxes}
+      pageScope={{
+        kind: "workspace",
+        organizationName: scope.scope.organization.name,
+        workspaceName: scope.workspace.name,
+      }}
       searchParams={searchParams}
       workspaceId={scope.workspace.id}
     />

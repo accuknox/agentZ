@@ -15,6 +15,7 @@ import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { QueryClient } from "@tanstack/react-query"
 import { useCallback, useEffectEvent, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
+import { dayjs } from "@/lib/format"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
@@ -803,14 +804,14 @@ export function useOpencodeChat(
       }
 
       const events = queue.splice(0)
-      lastFlush = Date.now()
+      lastFlush = dayjs().valueOf()
       flushEvents(events)
     }
 
     function scheduleFlush() {
       if (flushTimer) return
 
-      const elapsed = Date.now() - lastFlush
+      const elapsed = dayjs().valueOf() - lastFlush
       const delay = elapsed >= 16 ? 0 : 16 - elapsed
       flushTimer = setTimeout(() => {
         flushQueue()

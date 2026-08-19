@@ -1,8 +1,10 @@
 import type { UrlObject } from "node:url"
 import { Suspense } from "react"
+import { AdministrationPageHeader } from "@/components/administration"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { defaultSandboxPackages } from "@/data/sandbox-defaults"
-import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
+import { listSkills } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
@@ -18,9 +20,7 @@ export default function NewSandboxPage({
 }) {
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
-      <div className="min-w-0 px-4 pt-4 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-normal">New sandbox</h1>
-      </div>
+      <AdministrationPageHeader title="New sandbox" />
       <Suspense fallback={<WizardSkeleton />}>
         <NewSandboxWizard
           basePath={basePath}
@@ -42,8 +42,15 @@ async function NewSandboxWizard({
   workspaceId?: string
 }) {
   const [result, skills, providers, pools] = await Promise.all([
-    listMcpConnectionsCachedQuery({ limit: 200 }, workspaceId),
-    listImmutableSkillsCachedQuery(workspaceId),
+    listMcpConnectionsCachedQuery(
+      { limit: 50, sort_by: "created_at", sort_order: "desc" },
+      workspaceId
+    ),
+    listSkills({
+      client: getGatewayServerClient(workspaceId),
+      headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+      query: { limit: 50, sort_by: "name", sort_order: "asc" },
+    }),
     listInferenceProvidersCachedQuery(workspaceId),
     workspaceId
       ? listInferencePoolsCachedQuery(workspaceId)
@@ -55,10 +62,12 @@ async function NewSandboxWizard({
       providersHref={providersHref}
       scope={{ basePath, workspaceId }}
       initialPackages={[...defaultSandboxPackages]}
-      immutableSkills={skills.skills ?? []}
+      immutableSkills={skills.data?.skills ?? []}
+      immutableSkillsNextPageToken={skills.data?.next_page_token ?? ""}
       inferenceProviders={providers.providers ?? []}
       inferencePools={pools.pools ?? []}
       mcpConnections={result.mcpConnections ?? []}
+      mcpConnectionsNextPageToken={result.nextPageToken ?? ""}
     />
   )
 }

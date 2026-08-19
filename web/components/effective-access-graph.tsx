@@ -193,7 +193,7 @@ export function EffectiveAccessGraph<
                   <Globe2 /> All scopes
                 </SelectItem>
                 <SelectItem value="org">
-                  <Building2 /> Organisation
+                  <Building2 /> Organization
                 </SelectItem>
                 {workspaces.map((workspace) => (
                   <SelectItem key={workspace.id} value={workspace.id}>

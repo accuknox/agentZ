@@ -78,7 +78,7 @@ const formSchema = z.object({
     .min(1, "MCP server URL is required")
     .pipe(
       z
-        .url({ protocol: /^https$/, error: "MCP server URL must be a valid HTTPS URL" })
+        .url({ protocol: /^https?$/, error: "MCP server URL must be a valid HTTP(S) URL" })
         .refine((value) => {
           const url = new URL(value)
           return !url.username && !url.password

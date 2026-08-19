@@ -20,7 +20,12 @@ export default async function WorkspaceRolesPage({
   const [{ orgSlug, workspaceSlug }, { page_token }] = await Promise.all([params, searchParams])
   const result = await listWorkspaceRoles(orgSlug, workspaceSlug, page_token)
   if (!result) {
-    return <AdministrationState kind="forbidden" />
+    return (
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Roles" />
+        <AdministrationState kind="forbidden" />
+      </div>
+    )
   }
 
   const root = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/roles`
@@ -30,11 +35,16 @@ export default async function WorkspaceRolesPage({
         actions={
           <Button asChild>
             <Link href={`${root}/new` as Route}>
-              <Plus />
+              <Plus data-icon="inline-start" />
               Create role
             </Link>
           </Button>
         }
+        scope={{
+          kind: "workspace",
+          organizationName: result.organization.name,
+          workspaceName: result.workspace.name,
+        }}
         title="Roles"
       />
       <RoleTable

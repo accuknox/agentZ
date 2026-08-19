@@ -66,17 +66,17 @@ async function AcceptInvitationContent({
   }
 
   const ready = invitation.kind === "ready"
-  const eyebrow = ready ? "You’re invited" : "Organisation invitation"
+  const eyebrow = ready ? "You're invited" : "Organisation invitation"
   const title = ready
     ? `Join ${invitation.organizationName}`
     : invitation.kind === "disabled"
       ? "Your membership is disabled"
       : "This invitation is no longer available"
   const description = ready
-    ? `${invitation.inviterName} invited you to collaborate in AgentZ.`
+    ? `${invitation.inviterName} invited you to join ${invitation.organizationName} in AgentZ.`
     : invitation.kind === "disabled"
       ? "An Organisation administrator must restore your membership before you can rejoin."
-      : "It may have expired, been cancelled, or already been accepted."
+      : "The link has expired, was cancelled, or has already been accepted."
   const errorMessage =
     ready && error
       ? error === "limit"

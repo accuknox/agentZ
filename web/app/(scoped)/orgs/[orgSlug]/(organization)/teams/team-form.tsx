@@ -6,6 +6,7 @@ import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
 import { CircleAlert, PanelsTopLeft, Save, Shield } from "lucide-react"
 import { teamFormAction, type TeamFormState } from "@/app/(scoped)/orgs/actions"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -62,11 +63,7 @@ export function TeamForm({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {!embedded ? (
-        <div className="px-4 pt-4 md:px-6 md:pt-6">
-          <h1 className="text-2xl font-semibold tracking-normal">
-            {data.team ? "Edit Team" : "Create Team"}
-          </h1>
-        </div>
+        <AdministrationPageHeader title={data.team ? "Edit Team" : "Create Team"} />
       ) : null}
       <form action={formAction} className="flex max-w-3xl flex-col gap-6 px-4 pb-6 md:px-6">
         <input name="name" type="hidden" value={name} />
@@ -96,7 +93,7 @@ export function TeamForm({
               id="team-name"
               maxLength={100}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Platform Engineering"
+              placeholder="e.g. Security operations"
               value={name}
             />
             <FieldError>{state.errors?.name?.[0]}</FieldError>
@@ -137,7 +134,7 @@ export function TeamForm({
           </Button>
           <Button disabled={pending || !name.trim() || memberIds.length === 0} type="submit">
             {pending ? <Spinner /> : <Save data-icon="inline-start" />}
-            {pending ? "Saving..." : data.team ? "Update Team" : "Create Team"}
+            {pending ? "Saving…" : data.team ? "Update team" : "Create team"}
           </Button>
         </div>
       </form>

@@ -2,6 +2,7 @@ import type { Route } from "next"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import { getTeamDetail } from "@/data/teams"
 
 export async function generateMetadata({
@@ -42,7 +43,8 @@ export default async function TeamLayout({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <SidebarTrigger className="shrink-0" />
           <h1 className="truncate text-2xl font-semibold tracking-normal" title={team.name}>
             {team.name}
           </h1>

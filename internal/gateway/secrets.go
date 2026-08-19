@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -402,22 +403,27 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 	slices.SortFunc(
 		items,
 		func(a, b agentzv1alpha1.Secret) int {
-			return strings.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
+			order := cmp.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
+			if params.SortBy != nil && *params.SortBy == gatewayapi.ListSecretsParamsSortBySecretSortCreatedAt {
+				order = a.CreationTimestamp.Compare(b.CreationTimestamp.Time)
+			}
+			if params.SortOrder != nil &&
+				*params.SortOrder == gatewayapi.ListSecretsParamsSortOrderDesc {
+				order = -order
+			}
+			if order != 0 {
+				return order
+			}
+			return cmp.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
 		},
 	)
 
-	start := 0
-	if params.PageToken != nil {
-		after := strings.TrimSpace(*params.PageToken)
-		for i, item := range items {
-			if strings.Compare(strings.ToLower(item.Spec.Key), strings.ToLower(after)) > 0 {
-				start = i
-				break
-			}
-			start = len(items)
-		}
+	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
+	if !ok {
+		return
 	}
 
+	start := min(offset, len(items))
 	end := min(start+limit, len(items))
 	resp := gatewayapi.ListSecretsResponse{
 		Items:         make([]gatewayapi.SecretListItem, 0, end-start),
@@ -440,7 +446,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		resp.Items = append(resp.Items, s.secretListItem(item, actors))
 	}
 	if end < len(items) {
-		resp.NextPageToken = items[end-1].Spec.Key
+		resp.NextPageToken = encodeOffsetToken(end)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

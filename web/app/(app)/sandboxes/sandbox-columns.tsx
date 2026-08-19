@@ -4,7 +4,7 @@ import Link from "next/link"
 import type { Route } from "next"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import type { Sandbox } from "@/lib/gateway/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,7 +26,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
 import type { DeleteSandboxFormState } from "@/data/types"
-import { TableRelativeTime } from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { UserAvatar } from "@/components/ui/avatar"
 
 type DeleteSandboxAction = (
@@ -38,29 +38,21 @@ type DeleteSandboxAction = (
 export function createSandboxColumns(
   basePath: string,
   deleteSandboxAction: DeleteSandboxAction,
-  showOrganisation: boolean
+  showOrganization: boolean
 ): ColumnDef<Sandbox>[] {
   return [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown />
-        </Button>
-      ),
+      enableSorting: true,
+      header: "Name",
       cell: ({ row }) => {
         const sandbox = row.original
 
         return (
           <div className="flex min-w-0 items-center gap-2">
             <span className="min-w-0 truncate font-medium">{sandbox.name}</span>
-            {showOrganisation && sandbox.scope === "Organisation" ? (
-              <Badge variant="secondary">Organisation</Badge>
+            {showOrganization && sandbox.scope === "Organisation" ? (
+              <Badge variant="secondary">Organization</Badge>
             ) : null}
           </div>
         )
@@ -97,27 +89,19 @@ export function createSandboxColumns(
     },
     {
       accessorKey: "created_by",
-      header: "Created",
+      header: "Created by",
       cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
     },
     {
       accessorKey: "last_modified_by",
-      header: "Modified",
+      header: "Modified by",
       cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
     },
     {
       accessorKey: "created_at",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Created at
-          <ArrowUpDown />
-        </Button>
-      ),
-      cell: ({ row }) => <TableRelativeTime value={row.getValue("created_at")} />,
+      enableSorting: true,
+      header: "Created at",
+      cell: ({ row }) => <RelativeDateTime value={row.getValue("created_at")} />,
     },
     {
       id: "actions",
@@ -223,7 +207,7 @@ function DeleteSandboxDialog({
         <DialogHeader>
           <DialogTitle>Delete {sandbox.name}?</DialogTitle>
           <DialogDescription>
-            This will delete the sandbox permanently. This action cannot be undone.
+            Deleting this Sandbox removes it permanently. You cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         {state.error ? (

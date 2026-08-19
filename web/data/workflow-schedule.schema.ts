@@ -1,5 +1,6 @@
 import cron from "cron-validate"
 import * as z from "zod"
+import { dayjs } from "@/lib/format"
 import type {
   WorkflowArbitraryJson,
   WorkflowInputSchema,
@@ -258,7 +259,7 @@ function buildWorkflowStringSchema(label: string, input: WorkflowInputSchema) {
       })
       break
     case "date-time":
-      schema = schema.refine((value) => !Number.isNaN(Date.parse(value)), {
+      schema = schema.refine((value) => dayjs(value).isValid(), {
         message: `${label} must be a valid date and time`,
       })
       break

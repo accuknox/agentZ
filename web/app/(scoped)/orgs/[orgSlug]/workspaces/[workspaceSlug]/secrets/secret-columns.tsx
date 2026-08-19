@@ -2,16 +2,9 @@
 
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import {
-  ArrowUpDown,
-  CheckCircle2,
-  CircleDashed,
-  MoreHorizontal,
-  Trash2,
-  XCircle,
-} from "lucide-react"
+import { CheckCircle2, CircleDashed, MoreHorizontal, Trash2, XCircle } from "lucide-react"
 import type { SecretListItem, SecretState } from "@/lib/gateway/client"
-import { TableRelativeTime } from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -68,16 +61,8 @@ export function createSecretColumns(
   const columns: ColumnDef<SecretListItem>[] = [
     {
       accessorKey: "key",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Key
-          <ArrowUpDown />
-        </Button>
-      ),
+      enableSorting: true,
+      header: "Key",
       cell: ({ row }) => (
         <span className="block min-w-0 truncate font-mono text-sm" title={row.original.key}>
           {row.original.key}
@@ -114,28 +99,20 @@ export function createSecretColumns(
     },
     {
       accessorKey: "created_by",
-      header: "Created",
+      header: "Created by",
       cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
     },
     {
       accessorKey: "last_modified_by",
-      header: "Modified",
+      header: "Modified by",
       cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
     },
     {
       id: "age",
       accessorKey: "created_at",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Age
-          <ArrowUpDown />
-        </Button>
-      ),
-      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
+      enableSorting: true,
+      header: "Age",
+      cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },
     {
       id: "actions",
@@ -242,7 +219,7 @@ function DeleteSecretDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {item.key}?</DialogTitle>
-          <DialogDescription>This will remove the secret permanently.</DialogDescription>
+          <DialogDescription>Deleting this secret removes it permanently.</DialogDescription>
         </DialogHeader>
         {state.error ? (
           <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">

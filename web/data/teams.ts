@@ -19,6 +19,7 @@ import {
 } from "@/data/operations"
 import { decodePageToken, encodePageToken } from "@/data/page-token"
 import { projectMemberRoleTransports } from "@/lib/auth"
+import { dayjs } from "@/lib/format"
 
 const teamPageCursor = z.object({ id: z.string().min(1), name: z.string().min(1) })
 
@@ -186,7 +187,7 @@ export async function listTeams(orgSlug: string, pageToken?: string) {
     nextPageToken: hasNextPage && last ? encodePageToken({ id: last.id, name: last.name }) : "",
     teams: page.map(({ createdAt, updatedAt, ...team }) => ({
       ...team,
-      updatedAt: (updatedAt ?? createdAt).toISOString(),
+      updatedAt: dayjs(updatedAt ?? createdAt).toISOString(),
     })),
   }
 }
@@ -294,7 +295,7 @@ export async function getTeamEditorData(
     team: {
       id: team.id,
       name: team.name,
-      updatedAt: (team.updatedAt ?? team.createdAt).toISOString(),
+      updatedAt: dayjs(team.updatedAt ?? team.createdAt).toISOString(),
       memberIds: assignedMembers.map(({ memberId }) => memberId),
       roleIds: assignedRoles.map(({ roleId }) => roleId),
     },
@@ -366,13 +367,13 @@ export async function saveTeam(
           return { error: "not-found" as const }
         }
         const updatedAt = stored.updatedAt ?? stored.createdAt
-        if (updatedAt.toISOString() !== input.updatedAt) {
+        if (dayjs(updatedAt).toISOString() !== input.updatedAt) {
           await attempt("failed")
           return { error: "stale" as const }
         }
         team = { id: stored.id, name: stored.name, updatedAt }
       } else {
-        team = { id: randomUUID(), name: input.name, updatedAt: new Date() }
+        team = { id: randomUUID(), name: input.name, updatedAt: dayjs().toDate() }
       }
 
       const memberIds = [...new Set(input.memberIds)]
@@ -454,7 +455,7 @@ export async function saveTeam(
       if (teamId) {
         await tx
           .update(schema.teams)
-          .set({ name: input.name, updatedAt: new Date() })
+          .set({ name: input.name, updatedAt: dayjs().toDate() })
           .where(eq(schema.teams.id, team.id))
       } else {
         await tx.insert(schema.teams).values({
@@ -546,7 +547,7 @@ export async function saveTeamRoles(
         .for("update")
         .limit(1)
       if (!team) return { error: "not-found" as const }
-      if ((team.updatedAt ?? team.createdAt).toISOString() !== input.updatedAt) {
+      if (dayjs(team.updatedAt ?? team.createdAt).toISOString() !== input.updatedAt) {
         return { error: "stale" as const }
       }
 
@@ -562,7 +563,7 @@ export async function saveTeamRoles(
             eq(schema.teamRoles.organizationId, actor.organizationId)
           )
         )
-      const now = new Date()
+      const now = dayjs().toDate()
       const currentRoleIds = current.map(({ roleId }) => roleId)
       const removedRoleIds = currentRoleIds.filter((roleId) => !roleIds.includes(roleId))
       const addedRoleIds = roleIds.filter((roleId) => !currentRoleIds.includes(roleId))
@@ -719,7 +720,7 @@ export async function deleteTeam(
       if (impact.confirmation !== confirmation || impact.fingerprint !== fingerprint) {
         return { error: "stale-preview" as const }
       }
-      const now = new Date()
+      const now = dayjs().toDate()
       if (effects.keys.length) {
         const keyIds = effects.keys.map(({ id }) => id)
         await tx
@@ -850,7 +851,7 @@ export async function getTeamDetail(orgSlug: string, teamId: string) {
       ...event,
       actorImage,
       actorName: actorName ?? "System",
-      createdAt: createdAt.toISOString(),
+      createdAt: dayjs(createdAt).toISOString(),
     })),
   } satisfies TeamDetail
 }

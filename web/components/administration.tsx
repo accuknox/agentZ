@@ -13,9 +13,10 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
-type AdministrationScope =
-  | { kind: "Organisation"; name: string }
-  | { kind: "Workspace"; name: string; organisationName: string }
+import { SidebarTrigger } from "@/components/ui/sidebar"
+export type AdministrationPageScope =
+  | { kind: "organization"; organizationName: string }
+  | { kind: "workspace"; organizationName: string; workspaceName: string }
 
 type AdministrationStatus = "ready" | "provisioning" | "deleting" | "failed"
 
@@ -32,23 +33,48 @@ export function AdministrationLayout({ children }: { children: ReactNode }) {
 
 export function AdministrationPageHeader({
   actions,
+  description,
+  scope,
   title,
 }: {
   actions?: ReactNode
+  description?: ReactNode
+  scope?: AdministrationPageScope
   title: string
 }) {
   return (
-    <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-normal">{title}</h1>
+    <div className="flex gap-1 px-1.5 pt-4 md:px-2.5 md:pt-6">
+      <SidebarTrigger className="mt-0.5 shrink-0" />
+      <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold tracking-normal" title={title}>
+            {title}
+          </h1>
+          {description ? <p className="text-muted-foreground mt-1 text-sm">{description}</p> : null}
+          {scope ? (
+            <Badge className="mt-1.5 max-w-full font-normal" variant="secondary">
+              <span className="shrink-0">
+                {scope.kind === "organization" ? "Organization" : "Workspace"}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="truncate">
+                {scope.kind === "organization" ? scope.organizationName : scope.workspaceName}
+              </span>
+            </Badge>
+          ) : null}
+        </div>
+        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   )
 }
 
-export function ScopeBadge({ scope }: { scope: AdministrationScope["kind"] }) {
-  return <span className="text-muted-foreground">{scope}</span>
+export function ScopeBadge({ scope }: { scope: "Organisation" | "Workspace" }) {
+  return (
+    <span className="text-muted-foreground">
+      {scope === "Organisation" ? "Organization" : scope}
+    </span>
+  )
 }
 
 export function StatusBadge({ status }: { status: AdministrationStatus }) {
@@ -85,6 +111,7 @@ export function AccessSourceChip({ source }: { source: AccessSource }) {
 
 type AdministrationStateKind =
   | "empty"
+  | "welcome"
   | "provisioning"
   | "deleting"
   | "failed"
@@ -107,14 +134,14 @@ export function AdministrationState({
   switch (kind) {
     case "provisioning":
       content = {
-        description: "Preparing resources.",
+        description: "We're creating this resource.",
         icon: <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />,
         title: "Provisioning in progress",
       }
       break
     case "deleting":
       content = {
-        description: "Cleanup in progress.",
+        description: "We're deleting this resource.",
         icon: <Trash2 aria-hidden="true" />,
         title: "Deletion in progress",
       }
@@ -128,7 +155,7 @@ export function AdministrationState({
       break
     case "forbidden":
       content = {
-        description: "Sorry, it seems like you do not have access to perform this action.",
+        description: "Your account does not have permission to do this.",
         icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
         title: "",
       }
@@ -151,6 +178,7 @@ export function AdministrationState({
   const pending = kind === "provisioning" || kind === "deleting"
   const urgent = kind === "failed" || kind === "forbidden"
   const illustrated = kind === "failed" || kind === "forbidden" || kind === "not-found"
+  const welcoming = kind === "welcome"
   const stateDescription = description ?? content.description
   const stateTitle = title ?? content.title
 
@@ -160,14 +188,26 @@ export function AdministrationState({
       className={
         illustrated
           ? "min-h-80 gap-5 rounded-none border-0 py-10"
-          : "min-h-48 rounded-none border-0"
+          : welcoming
+            ? "border-primary mx-3 min-h-80 w-auto flex-none border border-dashed py-12 sm:min-h-96 md:mx-6"
+            : "min-h-48 rounded-none border-0"
       }
       role={pending ? "status" : urgent ? "alert" : undefined}
     >
-      <EmptyHeader className={illustrated ? "gap-3" : undefined}>
-        <EmptyMedia className={illustrated ? "mb-1" : undefined}>{content.icon}</EmptyMedia>
+      <EmptyHeader className={illustrated || welcoming ? "max-w-md gap-3" : undefined}>
+        <EmptyMedia className={illustrated ? "mb-1" : welcoming ? "mb-0" : undefined}>
+          {welcoming ? (
+            <span aria-hidden="true" className="text-4xl leading-none">
+              👋
+            </span>
+          ) : (
+            content.icon
+          )}
+        </EmptyMedia>
         {stateTitle ? (
-          <EmptyTitle className={illustrated ? "text-base font-semibold" : undefined}>
+          <EmptyTitle
+            className={illustrated ? "text-base font-semibold" : welcoming ? "text-xl" : undefined}
+          >
             <h2>{stateTitle}</h2>
           </EmptyTitle>
         ) : null}
@@ -185,7 +225,7 @@ export function AdministrationLoadingState() {
       className="flex min-w-0 flex-1 flex-col"
       role="status"
     >
-      <span className="sr-only">Loading...</span>
+      <span className="sr-only">Loading…</span>
       <div className="flex flex-col gap-3 px-4 py-6 md:px-6">
         <Skeleton className="mb-3 h-7 w-48 max-w-full" />
         <Skeleton className="h-10 w-full" />
@@ -312,7 +352,9 @@ export function ImpactReviewFrame({
           <Alert>
             <Clock3 aria-hidden="true" />
             <AlertTitle>No dependent changes</AlertTitle>
-            <AlertDescription>The requested action has no additional impact.</AlertDescription>
+            <AlertDescription>
+              This action does not change any dependent resources.
+            </AlertDescription>
           </Alert>
         )}
       </div>

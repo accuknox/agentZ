@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
+import { AdministrationPageHeader } from "@/components/administration"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -34,12 +35,18 @@ const workflowTriggersSearchParamsSchema = z.object({
   agent_name: searchParamStringSchema,
   type: searchParamStringSchema,
   page_token: searchParamStringSchema,
+  sort_by: searchParamStringSchema.pipe(
+    z.enum(["name", "workflow_name", "schedule", "created_at"]).default("created_at")
+  ),
+  sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("desc")),
 })
 
 type SearchParams = {
   agent_name?: SearchParamStringInput
   type?: SearchParamStringInput
   page_token?: SearchParamStringInput
+  sort_by?: SearchParamStringInput
+  sort_order?: SearchParamStringInput
 }
 
 type ResolvedSearchParams = z.output<typeof workflowTriggersSearchParamsSchema>
@@ -64,14 +71,14 @@ export default async function TriggersPage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Triggers</h1>
-        </div>
-        <Suspense fallback={<HeaderButtonSkeleton />}>
-          <HeaderAction actionScope={actionScope} searchParams={parsed} />
-        </Suspense>
-      </div>
+      <AdministrationPageHeader
+        actions={
+          <Suspense fallback={<HeaderButtonSkeleton />}>
+            <HeaderAction actionScope={actionScope} searchParams={parsed} />
+          </Suspense>
+        }
+        title="Triggers"
+      />
       <Suspense fallback={<FiltersSkeleton />}>
         <Filters actionScope={actionScope} searchParams={parsed} />
       </Suspense>
@@ -184,7 +191,12 @@ async function Triggers({
   const schedulesResult = await listWorkflowSchedulesCachedQuery(
     selectedAgent.name,
     actionScope.workspaceId,
-    { limit: 50, page_token: pageToken }
+    {
+      limit: 50,
+      page_token: pageToken,
+      sort_by: searchParams.sort_by,
+      sort_order: searchParams.sort_order,
+    }
   )
   if (schedulesResult.error) {
     return <ErrorPanel message={schedulesResult.error.message} />
@@ -205,6 +217,8 @@ async function Triggers({
       getWorkflowInputContractAction={getWorkflowInputContractAction.bind(null, actionScope)}
       hasNextPage={schedulesResult.hasNextPage}
       nextPageToken={schedulesResult.nextPageToken}
+      sortBy={searchParams.sort_by}
+      sortOrder={searchParams.sort_order}
       triggerWorkflowRunAction={triggerWorkflowRunAction.bind(null, actionScope)}
       updateWorkflowScheduleAction={updateWorkflowScheduleFormAction.bind(null, actionScope)}
       workflowSchedules={schedulesResult.workflowSchedules}

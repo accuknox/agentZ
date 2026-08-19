@@ -18,6 +18,7 @@ import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { listAgents, listWorkflowSummaries } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { dayjs } from "@/lib/format"
 import { signInURL } from "@/lib/sign-in-redirect"
 
 const deleteAPIKeyFormSchema = z.object({
@@ -72,8 +73,7 @@ export async function createAPIKeyFormAction(
     }
   }
 
-  const agents = data.agents.filter((agent) => agent.status !== "DELETED")
-  const allowedAgents = new Set(agents.map((agent) => agent.name))
+  const allowedAgents = new Set(data.agents.map((agent) => agent.name))
   const agentNames = [...new Set(parsed.data.agentNames)].toSorted()
   for (const agentName of agentNames) {
     if (!allowedAgents.has(agentName)) {
@@ -134,11 +134,11 @@ export async function createAPIKeyFormAction(
   const prefix = parsed.data.type === "agent" ? "opk_" : "whk_"
   const secret = `${prefix}${generateRandomString(64, "a-z", "A-Z")}`
   const keyID = `apikey-${randomUUID()}`
-  const now = new Date()
+  const now = dayjs()
   const expiresAt =
     parsed.data.expiresInDays === "none"
       ? null
-      : new Date(now.getTime() + Number(parsed.data.expiresInDays) * 24 * 60 * 60 * 1000)
+      : now.add(Number(parsed.data.expiresInDays), "day").toDate()
   const targets: Array<typeof schema.apiKeyTargets.$inferInsert> =
     parsed.data.type === "agent"
       ? agentNames.map((agentName) => ({
@@ -208,7 +208,7 @@ export async function createAPIKeyFormAction(
 
       await tx.insert(schema.apikeys).values({
         configId,
-        createdAt: now,
+        createdAt: now.toDate(),
         enabled: true,
         expiresAt,
         id: keyID,
@@ -219,7 +219,7 @@ export async function createAPIKeyFormAction(
         referenceId: authContext.organizationId,
         requestCount: 0,
         start: secret.slice(0, 10),
-        updatedAt: now,
+        updatedAt: now.toDate(),
       })
       await tx.insert(schema.apiKeyScopes).values({
         apiKeyId: keyID,
@@ -301,7 +301,7 @@ async function deleteAPIKeyFormAction(
       return "revoked" as const
     }
 
-    const now = new Date()
+    const now = dayjs().toDate()
     await tx
       .update(schema.apiKeyScopes)
       .set({

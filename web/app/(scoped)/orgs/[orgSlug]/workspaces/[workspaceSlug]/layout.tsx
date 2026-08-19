@@ -2,7 +2,11 @@ import type { Route } from "next"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { notFound, permanentRedirect, redirect } from "next/navigation"
-import { AdministrationLayout, AdministrationState } from "@/components/administration"
+import {
+  AdministrationLayout,
+  AdministrationPageHeader,
+  AdministrationState,
+} from "@/components/administration"
 import { AppShell } from "@/components/blocks/app-shell"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { ThemeSync } from "@/components/theme-sync"
@@ -77,24 +81,27 @@ export default async function WorkspaceLayout({
             />
           }
         >
-          <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
-            <AdministrationState
-              description={
-                disabled
-                  ? "Your organization membership is disabled."
-                  : noAccessOrganization
-                    ? "No role or team grants workspace access."
-                    : "Your organization access was revoked."
-              }
-              kind={noAccessOrganization ? "empty" : "forbidden"}
-              title={
-                disabled
-                  ? "Organisation Membership disabled"
-                  : noAccessOrganization
-                    ? "Access not assigned"
-                    : "Access revoked"
-              }
-            />
+          <div className="flex min-w-0 flex-1 flex-col gap-6">
+            <AdministrationPageHeader title="Workspace" />
+            <div className="px-4 md:px-6">
+              <AdministrationState
+                description={
+                  disabled
+                    ? "Your organization membership is disabled."
+                    : noAccessOrganization
+                      ? "No role or team grants workspace access."
+                      : "Your organization access was revoked."
+                }
+                kind={noAccessOrganization ? "empty" : "forbidden"}
+                title={
+                  disabled
+                    ? "Organization membership disabled"
+                    : noAccessOrganization
+                      ? "Access not assigned"
+                      : "Access revoked"
+                }
+              />
+            </div>
           </div>
         </AppShell>
       </>
@@ -132,10 +139,6 @@ export default async function WorkspaceLayout({
     <>
       <ThemeSync theme={preferences.theme} />
       <AppShell
-        breadcrumbLabels={{
-          1: result.scope.organization.name,
-          3: result.workspace.name,
-        }}
         sidebar={
           <AppSidebar
             activeOrganizationId={result.scope.organization.id}
@@ -166,11 +169,14 @@ export default async function WorkspaceLayout({
           {result.workspace.state === "ready" ? (
             children
           ) : (
-            <WorkspaceState
-              canRetry={result.scope.organization.superadmin}
-              orgSlug={result.scope.organization.slug}
-              workspace={result.workspace}
-            />
+            <>
+              <AdministrationPageHeader title={result.workspace.name} />
+              <WorkspaceState
+                canRetry={result.scope.organization.superadmin}
+                orgSlug={result.scope.organization.slug}
+                workspace={result.workspace}
+              />
+            </>
           )}
         </AdministrationLayout>
       </AppShell>

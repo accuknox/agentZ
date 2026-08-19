@@ -6,6 +6,7 @@ import { ExternalLink } from "lucide-react"
 import { AdministrationState, StatusBadge } from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { Button } from "@/components/ui/button"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import { getWorkspaceScope } from "@/data/workspaces"
 
 export async function generateMetadata({
@@ -52,14 +53,17 @@ export default async function ManageWorkspaceLayout({
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold" title={scope.workspace.name}>
-                {scope.workspace.name}
-              </h1>
-              <StatusBadge status={scope.workspace.state} />
+          <div className="flex min-w-0 items-start gap-2">
+            <SidebarTrigger className="mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-2xl font-semibold" title={scope.workspace.name}>
+                  {scope.workspace.name}
+                </h1>
+                <StatusBadge status={scope.workspace.state} />
+              </div>
+              <p className="text-muted-foreground mt-1 text-sm">Workspace administration</p>
             </div>
-            <p className="text-muted-foreground mt-1 text-sm">Workspace administration</p>
           </div>
           {scope.workspace.state === "ready" ? (
             <Button asChild variant="outline">

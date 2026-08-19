@@ -28,6 +28,7 @@ export default async function OrganizationSkillsPage({
         agents={[]}
         canCreateImmutable={tenant.data.skill_capabilities.create}
         canReadImmutable={tenant.data.skill_capabilities.read}
+        pageScope={{ kind: "organization", organizationName: scope.organization.name }}
       />
     </Suspense>
   )

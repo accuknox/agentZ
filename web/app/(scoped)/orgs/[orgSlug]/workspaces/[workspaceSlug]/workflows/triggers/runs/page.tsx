@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
+import { AdministrationPageHeader } from "@/components/administration"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
@@ -59,11 +60,7 @@ export default async function WorkflowRunsPage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Workflow runs</h1>
-        </div>
-      </div>
+      <AdministrationPageHeader title="Workflow runs" />
       <Suspense fallback={<FiltersSkeleton />}>
         <Filters actionScope={actionScope} searchParams={parsed} />
       </Suspense>

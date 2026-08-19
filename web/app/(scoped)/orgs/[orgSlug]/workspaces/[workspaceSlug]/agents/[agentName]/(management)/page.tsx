@@ -5,7 +5,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRelativeTime,
+  RelativeDateTime,
   TableRow,
 } from "@/components/ui/table"
 import { UserIdentity } from "@/components/ui/avatar"
@@ -45,13 +45,13 @@ export default async function WorkspaceAgentPage({
                 {detail.agent.memory.enabled ? "Enabled" : "Disabled"}
               </SummaryRow>
               <SummaryRow label="Created">
-                <TableRelativeTime value={detail.agent.created_at} />
+                <RelativeDateTime value={detail.agent.created_at} />
               </SummaryRow>
               <SummaryRow label="Modified">
-                <TableRelativeTime value={detail.agent.modified_at} />
+                <RelativeDateTime value={detail.agent.modified_at} />
               </SummaryRow>
               <SummaryRow label="Last activity">
-                <TableRelativeTime value={detail.agent.last_activity} />
+                <RelativeDateTime value={detail.agent.last_activity} />
               </SummaryRow>
             </TableBody>
           </Table>

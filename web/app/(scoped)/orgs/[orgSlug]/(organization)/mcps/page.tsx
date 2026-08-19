@@ -28,6 +28,7 @@ export default async function OrganizationMcpPage({
       basePath={basePath}
       canCreate={tenant.data.mcp_connection_capabilities.create}
       organizationId={scope.organization.id}
+      pageScope={{ kind: "organization", organizationName: scope.organization.name }}
       searchParams={searchParams}
     />
   )

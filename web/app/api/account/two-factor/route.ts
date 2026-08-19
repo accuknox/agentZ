@@ -7,8 +7,9 @@ import * as z from "zod"
 import { getDB, schema } from "@/db"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
+import { dayjs } from "@/lib/format"
 
-const freshAgeMs = 5 * 60 * 1000
+const freshAge = dayjs.duration(5, "minutes")
 const trustDeviceCookieName = "trust_device"
 
 type ManageAction = "enable" | "disable"
@@ -105,7 +106,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
   }
 
-  if (Date.now() - session.session.createdAt.getTime() >= freshAgeMs) {
+  if (dayjs().diff(session.session.createdAt) >= freshAge.asMilliseconds()) {
     const response: ReauthRequiredResponse = {
       action: body.action,
       provider,
@@ -127,7 +128,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const response: DisableResponse = { status: "ok" }
     const next = NextResponse.json(response)
     next.cookies.set(trustDeviceCookieName, "", {
-      expires: new Date(0),
+      expires: dayjs(0).toDate(),
       httpOnly: true,
       path: "/",
       sameSite: "lax",

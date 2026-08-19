@@ -19,6 +19,11 @@ import {
 import { usePathname, useSearchParams } from "next/navigation"
 import * as z from "zod"
 import { watchAgentsQueryOptions } from "@/components/agent-readiness"
+import {
+  AdministrationPageHeader,
+  AdministrationState,
+  type AdministrationPageScope,
+} from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -47,6 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { DisabledReason } from "@/components/ui/tooltip"
 import {
   deleteImmutableSkills,
   deleteAgentMutableSkills,
@@ -55,7 +61,10 @@ import {
   updateSkill,
   type Agent,
   type ImmutableSkillSummary,
+  type MutableSkillSortByQuery,
   type MutableSkillSummary,
+  type SkillSummarySortByQuery,
+  type SortOrderQuery,
 } from "@/lib/gateway/client"
 import {
   listAgentMutableSkillsOptions,
@@ -64,6 +73,7 @@ import {
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { SkillImportDialog } from "./skill-import-dialog"
 import { SkillTable } from "./skill-table"
+import { resourceLabels } from "@/lib/resource-labels"
 
 const pageSize = 50
 const allAgentsValue = "__all_agents__"
@@ -86,11 +96,13 @@ export function SkillsClient({
   agents,
   canCreateImmutable,
   canReadImmutable,
+  pageScope,
   workspaceId,
 }: {
   agents: Agent[]
   canCreateImmutable: boolean
   canReadImmutable: boolean
+  pageScope: AdministrationPageScope
   workspaceId?: string
 }) {
   const router = useRouter()
@@ -128,6 +140,19 @@ export function SkillsClient({
   const scopeHeaders = workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined
   const routeType = requestedKind.success ? requestedKind.data : startType
   const routeAgentName = searchParams.get("agent_name") ?? ""
+  const mutableSort = z
+    .enum(["name", "file_count", "size_bytes", "modified_at"])
+    .safeParse(searchParams.get("sort_by"))
+  const immutableSort = z
+    .enum(["name", "version", "file_count", "size_bytes", "modified_at"])
+    .safeParse(searchParams.get("sort_by"))
+  const mutableSortBy: MutableSkillSortByQuery = mutableSort.success ? mutableSort.data : "name"
+  const immutableSortBy: SkillSummarySortByQuery = immutableSort.success
+    ? immutableSort.data
+    : "name"
+  const sortBy = type === "mutable" ? mutableSortBy : immutableSortBy
+  const requestedSortOrder = z.enum(["asc", "desc"]).safeParse(searchParams.get("sort_order"))
+  const sortOrder: SortOrderQuery = requestedSortOrder.success ? requestedSortOrder.data : "asc"
   const pageToken =
     routeType === type && (routeAgentName === "" || routeAgentName === agentName)
       ? (searchParams.get("page_token") ?? "")
@@ -137,7 +162,12 @@ export function SkillsClient({
   const mutableOptions = listAgentMutableSkillsOptions({
     headers: scopeHeaders,
     path: { agentName },
-    query: { limit: pageSize, page_token: pageToken || undefined },
+    query: {
+      limit: pageSize,
+      page_token: pageToken || undefined,
+      sort_by: mutableSortBy,
+      sort_order: sortOrder,
+    },
   })
   const immutableOptions = listImmutableSkillSummariesOptions({
     headers: scopeHeaders,
@@ -145,6 +175,8 @@ export function SkillsClient({
       agent_name: agentName === allAgentsValue ? undefined : agentName,
       limit: pageSize,
       page_token: pageToken || undefined,
+      sort_by: immutableSortBy,
+      sort_order: sortOrder,
     },
   })
   const mutableQuery = useQuery({
@@ -205,6 +237,8 @@ export function SkillsClient({
     }
     params.delete("page_token")
     params.delete("token_stack")
+    params.delete("sort_by")
+    params.delete("sort_order")
     return `${pathname}?${params}`
   }
 
@@ -328,22 +362,23 @@ export function SkillsClient({
 
   return (
     <>
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Skills</h1>
-        </div>
-        <SkillsActions
-          canDelete={canDeleteSelected}
-          canImport={canImport}
-          disabled={!actionsEnabled}
-          exporting={exporting}
-          hasSelection={activeSelected.size > 0}
-          onDelete={() => setDeleteKeys([...activeSelected])}
-          onExport={() => void exportSkills([...activeSelected])}
-          onImport={() => setImportOpen(true)}
-        />
-      </div>
-      <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <AdministrationPageHeader
+        actions={
+          <SkillsActions
+            canDelete={canDeleteSelected}
+            canImport={canImport}
+            disabled={!actionsEnabled}
+            exporting={exporting}
+            hasSelection={activeSelected.size > 0}
+            onDelete={() => setDeleteKeys([...activeSelected])}
+            onExport={() => void exportSkills([...activeSelected])}
+            onImport={() => setImportOpen(true)}
+          />
+        }
+        scope={pageScope}
+        title={resourceLabels.skill.collection}
+      />
+      <div className="bg-background flex min-h-14 flex-col gap-3 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
           {workspaceId ? (
             <Select
@@ -401,23 +436,33 @@ export function SkillsClient({
           {error}
         </div>
       ) : null}
-      <SkillTable
-        data={skills}
-        disabled={!ready}
-        error={query.error}
-        exporting={exporting}
-        hasNextPage={query.data?.hasNextPage ?? false}
-        loading={query.isPending}
-        nextPageToken={query.data?.nextPageToken ?? ""}
-        selected={activeSelected}
-        showAgents={type === "immutable" && agentName === allAgentsValue}
-        showImmutable={type === "immutable"}
-        showOrganisation={workspaceId !== undefined}
-        setSelected={setSelected}
-        onDelete={(key) => setDeleteKeys([key])}
-        onEdit={setEditingSkill}
-        onExport={(key) => void exportSkills([key])}
-      />
+      {!query.isPending && !query.error && skills.length === 0 ? (
+        <AdministrationState
+          description="Import a Markdown file or ZIP bundle, then assign its skills to Agents."
+          kind={canImport ? "welcome" : "empty"}
+          title="Let's add your first skill"
+        />
+      ) : (
+        <SkillTable
+          data={skills}
+          disabled={!ready}
+          error={query.error}
+          exporting={exporting}
+          hasNextPage={query.data?.hasNextPage ?? false}
+          loading={query.isPending}
+          nextPageToken={query.data?.nextPageToken ?? ""}
+          selected={activeSelected}
+          showAgents={type === "immutable" && agentName === allAgentsValue}
+          showImmutable={type === "immutable"}
+          showOrganization={workspaceId !== undefined}
+          setSelected={setSelected}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onDelete={(key) => setDeleteKeys([key])}
+          onEdit={setEditingSkill}
+          onExport={(key) => void exportSkills([key])}
+        />
+      )}
       <SkillImportDialog
         agents={liveAgents}
         canImportImmutable={canCreateImmutable && canReadImmutable}
@@ -471,37 +516,46 @@ function SkillsActions({
   onExport: () => void
   onImport: () => void
 }) {
+  const blocker = disabled
+    ? "Wait for the agent to become ready before managing its skills."
+    : !hasSelection
+      ? "Select one or more skills to export or delete."
+      : undefined
+  const trigger = (
+    <Button variant="ghost" size="icon" disabled={Boolean(blocker)}>
+      <span className="sr-only">Open skills menu</span>
+      <MoreHorizontal />
+    </Button>
+  )
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" disabled={disabled}>
-          <span className="sr-only">Open skills menu</span>
-          <MoreHorizontal />
+    <div className="flex items-center gap-2">
+      {canImport ? (
+        <Button onClick={onImport}>
+          <Upload />
+          {resourceLabels.skill.action}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuGroup>
-          <DropdownMenuItem
-            disabled={!canImport}
-            onSelect={(event) => {
-              event.preventDefault()
-              onImport()
-            }}
-          >
-            <Upload />
-            Import
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!hasSelection || exporting} onSelect={onExport}>
-            {exporting ? <Spinner /> : <Download />}
-            Export
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      ) : null}
+      <DropdownMenu>
+        {blocker ? (
+          <DisabledReason reason={blocker}>{trigger}</DisabledReason>
+        ) : (
+          <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+        )}
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem aria-busy={exporting} disabled={exporting} onSelect={onExport}>
+              {exporting ? <Spinner /> : <Download />}
+              {exporting ? "Exporting…" : "Export"}
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
+              <Trash2 />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 
@@ -644,15 +698,15 @@ function DeleteDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This will remove the skill permanently.</DialogDescription>
+          <DialogDescription>This permanently deletes the selected skill.</DialogDescription>
         </DialogHeader>
         {hasRefs ? (
           <Alert variant="warning">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <AlertDescription>
               Referenced by {agentRefs.size} agent{agentRefs.size === 1 ? "" : "s"} and{" "}
-              {sandboxRefs.size} sandbox{sandboxRefs.size === 1 ? "" : "es"}. Deletion detaches
-              those references and removes every stored version.
+              {sandboxRefs.size} sandbox{sandboxRefs.size === 1 ? "" : "es"}. Deleting it removes
+              those references and every stored version.
             </AlertDescription>
           </Alert>
         ) : null}

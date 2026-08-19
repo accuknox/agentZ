@@ -6,6 +6,7 @@ import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
 import { Box, Brain, Cable, CircleAlert, Plus, Wrench } from "lucide-react"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -68,9 +69,7 @@ export function WorkspaceForm({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <div className="px-4 pt-4 md:px-6 md:pt-6">
-        <h1 className="text-2xl font-semibold tracking-normal">Create Workspace</h1>
-      </div>
+      <AdministrationPageHeader title="Create Workspace" />
       <form
         action={formAction}
         className="flex max-w-2xl flex-col gap-6 px-4 pb-6 md:px-6"
@@ -108,7 +107,7 @@ export function WorkspaceForm({
                 setName(event.target.value)
                 setClientErrors(undefined)
               }}
-              placeholder="Platform Engineering"
+              placeholder="e.g. Research lab"
               value={name}
             />
             <FieldError>{errors?.name?.[0]}</FieldError>
@@ -132,7 +131,7 @@ export function WorkspaceForm({
           </Field>
 
           <div className="grid gap-4 pt-2">
-            <h3 className="font-medium">Inherited Organisation resources</h3>
+            <h3 className="font-medium">Inherited organization resources</h3>
             {inheritanceCategories.map(({ icon, key, label }) => (
               <Field key={key}>
                 <FieldLabel htmlFor={`inherited-${key}`}>{label}</FieldLabel>
@@ -219,7 +218,7 @@ export function WorkspaceForm({
             </DialogClose>
             <Button data-dialog-submit disabled={pending} form="workspace-form" type="submit">
               {pending ? <Spinner /> : <Plus data-icon="inline-start" />}
-              {pending ? "Creating..." : "Confirm and create"}
+              {pending ? "Creating…" : "Confirm and create"}
             </Button>
           </DialogFooter>
         </DialogContent>

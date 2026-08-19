@@ -1,24 +1,35 @@
 "use client"
 
 import type { Route } from "next"
-import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { useMemo } from "react"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { UserIdentity } from "@/components/ui/avatar"
-import { RoutedTableRow } from "@/components/routed-table-row"
 import { TokenTablePagination } from "@/components/table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  EmptyValue,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
 import type { ActiveMember, InvitationRow, MemberDirectory, MemberTab } from "@/data/members"
 import { DisabledUserActions, InvitationActions, UserTableActions } from "./member-actions"
+
+const memberLayout = {
+  user: { minWidth: 256 },
+  assignments: { minWidth: 176, width: 176 },
+  ownedAgents: { align: "end", minWidth: 112, width: 112 },
+  sharedAgents: { align: "end", minWidth: 96, width: 96 },
+  apiKeys: { align: "end", minWidth: 96, width: 96 },
+  lastActivity: { minWidth: 128, width: 128 },
+  createdAt: { minWidth: 128, width: 128 },
+  actions: { align: "end", minWidth: 64, width: 64 },
+} satisfies Record<string, AdminColumnLayout>
+
+const invitationLayout = {
+  createdAt: { minWidth: 144, width: 144 },
+  assignments: { minWidth: 176 },
+  inviter: { contentMaxWidth: 256, minWidth: 224 },
+  expiresAt: { minWidth: 128, width: 128 },
+  actions: { align: "end", minWidth: 80, width: 80 },
+} satisfies Record<string, AdminColumnLayout>
 
 export function UserDirectoryTable({
   data,
@@ -77,7 +88,7 @@ function MemberTable({
         header: "Last active",
         cell: ({ row }) =>
           row.original.lastActivity ? (
-            <TableRelativeTime value={row.original.lastActivity} />
+            <RelativeDateTime value={row.original.lastActivity} />
           ) : (
             <EmptyValue />
           ),
@@ -85,7 +96,7 @@ function MemberTable({
       {
         accessorKey: "createdAt",
         header: "Joined",
-        cell: ({ row }) => <TableRelativeTime value={row.original.createdAt} />,
+        cell: ({ row }) => <RelativeDateTime value={row.original.createdAt} />,
       },
       ...(disabled
         ? [
@@ -118,23 +129,18 @@ function MemberTable({
     [disabled, orgSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: members, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: members,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
   return (
     <DirectoryTable
       ariaLabel={disabled ? "Disabled Users" : "Active Users"}
-      cellClassNames={{ user: "max-w-72" }}
-      columns={columns}
+      layout={memberLayout}
       nextPageToken={data.nextPageToken}
-      headerClassNames={{
-        actions: "w-20 text-right",
-        apiKeys: "w-24 text-right",
-        assignments: "w-44",
-        createdAt: "w-32",
-        lastActivity: "w-32",
-        ownedAgents: "w-28 text-right",
-        sharedAgents: "w-24 text-right",
-        user: "w-64",
-      }}
+      rows={members}
       table={table}
       rowHref={(row) => `/orgs/${orgSlug}/users/${row.id}` as Route}
     />
@@ -149,11 +155,11 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
       {
         accessorKey: "createdAt",
         header: "Created",
-        cell: ({ row }) => <TableRelativeTime value={row.original.createdAt} />,
+        cell: ({ row }) => <RelativeDateTime value={row.original.createdAt} />,
       },
       {
         id: "assignments",
-        header: "Initial Access",
+        header: "Initial access",
         cell: ({ row }) => (
           <AssignmentSummary roles={row.original.roles} teams={row.original.teams} />
         ),
@@ -174,7 +180,7 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
         header: "Expiry",
         cell: ({ row }) => (
           <>
-            <TableRelativeTime value={row.original.expiresAt} />
+            <RelativeDateTime value={row.original.expiresAt} />
             {row.original.expired ? <Badge variant="destructivePlain">Expired</Badge> : null}
           </>
         ),
@@ -188,19 +194,18 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
     [orgSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ columns, data: data.invited, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    columns,
+    data: data.invited,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
   return (
     <DirectoryTable
       ariaLabel="Pending Invitations"
-      cellClassNames={{ inviter: "max-w-56 truncate" }}
-      columns={columns}
+      layout={invitationLayout}
       nextPageToken={data.nextPageToken}
-      headerClassNames={{
-        actions: "w-20 text-right",
-        createdAt: "w-48",
-        expiresAt: "w-32",
-        inviter: "w-56",
-      }}
+      rows={data.invited}
       table={table}
     />
   )
@@ -208,75 +213,37 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
 
 function DirectoryTable<T>({
   ariaLabel,
-  cellClassNames,
-  columns,
-  headerClassNames,
+  layout,
   nextPageToken,
   rowHref,
+  rows,
   table,
 }: {
   ariaLabel: string
-  cellClassNames: Record<string, string>
-  columns: ColumnDef<T>[]
-  headerClassNames: Record<string, string>
+  layout: Record<string, AdminColumnLayout>
   nextPageToken: string
   rowHref?: (row: T) => Route
+  rows: T[]
   table: ReturnType<typeof useReactTable<T>>
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="w-full min-w-0 border-b">
-        <Table aria-label={ariaLabel} className="w-full table-fixed">
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableHead className={headerClassNames[header.column.id]} key={header.id}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => {
-                const cells = row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    className={[
-                      cellClassNames[cell.column.id],
-                      ["ownedAgents", "sharedAgents", "apiKeys", "actions"].includes(cell.column.id)
-                        ? "text-right tabular-nums"
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    key={cell.id}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))
-                const href = rowHref?.(row.original)
-                return href ? (
-                  <RoutedTableRow aria-label={`Open ${row.id}`} href={href} key={row.id}>
-                    {cells}
-                  </RoutedTableRow>
-                ) : (
-                  <TableRow key={row.id}>{cells}</TableRow>
-                )
-              })
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  <EmptyValue />
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel={ariaLabel}
+      emptyState={
+        <AdministrationState
+          description="Invite people and choose the Roles and Teams they receive when they join."
+          kind="welcome"
+          title="Let's invite your team"
+        />
+      }
+      layout={layout}
+      pagination={
+        <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
+      }
+      rowHref={rowHref}
+      rows={rows}
+      table={table}
+    />
   )
 }
 

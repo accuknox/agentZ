@@ -2,17 +2,15 @@
 
 import * as React from "react"
 import {
-  flexRender,
   getCoreRowModel,
-  getSortedRowModel,
-  type Column,
   type ColumnDef,
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Download, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
-import { useTokenPagination } from "@/lib/use-token-pagination"
+import { Download, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { useServerSorting, useTokenPagination } from "@/lib/use-token-pagination"
 import { AgentGettingReady } from "@/components/agent-readiness"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { TablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/ui/avatar"
@@ -25,32 +23,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
 import { formatByteSize } from "@/lib/format"
 import type { ImmutableSkill, Skill } from "./skills-client"
+import type {
+  MutableSkillSortByQuery,
+  SkillSummarySortByQuery,
+  SortOrderQuery,
+} from "@/lib/gateway/client"
 
-const columnClassName: Record<string, string> = {
-  select: "w-12",
-  name: "min-w-72",
-  version: "w-24",
-  file_count: "w-24",
-  size_bytes: "w-28",
-  agents: "w-52",
-  created_by: "hidden lg:table-cell w-28",
-  last_modified_by: "hidden lg:table-cell w-28",
-  modified_at: "w-44",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  select: { minWidth: 48, width: 48 },
+  name: { minWidth: 288, contentMaxWidth: 384 },
+  version: { minWidth: 96, width: 96 },
+  file_count: { minWidth: 96, width: 96 },
+  size_bytes: { minWidth: 112, width: 112 },
+  agents: { minWidth: 208, contentMaxWidth: 288 },
+  created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
+  last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
+  modified_at: { minWidth: 176, width: 176 },
+  actions: { minWidth: 64, width: 64 },
 }
 
 export function SkillTable({
@@ -61,11 +55,13 @@ export function SkillTable({
   hasNextPage,
   showAgents,
   showImmutable,
-  showOrganisation,
+  showOrganization,
   loading,
   nextPageToken,
   selected,
   setSelected,
+  sortBy,
+  sortOrder,
   onDelete,
   onEdit,
   onExport,
@@ -77,20 +73,34 @@ export function SkillTable({
   hasNextPage: boolean
   showAgents: boolean
   showImmutable: boolean
-  showOrganisation: boolean
+  showOrganization: boolean
   loading: boolean
   nextPageToken: string
   selected: Set<string>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+  sortBy: MutableSkillSortByQuery | SkillSummarySortByQuery
+  sortOrder: SortOrderQuery
   onDelete: (key: string) => void
   onEdit: (skill: ImmutableSkill) => void
   onExport: (key: string) => void
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([])
   const { canGoPrevious, goNext, goPrevious, pending } = useTokenPagination({
     pageTokenKey: "page_token",
+    tokenStackKey: "token_stack",
+  })
+  const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
+  const { onSortingChange } = useServerSorting({
+    fields: {
+      name: "name",
+      version: "version",
+      file_count: "file_count",
+      size_bytes: "size_bytes",
+      modified_at: "modified_at",
+    } satisfies Record<string, MutableSkillSortByQuery | SkillSummarySortByQuery>,
+    pageTokenKey: "page_token",
+    sorting,
     tokenStackKey: "token_stack",
   })
   const columns = React.useMemo(
@@ -101,7 +111,7 @@ export function SkillTable({
         selected,
         showAgents,
         showImmutable,
-        showOrganisation,
+        showOrganization,
         setSelected,
         onDelete,
         onEdit,
@@ -117,19 +127,25 @@ export function SkillTable({
       onDelete,
       showAgents,
       showImmutable,
-      showOrganisation,
+      showOrganization,
     ]
   )
 
+  const rows = disabled || loading || error ? [] : data
+  const rowSelection = React.useMemo(
+    () => Object.fromEntries(Array.from(selected, (key) => [key, true])),
+    [selected]
+  )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data,
+    data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: { sorting },
+    manualPagination: true,
     getRowId: (row) => row.key,
+    manualSorting: true,
+    onSortingChange,
+    state: { rowSelection, sorting },
   })
 
   function clearSelectionAndGoPrevious() {
@@ -142,74 +158,35 @@ export function SkillTable({
     goNext(nextPageToken)
   }
 
+  const emptyState = disabled ? (
+    <AgentGettingReady className="text-muted-foreground flex justify-center py-8 text-sm" />
+  ) : loading ? (
+    <p aria-busy="true" className="text-muted-foreground py-8 text-center">
+      Loading skills…
+    </p>
+  ) : error ? (
+    <p className="text-destructive py-8 text-center">{error.message}</p>
+  ) : (
+    <p className="text-muted-foreground py-8 text-center">No skills found.</p>
+  )
+
   return (
-    <div className="min-w-0 space-y-4">
-      <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id]}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {disabled ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <AgentGettingReady className="text-muted-foreground inline-flex items-center gap-2 text-sm" />
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {!disabled && loading ? <SkillTableSkeleton columns={columns.length} /> : null}
-            {!disabled && !loading && error ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="text-destructive h-24 text-center">
-                  {error.message}
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {!disabled && !loading && !error && table.getRowModel().rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {!disabled && !loading && !error
-              ? table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={selected.has(row.original.key) && "selected"}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={`h-11 px-4 py-1.5 align-middle ${columnClassName[cell.column.id]}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              : null}
-          </TableBody>
-        </Table>
-      </div>
-      <TablePagination
-        canGoNext={!disabled && hasNextPage}
-        canGoPrevious={!disabled && canGoPrevious}
-        goNext={clearSelectionAndGoNext}
-        goPrevious={clearSelectionAndGoPrevious}
-        pending={pending}
-      />
-    </div>
+    <AdminDataGrid
+      ariaLabel="Skills"
+      emptyState={emptyState}
+      layout={layout}
+      pagination={
+        <TablePagination
+          canGoNext={!disabled && hasNextPage}
+          canGoPrevious={!disabled && canGoPrevious}
+          goNext={clearSelectionAndGoNext}
+          goPrevious={clearSelectionAndGoPrevious}
+          pending={pending}
+        />
+      }
+      rows={rows}
+      table={table}
+    />
   )
 }
 
@@ -219,7 +196,7 @@ function createSkillColumns({
   selected,
   showAgents,
   showImmutable,
-  showOrganisation,
+  showOrganization,
   setSelected,
   onDelete,
   onEdit,
@@ -230,7 +207,7 @@ function createSkillColumns({
   selected: Set<string>
   showAgents: boolean
   showImmutable: boolean
-  showOrganisation: boolean
+  showOrganization: boolean
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
   onDelete: (key: string) => void
   onEdit: (skill: ImmutableSkill) => void
@@ -280,20 +257,20 @@ function createSkillColumns({
           }}
         />
       ),
-      enableSorting: false,
     },
     {
       accessorKey: "name",
-      header: ({ column }) => <SortButton column={column} label="Name" />,
+      enableSorting: true,
+      header: "Name",
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 truncate font-medium" title={row.original.name}>
             {row.original.name}
           </span>
-          {showOrganisation &&
+          {showOrganization &&
           row.original.type === "immutable" &&
           row.original.scope === "Organisation" ? (
-            <Badge variant="secondary">Organisation</Badge>
+            <Badge variant="secondary">Organization</Badge>
           ) : null}
         </div>
       ),
@@ -304,7 +281,8 @@ function createSkillColumns({
     columns.push(
       {
         accessorKey: "version",
-        header: ({ column }) => <SortButton column={column} label="Version" />,
+        enableSorting: true,
+        header: "Version",
         cell: ({ row }) => {
           const skill = row.original
           return skill.type === "immutable" ? (
@@ -314,13 +292,13 @@ function createSkillColumns({
       },
       {
         id: "created_by",
-        header: "Created",
+        header: "Created by",
         cell: ({ row }) =>
           row.original.type === "immutable" ? <UserAvatar {...row.original.created_by} /> : null,
       },
       {
         id: "last_modified_by",
-        header: "Modified",
+        header: "Modified by",
         cell: ({ row }) =>
           row.original.type === "immutable" ? (
             <UserAvatar {...row.original.last_modified_by} />
@@ -332,14 +310,16 @@ function createSkillColumns({
   columns.push(
     {
       accessorKey: "file_count",
-      header: ({ column }) => <SortButton column={column} label="Files" />,
+      enableSorting: true,
+      header: "Files",
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">{row.original.file_count}</span>
       ),
     },
     {
       accessorKey: "size_bytes",
-      header: ({ column }) => <SortButton column={column} label="Size" />,
+      enableSorting: true,
+      header: "Size",
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
           {formatByteSize(row.original.size_bytes)}
@@ -355,24 +335,23 @@ function createSkillColumns({
       cell: ({ row }) => (
         <AgentsSummary agents={row.original.type === "immutable" ? row.original.agents : []} />
       ),
-      enableSorting: false,
     })
   }
 
   columns.push(
     {
       accessorKey: "modified_at",
-      header: ({ column }) => <SortButton column={column} label="Modified at" />,
+      enableSorting: true,
+      header: "Modified at",
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
-          <TableRelativeTime value={row.original.modified_at} />
+          {row.original.modified_at ? (
+            <RelativeDateTime value={row.original.modified_at} />
+          ) : (
+            <EmptyValue />
+          )}
         </span>
       ),
-      sortingFn: (a, b) => {
-        const left = a.original.modified_at ? Date.parse(a.original.modified_at) : 0
-        const right = b.original.modified_at ? Date.parse(b.original.modified_at) : 0
-        return left - right
-      },
     },
     {
       id: "actions",
@@ -385,24 +364,10 @@ function createSkillColumns({
           onExport={onExport}
         />
       ),
-      enableSorting: false,
     }
   )
 
   return columns
-}
-
-function SortButton({ column, label }: { column: Column<Skill>; label: string }) {
-  return (
-    <Button
-      className="-ml-2"
-      variant="ghost"
-      onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-    >
-      {label}
-      <ArrowUpDown />
-    </Button>
-  )
 }
 
 function AgentsSummary({ agents }: { agents: ImmutableSkill["agents"] }) {
@@ -457,9 +422,13 @@ function SkillRowActions({
                 Edit
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem disabled={exporting} onSelect={() => onExport(skill.key)}>
+            <DropdownMenuItem
+              aria-busy={exporting}
+              disabled={exporting}
+              onSelect={() => onExport(skill.key)}
+            >
               {exporting ? <Spinner /> : <Download />}
-              Export
+              {exporting ? "Exporting…" : "Export"}
             </DropdownMenuItem>
             {skill.type === "mutable" || skill.can_delete ? (
               <DropdownMenuItem variant="destructive" onSelect={() => onDelete(skill.key)}>
@@ -472,16 +441,4 @@ function SkillRowActions({
       </DropdownMenu>
     </div>
   )
-}
-
-function SkillTableSkeleton({ columns }: { columns: number }) {
-  return Array.from({ length: 8 }, (_, index) => (
-    <TableRow key={index}>
-      {Array.from({ length: columns }, (_, column) => (
-        <TableCell key={column} className="h-11 px-4 py-1.5">
-          <Skeleton className="h-4 w-full max-w-32" />
-        </TableCell>
-      ))}
-    </TableRow>
-  ))
 }

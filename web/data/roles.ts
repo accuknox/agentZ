@@ -21,6 +21,7 @@ import {
 } from "@/data/operations"
 import { decodePageToken, encodePageToken } from "@/data/page-token"
 import { projectMemberRoleTransports } from "@/lib/auth"
+import { dayjs } from "@/lib/format"
 
 const rolePageCursor = z.object({ id: z.string().min(1), name: z.string().min(1) })
 
@@ -47,7 +48,7 @@ type RoleResourceDefinition = {
 const roleResourceCatalog: RoleResourceDefinition[] = [
   {
     resource: "skill",
-    label: "Immutable Skills",
+    label: "Skills",
     organisation: true,
     workspace: true,
     actions: ["read", "create", "modify", "delete"],
@@ -61,21 +62,21 @@ const roleResourceCatalog: RoleResourceDefinition[] = [
   },
   {
     resource: "mcp_connection",
-    label: "MCP Connections",
+    label: "MCP connections",
     organisation: true,
     workspace: true,
     actions: ["read", "create", "delete"],
   },
   {
     resource: "inference_provider",
-    label: "Inference Providers",
+    label: "Inference providers",
     organisation: true,
     workspace: true,
     actions: ["read", "create", "modify", "delete"],
   },
   {
     resource: "inference_pool",
-    label: "Inference Pools",
+    label: "Inference pools",
     organisation: false,
     workspace: true,
     actions: ["read", "create", "modify", "delete"],
@@ -748,7 +749,7 @@ async function listRoles(scope: RoleManagement, pageToken?: string) {
       ...row,
       permissionCount: roleGrants.length,
       dependencyState: row.systemRole ? "Built-in bypass" : expanded ? "Expanded" : "Needs repair",
-      updatedAt: row.updatedAt.toISOString(),
+      updatedAt: dayjs(row.updatedAt).toISOString(),
     }
   })
   const last = page.at(-1)
@@ -825,7 +826,7 @@ async function loadRoleEditor(scope: RoleManagement, roleId?: string): Promise<R
       )
     )
 
-  return { ...base, role: { ...role, grants, updatedAt: role.updatedAt.toISOString() } }
+  return { ...base, role: { ...role, grants, updatedAt: dayjs(role.updatedAt).toISOString() } }
 }
 
 async function previewRole(
@@ -856,7 +857,7 @@ async function previewRole(
   if (!role) {
     return { error: "not-found" }
   }
-  if (role.updatedAt.toISOString() !== updatedAt) {
+  if (dayjs(role.updatedAt).toISOString() !== updatedAt) {
     return { error: "stale" }
   }
 
@@ -1123,7 +1124,7 @@ async function saveRole(
         })
         return { error: "immutable" as const }
       }
-      if (before.updatedAt.toISOString() !== input.updatedAt) {
+      if (dayjs(before.updatedAt).toISOString() !== input.updatedAt) {
         return { error: "stale" as const }
       }
       oldGrants = await tx
@@ -1213,7 +1214,7 @@ async function saveRole(
       }
       await tx
         .update(schema.roleScopes)
-        .set({ displayName: input.name, updatedAt: new Date() })
+        .set({ displayName: input.name, updatedAt: dayjs().toDate() })
         .where(and(roleScope(scope), eq(schema.roleScopes.roleId, id)))
       await tx
         .delete(schema.permissionGrants)
@@ -1246,7 +1247,7 @@ async function saveRole(
           grants.map((grant) => ({ ...grant, organizationId: actor.organization.id, roleId: id }))
         )
     }
-    const now = new Date()
+    const now = dayjs().toDate()
     if (cascade?.keys.length) {
       const keyIds = cascade.keys.map(({ id: keyId }) => keyId)
       await tx

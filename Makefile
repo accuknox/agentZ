@@ -90,6 +90,7 @@ run-gateway:
 		--external-jwt-issuer=$(BETTER_AUTH_URL) \
 		--external-jwt-audience=$(GATEWAY_JWT_AUDIENCE) \
 		--internal-k8s-token-audience=$(GATEWAY_JWT_AUDIENCE) \
+		--allowed-web-origin=$(BETTER_AUTH_URL) \
 		--agent-image=$(AGENT_IMAGE) \
 		--agent-trace-endpoint=172.18.0.1:4317 \
 		--openbao-addr=http://localhost:8200 \

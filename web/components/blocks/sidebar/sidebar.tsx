@@ -18,6 +18,8 @@ import {
   User2,
   UserRoundCheck,
   UsersRound,
+  Workflow,
+  Zap,
 } from "lucide-react"
 import { NavAgents } from "./agents"
 import { NavInference } from "./inference"
@@ -41,10 +43,10 @@ import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { NavSecrets } from "./secrets"
-import { NavWorkflows } from "./workflows"
 import type { OrganizationSummary } from "@/data/organizations"
 import type { WorkspacePath } from "@/data/types"
 import type { ResourceCapabilities, Workspace } from "@/lib/gateway/client"
+import { resourceLabels } from "@/lib/resource-labels"
 
 type WorkspaceNavigationScope = {
   canCreateWorkspace: boolean
@@ -155,7 +157,7 @@ function SettingsNavigation() {
           </SidebarNavigationLink>
         </SidebarMenuItem>
         <SidebarMenuItem>
-          <SidebarNavigationLink href="/settings/api-keys" label="API Keys">
+          <SidebarNavigationLink href="/settings/api-keys" label="API keys">
             <KeyRound aria-hidden="true" />
           </SidebarNavigationLink>
         </SidebarMenuItem>
@@ -235,14 +237,20 @@ async function WorkspaceNavigation({
             {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
             {skillCapabilities.read ? (
               <SidebarMenuItem>
-                <SidebarNavigationLink href={`${workspacePath}/skills` as Route} label="Skills">
+                <SidebarNavigationLink
+                  href={`${workspacePath}/skills` as Route}
+                  label={resourceLabels.skill.collection}
+                >
                   <ScrollText aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}
             {mcpConnectionCapabilities.read ? (
               <SidebarMenuItem>
-                <SidebarNavigationLink href={`${workspacePath}/mcps` as Route} label="MCP">
+                <SidebarNavigationLink
+                  href={`${workspacePath}/mcps` as Route}
+                  label={resourceLabels.mcp.collection}
+                >
                   <Cable aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
@@ -265,7 +273,26 @@ async function WorkspaceNavigation({
               />
             ) : null}
             {showSecrets ? <NavSecrets workspacePath={workspacePath} /> : null}
-            {showWorkflows ? <NavWorkflows workspacePath={workspacePath} /> : null}
+            {showWorkflows ? (
+              <>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/workflows/graphs` as Route}
+                    label={resourceLabels.workflow.collection}
+                  >
+                    <Workflow aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/workflows/triggers` as Route}
+                    label="Triggers"
+                  >
+                    <Zap aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+              </>
+            ) : null}
           </SidebarMenu>
         </SidebarGroup>
       ) : null}
@@ -341,7 +368,7 @@ function OrganizationNavigation({
     <>
       {canEnterOrganization || organization.superadmin ? (
         <SidebarGroup className="px-2 py-2">
-          <SidebarGroupLabel>Organisation</SidebarGroupLabel>
+          <SidebarGroupLabel>Organization</SidebarGroupLabel>
           <SidebarMenu>
             {canEnterOrganization ? (
               <SidebarMenuItem>
@@ -382,14 +409,20 @@ function OrganizationNavigation({
           <SidebarMenu>
             {skillCapabilities.read ? (
               <SidebarMenuItem>
-                <SidebarNavigationLink href={`${root}/skills` as Route} label="Skills">
+                <SidebarNavigationLink
+                  href={`${root}/skills` as Route}
+                  label={resourceLabels.skill.collection}
+                >
                   <ScrollText aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}
             {mcpConnectionCapabilities.read ? (
               <SidebarMenuItem>
-                <SidebarNavigationLink href={`${root}/mcps` as Route} label="MCP">
+                <SidebarNavigationLink
+                  href={`${root}/mcps` as Route}
+                  label={resourceLabels.mcp.collection}
+                >
                   <Cable aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
@@ -405,7 +438,7 @@ function OrganizationNavigation({
               <SidebarMenuItem>
                 <SidebarNavigationLink
                   href={`${root}/inference/providers` as Route}
-                  label="Inference Providers"
+                  label={resourceLabels.inference.collection}
                 >
                   <CloudCog aria-hidden="true" />
                 </SidebarNavigationLink>
@@ -421,13 +454,13 @@ function OrganizationNavigation({
             <SidebarMenuItem>
               <SidebarNavigationLink
                 href={`${root}/social-admission` as Route}
-                label="Social Admission"
+                label="Social admission"
               >
                 <UserRoundCheck aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarNavigationLink href={`${root}/event-trail` as Route} label="Event Trail">
+              <SidebarNavigationLink href={`${root}/event-trail` as Route} label="Event trail">
                 <Activity aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>

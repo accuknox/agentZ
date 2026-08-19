@@ -108,6 +108,19 @@ components:
       schema:
         format: date
         type: string
+    ImmutableSkillSortByQuery:
+      description: Immutable skill field used to order results before pagination.
+      in: query
+      name: sort_by
+      required: false
+      schema:
+        enum:
+        - name
+        - version
+        type: string
+        x-enum-varnames:
+        - ImmutableSkillSortName
+        - ImmutableSkillSortVersion
     InferencePoolNamePath:
       description: Stable inference Pool ID.
       in: path
@@ -122,6 +135,33 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/InferenceProviderName'
+    InheritedResourceSortByQuery:
+      description: Inherited resource field used to order results.
+      in: query
+      name: sort_by
+      required: false
+      schema:
+        enum:
+        - name
+        - status
+        type: string
+        x-enum-varnames:
+        - InheritedResourceSortByName
+        - InheritedResourceSortByStatus
+    InheritedResourceSortOrderQuery:
+      description: Sort direction. Defaults to ascending when sort_by is set.
+      in: query
+      name: sort_order
+      required: false
+      schema:
+        default: asc
+        enum:
+        - asc
+        - desc
+        type: string
+        x-enum-varnames:
+        - InheritedResourceSortOrderAsc
+        - InheritedResourceSortOrderDesc
     InheritedResourceTypePath:
       in: path
       name: resourceType
@@ -146,6 +186,23 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/MCPConnectionName'
+    MutableSkillSortByQuery:
+      description: Mutable skill field used to order results before pagination.
+      in: query
+      name: sort_by
+      required: false
+      schema:
+        enum:
+        - name
+        - file_count
+        - size_bytes
+        - modified_at
+        type: string
+        x-enum-varnames:
+        - MutableSkillSortName
+        - MutableSkillSortFileCount
+        - MutableSkillSortSizeBytes
+        - MutableSkillSortModifiedAt
     PageTokenQuery:
       description: Opaque pagination token from a previous response.
       in: query
@@ -160,6 +217,19 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/ResourceScope'
+    ResourceSortByQuery:
+      description: Resource field used to order results before pagination.
+      in: query
+      name: sort_by
+      required: false
+      schema:
+        enum:
+        - name
+        - created_at
+        type: string
+        x-enum-varnames:
+        - ResourceSortName
+        - ResourceSortCreatedAt
     SandboxNamePath:
       description: Sandbox name.
       in: path
@@ -167,6 +237,19 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/SandboxName'
+    SecretSortByQuery:
+      description: Secret field used to order results before pagination.
+      in: query
+      name: sort_by
+      required: false
+      schema:
+        enum:
+        - key
+        - created_at
+        type: string
+        x-enum-varnames:
+        - SecretSortKey
+        - SecretSortCreatedAt
     SessionIDQuery:
       description: Optional root session ID.
       in: query
@@ -182,6 +265,36 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/SkillName'
+    SkillSummarySortByQuery:
+      description: Skill summary field used to order results before pagination.
+      in: query
+      name: sort_by
+      required: false
+      schema:
+        enum:
+        - name
+        - version
+        - file_count
+        - size_bytes
+        - modified_at
+        type: string
+        x-enum-varnames:
+        - SkillSummarySortName
+        - SkillSummarySortVersion
+        - SkillSummarySortFileCount
+        - SkillSummarySortSizeBytes
+        - SkillSummarySortModifiedAt
+    SortOrderQuery:
+      description: Sort direction. Defaults to ascending when sort_by is set.
+      in: query
+      name: sort_order
+      required: false
+      schema:
+        default: asc
+        enum:
+        - asc
+        - desc
+        type: string
     SpanIDQuery:
       description: Lowercase hexadecimal OTLP span ID.
       in: query
@@ -229,6 +342,23 @@ components:
       schema:
         default: false
         type: boolean
+    WorkflowScheduleSortByQuery:
+      description: Workflow schedule field used to order results before pagination.
+      in: query
+      name: sort_by
+      required: false
+      schema:
+        enum:
+        - name
+        - workflow_name
+        - schedule
+        - created_at
+        type: string
+        x-enum-varnames:
+        - WorkflowScheduleSortName
+        - WorkflowScheduleSortWorkflowName
+        - WorkflowScheduleSortSchedule
+        - WorkflowScheduleSortCreatedAt
     WorkspaceIDHeader:
       description: |
         Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
@@ -22476,9 +22606,9 @@ components:
       type: object
     SkillName:
       description: Immutable Skill resource name.
-      maxLength: 32
+      maxLength: 63
       minLength: 1
-      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
       type: string
     SkillReferences:
       additionalProperties: false
@@ -23835,6 +23965,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameFilterQuery'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ResourceSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -24439,6 +24571,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/MutableSkillSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -25544,6 +25678,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ResourceSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -38544,6 +38680,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ResourceSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -38686,6 +38824,8 @@ paths:
       - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/SecretSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -38846,6 +38986,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/ImmutableSkillSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -39143,6 +39285,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/SkillSummarySortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -39615,6 +39759,8 @@ paths:
           $ref: '#/components/schemas/WorkflowName'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -39864,6 +40010,8 @@ paths:
       - $ref: '#/components/parameters/AgentNamePath'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
+      - $ref: '#/components/parameters/SortOrderQuery'
       responses:
         "200":
           content:
@@ -39998,6 +40146,8 @@ paths:
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDPath'
       - $ref: '#/components/parameters/InheritedResourceTypePath'
+      - $ref: '#/components/parameters/InheritedResourceSortByQuery'
+      - $ref: '#/components/parameters/InheritedResourceSortOrderQuery'
       responses:
         "200":
           content:

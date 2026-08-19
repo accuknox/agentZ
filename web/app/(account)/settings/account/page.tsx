@@ -4,6 +4,7 @@ import * as z from "zod"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { Mail } from "lucide-react"
 import { ErrorState } from "@/components/error-state"
+import { AdministrationPageHeader } from "@/components/administration"
 import { headers } from "next/headers"
 import { authErrorSchema, socialProviderSchema, type AuthError } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
@@ -36,11 +37,7 @@ export default function AccountPage({
 }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Account</h1>
-        </div>
-      </div>
+      <AdministrationPageHeader title="Account" />
       <Suspense fallback={<ProviderSkeleton />}>
         <IdentityProviders />
       </Suspense>
@@ -213,5 +210,5 @@ function TwoFactorSkeleton() {
 }
 
 function ErrorPanel({ message }: { message: string }) {
-  return <ErrorState message={message} />
+  return <ErrorState description={message} />
 }

@@ -25,7 +25,12 @@ export default async function WorkspacesPage({
 
   const root = `/orgs/${result.scope.organization.slug}`
   if (!result.directory.can_enter_organization) {
-    return <AdministrationState kind="forbidden" />
+    return (
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Workspaces" />
+        <AdministrationState kind="forbidden" />
+      </div>
+    )
   }
   return (
     <div className="flex flex-col gap-6">
@@ -34,7 +39,7 @@ export default async function WorkspacesPage({
           result.directory.can_create ? (
             <Button asChild>
               <Link href={`${root}/workspaces/new` as Route}>
-                <Plus />
+                <Plus data-icon="inline-start" />
                 Create workspace
               </Link>
             </Button>
@@ -43,6 +48,7 @@ export default async function WorkspacesPage({
         title="Workspaces"
       />
       <WorkspaceTable
+        canCreate={result.directory.can_create}
         hasNextPage={Boolean(result.directory.next_page_token)}
         nextPageToken={result.directory.next_page_token}
         orgSlug={result.scope.organization.slug}

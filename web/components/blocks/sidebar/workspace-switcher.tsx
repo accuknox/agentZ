@@ -74,13 +74,10 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
           name={scope.organization.name}
         />
         <span className="min-w-0">
-          <span
-            className="block truncate text-sm font-medium"
-            title={scope.organization.name}
-          >
+          <span className="block truncate text-sm font-medium" title={scope.organization.name}>
             {scope.organization.name}
           </span>
-          <span className="text-muted-foreground block text-xs">Organisation</span>
+          <span className="text-muted-foreground block text-xs">Organization</span>
         </span>
       </>
     )
@@ -116,7 +113,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                     {active?.name ?? scope.organization.name}
                   </span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {active ? "Workspace" : "Organisation"}
+                    {active ? "Workspace" : "Organization"}
                   </span>
                 </span>
                 <ChevronsUpDown aria-hidden="true" className="ml-auto" />

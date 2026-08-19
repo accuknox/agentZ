@@ -421,8 +421,10 @@ func (s *Service) syncTenantAgentRows(ctx context.Context, namespace string) err
 		ctx,
 		gatewaydb.GatewayListAgentsParams{
 			TenantNamespace: namespace,
-			Limit:           1 << 30,
-			Offset:          0,
+			SortBy:          "name",
+			SortDesc:        false,
+			PageSize:        1 << 30,
+			PageOffset:      0,
 		},
 	)
 	if err != nil {

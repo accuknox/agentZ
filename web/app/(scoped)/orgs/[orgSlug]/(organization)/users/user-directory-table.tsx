@@ -2,7 +2,7 @@
 
 import type { Route } from "next"
 import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import { useMemo } from "react"
+import { type ReactNode, useMemo } from "react"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
@@ -138,6 +138,15 @@ function MemberTable({
   return (
     <DirectoryTable
       ariaLabel={disabled ? "Disabled Users" : "Active Users"}
+      emptyState={
+        disabled ? (
+          <AdministrationState
+            description="Users you disable will appear here."
+            kind="empty"
+            title="No disabled users"
+          />
+        ) : undefined
+      }
       layout={memberLayout}
       nextPageToken={data.nextPageToken}
       rows={members}
@@ -213,6 +222,7 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
 
 function DirectoryTable<T>({
   ariaLabel,
+  emptyState,
   layout,
   nextPageToken,
   rowHref,
@@ -220,6 +230,7 @@ function DirectoryTable<T>({
   table,
 }: {
   ariaLabel: string
+  emptyState?: ReactNode
   layout: Record<string, AdminColumnLayout>
   nextPageToken: string
   rowHref?: (row: T) => Route
@@ -230,11 +241,13 @@ function DirectoryTable<T>({
     <AdminDataGrid
       ariaLabel={ariaLabel}
       emptyState={
-        <AdministrationState
-          description="Invite people and choose the Roles and Teams they receive when they join."
-          kind="welcome"
-          title="Let's invite your team"
-        />
+        emptyState ?? (
+          <AdministrationState
+            description="Invite people and choose the Roles and Teams they receive when they join."
+            kind="welcome"
+            title="Let's invite your team"
+          />
+        )
       }
       layout={layout}
       pagination={

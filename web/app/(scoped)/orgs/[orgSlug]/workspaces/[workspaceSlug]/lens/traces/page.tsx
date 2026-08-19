@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { cache, Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { EventsChart } from "@/components/events-chart"
 import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -263,7 +264,11 @@ function parseLimitParam(value?: string) {
 }
 
 function ErrorPanel({ message }: { message: string }) {
-  return <div className="bg-destructive/5 text-destructive rounded-md p-4 text-sm">{message}</div>
+  return (
+    <Alert variant="destructive">
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
+  )
 }
 
 function EmptyState({ message }: { message: string }) {

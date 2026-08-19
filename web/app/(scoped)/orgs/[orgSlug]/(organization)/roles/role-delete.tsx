@@ -9,10 +9,11 @@ import {
   type DeleteRoleFormState,
   deleteWorkspaceRoleAction,
 } from "@/app/(scoped)/orgs/actions"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -101,7 +102,7 @@ export function RoleDeleteDialog({
         </DialogHeader>
         <form action={formAction} className="flex flex-col gap-4">
           {state.error ? (
-            <Alert variant="destructive">
+            <DialogAlert variant="destructive">
               <Trash2 aria-hidden="true" />
               <AlertTitle>Role not deleted</AlertTitle>
               <AlertDescription>
@@ -110,9 +111,9 @@ export function RoleDeleteDialog({
                   <span className="mt-2 block">{state.references.join(" · ")}</span>
                 ) : null}
               </AlertDescription>
-            </Alert>
+            </DialogAlert>
           ) : null}
-          <DialogFooter className="mx-0 -mr-4 mb-0 -ml-4">
+          <DialogFooter>
             <DialogClose asChild>
               <Button disabled={pending} type="button" variant="outline">
                 Cancel

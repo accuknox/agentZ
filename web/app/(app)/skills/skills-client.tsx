@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -432,9 +433,9 @@ export function SkillsClient({
         </div>
       </div>
       {error ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive mx-4 mt-4 mb-4 rounded-lg border px-4 py-3 text-sm md:mx-6">
-          {error}
-        </div>
+        <Alert className="my-4 px-4 md:px-6" variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
       {!query.isPending && !query.error && skills.length === 0 ? (
         <AdministrationState
@@ -655,7 +656,9 @@ function EditSkillDialog({
             </Field>
           </FieldGroup>
           {(error ?? versionsQuery.error?.message) ? (
-            <p className="text-destructive text-sm">{error ?? versionsQuery.error?.message}</p>
+            <DialogAlert variant="destructive">
+              <AlertDescription>{error ?? versionsQuery.error?.message}</AlertDescription>
+            </DialogAlert>
           ) : null}
           <DialogFooter>
             <DialogClose asChild>
@@ -701,14 +704,14 @@ function DeleteDialog({
           <DialogDescription>This permanently deletes the selected skill.</DialogDescription>
         </DialogHeader>
         {hasRefs ? (
-          <Alert variant="warning">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <DialogAlert variant="warning">
+            <TriangleAlert />
             <AlertDescription>
               Referenced by {agentRefs.size} agent{agentRefs.size === 1 ? "" : "s"} and{" "}
               {sandboxRefs.size} sandbox{sandboxRefs.size === 1 ? "" : "es"}. Deleting it removes
               those references and every stored version.
             </AlertDescription>
-          </Alert>
+          </DialogAlert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>

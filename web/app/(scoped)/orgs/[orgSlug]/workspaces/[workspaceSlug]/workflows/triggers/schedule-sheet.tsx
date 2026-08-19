@@ -13,6 +13,7 @@ import type {
   WorkflowSchedule,
   WorkflowSummary,
 } from "@/lib/gateway/client"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import {
@@ -589,9 +590,12 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
             ) : null}
           </FieldGroup>
           {generalErrorMessage ? (
-            <p className="border-destructive/30 bg-destructive/5 text-destructive shrink-0 rounded-md border p-3 text-sm">
-              {generalErrorMessage}
-            </p>
+            <Alert
+              className="-mx-4 w-[calc(100%+2rem)] max-w-none shrink-0 px-4"
+              variant="destructive"
+            >
+              <AlertDescription>{generalErrorMessage}</AlertDescription>
+            </Alert>
           ) : null}
           <div className="shrink-0">
             <Button type="submit" disabled={isPending || schemaPending} className="w-full">

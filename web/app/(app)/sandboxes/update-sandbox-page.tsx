@@ -10,6 +10,7 @@ import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.que
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 type UpdateSandboxPageProps = {
   basePath: string
@@ -87,9 +88,9 @@ async function UpdateSandboxContent({
 
   if (sandboxes.error || !sandboxes.sandboxes) {
     return (
-      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-        {sandboxes.error?.message ?? "Failed to load sandbox"}
-      </div>
+      <Alert className="px-4 md:px-6" variant="destructive">
+        <AlertDescription>{sandboxes.error?.message ?? "Failed to load sandbox"}</AlertDescription>
+      </Alert>
     )
   }
 

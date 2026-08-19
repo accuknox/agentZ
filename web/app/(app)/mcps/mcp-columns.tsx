@@ -5,10 +5,12 @@ import { RelativeDateTime } from "@/components/ui/table"
 import type { ColumnDef } from "@tanstack/react-table"
 import { CheckCircle2, CircleDashed, Eye, MoreHorizontal, Trash2, XCircle } from "lucide-react"
 import type { McpConnectionLifecycle, McpConnectionSummary } from "@/lib/gateway/client"
+import { AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -270,9 +272,9 @@ function DeleteMcpDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
-            {state.error.message}
-          </p>
+          <DialogAlert variant="destructive">
+            <AlertDescription>{state.error.message}</AlertDescription>
+          </DialogAlert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>

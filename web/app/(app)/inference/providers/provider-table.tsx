@@ -17,7 +17,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/ui/avatar"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -377,11 +378,11 @@ function DeleteProviderDialog({
           </DialogDescription>
         </DialogHeader>
         {error ? (
-          <Alert variant="destructive" className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4">
+          <DialogAlert variant="destructive">
             <CircleAlert />
             <AlertTitle>Provider could not be deleted</AlertTitle>
             <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
-          </Alert>
+          </DialogAlert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>

@@ -2153,7 +2153,10 @@ export function ProviderSheet({
 
           <div className="space-y-3">
             {submitError && (
-              <Alert variant="destructive" className="max-h-32 overflow-y-auto">
+              <Alert
+                className="-mx-4 max-h-32 w-[calc(100%+2rem)] max-w-none overflow-y-auto px-4"
+                variant="destructive"
+              >
                 <CircleAlert />
                 <AlertTitle>{submitError}</AlertTitle>
                 {submitErrors.length > 0 && (

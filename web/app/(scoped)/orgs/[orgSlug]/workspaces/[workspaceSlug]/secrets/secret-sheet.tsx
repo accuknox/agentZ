@@ -8,6 +8,7 @@ import { KeyRound } from "lucide-react"
 import type { PutSecretFormAction, PutSecretFormState } from "@/data/types"
 import { secretFormInputSchema } from "@/data/schema"
 import type * as z from "zod"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -174,9 +175,12 @@ export function SecretSheet({
             </Field>
           </FieldGroup>
           {generalErrorMessage ? (
-            <p className="border-destructive/30 bg-destructive/5 text-destructive shrink-0 rounded-md border p-3 text-sm">
-              {generalErrorMessage}
-            </p>
+            <Alert
+              className="-mx-4 w-[calc(100%+2rem)] max-w-none shrink-0 px-4"
+              variant="destructive"
+            >
+              <AlertDescription>{generalErrorMessage}</AlertDescription>
+            </Alert>
           ) : null}
           <div className="shrink-0">
             <Button type="submit" disabled={isPending} className="w-full">

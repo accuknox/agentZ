@@ -90,13 +90,11 @@ export function McpViewSheet({
             <Spinner />
           </div>
         ) : query.error instanceof Error ? (
-          <div className="px-4 pb-2">
-            <Alert variant="destructive">
-              <CircleAlert className="size-4" />
-              <AlertTitle>Connection could not be loaded</AlertTitle>
-              <AlertDescription>{query.error.message}</AlertDescription>
-            </Alert>
-          </div>
+          <Alert className="px-4" variant="destructive">
+            <CircleAlert />
+            <AlertTitle>Connection could not be loaded</AlertTitle>
+            <AlertDescription>{query.error.message}</AlertDescription>
+          </Alert>
         ) : query.data ? (
           <div className="space-y-6 px-4 pb-4">
             <section className="space-y-3">

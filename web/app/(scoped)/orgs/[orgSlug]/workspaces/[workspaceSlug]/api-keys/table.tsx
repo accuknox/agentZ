@@ -8,10 +8,12 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { AdministrationState } from "@/components/administration"
+import { AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -266,9 +268,9 @@ function DeleteAPIKeyButton({
             </DialogDescription>
           </DialogHeader>
           {state.error ? (
-            <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
-              {state.error.message}
-            </p>
+            <DialogAlert variant="destructive">
+              <AlertDescription>{state.error.message}</AlertDescription>
+            </DialogAlert>
           ) : null}
           <DialogFooter>
             <DialogClose asChild>

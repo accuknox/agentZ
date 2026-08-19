@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -111,7 +112,14 @@ export function AgentOwnerForm({
       <div className="border-b px-4 pb-6 md:px-6">
         <form action={formAction} className="flex flex-col gap-5">
           {state.error ? (
-            <FormError title="Ownership was not transferred" message={state.error} />
+            <Alert
+              className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4 md:-mx-6 md:w-[calc(100%+3rem)] md:px-6"
+              variant="destructive"
+            >
+              <CircleAlert aria-hidden="true" />
+              <AlertTitle>Ownership was not transferred</AlertTitle>
+              <AlertDescription>{state.error}</AlertDescription>
+            </Alert>
           ) : null}
           <FieldGroup>
             <Field>
@@ -260,7 +268,13 @@ function AgentShareDialogForm({
         ))}
         <input name="target_kind" type="hidden" value={targetKind} />
         <input name="target_id" type="hidden" value={targetId} />
-        {state.error ? <FormError title="Share was not saved" message={state.error} /> : null}
+        {state.error ? (
+          <DialogAlert variant="destructive">
+            <CircleAlert aria-hidden="true" />
+            <AlertTitle>Share was not saved</AlertTitle>
+            <AlertDescription>{state.error}</AlertDescription>
+          </DialogAlert>
+        ) : null}
         <FieldGroup className="grid sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${formId}-target-kind`} required>
@@ -587,15 +601,5 @@ function AgentShareActions({
       </Dialog>
       {state.error ? <span className="text-destructive text-xs">{state.error}</span> : null}
     </div>
-  )
-}
-
-function FormError({ message, title }: { message: string; title: string }) {
-  return (
-    <Alert variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }

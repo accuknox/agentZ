@@ -349,7 +349,7 @@ export function ImpactReviewFrame({
             ))}
           </div>
         ) : (
-          <Alert>
+          <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4 md:-mx-6 md:w-[calc(100%+3rem)] md:px-6">
             <Clock3 aria-hidden="true" />
             <AlertTitle>No dependent changes</AlertTitle>
             <AlertDescription>

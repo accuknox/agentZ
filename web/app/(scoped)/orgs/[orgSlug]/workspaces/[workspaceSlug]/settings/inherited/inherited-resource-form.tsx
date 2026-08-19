@@ -264,7 +264,7 @@ export function InheritedResourceForm({
         <input key={name} name="names" type="hidden" value={name} />
       ))}
       {state.error ? (
-        <Alert variant="destructive">
+        <Alert className="px-4 md:px-6" variant="destructive">
           <CircleAlert aria-hidden="true" />
           <AlertTitle>Selection could not be saved</AlertTitle>
           <AlertDescription>{state.error}</AlertDescription>

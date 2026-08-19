@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -235,7 +236,9 @@ function WorkflowNodeSkeleton({ isLast = false }: { isLast?: boolean }) {
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">{message}</div>
+    <Alert className="px-6" variant="destructive">
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   )
 }
 

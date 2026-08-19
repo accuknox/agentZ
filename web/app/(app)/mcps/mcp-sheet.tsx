@@ -1156,8 +1156,8 @@ export function McpSheet({
           <SheetDescription className="sr-only">{title}</SheetDescription>
         </SheetHeader>
         {discoveryWarningVisible ? (
-          <Alert variant="warning" className="mx-4 mt-4 w-auto">
-            <CircleAlert className="size-4" />
+          <Alert className="mt-4 px-4" variant="warning">
+            <CircleAlert />
             <AlertTitle>Auto-discovery failed</AlertTitle>
             <AlertDescription>{discoveryWarningVisible.message}</AlertDescription>
             <AlertAction>
@@ -1453,8 +1453,8 @@ export function McpSheet({
             </Field>
           </FieldGroup>
           {submitError ? (
-            <Alert variant="destructive">
-              <CircleAlert className="size-4" />
+            <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4" variant="destructive">
+              <CircleAlert />
               <AlertTitle>Connection failed</AlertTitle>
               <AlertDescription>{submitError}</AlertDescription>
             </Alert>

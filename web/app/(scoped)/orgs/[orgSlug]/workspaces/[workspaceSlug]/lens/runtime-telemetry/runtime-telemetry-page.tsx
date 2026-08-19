@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { EventsChart } from "@/components/events-chart"
 import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -248,7 +249,9 @@ async function Filters({
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">{message}</div>
+    <Alert className="px-6" variant="destructive">
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   )
 }
 

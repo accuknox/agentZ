@@ -5,9 +5,11 @@ import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -460,9 +462,9 @@ export function AgentDialog({
           </FieldGroup>
         </form>
         {generalErrorMessage ? (
-          <div role="alert" className="border-destructive/40 rounded border p-3 text-sm">
-            <p className="text-destructive font-medium">{generalErrorMessage}</p>
-          </div>
+          <DialogAlert variant="destructive">
+            <AlertDescription>{generalErrorMessage}</AlertDescription>
+          </DialogAlert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>

@@ -75,7 +75,10 @@ export function TeamForm({
           <input key={id} name="role_ids" type="hidden" value={id} />
         ))}
         {state.error ? (
-          <Alert variant="destructive">
+          <Alert
+            className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4 md:-mx-6 md:w-[calc(100%+3rem)] md:px-6"
+            variant="destructive"
+          >
             <CircleAlert aria-hidden="true" />
             <AlertTitle>Team could not be saved</AlertTitle>
             <AlertDescription>{state.error}</AlertDescription>

@@ -6,6 +6,7 @@ import type { Route } from "next"
 import { deleteSandboxFormAction } from "@/data/sandbox.actions"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { SandboxTable } from "./sandbox-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
@@ -88,9 +89,9 @@ async function Sandboxes({
 
   if (result.error) {
     return (
-      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-        {result.error.message}
-      </div>
+      <Alert className="px-4 md:px-6" variant="destructive">
+        <AlertDescription>{result.error.message}</AlertDescription>
+      </Alert>
     )
   }
 

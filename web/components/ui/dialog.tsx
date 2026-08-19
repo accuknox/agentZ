@@ -4,6 +4,7 @@ import * as React from "react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
@@ -99,6 +100,10 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+function DialogAlert({ className, ...props }: React.ComponentProps<typeof Alert>) {
+  return <Alert className={cn("-mx-4 w-[calc(100%+2rem)] max-w-none px-4", className)} {...props} />
+}
+
 function DialogFooter({
   className,
   showCloseButton = false,
@@ -154,6 +159,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,

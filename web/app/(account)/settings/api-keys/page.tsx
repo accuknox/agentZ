@@ -31,7 +31,7 @@ export default async function APIKeysPage({
         title="API keys"
       />
       {!context.workspaces.length ? (
-        <Alert className="rounded-none border-x-0 px-4 md:px-6">
+        <Alert className="px-4 md:px-6">
           <AlertTitle>No eligible Workspaces</AlertTitle>
           <AlertDescription>
             To create an API key, choose a ready Workspace that has at least one Agent.

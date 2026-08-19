@@ -580,7 +580,7 @@ function SelectableTimeline({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="mx-auto flex w-full flex-col gap-4 @xl/chat:w-4/5"
+      className="flex w-full flex-col gap-4"
       onPointerDownCapture={(event) => {
         if (!event.isPrimary || event.button !== 0) return
 
@@ -1131,7 +1131,7 @@ function ChatInner({
           showStarter && "pointer-events-none opacity-0"
         )}
       >
-        <ConversationContent className="w-full px-4">
+        <ConversationContent className="w-full px-4" scrollClassName="[scrollbar-gutter:auto]!">
           {showHistorySkeleton ? (
             <div className="mx-auto flex w-full flex-col gap-3 @xl/chat:w-4/5">
               <Skeleton className="h-16 w-full rounded-md" />
@@ -1142,20 +1142,31 @@ function ChatInner({
             <>
               <SelectableTimeline>
                 {rows.map((row) => (
-                  <TimelineRowView
-                    agentName={agentName}
-                    actorProfiles={actorProfiles}
-                    isBusy={isBusy}
-                    isLastBlock={rows.at(-1)?.key === row.key}
+                  <div
+                    className={cn(
+                      row.type === "assistant-error"
+                        ? "-mx-4 w-[calc(100%+2rem)] max-w-none"
+                        : "mx-auto w-full @xl/chat:w-4/5"
+                    )}
                     key={row.key}
-                    onRevert={handleRevert}
-                    revertDisabled={isBusy || isStopping || revertPending}
-                    row={row}
-                    user={authSession?.user}
-                    workspacePath={workspacePath}
-                  />
+                  >
+                    <TimelineRowView
+                      agentName={agentName}
+                      actorProfiles={actorProfiles}
+                      isBusy={isBusy}
+                      isLastBlock={rows.at(-1)?.key === row.key}
+                      onRevert={handleRevert}
+                      revertDisabled={isBusy || isStopping || revertPending}
+                      row={row}
+                      user={authSession?.user}
+                      workspacePath={workspacePath}
+                    />
+                  </div>
                 ))}
-                <AgentWorkingIndicator isWorking={isBusy} />
+                <AgentWorkingIndicator
+                  className="mx-auto w-full @xl/chat:w-4/5"
+                  isWorking={isBusy}
+                />
               </SelectableTimeline>
               <RevertDock
                 items={reverted}
@@ -1548,7 +1559,7 @@ function TimelineRowView({
   switch (row.type) {
     case "local": {
       return (
-        <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
+        <Message align="end" className="group is-user ml-auto max-w-[95%]">
           <UserMessageAvatar
             image={user?.image}
             label={user?.name ?? "You"}
@@ -1589,7 +1600,7 @@ function TimelineRowView({
           }`
         : undefined
       return (
-        <Message align="end" className="group is-user ml-auto max-w-[95%]" key={row.key}>
+        <Message align="end" className="group is-user ml-auto max-w-[95%]">
           {isEmpty || !name || !label ? null : (
             <UserMessageAvatar image={profile?.image} label={label} name={name} />
           )}
@@ -1633,67 +1644,65 @@ function TimelineRowView({
         .map((entry) => entry.content)
         .join("\n\n")
       return (
-        <>
-          <AIMessage from="assistant" key={row.key}>
-            <AIMessageContent>
-              {groups.map((group, groupIndex) => {
-                switch (group.type) {
-                  case "text":
-                    return (
-                      <MessageResponse key={group.key} onAgentFileOpen={openAgentFile}>
-                        {group.content}
-                      </MessageResponse>
-                    )
-                  case "reasoning": {
-                    const isStreaming = isBusy && isLastBlock && groupIndex === lastGroupIndex
-                    return (
-                      <Reasoning isStreaming={isStreaming} key={group.key}>
-                        <ReasoningTrigger />
-                        <ReasoningContent>{group.content}</ReasoningContent>
-                      </Reasoning>
-                    )
-                  }
-                  case "tool-group":
-                    return (
-                      <div
-                        className="bg-muted dark:bg-card max-w-full min-w-0 overflow-hidden rounded-md p-2"
-                        key={group.key}
-                      >
-                        {group.entries.map((entry) => {
-                          const toolEntry = entry.toolEntries[0]
-                          if (!toolEntry) return null
-                          return (
-                            <ToolEntries
-                              agentName={agentName}
-                              entry={toolEntry}
-                              key={entry.key}
-                              workspacePath={workspacePath}
-                            />
-                          )
-                        })}
-                      </div>
-                    )
-                  default:
-                    return null
+        <AIMessage from="assistant">
+          <AIMessageContent>
+            {groups.map((group, groupIndex) => {
+              switch (group.type) {
+                case "text":
+                  return (
+                    <MessageResponse key={group.key} onAgentFileOpen={openAgentFile}>
+                      {group.content}
+                    </MessageResponse>
+                  )
+                case "reasoning": {
+                  const isStreaming = isBusy && isLastBlock && groupIndex === lastGroupIndex
+                  return (
+                    <Reasoning isStreaming={isStreaming} key={group.key}>
+                      <ReasoningTrigger />
+                      <ReasoningContent>{group.content}</ReasoningContent>
+                    </Reasoning>
+                  )
                 }
-              })}
-            </AIMessageContent>
-            <div className="flex items-center gap-1">
-              <RelativeDateTime className="text-xs" value={row.createdAt} />
-              {copyText.length > 0 && !(isBusy && isLastBlock) ? (
-                <MessageActionBar>
-                  <CopyButton content={copyText} />
-                </MessageActionBar>
-              ) : null}
-            </div>
-          </AIMessage>
-        </>
+                case "tool-group":
+                  return (
+                    <div
+                      className="bg-muted dark:bg-card max-w-full min-w-0 overflow-hidden rounded-md p-2"
+                      key={group.key}
+                    >
+                      {group.entries.map((entry) => {
+                        const toolEntry = entry.toolEntries[0]
+                        if (!toolEntry) return null
+                        return (
+                          <ToolEntries
+                            agentName={agentName}
+                            entry={toolEntry}
+                            key={entry.key}
+                            workspacePath={workspacePath}
+                          />
+                        )
+                      })}
+                    </div>
+                  )
+                default:
+                  return null
+              }
+            })}
+          </AIMessageContent>
+          <div className="flex items-center gap-1">
+            <RelativeDateTime className="text-xs" value={row.createdAt} />
+            {copyText.length > 0 && !(isBusy && isLastBlock) ? (
+              <MessageActionBar>
+                <CopyButton content={copyText} />
+              </MessageActionBar>
+            ) : null}
+          </div>
+        </AIMessage>
       )
     }
 
     case "thinking": {
       return (
-        <div className="text-muted-foreground text-sm" key={row.key}>
+        <div className="text-muted-foreground text-sm">
           <span className="inline-flex items-center gap-2">
             <Spinner className="size-3.5" />
             <span className="animate-pulse">Thinking…</span>
@@ -1705,7 +1714,7 @@ function TimelineRowView({
     case "diff-summary": {
       const visible = row.diffs.slice(0, 10)
       return (
-        <Accordion className="w-full" key={row.key} type="multiple">
+        <Accordion className="w-full" type="multiple">
           {visible.map((diff) => {
             const value = diff.file ?? diff.patch ?? ""
             const path = value.replace(/\\/g, "/")
@@ -1758,7 +1767,7 @@ function TimelineRowView({
 
     case "checkpoint": {
       return (
-        <Checkpoint key={row.key}>
+        <Checkpoint>
           <CheckpointIcon />
           <span className="shrink-0 text-xs">
             {row.variant === "compaction" ? "Context compacted" : "Interrupted"}
@@ -1769,7 +1778,7 @@ function TimelineRowView({
 
     case "assistant-error": {
       return (
-        <Alert key={row.key} variant="destructive">
+        <Alert variant="destructive">
           <AlertTitle>{row.label}</AlertTitle>
           <AlertDescription>{row.body}</AlertDescription>
         </Alert>

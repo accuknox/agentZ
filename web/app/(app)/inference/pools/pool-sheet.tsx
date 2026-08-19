@@ -451,7 +451,7 @@ export function PoolSheet({
             </section>
 
             {protocols.size > 1 ? (
-              <Alert variant="warning">
+              <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4" variant="warning">
                 <TriangleAlert />
                 <AlertTitle>These models use different API formats</AlertTitle>
                 <AlertDescription>
@@ -462,7 +462,7 @@ export function PoolSheet({
             ) : null}
 
             {submitError ? (
-              <Alert variant="destructive">
+              <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4" variant="destructive">
                 <CircleAlert />
                 <AlertTitle>{submitError}</AlertTitle>
                 {submitDetails.length ? (

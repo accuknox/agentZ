@@ -23,10 +23,12 @@ import {
   type InvitationFormState,
 } from "@/app/(scoped)/orgs/actions"
 import type { AssignmentOption, ScopedAssignmentOption } from "@/data/members"
+import { AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -42,7 +44,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import { Spinner } from "@/components/ui/spinner"
@@ -317,7 +319,11 @@ function CreateInvitationForm({
             />
           </Field>
         </FieldGroup>
-        {state.error ? <FieldError>{state.error}</FieldError> : null}
+        {state.error ? (
+          <DialogAlert variant="destructive">
+            <AlertDescription>{state.error}</AlertDescription>
+          </DialogAlert>
+        ) : null}
         <div className="flex justify-end">
           <Button disabled={!ready || pending} type="submit">
             {pending ? <Spinner /> : <Send />}

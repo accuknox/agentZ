@@ -76,7 +76,7 @@ export function RoleAssignments({
         <input key={memberId} name="member_ids" type="hidden" value={memberId} />
       ))}
       {state.error ? (
-        <Alert variant="destructive">
+        <Alert className="px-4 md:px-6" variant="destructive">
           <CircleAlert aria-hidden="true" />
           <AlertTitle>Assignments not saved</AlertTitle>
           <AlertDescription>{state.error}</AlertDescription>

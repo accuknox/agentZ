@@ -338,7 +338,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
           ) : null}
         </FieldGroup>
         {!workspace && role?.systemRole === "superadmin" ? (
-          <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none rounded-none border-x-0 md:-mx-6 md:w-[calc(100%+3rem)]">
+          <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4 md:-mx-6 md:w-[calc(100%+3rem)] md:px-6">
             <ShieldCheck aria-hidden="true" />
             <AlertTitle>Full Organisation authorization bypass</AlertTitle>
             <AlertDescription>
@@ -347,7 +347,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
           </Alert>
         ) : null}
         {workspace && role?.systemRole === "workspace_admin" ? (
-          <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none rounded-none border-x-0 md:-mx-6 md:w-[calc(100%+3rem)]">
+          <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4 md:-mx-6 md:w-[calc(100%+3rem)] md:px-6">
             <ShieldCheck aria-hidden="true" />
             <AlertTitle>Full Workspace authorization</AlertTitle>
             <AlertDescription>
@@ -357,7 +357,10 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
           </Alert>
         ) : null}
         {state.error ? (
-          <Alert variant="destructive">
+          <Alert
+            className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4 md:-mx-6 md:w-[calc(100%+3rem)] md:px-6"
+            variant="destructive"
+          >
             <CircleAlert aria-hidden="true" />
             <AlertTitle>Role not saved</AlertTitle>
             <AlertDescription>{state.error}</AlertDescription>

@@ -6,6 +6,7 @@ import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import type { Sandbox } from "@/lib/gateway/client"
+import { AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -211,9 +213,9 @@ function DeleteSandboxDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
-            {state.error.message}
-          </p>
+          <DialogAlert variant="destructive">
+            <AlertDescription>{state.error.message}</AlertDescription>
+          </DialogAlert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>

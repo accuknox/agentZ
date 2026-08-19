@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -412,11 +413,11 @@ function DeletePoolDialog({
           </DialogDescription>
         </DialogHeader>
         {error ? (
-          <Alert variant="destructive">
+          <DialogAlert variant="destructive">
             <CircleAlert />
             <AlertTitle>Pool could not be deleted</AlertTitle>
             <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
-          </Alert>
+          </DialogAlert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>
@@ -508,13 +509,11 @@ function PoolViewSheet({
             <Spinner />
           </div>
         ) : query.error instanceof Error ? (
-          <div className="px-4">
-            <Alert variant="destructive">
-              <CircleAlert />
-              <AlertTitle>Pool could not be loaded</AlertTitle>
-              <AlertDescription>{query.error.message}</AlertDescription>
-            </Alert>
-          </div>
+          <Alert className="px-4" variant="destructive">
+            <CircleAlert />
+            <AlertTitle>Pool could not be loaded</AlertTitle>
+            <AlertDescription>{query.error.message}</AlertDescription>
+          </Alert>
         ) : query.data ? (
           <div className="space-y-6 px-4 pb-4">
             <DetailSection title="Identity">

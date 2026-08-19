@@ -35,6 +35,7 @@ import type {
   TraceListItem,
 } from "@/data/types"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { ErrorState } from "@/components/error-state"
 import { CodeBlock } from "@/components/ai-elements/code-block"
@@ -549,9 +550,9 @@ function SpansInspectorContent({
 
   if (error) {
     return (
-      <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">
-        {error.message}
-      </div>
+      <Alert className="px-6" variant="destructive">
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
     )
   }
 
@@ -709,9 +710,12 @@ function SpanDetailViewer({
         </div>
         {span && span.spanType !== "agent" ? <InspectorTokenMeter span={span} /> : null}
         {error ? (
-          <div className="bg-destructive/5 text-destructive rounded-md p-4 text-sm">
-            {error.message}
-          </div>
+          <Alert
+            className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4 lg:-mx-6 lg:w-[calc(100%+3rem)] lg:px-6"
+            variant="destructive"
+          >
+            <AlertDescription>{error.message}</AlertDescription>
+          </Alert>
         ) : pending ? (
           <div className="flex flex-col gap-5">
             <Skeleton className="h-44 w-full" />
@@ -913,9 +917,9 @@ function RuntimeTelemetryContent({
 
   if (error) {
     return (
-      <div className="bg-destructive/5 text-destructive m-6 rounded-md p-4 text-sm">
-        {error.message}
-      </div>
+      <Alert className="px-6" variant="destructive">
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
     )
   }
 

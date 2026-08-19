@@ -385,11 +385,8 @@ function OpenFilesWorkspace({
             <Spinner /> Loading workspace...
           </div>
         ) : rootQuery.isError ? (
-          <div
-            className="flex h-full items-center justify-center p-6"
-            style={{ width: explorerWidth }}
-          >
-            <Alert variant="destructive">
+          <div className="flex h-full items-center justify-center" style={{ width: explorerWidth }}>
+            <Alert className="px-6" variant="destructive">
               <AlertTitle>Files unavailable</AlertTitle>
               <AlertDescription className="mt-1">
                 The agent workspace could not be reached.
@@ -1603,7 +1600,7 @@ function EditorPane({
       </div>
 
       {draft.truncated ? (
-        <Alert className="m-2 w-auto" variant="warning">
+        <Alert variant="warning">
           <AlertTitle>Large file opened read-only</AlertTitle>
           <AlertDescription>
             The editor shows a truncated preview. Download the file to view it in full.
@@ -1612,7 +1609,7 @@ function EditorPane({
       ) : null}
 
       {draft.conflict ? (
-        <Alert className="m-2 w-auto" variant="warning">
+        <Alert variant="warning">
           <AlertTitle>This file changed on disk</AlertTitle>
           <AlertDescription className="mt-1">
             Reload the Agent copy, or overwrite it with your draft.

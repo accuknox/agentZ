@@ -6,9 +6,11 @@ import { Bot, Check, FileArchive, Lock, Pencil, Replace, TriangleAlert } from "l
 import { Controller, useForm, useWatch, type Control, type FieldErrors } from "react-hook-form"
 import { toast } from "sonner"
 import * as z from "zod"
+import { AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogAlert,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -500,26 +502,26 @@ function ImportErrorSummary({
   ref: React.Ref<HTMLDivElement>
 }) {
   return (
-    <div
+    <DialogAlert
       ref={ref}
-      className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm outline-none focus-visible:ring-3"
-      role="alert"
+      className="outline-none focus-visible:ring-3"
       tabIndex={-1}
+      variant="destructive"
     >
-      <p className="flex items-center gap-2 font-medium">
-        <TriangleAlert aria-hidden="true" className="size-4" />
-        {error.message}
-      </p>
+      <TriangleAlert aria-hidden="true" />
+      <AlertTitle>{error.message}</AlertTitle>
       {error.errors?.length ? (
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          {error.errors.map((issue) => (
-            <li key={`${issue.field}:${issue.message}`}>
-              <span className="font-mono text-xs">{issue.field}</span>: {issue.message}
-            </li>
-          ))}
-        </ul>
+        <AlertDescription>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+            {error.errors.map((issue) => (
+              <li key={`${issue.field}:${issue.message}`}>
+                <span className="font-mono text-xs">{issue.field}</span>: {issue.message}
+              </li>
+            ))}
+          </ul>
+        </AlertDescription>
       ) : null}
-    </div>
+    </DialogAlert>
   )
 }
 

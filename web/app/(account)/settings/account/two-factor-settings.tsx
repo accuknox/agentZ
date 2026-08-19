@@ -12,10 +12,12 @@ import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
 import { reauthenticateWithGithub, reauthenticateWithGoogle } from "./actions"
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons"
+import { AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -410,7 +412,11 @@ function SetupDialog({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-4 pb-4">
-          {error ? <FieldError>{error}</FieldError> : null}
+          {error ? (
+            <DialogAlert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </DialogAlert>
+          ) : null}
           <form
             className="flex flex-col gap-6"
             method="post"
@@ -566,7 +572,11 @@ function ReauthDialog({
               ) : null}
             </Field>
           </FieldGroup>
-          {error ? <FieldError>{error}</FieldError> : null}
+          {error ? (
+            <DialogAlert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </DialogAlert>
+          ) : null}
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline" disabled={pending}>
@@ -581,21 +591,18 @@ function ReauthDialog({
           </DialogFooter>
         </form>
       ) : provider === "github" || provider === "google" ? (
-        <>
-          {error ? <FieldError>{error}</FieldError> : null}
-          <SocialAuthButtons
-            actions={socialActions}
-            authPath="/signin"
-            disabled={pending}
-            errors={error ? { [provider]: error } : undefined}
-            hiddenFields={{ action }}
-            onPendingChangeAction={onPendingProviderAction}
-            pendingProvider={pendingProvider}
-            providers={[provider]}
-            returnTo={undefined}
-            submitLabel="Sign in"
-          />
-        </>
+        <SocialAuthButtons
+          actions={socialActions}
+          authPath="/signin"
+          disabled={pending}
+          errors={error ? { [provider]: error } : undefined}
+          hiddenFields={{ action }}
+          onPendingChangeAction={onPendingProviderAction}
+          pendingProvider={pendingProvider}
+          providers={[provider]}
+          returnTo={undefined}
+          submitLabel="Sign in"
+        />
       ) : null}
     </>
   )
@@ -618,7 +625,11 @@ function DisableDialog({
           You&apos;ll stop being asked for authenticator codes on sign-in.
         </DialogDescription>
       </DialogHeader>
-      {error ? <FieldError>{error}</FieldError> : null}
+      {error ? (
+        <DialogAlert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </DialogAlert>
+      ) : null}
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline" disabled={pending}>

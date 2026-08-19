@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { deleteScopedMcpFormAction, submitScopedMcpFormAction } from "@/data/mcp.actions"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
@@ -88,9 +89,9 @@ async function Connections({
   )
   if (result.error)
     return (
-      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-4 text-sm">
-        {result.error.message}
-      </div>
+      <Alert className="px-4 md:px-6" variant="destructive">
+        <AlertDescription>{result.error.message}</AlertDescription>
+      </Alert>
     )
   return (
     <McpTable

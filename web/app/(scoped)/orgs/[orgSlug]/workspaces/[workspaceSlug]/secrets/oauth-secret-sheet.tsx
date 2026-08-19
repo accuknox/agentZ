@@ -658,8 +658,8 @@ export function OAuthSecretSheet({
           <SheetDescription className="sr-only">New OAuth secret</SheetDescription>
         </SheetHeader>
         {discoveryWarningVisible ? (
-          <Alert variant="warning" className="mx-4 mt-4 w-auto">
-            <CircleAlert className="size-4" />
+          <Alert className="mt-4 px-4" variant="warning">
+            <CircleAlert />
             <AlertTitle>Auto-discovery failed</AlertTitle>
             <AlertDescription>{discoveryWarningVisible.message}</AlertDescription>
             <AlertAction>
@@ -966,8 +966,8 @@ export function OAuthSecretSheet({
             </Accordion>
           </FieldGroup>
           {submitError ? (
-            <Alert variant="destructive">
-              <CircleAlert className="size-4" />
+            <Alert className="-mx-4 w-[calc(100%+2rem)] max-w-none px-4" variant="destructive">
+              <CircleAlert />
               <AlertTitle>Secret creation failed</AlertTitle>
               <AlertDescription>{submitError}</AlertDescription>
             </Alert>

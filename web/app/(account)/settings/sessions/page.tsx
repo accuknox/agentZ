@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { headers } from "next/headers"
 import { and, asc, desc, eq, gt } from "drizzle-orm"
 import * as z from "zod"
@@ -95,10 +96,8 @@ function TableSkeleton() {
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="px-4 md:px-6">
-      <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-        {message}
-      </div>
-    </div>
+    <Alert className="px-4 md:px-6" variant="destructive">
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   )
 }

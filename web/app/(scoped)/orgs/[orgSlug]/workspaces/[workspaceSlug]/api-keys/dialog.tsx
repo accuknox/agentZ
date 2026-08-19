@@ -8,10 +8,12 @@ import { BotIcon, CheckIcon, Clock3, KeyRound, Webhook } from "lucide-react"
 import { toast } from "sonner"
 import { createAPIKeyFormSchema, type CreateAPIKeyFormValues } from "@/data/api-key.schema"
 import type { CreateAPIKeyFormState } from "@/data/types"
+import { AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/ui/copy-button"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -376,9 +378,9 @@ function CreateAPIKeyDialog({
             </FieldGroup>
           </form>
           {state.error ? (
-            <div role="alert" className="border-destructive/40 rounded border p-3 text-sm">
-              <p className="text-destructive font-medium">{state.error.message}</p>
-            </div>
+            <DialogAlert variant="destructive">
+              <AlertDescription>{state.error.message}</AlertDescription>
+            </DialogAlert>
           ) : null}
           <DialogFooter>
             <DialogClose asChild>

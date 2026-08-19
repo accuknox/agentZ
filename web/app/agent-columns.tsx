@@ -6,6 +6,7 @@ import Link from "next/link"
 import { MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
+import { AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -210,9 +212,9 @@ function DeleteAgentDialog({
           </DialogDescription>
         </DialogHeader>
         {state.error ? (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
-            {state.error.message}
-          </p>
+          <DialogAlert variant="destructive">
+            <AlertDescription>{state.error.message}</AlertDescription>
+          </DialogAlert>
         ) : null}
         <DialogFooter>
           <DialogClose asChild>

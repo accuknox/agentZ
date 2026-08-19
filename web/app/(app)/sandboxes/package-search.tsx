@@ -23,6 +23,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -416,9 +417,9 @@ export function PackageSearch({
         </div>
       ) : null}
       {searchDependent && hasError ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded border p-3 text-sm">
-          {data?.error?.message ?? "Search failed"}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{data?.error?.message ?? "Search failed"}</AlertDescription>
+        </Alert>
       ) : null}
       {searchDependent && !isFetching && debounced.length < minQueryLength ? (
         <div className="text-muted-foreground rounded border py-10 text-center text-sm">

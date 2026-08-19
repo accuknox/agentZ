@@ -2071,21 +2071,20 @@ function AllowedHostsStep({
         </FieldGroup>
       </FieldSet>
       {generalError ? (
-        <div
-          role="alert"
-          className="border-destructive/30 bg-destructive/5 text-destructive rounded border p-3 text-sm"
-        >
-          <p className="font-medium">{generalError.message}</p>
-          {generalError.errors && generalError.errors.length > 0 ? (
-            <ul className="mt-2 list-disc pl-5">
-              {generalError.errors.map((error) => (
-                <li key={`${error.field}-${error.message}`}>
-                  {error.field}: {error.message}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            <p className="font-medium">{generalError.message}</p>
+            {generalError.errors && generalError.errors.length > 0 ? (
+              <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+                {generalError.errors.map((error) => (
+                  <li key={`${error.field}-${error.message}`}>
+                    {error.field}: {error.message}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </AlertDescription>
+        </Alert>
       ) : null}
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev} disabled={pending}>

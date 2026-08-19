@@ -9,8 +9,10 @@ import { toast } from "sonner"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
+  DialogAlert,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -405,9 +407,9 @@ function SessionItem({
             </DialogDescription>
           </DialogHeader>
           {pendingState.error ? (
-            <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
-              {pendingState.error.message}
-            </p>
+            <DialogAlert variant="destructive">
+              <AlertDescription>{pendingState.error.message}</AlertDescription>
+            </DialogAlert>
           ) : null}
           <DialogFooter>
             <DialogClose asChild>

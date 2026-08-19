@@ -1,6 +1,7 @@
 "use server"
 
 import { headers } from "next/headers"
+import { refresh } from "next/cache"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import * as z from "zod"
@@ -62,5 +63,6 @@ export async function deleteSessionFormAction(
     }
   }
 
+  refresh()
   return { success: true }
 }

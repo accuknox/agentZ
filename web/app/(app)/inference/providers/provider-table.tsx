@@ -92,12 +92,16 @@ const watchProvidersQueryOptions = (
   scope: InferenceProviderActionScope
 ) =>
   queryOptions({
-    queryKey: ["watchInferenceProviders", scope.workspaceId ?? "organization"] as const,
+    queryKey: [
+      "watchInferenceProviders",
+      scope.workspaceId ?? "organization",
+      providers.map(({ id, scope }) => ({ id, scope })),
+    ] as const,
     placeholderData: providers,
     queryFn: streamedQuery<
       WatchInferenceProvidersEvent,
       InferenceProvider[],
-      readonly ["watchInferenceProviders", string]
+      readonly ["watchInferenceProviders", string, Pick<InferenceProvider, "id" | "scope">[]]
     >({
       initialValue: providers,
       reducer: (rows, event) => {

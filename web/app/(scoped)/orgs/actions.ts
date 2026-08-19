@@ -363,7 +363,7 @@ export async function createInvitationAction(
     return { error: "Invitation could not be created." }
   }
 
-  revalidatePath(`/orgs/${orgSlug}/users/status/invited`, "page")
+  revalidatePath(`/orgs/${orgSlug}/users/status/invited`)
   return { link: `${getEnv().BETTER_AUTH_URL}/accept-invitation/${result.token}` }
 }
 
@@ -419,7 +419,7 @@ export async function saveMemberAssignmentsAction(
 export async function cancelInvitationAction(orgSlug: string, invitationId: string) {
   const result = await cancelInvitation(orgSlug, invitationId)
   if ("error" in result) throw new Error("Invitation could not be cancelled.")
-  revalidatePath(`/orgs/${orgSlug}/users/status/invited`, "page")
+  revalidatePath(`/orgs/${orgSlug}/users/status/invited`)
 }
 
 export async function restoreMembershipAction(orgSlug: string, memberId: string) {

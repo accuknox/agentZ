@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os/signal"
-	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -27,10 +26,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,7 +34,6 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
-	"github.com/accuknox/agentz/internal/scope"
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclientset "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
@@ -56,11 +51,6 @@ const (
 	// DefaultMCPProbeTimeout bounds one end-to-end MCP probe.
 	DefaultMCPProbeTimeout = 15 * time.Second
 
-	managedLabelKey               = "agentz.accuknox.com/managed"
-	managedLabelValue             = "true"
-	agentLabelKey                 = "agentz.accuknox.com/agent"
-	appNameLabelKey               = "app.kubernetes.io/name"
-	appNameAgent                  = "agentz-agent"
 	sessionHeaderName             = "x-opencode-session-id"
 	contextNamespaceKey           = "agentz.namespace"
 	contextSandboxKey             = "agentz.sandbox"
@@ -83,7 +73,6 @@ var (
 type Config struct {
 	Addr                    string
 	Namespace               string
-	SourceNamespaces        []string
 	OpenBaoAddr             string
 	OpenBaoSecretMountPath  string
 	OpenBaoK8sAuthRole      string
@@ -128,17 +117,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	if namespace == "" {
 		namespace = DefaultNamespace
 	}
-	sourceNamespaces := make([]string, 1, len(cfg.SourceNamespaces)+1)
-	sourceNamespaces[0] = namespace
-	for _, sourceNamespace := range cfg.SourceNamespaces {
-		sourceNamespace = strings.TrimSpace(sourceNamespace)
-		if sourceNamespace != "" {
-			sourceNamespaces = append(sourceNamespaces, sourceNamespace)
-		}
-	}
-	slices.Sort(sourceNamespaces)
-	sourceNamespaces = slices.Compact(sourceNamespaces)
-
 	scheme := runtime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("add core scheme: %w", err)
@@ -157,10 +135,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("create kube client: %w", err)
 	}
 
-	kubeCore, err := kubernetes.NewForConfig(kubeCfg)
-	if err != nil {
-		return fmt.Errorf("create kube clientset: %w", err)
-	}
 	agentzClient, err := agentzclientset.NewForConfig(kubeCfg)
 	if err != nil {
 		return fmt.Errorf("create agentz clientset: %w", err)
@@ -188,13 +162,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	svc := &Service{
-		namespace:        namespace,
-		sourceNamespaces: sourceNamespaces,
-		probeInterval:    cfg.MCPProbeInterval,
-		probeTimeout:     cfg.MCPProbeTimeout,
-		kube:             kubeClient,
-		kubeCore:         kubeCore,
-		kv:               baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		namespace:     namespace,
+		probeInterval: cfg.MCPProbeInterval,
+		probeTimeout:  cfg.MCPProbeTimeout,
+		kube:          kubeClient,
+		kv:            baoClient.KVv2(cfg.OpenBaoSecretMountPath),
 		http: &http.Client{
 			Timeout: httpClientTimeout,
 		},
@@ -364,11 +336,9 @@ type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
 	namespace          string
-	sourceNamespaces   []string
 	probeInterval      time.Duration
 	probeTimeout       time.Duration
 	kube               ctrlclient.Client
-	kubeCore           kubernetes.Interface
 	kv                 *baoapi.KVv2
 	http               *http.Client
 	sf                 singleflight.Group
@@ -389,7 +359,6 @@ func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.
 		slog.String("sandbox_namespace", attrs.sandboxNamespace),
 		slog.String("sandbox", attrs.sandbox),
 		slog.String("connection", attrs.connection),
-		slog.String("agent", attrs.agent),
 		slog.String("source_ip", attrs.sourceIP),
 		slog.String("session_id", attrs.sessionID),
 		slog.String("outcome", decision.outcome),
@@ -418,7 +387,6 @@ type requestAttrs struct {
 	connectionNamespace string
 	provider            string
 	pool                string
-	agent               string
 	sourceIP            string
 	sessionID           string
 	refreshAttempted    bool
@@ -528,11 +496,11 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	}
 	attrs.sourceIP = sourceIP
 
-	agentName, err := s.authorizeSourceAgent(
+	conn, err := s.authorizeMCPTarget(
 		ctx,
 		attrs.namespace,
-		attrs.sourceIP,
 		sandboxName,
+		attrs.connectionNamespace,
 		connName,
 	)
 	if err != nil {
@@ -549,20 +517,8 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 			codes.PermissionDenied,
 			typev3.StatusCode_Forbidden,
 			"request is not allowed for this mcp connection",
-			"agent_not_authorized",
+			"target_not_authorized",
 			slog.LevelWarn,
-		), attrs
-	}
-	attrs.agent = agentName
-
-	conn, err := s.loadConnection(ctx, attrs.connectionNamespace, connName)
-	if err != nil {
-		return denyDecision(
-			codes.Unavailable,
-			typev3.StatusCode_ServiceUnavailable,
-			"mcp connection is unavailable",
-			"connection_lookup_failed",
-			slog.LevelError,
 		), attrs
 	}
 
@@ -580,76 +536,23 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 	return allowDecision(injection), attrs
 }
 
-func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP, sandboxName, connName string) (string, error) {
-	pod, err := s.lookupAgentPodByIP(ctx, sourceIP)
-	if err != nil {
-		return "", err
-	}
-
-	agentName := strings.TrimSpace(pod.Labels[agentLabelKey])
-	if agentName == "" {
-		return "", fmt.Errorf("agent label is missing on pod %s", pod.Name)
-	}
-
-	agentCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
-	defer cancel()
-
-	agent := &agentzv1alpha1.Agent{}
-	agentKey := ctrlclient.ObjectKey{
-		Namespace: pod.Namespace,
-		Name:      agentName,
-	}
-	if err := s.kube.Get(agentCtx, agentKey, agent); err != nil {
-		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("agent %q does not exist", agentName)
-		}
-		return "", fmt.Errorf(
-			"get agent %q: %w: %w",
-			agentName,
-			err,
-			errCredentialUnavailable,
-		)
-	}
-
-	if strings.TrimSpace(agent.Spec.SandboxRef.Name) == "" {
-		return "", fmt.Errorf("agent %q has no sandbox", agentName)
-	}
-	agentSandboxName := strings.TrimSpace(agent.Spec.SandboxRef.Name)
-	if agentSandboxName != sandboxName {
-		return "", fmt.Errorf(
-			"agent %q is bound to sandbox %q, not %q",
-			agentName,
-			agentSandboxName,
-			sandboxName,
-		)
-	}
-	targetNamespace, err := scope.SelectedNamespace(
-		ctx,
-		s.kube,
-		pod.Namespace,
-		scope.Selection{
-			Scope: agent.Spec.SandboxRef.Scope,
-			Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
-			Name:  agent.Spec.SandboxRef.Name,
-		},
-	)
-	if err != nil || targetNamespace != namespace {
-		return "", fmt.Errorf("agent %q Sandbox scope is not authorized", agentName)
-	}
-
-	envCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
+func (s *Service) authorizeMCPTarget(ctx context.Context, sandboxNamespace, sandboxName, connectionNamespace, connectionName string) (*agentzv1alpha1.MCPConnection, error) {
+	// Cilium admits only controller-selected Agent pods on the exact Sandbox
+	// route. Its L7 proxy then SNATs the connection, so authorization binds the
+	// controller-owned backend context to the Sandbox's resolved connection.
+	targetCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
 	defer cancel()
 
 	sandbox := &agentzv1alpha1.Sandbox{}
 	sandboxKey := ctrlclient.ObjectKey{
-		Namespace: namespace,
+		Namespace: sandboxNamespace,
 		Name:      sandboxName,
 	}
-	if err := s.kube.Get(envCtx, sandboxKey, sandbox); err != nil {
+	if err := s.kube.Get(targetCtx, sandboxKey, sandbox); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("sandbox %q does not exist", sandboxName)
+			return nil, fmt.Errorf("sandbox %q does not exist", sandboxName)
 		}
-		return "", fmt.Errorf(
+		return nil, fmt.Errorf(
 			"get sandbox %q: %w: %w",
 			sandboxName,
 			err,
@@ -657,71 +560,29 @@ func (s *Service) authorizeSourceAgent(ctx context.Context, namespace, sourceIP,
 		)
 	}
 
-	hasConnection := slices.ContainsFunc(
-		sandbox.Spec.MCPConnectionRefs,
-		func(ref agentzv1alpha1.MCPConnectionRef) bool {
-			return ref.Name == connName
-		},
+	connections, err := mcp.LoadConnections(targetCtx, s.kube, sandbox)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"load sandbox mcp connections: %w: %w",
+			err,
+			errCredentialUnavailable,
+		)
+	}
+	for i := range connections {
+		conn := &connections[i]
+		if conn.Namespace != connectionNamespace {
+			continue
+		}
+		if conn.Name != connectionName {
+			continue
+		}
+		return conn, nil
+	}
+	return nil, fmt.Errorf(
+		"sandbox %q does not include mcp connection %q",
+		sandboxName,
+		connectionName,
 	)
-	if !hasConnection {
-		return "", fmt.Errorf("sandbox %q does not include mcp connection %q", sandboxName, connName)
-	}
-
-	return agentName, nil
-}
-
-func (s *Service) lookupAgentPodByIP(ctx context.Context, ip string) (*corev1.Pod, error) {
-	podCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
-	defer cancel()
-
-	opts := metav1.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector("status.podIP", ip).String(),
-		LabelSelector: strings.Join([]string{
-			managedLabelKey + "=" + managedLabelValue,
-			appNameLabelKey + "=" + appNameAgent,
-		}, ","),
-	}
-
-	var found *corev1.Pod
-	for _, namespace := range s.sourceNamespaces {
-		pods, err := s.kubeCore.CoreV1().Pods(namespace).List(podCtx, opts)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"list source pods in namespace %q: %w: %w",
-				namespace,
-				err,
-				errCredentialUnavailable,
-			)
-		}
-		for i := range pods.Items {
-			if found != nil {
-				return nil, fmt.Errorf("multiple agent pods use source ip %q", ip)
-			}
-			found = pods.Items[i].DeepCopy()
-		}
-	}
-	if found == nil {
-		return nil, fmt.Errorf("no authorized agent pod uses source ip %q", ip)
-	}
-	return found, nil
-}
-
-func (s *Service) loadConnection(ctx context.Context, namespace, name string) (*agentzv1alpha1.MCPConnection, error) {
-	connCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
-	defer cancel()
-
-	conn := &agentzv1alpha1.MCPConnection{}
-	key := ctrlclient.ObjectKey{
-		Namespace: namespace,
-		Name:      name,
-	}
-	if err := s.kube.Get(connCtx, key, conn); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("mcp connection %q does not exist: %w", name, errCredentialUnavailable)
-		}
-		return nil, fmt.Errorf("get mcp connection %q: %w: %w", name, err, errCredentialUnavailable)
-	}
-	return conn, nil
 }
 
 type injectedRequest struct {

@@ -380,10 +380,12 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 		var extAuth *agentgatewayv1alpha1.ExtAuth
 		if conn.Spec.Auth != nil {
 			extAuthPort := mcp.ExtAuthPort
+			extAuthNamespace := gwv1.Namespace(conn.Namespace)
 			extAuth = &agentgatewayv1alpha1.ExtAuth{
 				BackendRef: &gwv1.BackendObjectReference{
-					Name: gwv1.ObjectName(mcp.ExtAuthServiceName),
-					Port: &extAuthPort,
+					Name:      gwv1.ObjectName(mcp.ExtAuthServiceName),
+					Namespace: &extAuthNamespace,
+					Port:      &extAuthPort,
 				},
 				GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
 					ContextExtensions: map[string]string{
@@ -391,12 +393,6 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 						"agentz.sandbox":                  sandbox.Name,
 						"agentz.mcp_connection":           conn.Name,
 						"agentz.mcp_connection_namespace": conn.Namespace,
-					},
-					RequestMetadata: map[string]agentgatewayv1alpha1.CELExpression{
-						"agentz.namespace":                agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", sandbox.Namespace)),
-						"agentz.sandbox":                  agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", sandbox.Name)),
-						"agentz.mcp_connection":           agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Name)),
-						"agentz.mcp_connection_namespace": agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Namespace)),
 					},
 				},
 			}

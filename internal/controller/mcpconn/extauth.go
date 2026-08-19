@@ -26,6 +26,7 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
@@ -344,13 +345,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRole(ctx context.Context, sco
 			role.OwnerReferences = ownerRefs
 			role.Rules = []rbacv1.PolicyRule{
 				{
-					APIGroups: []string{""},
-					Resources: []string{"pods"},
-					Verbs:     []string{"list"},
-				},
-				{
 					APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
-					Resources: []string{"agents", "sandboxes", "inferenceproviders", "inferencepools"},
+					Resources: []string{"sandboxes", "inferenceproviders", "inferencepools"},
 					Verbs:     []string{"get"},
 				},
 				{
@@ -453,6 +449,44 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthWorkspaceAccess(ctx context.C
 	org, workspaces, labels := scope.namespace, scope.workspaces, scope.labels
 	name := mcp.ExtAuthOpenBaoName(org)
 	for _, workspace := range workspaces {
+		grant := &gwv1.ReferenceGrant{ObjectMeta: metav1.ObjectMeta{
+			Name:      mcp.ExtAuthServiceName + "-" + workspace.name,
+			Namespace: org,
+		}}
+		if workspace.mcp {
+			_, err := ctrlutil.CreateOrPatch(
+				ctx,
+				r.Client,
+				grant,
+				func() error {
+					service := gwv1.ObjectName(mcp.ExtAuthServiceName)
+					grant.Labels = maps.Clone(labels)
+					grant.OwnerReferences = []metav1.OwnerReference{workspace.owner}
+					grant.Spec = gwv1.ReferenceGrantSpec{
+						From: []gwv1.ReferenceGrantFrom{{
+							Group:     "agentgateway.dev",
+							Kind:      "AgentgatewayPolicy",
+							Namespace: gwv1.Namespace(workspace.namespace),
+						}},
+						To: []gwv1.ReferenceGrantTo{{
+							Kind: "Service",
+							Name: &service,
+						}},
+					}
+					return nil
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("reconcile workspace ext auth reference grant: %w", err)
+			}
+		}
+		if !workspace.mcp {
+			err := r.Delete(ctx, grant)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("delete workspace ext auth reference grant: %w", err)
+			}
+		}
+
 		role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: workspace.namespace,
@@ -477,32 +511,15 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthWorkspaceAccess(ctx context.C
 			func() error {
 				role.Labels = maps.Clone(labels)
 				role.OwnerReferences = []metav1.OwnerReference{workspace.owner}
-				role.Rules = nil
-				if workspace.mcp {
-					role.Rules = append(
-						role.Rules,
-						rbacv1.PolicyRule{
-							APIGroups: []string{""},
-							Resources: []string{"pods"},
-							Verbs:     []string{"list"},
-						},
-						rbacv1.PolicyRule{
-							APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
-							Resources: []string{"agents"},
-							Verbs:     []string{"get"},
-						},
-					)
-				}
+				resources := []string{"sandboxes"}
 				if workspace.inference {
-					role.Rules = append(
-						role.Rules,
-						rbacv1.PolicyRule{
-							APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
-							Resources: []string{"sandboxes", "inferencepools"},
-							Verbs:     []string{"get"},
-						},
-					)
+					resources = append(resources, "inferencepools")
 				}
+				role.Rules = []rbacv1.PolicyRule{{
+					APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
+					Resources: resources,
+					Verbs:     []string{"get"},
+				}}
 				return nil
 			},
 		)
@@ -617,7 +634,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthService(ctx context.Context, 
 }
 
 func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Context, scope extAuthScope) error {
-	ns, workspaces := scope.namespace, scope.workspaces
+	ns := scope.namespace
 	labels, ownerRefs := scope.labels, scope.ownerRefs
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -632,9 +649,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 	runAsNonRoot := true
 	allowPrivilegeEscalation := false
 	automountServiceAccountToken := true
-	args := make([]string, 0, 16+2*len(workspaces))
-	args = append(
-		args,
+	args := []string{
 		"extauth",
 		"serve",
 		"--addr",
@@ -651,12 +666,6 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 		r.OpenBaoK8sAuthMountPath,
 		"--openbao-k8s-auth-token-path",
 		extAuthTokenPath,
-	)
-	for _, workspace := range workspaces {
-		if !workspace.mcp {
-			continue
-		}
-		args = append(args, "--source-namespace", workspace.namespace)
 	}
 
 	_, err := ctrlutil.CreateOrPatch(

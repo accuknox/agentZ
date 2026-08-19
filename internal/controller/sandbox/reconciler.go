@@ -758,6 +758,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 		}
 	}
 	if len(conns) == 1 {
+		host := mcp.ExtAuthServiceName + "." + conns[0].Namespace + ".svc.cluster.local"
 		path := agentgatewayv1alpha1.LongString(mcp.ExtAuthMCPPath)
 		protocol := agentgatewayv1alpha1.MCPProtocolStreamableHTTP
 		targets = append(
@@ -765,9 +766,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 			agentgatewayv1alpha1.McpTargetSelector{
 				Name: gwv1.SectionName(mcp.MCPHelperTargetName),
 				Static: &agentgatewayv1alpha1.McpTarget{
-					BackendRef: &corev1.LocalObjectReference{
-						Name: mcp.ExtAuthServiceName,
-					},
+					Host:     &host,
 					Port:     mcp.ExtAuthMCPPort,
 					Path:     &path,
 					Protocol: &protocol,
@@ -1177,6 +1176,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 		func() error {
 			ingress := make([]ciliumapi.IngressRule, 0, len(owners))
 			targets := []networkpolicy.Target{}
+			extAuthNamespaces := []string{}
 			for i := range owners {
 				connections, err := mcp.LoadConnections(ctx, r.Client, &owners[i])
 				if err != nil {
@@ -1194,6 +1194,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 							Port: target.Port,
 						},
 					)
+					extAuthNamespaces = append(extAuthNamespaces, connections[j].Namespace)
 				}
 				agents := &agentzv1alpha1.AgentList{}
 				err = r.List(
@@ -1272,6 +1273,18 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 				policy.Spec.Egress,
 				networkpolicy.ExternalEgress(targets)...,
 			)
+			slices.Sort(extAuthNamespaces)
+			for _, namespace := range slices.Compact(extAuthNamespaces) {
+				policy.Spec.Egress = append(
+					policy.Spec.Egress,
+					networkpolicy.ServiceEgress(
+						namespace,
+						mcp.ExtAuthServiceName,
+						mcp.ExtAuthPort,
+						mcp.ExtAuthMCPPort,
+					)...,
+				)
+			}
 			return nil
 		},
 	)

@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/mcp"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -40,6 +41,7 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	adders := []func(*runtime.Scheme) error{
 		corev1.AddToScheme,
 		rbacv1.AddToScheme,
+		gwv1.Install,
 		agentzv1alpha1.AddToScheme,
 	}
 	for _, add := range adders {

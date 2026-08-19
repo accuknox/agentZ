@@ -65,8 +65,19 @@ func URLTarget(raw string) (Target, error) {
 	return Target{Host: u.Hostname(), Port: port}, nil
 }
 
-// ServiceEgress permits DNS resolution and one Kubernetes Service TCP port.
-func ServiceEgress(namespace, name string, port int32) []ciliumapi.EgressRule {
+// ServiceEgress permits DNS resolution and exact Kubernetes Service TCP ports.
+func ServiceEgress(namespace, name string, port int32, morePorts ...int32) []ciliumapi.EgressRule {
+	ports := make([]ciliumapi.PortProtocol, len(morePorts)+1)
+	ports[0] = ciliumapi.PortProtocol{
+		Port:     strconv.FormatInt(int64(port), 10),
+		Protocol: ciliumapi.ProtoTCP,
+	}
+	for i, port := range morePorts {
+		ports[i+1] = ciliumapi.PortProtocol{
+			Port:     strconv.FormatInt(int64(port), 10),
+			Protocol: ciliumapi.ProtoTCP,
+		}
+	}
 	service := ciliumapi.EgressRule{
 		EgressCommonRule: ciliumapi.EgressCommonRule{
 			ToServices: []ciliumapi.Service{{
@@ -77,10 +88,7 @@ func ServiceEgress(namespace, name string, port int32) []ciliumapi.EgressRule {
 			}},
 		},
 		ToPorts: ciliumapi.PortRules{{
-			Ports: []ciliumapi.PortProtocol{{
-				Port:     strconv.FormatInt(int64(port), 10),
-				Protocol: ciliumapi.ProtoTCP,
-			}},
+			Ports: ports,
 		}},
 	}
 	dns := ciliumapi.EgressRule{

@@ -1,8 +1,8 @@
 # Sandboxes
 
-Sandboxes are a set of allowed hosts and software packages. They are
-reusable, so multiple agents can reference the same Sandbox. Each agent
-must reference exactly 1 Sandbox.
+Sandboxes are a set of allowed hosts and software packages. They are reusable,
+so multiple agents can reference the same Sandbox. Each agent must reference
+exactly 1 Sandbox.
 
 Sandboxes solve a common problem in AI agent deployment: how to give agents
 the tools they need without giving them unrestricted access to the system.

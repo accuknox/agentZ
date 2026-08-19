@@ -40,8 +40,10 @@ const (
 	opencodeConfigDir              = "/etc/agentz/opencode"
 	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
 	opencodePhilosophyKey          = "philosophy.md"
+	opencodeUnslopKey              = "unslop.md"
 	opencodeInstructionKey         = "instruction.md"
 	opencodePhilosophyPath         = opencodeConfigDir + "/" + opencodePhilosophyKey
+	opencodeUnslopPath             = opencodeConfigDir + "/" + opencodeUnslopKey
 	opencodeInstructionPath        = opencodeConfigDir + "/" + opencodeInstructionKey
 	createWorkflowToolName         = "create_workflow"
 	createWorkflowScheduleToolName = "create_workflow_schedule"
@@ -221,7 +223,7 @@ type opencodeInstructionFile struct {
 
 func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]byte, []opencodeInstructionFile, error) {
 	agent := opencodeAgentFile{
-		Prompt: "{file:" + opencodePhilosophyPath + "}",
+		Prompt: "{file:" + opencodePhilosophyPath + "}\n\n{file:" + opencodeUnslopPath + "}",
 		Permission: opencodeAgentPermissionFile{
 			Skill: map[string]opencodePermissionRule{
 				"customize-opencode": "deny",
@@ -467,10 +469,16 @@ func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructio
 		return nil, fmt.Errorf("render agent philosophy: %w", err)
 	}
 
-	files := []opencodeInstructionFile{{
-		Path:    opencodePhilosophyPath,
-		Content: strings.TrimSpace(philosophy.String()),
-	}}
+	files := []opencodeInstructionFile{
+		{
+			Path:    opencodePhilosophyPath,
+			Content: strings.TrimSpace(philosophy.String()),
+		},
+		{
+			Path:    opencodeUnslopPath,
+			Content: strings.TrimSpace(agentUnslop),
+		},
+	}
 
 	if instruction := strings.TrimSpace(agt.Spec.Instruction); instruction != "" {
 		files = append(

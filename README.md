@@ -35,8 +35,8 @@ graph TB
 
 | Component | Purpose                                                                             |
 |-----------|-------------------------------------------------------------------------------------|
-| Manager   | Kubernetes operator that reconciles Agent and Sandbox custom resources          |
-| Gateway   | HTTP API for managing agents, secrets and sandboxes, querying observability data |
+| Manager   | Kubernetes operator that reconciles Agent and Sandbox custom resources              |
+| Gateway   | HTTP API for managing agents, secrets and sandboxes, querying observability data    |
 | Sinjector | Sidecar proxy that performs secret injection via MITM                               |
 | Observer  | Collects telemetry from KubeArmor, Hubble, and OTLP sources                         |
 

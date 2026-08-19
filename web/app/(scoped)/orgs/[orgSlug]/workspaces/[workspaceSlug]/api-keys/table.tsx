@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation"
 import { MoreHorizontal, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import type { ColumnDef } from "@tanstack/react-table"
-import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,30 +27,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  EmptyValue,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { UserAPIKey } from "@/data/api-key.queries"
 import type { DeleteAPIKeyFormState } from "@/data/types"
 
-const columnClassName: Record<string, string> = {
-  name: "w-40",
-  workspace: "w-44",
-  key: "w-36",
-  targets: "min-w-52",
-  status: "w-28",
-  expiresAt: "w-28",
-  age: "w-28",
-  actions: "w-20",
-}
+const columnLayout = {
+  name: { minWidth: 144, pin: "start" },
+  workspace: { minWidth: 160, width: 160 },
+  key: { minWidth: 128, width: 128 },
+  targets: { contentMaxWidth: 288, minWidth: 208 },
+  status: { minWidth: 96, width: 96 },
+  expiresAt: { minWidth: 104, width: 104 },
+  age: { minWidth: 96, width: 96 },
+  actions: { align: "end", minWidth: 64, pin: "end", width: 64 },
+} satisfies Record<string, AdminColumnLayout>
 
 export function APIKeysTable({
   canDelete,
@@ -106,12 +99,17 @@ export function APIKeysTable({
       {
         id: "expiresAt",
         header: "Expires",
-        cell: ({ row }) => <TableRelativeTime value={row.original.expiresAt} />,
+        cell: ({ row }) =>
+          row.original.expiresAt ? (
+            <RelativeDateTime value={row.original.expiresAt} />
+          ) : (
+            <EmptyValue />
+          ),
       },
       {
         id: "age",
         header: "Age",
-        cell: ({ row }) => <TableRelativeTime value={row.original.createdAt} />,
+        cell: ({ row }) => <RelativeDateTime value={row.original.createdAt} />,
       },
       {
         id: "actions",
@@ -128,48 +126,19 @@ export function APIKeysTable({
   const table = useReactTable({ data: keys, columns, getCoreRowModel: getCoreRowModel() })
 
   return (
-    <div className="w-full min-w-0 overflow-x-auto border-b">
-      <Table className="w-full table-fixed">
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className={`h-8 px-4 ${columnClassName[header.column.id] ?? ""}`}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(header.column.columnDef.header, header.getContext())}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length > 0 ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={`h-11 px-4 py-1.5 align-middle ${columnClassName[cell.column.id] ?? ""}`}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                <span className="text-muted-foreground">_</span>
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </div>
+    <AdminDataGrid
+      ariaLabel="API keys"
+      emptyState={
+        <AdministrationState
+          description="Create an API key to access this workspace programmatically."
+          kind="empty"
+          title="No API keys"
+        />
+      }
+      layout={columnLayout}
+      rows={keys}
+      table={table}
+    />
   )
 }
 
@@ -203,7 +172,7 @@ function APIKeyTargets({ targets }: { targets: UserAPIKey["targets"] }) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <code className="block max-w-64 cursor-default truncate">{summary}</code>
+          <code className="block max-w-72 cursor-default truncate">{summary}</code>
         </TooltipTrigger>
         <TooltipContent sideOffset={6} className="max-w-96 whitespace-pre-line">
           {details.join("\n")}

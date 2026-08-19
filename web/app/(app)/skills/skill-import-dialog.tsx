@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -33,6 +34,7 @@ import {
   previewMutableSkillImport,
   type Agent,
   type AgentName,
+  type Error as GatewayError,
   type ImmutableSkillImportPreviewItem,
   type MutableSkillImportPreviewItem,
   type SkillImportDecision,
@@ -42,7 +44,7 @@ import { cn } from "@/lib/utils"
 
 const importTypeSchema = z.enum(["mutable", "immutable"])
 const renameSchema = z.string().refine((name) => zSkillName.safeParse(name).success, {
-  message: "Use 1–32 lowercase letters, numbers, or hyphens",
+  message: "Use no more than 63 lowercase letters, numbers, or single hyphens",
 })
 const importFormSchema = z
   .object({
@@ -98,11 +100,12 @@ export function SkillImportDialog({
   workspaceId?: string
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const errorSummaryRef = React.useRef<HTMLDivElement>(null)
   const [inputKey, setInputKey] = React.useState(0)
   const [dragging, setDragging] = React.useState(false)
   const [file, setFile] = React.useState<File>()
   const [preview, setPreview] = React.useState<ImportPreview[]>([])
-  const [error, setError] = React.useState<string>()
+  const [error, setError] = React.useState<GatewayError>()
   const [pending, startTransition] = React.useTransition()
   const defaultType = workspaceId && agents.length > 0 ? "mutable" : "immutable"
   const emptyForm = {
@@ -123,6 +126,10 @@ export function SkillImportDialog({
   const conflicts = preview.filter((skill) => skillHasConflict(skill, type, selectedAgents)).length
   const scopeHeaders = workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined
 
+  React.useEffect(() => {
+    if (error) errorSummaryRef.current?.focus()
+  }, [error])
+
   function reset() {
     setDragging(false)
     setFile(undefined)
@@ -136,7 +143,7 @@ export function SkillImportDialog({
     if (nextFile && !/\.(md|zip)$/i.test(nextFile.name)) {
       setFile(undefined)
       setPreview([])
-      setError("Import file must be .md or .zip")
+      setError({ code: "unsupported_file_type", message: "Import a Markdown or ZIP file." })
       return
     }
     setFile(nextFile)
@@ -150,7 +157,10 @@ export function SkillImportDialog({
       const dropped = Array.from(items, (item) => item.getAsFile())
       if (dropped.some((item) => item === null)) {
         chooseFile(undefined)
-        setError("Drop a .md or .zip file, not a folder")
+        setError({
+          code: "unsupported_file_type",
+          message: "Drop a Markdown or ZIP file, not a folder.",
+        })
         return
       }
       chooseFile(dropped[0] ?? undefined)
@@ -180,11 +190,11 @@ export function SkillImportDialog({
           : undefined,
       ])
       if (mutableResult?.error) {
-        setError(mutableResult.error.message)
+        setError(mutableResult.error)
         return
       }
       if (immutableResult?.error) {
-        setError(immutableResult.error.message)
+        setError(immutableResult.error)
         return
       }
       const mutableSkills = new Map(
@@ -200,7 +210,7 @@ export function SkillImportDialog({
         mutableConflictAgents: mutableSkills.get(name) ?? [],
       }))
       if (nextPreview.length === 0) {
-        setError("No importable skills found")
+        setError({ code: "invalid_skill_tree", message: "No importable skills were found." })
         return
       }
       setPreview(nextPreview)
@@ -251,7 +261,7 @@ export function SkillImportDialog({
               headers: scopeHeaders,
             })
       if (result.error) {
-        setError(result.error.message)
+        setError(result.error)
         toast.error(preview.length === 1 ? "Failed to import skill" : "Failed to import skills")
         return
       }
@@ -275,7 +285,7 @@ export function SkillImportDialog({
   function reportInvalidSubmit(errors: FieldErrors<ImportFormValues>) {
     const message =
       errors.agents?.message ?? errors.type?.message ?? "Resolve import errors before continuing"
-    setError(message)
+    setError({ code: "invalid_import_decision", message })
   }
 
   return (
@@ -291,6 +301,16 @@ export function SkillImportDialog({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Import skills</DialogTitle>
+          <DialogDescription>
+            Import one UTF-8 <code>.md</code> file or a strict <code>.zip</code> tree. Skill names
+            may contain up to 63 lowercase letters, numbers, and single hyphens. Uploads are limited
+            to 10 MiB and each <code>SKILL.md</code> to 64 KiB. ZIP files cannot contain unclaimed
+            files, links, nested skill roots, or duplicate paths.{" "}
+            <a className="underline underline-offset-4" download href="/examples/SKILL.md">
+              Download a valid example
+            </a>
+            .
+          </DialogDescription>
         </DialogHeader>
         <form
           className="space-y-4"
@@ -304,7 +324,9 @@ export function SkillImportDialog({
               "flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors outline-none",
               "border-border/70 text-muted-foreground hover:bg-muted/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3",
               dragging && "border-primary bg-primary/10 text-primary",
-              error && !dragging && "border-destructive/60 bg-destructive/5 text-destructive"
+              Boolean(error) &&
+                !dragging &&
+                "border-destructive/60 bg-destructive/5 text-destructive"
             )}
             disabled={pending}
             onClick={() => inputRef.current?.click()}
@@ -337,12 +359,7 @@ export function SkillImportDialog({
           />
           {preview.length === 0 ? (
             <>
-              {error ? (
-                <p className="text-destructive flex items-center gap-2 text-sm">
-                  <TriangleAlert className="size-4" />
-                  {error}
-                </p>
-              ) : null}
+              {error ? <ImportErrorSummary error={error} ref={errorSummaryRef} /> : null}
               <DialogFooter>
                 <Button type="button" disabled={!file || pending} onClick={previewImport}>
                   {pending ? <Spinner /> : <FileArchive />}
@@ -456,12 +473,7 @@ export function SkillImportDialog({
                   {conflicts} conflict{conflicts === 1 ? "" : "s"}
                 </span>
               </div>
-              {error ? (
-                <p className="text-destructive flex items-center gap-2 text-sm">
-                  <TriangleAlert className="size-4" />
-                  {error}
-                </p>
-              ) : null}
+              {error ? <ImportErrorSummary error={error} ref={errorSummaryRef} /> : null}
               <DialogFooter>
                 <Button
                   type="button"
@@ -477,6 +489,37 @@ export function SkillImportDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function ImportErrorSummary({
+  error,
+  ref,
+}: {
+  error: GatewayError
+  ref: React.Ref<HTMLDivElement>
+}) {
+  return (
+    <div
+      ref={ref}
+      className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm outline-none focus-visible:ring-3"
+      role="alert"
+      tabIndex={-1}
+    >
+      <p className="flex items-center gap-2 font-medium">
+        <TriangleAlert aria-hidden="true" className="size-4" />
+        {error.message}
+      </p>
+      {error.errors?.length ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          {error.errors.map((issue) => (
+            <li key={`${issue.field}:${issue.message}`}>
+              <span className="font-mono text-xs">{issue.field}</span>: {issue.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   )
 }
 

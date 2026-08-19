@@ -45,15 +45,7 @@ async function Sessions() {
       errorMessage = "Unauthorized"
     } else {
       currentToken = currentSession.session.token
-      sessions = listedSessions.toSorted((x, y) => {
-        if (x.token === currentSession.session.token) {
-          return -1
-        }
-        if (y.token === currentSession.session.token) {
-          return 1
-        }
-        return y.updatedAt.getTime() - x.updatedAt.getTime()
-      })
+      sessions = listedSessions
     }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Failed to load sessions"

@@ -8,9 +8,11 @@ import { code } from "@streamdown/code"
 import { math } from "@streamdown/math"
 import { mermaid } from "@streamdown/mermaid"
 import { BrainIcon, ChevronDownIcon } from "lucide-react"
+import type { Dayjs } from "dayjs"
 import type { ComponentProps, ReactNode } from "react"
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef } from "react"
 import { Streamdown } from "streamdown"
+import { dayjs } from "@/lib/format"
 
 import { Shimmer } from "./shimmer"
 
@@ -39,8 +41,6 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
   duration?: number
 }
 
-const MS_IN_S = 1000
-
 export const Reasoning = memo(
   ({
     className,
@@ -66,7 +66,7 @@ export const Reasoning = memo(
       prop: durationProp,
     })
 
-    const startTimeRef = useRef<number | null>(null)
+    const startTimeRef = useRef<Dayjs | null>(null)
     const userClosedRef = useRef(false)
     const wasStreamingRef = useRef(isStreaming)
 
@@ -74,10 +74,10 @@ export const Reasoning = memo(
     useEffect(() => {
       if (isStreaming) {
         if (startTimeRef.current === null) {
-          startTimeRef.current = Date.now()
+          startTimeRef.current = dayjs()
         }
       } else if (startTimeRef.current !== null) {
-        setDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S))
+        setDuration(Math.ceil(dayjs().diff(startTimeRef.current, "second", true)))
         startTimeRef.current = null
       }
     }, [isStreaming, setDuration])
@@ -130,7 +130,7 @@ export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger> & 
 
 const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (isStreaming || duration === 0) {
-    return <Shimmer duration={1}>Thinking...</Shimmer>
+    return <Shimmer duration={1}>Thinking…</Shimmer>
   }
   if (duration === undefined) {
     return <p>Thought for a few seconds</p>

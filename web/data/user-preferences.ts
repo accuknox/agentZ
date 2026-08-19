@@ -4,6 +4,7 @@ import { cache } from "react"
 import { eq } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { getAuthSession } from "@/lib/auth"
+import { dayjs } from "@/lib/format"
 
 export const themePreferences = ["system", "light", "dark"] as const
 
@@ -84,7 +85,7 @@ export async function saveCurrentUserPreferences(
       set: {
         theme: preferences.theme,
         updateSandbox: preferences.updateSandbox,
-        updatedAt: new Date(),
+        updatedAt: dayjs().toDate(),
       },
     })
 

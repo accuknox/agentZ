@@ -6,7 +6,7 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import type { Route } from "next"
 import Link from "next/link"
 import {
@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,15 +51,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferencePoolAction } from "@/data/inference-pool.actions"
@@ -76,14 +69,14 @@ import {
 import { ProviderIcon } from "../providers/provider-shared"
 import { PoolSheet } from "./pool-sheet"
 
-const columnClassName: Record<string, string> = {
-  display_name: "w-56",
-  state: "w-44",
-  members: "w-64 max-w-64",
-  automatic_failover: "w-40",
-  usage_count: "w-24",
-  updated_at: "w-28",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  display_name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  state: { minWidth: 176, width: 176 },
+  members: { minWidth: 256, contentMaxWidth: 320 },
+  automatic_failover: { minWidth: 160, width: 160 },
+  usage_count: { minWidth: 96, width: 96 },
+  updated_at: { minWidth: 112, width: 112 },
+  actions: { minWidth: 64, width: 64, pin: "end" },
 }
 
 const stateMeta = {
@@ -250,8 +243,7 @@ export function InferencePoolTable({
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
-        sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
+        cell: ({ row }) => <RelativeDateTime value={row.original.updated_at} />,
       },
       {
         id: "actions",
@@ -278,60 +270,18 @@ export function InferencePoolTable({
   return (
     <TooltipProvider>
       <div className="flex min-w-0 flex-col gap-4">
-        <div className="w-full min-w-0 border-b">
-          <Table className="w-full table-fixed">
-            <TableHeader>
-              {table.getHeaderGroups().map((group) => (
-                <TableRow key={group.id}>
-                  {group.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className={`h-8 ${columnClassName[header.column.id] ?? "px-4"}`}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    role="button"
-                    tabIndex={0}
-                    className="cursor-pointer"
-                    onClick={() => setViewing(row.original)}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return
-                      event.preventDefault()
-                      setViewing(row.original)
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={`h-11 py-2 align-middle ${columnClassName[cell.column.id] ?? "px-4"}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    <span className="text-muted-foreground">_</span>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+        <AdminDataGrid
+          ariaLabel="Inference pools"
+          emptyState={<p className="text-muted-foreground py-8 text-center">No pools found.</p>}
+          layout={layout}
+          onRowActivate={setViewing}
+          pagination={
+            <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+          }
+          rowAriaLabel={(pool) => `View ${pool.display_name}`}
+          rows={watched}
+          table={table}
+        />
         <PoolViewSheet
           pool={viewing}
           providers={providers}

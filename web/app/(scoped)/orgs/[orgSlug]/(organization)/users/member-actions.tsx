@@ -153,7 +153,7 @@ export function UserTableActions({
             <DropdownMenuItem asChild className="whitespace-nowrap">
               <Link href={`/orgs/${orgSlug}/users/${memberId}?tab=keys` as Route}>
                 <KeyRound />
-                API Keys
+                API keys
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="whitespace-nowrap">
@@ -321,7 +321,7 @@ function CreateInvitationForm({
         <div className="flex justify-end">
           <Button disabled={!ready || pending} type="submit">
             {pending ? <Spinner /> : <Send />}
-            {pending ? "Saving..." : "Create invitation"}
+            {pending ? "Saving…" : "Create invitation"}
           </Button>
         </div>
       </form>

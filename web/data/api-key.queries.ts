@@ -8,6 +8,7 @@ import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { getWorkspace, type ResourceCapabilities } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { dayjs } from "@/lib/format"
 
 type APIKeySummaryByID = Record<
   string,
@@ -136,7 +137,7 @@ export async function listUserAPIKeysCachedQuery() {
       creatorEmail: row.creatorEmail,
       enabled: row.enabled,
       expired: row.expired,
-      revokedAt: row.revokedAt?.toISOString() ?? null,
+      revokedAt: row.revokedAt ? dayjs(row.revokedAt).toISOString() : null,
       revokedReason: row.revokedReason,
       targets: [target],
       workspaceId: row.workspaceId,

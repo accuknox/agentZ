@@ -2,7 +2,7 @@ import { AdministrationState } from "@/components/administration"
 import { getWorkspaceScope } from "@/data/workspaces"
 import InferenceProvidersPage from "@/app/(app)/inference/providers/provider-page"
 
-export const metadata = { title: "Providers" }
+export const metadata = { title: "Inference providers" }
 
 export default async function WorkspaceInferenceProvidersPage({
   params,
@@ -20,6 +20,11 @@ export default async function WorkspaceInferenceProvidersPage({
     <InferenceProvidersPage
       capabilities={scope.workspace.capabilities.inference_providers}
       pageToken={page_token}
+      pageScope={{
+        kind: "workspace",
+        organizationName: scope.scope.organization.name,
+        workspaceName: scope.workspace.name,
+      }}
       scope={{ workspaceId: scope.workspace.id }}
     />
   )

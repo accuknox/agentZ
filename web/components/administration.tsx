@@ -13,9 +13,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
-type AdministrationScope =
-  | { kind: "Organisation"; name: string }
-  | { kind: "Workspace"; name: string; organisationName: string }
+export type AdministrationPageScope =
+  | { kind: "organization"; organizationName: string }
+  | { kind: "workspace"; organizationName: string; workspaceName: string }
 
 type AdministrationStatus = "ready" | "provisioning" | "deleting" | "failed"
 
@@ -32,23 +32,40 @@ export function AdministrationLayout({ children }: { children: ReactNode }) {
 
 export function AdministrationPageHeader({
   actions,
+  scope,
   title,
 }: {
   actions?: ReactNode
+  scope?: AdministrationPageScope
   title: string
 }) {
   return (
     <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-normal">{title}</h1>
+        {scope ? (
+          <Badge className="mt-1.5 max-w-full font-normal" variant="secondary">
+            <span className="shrink-0">
+              {scope.kind === "organization" ? "Organization" : "Workspace"}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="truncate">
+              {scope.kind === "organization" ? scope.organizationName : scope.workspaceName}
+            </span>
+          </Badge>
+        ) : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   )
 }
 
-export function ScopeBadge({ scope }: { scope: AdministrationScope["kind"] }) {
-  return <span className="text-muted-foreground">{scope}</span>
+export function ScopeBadge({ scope }: { scope: "Organisation" | "Workspace" }) {
+  return (
+    <span className="text-muted-foreground">
+      {scope === "Organisation" ? "Organization" : scope}
+    </span>
+  )
 }
 
 export function StatusBadge({ status }: { status: AdministrationStatus }) {
@@ -185,7 +202,7 @@ export function AdministrationLoadingState() {
       className="flex min-w-0 flex-1 flex-col"
       role="status"
     >
-      <span className="sr-only">Loading...</span>
+      <span className="sr-only">Loading…</span>
       <div className="flex flex-col gap-3 px-4 py-6 md:px-6">
         <Skeleton className="mb-3 h-7 w-48 max-w-full" />
         <Skeleton className="h-10 w-full" />

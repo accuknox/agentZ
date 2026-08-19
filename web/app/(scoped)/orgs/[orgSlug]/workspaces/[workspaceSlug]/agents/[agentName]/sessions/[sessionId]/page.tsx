@@ -50,15 +50,16 @@ async function ChatPageContent({ params }: ChatPageProps) {
   if (scope.kind !== "ready") {
     notFound()
   }
+  const client = await createAgentOpencodeClient(agentName, { workspaceId: scope.workspace.id })
+  const session = await client.session.get({ path: { id: sessionId } })
+  const title = session.data?.title?.trim() || sessionId
 
   return (
     <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
-      <h1 className="sr-only">
-        Session {sessionId} with {agentName}
-      </h1>
       <ChatShell
         agentName={agentName}
         sessionId={sessionId}
+        title={title}
         workspaceId={scope.workspace.id}
         workspacePath={`/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`}
       />

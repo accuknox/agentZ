@@ -6,7 +6,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRelativeTime,
+  RelativeDateTime,
   TableRow,
 } from "@/components/ui/table"
 import { UserIdentity } from "@/components/ui/avatar"
@@ -89,7 +89,7 @@ export default async function AgentOwnershipPage({
               <TableRow>
                 <TableCell>Last transfer</TableCell>
                 <TableCell>
-                  <TableRelativeTime value={detail.owner.updated_at} />
+                  <RelativeDateTime value={detail.owner.updated_at} />
                 </TableCell>
               </TableRow>
             </TableBody>

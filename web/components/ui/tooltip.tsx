@@ -50,4 +50,31 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }
+type DisabledReasonProps = {
+  reason: string
+  children: React.ReactElement
+}
+
+function DisabledReason({ reason, children }: DisabledReasonProps) {
+  const descriptionId = React.useId()
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-describedby={descriptionId}
+          className="focus-visible:ring-ring/50 inline-flex cursor-not-allowed rounded-md focus-visible:ring-3 focus-visible:outline-none [&>*]:pointer-events-none"
+          tabIndex={0}
+        >
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{reason}</TooltipContent>
+      <span className="sr-only" id={descriptionId}>
+        {reason}
+      </span>
+    </Tooltip>
+  )
+}
+
+export { DisabledReason, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }

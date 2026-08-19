@@ -5,18 +5,11 @@ import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import type { UrlObject } from "node:url"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
-import {
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table"
+import type { ColumnDef } from "@tanstack/react-table"
+import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { defineStepper } from "@stepperize/react"
 import {
-  ArrowUpDown,
   ArrowLeft,
   ArrowRight,
   Box,
@@ -41,6 +34,8 @@ import { toast } from "sonner"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { formatCompactNumber } from "@/lib/format"
 import { WizardShell } from "@/components/blocks/wizard/shell"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { TablePagination } from "@/components/table-pagination"
 import {
   Accordion,
   AccordionContent,
@@ -83,15 +78,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   createSandboxFormAction,
@@ -106,6 +93,8 @@ import { sandboxAllowedHostSchema, sandboxNameSchema } from "@/data/schema"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   getMcpConnection,
+  listMcpConnections,
+  listSkills,
   type McpConnectionSummary,
   type InferenceProvider,
   type InferencePool,
@@ -196,7 +185,9 @@ type SandboxWizardProps = {
   initialSkills?: ResourceReference[]
   initialInference?: SandboxInference
   immutableSkills: Skill[]
+  immutableSkillsNextPageToken: string
   mcpConnections: McpConnectionSummary[]
+  mcpConnectionsNextPageToken: string
   inferenceProviders: InferenceProvider[]
   inferencePools: InferencePool[]
   mode: SandboxWizardMode
@@ -242,7 +233,9 @@ type ModelsStepProps = {
 
 type SkillsStepProps = {
   immutableSkills: Skill[]
+  initialNextPageToken: string
   initialSkills: ResourceReference[]
+  workspaceId?: string
   onAdvanceAction: () => void
   onNext: (skills: ResourceReference[]) => void
   onPrev: () => void
@@ -250,7 +243,9 @@ type SkillsStepProps = {
 
 type McpStepProps = {
   initialMcpConnectionRefs: SelectedMcpConnectionRef[]
+  initialNextPageToken: string
   mcpConnections: McpConnectionSummary[]
+  workspaceId?: string
   onAdvanceAction: () => void
   onNext: (mcpConnectionRefs: SelectedMcpConnectionRef[]) => void
   onPrev: () => void
@@ -269,24 +264,80 @@ type StepId = (typeof steps)[number]["id"]
 
 type NavigationRequest = { kind: "prev" } | { kind: "step"; step: StepId; index: number }
 
-const mcpColumnClassName: Record<string, string> = {
-  name: "w-40",
-  auth_mode: "w-32",
-  endpoint: "min-w-0 w-0",
-  age: "w-28",
-  attach: "w-14",
+const mcpLayout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 160, contentMaxWidth: 256, pin: "start" },
+  auth_mode: { minWidth: 128, width: 128 },
+  endpoint: { minWidth: 224, contentMaxWidth: 320 },
+  age: { minWidth: 112, width: 112 },
+  attach: { minWidth: 56, width: 56, pin: "end" },
 }
 
-const skillColumnClassName: Record<string, string> = {
-  name: "min-w-0 w-0",
-  version: "w-28",
-  modified: "w-32",
-  attach: "w-14",
+const skillLayout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  version: { minWidth: 112, width: 112 },
+  modified: { minWidth: 128, width: 128 },
+  attach: { minWidth: 56, width: 56, pin: "end" },
 }
 
-const defaultMcpSorting: SortingState = [{ id: "age", desc: true }]
-const defaultSkillSorting: SortingState = [{ id: "name", desc: false }]
-const defaultMcpPagination: PaginationState = { pageIndex: 0, pageSize: 10 }
+type CursorPage<T> = {
+  rows: T[]
+  nextPageToken: string
+}
+
+function useCursorPage<T>(
+  initialRows: T[],
+  initialNextPageToken: string,
+  loadPage: (pageToken?: string) => Promise<CursorPage<T>>
+) {
+  const [page, setPage] = React.useState({
+    currentPageToken: "",
+    nextPageToken: initialNextPageToken,
+    rows: initialRows,
+  })
+  const [previousPageTokens, setPreviousPageTokens] = React.useState<string[]>([])
+  const [error, setError] = React.useState<globalThis.Error>()
+  const [pending, startTransition] = React.useTransition()
+
+  const goNext = () => {
+    if (!page.nextPageToken) return
+    const nextPageToken = page.nextPageToken
+    startTransition(async () => {
+      try {
+        const next = await loadPage(nextPageToken)
+        setPreviousPageTokens((tokens) => [...tokens, page.currentPageToken])
+        setPage({ ...next, currentPageToken: nextPageToken })
+        setError(undefined)
+      } catch {
+        setError(new globalThis.Error("Could not load the next page."))
+      }
+    })
+  }
+
+  const goPrevious = () => {
+    const previousPageToken = previousPageTokens.at(-1)
+    if (previousPageToken === undefined) return
+    startTransition(async () => {
+      try {
+        const previous = await loadPage(previousPageToken || undefined)
+        setPreviousPageTokens((tokens) => tokens.slice(0, -1))
+        setPage({ ...previous, currentPageToken: previousPageToken })
+        setError(undefined)
+      } catch {
+        setError(new globalThis.Error("Could not load the previous page."))
+      }
+    })
+  }
+
+  return {
+    canGoNext: Boolean(page.nextPageToken),
+    canGoPrevious: previousPageTokens.length > 0,
+    error,
+    goNext,
+    goPrevious,
+    pending,
+    rows: page.rows,
+  }
+}
 
 const steps = [
   {
@@ -460,17 +511,7 @@ function createMcpSelectionColumns({
   return [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          className="text-foreground -ml-2"
-          variant="plain"
-          size="sm"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: "Name",
       cell: ({ row }) => {
         const connection = row.original
         const reference = JSON.stringify([connection.scope, connection.name])
@@ -518,18 +559,8 @@ function createMcpSelectionColumns({
     {
       id: "age",
       accessorKey: "created_at",
-      header: ({ column }) => (
-        <Button
-          className="text-foreground -ml-2"
-          variant="plain"
-          size="sm"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Age
-          <ArrowUpDown />
-        </Button>
-      ),
-      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
+      header: "Age",
+      cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },
     {
       id: "attach",
@@ -565,17 +596,7 @@ function createSkillSelectionColumns({
   return [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          className="text-foreground -ml-2"
-          variant="plain"
-          size="sm"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: "Name",
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
           <span className="block min-w-0 truncate font-medium" title={row.original.name}>
@@ -588,17 +609,7 @@ function createSkillSelectionColumns({
     {
       id: "version",
       accessorKey: "version",
-      header: ({ column }) => (
-        <Button
-          className="text-foreground -ml-2"
-          variant="plain"
-          size="sm"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Version
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: "Version",
       cell: ({ row }) => `v${row.original.version}`,
     },
     {
@@ -627,6 +638,7 @@ function McpToolsPanel({
   connection,
   selectedRef,
   onToolsChange,
+  workspaceId,
 }: {
   connection: McpConnectionSummary
   selectedRef?: SelectedMcpConnectionRef
@@ -635,13 +647,15 @@ function McpToolsPanel({
     name: string,
     tools: SelectedMcpTool[]
   ) => void
+  workspaceId?: string
 }) {
   const query = useQuery(
     queryOptions({
-      queryKey: ["mcp-connection", connection.scope, connection.name],
+      queryKey: ["mcp-connection", workspaceId, connection.scope, connection.name],
       queryFn: async () => {
         const result = await getMcpConnection({
           baseUrl: await getGatewayBaseURL(),
+          headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
           path: { name: connection.name },
           query: { scope: connection.scope },
         })
@@ -786,7 +800,9 @@ function McpToolsPanel({
 
 function McpStep({
   initialMcpConnectionRefs,
+  initialNextPageToken,
   mcpConnections,
+  workspaceId,
   onAdvanceAction,
   onNext,
   onPrev,
@@ -810,15 +826,6 @@ function McpStep({
     () => new Set(selectedByReference.keys()),
     [selectedByReference]
   )
-  const connections = React.useMemo(
-    () =>
-      mcpConnections.toSorted(
-        (a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope)
-      ),
-    [mcpConnections]
-  )
-  const [sorting, setSorting] = React.useState<SortingState>(defaultMcpSorting)
-  const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
   const [expandedReferences, setExpandedReferences] = React.useState<string[]>([])
   const expandedReferenceSet = React.useMemo(
     () => new Set(expandedReferences),
@@ -853,6 +860,7 @@ function McpStep({
         } else {
           const result = await getMcpConnection({
             baseUrl: await getGatewayBaseURL(),
+            headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
             path: { name: connection.name },
             query: { scope: connection.scope },
           })
@@ -881,7 +889,7 @@ function McpStep({
         shouldValidate: true,
       })
     },
-    [form]
+    [form, workspaceId]
   )
   const setEnabledTools = React.useCallback(
     (scope: McpConnectionSummary["scope"], name: string, tools: SelectedMcpTool[]) => {
@@ -907,6 +915,23 @@ function McpStep({
     [form]
   )
 
+  const loadPage = React.useCallback(
+    async (pageToken?: string): Promise<CursorPage<McpConnectionSummary>> => {
+      const result = await listMcpConnections({
+        baseUrl: await getGatewayBaseURL(),
+        headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+        query: { limit: 50, page_token: pageToken },
+      })
+      if (result.error) throw new globalThis.Error(result.error.message)
+      return {
+        rows: result.data.mcp_connections,
+        nextPageToken: result.data.next_page_token,
+      }
+    },
+    [workspaceId]
+  )
+  const page = useCursorPage(mcpConnections, initialNextPageToken, loadPage)
+
   const columns = React.useMemo(
     () =>
       createMcpSelectionColumns({
@@ -922,17 +947,9 @@ function McpStep({
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data: connections,
+    data: page.rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onPaginationChange: setPagination,
-    onSortingChange: setSorting,
-    state: {
-      pagination,
-      sorting,
-    },
   })
 
   return (
@@ -944,90 +961,42 @@ function McpStep({
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
-        <div className="w-full min-w-0 border-b">
-          <Table className="w-[max(100%,44rem)] table-auto">
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className={`h-9 ${mcpColumnClassName[header.column.id] ?? "px-4"}`}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <React.Fragment key={row.id}>
-                    <TableRow>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          className={`h-11 py-2 align-middle ${mcpColumnClassName[cell.column.id] ?? "px-4"}`}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                    {expandedReferenceSet.has(
-                      JSON.stringify([row.original.scope, row.original.name])
-                    ) ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={columns.length}
-                          className="bg-muted/20 px-4 py-4 whitespace-normal"
-                        >
-                          <McpToolsPanel
-                            connection={row.original}
-                            selectedRef={selectedByReference.get(
-                              JSON.stringify([row.original.scope, row.original.name])
-                            )}
-                            onToolsChange={setEnabledTools}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </React.Fragment>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    <span className="text-muted-foreground">_</span>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            type="button"
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            type="button"
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
+        <AdminDataGrid
+          ariaLabel="MCP connections"
+          emptyState={
+            <p className="text-muted-foreground py-8 text-center">No MCP connections found.</p>
+          }
+          layout={mcpLayout}
+          pagination={
+            <div className="space-y-2">
+              {page.error ? (
+                <p className="text-destructive text-center text-sm" role="alert">
+                  {page.error.message}
+                </p>
+              ) : null}
+              <TablePagination
+                canGoNext={page.canGoNext}
+                canGoPrevious={page.canGoPrevious}
+                goNext={page.goNext}
+                goPrevious={page.goPrevious}
+                pending={page.pending}
+              />
+            </div>
+          }
+          renderSubRow={(connection) => {
+            const reference = JSON.stringify([connection.scope, connection.name])
+            return expandedReferenceSet.has(reference) ? (
+              <McpToolsPanel
+                connection={connection}
+                selectedRef={selectedByReference.get(reference)}
+                onToolsChange={setEnabledTools}
+                workspaceId={workspaceId}
+              />
+            ) : null
+          }}
+          rows={page.rows}
+          table={table}
+        />
       </div>
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
@@ -1053,7 +1022,9 @@ function McpStep({
 
 function SkillsStep({
   immutableSkills,
+  initialNextPageToken,
   initialSkills,
+  workspaceId,
   onAdvanceAction,
   onNext,
   onPrev,
@@ -1073,15 +1044,6 @@ function SkillsStep({
     () => new Set(selected.map((ref) => JSON.stringify([ref.scope, ref.name]))),
     [selected]
   )
-  const skills = React.useMemo(
-    () =>
-      immutableSkills.toSorted(
-        (a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope)
-      ),
-    [immutableSkills]
-  )
-  const [sorting, setSorting] = React.useState<SortingState>(defaultSkillSorting)
-  const [pagination, setPagination] = React.useState<PaginationState>(defaultMcpPagination)
 
   const setSelected = React.useCallback(
     (skill: Skill, checked: boolean) => {
@@ -1100,6 +1062,23 @@ function SkillsStep({
     [form]
   )
 
+  const loadPage = React.useCallback(
+    async (pageToken?: string): Promise<CursorPage<Skill>> => {
+      const result = await listSkills({
+        baseUrl: await getGatewayBaseURL(),
+        headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+        query: { limit: 50, page_token: pageToken },
+      })
+      if (result.error) throw new globalThis.Error(result.error.message)
+      return {
+        rows: result.data.skills,
+        nextPageToken: result.data.next_page_token,
+      }
+    },
+    [workspaceId]
+  )
+  const page = useCursorPage(immutableSkills, initialNextPageToken, loadPage)
+
   const columns = React.useMemo(
     () =>
       createSkillSelectionColumns({
@@ -1111,17 +1090,9 @@ function SkillsStep({
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data: skills,
+    data: page.rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onPaginationChange: setPagination,
-    onSortingChange: setSorting,
-    state: {
-      pagination,
-      sorting,
-    },
   })
 
   return (
@@ -1131,70 +1102,29 @@ function SkillsStep({
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
     >
       <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
-        <div className="w-full min-w-0 border-b">
-          <Table className="w-[max(100%,34rem)] table-auto">
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className={`h-9 ${skillColumnClassName[header.column.id] ?? "px-4"}`}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={`h-11 py-2 align-middle ${skillColumnClassName[cell.column.id] ?? "px-4"}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    <span className="text-muted-foreground">_</span>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            type="button"
-          >
-            <ArrowLeft data-icon="inline-start" />
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            type="button"
-          >
-            Next
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        </div>
+        <AdminDataGrid
+          ariaLabel="Skills"
+          emptyState={<p className="text-muted-foreground py-8 text-center">No skills found.</p>}
+          layout={skillLayout}
+          pagination={
+            <div className="space-y-2">
+              {page.error ? (
+                <p className="text-destructive text-center text-sm" role="alert">
+                  {page.error.message}
+                </p>
+              ) : null}
+              <TablePagination
+                canGoNext={page.canGoNext}
+                canGoPrevious={page.canGoPrevious}
+                goNext={page.goNext}
+                goPrevious={page.goPrevious}
+                pending={page.pending}
+              />
+            </div>
+          }
+          rows={page.rows}
+          table={table}
+        />
       </div>
       <StepActions>
         <Button type="button" variant="secondary" onClick={onPrev}>
@@ -1821,7 +1751,7 @@ function AllowedHostsStep({
     },
   })
   const submitLabel = mode === "update" ? "Update sandbox" : "Create sandbox"
-  const pendingLabel = mode === "update" ? "Updating..." : "Creating..."
+  const pendingLabel = mode === "update" ? "Updating…" : "Creating…"
   const hosts = useWatch({
     control: form.control,
     name: "allowedHosts",
@@ -2142,9 +2072,11 @@ export function SandboxWizard({
   initialSkills = [],
   initialInference,
   immutableSkills,
+  immutableSkillsNextPageToken,
   inferenceProviders,
   inferencePools,
   mcpConnections,
+  mcpConnectionsNextPageToken,
   mode,
   providersHref,
   scope,
@@ -2281,7 +2213,9 @@ export function SandboxWizard({
               mcps: () => (
                 <McpStep
                   initialMcpConnectionRefs={data.mcps ?? initialMcpConnectionRefs}
+                  initialNextPageToken={mcpConnectionsNextPageToken}
                   mcpConnections={mcpConnections}
+                  workspaceId={scope.workspaceId}
                   onAdvanceAction={() => {
                     pendingNavigationRef.current = undefined
                   }}
@@ -2296,7 +2230,9 @@ export function SandboxWizard({
               skills: () => (
                 <SkillsStep
                   immutableSkills={immutableSkills}
+                  initialNextPageToken={immutableSkillsNextPageToken}
                   initialSkills={data.skills ?? initialSkills}
+                  workspaceId={scope.workspaceId}
                   onAdvanceAction={() => {
                     pendingNavigationRef.current = undefined
                   }}

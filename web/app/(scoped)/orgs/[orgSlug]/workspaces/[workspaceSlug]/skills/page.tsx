@@ -27,6 +27,11 @@ export default async function WorkspaceSkillsPage({
         agents={agents}
         canCreateImmutable={scope.workspace.capabilities.skills.create}
         canReadImmutable={scope.workspace.capabilities.skills.read}
+        pageScope={{
+          kind: "workspace",
+          organizationName: scope.scope.organization.name,
+          workspaceName: scope.workspace.name,
+        }}
         workspaceId={scope.workspace.id}
       />
     </Suspense>

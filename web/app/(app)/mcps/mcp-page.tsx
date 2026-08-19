@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import * as z from "zod"
 import { Plus } from "lucide-react"
-import { AdministrationPageHeader } from "@/components/administration"
+import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { deleteScopedMcpFormAction, submitScopedMcpFormAction } from "@/data/mcp.actions"
@@ -9,6 +9,7 @@ import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { McpTable } from "./mcp-table"
 import { NewMcpButton } from "./new-mcp-button"
+import { resourceLabels } from "@/lib/resource-labels"
 
 const searchSchema = z.object({ page_token: searchParamStringSchema })
 type SearchParams = { page_token?: SearchParamStringInput }
@@ -17,12 +18,14 @@ export async function McpPage({
   basePath,
   canCreate,
   organizationId,
+  pageScope,
   searchParams,
   workspaceId,
 }: {
   basePath: string
   canCreate: boolean
   organizationId: string
+  pageScope: AdministrationPageScope
   searchParams: Promise<SearchParams>
   workspaceId?: string
 }) {
@@ -36,7 +39,7 @@ export async function McpPage({
               fallback={
                 <Button disabled>
                   <Plus />
-                  Connect
+                  {resourceLabels.mcp.action}
                 </Button>
               }
             >
@@ -44,7 +47,8 @@ export async function McpPage({
             </Suspense>
           ) : undefined
         }
-        title="MCP connections"
+        scope={pageScope}
+        title={resourceLabels.mcp.collection}
       />
       <Suspense fallback={<TableSkeleton />}>
         <Connections

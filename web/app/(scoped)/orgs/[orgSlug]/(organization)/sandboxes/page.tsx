@@ -27,6 +27,7 @@ export default async function OrganizationSandboxesPage({
     <SandboxesPage
       basePath={`/orgs/${scope.organization.slug}/sandboxes`}
       capabilities={tenant.data.sandbox_capabilities}
+      pageScope={{ kind: "organization", organizationName: scope.organization.name }}
       searchParams={searchParams}
     />
   )

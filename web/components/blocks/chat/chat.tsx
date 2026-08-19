@@ -90,7 +90,8 @@ import {
 import type { ProviderModelItem } from "@/data/types"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
-import { formatByteSize, formatMessageTime } from "@/lib/format"
+import { formatByteSize } from "@/lib/format"
+import { RelativeDateTime } from "@/components/relative-date-time"
 import { useObjectURL } from "@/hooks/use-object-url"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
@@ -1617,7 +1618,7 @@ function TimelineRowView({
                   <Undo2Icon />
                 </Button>
               </MessageActionBar>
-              <span>{formatMessageTime(row.createdAt)}</span>
+              <RelativeDateTime value={row.createdAt} />
             </MessageFooter>
           </MessageContent>
         </Message>
@@ -1678,9 +1679,7 @@ function TimelineRowView({
               })}
             </AIMessageContent>
             <div className="flex items-center gap-1">
-              <span className="text-muted-foreground text-xs">
-                {formatMessageTime(row.createdAt)}
-              </span>
+              <RelativeDateTime className="text-xs" value={row.createdAt} />
               {copyText.length > 0 && !(isBusy && isLastBlock) ? (
                 <MessageActionBar>
                   <CopyButton content={copyText} />
@@ -1697,7 +1696,7 @@ function TimelineRowView({
         <div className="text-muted-foreground text-sm" key={row.key}>
           <span className="inline-flex items-center gap-2">
             <Spinner className="size-3.5" />
-            <span className="animate-pulse">Thinking...</span>
+            <span className="animate-pulse">Thinking…</span>
           </span>
         </div>
       )

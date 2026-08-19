@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
-import { formatAge } from "@/lib/format"
+export { RelativeDateTime } from "@/components/relative-date-time"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -78,41 +78,9 @@ function TableCell({ children, className, ...props }: React.ComponentProps<"td">
   )
 }
 
-/** TableRelativeTime renders unavailable or relative table dates consistently. */
-function TableRelativeTime({
-  className,
-  value,
-}: {
-  className?: string
-  value: Date | string | null | undefined
-}) {
-  if (!value) return <EmptyValue />
-
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return <EmptyValue />
-
-  return (
-    <time
-      className={cn("text-muted-foreground tabular-nums", className)}
-      dateTime={date.toISOString()}
-    >
-      {formatAge(date)}
-    </time>
-  )
-}
-
 /** EmptyValue renders the standard placeholder for unavailable table data. */
 function EmptyValue() {
   return <span className="text-muted-foreground">_</span>
 }
 
-export {
-  EmptyValue,
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableRelativeTime,
-}
+export { EmptyValue, Table, TableHeader, TableBody, TableHead, TableRow, TableCell }

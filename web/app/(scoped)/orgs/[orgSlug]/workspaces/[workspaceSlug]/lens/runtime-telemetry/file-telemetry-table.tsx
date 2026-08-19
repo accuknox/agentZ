@@ -12,29 +12,34 @@ import { useTelemetryPagination } from "@/app/(scoped)/orgs/[orgSlug]/workspaces
 const columns: TelemetryTableColumn<FileTelemetryRow>[] = [
   {
     key: "filePath",
-    header: "File Path Accessed",
-    className: "min-w-80 max-w-112",
+    header: "File path accessed",
+    layout: { minWidth: 320, contentMaxWidth: 448, pin: "start" },
     render: (row) => <TruncateCell value={row.filePath} />,
   },
   {
     key: "process",
     header: "Process",
-    className: "min-w-72 max-w-112",
+    layout: { minWidth: 288, contentMaxWidth: 448 },
     render: (row) => <TruncateCell value={row.process} />,
   },
-  { key: "action", header: "Action", render: (row) => <ActionBadge action={row.action} /> },
+  {
+    key: "action",
+    header: "Action",
+    layout: { minWidth: 112, width: 112 },
+    render: (row) => <ActionBadge action={row.action} />,
+  },
   {
     key: "occurrences",
     header: "Occurrences",
-    className: "text-right",
+    layout: { minWidth: 112, width: 112, align: "end" },
     render: (row) => (
       <span className="text-right font-mono text-xs">{row.occurrences.toLocaleString()}</span>
     ),
   },
   {
     key: "lastSeen",
-    header: "Last Seen",
-    className: "min-w-40",
+    header: "Last seen",
+    layout: { minWidth: 160, width: 160 },
     render: (row) => <span className="text-muted-foreground text-sm">{row.lastSeen}</span>,
   },
 ]

@@ -5,7 +5,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRelativeTime,
+  RelativeDateTime,
   TableRow,
 } from "@/components/ui/table"
 import { getTeamDetail } from "@/data/teams"
@@ -38,7 +38,7 @@ export default async function TeamActivityPage({
             team.activity.map((event) => (
               <TableRow key={event.id}>
                 <TableCell>
-                  <TableRelativeTime value={event.createdAt} />
+                  <RelativeDateTime value={event.createdAt} />
                 </TableCell>
                 <TableCell className="max-w-64" title={event.actorName}>
                   <UserIdentity image={event.actorImage} name={event.actorName} secondary={false} />

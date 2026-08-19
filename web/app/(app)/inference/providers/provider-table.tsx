@@ -6,7 +6,7 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
   CheckCircle2,
   CircleAlert,
@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/ui/avatar"
@@ -38,15 +39,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { deleteInferenceProviderAction } from "@/data/inference-provider.actions"
@@ -60,16 +53,16 @@ import {
 import { ProviderSheet } from "./provider-sheet"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
 
-const columnClassName: Record<string, string> = {
-  display_name: "w-56",
-  kind: "w-32",
-  state: "w-32",
-  model_count: "w-24",
-  usage_count: "w-24",
-  created_by: "hidden lg:table-cell w-24",
-  last_modified_by: "hidden lg:table-cell w-24",
-  updated_at: "w-32",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  display_name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  kind: { minWidth: 128, width: 128 },
+  state: { minWidth: 128, width: 128 },
+  model_count: { minWidth: 96, width: 96 },
+  usage_count: { minWidth: 96, width: 96 },
+  created_by: { minWidth: 96, width: 96, hiddenBelow: "lg" },
+  last_modified_by: { minWidth: 104, width: 104, hiddenBelow: "lg" },
+  updated_at: { minWidth: 128, width: 128 },
+  actions: { minWidth: 64, width: 64, pin: "end" },
 }
 
 const providerStateMeta = {
@@ -106,13 +99,17 @@ const watchProvidersQueryOptions = (
       readonly ["watchInferenceProviders", string]
     >({
       initialValue: providers,
-      reducer: (_, event) =>
-        scope.workspaceId
-          ? [
-              ...event.providers,
-              ...providers.filter((provider) => provider.scope === "Organisation"),
-            ]
-          : event.providers,
+      reducer: (rows, event) => {
+        const updates = new Map(
+          event.providers.map((provider) => [
+            JSON.stringify([provider.scope, provider.id]),
+            provider,
+          ])
+        )
+        return rows.map(
+          (provider) => updates.get(JSON.stringify([provider.scope, provider.id])) ?? provider
+        )
+      },
       refetchMode: "reset",
       streamFn: async ({ signal }) => {
         const result = await watchInferenceProviders({
@@ -156,7 +153,7 @@ export function InferenceProviderTable({
             <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
             <span className="min-w-0 truncate font-medium">{row.original.display_name}</span>
             {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
-              <Badge variant="secondary">Organisation</Badge>
+              <Badge variant="secondary">Organization</Badge>
             ) : null}
           </div>
         ),
@@ -183,19 +180,18 @@ export function InferenceProviderTable({
       },
       {
         accessorKey: "created_by",
-        header: "Created",
+        header: "Created by",
         cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
       },
       {
         accessorKey: "last_modified_by",
-        header: "Modified",
+        header: "Modified by",
         cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
       },
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
-        sortingFn: (a, b) => Date.parse(a.original.updated_at) - Date.parse(b.original.updated_at),
+        cell: ({ row }) => <RelativeDateTime value={row.original.updated_at} />,
       },
       {
         id: "actions",
@@ -216,66 +212,21 @@ export function InferenceProviderTable({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="w-full min-w-0 border-b">
-        <Table className="w-full table-fixed">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 ${columnClassName[header.column.id] ?? "px-4"}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={row.original.can_modify ? "cursor-pointer" : undefined}
-                  role={row.original.can_modify ? "button" : undefined}
-                  tabIndex={row.original.can_modify ? 0 : undefined}
-                  onClick={() => {
-                    if (row.original.can_modify) setEditing(row.original)
-                  }}
-                  onKeyDown={(event) => {
-                    if (!row.original.can_modify || (event.key !== "Enter" && event.key !== " ")) {
-                      return
-                    }
-
-                    event.preventDefault()
-                    setEditing(row.original)
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={`h-11 py-2 align-middle ${columnClassName[cell.column.id] ?? "px-4"}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
-
+      <AdminDataGrid
+        ariaLabel="Inference providers"
+        emptyState={
+          <p className="text-muted-foreground py-8 text-center">No inference providers found.</p>
+        }
+        layout={layout}
+        onRowActivate={setEditing}
+        pagination={
+          <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+        }
+        rowAriaLabel={(provider) => `Edit ${provider.display_name}`}
+        rowCanActivate={(provider) => provider.can_modify}
+        rows={watched}
+        table={table}
+      />
       <ProviderSheet
         key={editing?.id ?? "closed"}
         provider={editing}

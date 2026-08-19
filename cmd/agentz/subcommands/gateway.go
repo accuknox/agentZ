@@ -143,6 +143,11 @@ var gatewayServeCmd = &cli.Command{
 			Usage: "Maximum age of MCP probe results before they are treated as pending",
 			Value: gateway.DefaultMCPProbeStaleAfter,
 		},
+		&cli.StringSliceFlag{
+			Name:     "allowed-web-origin",
+			Usage:    "Web origin allowed to call the gateway; repeat for multiple origins",
+			Required: true,
+		},
 		&cli.StringFlag{
 			Name:     "skills-s3-endpoint",
 			Usage:    "S3-compatible endpoint for immutable skill storage",
@@ -182,6 +187,7 @@ var gatewayServeCmd = &cli.Command{
 				OpenBaoK8sAuthMountPath:  c.String("openbao-k8s-auth-mount-path"),
 				OpenBaoK8sAuthTokenPath:  c.String("openbao-k8s-auth-token-path"),
 				MCPProbeStaleAfter:       c.Duration("mcp-probe-stale-after"),
+				AllowedWebOrigins:        c.StringSlice("allowed-web-origin"),
 				SkillStore: skill.Config{
 					Endpoint:        c.String("skills-s3-endpoint"),
 					Region:          c.String("skills-s3-region"),

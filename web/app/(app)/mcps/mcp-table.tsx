@@ -3,13 +3,7 @@
 import * as React from "react"
 import { experimental_streamedQuery as streamedQuery } from "@tanstack/react-query"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
+import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import {
   watchMcpConnections,
   type McpConnectionSummary,
@@ -17,28 +11,22 @@ import {
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { TokenTablePagination } from "@/components/table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import type { DeleteMcpFormState } from "@/data/mcp.actions"
 import { createMcpColumns } from "./mcp-columns"
 import { McpViewSheet } from "./mcp-view-sheet"
 
-const columnClassName: Record<string, string> = {
-  name: "w-56",
-  auth_mode: "w-24",
-  status: "w-32",
-  endpoint: "min-w-40",
-  created_by: "hidden lg:table-cell w-24",
-  last_modified_by: "hidden lg:table-cell w-24",
-  age: "w-28",
-  actions: "w-20",
-}
+const columnLayout = {
+  name: { minWidth: 224, pin: "start" },
+  auth_mode: { minWidth: 96, width: 96 },
+  status: { minWidth: 112, width: 112 },
+  endpoint: { contentMaxWidth: 320, minWidth: 200 },
+  created_by: { minWidth: 96, width: 96 },
+  last_modified_by: { minWidth: 104, width: 104 },
+  age: { minWidth: 104, width: 104 },
+  actions: { align: "end", minWidth: 64, pin: "end", width: 64 },
+} satisfies Record<string, AdminColumnLayout>
 
 const watchMcpConnectionsQueryOptions = (
   connectionNames: string[],
@@ -111,7 +99,6 @@ export function McpTable({
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "age", desc: true }])
   const [viewConnection, setViewConnection] = React.useState<McpConnectionSummary>()
   const connectionNames = React.useMemo(
     () =>
@@ -128,7 +115,7 @@ export function McpTable({
     () =>
       createMcpColumns({
         deleteMcpAction,
-        showOrganisation: workspaceId !== undefined,
+        showOrganization: workspaceId !== undefined,
         onViewAction: setViewConnection,
       }),
     [deleteMcpAction, workspaceId]
@@ -139,74 +126,26 @@ export function McpTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
   })
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="w-full min-w-0 border-b">
-        <Table className="w-full table-fixed">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 ${columnClassName[header.column.id] ?? "px-4"}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="cursor-pointer"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setViewConnection(row.original)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
-                      return
-                    }
-
-                    event.preventDefault()
-                    setViewConnection(row.original)
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={`h-11 py-2 align-middle ${columnClassName[cell.column.id] ?? "px-4"}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+      <AdminDataGrid
+        ariaLabel="MCP connections"
+        emptyState={
+          <AdministrationState
+            description="Add an MCP connection to make its tools available."
+            kind="empty"
+            title="No MCP connections"
+          />
+        }
+        layout={columnLayout}
+        pagination={
+          <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+        }
+        rows={rows}
+        table={table}
+      />
       {viewConnection ? (
         <McpViewSheet
           name={viewConnection.name}

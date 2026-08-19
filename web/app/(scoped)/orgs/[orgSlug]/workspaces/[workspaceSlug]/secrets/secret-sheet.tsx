@@ -179,7 +179,7 @@ export function SecretSheet({
           <div className="shrink-0">
             <Button type="submit" disabled={isPending} className="w-full">
               {isPending ? <Spinner /> : <KeyRound data-icon="inline-start" />}
-              {isPending ? "Creating..." : "Create secret"}
+              {isPending ? "Creating…" : "Create secret"}
             </Button>
           </div>
         </form>

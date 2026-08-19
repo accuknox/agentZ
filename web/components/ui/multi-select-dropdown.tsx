@@ -1,6 +1,13 @@
 "use client"
 
-import { Fragment, useState, type ComponentType, type SVGProps } from "react"
+import {
+  Fragment,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type SVGProps,
+} from "react"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -15,6 +22,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 type MultiSelectDropdownOptionIdentity =
   | {
@@ -101,17 +109,17 @@ function MultiSelectDropdown({
             }
             const BadgeIcon = option.badgeIcon
             return (
-              <Fragment key={item}>
+              <span className="flex min-w-0 items-center gap-1" key={item}>
                 {index > 0 ? ", " : null}
-                {option.label}
+                <TruncatedOptionText className="min-w-0 flex-1" value={option.label} />
                 {option.badge ? (
-                  <span className="text-muted-foreground inline-flex items-center gap-1">
+                  <span className="text-muted-foreground inline-flex max-w-40 min-w-0 shrink-[10] items-center gap-1 truncate">
                     <span aria-hidden="true">·</span>
                     {BadgeIcon ? <BadgeIcon aria-hidden="true" className="size-3.5" /> : null}
-                    {option.badge}
+                    <span className="truncate">{option.badge}</span>
                   </span>
                 ) : null}
-              </Fragment>
+              </span>
             )
           })
         : `${value.length} selected`
@@ -137,7 +145,7 @@ function MultiSelectDropdown({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-(--radix-popover-trigger-width) p-0"
+        className="w-[max(var(--radix-popover-trigger-width),24rem)] max-w-[calc(100vw-2rem)] p-0"
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           onBlurAction?.()
@@ -195,9 +203,12 @@ function MultiSelectDropdown({
                       ) : Icon ? (
                         <Icon aria-hidden="true" />
                       ) : null}
-                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                      <TruncatedOptionText className="min-w-0 flex-1" value={option.label} />
                       {option.badge ? (
-                        <Badge className="max-w-40 shrink-0 truncate" variant="secondary">
+                        <Badge
+                          className="max-w-40 min-w-0 shrink-[10] truncate"
+                          variant="secondary"
+                        >
                           {BadgeIcon ? (
                             <BadgeIcon aria-hidden="true" data-icon="inline-start" />
                           ) : null}
@@ -213,6 +224,35 @@ function MultiSelectDropdown({
         </Command>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function TruncatedOptionText({ className, value }: { className?: string; value: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [truncated, setTruncated] = useState(false)
+
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const measure = () => setTruncated(element.scrollWidth > element.clientWidth + 1)
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    measure()
+    return () => observer.disconnect()
+  }, [value])
+
+  const label = (
+    <span className={cn("truncate", className)} ref={ref} tabIndex={truncated ? 0 : undefined}>
+      {value}
+    </span>
+  )
+  if (!truncated) return label
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{label}</TooltipTrigger>
+      <TooltipContent>{value}</TooltipContent>
+    </Tooltip>
   )
 }
 

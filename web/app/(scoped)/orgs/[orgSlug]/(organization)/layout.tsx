@@ -26,7 +26,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { orgSlug } = await params
   const result = await resolveOrganizationSlug(orgSlug)
-  const name = result.kind === "ready" ? result.organization.name : "Organisation"
+  const name = result.kind === "ready" ? result.organization.name : "Organization"
   return {
     title: {
       default: name,
@@ -80,7 +80,7 @@ export default async function OrganizationLayout({
                   : "Your organization access was revoked."
               }
               kind="forbidden"
-              title={disabled ? "Organisation Membership disabled" : "Access revoked"}
+              title={disabled ? "Organization membership disabled" : "Access revoked"}
             />
           </div>
         </AppShell>
@@ -151,7 +151,6 @@ export default async function OrganizationLayout({
     <>
       <ThemeSync theme={preferences.theme} />
       <AppShell
-        breadcrumbLabels={{ 1: result.organization.name }}
         sidebar={
           <AppSidebar
             activeOrganizationId={result.organization.id}

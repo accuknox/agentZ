@@ -4,6 +4,7 @@ import * as React from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { McpFormState, SubmitMcpFormAction } from "@/data/mcp.actions"
+import { resourceLabels } from "@/lib/resource-labels"
 import { McpSheet } from "./mcp-sheet"
 
 export function NewMcpButton({
@@ -17,7 +18,7 @@ export function NewMcpButton({
     <>
       <Button onClick={() => setOpen(true)}>
         <Plus />
-        New MCP
+        {resourceLabels.mcp.action}
       </Button>
       <McpSheet open={open} onOpenChangeAction={setOpen} submitMcpAction={submitMcpAction} />
     </>

@@ -490,6 +490,9 @@ gateway:
     # Required audience for internal projected ServiceAccount bearer tokens.
     internalK8sTokenAudience: agentz-gateway
 
+    # Browser origins permitted to call the gateway. Wildcards are rejected.
+    allowedWebOrigins: []
+
     # Maximum age before MCP probe results are treated as stale.
     mcpProbeStaleAfter: 5m
 

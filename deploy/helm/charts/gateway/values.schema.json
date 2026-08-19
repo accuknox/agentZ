@@ -51,6 +51,12 @@
         "externalJWTIssuer": { "type": "string" },
         "externalJWTAudience": { "type": "string", "minLength": 1 },
         "internalK8sTokenAudience": { "type": "string", "minLength": 1 },
+        "allowedWebOrigins": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "format": "uri" }
+        },
         "targetOverride": { "type": "string" },
         "filesystemTargetOverride": { "type": "string" },
         "agentImage": { "type": "string" },

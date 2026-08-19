@@ -38,7 +38,7 @@ export default async function ManageWorkspacePage({
         />
       </section>
       <section className="flex max-w-3xl items-center justify-between gap-3 px-4 pb-6 md:px-6">
-        <h2 className="text-lg font-medium">Destructive</h2>
+        <h2 className="text-lg font-medium">Delete workspace</h2>
         <DestructiveConfirmationDialog
           action={deleteWorkspaceAction.bind(null, orgSlug, scope.workspace.id)}
           confirmation={impact.confirmation}

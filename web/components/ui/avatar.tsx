@@ -132,7 +132,7 @@ function UserAvatar({
   )
 }
 
-/** OrganizationAvatar renders a public Organisation image with an initials fallback. */
+/** OrganizationAvatar renders a public organization image with an initials fallback. */
 function OrganizationAvatar({
   className,
   logo,

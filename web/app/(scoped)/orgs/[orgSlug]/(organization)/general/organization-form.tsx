@@ -90,13 +90,13 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
           name,
         })
         if (result.saved) {
-          toast.success("Organisation updated")
+          toast.success("Organization updated")
         }
         return result
       } catch {
         return {
           name,
-          errors: { form: "The Organisation name could not be saved. Try again." },
+          errors: { form: "The Organization name could not be saved. Try again." },
         }
       }
     },
@@ -142,9 +142,9 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
           return
         }
         setLogo(result.logo)
-        toast.success("Organisation photo removed")
+        toast.success("Organization photo removed")
       } catch {
-        setPhotoError("The Organisation profile image could not be removed. Try again.")
+        setPhotoError("The Organization profile image could not be removed. Try again.")
       } finally {
         setPhotoPhase("idle")
       }
@@ -211,9 +211,9 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
 
           setLogo(result.logo)
           setSourceURL(undefined)
-          toast.success("Organisation photo updated")
+          toast.success("Organization photo updated")
         } catch {
-          setPhotoError("The Organisation profile image could not be saved. Try again.")
+          setPhotoError("The Organization profile image could not be saved. Try again.")
         }
       } finally {
         setPhotoPhase("idle")
@@ -229,12 +229,12 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
       : photoPhase === "uploading"
         ? "Uploading..."
         : photoPhase === "saving"
-          ? "Saving..."
+          ? "Saving…"
           : "Use this image"
 
   return (
     <>
-      <form action={action} aria-label="Organisation details" className="flex min-w-0 flex-col">
+      <form action={action} aria-label="Organization details" className="flex min-w-0 flex-col">
         <header className="px-4 pt-5 md:px-6">
           <h1 className="text-2xl font-semibold tracking-normal">General</h1>
         </header>
@@ -282,7 +282,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
                   <DropdownMenuTrigger asChild>
                     <Button
                       aria-busy={photoBusy}
-                      aria-label="Edit Organisation photo"
+                      aria-label="Edit Organization photo"
                       className="absolute right-0 bottom-0 rounded-full shadow-sm"
                       disabled={busy}
                       size="icon-sm"
@@ -368,11 +368,11 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
           <div className="flex justify-end pt-5">
             <Button aria-busy={busy} disabled={busy} type="submit">
               {pending ? <Spinner data-icon="inline-start" /> : <Save data-icon="inline-start" />}
-              {pending ? "Saving..." : "Save changes"}
+              {pending ? "Saving…" : "Save changes"}
             </Button>
           </div>
           <p aria-live="polite" className="sr-only">
-            {pending ? "Saving..." : state.saved ? "Organisation profile saved." : ""}
+            {pending ? "Saving…" : state.saved ? "Organization profile saved." : ""}
           </p>
         </div>
       </form>

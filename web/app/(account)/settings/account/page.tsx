@@ -213,5 +213,5 @@ function TwoFactorSkeleton() {
 }
 
 function ErrorPanel({ message }: { message: string }) {
-  return <ErrorState message={message} />
+  return <ErrorState description={message} />
 }

@@ -64,6 +64,7 @@ export default async function ChatPage({ params, searchParams }: NewSessionPageP
         draftKey={draft}
         firstName={firstName}
         greetingIndex={greetingIndex}
+        title={`New chat with ${agentName}`}
         workspaceId={scope.workspace.id}
         workspacePath={`/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`}
       />

@@ -1,19 +1,14 @@
 "use client"
 
 import * as React from "react"
+import type { Route } from "next"
 import { toast } from "sonner"
 import { useRouter } from "@bprogress/next/app"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react"
+import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import { MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react"
 import type { WorkflowSchedule, WorkflowSummary } from "@/lib/gateway/client"
 import { TokenTablePagination } from "@/components/table-pagination"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,15 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import type {
   DeleteWorkflowScheduleFormState,
   UpdateWorkflowScheduleFormState,
@@ -48,12 +35,12 @@ import type {
 import type { TriggerWorkflowRunActionState } from "@/data/workflow-run.actions"
 import { ScheduleSheet } from "./schedule-sheet"
 
-const columnClassName: Record<string, string> = {
-  name: "min-w-48",
-  workflow_name: "min-w-48",
-  schedule: "min-w-48",
-  created_at: "w-36",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 192, contentMaxWidth: 288, pin: "start" },
+  workflow_name: { minWidth: 192, contentMaxWidth: 288 },
+  schedule: { minWidth: 192, contentMaxWidth: 288 },
+  created_at: { minWidth: 144, width: 144 },
+  actions: { minWidth: 64, width: 64, pin: "end" },
 }
 
 export function ScheduleTriggersTable({
@@ -98,8 +85,6 @@ export function ScheduleTriggersTable({
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at", desc: true }])
-  const router = useRouter()
   const columns = React.useMemo<ColumnDef<WorkflowSchedule>[]>(
     () =>
       createColumns(
@@ -125,80 +110,20 @@ export function ScheduleTriggersTable({
     data: workflowSchedules,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
   })
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id] ?? ""}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  className="cursor-pointer"
-                  role="link"
-                  tabIndex={0}
-                  onClick={() => {
-                    router.push(
-                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
-                    )
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
-                      return
-                    }
-
-                    event.preventDefault()
-                    router.push(
-                      `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(row.original.workflow_name)}&schedule_name=${encodeURIComponent(row.original.name)}`
-                    )
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id] ?? ""}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel="Workflow schedules"
+      emptyState={<p className="text-muted-foreground py-8 text-center">No schedules found.</p>}
+      layout={layout}
+      pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
+      rowHref={(schedule) =>
+        `${basePath}/workflows/triggers/runs?agent_name=${encodeURIComponent(agentName)}&type=schedule&workflow_name=${encodeURIComponent(schedule.workflow_name)}&schedule_name=${encodeURIComponent(schedule.name)}` as Route
+      }
+      rows={workflowSchedules}
+      table={table}
+    />
   )
 }
 
@@ -230,60 +155,23 @@ function createColumns(
   return [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: "Name",
       cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
     },
     {
       accessorKey: "workflow_name",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Workflow
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: "Workflow",
       cell: ({ row }) => <span className="font-mono text-sm">{row.original.workflow_name}</span>,
     },
     {
       accessorKey: "schedule",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Schedule
-          <ArrowUpDown />
-        </Button>
-      ),
+      header: "Schedule",
       cell: ({ row }) => <span className="font-mono text-sm">{row.original.schedule}</span>,
     },
     {
       accessorKey: "created_at",
-      header: ({ column }) => (
-        <Button
-          className="-ml-2"
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Age
-          <ArrowUpDown />
-        </Button>
-      ),
-      sortingFn: "datetime",
-      cell: ({ row }) => <TableRelativeTime value={row.original.created_at} />,
+      header: "Age",
+      cell: ({ row }) => <RelativeDateTime value={row.original.created_at} />,
     },
     {
       id: "actions",

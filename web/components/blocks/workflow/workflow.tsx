@@ -32,6 +32,7 @@ import { Edge } from "@/components/ai-elements/edge"
 import { Node, NodeContent } from "@/components/ai-elements/node"
 import { Panel } from "@/components/ai-elements/panel"
 import { Spinner } from "@/components/ui/spinner"
+import { dayjs } from "@/lib/format"
 import type {
   Workflow as WorkflowDefinition,
   WorkflowNode,
@@ -435,11 +436,9 @@ function NodeExecutionSummary({ status }: { status?: WorkflowRunNodeStatus }) {
       </div>
       {status.message ? <p className="text-sm">{status.message}</p> : null}
       <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {status.started_at ? (
-          <span>Started {new Date(status.started_at).toLocaleString()}</span>
-        ) : null}
+        {status.started_at ? <span>Started {dayjs(status.started_at).format("lll")}</span> : null}
         {status.completed_at ? (
-          <span>Completed {new Date(status.completed_at).toLocaleString()}</span>
+          <span>Completed {dayjs(status.completed_at).format("lll")}</span>
         ) : null}
       </div>
     </div>

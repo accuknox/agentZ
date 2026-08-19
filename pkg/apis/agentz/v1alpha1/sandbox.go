@@ -82,7 +82,8 @@ type SandboxInference struct {
 }
 
 // SandboxSpec defines the desired state of Sandbox.
-// +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 32)",message="skill names must not exceed 32 characters"
+// +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 63)",message="skill names must not exceed 63 characters"
+// +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, s.name.matches('^[a-z0-9]+(-[a-z0-9]+)*$'))",message="skill names must use lowercase letters, digits, and single hyphens"
 // +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type SandboxSpec struct {
 	ResourceAudit `json:",inline"`

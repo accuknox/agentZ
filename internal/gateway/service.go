@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -83,6 +84,7 @@ type Config struct {
 	OpenBaoK8sAuthMountPath  string
 	OpenBaoK8sAuthTokenPath  string
 	MCPProbeStaleAfter       time.Duration
+	AllowedWebOrigins        []string
 	SkillStore               skill.Config
 }
 
@@ -188,6 +190,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	if cfg.MCPProbeStaleAfter <= 0 {
 		return fmt.Errorf("mcp probe stale after is required")
 	}
+	allowedWebOrigins, err := validateWebOrigins(cfg.AllowedWebOrigins)
+	if err != nil {
+		return err
+	}
+	cfg.AllowedWebOrigins = allowedWebOrigins
 	if err := cfg.SkillStore.Validate(); err != nil {
 		return err
 	}
@@ -696,7 +703,7 @@ func (s *Service) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestLog)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   s.cfg.AllowedWebOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: false,
@@ -746,6 +753,40 @@ func (s *Service) routes() http.Handler {
 	)
 	r.Mount("/", apiRouter)
 	return r
+}
+
+func validateWebOrigins(origins []string) ([]string, error) {
+	if len(origins) == 0 {
+		return nil, errors.New("at least one allowed web origin is required")
+	}
+
+	validated := make([]string, 0, len(origins))
+	seen := make(map[string]struct{}, len(origins))
+	for _, origin := range origins {
+		if strings.Contains(origin, "*") {
+			return nil, fmt.Errorf("allowed web origin %q must not contain a wildcard", origin)
+		}
+
+		parsed, err := url.Parse(origin)
+		if err != nil {
+			return nil, fmt.Errorf("parse allowed web origin %q: %w", origin, err)
+		}
+		validScheme := parsed.Scheme == "http" || parsed.Scheme == "https"
+		rootPath := parsed.Path == "" || parsed.Path == "/"
+		if !validScheme || parsed.Host == "" || parsed.User != nil || !rootPath ||
+			parsed.RawQuery != "" || parsed.Fragment != "" {
+			return nil, fmt.Errorf("allowed web origin %q must be an absolute HTTP(S) origin", origin)
+		}
+
+		canonical := parsed.Scheme + "://" + parsed.Host
+		if _, duplicate := seen[canonical]; duplicate {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		validated = append(validated, canonical)
+	}
+
+	return validated, nil
 }
 
 func requestLog(next http.Handler) http.Handler {

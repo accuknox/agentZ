@@ -1,58 +1,102 @@
-/*
-Copyright 2026 AccuKnox Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package gateway
 
 import (
-	"context"
+	"bytes"
+	"encoding/json"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
-func TestEffectiveAgentSkillsBeforeSandboxExists(t *testing.T) {
-	scheme := runtime.NewScheme()
-	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatalf("add AgentZ scheme: %v", err)
-	}
-	direct := agentzv1alpha1.ResourceReference{
-		Scope: agentzv1alpha1.ResourceScopeWorkspace,
-		Name:  "direct-skill",
-	}
-	agt := &agentzv1alpha1.Agent{
-		ObjectMeta: metav1.ObjectMeta{Name: "provisioning", Namespace: "workspace"},
-		Spec: agentzv1alpha1.AgentSpec{
-			SandboxRef: agentzv1alpha1.ResourceReference{
-				Scope: agentzv1alpha1.ResourceScopeWorkspace,
-				Name:  "pending-sandbox",
-			},
-			Skills: []agentzv1alpha1.ResourceReference{direct},
+func TestReadSkillUploadDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		filename   string
+		content    []byte
+		wantStatus int
+		wantCode   string
+		wantField  string
+	}{
+		{
+			name:       "standalone markdown metadata",
+			filename:   "SKILL.md",
+			content:    []byte("---\nname: " + strings.Repeat("a", 64) + "\ndescription: Too long.\n---\n"),
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "malformed_skill_metadata",
+			wantField:  "file:SKILL.md",
+		},
+		{
+			name:       "invalid archive",
+			filename:   "skills.zip",
+			content:    []byte("not a ZIP archive"),
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_archive",
+			wantField:  "file:skills.zip",
+		},
+		{
+			name:       "markdown limit",
+			filename:   "SKILL.md",
+			content:    bytes.Repeat([]byte("x"), (64<<10)+1),
+			wantStatus: http.StatusRequestEntityTooLarge,
+			wantCode:   "upload_too_large",
+			wantField:  "file:SKILL.md",
+		},
+		{
+			name:       "unsupported file",
+			filename:   "SKILL.txt",
+			content:    []byte("skill"),
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "unsupported_file_type",
+			wantField:  "file:SKILL.txt",
 		},
 	}
-	s := &Service{k8sClient: fake.NewClientBuilder().WithScheme(scheme).WithObjects(agt).Build()}
 
-	got, err := s.effectiveAgentSkills(context.Background(), "workspace", agt.Name)
-	if err != nil {
-		t.Fatalf("effective Agent skills: %v", err)
-	}
-	if _, ok := got[direct]; !ok {
-		t.Fatalf("effective Agent skills = %v, want direct Skill", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var body bytes.Buffer
+			form := multipart.NewWriter(&body)
+			file, err := form.CreateFormFile("file", tt.filename)
+			if err != nil {
+				t.Fatalf("create file part: %v", err)
+			}
+			if _, err := file.Write(tt.content); err != nil {
+				t.Fatalf("write file part: %v", err)
+			}
+			if err := form.Close(); err != nil {
+				t.Fatalf("close multipart form: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/api/skills/import", &body)
+			req.Header.Set("Content-Type", form.FormDataContentType())
+			res := httptest.NewRecorder()
+			if _, ok := readSkillUpload(res, req); ok {
+				t.Fatal("upload succeeded")
+			}
+			if res.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", res.Code, tt.wantStatus)
+			}
+
+			var response gatewayapi.Error
+			if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if response.Code != tt.wantCode {
+				t.Fatalf("code = %q, want %q", response.Code, tt.wantCode)
+			}
+			if response.Errors == nil || len(*response.Errors) != 1 {
+				t.Fatalf("errors = %#v, want one field error", response.Errors)
+			}
+			if got := (*response.Errors)[0].Field; got != tt.wantField {
+				t.Fatalf("field = %q, want %q", got, tt.wantField)
+			}
+		})
 	}
 }

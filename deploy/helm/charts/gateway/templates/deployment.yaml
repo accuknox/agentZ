@@ -87,6 +87,9 @@ spec:
             - --external-jwt-issuer={{ required "gateway.config.externalJWTIssuer is required" .Values.config.externalJWTIssuer }}
             - --external-jwt-audience={{ required "gateway.config.externalJWTAudience is required" .Values.config.externalJWTAudience }}
             - --internal-k8s-token-audience={{ required "gateway.config.internalK8sTokenAudience is required" .Values.config.internalK8sTokenAudience }}
+            {{- range required "gateway.config.allowedWebOrigins requires at least one web origin" .Values.config.allowedWebOrigins }}
+            - {{ printf "--allowed-web-origin=%s" . | quote }}
+            {{- end }}
             - --agent-trace-endpoint={{ required "gateway.config.agentTraceEndpoint is required for standalone installs" $traceEndpoint }}
             - --openbao-addr={{ .Values.config.openBaoAddr }}
             - --openbao-secret-mount-path={{ .Values.config.openBaoSecretMountPath }}

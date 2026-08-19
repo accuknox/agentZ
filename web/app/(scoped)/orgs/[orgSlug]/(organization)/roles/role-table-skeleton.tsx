@@ -16,7 +16,7 @@ export function RolesPageSkeleton({ workspace = false }: { workspace?: boolean }
       <AdministrationPageHeader actions={<Skeleton className="h-9 w-32" />} title="Roles" />
       <div aria-hidden className="flex flex-col gap-3">
         <div className="w-full min-w-0 border-b">
-          <Table className="w-full min-w-3xl table-fixed">
+          <Table className="min-w-3xl">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>

@@ -1,21 +1,22 @@
 "use client"
 
 import type { Route } from "next"
-import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { useMemo } from "react"
-import { RoutedTableRow } from "@/components/routed-table-row"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { TokenTablePagination } from "@/components/table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type { TeamSummary } from "@/data/teams"
-import { TableRelativeTime } from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { TeamTableActions } from "./team-table-actions"
+
+const layout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  memberCount: { minWidth: 112, width: 112, align: "end" },
+  roleCount: { minWidth: 96, width: 96, align: "end" },
+  accessibleWorkspaceCount: { minWidth: 128, width: 128, align: "end" },
+  updatedAt: { minWidth: 128, width: 128 },
+  actions: { minWidth: 64, width: 64, pin: "end" },
+}
 
 export function TeamTable({
   nextPageToken,
@@ -46,7 +47,7 @@ export function TeamTable({
       {
         accessorKey: "updatedAt",
         header: "Updated",
-        cell: ({ row }) => <TableRelativeTime value={row.original.updatedAt} />,
+        cell: ({ row }) => <RelativeDateTime value={row.original.updatedAt} />,
       },
       {
         id: "actions",
@@ -62,72 +63,16 @@ export function TeamTable({
   const table = useReactTable({ columns, data: teams, getCoreRowModel: getCoreRowModel() })
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="w-full min-w-0 border-b">
-        <Table aria-label="Teams" className="w-full table-fixed">
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableHead
-                    className={
-                      header.column.id === "memberCount"
-                        ? "w-28 text-right"
-                        : header.column.id === "roleCount"
-                          ? "w-24 text-right"
-                          : header.column.id === "accessibleWorkspaceCount"
-                            ? "w-32 text-right"
-                            : header.column.id === "updatedAt"
-                              ? "w-32"
-                              : header.column.id === "actions"
-                                ? "w-20"
-                                : undefined
-                    }
-                    key={header.id}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <RoutedTableRow
-                  aria-label={`Open ${row.original.name}`}
-                  href={`${root}/${row.original.id}` as Route}
-                  key={row.id}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      className={
-                        cell.column.id === "name"
-                          ? "max-w-72"
-                          : ["memberCount", "roleCount", "accessibleWorkspaceCount"].includes(
-                                cell.column.id
-                              )
-                            ? "text-right tabular-nums"
-                            : undefined
-                      }
-                      key={cell.id}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </RoutedTableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel="Teams"
+      emptyState={<p className="text-muted-foreground py-8 text-center">No teams found.</p>}
+      layout={layout}
+      pagination={
+        <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
+      }
+      rowHref={(team) => `${root}/${team.id}` as Route}
+      rows={teams}
+      table={table}
+    />
   )
 }

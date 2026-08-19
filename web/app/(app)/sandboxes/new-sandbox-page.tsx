@@ -2,7 +2,8 @@ import type { UrlObject } from "node:url"
 import { Suspense } from "react"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { defaultSandboxPackages } from "@/data/sandbox-defaults"
-import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
+import { listSkills } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
@@ -42,8 +43,12 @@ async function NewSandboxWizard({
   workspaceId?: string
 }) {
   const [result, skills, providers, pools] = await Promise.all([
-    listMcpConnectionsCachedQuery({ limit: 200 }, workspaceId),
-    listImmutableSkillsCachedQuery(workspaceId),
+    listMcpConnectionsCachedQuery({ limit: 50 }, workspaceId),
+    listSkills({
+      client: getGatewayServerClient(workspaceId),
+      headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+      query: { limit: 50 },
+    }),
     listInferenceProvidersCachedQuery(workspaceId),
     workspaceId
       ? listInferencePoolsCachedQuery(workspaceId)
@@ -55,10 +60,12 @@ async function NewSandboxWizard({
       providersHref={providersHref}
       scope={{ basePath, workspaceId }}
       initialPackages={[...defaultSandboxPackages]}
-      immutableSkills={skills.skills ?? []}
+      immutableSkills={skills.data?.skills ?? []}
+      immutableSkillsNextPageToken={skills.data?.next_page_token ?? ""}
       inferenceProviders={providers.providers ?? []}
       inferencePools={pools.pools ?? []}
       mcpConnections={result.mcpConnections ?? []}
+      mcpConnectionsNextPageToken={result.nextPageToken ?? ""}
     />
   )
 }

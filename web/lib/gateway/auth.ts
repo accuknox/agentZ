@@ -5,6 +5,7 @@ import { and, eq, isNull, or } from "drizzle-orm"
 import { getOrganizationSession } from "@/data/organizations"
 import { getDB, schema } from "@/db"
 import { getAuth } from "@/lib/auth"
+import { dayjs } from "@/lib/format"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 
 export type GatewayAuthContext = {
@@ -233,7 +234,7 @@ async function signGatewayAuthToken(
           left.agent_name.localeCompare(right.agent_name)
         ),
         capabilities: [...capabilities].sort(),
-        iat: Math.floor(Date.now() / 1000),
+        iat: dayjs().unix(),
         organization_id: organizationId,
         scope_id: scopeId,
         scope_type: scopeType,

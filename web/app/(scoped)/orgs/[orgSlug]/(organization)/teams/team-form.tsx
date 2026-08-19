@@ -96,7 +96,7 @@ export function TeamForm({
               id="team-name"
               maxLength={100}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Platform Engineering"
+              placeholder="e.g. Security operations"
               value={name}
             />
             <FieldError>{state.errors?.name?.[0]}</FieldError>
@@ -137,7 +137,7 @@ export function TeamForm({
           </Button>
           <Button disabled={pending || !name.trim() || memberIds.length === 0} type="submit">
             {pending ? <Spinner /> : <Save data-icon="inline-start" />}
-            {pending ? "Saving..." : data.team ? "Update Team" : "Create Team"}
+            {pending ? "Saving…" : data.team ? "Update team" : "Create team"}
           </Button>
         </div>
       </form>

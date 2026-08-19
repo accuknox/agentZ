@@ -2,23 +2,24 @@ import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import customParseFormat from "dayjs/plugin/customParseFormat"
 import duration from "dayjs/plugin/duration"
+import localizedFormat from "dayjs/plugin/localizedFormat"
 import relativeTime from "dayjs/plugin/relativeTime"
+import timezone from "dayjs/plugin/timezone"
+import utc from "dayjs/plugin/utc"
 
 dayjs.extend(advancedFormat)
 dayjs.extend(customParseFormat)
 dayjs.extend(duration)
+dayjs.extend(localizedFormat)
 dayjs.extend(relativeTime)
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 export { dayjs }
 
 const compactNumberFormatter = new Intl.NumberFormat("en", {
   notation: "compact",
   maximumFractionDigits: 1,
-})
-
-const dateTimeFormatter = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
 })
 
 /** formatCompactNumber keeps counts and token displays consistent. */
@@ -41,7 +42,7 @@ export function formatTimestamp(value: Date | string) {
     return "_"
   }
 
-  return dateTimeFormatter.format(date.toDate())
+  return date.format("lll")
 }
 
 /** formatTimestampWithAge renders an absolute timestamp with relative age. */
@@ -55,7 +56,7 @@ export function formatTimestampWithAge(value: Date | string | null | undefined) 
     return "_"
   }
 
-  return `${dateTimeFormatter.format(date.toDate())} (${date.fromNow()})`
+  return `${date.format("lll")} (${date.fromNow()})`
 }
 
 /** formatAge renders relative time labels for table age columns. */
@@ -115,23 +116,6 @@ export function formatShortAge(value: number) {
   return `${now.diff(time, "year")}y`
 }
 
-/**
- * formatMessageTime renders chat message times: clock time only for today,
- * otherwise a full "Monday, 5th July 14:30" style label.
- */
-export function formatMessageTime(value: number) {
-  const date = dayjs(value)
-  if (!date.isValid()) {
-    return ""
-  }
-
-  if (date.isSame(dayjs(), "day")) {
-    return date.format("HH:mm")
-  }
-
-  return date.format("dddd, Do MMMM HH:mm")
-}
-
 /** formatDurationMs renders telemetry durations in milliseconds or seconds. */
 export function formatDurationMs(durationMs: number) {
   if (durationMs < 1000) {
@@ -143,9 +127,10 @@ export function formatDurationMs(durationMs: number) {
 
 /** formatDurationSeconds renders workflow run durations in compact units. */
 export function formatDurationSeconds(durationSeconds: number) {
-  const hours = Math.floor(durationSeconds / 3600)
-  const minutes = Math.floor((durationSeconds % 3600) / 60)
-  const seconds = durationSeconds % 60
+  const value = dayjs.duration(durationSeconds, "seconds")
+  const hours = Math.floor(value.asHours())
+  const minutes = value.minutes()
+  const seconds = value.seconds()
 
   if (hours > 0) {
     return `${hours}h ${minutes}m`

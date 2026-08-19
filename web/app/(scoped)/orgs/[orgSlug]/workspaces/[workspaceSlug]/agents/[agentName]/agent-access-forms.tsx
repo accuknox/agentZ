@@ -13,7 +13,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react"
-import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import {
   deleteAgentShareFormAction,
   transferAgentOwnerFormAction,
@@ -25,6 +25,7 @@ import {
 import type { AgentShareRow, AgentShareTarget } from "@/data/agent.queries"
 import type { AgentShareCapability } from "@/lib/gateway/client"
 import { AccessSourceChip } from "@/components/administration"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage, UserIdentity } from "@/components/ui/avatar"
@@ -58,14 +59,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { DisabledReason } from "@/components/ui/tooltip"
+
+const shareLayout: Record<string, AdminColumnLayout> = {
+  target_label: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  source: { minWidth: 144, width: 144 },
+  capabilities: { minWidth: 224, contentMaxWidth: 352 },
+  created_by_label: { minWidth: 224, contentMaxWidth: 288 },
+  actions: { minWidth: 64, width: 64, align: "end", pin: "end" },
+}
 
 const capabilityLabels = {
   use_shared: "Use shared Agent",
@@ -100,7 +102,8 @@ export function AgentOwnerForm({
     },
     {}
   )
-  const [owner, setOwner] = useState(ownerUserId)
+  const [owner, setOwner] = useState("")
+  const candidates = users.filter((user) => user.id !== ownerUserId)
 
   return (
     <section className="flex max-w-3xl min-w-0 flex-col gap-3">
@@ -117,11 +120,11 @@ export function AgentOwnerForm({
               </FieldLabel>
               <Select name="owner_user_id" value={owner} onValueChange={setOwner}>
                 <SelectTrigger id="owner-user-id" className="w-full">
-                  <SelectValue placeholder="Choose an active member" />
+                  <SelectValue placeholder="Choose a new owner" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {users.map((user) => (
+                    {candidates.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         <Avatar size="sm">
                           <AvatarImage alt="" src={user.image ?? undefined} />
@@ -136,10 +139,19 @@ export function AgentOwnerForm({
             </Field>
           </FieldGroup>
           <div className="flex justify-end">
-            <Button type="submit" disabled={pending || owner === ownerUserId}>
-              {pending ? <Spinner /> : <RefreshCw />}
-              Transfer owner
-            </Button>
+            {pending || owner ? (
+              <Button aria-busy={pending} type="submit" disabled={pending}>
+                {pending ? <Spinner /> : <RefreshCw />}
+                {pending ? "Transferring…" : "Transfer owner"}
+              </Button>
+            ) : (
+              <DisabledReason reason="Choose a different eligible user to transfer ownership.">
+                <Button type="submit" disabled>
+                  <RefreshCw />
+                  Transfer owner
+                </Button>
+              </DisabledReason>
+            )}
           </div>
         </form>
       </div>
@@ -172,7 +184,7 @@ export function AgentShareDialog({
       <DialogTrigger asChild>
         <Button>
           <Share2 data-icon="inline-start" />
-          Share Agent
+          Share agent
         </Button>
       </DialogTrigger>
       <AgentShareDialogForm
@@ -224,6 +236,11 @@ function AgentShareDialogForm({
   const targets = targetKind === "user" ? users : teams
   const target = targets.find((candidate) => candidate.id === targetId)
   const allowedCapabilities = new Set<string>(target?.capabilities)
+  const submitBlocker = !targetId
+    ? `Choose a ${targetKind} before saving this share.`
+    : selectedCapabilities.length === 0
+      ? "Select at least one capability before saving this share."
+      : undefined
 
   return (
     <DialogContent className="sm:max-w-2xl">
@@ -320,16 +337,32 @@ function AgentShareDialogForm({
             <FieldLabel htmlFor={`${formId}-capabilities`} required>
               Capabilities
             </FieldLabel>
-            <MultiSelectDropdown
-              emptyMessage="No capabilities available."
-              disabled={!target}
-              id={`${formId}-capabilities`}
-              onValueChangeAction={setSelectedCapabilities}
-              options={capabilityOptions.filter((option) => allowedCapabilities.has(option.value))}
-              placeholder="Select capabilities"
-              searchPlaceholder="Search capabilities..."
-              value={selectedCapabilities}
-            />
+            {!target ? (
+              <DisabledReason reason={`Choose a ${targetKind} before selecting capabilities.`}>
+                <MultiSelectDropdown
+                  emptyMessage="No capabilities available."
+                  disabled
+                  id={`${formId}-capabilities`}
+                  onValueChangeAction={setSelectedCapabilities}
+                  options={[]}
+                  placeholder="Select capabilities"
+                  searchPlaceholder="Search capabilities…"
+                  value={selectedCapabilities}
+                />
+              </DisabledReason>
+            ) : (
+              <MultiSelectDropdown
+                emptyMessage="No capabilities available."
+                id={`${formId}-capabilities`}
+                onValueChangeAction={setSelectedCapabilities}
+                options={capabilityOptions.filter((option) =>
+                  allowedCapabilities.has(option.value)
+                )}
+                placeholder="Select capabilities"
+                searchPlaceholder="Search capabilities…"
+                value={selectedCapabilities}
+              />
+            )}
             <FieldDescription>
               Only capabilities backed by the target&apos;s effective Workspace permissions are
               available.
@@ -342,14 +375,19 @@ function AgentShareDialogForm({
               Cancel
             </Button>
           </DialogClose>
-          <Button
-            data-dialog-submit
-            type="submit"
-            disabled={pending || !targetId || selectedCapabilities.length === 0}
-          >
-            {pending ? <Spinner /> : <Share2 data-icon="inline-start" />}
-            {pending ? "Saving..." : editing ? "Save changes" : "Save share"}
-          </Button>
+          {submitBlocker && !pending ? (
+            <DisabledReason reason={submitBlocker}>
+              <Button data-dialog-submit disabled type="submit">
+                <Share2 data-icon="inline-start" />
+                {editing ? "Save changes" : "Save share"}
+              </Button>
+            </DisabledReason>
+          ) : (
+            <Button aria-busy={pending} data-dialog-submit disabled={pending} type="submit">
+              {pending ? <Spinner /> : <Share2 data-icon="inline-start" />}
+              {pending ? "Saving…" : editing ? "Save changes" : "Save share"}
+            </Button>
+          )}
         </DialogFooter>
       </form>
     </DialogContent>
@@ -459,56 +497,16 @@ export function AgentSharesTable({
   const table = useReactTable({ columns, data: shares, getCoreRowModel: getCoreRowModel() })
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="w-full min-w-0 border-b">
-        <Table aria-label={`${agentName} shares`}>
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableHead
-                    className={header.column.id === "actions" ? "w-20 text-right" : undefined}
-                    key={header.id}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      className={
-                        cell.column.id === "actions"
-                          ? "text-right"
-                          : cell.column.id === "target_label" ||
-                              cell.column.id === "created_by_label"
-                            ? "break-words"
-                            : undefined
-                      }
-                      key={cell.id}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel={`${agentName} shares`}
+      emptyState={<p className="text-muted-foreground py-8 text-center">No shares found.</p>}
+      layout={shareLayout}
+      pagination={
+        <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />
+      }
+      rows={shares}
+      table={table}
+    />
   )
 }
 

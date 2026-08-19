@@ -8,6 +8,7 @@ import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
 import type { SessionStatus, SessionStatusResponse } from "@opencode-ai/sdk/v2"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { dayjs } from "@/lib/format"
 import {
   opencodePartsFromMessage,
   uploadChatAttachments,
@@ -37,7 +38,7 @@ let lastMessageTimestamp = 0
 let messageCounter = 0
 
 function createMessageID() {
-  const timestamp = Date.now()
+  const timestamp = dayjs().valueOf()
   messageCounter = timestamp === lastMessageTimestamp ? messageCounter + 1 : 1
   lastMessageTimestamp = timestamp
 
@@ -76,8 +77,8 @@ export function useOpencodeSend(
         throw new Error(opencodeErrorMessage(result.error, "Failed to stop the active run"))
       }
 
-      const deadline = Date.now() + 10_000
-      while (Date.now() < deadline) {
+      const deadline = dayjs().add(10, "seconds")
+      while (dayjs().isBefore(deadline)) {
         const status = await client.session.status({ directory: input.directory })
         if (status.error || !status.data) {
           throw new Error(opencodeErrorMessage(status.error, "Failed to confirm the run stopped"))
@@ -182,7 +183,7 @@ export function useOpencodeSend(
         )
         addOptimisticUserMessage(queryClient, workspaceId, agentName, activeSessionID, {
           attachments: uploaded,
-          createdAt: Date.now(),
+          createdAt: dayjs().valueOf(),
           id: pendingID,
           status: "pending",
           text,

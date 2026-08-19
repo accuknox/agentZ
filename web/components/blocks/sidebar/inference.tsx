@@ -12,6 +12,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
+import { resourceLabels } from "@/lib/resource-labels"
 
 export function NavInference({
   rootPath,
@@ -54,7 +55,7 @@ export function NavInference({
                     href={providersPath}
                   >
                     <Brain aria-hidden="true" />
-                    <span>Providers</span>
+                    <span>{resourceLabels.inference.collection}</span>
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>

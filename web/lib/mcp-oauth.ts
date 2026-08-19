@@ -25,6 +25,7 @@ import {
   type ParsedMcpForm,
 } from "@/data/mcp.schema"
 import { serverWebBaseURL } from "@/lib/gateway/server-base-url"
+import { dayjs } from "@/lib/format"
 import {
   oauthBroadcastChannelName,
   oauthErrorFieldNames,
@@ -983,7 +984,7 @@ export async function completeOAuthFlow(input: {
           accessToken: runtime.tokens.access_token,
           refreshToken: runtime.tokens.refresh_token,
           expiresAt: runtime.tokens.expires_in
-            ? new Date(Date.now() + runtime.tokens.expires_in * 1000).toISOString()
+            ? dayjs().add(runtime.tokens.expires_in, "seconds").toISOString()
             : undefined,
           tokenType: runtime.tokens.token_type,
           scopes: runtime.tokens.scope?.split(" ").filter(Boolean),

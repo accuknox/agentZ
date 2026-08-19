@@ -4,14 +4,7 @@ import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 import { CheckCircle2, CircleAlert, CircleDashed, ListTree, XCircle } from "lucide-react"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
+import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import {
@@ -19,24 +12,25 @@ import {
   type WorkspaceInheritanceFormState,
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type {
   InheritedResourceType,
   ResourceLifecycle,
   WorkspaceInheritedResource,
 } from "@/lib/gateway/client"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { DisabledReason, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+
+const layout: Record<string, AdminColumnLayout> = {
+  selected: { minWidth: 64, width: 64, pin: "start" },
+  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  source: { minWidth: 144, width: 144 },
+  status: { minWidth: 128, width: 128 },
+  consumers: { minWidth: 256, contentMaxWidth: 384 },
+}
 
 const statusMeta = {
   Accepted: { icon: CircleDashed, label: "Accepted", variant: "pending" },
@@ -99,21 +93,20 @@ export function InheritedResourceForm({
     if (result.saved) toast.success("Inherited resources updated")
     return result
   }, {})
-  const [sorting, setSorting] = React.useState<SortingState>([])
   const columns = React.useMemo<ColumnDef<WorkspaceInheritedResource>[]>(
     () => [
       {
         id: "selected",
         header: "Use",
-        enableSorting: false,
         cell: ({ row }) => {
           const resource = row.original
           const displayName = displayNames ? displayNames[resource.name] : resource.name
           const checked = selected.includes(resource.name)
           const locked =
             checked && (resource.consumers.length > 0 || Boolean(resource.disabled_reason))
-          return (
+          const checkbox = (
             <Checkbox
+              aria-busy={pending}
               aria-label={`${checked ? "Unselect" : "Select"} ${displayName}`}
               checked={checked}
               disabled={pending || locked}
@@ -126,21 +119,22 @@ export function InheritedResourceForm({
               }
             />
           )
+          if (!locked || pending) return checkbox
+          return (
+            <DisabledReason
+              reason={
+                resource.disabled_reason ?? "Remove all consumers before unselecting this resource."
+              }
+            >
+              {checkbox}
+            </DisabledReason>
+          )
         },
       },
       {
         id: "name",
         accessorFn: (resource) => (displayNames ? displayNames[resource.name] : resource.name),
-        header: ({ column }) => (
-          <Button
-            className="px-0"
-            type="button"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Name
-          </Button>
-        ),
+        header: "Name",
         cell: ({ row }) => {
           const resource = row.original
           const displayName = displayNames ? displayNames[resource.name] : resource.name
@@ -180,16 +174,7 @@ export function InheritedResourceForm({
       },
       {
         accessorKey: "status",
-        header: ({ column }) => (
-          <Button
-            className="px-0"
-            type="button"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Readiness
-          </Button>
-        ),
+        header: "Readiness",
         cell: ({ row }) => {
           const meta = statusMeta[row.original.status]
           const badge = (
@@ -212,7 +197,6 @@ export function InheritedResourceForm({
         id: "consumers",
         accessorFn: (resource) => resource.consumers.length,
         header: "Consumers",
-        enableSorting: false,
         cell: ({ row }) =>
           row.original.consumers.length === 0 ? (
             <span className="text-muted-foreground">_</span>
@@ -246,9 +230,6 @@ export function InheritedResourceForm({
     data: resources,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: { sorting },
   })
 
   return (
@@ -263,49 +244,19 @@ export function InheritedResourceForm({
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       ) : null}
-      <div className="w-full min-w-0 border-b">
-        <Table aria-label={`Inherited Organisation ${label}`} className="min-w-3xl">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={header.column.id === "selected" ? "w-16" : undefined}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length === 0 ? (
-              <TableRow>
-                <TableCell className="text-muted-foreground py-10 text-center" colSpan={5}>
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <AdminDataGrid
+        ariaLabel={`Inherited organization ${label}`}
+        emptyState={
+          <p className="text-muted-foreground py-8 text-center">No inherited {label} found.</p>
+        }
+        layout={layout}
+        rows={resources}
+        table={table}
+      />
       <div className="flex justify-end px-4 pb-6 md:px-6">
         <Button disabled={pending} type="submit">
           {pending ? <Spinner data-icon="inline-start" /> : <ListTree data-icon="inline-start" />}
-          {pending ? "Saving..." : "Save Inheritance"}
+          {pending ? "Saving…" : "Save inheritance"}
         </Button>
       </div>
     </form>

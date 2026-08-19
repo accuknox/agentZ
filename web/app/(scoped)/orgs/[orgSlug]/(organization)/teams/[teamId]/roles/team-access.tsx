@@ -145,7 +145,7 @@ function TeamAccessTable({
                 <AccessSourceChip source="Team Role" />
               </TableCell>
               <TableCell>{source.scope}</TableCell>
-              <TableCell>{`User -> ${detail.team.name} -> ${source.role}`}</TableCell>
+              <TableCell>{`User → ${detail.team.name} → ${source.role}`}</TableCell>
               <TableCell className="font-medium">
                 {source.resource}.{source.action}
               </TableCell>

@@ -1,22 +1,22 @@
 "use client"
 
 import type { Route } from "next"
-import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { useMemo } from "react"
-import { RoutedTableRow } from "@/components/routed-table-row"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { StatusBadge } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type { Workspace } from "@/lib/gateway/client"
-import { TableRelativeTime } from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { WorkspaceTableActions } from "./workspace-table-actions"
+
+const layout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  state: { minWidth: 144, width: 144 },
+  workspace_admin_count: { minWidth: 144, width: 144, align: "end" },
+  updated_at: { minWidth: 128, width: 128 },
+  actions: { minWidth: 64, width: 64, pin: "end" },
+}
 
 export function WorkspaceTable({
   hasNextPage,
@@ -52,7 +52,7 @@ export function WorkspaceTable({
       {
         accessorKey: "updated_at",
         header: "Updated",
-        cell: ({ row }) => <TableRelativeTime value={row.original.updated_at} />,
+        cell: ({ row }) => <RelativeDateTime value={row.original.updated_at} />,
       },
       {
         id: "actions",
@@ -73,66 +73,14 @@ export function WorkspaceTable({
   const table = useReactTable({ columns, data: workspaces, getCoreRowModel: getCoreRowModel() })
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="w-full min-w-0 border-b">
-        <Table aria-label="Workspaces" className="w-full table-fixed">
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((header) => (
-                  <TableHead
-                    className={
-                      header.column.id === "state"
-                        ? "w-36"
-                        : header.column.id === "workspace_admin_count"
-                          ? "w-36 text-right"
-                          : header.column.id === "updated_at"
-                            ? "w-32"
-                            : header.column.id === "actions"
-                              ? "w-20"
-                              : undefined
-                    }
-                    key={header.id}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <RoutedTableRow
-                  aria-label={`Manage ${row.original.name}`}
-                  href={`${root}/workspaces/manage/${row.original.slug}` as Route}
-                  key={row.id}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      className={
-                        cell.column.id === "workspace_admin_count"
-                          ? "text-right tabular-nums"
-                          : undefined
-                      }
-                      key={cell.id}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </RoutedTableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="h-24 text-center" colSpan={columns.length}>
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel="Workspaces"
+      emptyState={<p className="text-muted-foreground py-8 text-center">No workspaces found.</p>}
+      layout={layout}
+      pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
+      rowHref={(workspace) => `${root}/workspaces/manage/${workspace.slug}` as Route}
+      rows={workspaces}
+      table={table}
+    />
   )
 }

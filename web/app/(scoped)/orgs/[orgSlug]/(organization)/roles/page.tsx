@@ -34,6 +34,7 @@ export default async function RolesPage({
             </Link>
           </Button>
         }
+        scope={{ kind: "organization", organizationName: result.organization.name }}
         title="Roles"
       />
       <RoleTable nextPageToken={result.nextPageToken} orgSlug={orgSlug} roles={result.roles} />

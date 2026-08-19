@@ -5,7 +5,7 @@ import { Plus } from "lucide-react"
 import type { Route } from "next"
 import { deleteSandboxFormAction } from "@/data/sandbox.actions"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
-import { AdministrationPageHeader } from "@/components/administration"
+import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { SandboxTable } from "./sandbox-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
@@ -22,11 +22,13 @@ type SandboxesSearchParams = {
 export default async function SandboxesPage({
   basePath,
   capabilities,
+  pageScope,
   searchParams,
   workspaceId,
 }: {
   basePath: string
   capabilities: ResourceCapabilities
+  pageScope: AdministrationPageScope
   searchParams: Promise<SandboxesSearchParams>
   workspaceId?: string
 }) {
@@ -38,11 +40,12 @@ export default async function SandboxesPage({
             <Button asChild>
               <Link href={`${basePath}/new` as Route}>
                 <Plus />
-                New sandbox
+                Add sandbox
               </Link>
             </Button>
           ) : undefined
         }
+        scope={pageScope}
         title="Sandboxes"
       />
       <Suspense fallback={<SandboxesSkeleton />}>
@@ -82,7 +85,7 @@ async function Sandboxes({
       nextPageToken={result.nextPageToken}
       basePath={basePath}
       deleteSandboxAction={deleteSandboxFormAction.bind(null, { basePath, workspaceId })}
-      showOrganisation={workspaceId !== undefined}
+      showOrganization={workspaceId !== undefined}
     />
   )
 }

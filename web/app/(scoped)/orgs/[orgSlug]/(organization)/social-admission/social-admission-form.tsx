@@ -172,7 +172,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
           <FieldContent>
             <FieldLabel htmlFor="social-admission-enabled">Enable Social Sign Up</FieldLabel>
             <FieldDescription>
-              Let people join this Organisation when they match the access rules below.
+              Let people join this Organization when they match the access rules below.
             </FieldDescription>
           </FieldContent>
           <Switch
@@ -293,7 +293,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                 </p>
               </div>
               <div className="-mx-4 w-[100cqw] min-w-0 border-b md:-mx-6">
-                <Table aria-label="Qualified workspaces" className="w-full table-fixed">
+                <Table aria-label="Qualified workspaces">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-2/5">Workspace</TableHead>
@@ -564,7 +564,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             <AlertTitle>Membership lifecycle</AlertTitle>
             <AlertDescription>
               These rules are evaluated only when a qualifying Social account joins this
-              Organisation. Default access is assigned once; later sign-ins do not recalculate or
+              Organization. Default access is assigned once; later sign-ins do not recalculate or
               remove it. Explicit Invitations bypass Social Admission rules and grant their
               configured access to the signed-in User who accepts the link first.
             </AlertDescription>
@@ -602,7 +602,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       <div className="-mx-4 flex w-[100cqw] justify-end border-t px-4 pt-6 md:-mx-6 md:px-6">
         <Button disabled={pending} type="submit">
           {pending ? <Spinner /> : <Save data-icon="inline-start" />}
-          {pending ? "Saving..." : "Save Admission Policy"}
+          {pending ? "Saving…" : "Save admission policy"}
         </Button>
       </div>
     </form>

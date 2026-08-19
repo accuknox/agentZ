@@ -32,22 +32,16 @@ export function watchAgentsQueryOptions(workspaceId: string, initialAgents: Agen
       initialValue: initialAgents,
       refetchMode: "reset",
       reducer: (agents, event) => {
-        const byName = new Map(agents.map((agent) => [agent.name, agent]))
-
-        for (const agent of event.agents) {
-          if (agent.status === "DELETED") {
-            byName.delete(agent.name)
-            continue
-          }
-
-          byName.set(agent.name, agent)
-        }
-
-        return Array.from(byName.values()).sort((x, y) => {
-          return (
-            Date.parse(y.modified_at) - Date.parse(x.modified_at) || x.name.localeCompare(y.name)
-          )
+        const updates = new Map(event.agents.map((agent) => [agent.name, agent]))
+        const names = new Set(agents.map((agent) => agent.name))
+        const next = agents.flatMap((agent) => {
+          const update = updates.get(agent.name)
+          return update?.status === "DELETED" ? [] : [update ?? agent]
         })
+        for (const agent of event.agents) {
+          if (!names.has(agent.name) && agent.status !== "DELETED") next.push(agent)
+        }
+        return next
       },
       streamFn: async ({ signal }) => {
         const result = await watchAgents({

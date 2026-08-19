@@ -5,6 +5,7 @@ import type { UrlObject } from "node:url"
 import { and, asc, eq, exists, inArray, isNull, ne, not, notInArray, or } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { resolveOrganizationSlug } from "@/data/organizations"
+import { dayjs } from "@/lib/format"
 
 export type DestructiveTarget =
   | {
@@ -1378,7 +1379,10 @@ export async function deleteWorkspace(
       .for("update")
     const keyIds = await tx
       .update(schema.apiKeyScopes)
-      .set({ revokedAt: new Date(), revokedReason: `Workspace ${workspace.name} deleted.` })
+      .set({
+        revokedAt: dayjs().toDate(),
+        revokedReason: `Workspace ${workspace.name} deleted.`,
+      })
       .where(
         and(
           eq(schema.apiKeyScopes.organizationId, result.organization.id),
@@ -1390,7 +1394,7 @@ export async function deleteWorkspace(
     if (keyIds.length) {
       await tx
         .update(schema.apikeys)
-        .set({ enabled: false, updatedAt: new Date() })
+        .set({ enabled: false, updatedAt: dayjs().toDate() })
         .where(
           and(
             eq(schema.apikeys.referenceId, result.organization.id),
@@ -1444,7 +1448,7 @@ export async function deleteWorkspace(
           eq(schema.lastAccessibleContexts.workspaceId, workspace.id)
         )
       )
-    const now = new Date()
+    const now = dayjs().toDate()
     await tx
       .update(schema.workspaces)
       .set({ deletedAt: now, failureReason: null, state: "deleting", updatedAt: now })

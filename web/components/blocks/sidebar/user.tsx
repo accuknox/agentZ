@@ -122,7 +122,7 @@ export function NavUser({
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="flex items-center gap-1.5">
                   {isSwitching ? <Spinner className="size-3" /> : <Building2 className="size-3" />}
-                  Organisations
+                  Organizations
                 </DropdownMenuLabel>
                 <DropdownMenuRadioGroup
                   value={activeOrganizationId ?? ""}

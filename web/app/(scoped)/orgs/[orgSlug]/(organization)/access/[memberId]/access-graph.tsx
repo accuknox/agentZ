@@ -192,19 +192,19 @@ function AccessSourceTable({ sources }: { sources: EffectiveAccessSource[] }) {
             let path: string
             let grant: string
             if (source.source === "Direct Role") {
-              path = `User -> ${source.role}`
+              path = `User → ${source.role}`
               grant = `${source.resource}.${source.action}`
             } else if (source.source === "Team Role") {
-              path = `User -> ${source.team} -> ${source.role}`
+              path = `User → ${source.team} → ${source.role}`
               grant = `${source.resource}.${source.action}`
             } else if (source.source === "Ownership") {
-              path = `User -> Owner -> ${source.agent}`
+              path = `User → Owner → ${source.agent}`
               grant = "Agent ownership"
             } else if (source.source === "Team Share") {
-              path = `User -> ${source.team} -> ${source.agent}`
+              path = `User → ${source.team} → ${source.agent}`
               grant = source.capability
             } else {
-              path = `User -> Direct Share -> ${source.agent}`
+              path = `User → Direct share → ${source.agent}`
               grant = source.capability
             }
             return (

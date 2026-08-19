@@ -23,6 +23,11 @@ export default async function WorkspaceMcpPage({
       basePath={basePath}
       canCreate={scope.workspace.capabilities.mcp_connections.create}
       organizationId={scope.scope.organization.id}
+      pageScope={{
+        kind: "workspace",
+        organizationName: scope.scope.organization.name,
+        workspaceName: scope.workspace.name,
+      }}
       searchParams={searchParams}
       workspaceId={scope.workspace.id}
     />

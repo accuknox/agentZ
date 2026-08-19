@@ -11,41 +11,46 @@ import { useTelemetryPagination } from "@/app/(scoped)/orgs/[orgSlug]/workspaces
 const columns: TelemetryTableColumn<NetworkTelemetryRow>[] = [
   {
     key: "destinationDomain",
-    header: "Destination Domain",
-    className: "min-w-52",
+    header: "Destination domain",
+    layout: { minWidth: 208, contentMaxWidth: 320, pin: "start" },
     render: (row) => <span className="font-mono text-xs">{row.destinationDomain}</span>,
   },
   {
     key: "destinationIP",
     header: "Destination IP",
-    className: "min-w-40",
+    layout: { minWidth: 160, width: 160 },
     render: (row) => <span className="font-mono text-xs">{row.destinationIP}</span>,
   },
   {
     key: "destinationPort",
-    header: "Destination Port",
-    className: "min-w-32",
+    header: "Destination port",
+    layout: { minWidth: 128, width: 128 },
     render: (row) => <span className="font-mono text-xs">{row.destinationPort}</span>,
   },
   {
     key: "protocol",
     header: "Protocol",
-    className: "min-w-32",
+    layout: { minWidth: 128, width: 128 },
     render: (row) => <span className="font-mono text-xs">{row.protocol}</span>,
   },
-  { key: "action", header: "Action", render: (row) => <ActionBadge action={row.action} /> },
+  {
+    key: "action",
+    header: "Action",
+    layout: { minWidth: 112, width: 112 },
+    render: (row) => <ActionBadge action={row.action} />,
+  },
   {
     key: "occurrences",
     header: "Occurrences",
-    className: "text-right",
+    layout: { minWidth: 112, width: 112, align: "end" },
     render: (row) => (
       <span className="text-right font-mono text-xs">{row.occurrences.toLocaleString()}</span>
     ),
   },
   {
     key: "lastSeen",
-    header: "Last Seen",
-    className: "min-w-40",
+    header: "Last seen",
+    layout: { minWidth: 160, width: 160 },
     render: (row) => <span className="text-muted-foreground text-sm">{row.lastSeen}</span>,
   },
 ]

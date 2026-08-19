@@ -17,7 +17,7 @@ import {
   EmptyValue,
   TableHead,
   TableHeader,
-  TableRelativeTime,
+  RelativeDateTime,
   TableRow,
 } from "@/components/ui/table"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
@@ -62,7 +62,7 @@ export default async function UserDetailPage({
     { href: root as Route, label: "Summary" },
     { href: `${root}?tab=access` as Route, label: "Roles and access" },
     { href: `${root}?tab=agents` as Route, label: `Owned Agents (${data.agents.length})` },
-    { href: `${root}?tab=keys` as Route, label: `API Keys (${data.apiKeys.length})` },
+    { href: `${root}?tab=keys` as Route, label: `API keys (${data.apiKeys.length})` },
     { href: `${root}?tab=activity` as Route, label: "Activity" },
   ] satisfies RouteTab[]
 
@@ -150,14 +150,14 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
             <TableRow>
               <TableHead scope="row">Joined</TableHead>
               <TableCell>
-                <TableRelativeTime value={data.member.createdAt} />
+                <RelativeDateTime value={data.member.createdAt} />
               </TableCell>
             </TableRow>
             <TableRow>
               <TableHead scope="row">Last activity</TableHead>
               <TableCell>
                 {data.member.lastActivity ? (
-                  <TableRelativeTime value={data.member.lastActivity} />
+                  <RelativeDateTime value={data.member.lastActivity} />
                 ) : (
                   <EmptyValue />
                 )}
@@ -268,7 +268,7 @@ function OwnedAgents({ data, orgSlug }: { data: MemberAdministration; orgSlug: s
                 <TableCell className="font-medium">{agent.name}</TableCell>
                 <TableCell>{agent.workspace}</TableCell>
                 <TableCell>
-                  <TableRelativeTime value={agent.updatedAt} />
+                  <RelativeDateTime value={agent.updatedAt} />
                 </TableCell>
                 <TableCell className="text-right">
                   <Button asChild size="sm" variant="outline">
@@ -299,7 +299,7 @@ function OwnedAgents({ data, orgSlug }: { data: MemberAdministration; orgSlug: s
 function APIKeys({ data }: { data: MemberAdministration }) {
   return (
     <div className="w-full min-w-0 border-b">
-      <Table aria-label={`${data.member.name} API Keys`}>
+      <Table aria-label={`${data.member.name} API keys`}>
         <TableHeader>
           <TableRow>
             <TableHead>Key</TableHead>
@@ -320,7 +320,7 @@ function APIKeys({ data }: { data: MemberAdministration }) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <TableRelativeTime value={key.createdAt} />
+                  <RelativeDateTime value={key.createdAt} />
                 </TableCell>
               </TableRow>
             ))
@@ -354,7 +354,7 @@ function Activity({ data }: { data: MemberAdministration }) {
             data.activity.map((event) => (
               <TableRow key={event.id}>
                 <TableCell>
-                  <TableRelativeTime value={event.createdAt} />
+                  <RelativeDateTime value={event.createdAt} />
                 </TableCell>
                 <TableCell>
                   <div className="flex min-w-0 items-center gap-2">

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { flexRender, getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
   Brain,
   Calendar,
@@ -35,6 +35,7 @@ import type {
   TraceListItem,
 } from "@/data/types"
 import { Badge } from "@/components/ui/badge"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { ErrorState } from "@/components/error-state"
 import { CodeBlock } from "@/components/ai-elements/code-block"
 import { TablePagination, TokenTablePagination } from "@/components/table-pagination"
@@ -48,23 +49,15 @@ import {
   TruncateCell,
   type TelemetryTableColumn,
 } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-const columnClassName: Record<string, string> = {
-  trace: "min-w-40 w-[20%]",
-  duration: "min-w-52 w-[22%]",
-  graph: "min-w-72 w-[36%]",
-  tokens: "min-w-48 w-[22%]",
+const layout: Record<string, AdminColumnLayout> = {
+  trace: { minWidth: 160, contentMaxWidth: 256, pin: "start" },
+  duration: { minWidth: 208, contentMaxWidth: 320 },
+  graph: { minWidth: 288, contentMaxWidth: 448 },
+  tokens: { minWidth: 192, contentMaxWidth: 288 },
 }
 
 const columns: ColumnDef<TraceListItem>[] = [
@@ -323,63 +316,26 @@ export function TracesTable({
   return (
     <Sheet open={selectedTrace !== undefined} onOpenChange={(open) => !open && closeTrace()}>
       <div className="flex flex-col">
-        <div className="bg-background overflow-x-auto border-b">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className={columnClassName[header.column.id]}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    role="button"
-                    tabIndex={0}
-                    className="group bg-background hover:bg-muted/30 focus-visible:bg-muted/40 focus-visible:ring-ring relative border-b focus-visible:ring-2 focus-visible:outline-none"
-                    onClick={() => selectTrace(row.original)}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") {
-                        return
-                      }
-
-                      event.preventDefault()
-                      selectTrace(row.original)
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className={columnClassName[cell.column.id]}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="text-muted-foreground h-48 text-center"
-                  >
-                    _
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex h-12 w-full items-center gap-3 px-6">
-          <span className="text-muted-foreground text-xs">{data.traces.length} rows</span>
-          <TokenTablePagination hasNextPage={data.hasNextPage} nextPageToken={data.nextPageToken} />
-        </div>
+        <AdminDataGrid
+          ariaLabel="Traces"
+          emptyState={<p className="text-muted-foreground py-8 text-center">No traces found.</p>}
+          layout={layout}
+          onRowActivate={selectTrace}
+          pagination={
+            data.traces.length > 0 ? (
+              <div className="flex h-12 w-full items-center gap-3 px-6">
+                <span className="text-muted-foreground text-xs">{data.traces.length} rows</span>
+                <TokenTablePagination
+                  hasNextPage={data.hasNextPage}
+                  nextPageToken={data.nextPageToken}
+                />
+              </div>
+            ) : null
+          }
+          rowAriaLabel={(trace) => `View trace ${trace.traceId}`}
+          rows={data.traces}
+          table={table}
+        />
       </div>
       <TraceInspector
         workspaceId={workspaceId}
@@ -996,8 +952,8 @@ function RuntimeTelemetryContent({
         <TabsContent value="process">
           <ProcessTelemetryTable
             events={telemetryTab === "process" ? events : []}
-            hasNextPage={telemetryTab === "process" ? telemetryPage?.hasNextPage : undefined}
-            nextPageToken={telemetryTab === "process" ? telemetryPage?.nextPageToken : undefined}
+            hasNextPage={telemetryTab === "process" && Boolean(telemetryPage?.hasNextPage)}
+            nextPageToken={telemetryTab === "process" ? (telemetryPage?.nextPageToken ?? "") : ""}
             canGoPrevious={canGoPrevious}
             onNextPage={onNextPage}
             onPreviousPage={onPreviousPage}
@@ -1007,8 +963,8 @@ function RuntimeTelemetryContent({
         <TabsContent value="file">
           <FileTelemetryTable
             events={telemetryTab === "file" ? events : []}
-            hasNextPage={telemetryTab === "file" ? telemetryPage?.hasNextPage : undefined}
-            nextPageToken={telemetryTab === "file" ? telemetryPage?.nextPageToken : undefined}
+            hasNextPage={telemetryTab === "file" && Boolean(telemetryPage?.hasNextPage)}
+            nextPageToken={telemetryTab === "file" ? (telemetryPage?.nextPageToken ?? "") : ""}
             canGoPrevious={canGoPrevious}
             onNextPage={onNextPage}
             onPreviousPage={onPreviousPage}
@@ -1018,8 +974,8 @@ function RuntimeTelemetryContent({
         <TabsContent value="network">
           <NetworkTelemetryTable
             events={telemetryTab === "network" ? events : []}
-            hasNextPage={telemetryTab === "network" ? telemetryPage?.hasNextPage : undefined}
-            nextPageToken={telemetryTab === "network" ? telemetryPage?.nextPageToken : undefined}
+            hasNextPage={telemetryTab === "network" && Boolean(telemetryPage?.hasNextPage)}
+            nextPageToken={telemetryTab === "network" ? (telemetryPage?.nextPageToken ?? "") : ""}
             canGoPrevious={canGoPrevious}
             onNextPage={onNextPage}
             onPreviousPage={onPreviousPage}
@@ -1098,24 +1054,25 @@ const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
   {
     key: "process",
     header: "Process",
-    className: "min-w-36 max-w-64",
+    layout: { minWidth: 144, contentMaxWidth: 256, pin: "start" },
     render: (event) => <TruncateCell value={event.primary} />,
   },
   {
     key: "command",
     header: "Command",
-    className: "min-w-80 max-w-112",
+    layout: { minWidth: 320, contentMaxWidth: 448 },
     render: (event) => <TruncateCell value={event.secondary} />,
   },
   {
     key: "action",
     header: "Action",
+    layout: { minWidth: 112, width: 112 },
     render: (event) => <SharedActionBadge action={event.action} />,
   },
   {
     key: "time",
-    header: "Seen At",
-    className: "min-w-40",
+    header: "Seen at",
+    layout: { minWidth: 160, width: 160 },
     render: (event) => <TelemetryTimestamp value={event.time} />,
   },
 ]
@@ -1130,8 +1087,8 @@ function ProcessTelemetryTable({
   pending,
 }: {
   events: RuntimeTelemetryEventItem[]
-  hasNextPage?: boolean
-  nextPageToken?: string
+  hasNextPage: boolean
+  nextPageToken: string
   canGoPrevious: boolean
   onNextPage: () => void
   onPreviousPage: () => void
@@ -1145,7 +1102,7 @@ function ProcessTelemetryTable({
       hasNextPage={hasNextPage}
       nextPageToken={nextPageToken}
       canGoPrevious={canGoPrevious}
-      onNextPage={nextPageToken ? () => onNextPage() : undefined}
+      onNextPage={onNextPage}
       onPreviousPage={onPreviousPage}
       pending={pending}
     />
@@ -1155,25 +1112,26 @@ function ProcessTelemetryTable({
 const fileTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
   {
     key: "file",
-    header: "File Path Accessed",
-    className: "min-w-80 max-w-112",
+    header: "File path accessed",
+    layout: { minWidth: 320, contentMaxWidth: 448, pin: "start" },
     render: (event) => <TruncateCell value={event.primary} />,
   },
   {
     key: "process",
     header: "Process",
-    className: "min-w-72 max-w-112",
+    layout: { minWidth: 288, contentMaxWidth: 448 },
     render: (event) => <TruncateCell value={event.secondary} />,
   },
   {
     key: "action",
     header: "Action",
+    layout: { minWidth: 112, width: 112 },
     render: (event) => <SharedActionBadge action={event.action} />,
   },
   {
     key: "time",
-    header: "Seen At",
-    className: "min-w-40",
+    header: "Seen at",
+    layout: { minWidth: 160, width: 160 },
     render: (event) => <TelemetryTimestamp value={event.time} />,
   },
 ]
@@ -1188,8 +1146,8 @@ function FileTelemetryTable({
   pending,
 }: {
   events: RuntimeTelemetryEventItem[]
-  hasNextPage?: boolean
-  nextPageToken?: string
+  hasNextPage: boolean
+  nextPageToken: string
   canGoPrevious: boolean
   onNextPage: () => void
   onPreviousPage: () => void
@@ -1203,7 +1161,7 @@ function FileTelemetryTable({
       hasNextPage={hasNextPage}
       nextPageToken={nextPageToken}
       canGoPrevious={canGoPrevious}
-      onNextPage={nextPageToken ? () => onNextPage() : undefined}
+      onNextPage={onNextPage}
       onPreviousPage={onPreviousPage}
       pending={pending}
     />
@@ -1213,37 +1171,38 @@ function FileTelemetryTable({
 const networkTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
   {
     key: "domain",
-    header: "Destination Domain",
-    className: "min-w-52",
+    header: "Destination domain",
+    layout: { minWidth: 208, contentMaxWidth: 320, pin: "start" },
     render: (event) => <TruncateCell value={networkDestinationDomain(event)} />,
   },
   {
     key: "ip",
     header: "Destination IP",
-    className: "min-w-40",
+    layout: { minWidth: 160, width: 160 },
     render: (event) => <TruncateCell value={networkDestinationIP(event)} />,
   },
   {
     key: "port",
-    header: "Destination Port",
-    className: "min-w-32",
+    header: "Destination port",
+    layout: { minWidth: 128, width: 128 },
     render: (event) => <TruncateCell value={networkDestinationPort(event)} />,
   },
   {
     key: "protocol",
     header: "Protocol",
-    className: "min-w-32",
+    layout: { minWidth: 128, width: 128 },
     render: (event) => <TruncateCell value={networkProtocol(event)} />,
   },
   {
     key: "action",
     header: "Action",
+    layout: { minWidth: 112, width: 112 },
     render: (event) => <SharedActionBadge action={event.action} />,
   },
   {
     key: "time",
-    header: "Seen At",
-    className: "min-w-40",
+    header: "Seen at",
+    layout: { minWidth: 160, width: 160 },
     render: (event) => <TelemetryTimestamp value={event.time} />,
   },
 ]
@@ -1258,8 +1217,8 @@ function NetworkTelemetryTable({
   pending,
 }: {
   events: RuntimeTelemetryEventItem[]
-  hasNextPage?: boolean
-  nextPageToken?: string
+  hasNextPage: boolean
+  nextPageToken: string
   canGoPrevious: boolean
   onNextPage: () => void
   onPreviousPage: () => void
@@ -1273,7 +1232,7 @@ function NetworkTelemetryTable({
       hasNextPage={hasNextPage}
       nextPageToken={nextPageToken}
       canGoPrevious={canGoPrevious}
-      onNextPage={nextPageToken ? () => onNextPage() : undefined}
+      onNextPage={onNextPage}
       onPreviousPage={onPreviousPage}
       pending={pending}
     />

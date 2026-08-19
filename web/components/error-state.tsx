@@ -55,36 +55,15 @@ const errorContent: Record<ErrorKind, ErrorContent> = {
   },
 }
 
-function errorKind(value?: string): ErrorKind {
-  const message = value?.toLocaleLowerCase() ?? ""
-
-  if (/\b(401|403|forbidden|permission|unauthori[sz]ed|access denied)\b/.test(message)) {
-    return "forbidden"
-  }
-  if (/\b(404|not found|does not exist)\b/.test(message)) {
-    return "not-found"
-  }
-  if (/\b(timeout|timed out|deadline exceeded)\b/.test(message)) {
-    return "timeout"
-  }
-  if (/\b(parse|invalid json|corrupt|malformed|decode)\b/.test(message)) {
-    return "unreadable"
-  }
-  if (/\b(network|fetch|connection|offline|unavailable|gateway)\b/.test(message)) {
-    return "network"
-  }
-  return "unknown"
-}
-
 export function ErrorState({
+  description,
   error,
   kind,
-  message,
   onRetry,
 }: {
+  description?: string
   error?: Error & { digest?: string }
   kind?: ErrorKind
-  message?: string
   onRetry?: () => void
 }) {
   useEffect(() => {
@@ -93,7 +72,7 @@ export function ErrorState({
     }
   }, [error])
 
-  const content = errorContent[kind ?? errorKind(message ?? error?.message)]
+  const content = errorContent[kind ?? "unknown"]
 
   return (
     <Empty className="min-h-80 gap-5 rounded-none border-0 py-10" role="alert">
@@ -104,7 +83,7 @@ export function ErrorState({
         <EmptyTitle className="text-base font-semibold">
           <h1>{content.title}</h1>
         </EmptyTitle>
-        <EmptyDescription>{content.description}</EmptyDescription>
+        <EmptyDescription>{description ?? content.description}</EmptyDescription>
         {error?.digest ? (
           <p className="text-muted-foreground font-mono text-xs">Reference: {error.digest}</p>
         ) : null}

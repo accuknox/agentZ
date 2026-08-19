@@ -6,7 +6,7 @@ import { EventTrailEvents } from "./event-trail-events"
 export const unstable_instant = {
   prefetch: "runtime",
   // A build cannot carry a stable authenticated session; live requests retain
-  // development validation against the real Organisation boundary.
+  // development validation against the real organization boundary.
   unstable_disableBuildValidation: true,
   samples: [
     {

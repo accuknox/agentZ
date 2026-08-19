@@ -26,16 +26,33 @@ const (
 	maxCanonicalBytes = maxExtractedBytes + (1 << 20)
 )
 
-// ErrLimitExceeded identifies imports whose upload or expanded contents exceed
-// the public API limits.
-var ErrLimitExceeded = errors.New("skill import limit exceeded")
+// ImportIssueKind identifies a stable skill-import failure category.
+type ImportIssueKind string
 
-// ErrInvalidTree identifies archives whose regular files do not form distinct
-// skill roots.
-var ErrInvalidTree = errors.New("invalid skill tree")
+const (
+	ImportIssueUnsupportedFileType  ImportIssueKind = "unsupported_file_type"
+	ImportIssueInvalidArchive       ImportIssueKind = "invalid_archive"
+	ImportIssueInvalidTree          ImportIssueKind = "invalid_tree"
+	ImportIssueMalformedFrontmatter ImportIssueKind = "malformed_frontmatter"
+	ImportIssueInvalidName          ImportIssueKind = "invalid_name"
+	ImportIssueInvalidDescription   ImportIssueKind = "invalid_description"
+	ImportIssueInvalidUTF8          ImportIssueKind = "invalid_utf8"
+	ImportIssueLimitExceeded        ImportIssueKind = "limit_exceeded"
+)
 
-// ErrMalformedMetadata identifies invalid SKILL.md metadata or body content.
-var ErrMalformedMetadata = errors.New("malformed skill metadata")
+// ImportIssue describes one safe, path-specific import failure.
+type ImportIssue struct {
+	Kind    ImportIssueKind
+	Path    string
+	Message string
+}
+
+func (i *ImportIssue) Error() string {
+	if i.Path == "" {
+		return i.Message
+	}
+	return i.Path + ": " + i.Message
+}
 
 // DecisionAction describes how an imported skill is applied.
 type DecisionAction string
@@ -100,7 +117,9 @@ func parse(name string, r io.Reader, maxBytes int64) (_ Bundle, retErr error) {
 		return Bundle{}, fmt.Errorf("spool skill import: %w", err)
 	}
 	if size > maxBytes {
-		return Bundle{}, fmt.Errorf("%w: archive exceeds its allowed size", ErrLimitExceeded)
+		return Bundle{}, &ImportIssue{
+			Kind: ImportIssueLimitExceeded, Path: name, Message: "Upload exceeds the 10 MiB limit.",
+		}
 	}
 	if _, err := spool.Seek(0, io.SeekStart); err != nil {
 		return Bundle{}, fmt.Errorf("rewind skill import: %w", err)
@@ -113,13 +132,17 @@ func parse(name string, r io.Reader, maxBytes int64) (_ Bundle, retErr error) {
 			return Bundle{}, fmt.Errorf("read skill markdown: %w", err)
 		}
 		if len(content) > maxSkillBytes {
-			return Bundle{}, fmt.Errorf("%w: skill.md exceeds 64 kib", ErrLimitExceeded)
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueLimitExceeded, Path: name, Message: "SKILL.md exceeds the 64 KiB limit.",
+			}
 		}
-		return parseMarkdown(content)
+		return parseMarkdown(name, content)
 	case ".zip":
-		return parseZIP(spool, size)
+		return parseZIP(name, spool, size)
 	default:
-		return Bundle{}, errors.New("skill import must be markdown or zip")
+		return Bundle{}, &ImportIssue{
+			Kind: ImportIssueUnsupportedFileType, Path: name, Message: "Import a .md or .zip file.",
+		}
 	}
 }
 
@@ -232,25 +255,29 @@ func ValidateNames(names []string) error {
 	return nil
 }
 
-func parseMarkdown(content []byte) (Bundle, error) {
-	name, description, err := inspectSkillFile(content)
+func parseMarkdown(name string, content []byte) (Bundle, error) {
+	metadata, canonical, err := parseSkillFile(name, content)
 	if err != nil {
-		return Bundle{}, errors.Join(ErrMalformedMetadata, err)
+		return Bundle{}, err
 	}
 	return Bundle{Skills: []Tree{{
-		Name:        name,
-		Description: description,
-		Files:       []File{{Path: skillFileName, Content: content}},
+		Name:        metadata.Name,
+		Description: strings.TrimSpace(metadata.Description),
+		Files:       []File{{Path: skillFileName, Content: canonical}},
 	}}}, nil
 }
 
-func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
+func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, error) {
 	zr, err := zip.NewReader(content, size)
 	if err != nil {
-		return Bundle{}, fmt.Errorf("open skill archive: %w", err)
+		return Bundle{}, &ImportIssue{
+			Kind: ImportIssueInvalidArchive, Path: archiveName, Message: "The ZIP archive is invalid.",
+		}
 	}
 	if len(zr.File) > maxEntries {
-		return Bundle{}, errors.New("skill archive contains too many entries")
+		return Bundle{}, &ImportIssue{
+			Kind: ImportIssueLimitExceeded, Path: archiveName, Message: "Archive contains more than 400 entries.",
+		}
 	}
 
 	files := make(map[string][]byte, min(len(zr.File), maxFiles))
@@ -259,26 +286,38 @@ func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
 	for _, entry := range zr.File {
 		name := strings.TrimSuffix(entry.Name, "/")
 		if entry.Flags&1 != 0 {
-			return Bundle{}, errors.New("encrypted skill archive entries are unsupported")
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidArchive, Path: entry.Name, Message: "Encrypted files are not supported.",
+			}
 		}
 		if entry.NonUTF8 || !utf8.ValidString(entry.Name) || len(entry.Name) > maxPathBytes {
-			return Bundle{}, errors.New("skill archive entry path is invalid")
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidTree, Path: archiveName, Message: "An archive path is not valid UTF-8 or exceeds 1,024 bytes.",
+			}
 		}
 		if !fs.ValidPath(name) || strings.ContainsRune(name, '\\') {
-			return Bundle{}, errors.New("skill archive entry path is invalid")
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidTree, Path: entry.Name, Message: "Archive paths must be relative slash-separated paths without traversal or backslashes.",
+			}
 		}
 		mode := entry.Mode()
 		if mode.IsDir() {
 			continue
 		}
 		if mode.Type() != 0 {
-			return Bundle{}, errors.New("skill archive entry is not a regular file")
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidTree, Path: entry.Name, Message: "Links and special files are not supported.",
+			}
 		}
 		if len(files) == maxFiles {
-			return Bundle{}, errors.New("skill archive contains too many files")
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueLimitExceeded, Path: archiveName, Message: "Archive contains more than 200 files.",
+			}
 		}
 		if _, ok := files[name]; ok {
-			return Bundle{}, errors.New("skill archive contains duplicate file paths")
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidTree, Path: name, Message: "Archive contains this path more than once.",
+			}
 		}
 
 		limit := uint64(maxFileBytes)
@@ -287,7 +326,9 @@ func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
 			roots = append(roots, strings.TrimSuffix(name, skillFileName))
 		}
 		if entry.UncompressedSize64 > limit || extracted+entry.UncompressedSize64 > maxExtractedBytes {
-			return Bundle{}, fmt.Errorf("%w: archive expands beyond its allowed size", ErrLimitExceeded)
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueLimitExceeded, Path: name, Message: "Archive exceeds its per-file or 20 MiB expanded-size limit.",
+			}
 		}
 		f, err := entry.Open()
 		if err != nil {
@@ -299,23 +340,31 @@ func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
 			return Bundle{}, fmt.Errorf("read skill archive entry: %w", err)
 		}
 		if len(data) > int(limit) {
-			return Bundle{}, fmt.Errorf("%w: archive entry exceeds its allowed size", ErrLimitExceeded)
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueLimitExceeded, Path: name, Message: "File exceeds its allowed size.",
+			}
 		}
 		extracted += uint64(len(data))
 		files[name] = data
 	}
 	if len(roots) == 0 {
-		return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains no skills"))
+		return Bundle{}, &ImportIssue{
+			Kind: ImportIssueInvalidTree, Path: archiveName, Message: "Archive does not contain a SKILL.md file.",
+		}
 	}
 
 	slices.Sort(roots)
 	for i, root := range roots {
 		if i > 0 && root == roots[i-1] {
-			return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains duplicate skill roots"))
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidTree, Path: root + skillFileName, Message: "Archive contains a duplicate skill root.",
+			}
 		}
 		for _, other := range roots[i+1:] {
 			if root == "" || strings.HasPrefix(other, root) {
-				return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains nested skill roots"))
+				return Bundle{}, &ImportIssue{
+					Kind: ImportIssueInvalidTree, Path: other + skillFileName, Message: "Skill roots cannot be nested.",
+				}
 			}
 		}
 	}
@@ -344,20 +393,38 @@ func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
 		)
 		skillFile, ok := files[root+skillFileName]
 		if !ok {
-			return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains an invalid skill tree"))
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidTree, Path: root, Message: "Skill root does not contain SKILL.md.",
+			}
 		}
-		tree.Name, tree.Description, err = inspectSkillFile(skillFile)
+		metadata, canonical, err := parseSkillFile(root+skillFileName, skillFile)
 		if err != nil {
-			return Bundle{}, errors.Join(ErrMalformedMetadata, err)
+			return Bundle{}, err
+		}
+		tree.Name = metadata.Name
+		tree.Description = strings.TrimSpace(metadata.Description)
+		for i := range tree.Files {
+			if tree.Files[i].Path == skillFileName {
+				tree.Files[i].Content = canonical
+				break
+			}
 		}
 		if _, ok := seenNames[tree.Name]; ok {
-			return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains duplicate skill names"))
+			return Bundle{}, &ImportIssue{
+				Kind: ImportIssueInvalidTree, Path: root + skillFileName, Message: "Archive contains more than one skill with this name.",
+			}
 		}
 		seenNames[tree.Name] = struct{}{}
 		bundle.Skills = append(bundle.Skills, tree)
 	}
 	if len(claimed) != len(files) {
-		return Bundle{}, errors.Join(ErrInvalidTree, errors.New("skill archive contains files outside a skill tree"))
+		for name := range files {
+			if _, ok := claimed[name]; !ok {
+				return Bundle{}, &ImportIssue{
+					Kind: ImportIssueInvalidTree, Path: name, Message: "Every file must belong to exactly one skill root.",
+				}
+			}
+		}
 	}
 	slices.SortFunc(
 		bundle.Skills,
@@ -368,32 +435,45 @@ func parseZIP(content io.ReaderAt, size int64) (Bundle, error) {
 	return bundle, nil
 }
 
-func inspectSkillFile(content []byte) (string, string, error) {
+func parseSkillFile(name string, content []byte) (skillFrontmatter, []byte, error) {
 	if len(content) > maxSkillBytes {
-		return "", "", errors.New("skill.md exceeds 64 kib")
+		return skillFrontmatter{}, nil, &ImportIssue{
+			Kind: ImportIssueLimitExceeded, Path: name, Message: "SKILL.md exceeds the 64 KiB limit.",
+		}
 	}
 	if !utf8.Valid(content) {
-		return "", "", errors.New("skill.md must be utf-8")
+		return skillFrontmatter{}, nil, &ImportIssue{
+			Kind: ImportIssueInvalidUTF8, Path: name, Message: "SKILL.md must be valid UTF-8.",
+		}
 	}
-	front, body, err := splitSkillFile(content)
+	content = bytes.TrimPrefix(content, []byte{0xef, 0xbb, 0xbf})
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	content = bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+	front, _, err := splitSkillFile(content)
 	if err != nil {
-		return "", "", err
+		return skillFrontmatter{}, nil, &ImportIssue{
+			Kind: ImportIssueMalformedFrontmatter, Path: name, Message: err.Error(),
+		}
 	}
 	var metadata skillFrontmatter
 	if err := yaml.Unmarshal(front, &metadata); err != nil {
-		return "", "", fmt.Errorf("decode skill frontmatter: %w", err)
+		return skillFrontmatter{}, nil, &ImportIssue{
+			Kind: ImportIssueMalformedFrontmatter, Path: name, Message: "Frontmatter must be valid YAML.",
+		}
 	}
 	if err := ValidateName(metadata.Name); err != nil {
-		return "", "", err
+		return skillFrontmatter{}, nil, &ImportIssue{
+			Kind: ImportIssueInvalidName, Path: name, Message: err.Error(),
+		}
 	}
 	description := strings.TrimSpace(metadata.Description)
 	if description == "" || len(description) > 1024 {
-		return "", "", errors.New("skill description must be 1-1024 characters")
+		return skillFrontmatter{}, nil, &ImportIssue{
+			Kind: ImportIssueInvalidDescription, Path: name, Message: "Skill description must be 1-1,024 characters.",
+		}
 	}
-	if strings.TrimSpace(string(body)) == "" {
-		return "", "", errors.New("skill body is required")
-	}
-	return metadata.Name, description, nil
+	metadata.Description = description
+	return metadata, content, nil
 }
 
 func splitSkillFile(content []byte) ([]byte, []byte, error) {
@@ -409,7 +489,11 @@ func splitSkillFile(content []byte) ([]byte, []byte, error) {
 }
 
 func rewriteName(content []byte, name string) ([]byte, error) {
-	front, body, err := splitSkillFile(content)
+	_, canonical, err := parseSkillFile(skillFileName, content)
+	if err != nil {
+		return nil, err
+	}
+	front, body, err := splitSkillFile(canonical)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +527,8 @@ func rewriteName(content []byte, name string) ([]byte, error) {
 	out.WriteString("---\n")
 	out.Write(body)
 	if out.Len() > maxSkillBytes {
-		return nil, errors.New("renamed skill.md exceeds 64 kib")
+		return nil, errors.New("renamed SKILL.md exceeds the 64 KiB limit")
 	}
-	return out.Bytes(), nil
+	_, rewritten, err := parseSkillFile(skillFileName, out.Bytes())
+	return rewritten, err
 }

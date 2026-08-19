@@ -1,0 +1,27 @@
+import type { Route } from "next"
+import Link from "next/link"
+import { ErrorState } from "@/components/error-state"
+import { Button } from "@/components/ui/button"
+
+export default async function NotFound({
+  params,
+}: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
+}) {
+  const { orgSlug } = await params
+
+  return (
+    <main className="flex min-h-80 w-full items-center justify-center px-6 py-12">
+      <div className="w-full max-w-2xl">
+        <ErrorState kind="not-found" />
+        <div className="flex justify-center">
+          <Button asChild>
+            <Link href={`/orgs/${encodeURIComponent(orgSlug)}` as Route}>
+              Return to organization
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </main>
+  )
+}

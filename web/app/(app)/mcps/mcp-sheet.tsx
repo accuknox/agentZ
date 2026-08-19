@@ -50,6 +50,12 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
@@ -62,6 +68,7 @@ import {
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
+import { DisabledReason } from "@/components/ui/tooltip"
 import { type McpFormState, type SubmitMcpFormAction } from "@/data/mcp.actions"
 import { mcpFormSchema, type McpFormInput, type McpFormValues } from "@/data/mcp.schema"
 import { useOAuthPopup } from "@/lib/use-oauth-popup"
@@ -99,9 +106,9 @@ const discoveryDebounceMs = 500
 const discoveryErrorMessage =
   "If the MCP server supports OAuth, please fill in the required fields in advanced section manually."
 const discoveryURLSchema = z
-  .url({ protocol: /^https$/, error: "MCP server URL must be a valid HTTPS URL" })
+  .url({ protocol: /^https?$/, error: "MCP server URL must be a valid HTTP(S) URL" })
   .refine(
-    (value) => !/^https:\/\/[^/?#]*@/.test(value),
+    (value) => !/^https?:\/\/[^/?#]*@/.test(value),
     "MCP server URL must not include credentials"
   )
 const oauthAdvancedFields = [
@@ -393,6 +400,7 @@ function ServerURLField({
     name: "endpoint_url",
   })
   const [serverPickerOpen, setServerPickerOpen] = React.useState(false)
+  const [highlightedResultIndex, setHighlightedResultIndex] = React.useState(0)
   const serverFieldRef = React.useRef<HTMLDivElement | null>(null)
   const serverInputRef = React.useRef<HTMLInputElement | null>(null)
   const serverPopoverRef = React.useRef<HTMLDivElement | null>(null)
@@ -441,19 +449,22 @@ function ServerURLField({
     serverInputRef.current?.focus()
   }
 
+  const highlightedResult = serverResults[highlightedResultIndex]
+
   return (
     <Field data-invalid={Boolean(endpointError)}>
       <FieldLabel htmlFor="mcp-endpoint-url" required>
-        MCP Server
+        MCP connection endpoint
       </FieldLabel>
       <Popover open={serverPickerOpen} onOpenChange={setServerPickerOpen}>
         <PopoverAnchor asChild>
-          <div ref={serverFieldRef} className="relative">
-            {renderMcpServerIcon((field.value ?? "").trim(), {
-              className:
-                "text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2",
-            })}
-            <Input
+          <InputGroup ref={serverFieldRef}>
+            <InputGroupAddon className="pr-0">
+              {renderMcpServerIcon((field.value ?? "").trim(), {
+                className: "pointer-events-none size-4",
+              })}
+            </InputGroupAddon>
+            <InputGroupInput
               id="mcp-endpoint-url"
               name={field.name}
               ref={(node) => {
@@ -462,6 +473,7 @@ function ServerURLField({
               }}
               value={field.value ?? ""}
               onFocus={() => {
+                setHighlightedResultIndex(0)
                 setServerPickerOpen(true)
               }}
               onBlur={(event) => {
@@ -477,16 +489,33 @@ function ServerURLField({
                   onDiscoveryURLOverrideChangeAction(undefined)
                 }
                 if (!serverPickerOpen) {
+                  setHighlightedResultIndex(0)
                   setServerPickerOpen(true)
                 }
               }}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
+                  event.preventDefault()
                   setServerPickerOpen(false)
+                  serverInputRef.current?.focus()
+                } else if (event.key === "ArrowDown") {
+                  event.preventDefault()
+                  setServerPickerOpen(true)
+                  setHighlightedResultIndex((index) =>
+                    serverResults.length === 0 ? 0 : Math.min(index + 1, serverResults.length - 1)
+                  )
+                } else if (event.key === "ArrowUp") {
+                  event.preventDefault()
+                  setHighlightedResultIndex((index) => Math.max(index - 1, 0))
+                } else if (event.key === "Enter" && serverPickerOpen) {
+                  const result = serverResults[highlightedResultIndex]
+                  if (result) {
+                    event.preventDefault()
+                    selectServer(result)
+                  }
                 }
               }}
               placeholder="https://example.com/mcp"
-              className={authMode === "oauth" ? "pr-25 pl-9" : "pr-10 pl-9"}
               aria-invalid={Boolean(endpointError)}
               aria-required="true"
               aria-expanded={serverPickerOpen}
@@ -494,29 +523,29 @@ function ServerURLField({
               aria-controls="mcp-endpoint-url-suggestions"
               role="combobox"
             />
-            <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2" />
-            {authMode === "oauth" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="absolute inset-y-0 right-8 my-auto"
-                onClick={onRefreshDiscoveryAction}
-                disabled={isRefreshingDiscovery}
-                aria-label="Discover OAuth metadata"
-              >
-                {discoveryIconState === "loading" ? (
-                  <Spinner aria-hidden="true" />
-                ) : discoveryIconState === "success" ? (
-                  <Check />
-                ) : discoveryIconState === "error" ? (
-                  <CircleAlert />
-                ) : (
-                  <RefreshCw />
-                )}
-              </Button>
-            ) : null}
-          </div>
+            <InputGroupAddon align="inline-end" className="gap-0 pl-0">
+              {authMode === "oauth" ? (
+                <InputGroupButton
+                  size="icon-xs"
+                  onClick={onRefreshDiscoveryAction}
+                  disabled={isRefreshingDiscovery}
+                  aria-label="Discover OAuth metadata"
+                  aria-busy={isRefreshingDiscovery}
+                >
+                  {discoveryIconState === "loading" ? (
+                    <Spinner aria-hidden="true" />
+                  ) : discoveryIconState === "success" ? (
+                    <Check />
+                  ) : discoveryIconState === "error" ? (
+                    <CircleAlert />
+                  ) : (
+                    <RefreshCw />
+                  )}
+                </InputGroupButton>
+              ) : null}
+              <ChevronDown className="pointer-events-none size-4" aria-hidden="true" />
+            </InputGroupAddon>
+          </InputGroup>
         </PopoverAnchor>
         <PopoverContent
           ref={serverPopoverRef}
@@ -540,7 +569,14 @@ function ServerURLField({
           }}
           sideOffset={8}
         >
-          <Command shouldFilter={false}>
+          <Command
+            shouldFilter={false}
+            value={
+              highlightedResult?.kind === "catalog"
+                ? highlightedResult.server.mcpUrl
+                : highlightedResult?.mcpUrl
+            }
+          >
             <CommandList id="mcp-endpoint-url-suggestions">
               <CommandEmpty>
                 No known MCP servers match. You can still use the typed URL.
@@ -1056,8 +1092,46 @@ export function McpSheet({
     setClientSubmitError(undefined)
   }
 
-  const title = "Connect MCP server"
-  const submitLabel = "Connect"
+  const title = "Add MCP connection"
+  const submitLabel = "Add connection"
+  const submitPending =
+    isSubmitting ||
+    isRefreshing ||
+    oauthPopupFlowId !== undefined ||
+    isDiscoveryPendingForCurrentURL
+  const authenticationIncomplete =
+    authMode === "bearer"
+      ? !form.getValues("bearer_token")?.trim()
+      : requiredConditionalFields.some((fieldName) => !form.getValues(fieldName)?.trim())
+  const submitDisabledReason =
+    submitPending || isValid
+      ? undefined
+      : !trimmedEndpointURL
+        ? "Enter the MCP endpoint URL."
+        : !validEndpointURL
+          ? "Enter a valid HTTP(S) endpoint URL."
+          : authenticationIncomplete
+            ? "Complete the required authentication fields."
+            : authMode === "oauth" &&
+                (oauthDiscoveryState === "idle" || oauthDiscoveryState === "discovering")
+              ? "Complete OAuth discovery for this endpoint or enter the required fields manually."
+              : authMode === "oauth" && oauthQuery.isError
+                ? "OAuth discovery failed for this endpoint. Refresh discovery or enter the required fields manually."
+                : !form.getValues("name").trim()
+                  ? "Enter a connection name."
+                  : "Fix the invalid header or provider fields before adding the connection."
+  const submitButton = (
+    <Button type="submit" disabled={!isValid || submitPending} aria-busy={submitPending}>
+      {submitPending ? <Spinner /> : <Save data-icon="inline-start" />}
+      {oauthPopupFlowId
+        ? "Waiting for OAuth…"
+        : isDiscoveryPendingForCurrentURL
+          ? "Discovering OAuth…"
+          : isSubmitting || isRefreshing
+            ? "Adding connection…"
+            : submitLabel}
+    </Button>
+  )
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
@@ -1386,30 +1460,11 @@ export function McpSheet({
             </Alert>
           ) : null}
           <div className="flex justify-end">
-            <Button
-              type="submit"
-              disabled={
-                !isValid ||
-                isSubmitting ||
-                isRefreshing ||
-                oauthPopupFlowId !== undefined ||
-                isDiscoveryPendingForCurrentURL
-              }
-            >
-              {isSubmitting ||
-              isRefreshing ||
-              oauthPopupFlowId ||
-              isDiscoveryPendingForCurrentURL ? (
-                <Spinner />
-              ) : (
-                <Save data-icon="inline-start" />
-              )}
-              {oauthPopupFlowId
-                ? "Waiting for OAuth"
-                : isSubmitting || isRefreshing
-                  ? `${submitLabel}ing`
-                  : submitLabel}
-            </Button>
+            {submitDisabledReason ? (
+              <DisabledReason reason={submitDisabledReason}>{submitButton}</DisabledReason>
+            ) : (
+              submitButton
+            )}
           </div>
         </form>
       </SheetContent>

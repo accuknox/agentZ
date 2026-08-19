@@ -192,7 +192,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
   const scopes = workspace
     ? [{ id: workspace.id, label: workspace.name, detail: "Workspace" }]
     : [
-        { id: "organisation", label: data.organization.name, detail: "Organisation" },
+        { id: "organisation", label: data.organization.name, detail: "Organization" },
         ...data.workspaces.map((item) => ({
           id: item.id,
           label: item.name,

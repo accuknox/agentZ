@@ -44,7 +44,7 @@ async function Pools({
     return (
       <>
         <PageHeader />
-        <ErrorState message={pools.error.message} />
+        <ErrorState description={pools.error.message} />
       </>
     )
   }
@@ -52,7 +52,7 @@ async function Pools({
     return (
       <>
         <PageHeader />
-        <ErrorState message={providers.error.message} />
+        <ErrorState description={providers.error.message} />
       </>
     )
   }

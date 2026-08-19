@@ -3,36 +3,23 @@
 import * as React from "react"
 import { experimental_streamedQuery as streamedQuery } from "@tanstack/react-query"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
+import { getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { watchSecrets, type SecretListItem, type WatchSecretsEvent } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { TokenTablePagination } from "@/components/table-pagination"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { createSecretColumns } from "./secret-columns"
 import type { DeleteSecretFormAction } from "@/data/types"
 
-const columnClassName: Record<string, string> = {
-  key: "w-48",
-  type: "w-24",
-  status: "w-28",
-  hosts: "min-w-0 w-0",
-  created_by: "hidden lg:table-cell w-28",
-  last_modified_by: "hidden lg:table-cell w-28",
-  age: "w-28",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  key: { minWidth: 192, contentMaxWidth: 288, pin: "start" },
+  type: { minWidth: 96, width: 96 },
+  status: { minWidth: 112, width: 112 },
+  hosts: { minWidth: 192, contentMaxWidth: 320 },
+  created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
+  last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
+  age: { minWidth: 112, width: 112 },
+  actions: { minWidth: 64, width: 64, pin: "end" },
 }
 
 const watchSecretsQueryOptions = (
@@ -112,7 +99,6 @@ export function SecretTable({
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([])
   const query = useQuery(watchSecretsQueryOptions(agentName, workspaceId, secrets))
   const rows = query.data ?? secrets
   const columns = React.useMemo(
@@ -125,58 +111,16 @@ export function SecretTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
   })
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="w-full min-w-0 border-b">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id]}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={`h-11 px-4 py-1.5 align-middle ${columnClassName[cell.column.id]}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel="Secrets"
+      emptyState={<p className="text-muted-foreground py-8 text-center">No secrets found.</p>}
+      layout={layout}
+      pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
+      rows={rows}
+      table={table}
+    />
   )
 }

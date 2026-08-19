@@ -89,7 +89,7 @@ export default async function WorkspaceLayout({
               kind={noAccessOrganization ? "empty" : "forbidden"}
               title={
                 disabled
-                  ? "Organisation Membership disabled"
+                  ? "Organization membership disabled"
                   : noAccessOrganization
                     ? "Access not assigned"
                     : "Access revoked"
@@ -132,10 +132,6 @@ export default async function WorkspaceLayout({
     <>
       <ThemeSync theme={preferences.theme} />
       <AppShell
-        breadcrumbLabels={{
-          1: result.scope.organization.name,
-          3: result.workspace.name,
-        }}
         sidebar={
           <AppSidebar
             activeOrganizationId={result.scope.organization.id}

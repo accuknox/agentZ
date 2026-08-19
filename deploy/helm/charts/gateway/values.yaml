@@ -90,6 +90,7 @@ config:
   externalJWTIssuer: ""
   externalJWTAudience: agentz-gateway
   internalK8sTokenAudience: agentz-gateway
+  allowedWebOrigins: []
   targetOverride: ""
   filesystemTargetOverride: ""
   agentImage: ""

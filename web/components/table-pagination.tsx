@@ -17,6 +17,8 @@ export function TablePagination({
   goPrevious: () => void
   pending?: boolean
 }) {
+  if (!canGoNext && !canGoPrevious) return null
+
   return (
     <nav aria-label="Table pagination" className="flex items-center justify-end gap-2 px-2">
       <Button variant="ghost" size="sm" onClick={goPrevious} disabled={!canGoPrevious || pending}>

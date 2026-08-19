@@ -44,6 +44,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Slider } from "@/components/ui/slider"
 import { Spinner } from "@/components/ui/spinner"
+import { dayjs } from "@/lib/format"
 import type {
   CreateWorkflowScheduleFormState,
   UpdateWorkflowScheduleFormState,
@@ -154,7 +155,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
       return {
         ...createDefaults,
         workflow_name: firstWorkflowName,
-        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        time_zone: dayjs.tz.guess() || "UTC",
       }
     }
 

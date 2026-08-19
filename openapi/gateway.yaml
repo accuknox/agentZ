@@ -22476,9 +22476,9 @@ components:
       type: object
     SkillName:
       description: Immutable Skill resource name.
-      maxLength: 32
+      maxLength: 63
       minLength: 1
-      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
       type: string
     SkillReferences:
       additionalProperties: false

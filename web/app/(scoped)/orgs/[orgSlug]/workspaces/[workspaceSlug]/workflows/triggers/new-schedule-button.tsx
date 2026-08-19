@@ -4,6 +4,7 @@ import * as React from "react"
 import { Plus } from "lucide-react"
 import type { WorkflowSummary } from "@/lib/gateway/client"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/tooltip"
 import type { CreateWorkflowScheduleFormState, WorkflowInputContractResult } from "@/data/types"
 import { ScheduleSheet } from "./schedule-sheet"
 
@@ -27,17 +28,22 @@ export function NewScheduleButton({
 }) {
   const [open, setOpen] = React.useState(false)
   const disabled = workflows.length === 0
+  const button = (
+    <Button onClick={() => setOpen(true)} disabled={disabled}>
+      <Plus data-icon="inline-start" />
+      New schedule
+    </Button>
+  )
 
   return (
     <>
-      <Button
-        onClick={() => setOpen(true)}
-        disabled={disabled}
-        title={disabled ? "Create a workflow for this agent before adding a schedule" : undefined}
-      >
-        <Plus data-icon="inline-start" />
-        New schedule
-      </Button>
+      {disabled ? (
+        <DisabledReason reason="Create a workflow for this agent before adding a schedule.">
+          {button}
+        </DisabledReason>
+      ) : (
+        button
+      )}
       <ScheduleSheet
         agentName={agentName}
         mode="create"

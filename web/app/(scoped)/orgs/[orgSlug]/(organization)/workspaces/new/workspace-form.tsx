@@ -108,7 +108,7 @@ export function WorkspaceForm({
                 setName(event.target.value)
                 setClientErrors(undefined)
               }}
-              placeholder="Platform Engineering"
+              placeholder="e.g. Research lab"
               value={name}
             />
             <FieldError>{errors?.name?.[0]}</FieldError>
@@ -132,7 +132,7 @@ export function WorkspaceForm({
           </Field>
 
           <div className="grid gap-4 pt-2">
-            <h3 className="font-medium">Inherited Organisation resources</h3>
+            <h3 className="font-medium">Inherited organization resources</h3>
             {inheritanceCategories.map(({ icon, key, label }) => (
               <Field key={key}>
                 <FieldLabel htmlFor={`inherited-${key}`}>{label}</FieldLabel>
@@ -219,7 +219,7 @@ export function WorkspaceForm({
             </DialogClose>
             <Button data-dialog-submit disabled={pending} form="workspace-form" type="submit">
               {pending ? <Spinner /> : <Plus data-icon="inline-start" />}
-              {pending ? "Creating..." : "Confirm and create"}
+              {pending ? "Creating…" : "Confirm and create"}
             </Button>
           </DialogFooter>
         </DialogContent>

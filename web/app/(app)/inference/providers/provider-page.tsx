@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { CircleAlert } from "lucide-react"
-import { AdministrationPageHeader } from "@/components/administration"
+import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listInferenceProvidersPageCachedQuery } from "@/data/inference-provider.queries"
@@ -8,21 +8,25 @@ import { NewInferenceProviderButton } from "./new-provider-button"
 import { InferenceProviderTable } from "./provider-table"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
 import type { InferenceProviderActionScope } from "@/data/inference-provider.actions"
+import { resourceLabels } from "@/lib/resource-labels"
 
 export default function InferenceProvidersPage({
   capabilities,
   pageToken,
+  pageScope,
   scope,
 }: {
   capabilities: ResourceCapabilities
   pageToken?: string
+  pageScope: AdministrationPageScope
   scope: InferenceProviderActionScope
 }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <AdministrationPageHeader
         actions={capabilities.create ? <NewInferenceProviderButton scope={scope} /> : undefined}
-        title="Providers"
+        scope={pageScope}
+        title={resourceLabels.inference.collection}
       />
       <Suspense fallback={<TableSkeleton />}>
         <Providers pageToken={pageToken} scope={scope} />

@@ -161,7 +161,7 @@ export function AssignmentForm(props: AssignmentFormProps) {
       <div className="flex justify-end">
         <Button disabled={pending || !changed || assignmentRequired} type="submit">
           {pending ? <Spinner /> : <Save data-icon="inline-start" />}
-          {pending ? "Saving..." : "Save assignments"}
+          {pending ? "Saving…" : "Save assignments"}
         </Button>
       </div>
     </form>

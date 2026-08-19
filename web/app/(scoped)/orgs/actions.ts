@@ -53,7 +53,7 @@ import {
 
 const organizationNameSchema = z
   .string()
-  .min(1, "Enter an Organisation name.")
+  .min(1, "Enter an Organization name.")
   .max(100, "Use 100 characters or fewer.")
   .refine((name) => name.trim() === name, {
     message: "Remove leading or trailing spaces.",
@@ -148,7 +148,7 @@ const socialAdmissionFormSchema = z
         if (organization) return
         ctx.addIssue({
           code: "custom",
-          message: "Enter an Organisation for every GitHub rule.",
+          message: "Enter an Organization for every GitHub rule.",
           path: ["githubOrganizations", index],
         })
       })
@@ -587,7 +587,7 @@ export async function createOrganizationLogoUploadAction(
 
   const editable = await getEditableOrganization(parsed.data.organizationId)
   if (!editable) {
-    return { error: "You can no longer edit this Organisation." }
+    return { error: "You can no longer edit this Organization." }
   }
   const { organization, organizationSession } = editable
 
@@ -614,7 +614,7 @@ export async function updateOrganizationLogoAction(
 
   const editable = await getEditableOrganization(organizationId)
   if (!editable) {
-    return { error: "You can no longer edit this Organisation." }
+    return { error: "You can no longer edit this Organization." }
   }
   const { organization, organizationSession } = editable
 
@@ -636,7 +636,7 @@ export async function updateOrganizationLogoAction(
       try {
         await deleteOrganizationLogoUpload(organization.id, organizationSession.session.user.id)
       } catch {
-        console.error("Organisation profile staging cleanup failed", {
+        console.error("Organization profile staging cleanup failed", {
           actorId: organizationSession.session.user.id,
           organizationId: organization.id,
         })
@@ -660,13 +660,13 @@ export async function updateOrganizationLogoAction(
       try {
         await deleteOrganizationLogo(logo)
       } catch {
-        console.error("Unreferenced Organisation profile image cleanup failed", {
+        console.error("Unreferenced Organization profile image cleanup failed", {
           actorId: organizationSession.session.user.id,
           organizationId: organization.id,
         })
       }
     }
-    return { error: "The Organisation profile image could not be saved. Try again." }
+    return { error: "The Organization profile image could not be saved. Try again." }
   }
 
   try {
@@ -684,7 +684,7 @@ export async function updateOrganizationLogoAction(
         result: "succeeded",
       })
   } catch {
-    console.error("Organisation profile audit write failed", {
+    console.error("Organization profile audit write failed", {
       action: "organization.logo.update",
       actorId: organizationSession.session.user.id,
       organizationId: organization.id,
@@ -701,7 +701,7 @@ export async function updateOrganizationLogoAction(
         await deleteOrganizationLogo(organization.logo)
       }
     } catch {
-      console.error("Previous Organisation profile image cleanup failed", {
+      console.error("Previous Organization profile image cleanup failed", {
         actorId: organizationSession.session.user.id,
         organizationId: organization.id,
       })
@@ -730,7 +730,7 @@ export async function updateOrganizationNameAction(
   if (!editable) {
     return {
       name: parsed.data.name,
-      errors: { form: "You can no longer edit this Organisation." },
+      errors: { form: "You can no longer edit this Organization." },
     }
   }
   const { organization, organizationSession } = editable
@@ -749,7 +749,7 @@ export async function updateOrganizationNameAction(
   } catch {
     return {
       name: parsed.data.name,
-      errors: { form: "The Organisation name could not be saved. Try again." },
+      errors: { form: "The Organization name could not be saved. Try again." },
     }
   }
 
@@ -770,7 +770,7 @@ export async function updateOrganizationNameAction(
         after: [{ field: "name", value: parsed.data.name }],
       })
   } catch {
-    console.error("Organisation profile audit write failed", {
+    console.error("Organization profile audit write failed", {
       action: "organization.rename",
       actorId: organizationSession.session.user.id,
       organizationId: organization.id,

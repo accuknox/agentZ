@@ -1223,6 +1223,15 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 	}
 	plans := make([]immutableImportPlan, 0, len(bundle.Skills))
 	for _, tree := range bundle.Skills {
+		if err := skill.ValidateName(tree.Name); err != nil {
+			return newAPIError(
+				http.StatusBadRequest,
+				"malformed_skill_metadata",
+				"The skill could not be imported.",
+				err,
+				gatewayapi.FieldError{Field: "file:" + tree.Name + "/SKILL.md", Message: err.Error()},
+			)
+		}
 		current := &agentzv1alpha1.Skill{}
 		key := types.NamespacedName{Namespace: namespace, Name: tree.Name}
 		err := s.k8sClient.Get(ctx, key, current)
@@ -1305,6 +1314,16 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 
 	for i, plan := range plans {
 		storagePath := s.cfg.SkillStore.StoragePath(namespace, plan.tree.Name, plan.version)
+		if err := skill.ValidateName(plan.tree.Name); err != nil {
+			cleanupErr := s.rollbackImmutableImport(ctx, namespace, plans[:i], plans)
+			return newAPIError(
+				http.StatusBadRequest,
+				"malformed_skill_metadata",
+				"The skill could not be imported.",
+				errors.Join(err, cleanupErr),
+				gatewayapi.FieldError{Field: "file:" + plan.tree.Name + "/SKILL.md", Message: err.Error()},
+			)
+		}
 		if plan.current == nil {
 			item := &agentzv1alpha1.Skill{
 				TypeMeta: metav1.TypeMeta{
@@ -1518,20 +1537,35 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 		}
 		status := http.StatusBadRequest
 		code := "invalid_archive"
+		message := "The skill could not be imported."
+		fields := []gatewayapi.FieldError{}
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			status = http.StatusRequestEntityTooLarge
 			code = "upload_too_large"
 		}
-		switch {
-		case errors.Is(err, skill.ErrLimitExceeded):
-			status = http.StatusRequestEntityTooLarge
-			code = "upload_too_large"
-		case errors.Is(err, skill.ErrInvalidTree):
-			code = "invalid_skill_tree"
-		case errors.Is(err, skill.ErrMalformedMetadata):
-			code = "malformed_skill_metadata"
+		var issue *skill.ImportIssue
+		if errors.As(err, &issue) {
+			fields = append(fields, gatewayapi.FieldError{
+				Field: "file:" + issue.Path, Message: issue.Message,
+			})
+			switch issue.Kind {
+			case skill.ImportIssueUnsupportedFileType:
+				code = "unsupported_file_type"
+			case skill.ImportIssueInvalidArchive:
+				code = "invalid_archive"
+			case skill.ImportIssueInvalidTree:
+				code = "invalid_skill_tree"
+			case skill.ImportIssueLimitExceeded:
+				status = http.StatusRequestEntityTooLarge
+				code = "upload_too_large"
+			case skill.ImportIssueMalformedFrontmatter,
+				skill.ImportIssueInvalidName,
+				skill.ImportIssueInvalidDescription,
+				skill.ImportIssueInvalidUTF8:
+				code = "malformed_skill_metadata"
+			}
 		}
-		writeError(w, r, newAPIError(status, code, "skill upload is invalid", err))
+		writeError(w, r, newAPIError(status, code, message, err, fields...))
 		return skill.Bundle{}, false
 	}
 	if !hasFile {

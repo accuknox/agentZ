@@ -5,14 +5,7 @@ import { toast } from "sonner"
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
+import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
   experimental_streamedQuery as streamedQuery,
   queryOptions,
@@ -39,6 +32,7 @@ import {
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { TokenTablePagination } from "@/components/table-pagination"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { useTokenPagination } from "@/lib/use-token-pagination"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,25 +53,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRelativeTime,
-  TableRow,
-} from "@/components/ui/table"
+import { RelativeDateTime } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DeleteWorkflowRunActionState } from "@/data/workflow-run.actions"
 
-const columnClassName: Record<string, string> = {
-  name: "min-w-56",
-  workflow_name: "min-w-44",
-  status: "w-40",
-  duration_seconds: "w-28",
-  created_at: "w-36",
-  actions: "w-20",
+const layout: Record<string, AdminColumnLayout> = {
+  name: { minWidth: 224, contentMaxWidth: 320, pin: "start" },
+  workflow_name: { minWidth: 176, contentMaxWidth: 288 },
+  status: { minWidth: 160, width: 160 },
+  duration_seconds: { minWidth: 112, width: 112 },
+  created_at: { minWidth: 144, width: 144 },
+  actions: { minWidth: 64, width: 64, pin: "end" },
 }
 
 const runStatusMeta = {
@@ -141,7 +127,6 @@ export function RunsTable({
 }) {
   "use no memo"
 
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at", desc: true }])
   const query = useQuery(
     queryOptions({
       enabled: workflowRuns.length > 0,
@@ -207,7 +192,6 @@ export function RunsTable({
       staleTime: Infinity,
     })
   )
-  const router = useRouter()
   const { canGoPrevious, goPrevious } = useTokenPagination({
     pageTokenKey: "page_token",
     tokenStackKey: "token_stack",
@@ -242,79 +226,18 @@ export function RunsTable({
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
   })
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="w-full min-w-0 border-b">
-        <Table className="table-auto">
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={`h-8 px-4 ${columnClassName[header.column.id] ?? ""}`}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => {
-                const graphHref = runGraphHref(basePath, agentName, workflowName, row.original.name)
-
-                return (
-                  <TableRow
-                    key={row.id}
-                    className="cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      router.push(graphHref)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") {
-                        return
-                      }
-
-                      event.preventDefault()
-                      router.push(graphHref)
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={`h-11 px-4 py-1.5 ${columnClassName[cell.column.id] ?? ""}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <span className="text-muted-foreground">_</span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
-    </div>
+    <AdminDataGrid
+      ariaLabel="Workflow runs"
+      emptyState={<p className="text-muted-foreground py-8 text-center">No runs found.</p>}
+      layout={layout}
+      pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
+      rowHref={(run) => runGraphHref(basePath, agentName, workflowName, run.name)}
+      rows={rows}
+      table={table}
+    />
   )
 }
 
@@ -364,8 +287,6 @@ function createColumns({
       accessorFn: (row) => row.duration_seconds ?? Number.POSITIVE_INFINITY,
       id: "duration_seconds",
       header: "Duration",
-      sortingFn: "basic",
-      sortUndefined: "last",
       cell: ({ row }) => {
         const durationSeconds = row.original.duration_seconds
         if (durationSeconds === undefined) {
@@ -378,9 +299,8 @@ function createColumns({
     {
       accessorKey: "created_at",
       header: "Age",
-      sortingFn: "datetime",
       cell: ({ row }) => {
-        return <TableRelativeTime value={row.original.created_at} />
+        return <RelativeDateTime value={row.original.created_at} />
       },
     },
     {

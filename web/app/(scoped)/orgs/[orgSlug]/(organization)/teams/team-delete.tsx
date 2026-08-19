@@ -16,7 +16,7 @@ export function TeamDelete({
 }) {
   return (
     <section className="flex max-w-3xl flex-row items-center justify-between gap-3 px-4 pb-6 md:px-6">
-      <h2 className="text-lg font-medium">Destructive</h2>
+      <h2 className="text-lg font-medium">Delete team</h2>
       <DestructiveConfirmationDialog
         action={deleteTeamAction.bind(null, orgSlug, teamId)}
         confirmation={confirmation}

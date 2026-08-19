@@ -19,6 +19,11 @@ import {
 import { usePathname, useSearchParams } from "next/navigation"
 import * as z from "zod"
 import { watchAgentsQueryOptions } from "@/components/agent-readiness"
+import {
+  AdministrationPageHeader,
+  AdministrationState,
+  type AdministrationPageScope,
+} from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -47,6 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { DisabledReason } from "@/components/ui/tooltip"
 import {
   deleteImmutableSkills,
   deleteAgentMutableSkills,
@@ -64,6 +70,7 @@ import {
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { SkillImportDialog } from "./skill-import-dialog"
 import { SkillTable } from "./skill-table"
+import { resourceLabels } from "@/lib/resource-labels"
 
 const pageSize = 50
 const allAgentsValue = "__all_agents__"
@@ -86,11 +93,13 @@ export function SkillsClient({
   agents,
   canCreateImmutable,
   canReadImmutable,
+  pageScope,
   workspaceId,
 }: {
   agents: Agent[]
   canCreateImmutable: boolean
   canReadImmutable: boolean
+  pageScope: AdministrationPageScope
   workspaceId?: string
 }) {
   const router = useRouter()
@@ -328,21 +337,22 @@ export function SkillsClient({
 
   return (
     <>
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Skills</h1>
-        </div>
-        <SkillsActions
-          canDelete={canDeleteSelected}
-          canImport={canImport}
-          disabled={!actionsEnabled}
-          exporting={exporting}
-          hasSelection={activeSelected.size > 0}
-          onDelete={() => setDeleteKeys([...activeSelected])}
-          onExport={() => void exportSkills([...activeSelected])}
-          onImport={() => setImportOpen(true)}
-        />
-      </div>
+      <AdministrationPageHeader
+        actions={
+          <SkillsActions
+            canDelete={canDeleteSelected}
+            canImport={canImport}
+            disabled={!actionsEnabled}
+            exporting={exporting}
+            hasSelection={activeSelected.size > 0}
+            onDelete={() => setDeleteKeys([...activeSelected])}
+            onExport={() => void exportSkills([...activeSelected])}
+            onImport={() => setImportOpen(true)}
+          />
+        }
+        scope={pageScope}
+        title={resourceLabels.skill.collection}
+      />
       <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
           {workspaceId ? (
@@ -401,23 +411,39 @@ export function SkillsClient({
           {error}
         </div>
       ) : null}
-      <SkillTable
-        data={skills}
-        disabled={!ready}
-        error={query.error}
-        exporting={exporting}
-        hasNextPage={query.data?.hasNextPage ?? false}
-        loading={query.isPending}
-        nextPageToken={query.data?.nextPageToken ?? ""}
-        selected={activeSelected}
-        showAgents={type === "immutable" && agentName === allAgentsValue}
-        showImmutable={type === "immutable"}
-        showOrganisation={workspaceId !== undefined}
-        setSelected={setSelected}
-        onDelete={(key) => setDeleteKeys([key])}
-        onEdit={setEditingSkill}
-        onExport={(key) => void exportSkills([key])}
-      />
+      {!query.isPending && !query.error && skills.length === 0 ? (
+        <AdministrationState
+          actions={
+            canImport ? (
+              <Button onClick={() => setImportOpen(true)}>
+                <Upload />
+                {resourceLabels.skill.action}
+              </Button>
+            ) : null
+          }
+          description="Import a Markdown or ZIP skill bundle to get started."
+          kind="empty"
+          title="No skills yet"
+        />
+      ) : (
+        <SkillTable
+          data={skills}
+          disabled={!ready}
+          error={query.error}
+          exporting={exporting}
+          hasNextPage={query.data?.hasNextPage ?? false}
+          loading={query.isPending}
+          nextPageToken={query.data?.nextPageToken ?? ""}
+          selected={activeSelected}
+          showAgents={type === "immutable" && agentName === allAgentsValue}
+          showImmutable={type === "immutable"}
+          showOrganization={workspaceId !== undefined}
+          setSelected={setSelected}
+          onDelete={(key) => setDeleteKeys([key])}
+          onEdit={setEditingSkill}
+          onExport={(key) => void exportSkills([key])}
+        />
+      )}
       <SkillImportDialog
         agents={liveAgents}
         canImportImmutable={canCreateImmutable && canReadImmutable}
@@ -471,37 +497,46 @@ function SkillsActions({
   onExport: () => void
   onImport: () => void
 }) {
+  const blocker = disabled
+    ? "Wait for the agent to become ready before managing its skills."
+    : !hasSelection
+      ? "Select one or more skills to export or delete."
+      : undefined
+  const trigger = (
+    <Button variant="ghost" size="icon" disabled={Boolean(blocker)}>
+      <span className="sr-only">Open skills menu</span>
+      <MoreHorizontal />
+    </Button>
+  )
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" disabled={disabled}>
-          <span className="sr-only">Open skills menu</span>
-          <MoreHorizontal />
+    <div className="flex items-center gap-2">
+      {canImport ? (
+        <Button onClick={onImport}>
+          <Upload />
+          {resourceLabels.skill.action}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuGroup>
-          <DropdownMenuItem
-            disabled={!canImport}
-            onSelect={(event) => {
-              event.preventDefault()
-              onImport()
-            }}
-          >
-            <Upload />
-            Import
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!hasSelection || exporting} onSelect={onExport}>
-            {exporting ? <Spinner /> : <Download />}
-            Export
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      ) : null}
+      <DropdownMenu>
+        {blocker ? (
+          <DisabledReason reason={blocker}>{trigger}</DisabledReason>
+        ) : (
+          <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+        )}
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem aria-busy={exporting} disabled={exporting} onSelect={onExport}>
+              {exporting ? <Spinner /> : <Download />}
+              {exporting ? "Exporting…" : "Export"}
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
+              <Trash2 />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 

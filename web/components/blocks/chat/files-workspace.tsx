@@ -1132,7 +1132,7 @@ function DirectoryTree({
         className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
         role="status"
       >
-        <Spinner className="size-3" /> Loading...
+        <Spinner className="size-3" /> Loading…
       </div>
     )
   }
@@ -1568,7 +1568,7 @@ function EditorPane({
               {save.isPending ? <Spinner aria-hidden="true" /> : <Save />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{save.isPending ? "Saving..." : "Save file"}</TooltipContent>
+          <TooltipContent>{save.isPending ? "Saving…" : "Save file"}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>

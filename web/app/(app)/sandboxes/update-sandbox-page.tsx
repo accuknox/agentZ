@@ -4,7 +4,8 @@ import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
-import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
+import { listSkills } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
@@ -63,8 +64,12 @@ async function UpdateSandboxContent({
   workspaceId?: string
 }) {
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
-  const mcpResult = listMcpConnectionsCachedQuery({ limit: 200 }, workspaceId)
-  const skillsResult = listImmutableSkillsCachedQuery(workspaceId)
+  const mcpResult = listMcpConnectionsCachedQuery({ limit: 50 }, workspaceId)
+  const skillsResult = listSkills({
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+    query: { limit: 50 },
+  })
   const providersResult = listInferenceProvidersCachedQuery(workspaceId)
   const poolsResult = workspaceId
     ? listInferencePoolsCachedQuery(workspaceId)
@@ -127,10 +132,12 @@ async function UpdateSandboxContent({
         initialMcpConnectionRefs={mcpConnectionRefs}
         initialSkills={sandbox.skills}
         initialInference={sandbox.inference}
-        immutableSkills={skills.skills ?? []}
+        immutableSkills={skills.data?.skills ?? []}
+        immutableSkillsNextPageToken={skills.data?.next_page_token ?? ""}
         inferenceProviders={providers.providers ?? []}
         inferencePools={pools.pools ?? []}
         mcpConnections={mcpConnections.mcpConnections ?? []}
+        mcpConnectionsNextPageToken={mcpConnections.nextPageToken ?? ""}
       />
     </main>
   )

@@ -35,6 +35,11 @@ export default async function WorkspaceRolesPage({
             </Link>
           </Button>
         }
+        scope={{
+          kind: "workspace",
+          organizationName: result.organization.name,
+          workspaceName: result.workspace.name,
+        }}
         title="Roles"
       />
       <RoleTable

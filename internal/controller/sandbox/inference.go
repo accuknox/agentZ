@@ -22,6 +22,7 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/inference"
+	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -429,10 +430,17 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 		}
 	}
 	egressTargets := make([]networkpolicy.Target, 0, len(providerKeys)+1)
+	extAuthNamespaces := []string{}
 	for key := range providerKeys {
 		provider := &agentzv1alpha1.InferenceProvider{}
 		if err := r.Get(ctx, key, provider); err != nil {
 			return fmt.Errorf("get inference policy provider: %w", err)
+		}
+		kind := provider.Spec.Kind
+		isCodex := kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+		isCopilot := kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+		if (isCodex || isCopilot) && provider.Namespace != namespace {
+			extAuthNamespaces = append(extAuthNamespaces, provider.Namespace)
 		}
 		target, err := inference.RenderProviderTarget(provider, "")
 		if err != nil {
@@ -455,6 +463,8 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 			)
 		}
 	}
+	slices.Sort(extAuthNamespaces)
+	extAuthNamespaces = slices.Compact(extAuthNamespaces)
 	if r.TraceBackend.Mode == TraceBackendModeStatic {
 		egressTargets = append(
 			egressTargets,
@@ -543,6 +553,16 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 				policy.Spec.Egress,
 				networkpolicy.ExternalEgress(egressTargets)...,
 			)
+			for _, namespace := range extAuthNamespaces {
+				policy.Spec.Egress = append(
+					policy.Spec.Egress,
+					networkpolicy.ServiceEgress(
+						namespace,
+						mcp.ExtAuthServiceName,
+						mcp.ExtAuthPort,
+					)...,
+				)
+			}
 			if r.TraceBackend.Mode == TraceBackendModeService {
 				policy.Spec.Egress = append(
 					policy.Spec.Egress,

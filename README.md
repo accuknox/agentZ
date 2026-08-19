@@ -58,12 +58,10 @@ Every model call and tool call lands in a replayable trace.
 - [What AgentZ is](#what-agentz-is)
 - [The three ideas](#the-three-ideas)
 - [Watch it work](#watch-it-work)
+- [Take the tour](#take-the-tour)
 - [How it works](#how-it-works)
-- [Platform components](#platform-components)
 - [Custom resources](#custom-resources)
-- [Quick start](#quick-start)
 - [Local development](#local-development)
-- [Repository layout](#repository-layout)
 - [How AgentZ compares](#how-agentz-compares)
 - [Deployment options](#deployment-options)
 - [Documentation](#documentation)
@@ -180,6 +178,29 @@ Inspect every span, every model call and every tool call, down to the token.
 <b>Runtime in full view</b><br>
 Every egress by domain, port and protocol, allowed or blocked, and recorded.
 </td>
+</tr>
+</table>
+
+## Take the tour
+
+Eight screens from the product, in the order a new user meets them.
+
+<table>
+<tr>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-02.webp" alt="Model picker in AgentZ listing GLM, Anthropic Claude, Google Gemini, MoonshotAI Kimi and OpenAI GPT" width="100%"><br><b>Any LLM, in a sandbox with memory</b></td>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-03.webp" alt="Sandbox update screen in AgentZ with a per-tool toggle for every tool an MCP connector exposes" width="100%"><br><b>Fine-grained sandbox permissions</b></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-04.webp" alt="MCP connection form in AgentZ with the connector catalog, covering Slack, GitHub, Notion, Linear, Asana, Figma, ClickUp and Atlassian" width="100%"><br><b>MCP server support</b></td>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-05.webp" alt="Chat session in AgentZ, with the agent reasoning about sandbox permissions and the file explorer open beside it" width="100%"><br><b>Workflow runs, from chat</b></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-06.webp" alt="Schedule editor in AgentZ with a cron expression, a timeout and run history limits" width="100%"><br><b>Crons and schedules</b></td>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-07.webp" alt="Workflow run graph in AgentZ with a step inspector showing a succeeded step" width="100%"><br><b>Live workflow graph</b></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-08.webp" alt="Span list in AgentZ with model calls, bash and webfetch, and an inspector showing token counts with the raw input and output" width="100%"><br><b>Logs and traces, span by span</b></td>
+<td width="50%" align="center"><img src=".github/assets/tour/slide-09.webp" alt="Graph of the MCP tools a Slack agent called in AgentZ, with latency and last-used age on each tool" width="100%"><br><b>MCP tool usage, profiled</b></td>
 </tr>
 </table>
 
@@ -330,33 +351,6 @@ whole. Read and scan can pass while mutate, push and delete stay denied.
 Every branch ends in the trace, including the blocked one. A denied call is
 evidence, and not a silent no-op.
 
-## Platform components
-
-| Component | Purpose |
-| --- | --- |
-| Manager | Kubernetes operator that reconciles the Agent and Sandbox custom resources |
-| Gateway | HTTP API for agents, secrets, sandboxes, workflows and observability data |
-| Sinjector | Sidecar proxy that performs secret injection over MITM |
-| Observer | Collects telemetry from KubeArmor, Hubble and OTLP sources |
-| Extauth | External authorization service that brokers OpenBao access |
-| Web | Next.js console for the whole platform |
-
-Each component ships as a subcommand of one binary.
-
-```bash
-go run ./cmd/agentz --help
-```
-
-| Subcommand | What it starts |
-| --- | --- |
-| `gateway serve` | The HTTP API |
-| `observer serve` | The telemetry collector |
-| `sinjector serve` | The secret injection proxy |
-| `extauth serve` | The external authorization service |
-| `filesystem serve` | The agent filesystem service |
-| `skill` | Skill management commands |
-| `workflow` | Workflow management commands |
-
 ## Custom resources
 
 The manager reconciles eleven custom resources in the `agentz.accuknox.com`
@@ -377,66 +371,6 @@ group, version `v1alpha1`.
 
 Read the generated schemas under
 [`deploy/helm/charts/manager/crds/`](deploy/helm/charts/manager/crds/).
-
-## Quick start
-
-### Run the hosted platform
-
-Sign up at [agentzharness.ai](https://agentzharness.ai/). Signing up creates an
-organization and makes you its super admin. The free tier gives you two users,
-one workspace, and one small agent at 1 vCPU and 1 GB RAM.
-
-Five steps take you to a first run.
-
-1. Sign up and land in your new organization.
-2. Create a workspace. Pick General or AI-SOC.
-3. Connect an integration over OAuth. Set each tool to Blocked, Needs Approval, or Always Allow.
-4. Add a skill, wire the steps, and run the workflow from chat, the API, the CLI or a schedule.
-5. Open the run graph and read every model call and tool call in order.
-
-The [Quick Start](https://docs.agentzharness.ai/) walks through each step.
-
-### Self-host on your own cluster
-
-You need a Kubernetes cluster with Cilium, plus `kubectl`, `kustomize` and
-`controller-gen`.
-
-```bash
-git clone https://github.com/accuknox/agentZ && cd agentZ
-```
-
-Install the custom resource definitions first.
-
-```bash
-make install
-```
-
-Then deploy the manager and the rest of the control plane.
-
-```bash
-make deploy
-```
-
-To produce a single manifest instead of applying directly, run
-`make build-installer`. It writes `dist/install.yaml`.
-
-Helm charts live under [`deploy/helm/`](deploy/helm/). Four subcharts cover the
-gateway, the manager, the observer and the web console.
-
-```bash
-helm install agentz ./deploy/helm --namespace agentz --create-namespace
-```
-
-To remove everything, run `make undeploy` and then `make uninstall`.
-
-### Attach the OpenCode client
-
-Each agent sandbox runs an OpenCode server. The Gateway OpenCode API is fully
-interoperable with the OpenCode TUI client.
-
-```bash
-opencode attach https://gw.agentz.accuknox.com/api/opencode/{AGENT_NAME}/
-```
 
 ## Local development
 
@@ -486,36 +420,6 @@ make run-gateway POSTGRES_DSN="postgresql://user:pass@localhost:5432/agentz"
 Run `make generate` after you touch `openapi/gateway.yaml`, any file under
 `pkg/apis/`, or an SQL query. The generated code is committed, so a pull request
 with stale output fails review.
-
-## Repository layout
-
-```text
-agentZ/
-├── cmd/agentz/            One binary, one subcommand per component
-│   └── subcommands/       gateway, observer, sinjector, extauth,
-│                          filesystem, skill, workflow
-├── internal/              The implementation of each component
-│   ├── controller/        Reconcilers for the eleven custom resources
-│   ├── gateway/           HTTP API handlers
-│   ├── sinjector/         The MITM secret injection proxy
-│   ├── observer/          Telemetry collection
-│   ├── networkpolicy/     Cilium policy generation
-│   ├── openbao/           Secret store client
-│   ├── mcp/               MCP connector handling
-│   ├── skill/             Skill storage and versioning
-│   └── workflow/          Workflow execution and scheduling
-├── pkg/apis/agentz/       The v1alpha1 API types
-├── pkg/controller/        Generated clientsets, informers and listers
-├── deploy/
-│   ├── helm/              Four subcharts: gateway, manager, observer, web
-│   └── kustomize/         CRDs, RBAC, webhooks and the default overlay
-├── web/                   Next.js 16 console, React 19, Drizzle, Better Auth
-├── opencode/              OpenCode config, skills and the OTel plugin
-├── openapi/               The Gateway API specification
-├── hack/                  Code generation scripts and the Nix agent init
-├── docs/                  Design notes on the security model
-└── flake.nix              The pinned development environment
-```
 
 ## How AgentZ compares
 

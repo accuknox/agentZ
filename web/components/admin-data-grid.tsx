@@ -56,6 +56,8 @@ export function AdminDataGrid<T>({
   rows,
   table,
 }: AdminDataGridProps<T>) {
+  "use no memo"
+
   const viewportRef = useRef<HTMLDivElement>(null)
   const tableRef = useRef<HTMLTableElement>(null)
   const [overflowing, setOverflowing] = useState(false)

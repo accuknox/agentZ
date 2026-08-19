@@ -14,6 +14,7 @@ import {
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { createSecretColumns } from "./secret-columns"
 import type { DeleteSecretFormAction } from "@/data/types"
 import { useServerSorting } from "@/lib/use-token-pagination"
@@ -89,6 +90,7 @@ const watchSecretsQueryOptions = (
 
 export function SecretTable({
   agentName,
+  canCreate,
   secrets,
   hasNextPage,
   nextPageToken,
@@ -99,6 +101,7 @@ export function SecretTable({
   sortOrder,
 }: {
   agentName: string
+  canCreate: boolean
   secrets: SecretListItem[]
   hasNextPage: boolean
   nextPageToken: string
@@ -141,7 +144,13 @@ export function SecretTable({
   return (
     <AdminDataGrid
       ariaLabel="Secrets"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No secrets found.</p>}
+      emptyState={
+        <AdministrationState
+          description="Add a secret so your agents can authenticate with external services."
+          kind={canCreate ? "welcome" : "empty"}
+          title="Let's add your first secret"
+        />
+      }
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rows={rows}

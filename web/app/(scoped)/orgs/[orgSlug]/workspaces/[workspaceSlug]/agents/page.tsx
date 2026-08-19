@@ -107,13 +107,14 @@ export default async function WorkspaceAgentsPage({
               initialHasNextSandboxPage={sandboxes?.hasNextPage ?? false}
               initialNextSandboxPageToken={sandboxes?.nextPageToken ?? ""}
             />
-          ) : null
+          ) : undefined
         }
         title="Agents"
       />
       <AgentTable
         actionScope={actionScope}
         agents={agents.agents}
+        canCreate={scope.workspace.capabilities.agents.author}
         immutableSkills={skills?.skills ?? []}
         sandboxes={sandboxes?.sandboxes ?? []}
         hasNextPage={agents.hasNextPage}

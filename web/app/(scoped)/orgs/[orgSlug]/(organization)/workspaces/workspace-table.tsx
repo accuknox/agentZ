@@ -4,7 +4,7 @@ import type { Route } from "next"
 import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { useMemo } from "react"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
-import { StatusBadge } from "@/components/administration"
+import { AdministrationState, StatusBadge } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { Workspace } from "@/lib/gateway/client"
 import { RelativeDateTime } from "@/components/ui/table"
@@ -19,11 +19,13 @@ const layout: Record<string, AdminColumnLayout> = {
 }
 
 export function WorkspaceTable({
+  canCreate,
   hasNextPage,
   nextPageToken,
   orgSlug,
   workspaces,
 }: {
+  canCreate: boolean
   hasNextPage: boolean
   nextPageToken: string
   orgSlug: string
@@ -80,7 +82,13 @@ export function WorkspaceTable({
   return (
     <AdminDataGrid
       ariaLabel="Workspaces"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No workspaces found.</p>}
+      emptyState={
+        <AdministrationState
+          description="Create a workspace to organize agents, resources, and access."
+          kind={canCreate ? "welcome" : "empty"}
+          title="Let's create your first workspace"
+        />
+      }
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rowHref={(workspace) => `${root}/workspaces/manage/${workspace.slug}` as Route}

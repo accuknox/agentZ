@@ -12,6 +12,7 @@ import type {
 } from "@/lib/gateway/client"
 import { createAgentColumns } from "@/app/agent-columns"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
@@ -27,6 +28,7 @@ const layout: Record<string, AdminColumnLayout> = {
 
 export function AgentTable({
   agents,
+  canCreate,
   immutableSkills,
   sandboxes,
   hasNextPage,
@@ -39,6 +41,7 @@ export function AgentTable({
   actionScope,
 }: {
   agents: Agent[]
+  canCreate: boolean
   immutableSkills: Skill[]
   sandboxes: Sandbox[]
   hasNextPage: boolean
@@ -102,7 +105,13 @@ export function AgentTable({
   return (
     <AdminDataGrid
       ariaLabel="Agents"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No agents found.</p>}
+      emptyState={
+        <AdministrationState
+          description="Create an agent and give it a sandbox, skills, and tools."
+          kind={canCreate ? "welcome" : "empty"}
+          title="Let's create your first agent"
+        />
+      }
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rowHref={(agent) =>

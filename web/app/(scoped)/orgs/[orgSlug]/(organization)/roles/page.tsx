@@ -27,14 +27,13 @@ export default async function RolesPage({
       </div>
     )
   }
-
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader
         actions={
           <Button asChild>
             <Link href={`/orgs/${orgSlug}/roles/new` as Route}>
-              <Plus />
+              <Plus data-icon="inline-start" />
               Create role
             </Link>
           </Button>

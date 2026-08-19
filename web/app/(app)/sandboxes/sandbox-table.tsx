@@ -5,6 +5,7 @@ import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/rea
 import type { ResourceSortByQuery, Sandbox, SortOrderQuery } from "@/lib/gateway/client"
 import { createSandboxColumns } from "./sandbox-columns"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { DeleteSandboxFormState } from "@/data/types"
 import type { Route } from "next"
@@ -31,6 +32,7 @@ export function SandboxTable({
   sortBy,
   sortOrder,
   deleteSandboxAction,
+  canCreate,
   showOrganization,
 }: {
   sandboxes: Sandbox[]
@@ -45,6 +47,7 @@ export function SandboxTable({
     state: DeleteSandboxFormState,
     formData: FormData
   ) => Promise<DeleteSandboxFormState>
+  canCreate: boolean
 }) {
   "use no memo"
 
@@ -77,7 +80,13 @@ export function SandboxTable({
   return (
     <AdminDataGrid
       ariaLabel="Sandboxes"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No sandboxes found.</p>}
+      emptyState={
+        <AdministrationState
+          description="Create an isolated environment for your agents and their tools."
+          kind={canCreate ? "welcome" : "empty"}
+          title="Let's create your first sandbox"
+        />
+      }
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rowHref={(sandbox) =>

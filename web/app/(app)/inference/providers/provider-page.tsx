@@ -29,16 +29,18 @@ export default function InferenceProvidersPage({
         title={resourceLabels.inference.collection}
       />
       <Suspense fallback={<TableSkeleton />}>
-        <Providers pageToken={pageToken} scope={scope} />
+        <Providers canCreate={capabilities.create} pageToken={pageToken} scope={scope} />
       </Suspense>
     </main>
   )
 }
 
 async function Providers({
+  canCreate,
   pageToken,
   scope,
 }: {
+  canCreate: boolean
   pageToken?: string
   scope: InferenceProviderActionScope
 }) {
@@ -51,6 +53,7 @@ async function Providers({
   }
   return (
     <InferenceProviderTable
+      canCreate={canCreate}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}
       providers={result.providers}

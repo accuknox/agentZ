@@ -378,7 +378,7 @@ export function SkillsClient({
         scope={pageScope}
         title={resourceLabels.skill.collection}
       />
-      <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="bg-background flex min-h-14 flex-col gap-3 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
           {workspaceId ? (
             <Select
@@ -438,17 +438,9 @@ export function SkillsClient({
       ) : null}
       {!query.isPending && !query.error && skills.length === 0 ? (
         <AdministrationState
-          actions={
-            canImport ? (
-              <Button onClick={() => setImportOpen(true)}>
-                <Upload />
-                {resourceLabels.skill.action}
-              </Button>
-            ) : null
-          }
-          description="Import a Markdown or ZIP skill bundle to get started."
-          kind="empty"
-          title="No skills yet"
+          description="Import a Markdown or ZIP skill bundle to extend what your agents can do."
+          kind={canImport ? "welcome" : "empty"}
+          title="Let's add your first skill"
         />
       ) : (
         <SkillTable

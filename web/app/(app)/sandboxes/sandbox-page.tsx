@@ -43,7 +43,7 @@ export default async function SandboxesPage({
           capabilities.create ? (
             <Button asChild>
               <Link href={`${basePath}/new` as Route}>
-                <Plus />
+                <Plus data-icon="inline-start" />
                 Add sandbox
               </Link>
             </Button>
@@ -53,7 +53,12 @@ export default async function SandboxesPage({
         title="Sandboxes"
       />
       <Suspense fallback={<SandboxesSkeleton />}>
-        <Sandboxes basePath={basePath} searchParams={searchParams} workspaceId={workspaceId} />
+        <Sandboxes
+          basePath={basePath}
+          canCreate={capabilities.create}
+          searchParams={searchParams}
+          workspaceId={workspaceId}
+        />
       </Suspense>
     </main>
   )
@@ -62,9 +67,11 @@ export default async function SandboxesPage({
 async function Sandboxes({
   searchParams,
   basePath,
+  canCreate,
   workspaceId,
 }: {
   basePath: string
+  canCreate: boolean
   searchParams?: Promise<SandboxesSearchParams>
   workspaceId?: string
 }) {
@@ -89,6 +96,7 @@ async function Sandboxes({
 
   return (
     <SandboxTable
+      canCreate={canCreate}
       sandboxes={result.sandboxes}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}

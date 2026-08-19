@@ -5,7 +5,7 @@ import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-
 import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
-import { ScopeBadge } from "@/components/administration"
+import { AdministrationState, ScopeBadge } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { OrganizationRoleSummary } from "@/data/roles"
 import { RelativeDateTime } from "@/components/ui/table"
@@ -122,7 +122,13 @@ export function RoleTable({
   return (
     <AdminDataGrid
       ariaLabel={workspaceSlug ? "Workspace roles" : "Organization roles"}
-      emptyState={<p className="text-muted-foreground py-8 text-center">No roles found.</p>}
+      emptyState={
+        <AdministrationState
+          description="Create a role to define reusable permissions and access."
+          kind="welcome"
+          title="Let's create your first role"
+        />
+      }
       layout={layout}
       pagination={
         <TokenTablePagination hasNextPage={nextPageToken !== ""} nextPageToken={nextPageToken} />

@@ -231,9 +231,9 @@ function DirectoryTable<T>({
       ariaLabel={ariaLabel}
       emptyState={
         <AdministrationState
-          description={`No ${ariaLabel.toLocaleLowerCase()} match this view.`}
-          kind="empty"
-          title={`No ${ariaLabel.toLocaleLowerCase()}`}
+          description="Invite people and assign their initial roles and teams."
+          kind="welcome"
+          title="Let's invite your team"
         />
       }
       layout={layout}

@@ -33,7 +33,7 @@ export default async function TeamsPage({
         actions={
           <Button asChild>
             <Link href={`${root}/new` as Route}>
-              <Plus />
+              <Plus data-icon="inline-start" />
               Create team
             </Link>
           </Button>

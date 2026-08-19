@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -131,12 +132,14 @@ const watchPoolsQueryOptions = (
   })
 
 export function InferencePoolTable({
+  canCreate,
   hasNextPage,
   nextPageToken,
   pools,
   providers,
   scope,
 }: {
+  canCreate: boolean
   hasNextPage: boolean
   nextPageToken: string
   pools: InferencePool[]
@@ -273,7 +276,13 @@ export function InferencePoolTable({
       <div className="flex min-w-0 flex-col gap-4">
         <AdminDataGrid
           ariaLabel="Inference pools"
-          emptyState={<p className="text-muted-foreground py-8 text-center">No pools found.</p>}
+          emptyState={
+            <AdministrationState
+              description="Create a pool to route requests across compatible inference models."
+              kind={canCreate ? "welcome" : "empty"}
+              title="Let's create your first pool"
+            />
+          }
           layout={layout}
           onRowActivate={setViewing}
           pagination={

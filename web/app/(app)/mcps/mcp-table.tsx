@@ -84,6 +84,7 @@ const watchMcpConnectionsQueryOptions = (
   })
 
 export function McpTable({
+  canCreate,
   mcpConnections,
   hasNextPage,
   nextPageToken,
@@ -92,6 +93,7 @@ export function McpTable({
   sortBy,
   sortOrder,
 }: {
+  canCreate: boolean
   mcpConnections: McpConnectionSummary[]
   hasNextPage: boolean
   nextPageToken: string
@@ -155,9 +157,13 @@ export function McpTable({
         ariaLabel="MCP connections"
         emptyState={
           <AdministrationState
-            description="Add an MCP connection to make its tools available."
-            kind="empty"
-            title="No MCP connections"
+            description={
+              canCreate
+                ? "Add an MCP connection to make its tools available to your agents."
+                : "There are no MCP connections available in this scope."
+            }
+            kind={canCreate ? "welcome" : "empty"}
+            title="Let's connect your tools"
           />
         }
         layout={columnLayout}

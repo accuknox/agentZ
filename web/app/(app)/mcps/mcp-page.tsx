@@ -1,13 +1,12 @@
 import { Suspense } from "react"
 import * as z from "zod"
-import { Plus } from "lucide-react"
 import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { deleteScopedMcpFormAction, submitScopedMcpFormAction } from "@/data/mcp.actions"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { McpTable } from "./mcp-table"
+import { McpSheet } from "./mcp-sheet"
 import { NewMcpButton } from "./new-mcp-button"
 import { resourceLabels } from "@/lib/resource-labels"
 
@@ -38,29 +37,17 @@ export async function McpPage({
   workspaceId?: string
 }) {
   const scope = { basePath, organizationId, workspaceId }
-  return (
+  const content = (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <AdministrationPageHeader
-        actions={
-          canCreate ? (
-            <Suspense
-              fallback={
-                <Button disabled>
-                  <Plus />
-                  {resourceLabels.mcp.action}
-                </Button>
-              }
-            >
-              <NewMcpButton submitMcpAction={submitScopedMcpFormAction.bind(null, scope)} />
-            </Suspense>
-          ) : undefined
-        }
+        actions={canCreate ? <NewMcpButton /> : undefined}
         scope={pageScope}
         title={resourceLabels.mcp.collection}
       />
       <Suspense fallback={<TableSkeleton />}>
         <Connections
           basePath={basePath}
+          canCreate={canCreate}
           organizationId={organizationId}
           searchParams={searchParams}
           workspaceId={workspaceId}
@@ -68,15 +55,23 @@ export async function McpPage({
       </Suspense>
     </main>
   )
+
+  if (!canCreate) return content
+
+  return (
+    <McpSheet submitMcpAction={submitScopedMcpFormAction.bind(null, scope)}>{content}</McpSheet>
+  )
 }
 
 async function Connections({
   basePath,
+  canCreate,
   organizationId,
   searchParams,
   workspaceId,
 }: {
   basePath: string
+  canCreate: boolean
   organizationId: string
   searchParams: Promise<SearchParams>
   workspaceId?: string
@@ -99,6 +94,7 @@ async function Connections({
     )
   return (
     <McpTable
+      canCreate={canCreate}
       mcpConnections={result.mcpConnections}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}

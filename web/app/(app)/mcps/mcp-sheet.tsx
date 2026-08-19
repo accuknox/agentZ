@@ -645,14 +645,13 @@ function ServerURLField({
 }
 
 export function McpSheet({
-  open,
-  onOpenChangeAction,
+  children,
   submitMcpAction,
 }: {
-  open: boolean
-  onOpenChangeAction: (open: boolean) => void
+  children: React.ReactNode
   submitMcpAction: SubmitMcpAction
 }) {
+  const [open, setOpen] = React.useState(false)
   const router = useRouter()
   const [isRefreshing, startTransition] = React.useTransition()
   const [submitState, submitAction, isSubmitting] = React.useActionState(
@@ -888,7 +887,7 @@ export function McpSheet({
           toast.success("MCP connection created")
           setClientSubmitError(undefined)
           form.reset(defaultFormValues)
-          onOpenChangeAction(false)
+          setOpen(false)
           startTransition(() => {
             router.refresh()
           })
@@ -906,12 +905,12 @@ export function McpSheet({
     queueMicrotask(() => {
       setClientSubmitError(undefined)
       form.reset(defaultFormValues)
-      onOpenChangeAction(false)
+      setOpen(false)
       startTransition(() => {
         router.refresh()
       })
     })
-  }, [form, onOpenChangeAction, open, openOAuthPopup, router, startTransition, submitState])
+  }, [form, open, openOAuthPopup, router, startTransition, submitState])
 
   const discoveryWarningVisible =
     authMode === "oauth" &&
@@ -1043,7 +1042,7 @@ export function McpSheet({
       resetSubmitState()
     }
 
-    onOpenChangeAction(nextOpen)
+    setOpen(nextOpen)
   }
 
   async function refreshDiscovery() {
@@ -1135,6 +1134,7 @@ export function McpSheet({
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
+      {children}
       <SheetContent
         className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!"
         onPointerDownOutside={(event) => {

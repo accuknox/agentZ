@@ -1,4 +1,4 @@
-import { Suspense } from "react"
+import { Suspense, type ReactNode } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
 import { ErrorState } from "@/components/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -66,6 +66,7 @@ async function Pools({
         }
       />
       <InferencePoolTable
+        canCreate={capabilities.create}
         hasNextPage={pools.hasNextPage}
         nextPageToken={pools.nextPageToken}
         pools={pools.pools}
@@ -76,7 +77,7 @@ async function Pools({
   )
 }
 
-function PageHeader({ action }: { action?: React.ReactNode }) {
+function PageHeader({ action }: { action?: ReactNode }) {
   return <AdministrationPageHeader actions={action} title="Pools" />
 }
 

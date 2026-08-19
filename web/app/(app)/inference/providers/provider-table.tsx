@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/ui/avatar"
@@ -129,11 +130,13 @@ const watchProvidersQueryOptions = (
   })
 
 export function InferenceProviderTable({
+  canCreate,
   hasNextPage,
   nextPageToken,
   providers,
   scope,
 }: {
+  canCreate: boolean
   hasNextPage: boolean
   nextPageToken: string
   providers: InferenceProvider[]
@@ -216,7 +219,11 @@ export function InferenceProviderTable({
       <AdminDataGrid
         ariaLabel="Inference providers"
         emptyState={
-          <p className="text-muted-foreground py-8 text-center">No inference providers found.</p>
+          <AdministrationState
+            description="Add a provider so your agents can access inference models."
+            kind={canCreate ? "welcome" : "empty"}
+            title="Let's add your first inference provider"
+          />
         }
         layout={layout}
         onRowActivate={setEditing}

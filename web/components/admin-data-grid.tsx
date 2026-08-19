@@ -74,7 +74,7 @@ export function AdminDataGrid<T>({
   }, [rows])
 
   if (rows.length === 0) {
-    return <div className="flex min-w-0 flex-col gap-4">{emptyState}</div>
+    return <Fragment>{emptyState}</Fragment>
   }
 
   const declaredLayout = (columnId: string) => {

@@ -35,7 +35,7 @@ export default async function WorkspaceRolesPage({
         actions={
           <Button asChild>
             <Link href={`${root}/new` as Route}>
-              <Plus />
+              <Plus data-icon="inline-start" />
               Create role
             </Link>
           </Button>

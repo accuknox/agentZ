@@ -116,6 +116,7 @@ export default async function SecretsPage({
       <SecretsFilters agents={readableAgents} selectedAgentName={selectedAgent.name} />
       <SecretTable
         agentName={selectedAgent.name}
+        canCreate={writableAgent !== undefined}
         secrets={result.items}
         hasNextPage={result.hasNextPage}
         nextPageToken={result.nextPageToken}

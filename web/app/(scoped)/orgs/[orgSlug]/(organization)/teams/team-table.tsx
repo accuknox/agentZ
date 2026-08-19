@@ -4,6 +4,7 @@ import type { Route } from "next"
 import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { useMemo } from "react"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { AdministrationState } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { TeamSummary } from "@/data/teams"
 import { RelativeDateTime } from "@/components/ui/table"
@@ -70,7 +71,13 @@ export function TeamTable({
   return (
     <AdminDataGrid
       ariaLabel="Teams"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No teams found.</p>}
+      emptyState={
+        <AdministrationState
+          description="Create a team to manage members and access together."
+          kind="welcome"
+          title="Let's create your first team"
+        />
+      }
       layout={layout}
       pagination={
         <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />

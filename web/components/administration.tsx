@@ -111,6 +111,7 @@ export function AccessSourceChip({ source }: { source: AccessSource }) {
 
 type AdministrationStateKind =
   | "empty"
+  | "welcome"
   | "provisioning"
   | "deleting"
   | "failed"
@@ -177,6 +178,7 @@ export function AdministrationState({
   const pending = kind === "provisioning" || kind === "deleting"
   const urgent = kind === "failed" || kind === "forbidden"
   const illustrated = kind === "failed" || kind === "forbidden" || kind === "not-found"
+  const welcoming = kind === "welcome"
   const stateDescription = description ?? content.description
   const stateTitle = title ?? content.title
 
@@ -186,14 +188,26 @@ export function AdministrationState({
       className={
         illustrated
           ? "min-h-80 gap-5 rounded-none border-0 py-10"
-          : "min-h-48 rounded-none border-0"
+          : welcoming
+            ? "border-primary mx-3 min-h-80 w-auto flex-none border border-dashed py-12 sm:min-h-96 md:mx-6"
+            : "min-h-48 rounded-none border-0"
       }
       role={pending ? "status" : urgent ? "alert" : undefined}
     >
-      <EmptyHeader className={illustrated ? "gap-3" : undefined}>
-        <EmptyMedia className={illustrated ? "mb-1" : undefined}>{content.icon}</EmptyMedia>
+      <EmptyHeader className={illustrated || welcoming ? "max-w-md gap-3" : undefined}>
+        <EmptyMedia className={illustrated ? "mb-1" : welcoming ? "mb-0" : undefined}>
+          {welcoming ? (
+            <span aria-hidden="true" className="text-4xl leading-none">
+              👋
+            </span>
+          ) : (
+            content.icon
+          )}
+        </EmptyMedia>
         {stateTitle ? (
-          <EmptyTitle className={illustrated ? "text-base font-semibold" : undefined}>
+          <EmptyTitle
+            className={illustrated ? "text-base font-semibold" : welcoming ? "text-xl" : undefined}
+          >
             <h2>{stateTitle}</h2>
           </EmptyTitle>
         ) : null}

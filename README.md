@@ -452,14 +452,6 @@ The full grid, with a note behind every mark, sits on the
 | Air-gapped | Runs with no internet connectivity. AgentZ makes no outbound calls. |
 | Bring your own model | OpenAI, Anthropic, Google, Grok or a self-hosted endpoint, on your key. No markup and no proxy in the path. |
 
-Four components deploy together on a self-hosted cluster. The gateway serves the
-API, the manager reconciles the custom resources, the sinjector injects secrets,
-and the observer collects telemetry.
-
-<p align="center">
-  <img src=".github/assets/diagrams/self-hosted-architecture.webp" alt="Self-hosted AgentZ layout: the gateway feeds the manager, the manager runs agent sandboxes under a default-deny network policy, the sinjector reaches the secret store, and the observer reports back to the gateway" width="600">
-</p>
-
 Credentials and policy live on AgentZ rather than on the agent. Switching model
 does not mean re-wiring credentials or scopes.
 

@@ -48,18 +48,26 @@ export default async function WorkspaceAgentsPage({
   const workspaceId = scope.workspace.id
   const agents = await listAgentsCachedQuery(query, workspaceId)
   if (agents.error) {
-    if (agents.error.code === "forbidden") return <AdministrationState kind="forbidden" />
-
     return (
-      <AdministrationState
-        description={agents.error.message}
-        kind="failed"
-        title="Unable to load Agents"
-      />
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Agents" />
+        <AdministrationState
+          description={agents.error.code === "forbidden" ? undefined : agents.error.message}
+          kind={agents.error.code === "forbidden" ? "forbidden" : "failed"}
+          title={agents.error.code === "forbidden" ? undefined : "Unable to load Agents"}
+        />
+      </div>
     )
   }
   const canAccessAgents = scope.workspace.capabilities.agents.author || agents.agents.length > 0
-  if (!canAccessAgents) return <AdministrationState kind="forbidden" />
+  if (!canAccessAgents) {
+    return (
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Agents" />
+        <AdministrationState kind="forbidden" />
+      </div>
+    )
+  }
 
   const authorResources = scope.workspace.capabilities.agents.author
     ? await Promise.all([
@@ -72,11 +80,14 @@ export default async function WorkspaceAgentsPage({
   if (sandboxes?.error || skills?.error) {
     const error = sandboxes?.error ?? skills?.error
     return (
-      <AdministrationState
-        description={error?.message}
-        kind={error?.code === "forbidden" ? "forbidden" : "failed"}
-        title={error?.code === "forbidden" ? undefined : "Unable to load Agent resources"}
-      />
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Agents" />
+        <AdministrationState
+          description={error?.code === "forbidden" ? undefined : error?.message}
+          kind={error?.code === "forbidden" ? "forbidden" : "failed"}
+          title={error?.code === "forbidden" ? undefined : "Unable to load Agent resources"}
+        />
+      </div>
     )
   }
 

@@ -11,6 +11,7 @@ import {
   updateOrganizationLogoAction,
   updateOrganizationNameAction,
 } from "@/app/(scoped)/orgs/actions"
+import { AdministrationPageHeader } from "@/components/administration"
 import type { OrganizationSummary } from "@/data/organizations"
 import { OrganizationAvatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -235,9 +236,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
   return (
     <>
       <form action={action} aria-label="Organization details" className="flex min-w-0 flex-col">
-        <header className="px-4 pt-5 md:px-6">
-          <h1 className="text-2xl font-semibold tracking-normal">General</h1>
-        </header>
+        <AdministrationPageHeader title="General" />
 
         <div className="flex max-w-3xl flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
           <FieldSet>

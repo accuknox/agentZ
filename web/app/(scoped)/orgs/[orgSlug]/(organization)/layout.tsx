@@ -2,7 +2,11 @@ import type { Route } from "next"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
-import { AdministrationLayout, AdministrationState } from "@/components/administration"
+import {
+  AdministrationLayout,
+  AdministrationPageHeader,
+  AdministrationState,
+} from "@/components/administration"
 import { AppShell } from "@/components/blocks/app-shell"
 import { AppSidebar } from "@/components/blocks/sidebar/sidebar"
 import { ThemeSync } from "@/components/theme-sync"
@@ -72,16 +76,19 @@ export default async function OrganizationLayout({
             />
           }
         >
-          <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
-            <AdministrationState
-              description={
-                disabled
-                  ? "Your organization membership is disabled."
-                  : "Your organization access was revoked."
-              }
-              kind="forbidden"
-              title={disabled ? "Organization membership disabled" : "Access revoked"}
-            />
+          <div className="flex min-w-0 flex-1 flex-col gap-6">
+            <AdministrationPageHeader title="Organization" />
+            <div className="px-4 md:px-6">
+              <AdministrationState
+                description={
+                  disabled
+                    ? "Your organization membership is disabled."
+                    : "Your organization access was revoked."
+                }
+                kind="forbidden"
+                title={disabled ? "Organization membership disabled" : "Access revoked"}
+              />
+            </div>
           </div>
         </AppShell>
       </>
@@ -106,12 +113,15 @@ export default async function OrganizationLayout({
             />
           }
         >
-          <div className="flex min-w-0 flex-1 flex-col p-4 md:p-6">
-            <AdministrationState
-              description="You joined this organisation, but no role or team grants product access yet."
-              kind="forbidden"
-              title="Access not assigned"
-            />
+          <div className="flex min-w-0 flex-1 flex-col gap-6">
+            <AdministrationPageHeader title="Organization" />
+            <div className="px-4 md:px-6">
+              <AdministrationState
+                description="You joined this organisation, but no role or team grants product access yet."
+                kind="forbidden"
+                title="Access not assigned"
+              />
+            </div>
           </div>
         </AppShell>
       </>

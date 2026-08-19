@@ -13,6 +13,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 export type AdministrationPageScope =
   | { kind: "organization"; organizationName: string }
   | { kind: "workspace"; organizationName: string; workspaceName: string }
@@ -32,30 +33,38 @@ export function AdministrationLayout({ children }: { children: ReactNode }) {
 
 export function AdministrationPageHeader({
   actions,
+  description,
   scope,
   title,
 }: {
   actions?: ReactNode
+  description?: ReactNode
   scope?: AdministrationPageScope
   title: string
 }) {
   return (
-    <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-normal">{title}</h1>
-        {scope ? (
-          <Badge className="mt-1.5 max-w-full font-normal" variant="secondary">
-            <span className="shrink-0">
-              {scope.kind === "organization" ? "Organization" : "Workspace"}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="truncate">
-              {scope.kind === "organization" ? scope.organizationName : scope.workspaceName}
-            </span>
-          </Badge>
-        ) : null}
+    <div className="flex gap-1 px-1.5 pt-4 md:px-2.5 md:pt-6">
+      <SidebarTrigger className="mt-0.5 shrink-0" />
+      <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold tracking-normal" title={title}>
+            {title}
+          </h1>
+          {description ? <p className="text-muted-foreground mt-1 text-sm">{description}</p> : null}
+          {scope ? (
+            <Badge className="mt-1.5 max-w-full font-normal" variant="secondary">
+              <span className="shrink-0">
+                {scope.kind === "organization" ? "Organization" : "Workspace"}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="truncate">
+                {scope.kind === "organization" ? scope.organizationName : scope.workspaceName}
+              </span>
+            </Badge>
+          ) : null}
+        </div>
+        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   )
 }

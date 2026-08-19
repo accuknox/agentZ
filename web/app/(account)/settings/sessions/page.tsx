@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import { AdministrationPageHeader } from "@/components/administration"
 import { headers } from "next/headers"
 import { and, asc, desc, eq, gt } from "drizzle-orm"
 import * as z from "zod"
@@ -26,11 +27,7 @@ type SearchParams = {
 export default function SessionsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Sessions</h1>
-        </div>
-      </div>
+      <AdministrationPageHeader title="Sessions" />
       <Suspense fallback={<TableSkeleton />}>
         <Sessions searchParams={searchParams} />
       </Suspense>

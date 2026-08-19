@@ -20,7 +20,12 @@ export default async function RolesPage({
   const [{ orgSlug }, { page_token }] = await Promise.all([params, searchParams])
   const result = await listOrganizationRoles(orgSlug, page_token)
   if (!result) {
-    return <AdministrationState kind="forbidden" />
+    return (
+      <div className="flex min-w-0 flex-col gap-6">
+        <AdministrationPageHeader title="Roles" />
+        <AdministrationState kind="forbidden" />
+      </div>
+    )
   }
 
   return (

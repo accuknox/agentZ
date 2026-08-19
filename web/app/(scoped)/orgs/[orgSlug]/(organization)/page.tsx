@@ -1,6 +1,6 @@
 import type { Route } from "next"
 import { redirect } from "next/navigation"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { getWorkspaceDirectory } from "@/data/workspaces"
 
 export const unstable_instant = false
@@ -28,10 +28,13 @@ export default async function OrganizationPage({
   }
 
   return (
-    <AdministrationState
-      description="No workspace access is assigned to your account."
-      kind="empty"
-      title="No Workspace access"
-    />
+    <div className="flex min-w-0 flex-col gap-6">
+      <AdministrationPageHeader title="Overview" />
+      <AdministrationState
+        description="No workspace access is assigned to your account."
+        kind="empty"
+        title="No Workspace access"
+      />
+    </div>
   )
 }

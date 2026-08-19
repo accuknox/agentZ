@@ -10,6 +10,7 @@ import { DestructiveConfirmationDialog } from "@/components/destructive-confirma
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import {
   Table,
   TableBody,
@@ -69,7 +70,8 @@ export default async function UserDetailPage({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start gap-2">
+          <SidebarTrigger className="mt-0.5 shrink-0" />
           <div className="flex min-w-0 items-center gap-3">
             <Avatar>
               <AvatarImage alt="" src={data.member.image ?? undefined} />

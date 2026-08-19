@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import * as z from "zod"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import {
   deleteSecretFormAction,
@@ -48,17 +48,25 @@ export default async function SecretsPage({
   const agents = await listAgentsCachedQuery(undefined, workspace.workspace.id)
   if (agents.error) {
     return (
-      <AdministrationState
-        description={agents.error.message}
-        kind={agents.error.code === "forbidden" ? "forbidden" : "failed"}
-        title={agents.error.code === "forbidden" ? undefined : "Unable to load Agents"}
-      />
+      <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+        <AdministrationPageHeader title="Secrets" />
+        <AdministrationState
+          description={agents.error.code === "forbidden" ? undefined : agents.error.message}
+          kind={agents.error.code === "forbidden" ? "forbidden" : "failed"}
+          title={agents.error.code === "forbidden" ? undefined : "Unable to load Agents"}
+        />
+      </main>
     )
   }
   const readableAgents = agents.agents.filter((agent) => agent.capabilities.read_secrets)
   const firstReadableAgent = readableAgents[0]
   if (!firstReadableAgent) {
-    return <AdministrationState kind="forbidden" />
+    return (
+      <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+        <AdministrationPageHeader title="Secrets" />
+        <AdministrationState kind="forbidden" />
+      </main>
+    )
   }
   const parsed = secretsSearchParamsSchema.parse(search)
   const selectedAgent =
@@ -75,11 +83,14 @@ export default async function SecretsPage({
   })
   if (result.error) {
     return (
-      <AdministrationState
-        description={result.error.code === "forbidden" ? undefined : result.error.message}
-        kind={result.error.code === "forbidden" ? "forbidden" : "failed"}
-        title={result.error.code === "forbidden" ? undefined : "Unable to load secrets"}
-      />
+      <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+        <AdministrationPageHeader title="Secrets" />
+        <AdministrationState
+          description={result.error.code === "forbidden" ? undefined : result.error.message}
+          kind={result.error.code === "forbidden" ? "forbidden" : "failed"}
+          title={result.error.code === "forbidden" ? undefined : "Unable to load secrets"}
+        />
+      </main>
     )
   }
   const actionScope = {
@@ -89,19 +100,19 @@ export default async function SecretsPage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">Secrets</h1>
-        </div>
-        {writableAgent ? (
-          <NewSecretButton
-            key={writableAgent.name}
-            agentName={writableAgent.name}
-            putSecretAction={putSecretFormAction.bind(null, actionScope)}
-            startOAuthAction={startOAuthSecretFormAction.bind(null, actionScope)}
-          />
-        ) : null}
-      </div>
+      <AdministrationPageHeader
+        actions={
+          writableAgent ? (
+            <NewSecretButton
+              key={writableAgent.name}
+              agentName={writableAgent.name}
+              putSecretAction={putSecretFormAction.bind(null, actionScope)}
+              startOAuthAction={startOAuthSecretFormAction.bind(null, actionScope)}
+            />
+          ) : undefined
+        }
+        title="Secrets"
+      />
       <SecretsFilters agents={readableAgents} selectedAgentName={selectedAgent.name} />
       <SecretTable
         agentName={selectedAgent.name}

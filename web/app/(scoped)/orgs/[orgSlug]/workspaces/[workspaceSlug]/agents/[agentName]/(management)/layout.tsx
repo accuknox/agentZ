@@ -5,6 +5,7 @@ import { notFound } from "next/navigation"
 import { Activity, MessageCircle, MoreHorizontal } from "lucide-react"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { Button } from "@/components/ui/button"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,9 +62,15 @@ export default async function WorkspaceAgentLayout({
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
         <div className="flex min-w-0 items-center justify-between gap-4">
-          <h1 className="truncate text-2xl font-semibold tracking-normal" title={detail.agent.name}>
-            {detail.agent.name}
-          </h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <SidebarTrigger className="shrink-0" />
+            <h1
+              className="truncate text-2xl font-semibold tracking-normal"
+              title={detail.agent.name}
+            >
+              {detail.agent.name}
+            </h1>
+          </div>
           {detail.agent.capabilities.use || canViewTraces ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

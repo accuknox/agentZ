@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 
 type ChatShellProps = {
   agentName: string
@@ -51,8 +52,15 @@ export function ChatShell({
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4">
-        <h1 className="min-w-0 truncate text-sm font-medium">{title}</h1>
+      <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <SidebarTrigger className="shrink-0" />
+          <span className="text-muted-foreground max-w-1/3 truncate text-sm">{agentName}</span>
+          <span aria-hidden="true" className="text-muted-foreground text-sm">
+            /
+          </span>
+          <h1 className="min-w-0 truncate text-sm font-medium">{title}</h1>
+        </div>
         <SessionFileControl agentName={agentName} />
       </header>
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">

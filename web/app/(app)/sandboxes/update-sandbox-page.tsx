@@ -9,7 +9,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 
 type UpdateSandboxPageProps = {
   basePath: string
@@ -121,9 +121,7 @@ async function UpdateSandboxContent({
 
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
-      <div className="min-w-0 px-4 pt-4 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-normal">Update sandbox</h1>
-      </div>
+      <AdministrationPageHeader title="Update sandbox" />
       <SandboxWizard
         key={wizardKey}
         mode="update"

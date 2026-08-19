@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { RoleDelete } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-delete"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import { getWorkspaceRoleEditorData } from "@/data/roles"
 
 export async function generateMetadata({
@@ -44,7 +45,8 @@ export default async function WorkspaceRoleLayout({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex min-w-0 flex-col gap-4 px-4 pt-4 md:px-6 md:pt-6">
-        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-start gap-2">
+          <SidebarTrigger className="mt-0.5 shrink-0" />
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold tracking-normal" title={data.role.name}>
               {data.role.name}

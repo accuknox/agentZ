@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { createAPIKeyFormAction, deleteUserAPIKeyFormAction } from "@/data/api-key.actions"
@@ -24,15 +25,11 @@ export default async function APIKeysPage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
-      <header className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-normal">API keys</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Personal credentials for Agents and workflow webhooks you can access.
-          </p>
-        </div>
-        <APIKeyWorkspaceMenu workspaces={context.workspaces} />
-      </header>
+      <AdministrationPageHeader
+        actions={<APIKeyWorkspaceMenu workspaces={context.workspaces} />}
+        description="Personal credentials for Agents and workflow webhooks you can access."
+        title="API keys"
+      />
       {!context.workspaces.length ? (
         <Alert className="rounded-none border-x-0 px-4 md:px-6">
           <AlertTitle>No eligible Workspaces</AlertTitle>

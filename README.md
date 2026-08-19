@@ -286,57 +286,26 @@ The agent holds a placeholder such as `agentz:resolve:env:api-key`. The sinjecto
 sidecar swaps that placeholder for the real value outside the agent. A prompt
 injection cannot leak a credential the agent never received.
 
-```mermaid
-sequenceDiagram
-    participant Agent as Agent Container
-    participant Proxy as Sinjector Sidecar
-    participant OpenBao as OpenBao
-    participant Upstream as Upstream Service
-
-    Note over Agent: ENV: OPENAI_API_KEY<br/>= agentz:resolve:env:api-key
-
-    Agent->>Proxy: HTTP Request<br/>Authorization: Bearer<br/>agentz:resolve:env:api-key
-
-    Note over Proxy: Intercept TLS<br/>Decrypt with CA cert
-
-    Proxy->>OpenBao: Resolve secret<br/>Path: secret/data/{agent}/api-key
-    OpenBao->>Proxy: {value: "sk-...", hosts: ["api.openai.com"]}
-
-    Note over Proxy: Rewrite placeholder<br/>with actual value
-
-    Proxy->>Upstream: Request (real API key)
-    Upstream->>Proxy: Response
-    Proxy->>Agent: Response
-```
+<p align="center">
+  <img src=".github/assets/diagrams/secret-injection.webp" alt="AgentZ secret injection sequence: the agent sends a placeholder, the injection proxy resolves it against the secret store, and the external tool receives the real secret" width="820">
+</p>
 
 ### How the objects nest
 
-An organization contains workspaces. A workspace contains users, models and
-agents. An agent owns the workflows that run inside it, and the sandboxes those
-workflows execute in.
+A tenant contains workspaces. A workspace contains users, models and agents. An
+agent owns the workflows that run inside it, and the sandboxes those workflows
+execute in. The console calls a tenant an organization.
 
-```mermaid
-graph TD
-    T["Organization"] --> W1["Workspace<br/>Sales Ops"]
-    T --> W2["Workspace<br/>AI-SOC"]
-
-    W1 --> U["Users and roles"]
-    W1 --> M["Models"]
-    W1 --> A["Agent<br/>one compute allocation"]
-
-    A --> WF["Workflows"]
-    A --> SA["Sub-agents<br/>parallel fan-out"]
-    A --> SB["Sandboxes"]
-
-    WF -.->|"shares compute, CPU throttled"| A
-```
+<p align="center">
+  <img src=".github/assets/diagrams/hierarchy.webp" alt="AgentZ object hierarchy: a tenant holds workspaces, a workspace holds users, models and one agent, and the agent holds workflows, sub-agents and sandboxes" width="820">
+</p>
 
 An agent is a compute allocation, and not a wrapper around one. Everything an
 agent owns is scoped by that allocation.
 
 | Relationship | Type | What it means |
 | --- | --- | --- |
-| Organization to Workspace | 1:N | Many workspaces per organization, commonly one per department |
+| Tenant to Workspace | 1:N | Many workspaces per tenant, commonly one per department |
 | Workspace to Agent | 1:N | A workspace owns its users, models and agents |
 | Agent to Compute | 1:1 | The agent is the compute allocation |
 | Agent to Workflow | 1:N | Workflows are owned by, and run inside, an agent |
@@ -345,20 +314,36 @@ agent owns is scoped by that allocation.
 | Session to Workflow | N:N | Chat is global, and not scoped to a single workflow |
 | Compute to Workflow | 1:N, shared | Concurrent workflows share the agent compute. CPU throttling handles contention. |
 
+### Who sees what
+
+The super admin configures the shared resources once. Everyone else inherits
+capability through a role. A team such as HR uses the connectors without reading
+or editing the MCP configuration behind them.
+
+<p align="center">
+  <img src=".github/assets/diagrams/roles.webp" alt="AgentZ role inheritance: a super admin configures shared credentials, environments and workflows once, and security, DevOps and data roles inherit the capability" width="640">
+</p>
+
+### What a workflow is made of
+
+Four parts, and you configure them in this order. Inputs carry a JSON schema.
+Steps are skills that run in sequence or in parallel. Triggers start the run.
+Outputs come back when it finishes.
+
+<p align="center">
+  <img src=".github/assets/diagrams/workflow-anatomy.webp" alt="The four parts of an AgentZ workflow: inputs with a JSON schema and triggers feed the steps, and the steps produce outputs" width="860">
+</p>
+
 ### How one workflow uses the platform
 
-```mermaid
-graph TD
-    TR["Trigger<br/>cron, webhook, or manual"] --> WF["Workflow"]
-    WF --> SK["Skills<br/>the reusable steps"]
-    SK --> AG["Agent<br/>the compute"]
-    AG --> SBX["Sandbox<br/>default-deny boundary"]
-    CR[("Credentials")] -.->|"injected at runtime"| SBX
-    SBX --> OUT["Tool and model calls"]
-    OUT --> TRACE[("Trace")]
-```
+A workflow draws on five things at once. Naming them in order is the fastest way
+to say what AgentZ does.
 
-Read it from the bottom and it is a security story. Nothing reaches a tool
+<p align="center">
+  <img src=".github/assets/diagrams/workflow-execution.webp" alt="One AgentZ workflow end to end: a trigger starts the workflow, skills run on the agent inside a sandbox, credentials arrive at runtime, and every call lands in the trace" width="900">
+</p>
+
+Read the chain from the right and it is a security story. Nothing reaches a tool
 without passing the sandbox. No credential exists inside the agent. Nothing
 happens without landing in the trace.
 
@@ -367,17 +352,9 @@ happens without landing in the trace.
 Permission is set for each individual tool call, and not for the connector as a
 whole. Read and scan can pass while mutate, push and delete stay denied.
 
-```mermaid
-graph TD
-    C["Agent wants to call a tool"] --> Q{"Permission for<br/>this exact call"}
-    Q -->|"Blocked"| X["Never leaves the sandbox"]
-    Q -->|"Needs Approval"| H["A human confirms"]
-    Q -->|"Always Allow"| R["Runs unattended"]
-    H -->|"approved"| R
-    H -->|"denied"| X
-    R --> L[("Trace")]
-    X --> L
-```
+<p align="center">
+  <img src=".github/assets/diagrams/tool-permissions.webp" alt="AgentZ tool permission decision: each call is Always Allow, Needs Approval or Blocked, and every branch ends in the trace" width="680">
+</p>
 
 Every branch ends in the trace, including the blocked one. A denied call is
 evidence, and not a silent no-op.
@@ -599,6 +576,14 @@ The full grid, with a note behind every mark, sits on the
 | On-premises | Runs on your own cluster. Manager, gateway, sinjector and observer deploy together. |
 | Air-gapped | Runs with no internet connectivity. AgentZ makes no outbound calls. |
 | Bring your own model | OpenAI, Anthropic, Google, Grok or a self-hosted endpoint, on your key. No markup and no proxy in the path. |
+
+Four components deploy together on a self-hosted cluster. The gateway serves the
+API, the manager reconciles the custom resources, the sinjector injects secrets,
+and the observer collects telemetry.
+
+<p align="center">
+  <img src=".github/assets/diagrams/self-hosted-architecture.webp" alt="Self-hosted AgentZ layout: the gateway feeds the manager, the manager runs agent sandboxes under a default-deny network policy, the sinjector reaches the secret store, and the observer reports back to the gateway" width="600">
+</p>
 
 Credentials and policy live on AgentZ rather than on the agent. Switching model
 does not mean re-wiring credentials or scopes.

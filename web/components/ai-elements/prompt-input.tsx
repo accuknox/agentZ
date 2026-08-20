@@ -429,7 +429,7 @@ export const PromptInputTextarea = ({
   onKeyDown,
   className,
   disabled,
-  placeholder = "Start with an idea, task, or question...",
+  placeholder = "Put your idea, question, or next task here...",
   ...props
 }: PromptInputTextareaProps) => {
   const attachments = usePromptInputAttachments()

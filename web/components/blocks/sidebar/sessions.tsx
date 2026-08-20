@@ -336,7 +336,7 @@ export function NavSessions({
         {!sessions.isPending && rows.length === 0 ? (
           <div className="text-sidebar-muted-foreground px-2 py-8 text-center text-sm">
             <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
-            No chats match these filters
+            No chats found
           </div>
         ) : null}
         <ul className="flex min-w-0 flex-col gap-0.5">

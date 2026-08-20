@@ -321,7 +321,7 @@ export function NavSessions({
         </Popover>
       </div>
 
-      <div className="min-h-0 overflow-y-auto px-[var(--sidebar-content-inset)] pb-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-[var(--sidebar-content-inset)] pb-2">
         {sessions.isPending ? (
           <div className="grid gap-1 py-1">
             <div className="bg-sidebar-control-surface h-16 animate-pulse rounded-md" />

@@ -12,18 +12,22 @@ export function SidebarNavigationLink({
   href,
   label,
   match,
+  maxMatchDepth,
 }: {
   children: ReactNode
   exact?: boolean
   href: Route
   label: string
   match?: string
+  maxMatchDepth?: number
 }) {
   const pathname = usePathname()
   const prefix = match ?? href
+  const matchDepth = pathname.slice(prefix.length).split("/").filter(Boolean).length
   const active = exact
     ? pathname === href
-    : pathname === prefix || pathname.startsWith(`${prefix}/`)
+    : (pathname === prefix || pathname.startsWith(`${prefix}/`)) &&
+      (maxMatchDepth === undefined || matchDepth <= maxMatchDepth)
 
   return (
     <SidebarMenuButton asChild isActive={active} tooltip={label}>

@@ -107,6 +107,9 @@
   --sidebar-content-inset: 0.5rem;
   --sidebar-row-content-inset: 0.625rem;
   --workspace-topbar-height: 52px;
+  --app-scrollbar-width: 6px;
+  --app-scrollbar-thumb: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --app-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 29%, transparent);
 }
 
 .dark {
@@ -150,35 +153,43 @@
   --message-foreground: var(--foreground);
   --glass-blur: 16px;
   --glass-saturation: 1.08;
+  --app-scrollbar-thumb: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --app-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  /* Match native scrollbars to the app theme across engines. */
   html {
     @apply font-sans;
     font-stretch: semi-condensed;
-    scrollbar-color: var(--border) transparent;
-    scrollbar-width: thin;
   }
-  *::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+  @supports not selector(::-webkit-scrollbar) {
+    html {
+      scrollbar-color: var(--app-scrollbar-thumb) transparent;
+      scrollbar-width: thin;
+    }
   }
-  *::-webkit-scrollbar-track {
+  ::-webkit-scrollbar {
+    width: var(--app-scrollbar-width);
+  }
+  ::-webkit-scrollbar-track {
     background: transparent;
   }
-  *::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border: 3px solid transparent;
-    border-radius: 999px;
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
   }
-  *::-webkit-scrollbar-thumb:hover {
-    background: var(--muted-foreground);
+  ::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: var(--app-scrollbar-thumb);
   }
-  *::-webkit-scrollbar-corner {
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--app-scrollbar-thumb-hover);
+  }
+  ::-webkit-scrollbar-corner {
     background: transparent;
   }
   body {

@@ -379,6 +379,8 @@ function SessionCard({
   const href =
     `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}` as Route
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [titleOverflows, setTitleOverflows] = useState(false)
+  const titleRef = useRef<HTMLSpanElement>(null)
   const router = useRouter()
   const queryClient = useQueryClient()
   const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
@@ -412,12 +414,24 @@ function SessionCard({
   const overflow = session.participants.length - participants.length
   const active = path === href
 
+  useEffect(() => {
+    const title = titleRef.current
+    if (!title) return
+
+    const observer = new ResizeObserver(() => {
+      setTitleOverflows(title.scrollWidth > title.clientWidth)
+    })
+    observer.observe(title)
+
+    return () => observer.disconnect()
+  }, [session.title])
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <li
           className={cn(
-            "text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none overflow-hidden rounded-md py-0.5 transition-colors",
+            "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none overflow-hidden rounded-md py-0.5 transition-colors",
             active && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
@@ -442,8 +456,27 @@ function SessionCard({
               </span>
             </div>
             <div className="mt-1 flex h-6 min-w-0 items-center gap-2">
-              <h3 className="min-w-0 flex-1 truncate text-sm leading-5 font-medium">
-                {session.title}
+              <h3 className="relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-medium">
+                <span
+                  className={cn(
+                    "block truncate",
+                    titleOverflows && "motion-safe:group-hover/session:invisible"
+                  )}
+                  ref={titleRef}
+                >
+                  {session.title}
+                </span>
+                {titleOverflows ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 hidden w-max items-center motion-safe:group-hover/session:flex"
+                  >
+                    <span className="animate-session-title-marquee flex w-max items-center gap-8 whitespace-nowrap">
+                      <span>{session.title}</span>
+                      <span>{session.title}</span>
+                    </span>
+                  </span>
+                ) : null}
               </h3>
               {session.participants.length > 0 ? (
                 <div className="flex shrink-0 -space-x-[7px]">

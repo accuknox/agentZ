@@ -405,15 +405,18 @@ function StoredAttachment({
   agentName,
   attachment,
   onOpen,
+  workspaceId,
 }: {
   agentName: string
   attachment: ChatAttachment
   onOpen: (path: string, name: string) => void
+  workspaceId: string
 }) {
   const data = { ...attachment, type: "file" as const }
   const isImage = getAttachmentMediaCategory(data) === "image"
   const previewQuery = useQuery({
     ...readAgentFileRawOptions({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
       parseAs: "blob",
       path: { agentName },
       query: { path: attachment.path },
@@ -438,10 +441,12 @@ function StoredAttachments({
   agentName,
   attachments,
   onOpen,
+  workspaceId,
 }: {
   agentName: string
   attachments: ChatAttachment[]
   onOpen: (path: string, name: string) => void
+  workspaceId: string
 }) {
   return (
     <Attachments className="gap-[6px]" variant="composer">
@@ -451,6 +456,7 @@ function StoredAttachments({
           attachment={attachment}
           key={attachment.id}
           onOpen={onOpen}
+          workspaceId={workspaceId}
         />
       ))}
     </Attachments>
@@ -1124,6 +1130,7 @@ function ChatInner({
                   revertDisabled={isBusy || isStopping || revertPending}
                   row={item}
                   user={authSession?.user}
+                  workspaceId={workspaceId}
                   workspacePath={workspacePath}
                 />
               </div>
@@ -1601,6 +1608,7 @@ function TimelineRowView({
   revertDisabled,
   row,
   user,
+  workspaceId,
   workspacePath,
 }: {
   agentName: string
@@ -1611,6 +1619,7 @@ function TimelineRowView({
   revertDisabled: boolean
   row: TimelineRow
   user?: AuthUser
+  workspaceId: string
   workspacePath: string
 }) {
   const { previewFile } = useFileWorkspace()
@@ -1637,6 +1646,7 @@ function TimelineRowView({
                 agentName={agentName}
                 attachments={row.message.attachments}
                 onOpen={openAgentFile}
+                workspaceId={workspaceId}
               />
             ) : null}
             {row.message.text.length > 0 ? (
@@ -1672,6 +1682,7 @@ function TimelineRowView({
                   agentName={agentName}
                   attachments={row.attachments}
                   onOpen={openAgentFile}
+                  workspaceId={workspaceId}
                 />
               ) : null}
               {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}

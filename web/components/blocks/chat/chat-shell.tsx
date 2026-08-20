@@ -60,14 +60,16 @@ export function ChatShell({
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-2">
-        <div className="flex min-w-0 items-center gap-1">
+      <header className="flex h-[var(--workspace-topbar-height)] shrink-0 items-center justify-between gap-3 px-3">
+        <div className="flex min-w-0 items-center gap-1.5">
           <SidebarTrigger className="shrink-0" />
-          <span className="text-muted-foreground max-w-1/3 truncate text-sm">{agentName}</span>
-          <span aria-hidden="true" className="text-muted-foreground text-sm">
+          <span className="text-muted-foreground max-w-1/3 truncate text-sm font-medium">
+            {agentName}
+          </span>
+          <span aria-hidden="true" className="text-muted-foreground/70 px-1 text-sm">
             /
           </span>
-          <h1 className="min-w-0 truncate text-sm font-medium">{title}</h1>
+          <h1 className="min-w-0 truncate text-sm font-semibold">{title}</h1>
         </div>
         <SessionFileControl agentName={agentName} />
       </header>

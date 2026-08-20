@@ -702,6 +702,10 @@ export function useOpencodeChat(
           ...current,
           [event.properties.sessionID]: idleSessionStatus,
         }))
+        // The gateway persists the status response for the shared session
+        // sidebar. Reconcile on the terminal event so its activity state does
+        // not remain busy after the local event stream has settled.
+        void refetchStatus()
       }
 
       switch (event.type) {

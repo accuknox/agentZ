@@ -12,7 +12,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { ScopeTransitionProvider } from "@/components/scope-transition"
 
 const sidebarStyle: CSSProperties & { "--sidebar-width": string } = {
-  "--sidebar-width": "17.5rem",
+  "--sidebar-width": "20rem",
 }
 
 export default function Providers({ children }: { children: ReactNode }) {

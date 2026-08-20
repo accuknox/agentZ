@@ -9,11 +9,7 @@ import {
   getAttachmentMediaCategory,
   inferAttachmentMediaType,
 } from "@/components/ai-elements/attachments"
-import {
-  Message as AIMessage,
-  MessageContent as AIMessageContent,
-  MessageResponse,
-} from "@/components/ai-elements/message"
+import { MessageResponse } from "@/components/ai-elements/message"
 import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
 import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
 import { Checkpoint, CheckpointIcon } from "@/components/ai-elements/checkpoint"
@@ -32,8 +28,6 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Message, MessageAvatar, MessageContent, MessageFooter } from "@/components/ui/message"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +42,6 @@ import {
 import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
@@ -92,7 +85,6 @@ import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-qu
 import { formatByteSize } from "@/lib/format"
 import { RelativeDateTime } from "@/components/relative-date-time"
 import { useObjectURL } from "@/hooks/use-object-url"
-import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -127,7 +119,6 @@ import {
   useState,
 } from "react"
 import { toast } from "sonner"
-import { z } from "zod"
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -174,20 +165,6 @@ type ChatProps = {
   workspacePath: string
   onAgentChange: (agentName: string) => void
 }
-
-type AuthSession = typeof authClient.$Infer.Session
-type AuthUser = AuthSession["user"]
-
-const messageActorProfilesSchema = z
-  .object({
-    profiles: z.array(
-      z
-        .object({ id: z.string().min(1), image: z.string().nullable(), name: z.string().min(1) })
-        .strict()
-    ),
-  })
-  .strict()
-type MessageActorProfile = z.infer<typeof messageActorProfilesSchema>["profiles"][number]
 
 const DEFAULT_REASONING_LEVEL = "__default__"
 const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
@@ -512,8 +489,6 @@ function ChatInner({
   const activeSessionId = sessionId ?? promotedSessionId
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
-  const { data: authSession } = authClient.useSession()
-
   const {
     applyOptimisticSession,
     blocked,
@@ -982,39 +957,6 @@ function ChatInner({
       textByPart,
     ]
   )
-  const actorUserIDs = useMemo(
-    () =>
-      [
-        ...new Set(
-          rows.flatMap((row) =>
-            row.type === "user" && row.actor?.type === "user" ? [row.actor.id] : []
-          )
-        ),
-      ].sort(),
-    [rows]
-  )
-  const actorProfilesQuery = useQuery(
-    queryOptions({
-      enabled: actorUserIDs.length > 0,
-      queryKey: ["message-actors", ...actorUserIDs],
-      queryFn: async () => {
-        const response = await fetch("/api/message-actors", {
-          body: JSON.stringify({ userIds: actorUserIDs }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        })
-        if (!response.ok) {
-          throw new Error("Failed to load message senders")
-        }
-        return messageActorProfilesSchema.parse(await response.json())
-      },
-      staleTime: 60_000,
-    })
-  )
-  const actorProfiles = useMemo(
-    () => new Map(actorProfilesQuery.data?.profiles.map((profile) => [profile.id, profile]) ?? []),
-    [actorProfilesQuery.data]
-  )
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
@@ -1022,7 +964,7 @@ function ChatInner({
   const [timelineAtEnd, setTimelineAtEnd] = useState(true)
 
   return (
-    <div className="absolute inset-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="absolute inset-0 flex min-h-0 flex-1 flex-col overflow-hidden" data-agentz-chat>
       {isBusy ? (
         <div
           aria-hidden="true"
@@ -1067,7 +1009,7 @@ function ChatInner({
               )
             }
             ListFooterComponent={
-              <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pt-2 pb-4">
+              <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pt-2 pb-56">
                 <AgentWorkingIndicator isWorking={isBusy} />
                 <RevertDock
                   items={reverted}
@@ -1114,7 +1056,7 @@ function ChatInner({
             renderItem={({ item }) => (
               <div
                 className={cn(
-                  "py-2",
+                  item.type === "user" || item.type === "local" ? "pt-2 pb-0" : "py-2",
                   item.type === "assistant-error"
                     ? "-mx-4 w-[calc(100%+2rem)] max-w-none"
                     : "mx-auto w-full max-w-3xl"
@@ -1122,13 +1064,11 @@ function ChatInner({
               >
                 <TimelineRowView
                   agentName={agentName}
-                  actorProfiles={actorProfiles}
                   isBusy={isBusy}
                   isLastBlock={rows.at(-1)?.key === item.key}
                   onRevert={handleRevert}
                   revertDisabled={isBusy || isStopping || revertPending}
                   row={item}
-                  user={authSession?.user}
                   workspacePath={workspacePath}
                 />
               </div>
@@ -1138,7 +1078,7 @@ function ChatInner({
         {!timelineAtEnd && !showStarter ? (
           <Button
             aria-label="Scroll to latest message"
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full"
+            className="bg-background/85 absolute bottom-52 left-1/2 z-20 -translate-x-1/2 rounded-full shadow-sm backdrop-blur-md"
             onClick={() => timelineRef.current?.scrollToEnd({ animated: true })}
             size="icon"
             variant="outline"
@@ -1150,322 +1090,329 @@ function ChatInner({
       </div>
       <motion.div
         className={cn(
-          "grid gap-4",
-          showStarter ? "absolute inset-x-0 top-1/2 -translate-y-1/2 px-4" : "shrink-0 pt-4"
+          "pointer-events-none absolute inset-x-0 z-30 grid gap-4 px-3 sm:px-5",
+          showStarter ? "top-1/2 -translate-y-1/2" : "bottom-0 pb-4"
         )}
         layout
-        transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
       >
         <div
           className={cn(
-            "mx-auto flex w-full flex-col",
-            showStarter ? "max-w-3xl gap-8" : "max-w-3xl min-w-0 gap-4 px-4 pb-4"
+            "pointer-events-auto mx-auto flex w-full max-w-3xl flex-col",
+            showStarter ? "gap-8" : "min-w-0"
           )}
         >
           {showStarter ? (
             <NewSessionGreeting firstName={firstName} greetingIndex={greetingIndex} />
           ) : null}
-          <PromptInput
-            controllerRef={composerRef}
-            globalDrop
-            maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
-            maxFiles={chatAttachmentConfig.maxFileCount}
-            mobile={promptMobile}
-            multiple
-            onError={(code) => {
-              toast.error(chatAttachmentErrorMessage(code))
-            }}
-            onSubmit={handleSubmit}
-          >
-            <PromptInputAttachmentsDisplay agentName={agentName} />
-            <PromptInputBody>
-              <motion.div
-                className="col-start-1 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
-                layout="position"
-                transition={promptShiftTransition}
-              >
-                <PromptInputAttachmentButton disabled={inputDisabled} />
-              </motion.div>
-              <PromptInputTextarea
-                className="col-start-2 row-start-1 group-data-[multiline=true]/prompt-body:col-span-full group-data-[multiline=true]/prompt-body:col-start-1"
-                disabled={inputDisabled}
-              />
-              <div className="contents">
+          <div className="chat-composer-glass-shell chat-composer-glass-shell-with-context relative w-full pb-9">
+            <PromptInput
+              className="agentz-chat-composer chat-composer-glass-host relative z-10 rounded-[22px]"
+              controllerRef={composerRef}
+              globalDrop
+              maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
+              maxFiles={chatAttachmentConfig.maxFileCount}
+              mobile={promptMobile}
+              multiple
+              onError={(code) => {
+                toast.error(chatAttachmentErrorMessage(code))
+              }}
+              onSubmit={handleSubmit}
+            >
+              <PromptInputAttachmentsDisplay agentName={agentName} />
+              <PromptInputBody className="grid min-h-[10.25rem] grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(5.5rem,auto)_auto] items-end gap-x-2 gap-y-2 px-3 pt-3.5 pb-3 sm:px-4 sm:pt-4 sm:pb-4">
                 <motion.div
-                  className="col-start-3 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
+                  className="col-start-1 row-start-2"
                   layout="position"
                   transition={promptShiftTransition}
                 >
-                  <ModelSelector
-                    onOpenChange={setModelSelectorOpen}
-                    open={agentReadiness.isGettingReady ? false : modelSelectorOpen}
+                  <PromptInputAttachmentButton disabled={inputDisabled} />
+                </motion.div>
+                <PromptInputTextarea
+                  className="placeholder:text-muted-foreground/80 col-span-full col-start-1 row-start-1 max-h-48 min-h-[5.5rem] self-stretch px-1 py-0 text-[15px] leading-6"
+                  disabled={inputDisabled}
+                />
+                <div className="contents">
+                  <motion.div
+                    className="col-start-2 row-start-2 min-w-0"
+                    layout="position"
+                    transition={promptShiftTransition}
                   >
-                    <div
-                      className={cn(
-                        "hidden min-w-0 items-center justify-end gap-1.5",
-                        !promptMobile && "@xl/chat:flex"
-                      )}
+                    <ModelSelector
+                      onOpenChange={setModelSelectorOpen}
+                      open={agentReadiness.isGettingReady ? false : modelSelectorOpen}
                     >
-                      <ModelSelectorTrigger asChild>
-                        <PromptInputButton
-                          className="h-8 max-w-72 justify-start px-2"
-                          disabled={inputDisabled}
-                        >
-                          {agentReadiness.isGettingReady ? (
-                            <AgentGettingReady />
-                          ) : (
-                            <BrainIcon className="text-muted-foreground size-4" />
-                          )}
-                          {agentReadiness.isGettingReady ? null : selectedModel?.name ? (
-                            <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
-                          ) : (
-                            <ModelSelectorName>Model</ModelSelectorName>
-                          )}
-                          {agentReadiness.isGettingReady ? null : (
-                            <ChevronDownIcon data-icon="inline-end" />
-                          )}
-                        </PromptInputButton>
-                      </ModelSelectorTrigger>
-                      {!agentReadiness.isGettingReady &&
-                      contextUsage?.maxTokens &&
-                      contextUsage.maxTokens > 0 ? (
-                        <Context
-                          maxTokens={contextUsage.maxTokens}
-                          totalCostUSD={sessionCost}
-                          usage={contextUsage.usage}
-                          usedTokens={contextUsage.usedTokens}
-                        >
-                          <ContextTrigger className="hover:bg-foreground/6 dark:hover:bg-foreground/10 aria-expanded:bg-foreground/8 dark:aria-expanded:bg-foreground/12 data-[state=open]:bg-foreground/8 dark:data-[state=open]:bg-foreground/12 gap-1 rounded-full px-2" />
-                          <ContextContent>
-                            <ContextContentHeader />
-                            <ContextContentBody className="flex flex-col gap-2">
-                              <ContextInputUsage />
-                              <ContextOutputUsage />
-                              <ContextReasoningUsage />
-                              <ContextCacheUsage />
-                            </ContextContentBody>
-                            <ContextContentFooter />
-                          </ContextContent>
-                        </Context>
-                      ) : null}
-                      {!agentReadiness.isGettingReady && reasoningVariants.length > 0 ? (
-                        <Select
-                          disabled={inputDisabled}
-                          onValueChange={handleReasoningLevelChange}
-                          value={selectedReasoningLevel}
-                        >
-                          <ReasoningSelectTrigger
-                            aria-label="Reasoning level"
-                            className="data-[variant=ghost]:hover:bg-foreground/6 dark:data-[variant=ghost]:hover:bg-foreground/10 data-[variant=ghost]:aria-expanded:bg-foreground/8 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12 h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full"
-                            size="sm"
-                            variant="ghost"
-                          >
-                            <SelectValue placeholder="Reasoning" />
-                          </ReasoningSelectTrigger>
-                          <SelectContent align="end" position="popper" side="top" sideOffset={8}>
-                            <SelectGroup>
-                              <SelectItem value={DEFAULT_REASONING_LEVEL}>
-                                <GaugeIcon />
-                                Default
-                              </SelectItem>
-                              {reasoningVariants.map((variant) => (
-                                <SelectItem key={variant} value={variant}>
-                                  <GaugeIcon />
-                                  {variant.length
-                                    ? variant[0]?.toUpperCase() + variant.slice(1)
-                                    : variant}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      ) : null}
-                    </div>
-                    <div
-                      className={cn("justify-end", promptMobile ? "flex" : "flex @xl/chat:hidden")}
-                    >
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                      <div
+                        className={cn(
+                          "hidden min-w-0 items-center justify-end gap-1.5",
+                          !promptMobile && "@xl/chat:flex"
+                        )}
+                      >
+                        <ModelSelectorTrigger asChild>
                           <PromptInputButton
-                            aria-label="Chat options"
-                            className="size-8"
-                            disabled={agentReadiness.isGettingReady}
+                            className="h-8 max-w-72 justify-start px-2"
+                            disabled={inputDisabled}
                           >
-                            <Settings2Icon />
+                            {agentReadiness.isGettingReady ? (
+                              <AgentGettingReady />
+                            ) : (
+                              <BrainIcon className="text-muted-foreground size-4" />
+                            )}
+                            {agentReadiness.isGettingReady ? null : selectedModel?.name ? (
+                              <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
+                            ) : (
+                              <ModelSelectorName>Model</ModelSelectorName>
+                            )}
+                            {agentReadiness.isGettingReady ? null : (
+                              <ChevronDownIcon data-icon="inline-end" />
+                            )}
                           </PromptInputButton>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-72 max-w-[calc(100vw-2rem)]"
-                          side="top"
-                          sideOffset={8}
-                        >
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem
-                              disabled={inputDisabled}
-                              onSelect={() => setModelSelectorOpen(true)}
+                        </ModelSelectorTrigger>
+                        {!agentReadiness.isGettingReady &&
+                        contextUsage?.maxTokens &&
+                        contextUsage.maxTokens > 0 ? (
+                          <Context
+                            maxTokens={contextUsage.maxTokens}
+                            totalCostUSD={sessionCost}
+                            usage={contextUsage.usage}
+                            usedTokens={contextUsage.usedTokens}
+                          >
+                            <ContextTrigger className="hover:bg-foreground/6 dark:hover:bg-foreground/10 aria-expanded:bg-foreground/8 dark:aria-expanded:bg-foreground/12 data-[state=open]:bg-foreground/8 dark:data-[state=open]:bg-foreground/12 gap-1 rounded-full px-2" />
+                            <ContextContent>
+                              <ContextContentHeader />
+                              <ContextContentBody className="flex flex-col gap-2">
+                                <ContextInputUsage />
+                                <ContextOutputUsage />
+                                <ContextReasoningUsage />
+                                <ContextCacheUsage />
+                              </ContextContentBody>
+                              <ContextContentFooter />
+                            </ContextContent>
+                          </Context>
+                        ) : null}
+                        {!agentReadiness.isGettingReady && reasoningVariants.length > 0 ? (
+                          <Select
+                            disabled={inputDisabled}
+                            onValueChange={handleReasoningLevelChange}
+                            value={selectedReasoningLevel}
+                          >
+                            <ReasoningSelectTrigger
+                              aria-label="Reasoning level"
+                              className="data-[variant=ghost]:hover:bg-foreground/6 dark:data-[variant=ghost]:hover:bg-foreground/10 data-[variant=ghost]:aria-expanded:bg-foreground/8 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12 h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full"
+                              size="sm"
+                              variant="ghost"
                             >
-                              <BrainIcon />
-                              <span className="min-w-0 flex-1 truncate">
-                                {selectedModel?.name ?? "Model"}
-                              </span>
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                          {reasoningVariants.length > 0 ? (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuGroup>
-                                <DropdownMenuLabel>Reasoning</DropdownMenuLabel>
-                                <DropdownMenuRadioGroup
-                                  onValueChange={handleReasoningLevelChange}
-                                  value={selectedReasoningLevel}
-                                >
-                                  <DropdownMenuRadioItem
-                                    disabled={inputDisabled}
-                                    value={DEFAULT_REASONING_LEVEL}
-                                  >
+                              <SelectValue placeholder="Reasoning" />
+                            </ReasoningSelectTrigger>
+                            <SelectContent align="end" position="popper" side="top" sideOffset={8}>
+                              <SelectGroup>
+                                <SelectItem value={DEFAULT_REASONING_LEVEL}>
+                                  <GaugeIcon />
+                                  Default
+                                </SelectItem>
+                                {reasoningVariants.map((variant) => (
+                                  <SelectItem key={variant} value={variant}>
                                     <GaugeIcon />
-                                    Default
-                                  </DropdownMenuRadioItem>
-                                  {reasoningVariants.map((variant) => (
+                                    {variant.length
+                                      ? variant[0]?.toUpperCase() + variant.slice(1)
+                                      : variant}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+                      </div>
+                      <div
+                        className={cn(
+                          "justify-end",
+                          promptMobile ? "flex" : "flex @xl/chat:hidden"
+                        )}
+                      >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <PromptInputButton
+                              aria-label="Chat options"
+                              className="size-8"
+                              disabled={agentReadiness.isGettingReady}
+                            >
+                              <Settings2Icon />
+                            </PromptInputButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-72 max-w-[calc(100vw-2rem)]"
+                            side="top"
+                            sideOffset={8}
+                          >
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem
+                                disabled={inputDisabled}
+                                onSelect={() => setModelSelectorOpen(true)}
+                              >
+                                <BrainIcon />
+                                <span className="min-w-0 flex-1 truncate">
+                                  {selectedModel?.name ?? "Model"}
+                                </span>
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                            {reasoningVariants.length > 0 ? (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuGroup>
+                                  <DropdownMenuLabel>Reasoning</DropdownMenuLabel>
+                                  <DropdownMenuRadioGroup
+                                    onValueChange={handleReasoningLevelChange}
+                                    value={selectedReasoningLevel}
+                                  >
                                     <DropdownMenuRadioItem
-                                      className="capitalize"
                                       disabled={inputDisabled}
-                                      key={variant}
-                                      value={variant}
+                                      value={DEFAULT_REASONING_LEVEL}
                                     >
                                       <GaugeIcon />
-                                      {variant}
+                                      Default
                                     </DropdownMenuRadioItem>
-                                  ))}
-                                </DropdownMenuRadioGroup>
-                              </DropdownMenuGroup>
-                            </>
-                          ) : null}
-                          {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuGroup>
-                                <DropdownMenuLabel>Context</DropdownMenuLabel>
-                                <div className="px-1.5 py-1.5">
-                                  <Context
-                                    maxTokens={contextUsage.maxTokens}
-                                    totalCostUSD={sessionCost}
-                                    usage={contextUsage.usage}
-                                    usedTokens={contextUsage.usedTokens}
+                                    {reasoningVariants.map((variant) => (
+                                      <DropdownMenuRadioItem
+                                        className="capitalize"
+                                        disabled={inputDisabled}
+                                        key={variant}
+                                        value={variant}
+                                      >
+                                        <GaugeIcon />
+                                        {variant}
+                                      </DropdownMenuRadioItem>
+                                    ))}
+                                  </DropdownMenuRadioGroup>
+                                </DropdownMenuGroup>
+                              </>
+                            ) : null}
+                            {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuGroup>
+                                  <DropdownMenuLabel>Context</DropdownMenuLabel>
+                                  <div className="px-1.5 py-1.5">
+                                    <Context
+                                      maxTokens={contextUsage.maxTokens}
+                                      totalCostUSD={sessionCost}
+                                      usage={contextUsage.usage}
+                                      usedTokens={contextUsage.usedTokens}
+                                    >
+                                      <ContextContentHeader className="p-0" />
+                                      <ContextContentBody className="flex flex-col gap-2 px-0 pt-2 pb-0">
+                                        <ContextInputUsage />
+                                        <ContextOutputUsage />
+                                        <ContextReasoningUsage />
+                                        <ContextCacheUsage />
+                                      </ContextContentBody>
+                                      <ContextContentFooter className="mt-2 rounded-md px-2 py-1.5" />
+                                    </Context>
+                                  </div>
+                                </DropdownMenuGroup>
+                              </>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <ModelSelectorContent>
+                        <ModelSelectorInput placeholder="Search models..." />
+                        <ModelSelectorList>
+                          <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                          {chefs.map((chef) => (
+                            <ModelSelectorGroup heading={chef} key={chef}>
+                              {models
+                                .filter((item) => item.chef === chef)
+                                .map((item) => (
+                                  <ModelSelectorItem
+                                    key={item.id}
+                                    onSelect={handleModelSelect}
+                                    value={item.id}
                                   >
-                                    <ContextContentHeader className="p-0" />
-                                    <ContextContentBody className="flex flex-col gap-2 px-0 pt-2 pb-0">
-                                      <ContextInputUsage />
-                                      <ContextOutputUsage />
-                                      <ContextReasoningUsage />
-                                      <ContextCacheUsage />
-                                    </ContextContentBody>
-                                    <ContextContentFooter className="mt-2 rounded-md px-2 py-1.5" />
-                                  </Context>
-                                </div>
-                              </DropdownMenuGroup>
-                            </>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <ModelSelectorContent>
-                      <ModelSelectorInput placeholder="Search models..." />
-                      <ModelSelectorList>
-                        <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                        {chefs.map((chef) => (
-                          <ModelSelectorGroup heading={chef} key={chef}>
-                            {models
-                              .filter((item) => item.chef === chef)
-                              .map((item) => (
-                                <ModelSelectorItem
-                                  key={item.id}
-                                  onSelect={handleModelSelect}
-                                  value={item.id}
-                                >
-                                  <BrainIcon />
-                                  <ModelSelectorName>{item.name}</ModelSelectorName>
-                                  <ModelSelectorLogoGroup>
-                                    <CpuIcon key={item.providerID} />
-                                  </ModelSelectorLogoGroup>
-                                  {selectedModelID === item.id ? (
-                                    <CheckIcon className="ml-auto" />
-                                  ) : (
-                                    <div className="ml-auto size-4" />
-                                  )}
-                                </ModelSelectorItem>
-                              ))}
-                          </ModelSelectorGroup>
-                        ))}
-                      </ModelSelectorList>
-                    </ModelSelectorContent>
-                  </ModelSelector>
-                </motion.div>
-                <motion.div
-                  className="col-start-4 row-start-1 group-data-[multiline=true]/prompt-body:row-start-2"
-                  layout="position"
-                  transition={promptShiftTransition}
-                >
-                  <PromptInputSubmit
-                    className="size-9"
-                    disabled={
-                      blocked ||
-                      isStopping ||
-                      agentReadiness.isGettingReady ||
-                      revertPending ||
-                      (!isBusy && (!selectedModel || !canSubmit))
-                    }
-                    onStop={isBusy && !isStopping ? () => void abortMessage(directory) : undefined}
-                    status={isBusy ? "streaming" : sendState}
-                  />
-                </motion.div>
-              </div>
-            </PromptInputBody>
-          </PromptInput>
-          <div className="border-border/70 bg-muted/35 -mt-px flex h-9 items-center rounded-b-xl border px-2.5">
-            <BotIcon className="text-primary mr-1.5 size-3.5" aria-hidden="true" />
-            <Select
-              disabled={activeSessionId !== undefined || agentNames.length < 2}
-              onValueChange={async (name) => {
-                onAgentChange(name)
-                if (!chatPreferences) return
-                await updateChatSessionPreference({
-                  baseUrl: await getGatewayBaseURL(),
-                  headers: { "X-AgentZ-Workspace-ID": workspaceId },
-                  body: {
-                    agent_name: chatPreferences.agent_name,
-                    include_workflow_runs: chatPreferences.include_workflow_runs,
-                    last_agent_name: name,
-                    participant_user_ids: chatPreferences.participant_user_ids,
-                  },
-                })
-              }}
-              value={agentName}
-            >
-              <ReasoningSelectTrigger
-                aria-label={activeSessionId ? "Agent locked for this chat" : "Choose agent"}
-                className="hover:bg-foreground/5 h-7 max-w-64 min-w-0 border-0 bg-transparent px-1.5 shadow-none"
-                size="sm"
+                                    <BrainIcon />
+                                    <ModelSelectorName>{item.name}</ModelSelectorName>
+                                    <ModelSelectorLogoGroup>
+                                      <CpuIcon key={item.providerID} />
+                                    </ModelSelectorLogoGroup>
+                                    {selectedModelID === item.id ? (
+                                      <CheckIcon className="ml-auto" />
+                                    ) : (
+                                      <div className="ml-auto size-4" />
+                                    )}
+                                  </ModelSelectorItem>
+                                ))}
+                            </ModelSelectorGroup>
+                          ))}
+                        </ModelSelectorList>
+                      </ModelSelectorContent>
+                    </ModelSelector>
+                  </motion.div>
+                  <motion.div
+                    className="col-start-3 row-start-2"
+                    layout="position"
+                    transition={promptShiftTransition}
+                  >
+                    <PromptInputSubmit
+                      className="size-9 shadow-xs transition-all duration-150 hover:scale-105 active:shadow-none enabled:inset-shadow-[0_1px_rgb(255_255_255_/_0.16)] disabled:hover:scale-100"
+                      disabled={
+                        blocked ||
+                        isStopping ||
+                        agentReadiness.isGettingReady ||
+                        revertPending ||
+                        (!isBusy && (!selectedModel || !canSubmit))
+                      }
+                      onStop={
+                        isBusy && !isStopping ? () => void abortMessage(directory) : undefined
+                      }
+                      status={isBusy ? "streaming" : sendState}
+                    />
+                  </motion.div>
+                </div>
+              </PromptInputBody>
+            </PromptInput>
+            <div className="chat-composer-context-strip absolute inset-x-[1.375rem] bottom-0 z-0 flex h-10 items-end px-3 pb-1">
+              <Select
+                disabled={activeSessionId !== undefined || agentNames.length < 2}
+                onValueChange={async (name) => {
+                  onAgentChange(name)
+                  if (!chatPreferences) return
+                  await updateChatSessionPreference({
+                    baseUrl: await getGatewayBaseURL(),
+                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                    body: {
+                      agent_name: chatPreferences.agent_name,
+                      include_workflow_runs: chatPreferences.include_workflow_runs,
+                      last_agent_name: name,
+                      participant_user_ids: chatPreferences.participant_user_ids,
+                    },
+                  })
+                }}
+                value={agentName}
               >
-                <SelectValue />
-              </ReasoningSelectTrigger>
-              <SelectContent align="start" position="popper" side="top" sideOffset={6}>
-                <SelectGroup>
-                  {agentNames.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      <BotIcon />
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {activeSessionId ? (
-              <span className="text-muted-foreground ml-auto text-[11px]">
-                Locked for this chat
-              </span>
-            ) : null}
+                <ReasoningSelectTrigger
+                  aria-label={activeSessionId ? "Agent locked for this chat" : "Choose agent"}
+                  className="hover:bg-foreground/5 h-7 max-w-64 min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none"
+                  size="sm"
+                >
+                  <SelectValue />
+                </ReasoningSelectTrigger>
+                <SelectContent align="start" position="popper" side="top" sideOffset={6}>
+                  <SelectGroup>
+                    {agentNames.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        <BotIcon />
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {activeSessionId ? (
+                <span className="text-muted-foreground ml-auto text-[11px]">
+                  Locked for this chat
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -1495,19 +1442,30 @@ function QuickTurnNav({
   return (
     <nav
       aria-label="Chat turns"
-      className="quick-turn-nav absolute top-1/2 left-1 z-20 hidden h-40 w-5 -translate-y-1/2 lg:block"
-      onMouseLeave={() => setActive(undefined)}
-      onMouseMove={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect()
-        const ratio = Math.min(0.999, Math.max(0, (event.clientY - rect.top) / rect.height))
-        setActive(Math.floor(ratio * turns.length))
-      }}
+      className="quick-turn-nav pointer-events-none absolute inset-y-0 left-0 z-40 hidden w-18 lg:block"
     >
-      <div className="absolute top-0 bottom-0 left-1/2 flex -translate-x-1/2 flex-col justify-between py-1">
+      <div
+        className="pointer-events-auto absolute top-1/2 left-3 -translate-y-1/2 cursor-pointer"
+        onMouseLeave={() => setActive(undefined)}
+        onMouseMove={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          const ratio = Math.min(0.999, Math.max(0, (event.clientY - rect.top) / rect.height))
+          setActive(Math.floor(ratio * turns.length))
+        }}
+        style={{ height: `clamp(4rem, ${turns.length * 0.75}rem, 18rem)` }}
+      >
+        <div className="bg-border/15 absolute top-0 left-3 h-full w-px" />
         {turns.map((turn, index) => (
           <button
             aria-label={`Go to turn ${index + 1}`}
-            className="bg-muted-foreground/35 hover:bg-primary h-0.5 w-2 rounded-full transition-all hover:w-3"
+            className={cn(
+              "bg-muted-foreground/35 hover:bg-primary absolute left-0 h-0.5 -translate-y-1/2 rounded-full transition-[background-color,width] duration-150",
+              active === index
+                ? "bg-muted-foreground/75 w-6"
+                : active !== undefined && Math.abs(active - index) === 1
+                  ? "w-4"
+                  : "w-2"
+            )}
             key={turn.key}
             onClick={() => {
               void listRef.current?.scrollToIndex({
@@ -1516,21 +1474,26 @@ function QuickTurnNav({
                 viewOffset: 24,
               })
             }}
+            style={{ top: `${turns.length === 1 ? 0 : (index / (turns.length - 1)) * 100}%` }}
             type="button"
           />
         ))}
+        {active !== undefined && turns[active] ? (
+          <div
+            className="bg-popover/90 text-popover-foreground ring-foreground/10 pointer-events-none absolute left-8 w-80 -translate-y-1/2 rounded-xl p-3 text-left shadow-xl ring-1 backdrop-blur-xl"
+            style={{ top: `${((active + 0.5) / turns.length) * 100}%` }}
+          >
+            <p className="truncate text-sm leading-5 font-medium">
+              {turns[active].text || "Attachment"}
+            </p>
+            {turns[active].assistantText ? (
+              <p className="text-muted-foreground mt-1 line-clamp-3 text-sm leading-5">
+                {turns[active].assistantText}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      {active !== undefined && turns[active] ? (
-        <div
-          className="bg-popover text-popover-foreground ring-foreground/10 pointer-events-none absolute left-6 w-64 -translate-y-1/2 rounded-xl p-3 text-xs shadow-lg ring-1"
-          style={{ top: `${((active + 0.5) / turns.length) * 100}%` }}
-        >
-          <p className="line-clamp-2 font-medium">{turns[active].text || "Attachment"}</p>
-          {turns[active].assistantText ? (
-            <p className="text-muted-foreground mt-2 line-clamp-3">{turns[active].assistantText}</p>
-          ) : null}
-        </div>
-      ) : null}
     </nav>
   )
 }
@@ -1548,56 +1511,21 @@ function MessageActionBar({ className, children }: { className?: string; childre
   )
 }
 
-function UserMessageAvatar({
-  image,
-  name,
-  label,
-}: {
-  image?: string | null
-  name: string
-  label: string
-}) {
-  const displayName = name.trim() || "User"
-  const initials = displayName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("")
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <MessageAvatar aria-label={label}>
-          <Avatar>
-            <AvatarImage alt={displayName} src={image ?? undefined} />
-            <AvatarFallback>{initials || "U"}</AvatarFallback>
-          </Avatar>
-        </MessageAvatar>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 function TimelineRowView({
   agentName,
-  actorProfiles,
   isBusy,
   isLastBlock,
   onRevert,
   revertDisabled,
   row,
-  user,
   workspacePath,
 }: {
   agentName: string
-  actorProfiles: Map<string, MessageActorProfile>
   isBusy: boolean
   isLastBlock: boolean
   onRevert: (messageID: string) => void
   revertDisabled: boolean
   row: TimelineRow
-  user?: AuthUser
   workspacePath: string
 }) {
   const { previewFile } = useFileWorkspace()
@@ -1611,63 +1539,51 @@ function TimelineRowView({
   switch (row.type) {
     case "local": {
       return (
-        <Message align="end" className="group is-user ml-auto max-w-[95%]">
-          <UserMessageAvatar
-            image={user?.image}
-            label={user?.name ?? "You"}
-            name={user?.name ?? "You"}
-          />
-          <MessageContent>
-            <AIMessageContent
-              className={cn(
-                row.message.status === "failed"
-                  ? "border-destructive/30 bg-destructive/10 text-destructive border"
-                  : undefined,
-                row.message.attachments.length > 0 ? "space-y-3" : undefined
-              )}
-            >
-              {row.message.attachments.length > 0 ? (
-                <StoredAttachments
-                  agentName={agentName}
-                  attachments={row.message.attachments}
-                  onOpen={openAgentFile}
-                />
-              ) : null}
-              {row.message.text.length > 0 ? (
-                <MessageResponse>{row.message.text}</MessageResponse>
-              ) : null}
-            </AIMessageContent>
-          </MessageContent>
-        </Message>
+        <div className="group flex flex-col items-end gap-1">
+          <div
+            className={cn(
+              "bg-message text-message-foreground relative max-w-[80%] rounded-2xl p-3 text-sm",
+              row.message.status === "failed" &&
+                "border-destructive/30 bg-destructive/10 text-destructive border"
+            )}
+          >
+            {row.message.attachments.length > 0 ? (
+              <StoredAttachments
+                agentName={agentName}
+                attachments={row.message.attachments}
+                onOpen={openAgentFile}
+              />
+            ) : null}
+            {row.message.text.length > 0 ? (
+              <MessageResponse>{row.message.text}</MessageResponse>
+            ) : null}
+          </div>
+        </div>
       )
     }
 
     case "user": {
       const isEmpty = row.text.length === 0 && row.attachments.length === 0
-      const profile = row.actor?.type === "user" ? actorProfiles.get(row.actor.id) : undefined
-      const name = profile?.name ?? row.actor?.name
-      const label = row.actor
-        ? `${name} · ${
-            row.actor.type === "user" ? "User" : row.actor.type === "api_key" ? "API key" : "System"
-          }`
-        : undefined
+      if (isEmpty) return null
+
       return (
-        <Message align="end" className="group is-user ml-auto max-w-[95%]">
-          {isEmpty || !name || !label ? null : (
-            <UserMessageAvatar image={profile?.image} label={label} name={name} />
-          )}
-          <MessageContent className={isEmpty ? "hidden" : undefined}>
-            <AIMessageContent className={row.attachments.length > 0 ? "space-y-3" : undefined}>
-              {row.attachments.length > 0 ? (
-                <StoredAttachments
-                  agentName={agentName}
-                  attachments={row.attachments}
-                  onOpen={openAgentFile}
-                />
-              ) : null}
-              {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
-            </AIMessageContent>
-            <MessageFooter className="gap-1 px-0">
+        <div className="group flex flex-col items-end gap-1">
+          <div className="bg-message text-message-foreground relative max-w-[80%] rounded-2xl p-3 text-sm">
+            {row.attachments.length > 0 ? (
+              <StoredAttachments
+                agentName={agentName}
+                attachments={row.attachments}
+                onOpen={openAgentFile}
+              />
+            ) : null}
+            {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
+          </div>
+          <div className="flex w-full max-w-[80%] items-center justify-end gap-2 pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+            {row.actor?.name ? (
+              <span className="text-muted-foreground truncate">{row.actor.name}</span>
+            ) : null}
+            <RelativeDateTime value={row.createdAt} />
+            <div className="flex items-center gap-0.5">
               <MessageActionBar>
                 <CopyButton content={row.text} />
                 <Button
@@ -1681,10 +1597,9 @@ function TimelineRowView({
                   <Undo2Icon />
                 </Button>
               </MessageActionBar>
-              <RelativeDateTime value={row.createdAt} />
-            </MessageFooter>
-          </MessageContent>
-        </Message>
+            </div>
+          </div>
+        </div>
       )
     }
 
@@ -1696,8 +1611,8 @@ function TimelineRowView({
         .map((entry) => entry.content)
         .join("\n\n")
       return (
-        <AIMessage from="assistant">
-          <AIMessageContent>
+        <div className="group flex w-full min-w-0 flex-col gap-1">
+          <div className="relative min-w-0 px-1 py-0.5 text-sm">
             {groups.map((group, groupIndex) => {
               switch (group.type) {
                 case "text":
@@ -1739,8 +1654,8 @@ function TimelineRowView({
                   return null
               }
             })}
-          </AIMessageContent>
-          <div className="flex items-center gap-1">
+          </div>
+          <div className="flex items-center gap-1 px-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
             <RelativeDateTime className="text-xs" value={row.createdAt} />
             {copyText.length > 0 && !(isBusy && isLastBlock) ? (
               <MessageActionBar>
@@ -1748,7 +1663,7 @@ function TimelineRowView({
               </MessageActionBar>
             ) : null}
           </div>
-        </AIMessage>
+        </div>
       )
     }
 

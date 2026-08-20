@@ -14,9 +14,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans:
-    var(--font-archivo), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-heading:
     var(--font-archivo), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -25,6 +23,11 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-row-hover: var(--sidebar-row-hover);
+  --color-sidebar-row-active: var(--sidebar-row-active);
+  --color-sidebar-control-surface: var(--sidebar-control-surface);
+  --color-message: var(--message-surface);
+  --color-message-foreground: var(--message-foreground);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -53,6 +56,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --animate-status-pulse: status-pulse 2s infinite;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -98,6 +102,17 @@
   --sidebar-accent-foreground: oklch(0.2138 0.0019 286.2347);
   --sidebar-border: oklch(0.9219 0 0);
   --sidebar-ring: oklch(0.709 0 0);
+  --sidebar-control-surface: color-mix(in oklab, var(--primary) 5%, white);
+  --sidebar-row-hover: color-mix(in oklab, var(--primary) 3%, white);
+  --sidebar-row-active: color-mix(in oklab, var(--primary) 9%, white);
+  --message-surface: color-mix(in oklab, var(--primary) 6%, white);
+  --message-foreground: var(--foreground);
+  --glass-blur: 12px;
+  --glass-opacity: 88%;
+  --glass-saturation: 1.14;
+  --sidebar-content-inset: 0.5rem;
+  --sidebar-row-content-inset: 0.625rem;
+  --workspace-topbar-height: 52px;
 }
 
 .dark {
@@ -135,6 +150,13 @@
   --sidebar-accent-foreground: oklch(0.9851 0 0);
   --sidebar-border: oklch(0.2768 0 0);
   --sidebar-ring: oklch(0.4386 0 0);
+  --sidebar-control-surface: color-mix(in oklab, var(--primary) 7%, var(--sidebar));
+  --sidebar-row-hover: color-mix(in oklab, var(--primary) 5%, var(--sidebar));
+  --sidebar-row-active: color-mix(in oklab, var(--primary) 13%, var(--sidebar));
+  --message-surface: color-mix(in oklab, var(--primary) 9%, var(--background));
+  --message-foreground: var(--foreground);
+  --glass-blur: 16px;
+  --glass-saturation: 1.08;
 }
 
 @layer base {
@@ -175,6 +197,183 @@
 }
 
 @layer components {
+  [data-app-sidebar] {
+    --sidebar: color-mix(in oklab, var(--primary) 1.5%, oklch(0.9851 0 0));
+  }
+
+  .chat-composer-glass-shell {
+    --chat-composer-glass-surface: color-mix(in oklab, var(--primary) 3%, var(--card));
+    --chat-composer-outline: color-mix(in oklab, var(--primary) 14%, transparent);
+    isolation: isolate;
+  }
+
+  .chat-composer-glass-shell::before {
+    pointer-events: none;
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    border-radius: 22px;
+    background: color-mix(
+      in srgb,
+      var(--chat-composer-glass-surface) var(--glass-opacity),
+      transparent
+    );
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    content: "";
+  }
+
+  .chat-composer-glass-shell-with-context {
+    --chat-composer-context-extension: 2.25rem;
+  }
+
+  .chat-composer-glass-shell-with-context::before {
+    border-radius: 0;
+    clip-path: shape(
+      from 0 22px,
+      curve to 22px 0 with 0 9.85px / 9.85px 0,
+      line to calc(100% - 22px) 0,
+      curve to 100% 22px with calc(100% - 9.85px) 0 / 100% 9.85px,
+      line to 100% calc(100% - var(--chat-composer-context-extension) - 1.375rem),
+      curve to calc(100% - 1.375rem) calc(100% - var(--chat-composer-context-extension)) with 100%
+        calc(100% - var(--chat-composer-context-extension) - 0.6156rem) / calc(100% - 0.6156rem)
+        calc(100% - var(--chat-composer-context-extension)),
+      line to calc(100% - 1.375rem) calc(100% - 16px),
+      curve to calc(100% - 1.375rem - 16px) 100% with calc(100% - 1.375rem) calc(100% - 7.16px) /
+        calc(100% - 1.375rem - 7.16px) 100%,
+      line to calc(1.375rem + 16px) 100%,
+      curve to 1.375rem calc(100% - 16px) with calc(1.375rem + 7.16px) 100% / 1.375rem
+        calc(100% - 7.16px),
+      line to 1.375rem calc(100% - var(--chat-composer-context-extension)),
+      curve to 0 calc(100% - var(--chat-composer-context-extension) - 1.375rem) with 0.6156rem
+        calc(100% - var(--chat-composer-context-extension)) / 0
+        calc(100% - var(--chat-composer-context-extension) - 0.6156rem),
+      line to 0 22px,
+      close
+    );
+  }
+
+  @media (min-width: 40rem) {
+    .chat-composer-glass-shell-with-context {
+      --chat-composer-context-extension: 2rem;
+    }
+  }
+
+  .chat-composer-glass-host {
+    box-shadow: 0 16px 36px -22px color-mix(in oklab, var(--primary) 45%, black);
+  }
+
+  .chat-composer-glass-host::after {
+    pointer-events: none;
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border: 1px solid var(--chat-composer-outline);
+    border-radius: inherit;
+    content: "";
+  }
+
+  .chat-composer-glass-shell-with-context .chat-composer-glass-host::after {
+    clip-path: polygon(
+      0 0,
+      100% 0,
+      100% 100%,
+      calc(100% - 22px) 100%,
+      calc(100% - 22px) calc(100% - 2px),
+      22px calc(100% - 2px),
+      22px 100%,
+      0 100%
+    );
+  }
+
+  .chat-composer-context-strip {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .chat-composer-context-strip::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border: 1px solid var(--chat-composer-outline);
+    border-radius: 0 0 16px 16px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0 1rem, black 1rem);
+    mask-image: linear-gradient(to bottom, transparent 0 1rem, black 1rem);
+    box-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
+    content: "";
+  }
+
+  @supports not (clip-path: shape(from 0 0, line to 1px 1px)) {
+    .chat-composer-glass-shell-with-context::before {
+      inset-block-end: var(--chat-composer-context-extension);
+      border-radius: 22px;
+      clip-path: none;
+    }
+
+    .chat-composer-context-strip::before {
+      background: color-mix(
+        in srgb,
+        var(--chat-composer-glass-surface) var(--glass-opacity),
+        transparent
+      );
+      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    }
+  }
+
+  .agentz-chat-composer [data-slot="prompt-input-surface"] {
+    display: flex;
+    flex-direction: column;
+    min-height: 10.25rem;
+    align-items: stretch;
+    overflow: visible;
+    border: 0;
+    border-radius: 22px;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .agentz-chat-composer [data-slot="input-group-control"] {
+    min-height: 5.5rem;
+  }
+
+  @media (max-width: 39.999rem) {
+    .agentz-chat-composer [data-slot="prompt-input-surface"] {
+      min-height: 8rem;
+    }
+  }
+
+  .dark [data-app-sidebar] {
+    --sidebar: color-mix(in oklab, var(--primary) 2%, var(--background));
+  }
+
+  .dark .chat-composer-glass-shell {
+    --chat-composer-glass-surface: color-mix(in oklab, var(--primary) 3%, var(--background));
+    --chat-composer-outline: color-mix(in srgb, white 7%, transparent);
+  }
+
+  .dark .chat-composer-glass-host {
+    box-shadow: none;
+  }
+
+  .dark .chat-composer-glass-host::after {
+    box-shadow: inset 0 1px rgb(255 255 255 / 3%);
+  }
+
+  .dark .chat-composer-context-strip::before {
+    border-color: rgb(255 255 255 / 7%);
+    background:
+      linear-gradient(
+        to bottom,
+        transparent 0 1rem,
+        rgb(0 0 0 / 18%) 1rem,
+        transparent calc(1rem + 10px)
+      ),
+      rgb(255 255 255 / 2%);
+    box-shadow: 0 14px 32px -18px rgb(0 0 0 / 75%);
+  }
+
   [data-administration] [data-slot="card"] {
     gap: 1rem;
     border: 0;
@@ -235,6 +434,22 @@
   }
   100% {
     transform: translate3d(330%, 0, 0) scaleX(0.35);
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  40% {
+    opacity: 1;
+    animation-timing-function: steps(6);
+  }
+  50%,
+  90% {
+    opacity: 0.5;
+    animation-timing-function: steps(6);
+  }
+  100% {
+    opacity: 1;
   }
 }
 

@@ -97,11 +97,11 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
             <PopoverTrigger asChild>
               <SidebarMenuButton
                 aria-label="Choose Workspace"
-                size="lg"
+                className="h-9"
                 tooltip={active?.name ?? scope.organization.name}
               >
                 <OrganizationAvatar
-                  className="size-8"
+                  className="size-7"
                   logo={scope.organization.logo}
                   name={scope.organization.name}
                 />

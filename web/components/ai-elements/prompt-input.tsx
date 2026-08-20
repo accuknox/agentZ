@@ -1,6 +1,6 @@
 "use client"
 
-import { InputGroup, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
+import { InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -380,12 +380,14 @@ export const PromptInput = ({
           type="file"
         />
         <form className={cn("w-full", className)} onSubmit={handleSubmit} ref={formRef} {...props}>
-          <InputGroup
+          <div
             className={cn(
-              "relative h-auto min-h-12 overflow-hidden rounded-full px-2 py-1 transition-[border-radius,padding] duration-200 ease-out has-[>[data-align=block-start]]:rounded-[1.5rem] has-[>[data-align=block-start]]:py-1.5 data-[multiline=true]:rounded-[1.75rem] data-[multiline=true]:py-4",
-              isDraggingFiles && "border-primary ring-primary/20 ring-3"
+              "relative h-auto w-full min-w-0 overflow-hidden rounded-[22px]",
+              isDraggingFiles && "ring-primary/30 ring-2"
             )}
             data-multiline={isMultiline}
+            data-slot="prompt-input-surface"
+            role="group"
           >
             {children}
             {isDraggingFiles ? (
@@ -393,7 +395,7 @@ export const PromptInput = ({
                 Drop files to attach
               </div>
             ) : null}
-          </InputGroup>
+          </div>
         </form>
       </PromptInputLayoutContext.Provider>
     </LocalAttachmentsContext.Provider>

@@ -7,8 +7,10 @@ import {
   Bot,
   Building2,
   Cable,
+  ChevronDown,
   CircleUserRound,
   CloudCog,
+  Folder,
   KeyRound,
   Monitor,
   ScrollText,
@@ -90,8 +92,8 @@ export function AppSidebar({
   ...sidebarProps
 }: AppSidebarProps) {
   return (
-    <Sidebar collapsible="icon" {...sidebarProps}>
-      <SidebarHeader className="p-2">
+    <Sidebar collapsible="icon" data-app-sidebar {...sidebarProps}>
+      <SidebarHeader className="h-[var(--workspace-topbar-height)] justify-center p-2">
         {scope.kind === "settings" && scope.hasAppDestination ? (
           <SidebarMenu>
             <SidebarMenuItem>
@@ -222,104 +224,114 @@ async function WorkspaceNavigation({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="no-scrollbar max-h-[min(50%,24rem)] shrink-0 overflow-y-auto">
-        {hasResources ? (
-          <SidebarGroup className="px-2 py-2">
-            <SidebarMenu>
-              {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
-              {skillCapabilities.read ? (
-                <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/skills` as Route}
-                    label={resourceLabels.skill.collection}
-                  >
-                    <ScrollText aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {mcpConnectionCapabilities.read ? (
-                <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/mcps` as Route}
-                    label={resourceLabels.mcp.collection}
-                  >
-                    <Cable aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {sandboxCapabilities.read ? (
-                <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/sandboxes` as Route}
-                    label="Sandboxes"
-                  >
-                    <Box aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {inferenceProviderCapabilities.read || inferencePoolCapabilities.read ? (
-                <NavInference
-                  rootPath={workspacePath}
-                  showPools={inferencePoolCapabilities.read}
-                  showProviders={inferenceProviderCapabilities.read}
-                />
-              ) : null}
-              {showSecrets ? <NavSecrets workspacePath={workspacePath} /> : null}
-              {showWorkflows ? (
-                <>
+      <details className="group/tools shrink-0 px-[var(--sidebar-content-inset)] pb-1 group-data-[collapsible=icon]:hidden">
+        <summary className="hover:bg-sidebar-row-hover flex h-8 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+          <Folder aria-hidden="true" className="text-muted-foreground size-4" />
+          <span className="min-w-0 flex-1 truncate">Workspace</span>
+          <ChevronDown
+            aria-hidden="true"
+            className="text-muted-foreground size-4 transition-transform group-open/tools:rotate-180"
+          />
+        </summary>
+        <div className="no-scrollbar max-h-[min(42dvh,24rem)] overflow-y-auto pt-1">
+          {hasResources ? (
+            <SidebarGroup className="px-0 py-0">
+              <SidebarMenu>
+                {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
+                {skillCapabilities.read ? (
                   <SidebarMenuItem>
                     <SidebarNavigationLink
-                      href={`${workspacePath}/workflows/graphs` as Route}
-                      label={resourceLabels.workflow.collection}
+                      href={`${workspacePath}/skills` as Route}
+                      label={resourceLabels.skill.collection}
                     >
-                      <Workflow aria-hidden="true" />
+                      <ScrollText aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
+                ) : null}
+                {mcpConnectionCapabilities.read ? (
                   <SidebarMenuItem>
                     <SidebarNavigationLink
-                      href={`${workspacePath}/workflows/triggers` as Route}
-                      label="Triggers"
+                      href={`${workspacePath}/mcps` as Route}
+                      label={resourceLabels.mcp.collection}
                     >
-                      <Zap aria-hidden="true" />
+                      <Cable aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
-                </>
-              ) : null}
-            </SidebarMenu>
-          </SidebarGroup>
-        ) : null}
-        {hasWorkspace ? (
-          <SidebarGroup className="px-2 py-2">
-            <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-            <SidebarMenu>
-              {showAgents ? (
-                <SidebarMenuItem>
-                  <SidebarNavigationLink href={`${workspacePath}/agents` as Route} label="Agents">
-                    <Bot aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {organization.superadmin || workspace.capabilities.administer ? (
-                <>
-                  <SidebarMenuItem>
-                    <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
-                      <ShieldCheck aria-hidden="true" />
-                    </SidebarNavigationLink>
-                  </SidebarMenuItem>
+                ) : null}
+                {sandboxCapabilities.read ? (
                   <SidebarMenuItem>
                     <SidebarNavigationLink
-                      href={`${workspacePath}/event-trail` as Route}
-                      label="Event Trail"
+                      href={`${workspacePath}/sandboxes` as Route}
+                      label="Sandboxes"
                     >
-                      <Activity aria-hidden="true" />
+                      <Box aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
-                </>
-              ) : null}
-            </SidebarMenu>
-          </SidebarGroup>
-        ) : null}
-      </div>
+                ) : null}
+                {inferenceProviderCapabilities.read || inferencePoolCapabilities.read ? (
+                  <NavInference
+                    rootPath={workspacePath}
+                    showPools={inferencePoolCapabilities.read}
+                    showProviders={inferenceProviderCapabilities.read}
+                  />
+                ) : null}
+                {showSecrets ? <NavSecrets workspacePath={workspacePath} /> : null}
+                {showWorkflows ? (
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarNavigationLink
+                        href={`${workspacePath}/workflows/graphs` as Route}
+                        label={resourceLabels.workflow.collection}
+                      >
+                        <Workflow aria-hidden="true" />
+                      </SidebarNavigationLink>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarNavigationLink
+                        href={`${workspacePath}/workflows/triggers` as Route}
+                        label="Triggers"
+                      >
+                        <Zap aria-hidden="true" />
+                      </SidebarNavigationLink>
+                    </SidebarMenuItem>
+                  </>
+                ) : null}
+              </SidebarMenu>
+            </SidebarGroup>
+          ) : null}
+          {hasWorkspace ? (
+            <SidebarGroup className="px-0 py-1">
+              <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+              <SidebarMenu>
+                {showAgents ? (
+                  <SidebarMenuItem>
+                    <SidebarNavigationLink href={`${workspacePath}/agents` as Route} label="Agents">
+                      <Bot aria-hidden="true" />
+                    </SidebarNavigationLink>
+                  </SidebarMenuItem>
+                ) : null}
+                {organization.superadmin || workspace.capabilities.administer ? (
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
+                        <ShieldCheck aria-hidden="true" />
+                      </SidebarNavigationLink>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarNavigationLink
+                        href={`${workspacePath}/event-trail` as Route}
+                        label="Event Trail"
+                      >
+                        <Activity aria-hidden="true" />
+                      </SidebarNavigationLink>
+                    </SidebarMenuItem>
+                  </>
+                ) : null}
+              </SidebarMenu>
+            </SidebarGroup>
+          ) : null}
+        </div>
+      </details>
       {showAgents ? (
         <ChatSessionNavigation
           agents={agents}
@@ -362,8 +374,7 @@ async function ChatSessionNavigation({
   }
 
   return (
-    <SidebarGroup className="min-h-0 flex-1 px-0 py-2">
-      <SidebarGroupLabel className="px-4">Chats</SidebarGroupLabel>
+    <SidebarGroup className="min-h-0 flex-1 px-0 py-1">
       <NavSessions
         agents={agents}
         initialPreferences={preference.data}

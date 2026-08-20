@@ -53,10 +53,23 @@ export function ChatShell({
   workspacePath,
 }: ChatShellProps): React.JSX.Element {
   const [previewerOpen, setPreviewerOpen] = useState(false)
+  const [promotedSession, setPromotedSession] = useState<{
+    chatKey: string
+    sessionId: string
+  }>()
   const router = useRouter()
   // Soft navigations preserve client trees in this app, so the chat subtree
-  // must remount when the logical session target changes.
-  const chatKey = `${agentName}:${sessionId ?? `new:${draftKey ?? "default"}`}`
+  // must remount when the logical session target changes. Promoting a new chat
+  // keeps its key because the live stream belongs to the session just created.
+  const routeChatKey = `${agentName}:${sessionId ?? `new:${draftKey ?? "default"}`}`
+  const activePromotion =
+    promotedSession &&
+    (sessionId === promotedSession.sessionId ||
+      (sessionId === undefined && routeChatKey === promotedSession.chatKey))
+      ? promotedSession
+      : undefined
+  const chatKey = activePromotion?.chatKey ?? routeChatKey
+  const activeSessionId = sessionId ?? activePromotion?.sessionId
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
@@ -80,8 +93,11 @@ export function ChatShell({
             chatPreferences={chatPreferences}
             firstName={firstName}
             greetingIndex={greetingIndex}
+            onSessionCreated={(id) => {
+              setPromotedSession({ chatKey: routeChatKey, sessionId: id })
+            }}
             promptMobile={previewerOpen}
-            sessionId={sessionId}
+            sessionId={activeSessionId}
             workspaceId={workspaceId}
             workspacePath={workspacePath}
             onAgentChange={(name) => {

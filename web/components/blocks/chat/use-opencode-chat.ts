@@ -694,12 +694,12 @@ export function useOpencodeChat(
     return buildStore(sessionID, session.data, [...records.values()])
   }, [history.data, session.data, sessionID])
   // Loading another history page retains the first page object, while an
-  // authoritative refetch replaces it. Keep streamed state across pagination
-  // and reset it only when the server snapshot or Session itself changes.
+  // authoritative refetch replaces it. Session metadata refetches must not
+  // discard messages received from the live stream.
   const firstHistoryPage = history.data?.pages[0]
   const baseStoreVersion = useMemo(
-    () => ({ firstHistoryPage, sessionID, sessionUpdatedAt: session.dataUpdatedAt }),
-    [firstHistoryPage, session.dataUpdatedAt, sessionID]
+    () => ({ firstHistoryPage, sessionID }),
+    [firstHistoryPage, sessionID]
   )
   const store = liveStore?.version === baseStoreVersion ? liveStore.store : baseStore
 

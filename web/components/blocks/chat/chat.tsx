@@ -169,6 +169,7 @@ type ChatProps = {
   workspaceId: string
   workspacePath: string
   onAgentChange: (agentName: string) => void
+  onSessionCreated: (sessionId: string) => void
 }
 
 type AuthUser = typeof authClient.$Infer.Session.user
@@ -508,11 +509,10 @@ function ChatInner({
   workspaceId,
   workspacePath,
   onAgentChange,
+  onSessionCreated,
 }: ChatProps) {
   const queryClient = useQueryClient()
   const preferenceKey = ["chatSessionPreference", workspaceId] as const
-  const [promotedSessionId, setPromotedSessionId] = useState<string>()
-  const activeSessionId = sessionId ?? promotedSessionId
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
   const { data: authSession } = authClient.useSession()
@@ -564,10 +564,10 @@ function ChatInner({
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, workspaceId, activeSessionId)
+  } = useOpencodeChat(agentName, workspaceId, sessionId)
 
   useEffect(() => {
-    const id = `chat:${agentName}:${activeSessionId ?? "new"}:history-error`
+    const id = `chat:${agentName}:${sessionId ?? "new"}:history-error`
     if (!loadError) {
       toast.dismiss(id)
       return
@@ -582,10 +582,10 @@ function ChatInner({
     return () => {
       toast.dismiss(id)
     }
-  }, [activeSessionId, agentName, loadError, reload])
+  }, [agentName, loadError, reload, sessionId])
 
   useEffect(() => {
-    const id = `chat:${agentName}:${activeSessionId ?? "new"}:stream-error`
+    const id = `chat:${agentName}:${sessionId ?? "new"}:stream-error`
     if (!streamError) {
       toast.dismiss(id)
       return
@@ -600,10 +600,10 @@ function ChatInner({
     return () => {
       toast.dismiss(id)
     }
-  }, [activeSessionId, agentName, reconnectStream, streamError])
+  }, [agentName, reconnectStream, sessionId, streamError])
 
   useEffect(() => {
-    const id = `chat:${agentName}:${activeSessionId ?? "new"}:retry`
+    const id = `chat:${agentName}:${sessionId ?? "new"}:retry`
     if (sessionStatus?.type !== "retry") {
       toast.dismiss(id)
       return
@@ -618,7 +618,7 @@ function ChatInner({
     return () => {
       toast.dismiss(id)
     }
-  }, [activeSessionId, agentName, sessionStatus])
+  }, [agentName, sessionId, sessionStatus])
 
   const directory = session?.directory
   const [model, setModel] = useState<string>("")
@@ -781,10 +781,10 @@ function ChatInner({
     agentName,
     workspaceId,
     `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions`,
-    activeSessionId,
+    sessionId,
     directory,
     isBusy || isPending || blocked || agentReadiness.isGettingReady,
-    setPromotedSessionId
+    onSessionCreated
   )
 
   useEffect(() => {
@@ -862,17 +862,17 @@ function ChatInner({
   // matching session.updated stream event reconciles it (see applyOptimisticSession).
   const applyRevert = useCallback(
     async (messageID?: string) => {
-      if (!activeSessionId || isStopping) return
+      if (!sessionId || isStopping) return
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = messageID
-        ? await client.session.revert({ directory, messageID, sessionID: activeSessionId })
-        : await client.session.unrevert({ directory, sessionID: activeSessionId })
+        ? await client.session.revert({ directory, messageID, sessionID: sessionId })
+        : await client.session.unrevert({ directory, sessionID: sessionId })
       if (result.error || !result.data) {
         throw new Error(opencodeErrorMessage(result.error, "Failed to update session"))
       }
       applyOptimisticSession(result.data)
     },
-    [activeSessionId, agentName, applyOptimisticSession, directory, isStopping, workspaceId]
+    [agentName, applyOptimisticSession, directory, isStopping, sessionId, workspaceId]
   )
 
   // A resendable composer draft (non-synthetic text + file attachments) for a
@@ -944,7 +944,7 @@ function ChatInner({
       await sendMessage({
         files: message.files,
         model: selectedModel,
-        sessionID: activeSessionId,
+        sessionID: sessionId,
         text: message.text,
         variant: selectedReasoningVariant,
       })
@@ -955,12 +955,12 @@ function ChatInner({
       })
     },
     [
-      activeSessionId,
       agentReadiness.isGettingReady,
       pushRecent,
       selectedModel,
       selectedReasoningVariant,
       sendMessage,
+      sessionId,
     ]
   )
 
@@ -1046,7 +1046,7 @@ function ChatInner({
     [actorProfiles, authSession?.user]
   )
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
-  const showStarter = !activeSessionId && !isPending && rows.length === 0
+  const showStarter = !sessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
   const timelineRef = useRef<LegendListRef>(null)
   const [timelineAtEnd, setTimelineAtEnd] = useState(true)
@@ -1468,7 +1468,7 @@ function ChatInner({
             </PromptInput>
             <div className="chat-composer-context-strip absolute inset-x-[1.375rem] bottom-0 z-0 flex h-10 items-end px-3 pb-1">
               <Select
-                disabled={activeSessionId !== undefined || agentNames.length < 2}
+                disabled={sessionId !== undefined || agentNames.length < 2}
                 onValueChange={(name) => {
                   onAgentChange(name)
                   const previous =
@@ -1482,7 +1482,7 @@ function ChatInner({
                 value={agentName}
               >
                 <ReasoningSelectTrigger
-                  aria-label={activeSessionId ? "Agent locked for this chat" : "Choose agent"}
+                  aria-label={sessionId ? "Agent locked for this chat" : "Choose agent"}
                   className="hover:bg-foreground/5 h-7 max-w-64 min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none"
                   size="sm"
                 >
@@ -1995,5 +1995,5 @@ function TimelineRowView({
 }
 
 export default function Chat(props: ChatProps) {
-  return <ChatInner key={`${props.agentName}:${props.sessionId ?? "new"}`} {...props} />
+  return <ChatInner {...props} />
 }

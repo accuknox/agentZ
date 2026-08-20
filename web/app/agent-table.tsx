@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import type { Route } from "next"
+import { useQuery } from "@tanstack/react-query"
 import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table"
 import type {
   Agent,
@@ -13,6 +14,7 @@ import type {
 import { createAgentColumns } from "@/app/agent-columns"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { AdministrationState } from "@/components/administration"
+import { watchAgentsQueryOptions } from "@/components/agent-readiness"
 import { TokenTablePagination } from "@/components/table-pagination"
 import type { AgentActionScope } from "@/data/agent.actions"
 import type { DeleteAgentFormState } from "@/data/types"
@@ -20,6 +22,7 @@ import { useServerSorting } from "@/lib/use-token-pagination"
 
 const layout: Record<string, AdminColumnLayout> = {
   name: { minWidth: 224, contentMaxWidth: 320 },
+  status: { minWidth: 112, width: 112 },
   created_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   last_modified_by: { minWidth: 112, width: 112, hiddenBelow: "lg" },
   created_at: { minWidth: 128, width: 128 },
@@ -69,6 +72,15 @@ export function AgentTable({
     sorting,
     tokenStackKey: "token_stack",
   })
+  const query = useQuery({
+    ...watchAgentsQueryOptions(
+      actionScope.workspaceId,
+      agents,
+      agents.map((agent) => agent.name)
+    ),
+    enabled: agents.length > 0,
+  })
+  const rows = query.data ?? agents
 
   const columns = React.useMemo(
     () =>
@@ -93,7 +105,7 @@ export function AgentTable({
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
-    data: agents,
+    data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
@@ -117,7 +129,7 @@ export function AgentTable({
       rowHref={(agent) =>
         `${actionScope.workspacePath}/agents/${encodeURIComponent(agent.name)}` as Route
       }
-      rows={agents}
+      rows={rows}
       table={table}
     />
   )

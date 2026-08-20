@@ -756,7 +756,7 @@ function WorkspaceBody({
               className="bg-background flex h-full min-w-0 flex-col"
               style={{ width: editorWidth }}
             >
-              <div className="flex h-10 shrink-0 items-stretch overflow-hidden border-b border-transparent">
+              <div className="flex h-(--workspace-topbar-height) shrink-0 items-stretch overflow-hidden border-b border-transparent">
                 <div className="relative flex min-w-0 flex-1 overflow-hidden">
                   {tabOverflow.left ? (
                     <div className="from-background pointer-events-none absolute inset-y-0 left-0 z-20 w-6 bg-linear-to-r to-transparent" />
@@ -957,7 +957,7 @@ function WorkspaceBody({
       ) : null}
 
       <section className="ml-auto flex min-h-0 shrink-0 flex-col" style={{ width: explorerWidth }}>
-        <div className="flex h-10 shrink-0 items-center gap-1 px-2">
+        <div className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-1 pr-12 pl-2">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">Explorer</span>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1022,7 +1022,7 @@ function WorkspaceBody({
         <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
           <FileTree
             aria-busy={movePending}
-            className="rounded-none border-0 bg-transparent font-sans"
+            className="rounded-none border-0 bg-transparent"
             onDragOver={(event) => {
               if (movePending || !event.dataTransfer.types.includes(fileDragType)) return
               event.preventDefault()
@@ -1214,13 +1214,9 @@ function DirectoryTree({
             <ContextMenuTrigger asChild>
               <FileTreeFolder
                 aria-busy={moveOperation?.path === entryPath}
-                className={cn(
-                  "select-none",
-                  dropPath === entryPath && "bg-accent rounded",
-                  moveOperation?.path === entryPath && "opacity-50",
-                  moveOperation?.directory === entryPath &&
-                    "bg-accent ring-ring/40 rounded ring-1 ring-inset"
-                )}
+                className={cn("select-none", moveOperation?.path === entryPath && "opacity-50")}
+                data-drop-target={dropPath === entryPath}
+                data-move-target={moveOperation?.directory === entryPath}
                 draggable={moveOperation === null}
                 name={entry.name}
                 onDragEnd={() => setDropPath(null)}
@@ -1270,7 +1266,6 @@ function DirectoryTree({
               aria-busy={moveOperation?.path === entryPath}
               className={cn("select-none", moveOperation?.path === entryPath && "opacity-50")}
               draggable={moveOperation === null}
-              icon={<FileTypeIcon name={entry.name} />}
               name={entry.name}
               onDragStart={(event) => {
                 event.stopPropagation()

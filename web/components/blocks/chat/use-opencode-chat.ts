@@ -11,7 +11,13 @@ import type {
   SessionStatusResponse,
   Todo,
 } from "@opencode-ai/sdk/v2"
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  infiniteQueryOptions,
+  queryOptions,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import type { QueryClient } from "@tanstack/react-query"
 import { useCallback, useEffectEvent, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -23,6 +29,16 @@ import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/cha
 type SessionMessageRecord = {
   info: Message
   parts: Part[]
+}
+
+type SessionMessagePage = {
+  cursor?: string
+  records: SessionMessageRecord[]
+}
+
+type SessionMessagePageParam = {
+  before?: string
+  limit: number
 }
 
 type OpencodeChatStore = {
@@ -59,6 +75,9 @@ type UseOpencodeChatResult = {
   loadError?: string
   isBusy: boolean
   isPending: boolean
+  hasEarlierMessages: boolean
+  isLoadingEarlier: boolean
+  loadEarlier: () => Promise<void>
   localMessages: OptimisticUserMessage[]
   messages: Message[]
   partsByMessage: Record<string, Part[]>
@@ -77,62 +96,6 @@ type UseOpencodeChatResult = {
 }
 
 const idleSessionStatus: SessionStatus = { type: "idle" }
-const MAX_CHAT_TURNS = 25
-
-// Keep only the newest MAX_CHAT_TURNS user turns and their replies, so a reply
-// never outlives the user turn it belongs to.
-function visibleMessageIDsForRecentTurns(messages: Message[]): Set<string> {
-  const ordered = [...messages].sort((x, y) => x.time.created - y.time.created)
-  const userIDs = ordered
-    .filter((message): message is Extract<Message, { role: "user" }> => message.role === "user")
-    .map((message) => message.id)
-  const visibleUserIDs = new Set(userIDs.slice(-MAX_CHAT_TURNS))
-  const visibleMessageIDs = new Set<string>()
-
-  for (const message of ordered) {
-    if (message.role === "user") {
-      if (visibleUserIDs.has(message.id)) {
-        visibleMessageIDs.add(message.id)
-      }
-      continue
-    }
-
-    if (visibleUserIDs.has(message.parentID)) {
-      visibleMessageIDs.add(message.id)
-    }
-  }
-
-  return visibleMessageIDs
-}
-
-function pruneStore(store: OpencodeChatStore): OpencodeChatStore {
-  const nextMessage = Object.fromEntries(
-    Object.entries(store.message).map(([sessionID, messages]) => {
-      const visibleMessageIDs = visibleMessageIDsForRecentTurns(messages)
-      return [sessionID, messages.filter((message) => visibleMessageIDs.has(message.id))]
-    })
-  )
-  const visibleMessageIDs = new Set(
-    Object.values(nextMessage).flatMap((messages) => messages.map((message) => message.id))
-  )
-  const nextPart = Object.fromEntries(
-    Object.entries(store.part).filter(([messageID]) => visibleMessageIDs.has(messageID))
-  )
-  const visiblePartIDs = new Set(
-    Object.values(nextPart).flatMap((parts) => parts.map((part) => part.id))
-  )
-  const nextText = Object.fromEntries(
-    Object.entries(store.partTextAccumDelta).filter(([partID]) => visiblePartIDs.has(partID))
-  )
-
-  return {
-    ...store,
-    message: nextMessage,
-    part: nextPart,
-    partTextAccumDelta: nextText,
-  }
-}
-
 function deriveSessionIsBusy(
   messages: Message[],
   localMessages: OptimisticUserMessage[],
@@ -185,13 +148,11 @@ function buildStore(
     session,
     todos: {},
   }
-  const visibleMessageIDs = visibleMessageIDsForRecentTurns(records.map((record) => record.info))
-  const visibleRecords = records.filter((record) => visibleMessageIDs.has(record.info.id))
-  store.message[sessionID] = visibleRecords
+  store.message[sessionID] = records
     .map((record) => record.info)
     .sort((x, y) => x.time.created - y.time.created)
 
-  for (const record of visibleRecords) {
+  for (const record of records) {
     store.part[record.info.id] = record.parts
 
     for (const part of record.parts) {
@@ -200,7 +161,38 @@ function buildStore(
     }
   }
 
-  return pruneStore(store)
+  return store
+}
+
+function mergeHistoryPage(
+  store: OpencodeChatStore,
+  sessionID: string,
+  records: SessionMessageRecord[]
+) {
+  const known = new Set((store.message[sessionID] ?? []).map((message) => message.id))
+  const messages = [...(store.message[sessionID] ?? [])]
+  const part = { ...store.part }
+  const partTextAccumDelta = { ...store.partTextAccumDelta }
+
+  for (const record of records) {
+    if (known.has(record.info.id)) continue
+
+    known.add(record.info.id)
+    messages.push(record.info)
+    part[record.info.id] = record.parts
+    for (const item of record.parts) {
+      if (item.type !== "text" && item.type !== "reasoning") continue
+      partTextAccumDelta[item.id] = item.text
+    }
+  }
+
+  messages.sort((x, y) => x.time.created - y.time.created)
+  return {
+    ...store,
+    message: { ...store.message, [sessionID]: messages },
+    part,
+    partTextAccumDelta,
+  }
 }
 
 function upsertRequest<T extends { id: string }>(items: T[], next: T) {
@@ -275,26 +267,26 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
       const sessionID = event.properties.sessionID
       const messages = store.message[sessionID] ?? []
 
-      return pruneStore({
+      return {
         ...store,
         message: {
           ...store.message,
           [sessionID]: upsertMessage(messages, event.properties.info),
         },
-      })
+      }
     }
 
     case "message.removed": {
       const sessionID = event.properties.sessionID
       const messages = store.message[sessionID] ?? []
 
-      return pruneStore({
+      return {
         ...store,
         message: {
           ...store.message,
           [sessionID]: messages.filter((message) => message.id !== event.properties.messageID),
         },
-      })
+      }
     }
 
     case "message.part.updated": {
@@ -488,7 +480,7 @@ export function addOptimisticUserMessage(
 ) {
   queryClient.setQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(workspaceId, agentName, sessionID),
-    (current) => [...(current ?? []), message].slice(-MAX_CHAT_TURNS)
+    (current) => [...(current ?? []), message].slice(-50)
   )
 }
 
@@ -514,11 +506,9 @@ export function markOptimisticUserMessageFailed(
 
 function sessionInfoQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
   return queryOptions({
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
-      const result = await client.session.get({
-        sessionID,
-      })
+      const result = await client.session.get({ sessionID }, { signal })
 
       if (result.error || !result.data) {
         throw new Error(opencodeErrorMessage(result.error, "Failed to load session"))
@@ -538,11 +528,14 @@ function sessionMessagesQueryOptions(
   sessionID: string,
   directory: string
 ) {
-  return queryOptions({
-    queryFn: async () => {
+  return infiniteQueryOptions({
+    initialPageParam: { limit: 20 } satisfies SessionMessagePageParam,
+    queryFn: async ({ pageParam }: { pageParam: SessionMessagePageParam }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.messages({
+        before: pageParam.before,
         directory,
+        limit: pageParam.limit,
         sessionID,
       })
 
@@ -550,8 +543,13 @@ function sessionMessagesQueryOptions(
         throw new Error(opencodeErrorMessage(result.error, "Failed to load session messages"))
       }
 
-      return result.data
+      return {
+        cursor: result.response.headers.get("X-Next-Cursor") ?? undefined,
+        records: result.data,
+      } satisfies SessionMessagePage
     },
+    getNextPageParam: (page): SessionMessagePageParam | undefined =>
+      page.cursor ? { before: page.cursor, limit: 40 } : undefined,
     queryKey: [
       ...sessionMessagesBaseQueryKey(workspaceId, agentName, sessionID),
       directory,
@@ -634,8 +632,8 @@ export function useOpencodeChat(
 ): UseOpencodeChatResult {
   const queryClient = useQueryClient()
   const [liveStore, setLiveStore] = useState<{
-    key: string
     store: OpencodeChatStore
+    version: object
   }>()
   const [hitlLive, setHitlLive] = useState<{ key: number; store: HitlStore }>()
   const [streamError, setStreamError] = useState<string>()
@@ -644,7 +642,7 @@ export function useOpencodeChat(
     ...sessionInfoQueryOptions(agentName, workspaceId, sessionID ?? ""),
     enabled: Boolean(sessionID),
   })
-  const history = useQuery({
+  const history = useInfiniteQuery({
     ...sessionMessagesQueryOptions(
       agentName,
       workspaceId,
@@ -653,6 +651,7 @@ export function useOpencodeChat(
     ),
     enabled: false,
   })
+  const { fetchNextPage: fetchNextHistoryPage } = history
   const hitl = useQuery({
     ...sessionTreeQueryOptions(agentName, workspaceId, session.data?.directory ?? ""),
     enabled: false,
@@ -688,13 +687,21 @@ export function useOpencodeChat(
       }
     }
 
-    return buildStore(sessionID, session.data, history.data ?? [])
+    const records = new Map<string, SessionMessageRecord>()
+    for (const page of history.data?.pages ?? []) {
+      for (const record of page.records) records.set(record.info.id, record)
+    }
+    return buildStore(sessionID, session.data, [...records.values()])
   }, [history.data, session.data, sessionID])
-  const baseStoreKey = useMemo(() => {
-    const sessionKey = sessionID ?? "new"
-    return `${sessionKey}:${history.dataUpdatedAt}`
-  }, [history.dataUpdatedAt, sessionID])
-  const store = liveStore?.key === baseStoreKey ? liveStore.store : baseStore
+  // Loading another history page retains the first page object, while an
+  // authoritative refetch replaces it. Keep streamed state across pagination
+  // and reset it only when the server snapshot or Session itself changes.
+  const firstHistoryPage = history.data?.pages[0]
+  const baseStoreVersion = useMemo(
+    () => ({ firstHistoryPage, sessionID, sessionUpdatedAt: session.dataUpdatedAt }),
+    [firstHistoryPage, session.dataUpdatedAt, sessionID]
+  )
+  const store = liveStore?.version === baseStoreVersion ? liveStore.store : baseStore
 
   // HITL state reconciles like the chat store: live events fold onto the
   // refetched base, keyed to the fetch so a refetch drops stale events and the
@@ -707,6 +714,7 @@ export function useOpencodeChat(
     if (!sessionID) return
 
     let hasStoreUpdate = false
+    let refreshSession = false
     const nextHitlEvents: StreamEvent[] = []
 
     for (const event of events) {
@@ -734,6 +742,19 @@ export function useOpencodeChat(
           ...current,
           [event.properties.sessionID]: idleSessionStatus,
         }))
+        // The gateway persists the status response for the shared session
+        // sidebar. Reconcile on the terminal event so its activity state does
+        // not remain busy after the local event stream has settled.
+        void refetchStatus()
+        if (event.properties.sessionID === sessionID) refreshSession = true
+      }
+
+      if (
+        event.type === "session.updated" &&
+        event.properties.info.id === sessionID &&
+        event.properties.info.title !== store.session?.title
+      ) {
+        refreshSession = true
       }
 
       switch (event.type) {
@@ -770,8 +791,11 @@ export function useOpencodeChat(
 
     if (hasStoreUpdate) {
       setLiveStore((current) => ({
-        key: baseStoreKey,
-        store: events.reduce(applyEvent, current?.key === baseStoreKey ? current.store : baseStore),
+        store: events.reduce(
+          applyEvent,
+          current?.version === baseStoreVersion ? current.store : baseStore
+        ),
+        version: baseStoreVersion,
       }))
     }
 
@@ -784,6 +808,11 @@ export function useOpencodeChat(
         ),
       }))
     }
+
+    // Session GET responses update the gateway catalog. Title changes and the
+    // terminal event both reconcile so a transient first fetch cannot leave
+    // workspace sidebars stale.
+    if (refreshSession) void refetchSession()
   })
 
   useEffect(() => {
@@ -994,18 +1023,34 @@ export function useOpencodeChat(
   const applyOptimisticSession = useCallback(
     (info: SessionV2) => {
       setLiveStore((current) => {
-        const currentStore = current?.key === baseStoreKey ? current.store : baseStore
+        const currentStore = current?.version === baseStoreVersion ? current.store : baseStore
         if (currentStore.session?.id !== info.id) return current
-        return { key: baseStoreKey, store: { ...currentStore, session: info } }
+        return { store: { ...currentStore, session: info }, version: baseStoreVersion }
       })
     },
-    [baseStore, baseStoreKey]
+    [baseStore, baseStoreVersion]
   )
 
   const reconnectStream = useCallback(() => {
     setStreamError(undefined)
     setStreamEpoch((current) => current + 1)
   }, [])
+  const loadEarlier = useCallback(async () => {
+    if (!sessionID) return
+
+    const result = await fetchNextHistoryPage()
+    const page = result.data?.pages.at(-1)
+    if (!page) return
+
+    setLiveStore((current) => ({
+      store: mergeHistoryPage(
+        current?.version === baseStoreVersion ? current.store : baseStore,
+        sessionID,
+        page.records
+      ),
+      version: baseStoreVersion,
+    }))
+  }, [baseStore, baseStoreVersion, fetchNextHistoryPage, sessionID])
 
   return {
     applyOptimisticSession,
@@ -1016,7 +1061,10 @@ export function useOpencodeChat(
       hitl.error?.message ??
       status.error?.message,
     isBusy: deriveSessionIsBusy(messages, visibleLocalMessages, sessionStatus, store.session),
+    hasEarlierMessages: history.hasNextPage,
+    isLoadingEarlier: history.isFetchingNextPage,
     isPending: Boolean(sessionID) && (session.isPending || history.isPending),
+    loadEarlier,
     localMessages: visibleLocalMessages,
     messages,
     partsByMessage,

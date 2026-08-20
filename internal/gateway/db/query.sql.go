@@ -188,6 +188,35 @@ func (q *Queries) GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCl
 	return i, err
 }
 
+const gatewayClearAgentChatPreferences = `-- name: GatewayClearAgentChatPreferences :exec
+UPDATE workspace_chat_preferences
+SET
+  agent_name = CASE
+    WHEN agent_name = $1::text THEN NULL
+    ELSE agent_name
+  END,
+  last_agent_name = CASE
+    WHEN last_agent_name = $1::text THEN NULL
+    ELSE last_agent_name
+  END,
+  updated_at = NOW()
+WHERE workspace_id = $2
+  AND (
+    agent_name = $1::text
+    OR last_agent_name = $1::text
+  )
+`
+
+type GatewayClearAgentChatPreferencesParams struct {
+	AgentName   string `json:"agent_name"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) GatewayClearAgentChatPreferences(ctx context.Context, arg GatewayClearAgentChatPreferencesParams) error {
+	_, err := q.db.Exec(ctx, gatewayClearAgentChatPreferences, arg.AgentName, arg.WorkspaceID)
+	return err
+}
+
 const gatewayCompleteCleanupJob = `-- name: GatewayCompleteCleanupJob :execrows
 UPDATE cleanup_jobs
 SET
@@ -612,6 +641,28 @@ func (q *Queries) GatewayDeleteAgent(ctx context.Context, arg GatewayDeleteAgent
 	return result.RowsAffected(), nil
 }
 
+const gatewayDeleteAgentChatSessions = `-- name: GatewayDeleteAgentChatSessions :exec
+WITH changed AS (
+DELETE FROM chat_sessions
+WHERE workspace_id = $1
+  AND agent_name = $2
+RETURNING workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id)
+FROM changed
+GROUP BY workspace_id
+`
+
+type GatewayDeleteAgentChatSessionsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayDeleteAgentChatSessions(ctx context.Context, arg GatewayDeleteAgentChatSessionsParams) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteAgentChatSessions, arg.WorkspaceID, arg.AgentName)
+	return err
+}
+
 const gatewayDeleteAgentOwner = `-- name: GatewayDeleteAgentOwner :execrows
 DELETE FROM agent_owners
 WHERE organization_id = $1
@@ -652,6 +703,29 @@ func (q *Queries) GatewayDeleteAgentShare(ctx context.Context, arg GatewayDelete
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayDeleteChatSession = `-- name: GatewayDeleteChatSession :exec
+WITH changed AS (
+DELETE FROM chat_sessions
+WHERE workspace_id = $1
+  AND agent_name = $2
+  AND session_id = $3
+RETURNING workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id)
+FROM changed
+`
+
+type GatewayDeleteChatSessionParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayDeleteChatSession(ctx context.Context, arg GatewayDeleteChatSessionParams) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteChatSession, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	return err
 }
 
 const gatewayDeleteExpiredEventTrailEvents = `-- name: GatewayDeleteExpiredEventTrailEvents :execrows
@@ -1211,6 +1285,34 @@ func (q *Queries) GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspa
 		&i.ProvisioningAttempt,
 		&i.FailureReason,
 		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const gatewayGetWorkspaceChatPreference = `-- name: GatewayGetWorkspaceChatPreference :one
+SELECT workspace_id, user_id, agent_name, participant_user_ids, include_workflow_runs, last_agent_name, created_at, updated_at
+FROM workspace_chat_preferences
+WHERE workspace_id = $1
+  AND user_id = $2
+`
+
+type GatewayGetWorkspaceChatPreferenceParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	UserID      string `json:"user_id"`
+}
+
+func (q *Queries) GatewayGetWorkspaceChatPreference(ctx context.Context, arg GatewayGetWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error) {
+	row := q.db.QueryRow(ctx, gatewayGetWorkspaceChatPreference, arg.WorkspaceID, arg.UserID)
+	var i WorkspaceChatPreference
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.AgentName,
+		&i.ParticipantUserIds,
+		&i.IncludeWorkflowRuns,
+		&i.LastAgentName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1910,6 +2012,197 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 			&i.AgentName,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListChatSessionFilterUsers = `-- name: GatewayListChatSessionFilterUsers :many
+SELECT DISTINCT users.id, users.name, users.email, users.image
+FROM chat_session_participants AS participants
+JOIN chat_sessions AS sessions
+  ON sessions.workspace_id = participants.workspace_id
+  AND sessions.agent_name = participants.agent_name
+  AND sessions.session_id = participants.session_id
+JOIN users ON users.id = participants.user_id
+WHERE participants.workspace_id = $1
+  AND sessions.agent_name = ANY($2::text[])
+  AND sessions.parent_session_id IS NULL
+  AND (
+    $3::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+ORDER BY users.name, users.email, users.id
+`
+
+type GatewayListChatSessionFilterUsersParams struct {
+	WorkspaceID         string   `json:"workspace_id"`
+	AgentNames          []string `json:"agent_names"`
+	IncludeWorkflowRuns bool     `json:"include_workflow_runs"`
+}
+
+type GatewayListChatSessionFilterUsersRow struct {
+	ID    string      `json:"id"`
+	Name  string      `json:"name"`
+	Email string      `json:"email"`
+	Image pgtype.Text `json:"image"`
+}
+
+func (q *Queries) GatewayListChatSessionFilterUsers(ctx context.Context, arg GatewayListChatSessionFilterUsersParams) ([]GatewayListChatSessionFilterUsersRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListChatSessionFilterUsers, arg.WorkspaceID, arg.AgentNames, arg.IncludeWorkflowRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListChatSessionFilterUsersRow{}
+	for rows.Next() {
+		var i GatewayListChatSessionFilterUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.Image,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListChatSessions = `-- name: GatewayListChatSessions :many
+SELECT
+  sessions.workspace_id,
+  sessions.agent_name,
+  sessions.session_id,
+  sessions.title,
+  sessions.kind,
+  sessions.status,
+  sessions.source_created_at,
+  sessions.source_updated_at,
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', users.id,
+        'name', users.name,
+        'email', users.email,
+        'image', users.image
+      )
+      ORDER BY participants.last_messaged_at DESC, users.id
+    )
+    FROM chat_session_participants AS participants
+    JOIN users ON users.id = participants.user_id
+    WHERE participants.workspace_id = sessions.workspace_id
+      AND participants.agent_name = sessions.agent_name
+      AND participants.session_id = sessions.session_id
+  ), '[]'::jsonb)::text AS participants_json
+FROM chat_sessions AS sessions
+WHERE sessions.workspace_id = $1
+  AND sessions.agent_name = ANY($2::text[])
+  AND sessions.parent_session_id IS NULL
+  AND (
+    $3::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+  AND (
+    $4::text IS NULL
+    OR sessions.agent_name = $4::text
+  )
+  AND (
+    cardinality($5::text[]) = 0
+    OR (
+      SELECT COUNT(DISTINCT participants.user_id)
+      FROM chat_session_participants AS participants
+      WHERE participants.workspace_id = sessions.workspace_id
+        AND participants.agent_name = sessions.agent_name
+        AND participants.session_id = sessions.session_id
+        AND participants.user_id = ANY($5::text[])
+    ) = cardinality($5::text[])
+  )
+  AND (
+    NOT $6::boolean
+    OR sessions.source_updated_at < $7
+    OR (
+      sessions.source_updated_at = $7
+      AND sessions.agent_name > $8
+    )
+    OR (
+      sessions.source_updated_at = $7
+      AND sessions.agent_name = $8
+      AND sessions.session_id > $9
+    )
+  )
+ORDER BY
+  sessions.source_updated_at DESC,
+  sessions.agent_name ASC,
+  sessions.session_id ASC
+LIMIT $10
+`
+
+type GatewayListChatSessionsParams struct {
+	WorkspaceID         string             `json:"workspace_id"`
+	AgentNames          []string           `json:"agent_names"`
+	IncludeWorkflowRuns bool               `json:"include_workflow_runs"`
+	AgentName           pgtype.Text        `json:"agent_name"`
+	ParticipantUserIds  []string           `json:"participant_user_ids"`
+	CursorSet           bool               `json:"cursor_set"`
+	CursorUpdatedAt     pgtype.Timestamptz `json:"cursor_updated_at"`
+	CursorAgentName     string             `json:"cursor_agent_name"`
+	CursorSessionID     string             `json:"cursor_session_id"`
+	PageSize            int32              `json:"page_size"`
+}
+
+type GatewayListChatSessionsRow struct {
+	WorkspaceID      string             `json:"workspace_id"`
+	AgentName        string             `json:"agent_name"`
+	SessionID        string             `json:"session_id"`
+	Title            string             `json:"title"`
+	Kind             ChatSessionKind    `json:"kind"`
+	Status           ChatSessionStatus  `json:"status"`
+	SourceCreatedAt  pgtype.Timestamptz `json:"source_created_at"`
+	SourceUpdatedAt  pgtype.Timestamptz `json:"source_updated_at"`
+	ParticipantsJson string             `json:"participants_json"`
+}
+
+func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListChatSessionsParams) ([]GatewayListChatSessionsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListChatSessions,
+		arg.WorkspaceID,
+		arg.AgentNames,
+		arg.IncludeWorkflowRuns,
+		arg.AgentName,
+		arg.ParticipantUserIds,
+		arg.CursorSet,
+		arg.CursorUpdatedAt,
+		arg.CursorAgentName,
+		arg.CursorSessionID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListChatSessionsRow{}
+	for rows.Next() {
+		var i GatewayListChatSessionsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.SessionID,
+			&i.Title,
+			&i.Kind,
+			&i.Status,
+			&i.SourceCreatedAt,
+			&i.SourceUpdatedAt,
+			&i.ParticipantsJson,
 		); err != nil {
 			return nil, err
 		}
@@ -3474,6 +3767,15 @@ func (q *Queries) GatewayListWorkspacesSelectingOrganizationResource(ctx context
 	return items, nil
 }
 
+const gatewayListenChatSessions = `-- name: GatewayListenChatSessions :exec
+LISTEN agentz_chat_sessions
+`
+
+func (q *Queries) GatewayListenChatSessions(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayListenChatSessions)
+	return err
+}
+
 const gatewayLockActiveOrganizationMember = `-- name: GatewayLockActiveOrganizationMember :one
 SELECT id
 FROM members
@@ -4002,6 +4304,47 @@ func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevo
 	return result.RowsAffected(), nil
 }
 
+const gatewaySyncAgentChatSessionStatuses = `-- name: GatewaySyncAgentChatSessionStatuses :exec
+WITH changed AS (
+UPDATE chat_sessions
+SET
+  status = (CASE
+    WHEN session_id = ANY($1::text[]) THEN 'retry'
+    WHEN session_id = ANY($2::text[]) THEN 'busy'
+    ELSE 'idle'
+  END)::chat_session_status,
+  updated_at = NOW()
+WHERE workspace_id = $3
+  AND agent_name = $4
+  AND status IS DISTINCT FROM (CASE
+    WHEN session_id = ANY($1::text[]) THEN 'retry'
+    WHEN session_id = ANY($2::text[]) THEN 'busy'
+    ELSE 'idle'
+  END)::chat_session_status
+RETURNING workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id)
+FROM changed
+GROUP BY workspace_id
+`
+
+type GatewaySyncAgentChatSessionStatusesParams struct {
+	RetrySessionIds []string `json:"retry_session_ids"`
+	BusySessionIds  []string `json:"busy_session_ids"`
+	WorkspaceID     string   `json:"workspace_id"`
+	AgentName       string   `json:"agent_name"`
+}
+
+func (q *Queries) GatewaySyncAgentChatSessionStatuses(ctx context.Context, arg GatewaySyncAgentChatSessionStatusesParams) error {
+	_, err := q.db.Exec(ctx, gatewaySyncAgentChatSessionStatuses,
+		arg.RetrySessionIds,
+		arg.BusySessionIds,
+		arg.WorkspaceID,
+		arg.AgentName,
+	)
+	return err
+}
+
 const gatewayTeamExists = `-- name: GatewayTeamExists :one
 SELECT EXISTS(
   SELECT 1
@@ -4047,6 +4390,67 @@ func (q *Queries) GatewayTouchAgent(ctx context.Context, arg GatewayTouchAgentPa
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const gatewayTouchChatSessionParticipant = `-- name: GatewayTouchChatSessionParticipant :exec
+WITH participant AS (
+INSERT INTO chat_session_participants(
+  workspace_id,
+  agent_name,
+  session_id,
+  user_id,
+  first_messaged_at,
+  last_messaged_at
+)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $5
+)
+ON CONFLICT (workspace_id, agent_name, session_id, user_id) DO UPDATE SET
+  last_messaged_at = GREATEST(
+    chat_session_participants.last_messaged_at,
+    EXCLUDED.last_messaged_at
+  )
+RETURNING 1
+), changed AS (
+UPDATE chat_sessions AS sessions
+SET
+  status = $6,
+  source_updated_at = GREATEST(sessions.source_updated_at, $5),
+  updated_at = NOW()
+WHERE sessions.workspace_id = $1
+  AND sessions.agent_name = $2
+  AND sessions.session_id = $3
+  AND EXISTS (SELECT 1 FROM participant)
+RETURNING sessions.workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id)
+FROM changed
+`
+
+type GatewayTouchChatSessionParticipantParams struct {
+	WorkspaceID string             `json:"workspace_id"`
+	AgentName   string             `json:"agent_name"`
+	SessionID   string             `json:"session_id"`
+	UserID      string             `json:"user_id"`
+	MessagedAt  pgtype.Timestamptz `json:"messaged_at"`
+	Status      ChatSessionStatus  `json:"status"`
+}
+
+func (q *Queries) GatewayTouchChatSessionParticipant(ctx context.Context, arg GatewayTouchChatSessionParticipantParams) error {
+	_, err := q.db.Exec(ctx, gatewayTouchChatSessionParticipant,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.UserID,
+		arg.MessagedAt,
+		arg.Status,
+	)
+	return err
 }
 
 const gatewayTransferAgentOwner = `-- name: GatewayTransferAgentOwner :one
@@ -4152,4 +4556,143 @@ func (q *Queries) GatewayTransitionWorkspaceProvisioning(ctx context.Context, ar
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayUpsertChatSession = `-- name: GatewayUpsertChatSession :exec
+WITH changed AS (
+INSERT INTO chat_sessions(
+  workspace_id,
+  agent_name,
+  session_id,
+  parent_session_id,
+  title,
+  kind,
+  status,
+  source_created_at,
+  source_updated_at
+)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9
+)
+ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET
+  -- Gateway participant activity can be newer than OpenCode's session time,
+  -- and generated titles do not advance that time.
+  parent_session_id = EXCLUDED.parent_session_id,
+  title = EXCLUDED.title,
+  kind = chat_sessions.kind,
+  status = chat_sessions.status,
+  source_created_at = EXCLUDED.source_created_at,
+  source_updated_at = GREATEST(
+    chat_sessions.source_updated_at,
+    EXCLUDED.source_updated_at
+  ),
+  updated_at = NOW()
+WHERE ROW(
+  chat_sessions.parent_session_id,
+  chat_sessions.title,
+  chat_sessions.source_created_at,
+  chat_sessions.source_updated_at
+) IS DISTINCT FROM ROW(
+  EXCLUDED.parent_session_id,
+  EXCLUDED.title,
+  EXCLUDED.source_created_at,
+  GREATEST(chat_sessions.source_updated_at, EXCLUDED.source_updated_at)
+)
+RETURNING workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id)
+FROM changed
+`
+
+type GatewayUpsertChatSessionParams struct {
+	WorkspaceID     string             `json:"workspace_id"`
+	AgentName       string             `json:"agent_name"`
+	SessionID       string             `json:"session_id"`
+	ParentSessionID pgtype.Text        `json:"parent_session_id"`
+	Title           string             `json:"title"`
+	Kind            ChatSessionKind    `json:"kind"`
+	Status          ChatSessionStatus  `json:"status"`
+	SourceCreatedAt pgtype.Timestamptz `json:"source_created_at"`
+	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
+}
+
+func (q *Queries) GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) error {
+	_, err := q.db.Exec(ctx, gatewayUpsertChatSession,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.ParentSessionID,
+		arg.Title,
+		arg.Kind,
+		arg.Status,
+		arg.SourceCreatedAt,
+		arg.SourceUpdatedAt,
+	)
+	return err
+}
+
+const gatewayUpsertWorkspaceChatPreference = `-- name: GatewayUpsertWorkspaceChatPreference :one
+INSERT INTO workspace_chat_preferences(
+  workspace_id,
+  user_id,
+  agent_name,
+  participant_user_ids,
+  include_workflow_runs,
+  last_agent_name
+)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6
+)
+ON CONFLICT (workspace_id, user_id) DO UPDATE SET
+  agent_name = EXCLUDED.agent_name,
+  participant_user_ids = EXCLUDED.participant_user_ids,
+  include_workflow_runs = EXCLUDED.include_workflow_runs,
+  last_agent_name = EXCLUDED.last_agent_name,
+  updated_at = NOW()
+RETURNING workspace_id, user_id, agent_name, participant_user_ids, include_workflow_runs, last_agent_name, created_at, updated_at
+`
+
+type GatewayUpsertWorkspaceChatPreferenceParams struct {
+	WorkspaceID         string      `json:"workspace_id"`
+	UserID              string      `json:"user_id"`
+	AgentName           pgtype.Text `json:"agent_name"`
+	ParticipantUserIds  []string    `json:"participant_user_ids"`
+	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
+	LastAgentName       pgtype.Text `json:"last_agent_name"`
+}
+
+func (q *Queries) GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg GatewayUpsertWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error) {
+	row := q.db.QueryRow(ctx, gatewayUpsertWorkspaceChatPreference,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.AgentName,
+		arg.ParticipantUserIds,
+		arg.IncludeWorkflowRuns,
+		arg.LastAgentName,
+	)
+	var i WorkspaceChatPreference
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.AgentName,
+		&i.ParticipantUserIds,
+		&i.IncludeWorkflowRuns,
+		&i.LastAgentName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

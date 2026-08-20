@@ -1,4 +1,5 @@
 @import "tailwindcss";
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -18,6 +19,10 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
+  --color-sidebar-control-surface: var(--sidebar-control-surface);
+  --color-message: var(--message-surface);
+  --color-message-foreground: var(--message-foreground);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -46,6 +51,8 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --animate-session-title-marquee: session-title-marquee 9s linear infinite;
+  --animate-status-pulse: status-pulse 2s infinite;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -85,12 +92,25 @@
   --radius: 0.45rem;
   --sidebar: oklch(0.9851 0 0);
   --sidebar-foreground: oklch(0.2138 0.0019 286.2347);
+  --sidebar-muted-foreground: var(--muted-foreground);
   --sidebar-primary: oklch(0.2138 0.0019 286.2347);
   --sidebar-primary-foreground: oklch(0.9851 0 0);
-  --sidebar-accent: oklch(0.9702 0 0);
-  --sidebar-accent-foreground: oklch(0.2138 0.0019 286.2347);
+  --sidebar-accent: color-mix(in oklab, var(--primary) 9%, white);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
   --sidebar-border: oklch(0.9219 0 0);
   --sidebar-ring: oklch(0.709 0 0);
+  --sidebar-control-surface: color-mix(in oklab, var(--primary) 5%, white);
+  --message-surface: color-mix(in oklab, var(--primary) 6%, white);
+  --message-foreground: var(--foreground);
+  --glass-blur: 12px;
+  --glass-opacity: 80%;
+  --glass-saturation: 1.14;
+  --sidebar-content-inset: 0.5rem;
+  --sidebar-row-content-inset: 0.625rem;
+  --workspace-topbar-height: 52px;
+  --app-scrollbar-width: 6px;
+  --app-scrollbar-thumb: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --app-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 29%, transparent);
 }
 
 .dark {
@@ -122,40 +142,56 @@
   --chart-5: oklch(0.7181 0.1832 7.9997);
   --sidebar: oklch(0.2138 0.0019 286.2347);
   --sidebar-foreground: oklch(0.9851 0 0);
+  --sidebar-muted-foreground: var(--muted-foreground);
   --sidebar-primary: oklch(0.4878 0.2432 264.4045);
   --sidebar-primary-foreground: oklch(0.9851 0 0);
-  --sidebar-accent: oklch(0.2686 0 0);
-  --sidebar-accent-foreground: oklch(0.9851 0 0);
+  --sidebar-accent: color-mix(in oklab, var(--primary) 13%, var(--sidebar));
+  --sidebar-accent-foreground: var(--sidebar-foreground);
   --sidebar-border: oklch(0.2768 0 0);
   --sidebar-ring: oklch(0.4386 0 0);
+  --sidebar-control-surface: color-mix(in oklab, var(--primary) 7%, var(--sidebar));
+  --message-surface: color-mix(in oklab, var(--primary) 9%, var(--background));
+  --message-foreground: var(--foreground);
+  --glass-blur: 16px;
+  --glass-saturation: 1.08;
+  --app-scrollbar-thumb: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --app-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  /* Match native scrollbars to the app theme across engines. */
   html {
     @apply font-sans;
-    scrollbar-color: var(--border) transparent;
-    scrollbar-width: thin;
+    font-stretch: semi-condensed;
   }
-  *::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+  @supports not selector(::-webkit-scrollbar) {
+    html {
+      scrollbar-color: var(--app-scrollbar-thumb) transparent;
+      scrollbar-width: thin;
+    }
   }
-  *::-webkit-scrollbar-track {
+  ::-webkit-scrollbar {
+    height: var(--app-scrollbar-width);
+    width: var(--app-scrollbar-width);
+  }
+  ::-webkit-scrollbar-track {
     background: transparent;
   }
-  *::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border: 3px solid transparent;
-    border-radius: 999px;
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
   }
-  *::-webkit-scrollbar-thumb:hover {
-    background: var(--muted-foreground);
+  ::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: var(--app-scrollbar-thumb);
   }
-  *::-webkit-scrollbar-corner {
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--app-scrollbar-thumb-hover);
+  }
+  ::-webkit-scrollbar-corner {
     background: transparent;
   }
   body {
@@ -168,6 +204,207 @@
 }
 
 @layer components {
+  [data-app-sidebar] {
+    --sidebar: color-mix(in oklab, var(--primary) 1.5%, oklch(0.9851 0 0));
+  }
+
+  .chat-composer-glass-shell {
+    --chat-composer-glass-surface: #efeff4;
+    --chat-composer-context-surface: #e7e8eb;
+    --chat-composer-outline: color-mix(in oklab, var(--primary) 12%, transparent);
+    isolation: isolate;
+  }
+
+  .chat-composer-glass-shell::before {
+    pointer-events: none;
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 2.25rem;
+    border-radius: 22px;
+    background: color-mix(
+      in srgb,
+      var(--chat-composer-glass-surface) var(--glass-opacity),
+      transparent
+    );
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    content: "";
+  }
+
+  .chat-composer-glass-host {
+    box-shadow:
+      0 6px 14px -10px rgb(0 0 0 / 12%),
+      0 16px 40px -16px rgb(0 0 0 / 8%);
+  }
+
+  .chat-composer-glass-host::after {
+    pointer-events: none;
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border: 1px solid var(--chat-composer-outline);
+    border-radius: inherit;
+    content: "";
+  }
+
+  .chat-composer-context-strip {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .chat-composer-context-strip::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    inset-block-start: 0.25rem;
+    border-end-start-radius: 16px;
+    border-end-end-radius: 16px;
+    background: var(--chat-composer-context-surface);
+    content: "";
+  }
+
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .chat-composer-glass-shell::before {
+      background: var(--chat-composer-glass-surface);
+    }
+  }
+
+  .agentz-chat-composer [data-slot="prompt-input-surface"] {
+    display: flex;
+    flex-direction: column;
+    min-height: 10.25rem;
+    align-items: stretch;
+    overflow: visible;
+    border: 0;
+    border-radius: 22px;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .agentz-chat-composer [data-slot="input-group-control"] {
+    min-height: 5.5rem;
+  }
+
+  @media (max-width: 39.999rem) {
+    .agentz-chat-composer [data-slot="prompt-input-surface"] {
+      min-height: 8rem;
+    }
+  }
+
+  .dark [data-app-sidebar] {
+    --sidebar: color-mix(in oklab, var(--primary) 2%, var(--background));
+  }
+
+  .dark .chat-composer-glass-shell {
+    --chat-composer-glass-surface: color-mix(in oklab, var(--primary) 3%, var(--background));
+    --chat-composer-context-surface: color-mix(
+      in oklab,
+      white 6%,
+      var(--chat-composer-glass-surface)
+    );
+    --chat-composer-outline: color-mix(in srgb, white 7%, transparent);
+  }
+
+  .dark .chat-composer-glass-host {
+    box-shadow: 0 12px 24px -18px rgb(0 0 0 / 70%);
+  }
+
+  .dark .chat-composer-glass-host::after {
+    box-shadow: inset 0 1px rgb(255 255 255 / 3%);
+  }
+
+  [data-file-type-icon] {
+    color: var(--muted-foreground);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="biome"],
+    [data-icon-token="c"],
+    [data-icon-token="cpp"],
+    [data-icon-token="docker"],
+    [data-icon-token="python"],
+    [data-icon-token="typescript"],
+    [data-icon-token="vscode"],
+    [data-icon-token="webpack"]
+  ) {
+    color: var(--info);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="babel"],
+    [data-icon-token="browserslist"],
+    [data-icon-token="javascript"]
+  ) {
+    color: var(--chart-3);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="bash"],
+    [data-icon-token="markdown"],
+    [data-icon-token="svgo"],
+    [data-icon-token="vue"]
+  ) {
+    color: var(--chart-1);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="git"],
+    [data-icon-token="npm"],
+    [data-icon-token="postcss"],
+    [data-icon-token="ruby"],
+    [data-icon-token="svelte"],
+    [data-icon-token="yml"]
+  ) {
+    color: var(--destructive);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="claude"],
+    [data-icon-token="html"],
+    [data-icon-token="json"],
+    [data-icon-token="rust"],
+    [data-icon-token="svg"],
+    [data-icon-token="swift"],
+    [data-icon-token="zig"],
+    [data-icon-token="zip"]
+  ) {
+    color: var(--warning);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="astro"],
+    [data-icon-token="bootstrap"],
+    [data-icon-token="css"],
+    [data-icon-token="database"],
+    [data-icon-token="eslint"],
+    [data-icon-token="terraform"],
+    [data-icon-token="vite"],
+    [data-icon-token="wasm"]
+  ) {
+    color: var(--primary);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="graphql"],
+    [data-icon-token="image"],
+    [data-icon-token="sass"]
+  ) {
+    color: var(--chart-5);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="go"],
+    [data-icon-token="mcp"],
+    [data-icon-token="oxc"],
+    [data-icon-token="prettier"],
+    [data-icon-token="react"],
+    [data-icon-token="table"],
+    [data-icon-token="tailwind"]
+  ) {
+    color: var(--chart-4);
+  }
+
   [data-administration] [data-slot="card"] {
     gap: 1rem;
     border: 0;
@@ -228,6 +465,31 @@
   }
   100% {
     transform: translate3d(330%, 0, 0) scaleX(0.35);
+  }
+}
+
+@keyframes session-title-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(-50% - 1rem), 0, 0);
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  40% {
+    opacity: 1;
+    animation-timing-function: steps(6);
+  }
+  50%,
+  90% {
+    opacity: 0.5;
+    animation-timing-function: steps(6);
+  }
+  100% {
+    opacity: 1;
   }
 }
 

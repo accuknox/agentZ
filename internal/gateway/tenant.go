@@ -583,7 +583,7 @@ func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, namespace
 		return requestAuth{}, err
 	}
 
-	tenant, err := s.findTenantForNamespace(ctx, namespace)
+	tenant, workspaceID, err := s.tenantScopeForNamespace(ctx, namespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return requestAuth{}, newAPIError(
@@ -614,6 +614,7 @@ func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, namespace
 	return requestAuth{
 		tenantName:      tenant.Name,
 		tenantNamespace: namespace,
+		workspaceID:     workspaceID,
 		actorType:       requestActorSystem,
 	}, nil
 }
@@ -963,36 +964,37 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1al
 		return tenant, nil
 	}
 
-	return s.findTenantForNamespace(ctx, auth.tenantNamespace)
+	tenant, _, err := s.tenantScopeForNamespace(ctx, auth.tenantNamespace)
+	return tenant, err
 }
 
-func (s *Service) findTenantForNamespace(ctx context.Context, namespace string) (*agentzv1alpha1.Tenant, error) {
+func (s *Service) tenantScopeForNamespace(ctx context.Context, namespace string) (*agentzv1alpha1.Tenant, string, error) {
 	tenant := &agentzv1alpha1.Tenant{}
 	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: namespace}, tenant)
 	if err == nil {
 		if tenant.Status.Namespace != namespace {
-			return nil, apierrors.NewNotFound(
+			return nil, "", apierrors.NewNotFound(
 				agentzv1alpha1.Resource("tenant"),
 				namespace,
 			)
 		}
-		return tenant, nil
+		return tenant, "", nil
 	}
 	if !apierrors.IsNotFound(err) {
-		return nil, err
+		return nil, "", err
 	}
 
 	workspace := &agentzv1alpha1.Workspace{}
 	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: namespace}, workspace)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	expectedWorkspace := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeWorkspace,
 		workspace.Spec.WorkspaceID,
 	)
 	if workspace.Name != expectedWorkspace || workspace.Status.Namespace != workspace.Name {
-		return nil, apierrors.NewNotFound(
+		return nil, "", apierrors.NewNotFound(
 			agentzv1alpha1.Resource("workspace"),
 			namespace,
 		)
@@ -1004,13 +1006,13 @@ func (s *Service) findTenantForNamespace(ctx context.Context, namespace string) 
 	)
 	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: tenantName}, tenant)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if tenant.Spec.OrganizationID != workspace.Spec.OrganizationID || tenant.Status.Namespace != tenant.Name {
-		return nil, apierrors.NewNotFound(
+		return nil, "", apierrors.NewNotFound(
 			agentzv1alpha1.Resource("tenant"),
 			tenantName,
 		)
 	}
-	return tenant, nil
+	return tenant, workspace.Spec.WorkspaceID, nil
 }

@@ -97,15 +97,15 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
             <PopoverTrigger asChild>
               <SidebarMenuButton
                 aria-label="Choose Workspace"
-                size="lg"
+                className="h-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
                 tooltip={active?.name ?? scope.organization.name}
               >
                 <OrganizationAvatar
-                  className="size-8"
+                  className="size-7"
                   logo={scope.organization.logo}
                   name={scope.organization.name}
                 />
-                <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                <span className="grid min-w-0 flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                   <span
                     className="truncate font-medium"
                     title={active?.name ?? scope.organization.name}
@@ -116,7 +116,10 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                     {active ? "Workspace" : "Organization"}
                   </span>
                 </span>
-                <ChevronsUpDown aria-hidden="true" className="ml-auto" />
+                <ChevronsUpDown
+                  aria-hidden="true"
+                  className="ml-auto group-data-[collapsible=icon]:hidden"
+                />
               </SidebarMenuButton>
             </PopoverTrigger>
             <PopoverContent

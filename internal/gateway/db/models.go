@@ -99,6 +99,91 @@ func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
 	return string(ns.ApiKeyTargetType), nil
 }
 
+type ChatSessionKind string
+
+const (
+	ChatSessionKindChat        ChatSessionKind = "chat"
+	ChatSessionKindWorkflowRun ChatSessionKind = "workflow_run"
+)
+
+func (e *ChatSessionKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatSessionKind(s)
+	case string:
+		*e = ChatSessionKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatSessionKind: %T", src)
+	}
+	return nil
+}
+
+type NullChatSessionKind struct {
+	ChatSessionKind ChatSessionKind `json:"chat_session_kind"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatSessionKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatSessionKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatSessionKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatSessionKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatSessionKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatSessionKind), nil
+}
+
+type ChatSessionStatus string
+
+const (
+	ChatSessionStatusIdle  ChatSessionStatus = "idle"
+	ChatSessionStatusBusy  ChatSessionStatus = "busy"
+	ChatSessionStatusRetry ChatSessionStatus = "retry"
+)
+
+func (e *ChatSessionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatSessionStatus(s)
+	case string:
+		*e = ChatSessionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatSessionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatSessionStatus struct {
+	ChatSessionStatus ChatSessionStatus `json:"chat_session_status"`
+	Valid             bool              `json:"valid"` // Valid is true if ChatSessionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatSessionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatSessionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatSessionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatSessionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatSessionStatus), nil
+}
+
 type CleanupState string
 
 const (
@@ -693,6 +778,29 @@ type Apikey struct {
 	Metadata            pgtype.Text      `json:"metadata"`
 }
 
+type ChatSession struct {
+	WorkspaceID     string             `json:"workspace_id"`
+	AgentName       string             `json:"agent_name"`
+	SessionID       string             `json:"session_id"`
+	ParentSessionID pgtype.Text        `json:"parent_session_id"`
+	Title           string             `json:"title"`
+	Kind            ChatSessionKind    `json:"kind"`
+	Status          ChatSessionStatus  `json:"status"`
+	SourceCreatedAt pgtype.Timestamptz `json:"source_created_at"`
+	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ChatSessionParticipant struct {
+	WorkspaceID     string             `json:"workspace_id"`
+	AgentName       string             `json:"agent_name"`
+	SessionID       string             `json:"session_id"`
+	UserID          string             `json:"user_id"`
+	FirstMessagedAt pgtype.Timestamptz `json:"first_messaged_at"`
+	LastMessagedAt  pgtype.Timestamptz `json:"last_messaged_at"`
+}
+
 type CleanupJob struct {
 	ID             string               `json:"id"`
 	OrganizationID string               `json:"organization_id"`
@@ -1178,6 +1286,17 @@ type Workspace struct {
 	ProvisioningAttempt int64              `json:"provisioning_attempt"`
 	FailureReason       pgtype.Text        `json:"failure_reason"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WorkspaceChatPreference struct {
+	WorkspaceID         string             `json:"workspace_id"`
+	UserID              string             `json:"user_id"`
+	AgentName           pgtype.Text        `json:"agent_name"`
+	ParticipantUserIds  []string           `json:"participant_user_ids"`
+	IncludeWorkflowRuns bool               `json:"include_workflow_runs"`
+	LastAgentName       pgtype.Text        `json:"last_agent_name"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }

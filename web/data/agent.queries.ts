@@ -71,6 +71,32 @@ export async function listAgentsCachedQuery(
   } satisfies ListAgentActionResponse<Agent>
 }
 
+export async function listAllAgentsCachedQuery(
+  workspaceId: string
+): Promise<ListAgentActionResponse> {
+  "use cache: private"
+
+  cacheLife("minutes")
+  cacheTag(agentsTag, `${agentsTag}:${workspaceId}`)
+
+  const client = getGatewayServerClient(workspaceId)
+  const agents: Agent[] = []
+  let pageToken: string | undefined
+  do {
+    const result = await listAgents({
+      query: { limit: 200, page_token: pageToken, sort_by: "name" },
+      client,
+    })
+    if (result.error) {
+      return { agents: undefined, error: result.error }
+    }
+    agents.push(...result.data.agents)
+    pageToken = result.data.next_page_token || undefined
+  } while (pageToken)
+
+  return { agents, error: undefined, hasNextPage: false, nextPageToken: "" }
+}
+
 export async function getWorkspaceAgentDetail(
   workspaceId: string,
   agentName: string,

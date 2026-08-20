@@ -25,10 +25,18 @@ export function agentIsGettingReady(status: AgentStatus): boolean {
   return gettingReadyStatuses.has(status)
 }
 
-export function watchAgentsQueryOptions(workspaceId: string, initialAgents: Agent[] = []) {
+export function watchAgentsQueryOptions(
+  workspaceId: string,
+  initialAgents: Agent[] = [],
+  agentNames?: Agent["name"][]
+) {
   return queryOptions({
     placeholderData: initialAgents,
-    queryFn: streamedQuery<WatchAgentsResponse, Agent[], ["watchAgents", string]>({
+    queryFn: streamedQuery<
+      WatchAgentsResponse,
+      Agent[],
+      readonly ["watchAgents", string, Agent["name"][] | undefined]
+    >({
       initialValue: initialAgents,
       refetchMode: "reset",
       reducer: (agents, event) => {
@@ -46,13 +54,14 @@ export function watchAgentsQueryOptions(workspaceId: string, initialAgents: Agen
       streamFn: async ({ signal }) => {
         const result = await watchAgents({
           baseUrl: await getGatewayBaseURL(),
+          body: agentNames === undefined ? undefined : { agent_names: agentNames },
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           signal,
         })
         return result.stream
       },
     }),
-    queryKey: ["watchAgents", workspaceId],
+    queryKey: ["watchAgents", workspaceId, agentNames] as const,
     refetchOnMount: "always",
     refetchOnReconnect: "always",
     refetchOnWindowFocus: false,

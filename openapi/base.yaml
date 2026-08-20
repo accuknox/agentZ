@@ -37,8 +37,108 @@ tags:
   description: Workflow run browsing and status APIs.
 - name: workflow-webhooks
   description: Workflow webhook invocation and trigger listing APIs.
+- name: chat-sessions
+  description: Workspace chat inbox and preference APIs.
 
 paths:
+  /api/chat-session:
+    get:
+      operationId: listChatSessions
+      summary: List the current Workspace chat inbox.
+      description: >
+        Returns root sessions in descending update order. Participant filters
+        use ALL semantics and are evaluated by the database before pagination.
+      tags: [chat-sessions]
+      parameters:
+      - $ref: '#/components/parameters/ChatSessionLimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      - $ref: '#/components/parameters/AgentNameQueryOptional'
+      - $ref: '#/components/parameters/ChatSessionParticipantQuery'
+      - $ref: '#/components/parameters/IncludeWorkflowRunsQuery'
+      responses:
+        '200':
+          description: Paginated chat sessions and available participant filters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListChatSessionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/chat-session/watch:
+    get:
+      operationId: watchChatSessions
+      summary: Watch the current Workspace chat inbox.
+      description: Emits a compact invalidation event when the Workspace inbox changes.
+      tags: [chat-sessions]
+      responses:
+        '200':
+          description: Stream of chat inbox invalidations.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchChatSessionsEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/chat-session-preference:
+    get:
+      operationId: getChatSessionPreference
+      summary: Get the caller's Workspace chat preferences.
+      tags: [chat-sessions]
+      responses:
+        '200':
+          description: Workspace-scoped preferences for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSessionPreference'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: updateChatSessionPreference
+      summary: Replace the caller's Workspace chat preferences.
+      tags: [chat-sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatSessionPreference'
+      responses:
+        '200':
+          description: Updated Workspace-scoped preferences.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSessionPreference'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/event-trail-event:
     post:
       operationId: listEventTrailEvents
@@ -3411,6 +3511,42 @@ components:
       schema:
         $ref: '#/components/schemas/AgentName'
 
+    ChatSessionParticipantQuery:
+      name: participant_user_id
+      in: query
+      required: false
+      description: Human participants required in every returned session.
+      style: form
+      explode: true
+      schema:
+        type: array
+        uniqueItems: true
+        maxItems: 25
+        items:
+          type: string
+          minLength: 1
+
+    IncludeWorkflowRunsQuery:
+      name: include_workflow_runs
+      in: query
+      required: false
+      description: Include sessions created by WorkflowRuns.
+      schema:
+        type: boolean
+        default: false
+
+    ChatSessionLimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of sessions to return.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 50
+        default: 10
+
     AgentNamePath:
       name: agentName
       in: path
@@ -3810,6 +3946,120 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    ChatSessionKind:
+      type: string
+      enum: [chat, workflow_run]
+      x-enum-varnames:
+      - ChatSessionKindChat
+      - ChatSessionKindWorkflowRun
+
+    ChatSessionStatus:
+      type: string
+      enum: [idle, busy, retry]
+      x-enum-varnames:
+      - ChatSessionStatusIdle
+      - ChatSessionStatusBusy
+      - ChatSessionStatusRetry
+
+    ChatSessionParticipant:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        image:
+          type: string
+          nullable: true
+      required: [id, name, email, image]
+
+    ChatSession:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        session_id:
+          type: string
+        title:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ChatSessionKind'
+        status:
+          $ref: '#/components/schemas/ChatSessionStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatSessionParticipant'
+      required:
+      - agent_name
+      - session_id
+      - title
+      - kind
+      - status
+      - created_at
+      - updated_at
+      - participants
+
+    ListChatSessionsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatSession'
+        participant_filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatSessionParticipant'
+        has_next_page:
+          type: boolean
+        next_page_token:
+          type: string
+      required: [sessions, participant_filters, has_next_page, next_page_token]
+
+    ChatSessionPreference:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name:
+          allOf:
+          - $ref: '#/components/schemas/AgentName'
+          nullable: true
+        participant_user_ids:
+          type: array
+          uniqueItems: true
+          maxItems: 25
+          items:
+            type: string
+            minLength: 1
+        include_workflow_runs:
+          type: boolean
+        last_agent_name:
+          allOf:
+          - $ref: '#/components/schemas/AgentName'
+          nullable: true
+      required: [agent_name, participant_user_ids, include_workflow_runs, last_agent_name]
+
+    WatchChatSessionsEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        revision:
+          type: string
+      required: [revision]
+
     EventTrailActorType:
       type: string
       enum: [user, api_key, system]

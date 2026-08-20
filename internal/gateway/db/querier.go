@@ -15,6 +15,7 @@ type Querier interface {
 	GatewayAgentExists(ctx context.Context, arg GatewayAgentExistsParams) (bool, error)
 	GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayAssignWorkspaceAdminsParams) (int64, error)
 	GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCleanupJobParams) (CleanupJob, error)
+	GatewayClearAgentChatPreferences(ctx context.Context, arg GatewayClearAgentChatPreferencesParams) error
 	GatewayCompleteCleanupJob(ctx context.Context, arg GatewayCompleteCleanupJobParams) (int64, error)
 	GatewayCreateAgent(ctx context.Context, arg GatewayCreateAgentParams) (Agent, error)
 	GatewayCreateAgentOwner(ctx context.Context, arg GatewayCreateAgentOwnerParams) (AgentOwner, error)
@@ -23,8 +24,10 @@ type Querier interface {
 	GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) error
 	GatewayCreateWorkspaceAdminRole(ctx context.Context, arg GatewayCreateWorkspaceAdminRoleParams) (RoleScope, error)
 	GatewayDeleteAgent(ctx context.Context, arg GatewayDeleteAgentParams) (int64, error)
+	GatewayDeleteAgentChatSessions(ctx context.Context, arg GatewayDeleteAgentChatSessionsParams) error
 	GatewayDeleteAgentOwner(ctx context.Context, arg GatewayDeleteAgentOwnerParams) (int64, error)
 	GatewayDeleteAgentShare(ctx context.Context, arg GatewayDeleteAgentShareParams) (int64, error)
+	GatewayDeleteChatSession(ctx context.Context, arg GatewayDeleteChatSessionParams) error
 	GatewayDeleteExpiredEventTrailEvents(ctx context.Context, expiresBefore pgtype.Timestamptz) (int64, error)
 	GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDeleteSessionTracesParams) (int64, error)
 	GatewayDeleteWorkspaceAgents(ctx context.Context, tenantNamespace string) (int64, error)
@@ -38,6 +41,7 @@ type Querier interface {
 	GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)
 	GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspaceParams) (Workspace, error)
+	GatewayGetWorkspaceChatPreference(ctx context.Context, arg GatewayGetWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error)
 	GatewayInsertWorkspaceInheritedResources(ctx context.Context, arg GatewayInsertWorkspaceInheritedResourcesParams) (int64, error)
 	GatewayIsActiveOrganizationMember(ctx context.Context, arg GatewayIsActiveOrganizationMemberParams) (bool, error)
 	GatewayIsActiveSuperadmin(ctx context.Context, arg GatewayIsActiveSuperadminParams) (bool, error)
@@ -49,6 +53,8 @@ type Querier interface {
 	GatewayListAgentShares(ctx context.Context, arg GatewayListAgentSharesParams) ([]AgentShare, error)
 	GatewayListAgents(ctx context.Context, arg GatewayListAgentsParams) ([]Agent, error)
 	GatewayListAgentsByName(ctx context.Context, arg GatewayListAgentsByNameParams) ([]Agent, error)
+	GatewayListChatSessionFilterUsers(ctx context.Context, arg GatewayListChatSessionFilterUsersParams) ([]GatewayListChatSessionFilterUsersRow, error)
+	GatewayListChatSessions(ctx context.Context, arg GatewayListChatSessionsParams) ([]GatewayListChatSessionsRow, error)
 	GatewayListEventTrailActors(ctx context.Context, arg GatewayListEventTrailActorsParams) ([]GatewayListEventTrailActorsRow, error)
 	GatewayListEventTrailCategories(ctx context.Context, arg GatewayListEventTrailCategoriesParams) ([]string, error)
 	GatewayListEventTrailEvents(ctx context.Context, arg GatewayListEventTrailEventsParams) ([]GatewayListEventTrailEventsRow, error)
@@ -68,6 +74,7 @@ type Querier interface {
 	GatewayListWorkspaceAdminCandidates(ctx context.Context, arg GatewayListWorkspaceAdminCandidatesParams) ([]GatewayListWorkspaceAdminCandidatesRow, error)
 	GatewayListWorkspaceInheritedResources(ctx context.Context, arg GatewayListWorkspaceInheritedResourcesParams) ([]GatewayListWorkspaceInheritedResourcesRow, error)
 	GatewayListWorkspacesSelectingOrganizationResource(ctx context.Context, arg GatewayListWorkspacesSelectingOrganizationResourceParams) ([]Workspace, error)
+	GatewayListenChatSessions(ctx context.Context) error
 	GatewayLockActiveOrganizationMember(ctx context.Context, arg GatewayLockActiveOrganizationMemberParams) (string, error)
 	GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLockActiveWorkspaceParams) (string, error)
 	GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgentOwnerParams) (AgentOwner, error)
@@ -80,10 +87,14 @@ type Querier interface {
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)
 	GatewayRetryWorkspaceProvisioning(ctx context.Context, arg GatewayRetryWorkspaceProvisioningParams) (int64, error)
 	GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error)
+	GatewaySyncAgentChatSessionStatuses(ctx context.Context, arg GatewaySyncAgentChatSessionStatusesParams) error
 	GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsParams) (bool, error)
 	GatewayTouchAgent(ctx context.Context, arg GatewayTouchAgentParams) (Agent, error)
+	GatewayTouchChatSessionParticipant(ctx context.Context, arg GatewayTouchChatSessionParticipantParams) error
 	GatewayTransferAgentOwner(ctx context.Context, arg GatewayTransferAgentOwnerParams) (AgentOwner, error)
 	GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error)
+	GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) error
+	GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg GatewayUpsertWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -81,7 +81,11 @@ export default async function WorkspaceAgentLayout({
               <DropdownMenuContent align="end">
                 {detail.agent.capabilities.use ? (
                   <DropdownMenuItem asChild>
-                    <Link href={`${root}/sessions/new` as Route}>
+                    <Link
+                      href={
+                        `${workspacePath}/sessions/new?agent=${encodeURIComponent(agentName)}` as Route
+                      }
+                    >
                       <MessageCircle aria-hidden="true" />
                       New chat
                     </Link>

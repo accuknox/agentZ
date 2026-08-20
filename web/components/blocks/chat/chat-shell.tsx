@@ -1,7 +1,10 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { FolderTree } from "lucide-react"
+import type { ChatSessionPreference } from "@/lib/gateway/client"
+import { PanelRightClose, PanelRightOpen } from "lucide-react"
+import type { Route } from "next"
+import { useRouter } from "@bprogress/next/app"
 import { useState } from "react"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Button } from "@/components/ui/button"
@@ -18,6 +21,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 
 type ChatShellProps = {
   agentName: string
+  agentNames?: string[]
+  chatPreferences?: ChatSessionPreference
   draftKey?: string
   firstName?: string
   greetingIndex?: number
@@ -37,6 +42,8 @@ const FilesWorkspace = dynamic(
 
 export function ChatShell({
   agentName,
+  agentNames = [agentName],
+  chatPreferences,
   draftKey,
   firstName,
   greetingIndex,
@@ -46,43 +53,51 @@ export function ChatShell({
   workspacePath,
 }: ChatShellProps): React.JSX.Element {
   const [previewerOpen, setPreviewerOpen] = useState(false)
+  const router = useRouter()
   // Soft navigations preserve client trees in this app, so the chat subtree
   // must remount when the logical session target changes.
   const chatKey = `${agentName}:${sessionId ?? `new:${draftKey ?? "default"}`}`
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-2">
-        <div className="flex min-w-0 items-center gap-1">
+    <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
+      <SessionFileControl agentName={agentName} />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 pr-12 pl-3">
           <SidebarTrigger className="shrink-0" />
-          <span className="text-muted-foreground max-w-1/3 truncate text-sm">{agentName}</span>
-          <span aria-hidden="true" className="text-muted-foreground text-sm">
+          <span className="text-muted-foreground max-w-1/3 truncate text-sm font-medium">
+            {agentName}
+          </span>
+          <span aria-hidden="true" className="text-muted-foreground/70 px-1 text-sm">
             /
           </span>
-          <h1 className="min-w-0 truncate text-sm font-medium">{title}</h1>
-        </div>
-        <SessionFileControl agentName={agentName} />
-      </header>
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <h1 className="min-w-0 truncate text-sm font-semibold">{title}</h1>
+        </header>
         <div className="@container/chat relative min-w-0 flex-1">
           <Chat
             key={chatKey}
             agentName={agentName}
+            agentNames={agentNames}
+            chatPreferences={chatPreferences}
             firstName={firstName}
             greetingIndex={greetingIndex}
             promptMobile={previewerOpen}
             sessionId={sessionId}
             workspaceId={workspaceId}
             workspacePath={workspacePath}
+            onAgentChange={(name) => {
+              const url = new URL(window.location.href)
+              url.searchParams.set("agent", name)
+              router.replace(`${url.pathname}${url.search}` as Route)
+            }}
           />
         </div>
-        <FilesWorkspace
-          agentName={agentName}
-          onPreviewerOpenChange={setPreviewerOpen}
-          sessionId={sessionId}
-          workspaceId={workspaceId}
-        />
       </div>
+      <FilesWorkspace
+        agentName={agentName}
+        onPreviewerOpenChange={setPreviewerOpen}
+        sessionId={sessionId}
+        workspaceId={workspaceId}
+      />
     </div>
   )
 }
@@ -100,7 +115,7 @@ function SessionFileControl({ agentName }: { agentName: string }) {
           <Button
             aria-label={filesOpen ? "Close files" : "Open files"}
             aria-pressed={filesOpen}
-            className="hidden shrink-0 lg:inline-flex"
+            className="absolute top-3 right-3 z-50 hidden lg:inline-flex"
             onClick={() => {
               if (filesOpen && filesDirty) {
                 setConfirmingDiscard(true)
@@ -111,7 +126,11 @@ function SessionFileControl({ agentName }: { agentName: string }) {
             size="icon-sm"
             variant={filesOpen ? "secondary" : "ghost"}
           >
-            <FolderTree aria-hidden="true" />
+            {filesOpen ? (
+              <PanelRightClose aria-hidden="true" />
+            ) : (
+              <PanelRightOpen aria-hidden="true" />
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent>{filesOpen ? "Close files" : "Open files"}</TooltipContent>

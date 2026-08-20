@@ -105,6 +105,7 @@ type Service struct {
 	externalJWTKeyfunc jwt.Keyfunc
 	skillStore         *skill.Client
 	skillImports       chan struct{}
+	chatSessionEvents  chatSessionEvents
 	catalog            *inference.Catalog
 	openAPI            *openapi3.T
 	outboundHTTP       *http.Client
@@ -328,6 +329,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(cleanupDone)
 		svc.runCleanupJobs(runCtx)
 	}()
+	chatSessionNotificationsDone := make(chan struct{})
+	go func() {
+		defer close(chatSessionNotificationsDone)
+		svc.runChatSessionNotifications(runCtx)
+	}()
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -376,6 +382,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 	}
 	stopRun()
+	<-chatSessionNotificationsDone
 	<-cleanupDone
 	<-eventTrailRetentionDone
 

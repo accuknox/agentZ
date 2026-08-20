@@ -93,6 +93,8 @@ export const cleanupState = pgEnum("cleanup_state", [
   "failed",
   "retrying",
 ])
+export const chatSessionKind = pgEnum("chat_session_kind", ["chat", "workflow_run"])
+export const chatSessionStatus = pgEnum("chat_session_status", ["idle", "busy", "retry"])
 export const destructiveOperation = pgEnum("destructive_operation", [
   "membership_disable",
   "membership_remove",
@@ -150,6 +152,98 @@ export const workspaces = pgTable(
       "workspaces_state_failure_reason_ck",
       sql`(${table.state} = 'failed' AND NULLIF(BTRIM(${table.failureReason}), '') IS NOT NULL) OR
         (${table.state} <> 'failed' AND ${table.failureReason} IS NULL)`
+    ),
+  ]
+)
+
+export const chatSessions = pgTable(
+  "chat_sessions",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    agentName: text("agent_name").notNull(),
+    sessionId: text("session_id").notNull(),
+    parentSessionId: text("parent_session_id"),
+    title: text("title").notNull(),
+    kind: chatSessionKind("kind").default("chat").notNull(),
+    status: chatSessionStatus("status").default("idle").notNull(),
+    sourceCreatedAt: timestamp("source_created_at", { withTimezone: true }).notNull(),
+    sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => dayjs().toDate())
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.agentName, table.sessionId] }),
+    index("chat_sessions_inbox_idx").on(
+      table.workspaceId,
+      table.sourceUpdatedAt,
+      table.agentName,
+      table.sessionId
+    ),
+    check("chat_sessions_agent_name_ck", sql`NULLIF(BTRIM(${table.agentName}), '') IS NOT NULL`),
+    check("chat_sessions_session_id_ck", sql`NULLIF(BTRIM(${table.sessionId}), '') IS NOT NULL`),
+    check("chat_sessions_title_ck", sql`NULLIF(BTRIM(${table.title}), '') IS NOT NULL`),
+  ]
+)
+
+export const chatSessionParticipants = pgTable(
+  "chat_session_participants",
+  {
+    workspaceId: text("workspace_id").notNull(),
+    agentName: text("agent_name").notNull(),
+    sessionId: text("session_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    firstMessagedAt: timestamp("first_messaged_at", { withTimezone: true }).defaultNow().notNull(),
+    lastMessagedAt: timestamp("last_messaged_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.agentName, table.sessionId, table.userId] }),
+    foreignKey({
+      columns: [table.workspaceId, table.agentName, table.sessionId],
+      foreignColumns: [chatSessions.workspaceId, chatSessions.agentName, chatSessions.sessionId],
+      name: "chat_session_participants_session_fk",
+    }).onDelete("cascade"),
+    index("chat_session_participants_user_idx").on(table.workspaceId, table.userId),
+  ]
+)
+
+export const workspaceChatPreferences = pgTable(
+  "workspace_chat_preferences",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    agentName: text("agent_name"),
+    participantUserIds: text("participant_user_ids")
+      .array()
+      .default(sql`'{}'::text[]`)
+      .notNull(),
+    includeWorkflowRuns: boolean("include_workflow_runs").default(false).notNull(),
+    lastAgentName: text("last_agent_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => dayjs().toDate())
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.userId] }),
+    check(
+      "workspace_chat_preferences_agent_name_ck",
+      sql`${table.agentName} IS NULL OR NULLIF(BTRIM(${table.agentName}), '') IS NOT NULL`
+    ),
+    check(
+      "workspace_chat_preferences_last_agent_name_ck",
+      sql`${table.lastAgentName} IS NULL OR NULLIF(BTRIM(${table.lastAgentName}), '') IS NOT NULL`
     ),
   ]
 )

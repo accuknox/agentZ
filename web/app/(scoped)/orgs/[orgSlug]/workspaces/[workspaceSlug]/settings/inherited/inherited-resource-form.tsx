@@ -227,8 +227,10 @@ export function InheritedResourceForm({
             <ul className="flex flex-wrap gap-1.5">
               {row.original.consumers.map((consumer) => {
                 let pathname = `/orgs/${orgSlug}/workspaces/${workspaceSlug}`
+                let query: { agent?: string } | undefined
                 if (consumer.kind === "Agent") {
-                  pathname = `${pathname}/agents/${encodeURIComponent(consumer.name)}/sessions/new`
+                  pathname = `${pathname}/sessions/new`
+                  query = { agent: consumer.name }
                 } else if (consumer.kind === "Sandbox") {
                   pathname = `${pathname}/sandboxes/update/${encodeURIComponent(consumer.name)}`
                 } else if (consumer.kind === "Inference Pool") {
@@ -236,7 +238,7 @@ export function InheritedResourceForm({
                 }
                 return (
                   <li key={`${consumer.kind}:${consumer.name}`}>
-                    <Link className="hover:underline" href={{ pathname }}>
+                    <Link className="hover:underline" href={{ pathname, query }}>
                       {consumer.kind} / {consumer.name}
                     </Link>
                   </li>

@@ -101,6 +101,9 @@ import type {
   GetAgentOwnerData,
   GetAgentOwnerErrors,
   GetAgentOwnerResponses,
+  GetChatSessionPreferenceData,
+  GetChatSessionPreferenceErrors,
+  GetChatSessionPreferenceResponses,
   GetEventTrailEventData,
   GetEventTrailEventErrors,
   GetEventTrailEventResponses,
@@ -164,6 +167,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
+  ListChatSessionsData,
+  ListChatSessionsErrors,
+  ListChatSessionsResponses,
   ListEventTrailEventsData,
   ListEventTrailEventsErrors,
   ListEventTrailEventsResponses,
@@ -287,6 +293,9 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateChatSessionPreferenceData,
+  UpdateChatSessionPreferenceErrors,
+  UpdateChatSessionPreferenceResponses,
   UpdateInferencePoolData,
   UpdateInferencePoolErrors,
   UpdateInferencePoolResponses,
@@ -312,6 +321,10 @@ import type {
   WatchAgentsErrors,
   WatchAgentsResponse,
   WatchAgentsResponses,
+  WatchChatSessionsData,
+  WatchChatSessionsErrors,
+  WatchChatSessionsResponse,
+  WatchChatSessionsResponses,
   WatchInferencePoolsData,
   WatchInferencePoolsErrors,
   WatchInferencePoolsResponse,
@@ -357,6 +370,75 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+/**
+ * List the current Workspace chat inbox.
+ *
+ * Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination.
+ *
+ */
+export const listChatSessions = <ThrowOnError extends boolean = false>(
+  options?: Options<ListChatSessionsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListChatSessionsResponses, ListChatSessionsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session",
+    ...options,
+  })
+
+/**
+ * Watch the current Workspace chat inbox.
+ *
+ * Emits a compact invalidation event when the Workspace inbox changes.
+ */
+export const watchChatSessions = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchChatSessionsData, ThrowOnError, WatchChatSessionsResponse>
+) =>
+  (options?.client ?? client).sse.get<
+    WatchChatSessionsResponses,
+    WatchChatSessionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/watch",
+    ...options,
+  })
+
+/**
+ * Get the caller's Workspace chat preferences.
+ */
+export const getChatSessionPreference = <ThrowOnError extends boolean = false>(
+  options?: Options<GetChatSessionPreferenceData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    GetChatSessionPreferenceResponses,
+    GetChatSessionPreferenceErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session-preference",
+    ...options,
+  })
+
+/**
+ * Replace the caller's Workspace chat preferences.
+ */
+export const updateChatSessionPreference = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateChatSessionPreferenceData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateChatSessionPreferenceResponses,
+    UpdateChatSessionPreferenceErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session-preference",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
 
 /**
  * List Organisation event trail events.

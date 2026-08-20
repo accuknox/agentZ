@@ -395,7 +395,7 @@ function ToolCard({
         {trigger.action ? <div className="ml-2 shrink-0">{trigger.action}</div> : null}
       </div>
       <CollapsibleContent>
-        <div className="border-muted-foreground/20 space-y-1 border-l-2 pt-1 pl-3">{children}</div>
+        <div className="space-y-1 pt-1 pl-3">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   )
@@ -892,7 +892,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="border-muted-foreground/20 flex flex-col gap-1 border-l pl-3">
+        <div className="flex flex-col gap-1 pl-3">
           {parts.map((part) => {
             const Icon = toolIcon(part.tool)
             const title = toolTitle(part.tool)

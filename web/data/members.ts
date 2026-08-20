@@ -32,6 +32,7 @@ import { analyzeDestructiveImpact, type DestructiveTarget } from "@/data/operati
 import { getAuth, projectMemberRoleTransports } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
 import { dayjs } from "@/lib/format"
+import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { invitationExpiresIn } from "@/lib/organization-invitation"
 import { decodePageToken, encodePageToken } from "@/data/page-token"
 
@@ -88,6 +89,28 @@ export type ScopedAssignmentOption = {
   name: string
   scope: string
   workspace: string | null
+}
+
+export type MessageActorProfile = { id: string; image: string | null; name: string }
+
+export async function getMessageActorProfiles(userIds: string[]): Promise<MessageActorProfile[]> {
+  if (userIds.length === 0) {
+    return []
+  }
+
+  const auth = await currentGatewayAuthContext()
+  return getDB()
+    .select({ id: schema.users.id, image: schema.users.image, name: schema.users.name })
+    .from(schema.members)
+    .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
+    .where(
+      and(
+        eq(schema.members.organizationId, auth.organizationId),
+        isNull(schema.members.disabledAt),
+        inArray(schema.members.userId, userIds)
+      )
+    )
+    .limit(userIds.length)
 }
 
 export type MemberAdministration = {

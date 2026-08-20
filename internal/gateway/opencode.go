@@ -29,7 +29,7 @@ const (
 	opencodeSessionPromptPath   = "/api/opencode/{agentName}/session/{sessionID}/message"
 	opencodeSessionAsyncPath    = "/api/opencode/{agentName}/session/{sessionID}/prompt_async"
 	opencodeSessionCreatePath   = "/api/opencode/{agentName}/session"
-	opencodeSessionUpdatePath   = "/api/opencode/{agentName}/session/{sessionID}"
+	opencodeSessionPath         = "/api/opencode/{agentName}/session/{sessionID}"
 	opencodeSessionStatusPath   = "/api/opencode/{agentName}/session/status"
 	opencodeSessionKindKey      = "agentz.dev/session-kind"
 )
@@ -347,8 +347,8 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 	return nil
 }
 
-// openCodeModifyResponse applies gateway-owned response cleanup and optional
-// observer trace deletion after successful upstream session deletion.
+// openCodeModifyResponse applies response cleanup, session catalog sync, and
+// optional observer trace deletion after successful upstream session deletion.
 func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRouteMatch, upstream *url.URL, workspaceID, agentName string) func(*http.Response) error {
 	deleteTarget, hasSessionDelete := matchOpencodeSessionDelete(route, agentName)
 	return func(resp *http.Response) error {
@@ -357,8 +357,13 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			return nil
 		}
-		if route.Method == http.MethodPost && route.Path == opencodeSessionCreatePath ||
-			route.Method == http.MethodPatch && route.Path == opencodeSessionUpdatePath {
+		storesSession := route.Method == http.MethodPost &&
+			route.Path == opencodeSessionCreatePath
+		if route.Path == opencodeSessionPath {
+			storesSession = route.Method == http.MethodGet ||
+				route.Method == http.MethodPatch
+		}
+		if storesSession {
 			if err := s.storeOpenCodeSessionResponse(
 				ctx, resp, workspaceID, agentName,
 			); err != nil {
@@ -547,7 +552,7 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	if session.ParentID != nil {
 		parentID = pgtype.Text{String: *session.ParentID, Valid: true}
 	}
-	_, err := s.queries.GatewayUpsertChatSession(
+	err := s.queries.GatewayUpsertChatSession(
 		ctx,
 		gatewaydb.GatewayUpsertChatSessionParams{
 			WorkspaceID:     workspaceID,

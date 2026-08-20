@@ -56,7 +56,7 @@ WHERE ot.tenant_namespace = sqlc.arg(tenant_namespace)
       AND ots.session_id = sqlc.arg(session_id)
   );
 
--- name: GatewayUpsertChatSession :one
+-- name: GatewayUpsertChatSession :exec
 INSERT INTO chat_sessions(
   workspace_id,
   agent_name,
@@ -80,14 +80,31 @@ VALUES (
   sqlc.arg(source_updated_at)
 )
 ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET
+  -- Gateway participant activity can be newer than OpenCode's session time,
+  -- and generated titles do not advance that time.
   parent_session_id = EXCLUDED.parent_session_id,
   title = EXCLUDED.title,
   kind = EXCLUDED.kind,
   status = chat_sessions.status,
   source_created_at = EXCLUDED.source_created_at,
-  source_updated_at = EXCLUDED.source_updated_at,
+  source_updated_at = GREATEST(
+    chat_sessions.source_updated_at,
+    EXCLUDED.source_updated_at
+  ),
   updated_at = NOW()
-RETURNING *;
+WHERE ROW(
+  chat_sessions.parent_session_id,
+  chat_sessions.title,
+  chat_sessions.kind,
+  chat_sessions.source_created_at,
+  chat_sessions.source_updated_at
+) IS DISTINCT FROM ROW(
+  EXCLUDED.parent_session_id,
+  EXCLUDED.title,
+  EXCLUDED.kind,
+  EXCLUDED.source_created_at,
+  GREATEST(chat_sessions.source_updated_at, EXCLUDED.source_updated_at)
+);
 
 -- name: GatewaySetChatSessionStatus :execrows
 UPDATE chat_sessions

@@ -93,7 +93,7 @@ type Querier interface {
 	GatewayTouchChatSessionParticipant(ctx context.Context, arg GatewayTouchChatSessionParticipantParams) (int64, error)
 	GatewayTransferAgentOwner(ctx context.Context, arg GatewayTransferAgentOwnerParams) (AgentOwner, error)
 	GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error)
-	GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) (ChatSession, error)
+	GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) error
 	GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg GatewayUpsertWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error)
 }
 

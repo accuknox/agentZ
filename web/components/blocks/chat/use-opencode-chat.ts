@@ -470,11 +470,9 @@ export function markOptimisticUserMessageFailed(
 
 function sessionInfoQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
   return queryOptions({
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
-      const result = await client.session.get({
-        sessionID,
-      })
+      const result = await client.session.get({ sessionID }, { signal })
 
       if (result.error || !result.data) {
         throw new Error(opencodeErrorMessage(result.error, "Failed to load session"))
@@ -675,6 +673,7 @@ export function useOpencodeChat(
     if (!sessionID) return
 
     let hasStoreUpdate = false
+    let refreshSession = false
     const nextHitlEvents: StreamEvent[] = []
 
     for (const event of events) {
@@ -706,6 +705,15 @@ export function useOpencodeChat(
         // sidebar. Reconcile on the terminal event so its activity state does
         // not remain busy after the local event stream has settled.
         void refetchStatus()
+        if (event.properties.sessionID === sessionID) refreshSession = true
+      }
+
+      if (
+        event.type === "session.updated" &&
+        event.properties.info.id === sessionID &&
+        event.properties.info.title !== store.session?.title
+      ) {
+        refreshSession = true
       }
 
       switch (event.type) {
@@ -756,6 +764,11 @@ export function useOpencodeChat(
         ),
       }))
     }
+
+    // Session GET responses update the gateway catalog. Title changes and the
+    // terminal event both reconcile so a transient first fetch cannot leave
+    // workspace sidebars stale.
+    if (refreshSession) void refetchSession()
   })
 
   useEffect(() => {

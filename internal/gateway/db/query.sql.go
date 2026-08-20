@@ -4550,7 +4550,7 @@ func (q *Queries) GatewayTransitionWorkspaceProvisioning(ctx context.Context, ar
 	return result.RowsAffected(), nil
 }
 
-const gatewayUpsertChatSession = `-- name: GatewayUpsertChatSession :one
+const gatewayUpsertChatSession = `-- name: GatewayUpsertChatSession :exec
 INSERT INTO chat_sessions(
   workspace_id,
   agent_name,
@@ -4574,14 +4574,31 @@ VALUES (
   $9
 )
 ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET
+  -- Gateway participant activity can be newer than OpenCode's session time,
+  -- and generated titles do not advance that time.
   parent_session_id = EXCLUDED.parent_session_id,
   title = EXCLUDED.title,
   kind = EXCLUDED.kind,
   status = chat_sessions.status,
   source_created_at = EXCLUDED.source_created_at,
-  source_updated_at = EXCLUDED.source_updated_at,
+  source_updated_at = GREATEST(
+    chat_sessions.source_updated_at,
+    EXCLUDED.source_updated_at
+  ),
   updated_at = NOW()
-RETURNING workspace_id, agent_name, session_id, parent_session_id, title, kind, status, source_created_at, source_updated_at, created_at, updated_at
+WHERE ROW(
+  chat_sessions.parent_session_id,
+  chat_sessions.title,
+  chat_sessions.kind,
+  chat_sessions.source_created_at,
+  chat_sessions.source_updated_at
+) IS DISTINCT FROM ROW(
+  EXCLUDED.parent_session_id,
+  EXCLUDED.title,
+  EXCLUDED.kind,
+  EXCLUDED.source_created_at,
+  GREATEST(chat_sessions.source_updated_at, EXCLUDED.source_updated_at)
+)
 `
 
 type GatewayUpsertChatSessionParams struct {
@@ -4596,8 +4613,8 @@ type GatewayUpsertChatSessionParams struct {
 	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
 }
 
-func (q *Queries) GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) (ChatSession, error) {
-	row := q.db.QueryRow(ctx, gatewayUpsertChatSession,
+func (q *Queries) GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) error {
+	_, err := q.db.Exec(ctx, gatewayUpsertChatSession,
 		arg.WorkspaceID,
 		arg.AgentName,
 		arg.SessionID,
@@ -4608,21 +4625,7 @@ func (q *Queries) GatewayUpsertChatSession(ctx context.Context, arg GatewayUpser
 		arg.SourceCreatedAt,
 		arg.SourceUpdatedAt,
 	)
-	var i ChatSession
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.AgentName,
-		&i.SessionID,
-		&i.ParentSessionID,
-		&i.Title,
-		&i.Kind,
-		&i.Status,
-		&i.SourceCreatedAt,
-		&i.SourceUpdatedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+	return err
 }
 
 const gatewayUpsertWorkspaceChatPreference = `-- name: GatewayUpsertWorkspaceChatPreference :one

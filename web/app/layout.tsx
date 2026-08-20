@@ -7,7 +7,11 @@ import { getEnv } from "@/lib/env"
 import "./globals.css"
 import Providers from "./providers"
 
-const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo" })
+const archivo = Archivo({
+  axes: ["wdth"],
+  subsets: ["latin"],
+  variable: "--font-archivo",
+})
 const socialTitle = "AgentZ | By Team AccuKnox"
 const description =
   "Create and run agents with managed access, isolated sandboxes, skills, and tools."

@@ -2,6 +2,21 @@
 
 import * as z from "zod"
 
+export const zChatSessionKind = z.enum(["chat", "workflow_run"])
+
+export const zChatSessionStatus = z.enum(["idle", "busy", "retry"])
+
+export const zChatSessionParticipant = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.email(),
+  image: z.string().nullable(),
+})
+
+export const zWatchChatSessionsEvent = z.object({
+  revision: z.string(),
+})
+
 export const zEventTrailActorType = z.enum(["user", "api_key", "system"])
 
 export const zEventTrailResult = z.enum(["succeeded", "denied", "failed"])
@@ -284,6 +299,37 @@ export const zAgentName = z
   .min(1)
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zChatSession = z.object({
+  agent_name: zAgentName,
+  session_id: z.string(),
+  title: z.string(),
+  kind: zChatSessionKind,
+  status: zChatSessionStatus,
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+  participants: z.array(zChatSessionParticipant),
+})
+
+export const zListChatSessionsResponse = z.object({
+  sessions: z.array(zChatSession),
+  participant_filters: z.array(zChatSessionParticipant),
+  has_next_page: z.boolean(),
+  next_page_token: z.string(),
+})
+
+export const zChatSessionPreferenceInput = z.object({
+  agent_name: zAgentName.nullable(),
+  participant_user_ids: z.array(z.string().min(1)).max(25),
+  include_workflow_runs: z.boolean(),
+  last_agent_name: zAgentName.nullable(),
+})
+
+export const zChatSessionPreference = zChatSessionPreferenceInput.and(
+  z.object({
+    updated_at: z.iso.datetime(),
+  })
+)
 
 export const zResourceScope = z.enum(["Organisation", "Workspace"])
 
@@ -2223,6 +2269,21 @@ export const zAgentNameQuery = zAgentName
 export const zAgentNameQueryOptional = zAgentName
 
 /**
+ * Human participants required in every returned session.
+ */
+export const zChatSessionParticipantQuery = z.array(z.string().min(1)).max(25)
+
+/**
+ * Include sessions created by WorkflowRuns.
+ */
+export const zIncludeWorkflowRunsQuery = z.boolean().default(false)
+
+/**
+ * Maximum number of sessions to return.
+ */
+export const zChatSessionLimitQuery = z.int().gte(1).lte(50).default(10)
+
+/**
  * Agent name.
  */
 export const zAgentNamePath = zAgentName
@@ -2398,6 +2459,36 @@ export const zFromDateQuery = z.iso.date()
  * Inclusive upper bound for MCP tool activity date.
  */
 export const zToDateQuery = z.iso.date()
+
+export const zListChatSessionsQuery = z.object({
+  limit: z.int().gte(1).lte(50).optional().default(10),
+  page_token: z.string().min(1).optional(),
+  agent_name: zAgentName.optional(),
+  participant_user_id: z.array(z.string().min(1)).max(25).optional(),
+  include_workflow_runs: z.boolean().optional().default(false),
+})
+
+/**
+ * Paginated chat sessions and available participant filters.
+ */
+export const zListChatSessionsResponse2 = zListChatSessionsResponse
+
+/**
+ * Stream of chat inbox invalidations.
+ */
+export const zWatchChatSessionsResponse = zWatchChatSessionsEvent
+
+/**
+ * Workspace-scoped preferences for the current user.
+ */
+export const zGetChatSessionPreferenceResponse = zChatSessionPreference
+
+export const zUpdateChatSessionPreferenceBody = zChatSessionPreferenceInput
+
+/**
+ * Updated Workspace-scoped preferences.
+ */
+export const zUpdateChatSessionPreferenceResponse = zChatSessionPreference
 
 export const zListEventTrailEventsBody = zListEventTrailEventsRequest
 

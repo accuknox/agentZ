@@ -27,6 +27,7 @@ import {
   PromptInputTextarea,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -42,6 +43,7 @@ import {
 import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
@@ -85,6 +87,7 @@ import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-qu
 import { formatByteSize } from "@/lib/format"
 import { RelativeDateTime } from "@/components/relative-date-time"
 import { useObjectURL } from "@/hooks/use-object-url"
+import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -119,6 +122,7 @@ import {
   useState,
 } from "react"
 import { toast } from "sonner"
+import { z } from "zod"
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -165,6 +169,19 @@ type ChatProps = {
   workspacePath: string
   onAgentChange: (agentName: string) => void
 }
+
+type AuthUser = typeof authClient.$Infer.Session.user
+
+const messageActorProfilesSchema = z
+  .object({
+    profiles: z.array(
+      z
+        .object({ id: z.string().min(1), image: z.string().nullable(), name: z.string().min(1) })
+        .strict()
+    ),
+  })
+  .strict()
+type MessageActorProfile = z.infer<typeof messageActorProfilesSchema>["profiles"][number]
 
 const DEFAULT_REASONING_LEVEL = "__default__"
 const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
@@ -489,6 +506,7 @@ function ChatInner({
   const activeSessionId = sessionId ?? promotedSessionId
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
+  const { data: authSession } = authClient.useSession()
   const {
     applyOptimisticSession,
     blocked,
@@ -957,6 +975,37 @@ function ChatInner({
       textByPart,
     ]
   )
+  const actorUserIDs = useMemo(
+    () =>
+      [
+        ...new Set(
+          rows.flatMap((row) =>
+            row.type === "user" && row.actor?.type === "user" ? [row.actor.id] : []
+          )
+        ),
+      ].sort(),
+    [rows]
+  )
+  const actorProfilesQuery = useQuery(
+    queryOptions({
+      enabled: actorUserIDs.length > 0,
+      queryKey: ["message-actors", ...actorUserIDs],
+      queryFn: async () => {
+        const response = await fetch("/api/message-actors", {
+          body: JSON.stringify({ userIds: actorUserIDs }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        })
+        if (!response.ok) throw new Error("Failed to load message senders")
+        return messageActorProfilesSchema.parse(await response.json())
+      },
+      staleTime: 60_000,
+    })
+  )
+  const actorProfiles = useMemo(
+    () => new Map(actorProfilesQuery.data?.profiles.map((profile) => [profile.id, profile]) ?? []),
+    [actorProfilesQuery.data]
+  )
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
@@ -1064,11 +1113,13 @@ function ChatInner({
               >
                 <TimelineRowView
                   agentName={agentName}
+                  actorProfiles={actorProfiles}
                   isBusy={isBusy}
                   isLastBlock={rows.at(-1)?.key === item.key}
                   onRevert={handleRevert}
                   revertDisabled={isBusy || isStopping || revertPending}
                   row={item}
+                  user={authSession?.user}
                   workspacePath={workspacePath}
                 />
               </div>
@@ -1078,7 +1129,7 @@ function ChatInner({
         {!timelineAtEnd && !showStarter ? (
           <Button
             aria-label="Scroll to latest message"
-            className="bg-background/85 absolute bottom-52 left-1/2 z-20 -translate-x-1/2 rounded-full shadow-sm backdrop-blur-md"
+            className="bg-background/80 absolute bottom-[14.5rem] left-1/2 z-20 -translate-x-1/2 rounded-full shadow-sm backdrop-blur-md"
             onClick={() => timelineRef.current?.scrollToEnd({ animated: true })}
             size="icon"
             variant="outline"
@@ -1105,7 +1156,7 @@ function ChatInner({
           {showStarter ? (
             <NewSessionGreeting firstName={firstName} greetingIndex={greetingIndex} />
           ) : null}
-          <div className="chat-composer-glass-shell chat-composer-glass-shell-with-context relative w-full pb-9">
+          <div className="chat-composer-glass-shell relative w-full pb-9">
             <PromptInput
               className="agentz-chat-composer chat-composer-glass-host relative z-10 rounded-[22px]"
               controllerRef={composerRef}
@@ -1407,11 +1458,6 @@ function ChatInner({
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {activeSessionId ? (
-                <span className="text-muted-foreground ml-auto text-[11px]">
-                  Locked for this chat
-                </span>
-              ) : null}
             </div>
           </div>
         </div>
@@ -1511,21 +1557,56 @@ function MessageActionBar({ className, children }: { className?: string; childre
   )
 }
 
+function UserMessageAvatar({
+  image,
+  name,
+  label,
+}: {
+  image?: string | null
+  name: string
+  label: string
+}) {
+  const displayName = name.trim() || "User"
+  const initials = displayName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span aria-label={label} className="shrink-0">
+          <Avatar>
+            <AvatarImage alt={displayName} src={image ?? undefined} />
+            <AvatarFallback>{initials || "U"}</AvatarFallback>
+          </Avatar>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function TimelineRowView({
   agentName,
+  actorProfiles,
   isBusy,
   isLastBlock,
   onRevert,
   revertDisabled,
   row,
+  user,
   workspacePath,
 }: {
   agentName: string
+  actorProfiles: Map<string, MessageActorProfile>
   isBusy: boolean
   isLastBlock: boolean
   onRevert: (messageID: string) => void
   revertDisabled: boolean
   row: TimelineRow
+  user?: AuthUser
   workspacePath: string
 }) {
   const { previewFile } = useFileWorkspace()
@@ -1539,7 +1620,7 @@ function TimelineRowView({
   switch (row.type) {
     case "local": {
       return (
-        <div className="group flex flex-col items-end gap-1">
+        <div className="group flex items-end justify-end gap-2">
           <div
             className={cn(
               "bg-message text-message-foreground relative max-w-[80%] rounded-2xl p-3 text-sm",
@@ -1558,6 +1639,11 @@ function TimelineRowView({
               <MessageResponse>{row.message.text}</MessageResponse>
             ) : null}
           </div>
+          <UserMessageAvatar
+            image={user?.image}
+            label={user?.name ?? "You"}
+            name={user?.name ?? "You"}
+          />
         </div>
       )
     }
@@ -1565,23 +1651,32 @@ function TimelineRowView({
     case "user": {
       const isEmpty = row.text.length === 0 && row.attachments.length === 0
       if (isEmpty) return null
+      const profile = row.actor?.type === "user" ? actorProfiles.get(row.actor.id) : undefined
+      const name = profile?.name ?? row.actor?.name
+      const label = row.actor
+        ? `${name} · ${
+            row.actor.type === "user" ? "User" : row.actor.type === "api_key" ? "API key" : "System"
+          }`
+        : undefined
 
       return (
         <div className="group flex flex-col items-end gap-1">
-          <div className="bg-message text-message-foreground relative max-w-[80%] rounded-2xl p-3 text-sm">
-            {row.attachments.length > 0 ? (
-              <StoredAttachments
-                agentName={agentName}
-                attachments={row.attachments}
-                onOpen={openAgentFile}
-              />
+          <div className="flex w-full items-end justify-end gap-2">
+            <div className="bg-message text-message-foreground relative max-w-[80%] rounded-2xl p-3 text-sm">
+              {row.attachments.length > 0 ? (
+                <StoredAttachments
+                  agentName={agentName}
+                  attachments={row.attachments}
+                  onOpen={openAgentFile}
+                />
+              ) : null}
+              {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
+            </div>
+            {name && label ? (
+              <UserMessageAvatar image={profile?.image} label={label} name={name} />
             ) : null}
-            {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
           </div>
-          <div className="flex w-full max-w-[80%] items-center justify-end gap-2 pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
-            {row.actor?.name ? (
-              <span className="text-muted-foreground truncate">{row.actor.name}</span>
-            ) : null}
+          <div className="flex w-full max-w-[80%] items-center justify-end gap-2 pe-11 text-xs tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
             <RelativeDateTime value={row.createdAt} />
             <div className="flex items-center gap-0.5">
               <MessageActionBar>

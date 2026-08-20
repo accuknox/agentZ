@@ -13,18 +13,9 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
-import {
-  Bot,
-  Check,
-  ChevronDown,
-  Filter,
-  MoreHorizontal,
-  SquarePen,
-  Trash2,
-  Users,
-} from "lucide-react"
+import { Bot, Check, ChevronDown, Filter, SquarePen, Trash2, Users } from "lucide-react"
 import { nanoid } from "nanoid"
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { toast } from "sonner"
 import { useActionState } from "react"
@@ -44,11 +35,12 @@ import {
 } from "@/components/ui/dialog"
 import { AlertDescription } from "@/components/ui/alert"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 import { UserAvatar, UserIdentity } from "@/components/ui/avatar"
@@ -200,7 +192,7 @@ export function NavSessions({
   const newSessionPath = `${workspacePath}/sessions/new?draft=${nanoid()}` as Route
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 px-[var(--sidebar-content-inset)] pb-1">
         <Button
           className="text-sidebar-foreground hover:bg-sidebar-row-hover h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium shadow-none"
@@ -325,8 +317,8 @@ export function NavSessions({
       <div className="min-h-0 overflow-y-auto px-[var(--sidebar-content-inset)] pb-2">
         {sessions.isPending ? (
           <div className="grid gap-1 py-1">
-            <div className="bg-sidebar-control-surface h-[4.875rem] animate-pulse rounded-md" />
-            <div className="bg-sidebar-control-surface h-[4.875rem] animate-pulse rounded-md" />
+            <div className="bg-sidebar-control-surface h-16 animate-pulse rounded-md" />
+            <div className="bg-sidebar-control-surface h-16 animate-pulse rounded-md" />
           </div>
         ) : null}
         {sessions.isError ? (
@@ -401,99 +393,102 @@ function SessionCard({
   const href =
     `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}` as Route
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
-    deleteAgentSessionAction.bind(null, session.agent_name, workspaceId),
-    { success: false }
-  )
-  const [isTransitionPending, startTransition] = useTransition()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
+    async (state, formData) => {
+      const result = await deleteAgentSessionAction(
+        session.agent_name,
+        workspaceId,
+        state,
+        formData
+      )
+      if (!result.success) return result
 
-  useEffect(() => {
-    if (isPending || !pendingState.success) return
-    toast.success("Chat deleted")
-    void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
-    startTransition(() => {
+      toast.success("Chat deleted")
       setConfirmingDelete(false)
+
       if (path === href) {
-        router.push(`${workspacePath}/sessions/new?draft=${nanoid()}` as Route)
+        const search = new URLSearchParams({
+          agent: session.agent_name,
+          draft: nanoid(),
+        })
+        router.push(`${workspacePath}/sessions/new?${search}` as Route)
       }
-      router.refresh()
-    })
-  }, [href, isPending, path, pendingState.success, queryClient, router, workspaceId, workspacePath])
+
+      void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
+      return result
+    },
+    { success: false }
+  )
 
   const participants = session.participants.slice(0, 3)
   const overflow = session.participants.length - participants.length
   return (
-    <li
-      className={
-        path === href
-          ? "group/session bg-sidebar-row-active relative list-none overflow-hidden rounded-md py-0.5"
-          : "group/session hover:bg-sidebar-row-hover relative list-none overflow-hidden rounded-md py-0.5 transition-colors"
-      }
-    >
-      <Link
-        aria-label={`Open ${session.title}`}
-        aria-current={path === href ? "page" : undefined}
-        className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-inset"
-        href={href}
-      />
-      <div className="pointer-events-none relative h-[4.875rem] px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
-        <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
-          <Bot className="text-primary size-3.5 shrink-0" aria-hidden="true" />
-          <span className="text-muted-foreground min-w-0 flex-1 truncate font-medium">
-            {session.agent_name}
-          </span>
-          <span className="text-muted-foreground shrink-0 tabular-nums">
-            {session.status === "idle" ? (
-              formatShortAge(new Date(session.updated_at).getTime())
-            ) : (
-              <SessionSpinner />
-            )}
-          </span>
-        </div>
-        <h3 className="mt-1 truncate pr-6 text-sm leading-5 font-medium">{session.title}</h3>
-        <div className="mt-0.5 flex h-5 min-w-0 items-center justify-end">
-          {session.participants.length > 0 ? (
-            <div className="flex -space-x-1.5">
-              {participants.map((participant) => (
-                <UserAvatar
-                  email={participant.email}
-                  id={participant.id}
-                  image={participant.image}
-                  key={participant.id}
-                  name={participant.name}
-                  size="sm"
-                />
-              ))}
-              {overflow > 0 ? (
-                <span className="bg-sidebar-control-surface text-muted-foreground ring-sidebar grid size-6 place-items-center rounded-full text-[10px] ring-2">
-                  +{overflow}
-                </span>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <li
+          className={
+            path === href
+              ? "bg-sidebar-row-active relative list-none overflow-hidden rounded-md py-0.5"
+              : "hover:bg-sidebar-row-hover relative list-none overflow-hidden rounded-md py-0.5 transition-colors"
+          }
+        >
+          <Link
+            aria-label={`Open ${session.title}`}
+            aria-current={path === href ? "page" : undefined}
+            className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            href={href}
+          />
+          <div className="pointer-events-none relative h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
+            <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
+              <Bot className="text-primary size-3.5 shrink-0" aria-hidden="true" />
+              <span className="text-muted-foreground min-w-0 flex-1 truncate font-medium">
+                {session.agent_name}
+              </span>
+              <span className="text-muted-foreground shrink-0 tabular-nums">
+                {session.status === "idle" ? (
+                  formatShortAge(new Date(session.updated_at).getTime())
+                ) : (
+                  <SessionSpinner />
+                )}
+              </span>
+            </div>
+            <div className="mt-1 flex h-6 min-w-0 items-center gap-2">
+              <h3 className="min-w-0 flex-1 truncate text-sm leading-5 font-medium">
+                {session.title}
+              </h3>
+              {session.participants.length > 0 ? (
+                <div className="flex shrink-0 -space-x-1.5">
+                  {participants.map((participant) => (
+                    <UserAvatar
+                      email={participant.email}
+                      id={participant.id}
+                      image={participant.image}
+                      key={participant.id}
+                      name={participant.name}
+                      size="sm"
+                    />
+                  ))}
+                  {overflow > 0 ? (
+                    <span className="bg-sidebar-control-surface text-muted-foreground ring-sidebar grid size-6 place-items-center rounded-full text-[10px] ring-2">
+                      +{overflow}
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
             </div>
-          ) : (
-            <span className="text-muted-foreground truncate text-xs">No participants yet</span>
-          )}
-        </div>
-      </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label={`Actions for ${session.title}`}
-            className="hover:bg-sidebar-control-surface focus-visible:ring-sidebar-ring absolute top-[1.875rem] right-1.5 z-10 grid size-6 place-items-center rounded-md opacity-0 outline-none group-hover/session:opacity-100 focus-visible:opacity-100 focus-visible:ring-2"
-            type="button"
-          >
-            <MoreHorizontal className="size-4" aria-hidden="true" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => setConfirmingDelete(true)} variant="destructive">
+          </div>
+        </li>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuGroup>
+          <ContextMenuItem onSelect={() => setConfirmingDelete(true)} variant="destructive">
             <Trash2 aria-hidden="true" />
             Delete chat
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </ContextMenuItem>
+        </ContextMenuGroup>
+      </ContextMenuContent>
       <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -509,25 +504,21 @@ function SessionCard({
           ) : null}
           <DialogFooter>
             <DialogClose asChild>
-              <Button disabled={isPending || isTransitionPending} variant="outline">
+              <Button disabled={isPending} variant="outline">
                 Cancel
               </Button>
             </DialogClose>
             <form action={action}>
               <input name="sessionID" type="hidden" value={session.session_id} />
-              <Button
-                disabled={isPending || isTransitionPending}
-                type="submit"
-                variant="destructive"
-              >
-                {isPending || isTransitionPending ? <Spinner /> : <Trash2 />}
+              <Button disabled={isPending} type="submit" variant="destructive">
+                {isPending ? <Spinner /> : <Trash2 />}
                 Delete
               </Button>
             </form>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </li>
+    </ContextMenu>
   )
 }
 

@@ -14,7 +14,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    var(--font-archivo), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   --font-heading:
     var(--font-archivo), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -108,7 +110,7 @@
   --message-surface: color-mix(in oklab, var(--primary) 6%, white);
   --message-foreground: var(--foreground);
   --glass-blur: 12px;
-  --glass-opacity: 88%;
+  --glass-opacity: 80%;
   --glass-saturation: 1.14;
   --sidebar-content-inset: 0.5rem;
   --sidebar-row-content-inset: 0.625rem;
@@ -166,6 +168,7 @@
   /* Match native scrollbars to the app theme across engines. */
   html {
     @apply font-sans;
+    font-stretch: semi-condensed;
     scrollbar-color: var(--border) transparent;
     scrollbar-width: thin;
   }
@@ -202,8 +205,9 @@
   }
 
   .chat-composer-glass-shell {
-    --chat-composer-glass-surface: color-mix(in oklab, var(--primary) 3%, var(--card));
-    --chat-composer-outline: color-mix(in oklab, var(--primary) 14%, transparent);
+    --chat-composer-glass-surface: #efeff4;
+    --chat-composer-context-surface: #e7e8eb;
+    --chat-composer-outline: color-mix(in oklab, var(--primary) 12%, transparent);
     isolation: isolate;
   }
 
@@ -211,7 +215,7 @@
     pointer-events: none;
     position: absolute;
     z-index: 0;
-    inset: 0;
+    inset: 0 0 2.25rem;
     border-radius: 22px;
     background: color-mix(
       in srgb,
@@ -223,44 +227,10 @@
     content: "";
   }
 
-  .chat-composer-glass-shell-with-context {
-    --chat-composer-context-extension: 2.25rem;
-  }
-
-  .chat-composer-glass-shell-with-context::before {
-    border-radius: 0;
-    clip-path: shape(
-      from 0 22px,
-      curve to 22px 0 with 0 9.85px / 9.85px 0,
-      line to calc(100% - 22px) 0,
-      curve to 100% 22px with calc(100% - 9.85px) 0 / 100% 9.85px,
-      line to 100% calc(100% - var(--chat-composer-context-extension) - 1.375rem),
-      curve to calc(100% - 1.375rem) calc(100% - var(--chat-composer-context-extension)) with 100%
-        calc(100% - var(--chat-composer-context-extension) - 0.6156rem) / calc(100% - 0.6156rem)
-        calc(100% - var(--chat-composer-context-extension)),
-      line to calc(100% - 1.375rem) calc(100% - 16px),
-      curve to calc(100% - 1.375rem - 16px) 100% with calc(100% - 1.375rem) calc(100% - 7.16px) /
-        calc(100% - 1.375rem - 7.16px) 100%,
-      line to calc(1.375rem + 16px) 100%,
-      curve to 1.375rem calc(100% - 16px) with calc(1.375rem + 7.16px) 100% / 1.375rem
-        calc(100% - 7.16px),
-      line to 1.375rem calc(100% - var(--chat-composer-context-extension)),
-      curve to 0 calc(100% - var(--chat-composer-context-extension) - 1.375rem) with 0.6156rem
-        calc(100% - var(--chat-composer-context-extension)) / 0
-        calc(100% - var(--chat-composer-context-extension) - 0.6156rem),
-      line to 0 22px,
-      close
-    );
-  }
-
-  @media (min-width: 40rem) {
-    .chat-composer-glass-shell-with-context {
-      --chat-composer-context-extension: 2rem;
-    }
-  }
-
   .chat-composer-glass-host {
-    box-shadow: 0 16px 36px -22px color-mix(in oklab, var(--primary) 45%, black);
+    box-shadow:
+      0 6px 14px -10px rgb(0 0 0 / 12%),
+      0 16px 40px -16px rgb(0 0 0 / 8%);
   }
 
   .chat-composer-glass-host::after {
@@ -273,19 +243,6 @@
     content: "";
   }
 
-  .chat-composer-glass-shell-with-context .chat-composer-glass-host::after {
-    clip-path: polygon(
-      0 0,
-      100% 0,
-      100% 100%,
-      calc(100% - 22px) 100%,
-      calc(100% - 22px) calc(100% - 2px),
-      22px calc(100% - 2px),
-      22px 100%,
-      0 100%
-    );
-  }
-
   .chat-composer-context-strip {
     position: relative;
     isolation: isolate;
@@ -295,29 +252,16 @@
     position: absolute;
     z-index: -1;
     inset: 0;
-    border: 1px solid var(--chat-composer-outline);
-    border-radius: 0 0 16px 16px;
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0 1rem, black 1rem);
-    mask-image: linear-gradient(to bottom, transparent 0 1rem, black 1rem);
-    box-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
+    inset-block-start: 0.25rem;
+    border-end-start-radius: 16px;
+    border-end-end-radius: 16px;
+    background: var(--chat-composer-context-surface);
     content: "";
   }
 
-  @supports not (clip-path: shape(from 0 0, line to 1px 1px)) {
-    .chat-composer-glass-shell-with-context::before {
-      inset-block-end: var(--chat-composer-context-extension);
-      border-radius: 22px;
-      clip-path: none;
-    }
-
-    .chat-composer-context-strip::before {
-      background: color-mix(
-        in srgb,
-        var(--chat-composer-glass-surface) var(--glass-opacity),
-        transparent
-      );
-      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .chat-composer-glass-shell::before {
+      background: var(--chat-composer-glass-surface);
     }
   }
 
@@ -350,28 +294,20 @@
 
   .dark .chat-composer-glass-shell {
     --chat-composer-glass-surface: color-mix(in oklab, var(--primary) 3%, var(--background));
+    --chat-composer-context-surface: color-mix(
+      in oklab,
+      white 6%,
+      var(--chat-composer-glass-surface)
+    );
     --chat-composer-outline: color-mix(in srgb, white 7%, transparent);
   }
 
   .dark .chat-composer-glass-host {
-    box-shadow: none;
+    box-shadow: 0 12px 24px -18px rgb(0 0 0 / 70%);
   }
 
   .dark .chat-composer-glass-host::after {
     box-shadow: inset 0 1px rgb(255 255 255 / 3%);
-  }
-
-  .dark .chat-composer-context-strip::before {
-    border-color: rgb(255 255 255 / 7%);
-    background:
-      linear-gradient(
-        to bottom,
-        transparent 0 1rem,
-        rgb(0 0 0 / 18%) 1rem,
-        transparent calc(1rem + 10px)
-      ),
-      rgb(255 255 255 / 2%);
-    box-shadow: 0 14px 32px -18px rgb(0 0 0 / 75%);
   }
 
   [data-administration] [data-slot="card"] {

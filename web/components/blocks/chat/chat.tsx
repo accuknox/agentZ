@@ -1105,7 +1105,11 @@ function ChatInner({
             renderItem={({ item }) => (
               <div
                 className={cn(
-                  item.type === "user" || item.type === "local" ? "pt-2 pb-0" : "py-2",
+                  item.type === "assistant" && isBusy && rows.at(-1)?.key === item.key
+                    ? "pb-2"
+                    : item.type === "thinking" || item.type === "checkpoint"
+                      ? "pb-1.5"
+                      : "pb-4",
                   item.type === "assistant-error"
                     ? "-mx-4 w-[calc(100%+2rem)] max-w-none"
                     : "mx-auto w-full max-w-3xl"
@@ -1701,48 +1705,54 @@ function TimelineRowView({
     case "assistant": {
       const groups = groupEntries(row.entries)
       const lastGroupIndex = groups.length - 1
+      const showMeta = !(isBusy && isLastBlock)
       const copyText = row.entries
         .filter((entry) => entry.type === "text")
         .map((entry) => entry.content)
         .join("\n\n")
       return (
-        <div className="group flex w-full min-w-0 flex-col gap-1">
+        <div className="group flex w-full min-w-0 flex-col">
           <div className="relative min-w-0 px-1 py-0.5 text-sm">
             {groups.map((group, groupIndex) => {
+              const spacing = groupIndex === lastGroupIndex ? undefined : "pb-2"
+
               switch (group.type) {
                 case "text":
                   return (
-                    <MessageResponse key={group.key} onAgentFileOpen={openAgentFile}>
-                      {group.content}
-                    </MessageResponse>
+                    <div className={spacing} key={group.key}>
+                      <MessageResponse onAgentFileOpen={openAgentFile}>
+                        {group.content}
+                      </MessageResponse>
+                    </div>
                   )
                 case "reasoning": {
                   const isStreaming = isBusy && isLastBlock && groupIndex === lastGroupIndex
                   return (
-                    <Reasoning isStreaming={isStreaming} key={group.key}>
-                      <ReasoningTrigger />
-                      <ReasoningContent>{group.content}</ReasoningContent>
-                    </Reasoning>
+                    <div className={spacing} key={group.key}>
+                      <Reasoning isStreaming={isStreaming}>
+                        <ReasoningTrigger />
+                        <ReasoningContent>{group.content}</ReasoningContent>
+                      </Reasoning>
+                    </div>
                   )
                 }
                 case "tool-group":
                   return (
-                    <div
-                      className="border-border/60 ml-1 max-w-full min-w-0 space-y-1 overflow-hidden border-l py-0.5 pl-3"
-                      key={group.key}
-                    >
-                      {group.entries.map((entry) => {
-                        const toolEntry = entry.toolEntries[0]
-                        if (!toolEntry) return null
-                        return (
-                          <ToolEntries
-                            agentName={agentName}
-                            entry={toolEntry}
-                            key={entry.key}
-                            workspacePath={workspacePath}
-                          />
-                        )
-                      })}
+                    <div className={spacing} key={group.key}>
+                      <div className="border-border/60 ml-1 max-w-full min-w-0 space-y-px overflow-hidden border-l py-0.5 pl-3">
+                        {group.entries.map((entry) => {
+                          const toolEntry = entry.toolEntries[0]
+                          if (!toolEntry) return null
+                          return (
+                            <ToolEntries
+                              agentName={agentName}
+                              entry={toolEntry}
+                              key={entry.key}
+                              workspacePath={workspacePath}
+                            />
+                          )
+                        })}
+                      </div>
                     </div>
                   )
                 default:
@@ -1750,14 +1760,16 @@ function TimelineRowView({
               }
             })}
           </div>
-          <div className="flex items-center gap-1 px-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
-            <RelativeDateTime className="text-xs" value={row.createdAt} />
-            {copyText.length > 0 && !(isBusy && isLastBlock) ? (
-              <MessageActionBar>
-                <CopyButton content={copyText} />
-              </MessageActionBar>
-            ) : null}
-          </div>
+          {showMeta ? (
+            <div className="mt-1.5 flex items-center gap-1 px-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+              <RelativeDateTime className="text-xs" value={row.createdAt} />
+              {copyText.length > 0 ? (
+                <MessageActionBar>
+                  <CopyButton content={copyText} />
+                </MessageActionBar>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )
     }

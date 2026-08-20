@@ -459,7 +459,7 @@ function SessionCard({
                 {session.title}
               </h3>
               {session.participants.length > 0 ? (
-                <div className="flex shrink-0 -space-x-1.5">
+                <div className="flex shrink-0 -space-x-[7px]">
                   {participants.map((participant) => (
                     <UserAvatar
                       email={participant.email}

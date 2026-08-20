@@ -1,6 +1,13 @@
 @import "tailwindcss";
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+
+@media (pointer: coarse) {
+  .quick-turn-nav {
+    display: none !important;
+  }
+}
 
 @custom-variant dark (&:is(.dark *));
 

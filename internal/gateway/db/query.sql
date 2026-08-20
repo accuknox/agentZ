@@ -56,6 +56,233 @@ WHERE ot.tenant_namespace = sqlc.arg(tenant_namespace)
       AND ots.session_id = sqlc.arg(session_id)
   );
 
+-- name: GatewayUpsertChatSession :one
+INSERT INTO chat_sessions(
+  workspace_id,
+  agent_name,
+  session_id,
+  parent_session_id,
+  title,
+  kind,
+  status,
+  source_created_at,
+  source_updated_at
+)
+VALUES (
+  sqlc.arg(workspace_id),
+  sqlc.arg(agent_name),
+  sqlc.arg(session_id),
+  sqlc.narg(parent_session_id),
+  sqlc.arg(title),
+  sqlc.arg(kind),
+  sqlc.arg(status),
+  sqlc.arg(source_created_at),
+  sqlc.arg(source_updated_at)
+)
+ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET
+  parent_session_id = EXCLUDED.parent_session_id,
+  title = EXCLUDED.title,
+  kind = EXCLUDED.kind,
+  status = chat_sessions.status,
+  source_created_at = EXCLUDED.source_created_at,
+  source_updated_at = EXCLUDED.source_updated_at,
+  updated_at = NOW()
+RETURNING *;
+
+-- name: GatewaySetChatSessionStatus :execrows
+UPDATE chat_sessions
+SET status = sqlc.arg(status), updated_at = NOW()
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND session_id = sqlc.arg(session_id)
+  AND status IS DISTINCT FROM sqlc.arg(status);
+
+-- name: GatewaySyncAgentChatSessionStatuses :execrows
+UPDATE chat_sessions
+SET
+  status = (CASE
+    WHEN session_id = ANY(sqlc.arg(retry_session_ids)::text[]) THEN 'retry'
+    WHEN session_id = ANY(sqlc.arg(busy_session_ids)::text[]) THEN 'busy'
+    ELSE 'idle'
+  END)::chat_session_status,
+  updated_at = NOW()
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND status IS DISTINCT FROM (CASE
+    WHEN session_id = ANY(sqlc.arg(retry_session_ids)::text[]) THEN 'retry'
+    WHEN session_id = ANY(sqlc.arg(busy_session_ids)::text[]) THEN 'busy'
+    ELSE 'idle'
+  END)::chat_session_status;
+
+-- name: GatewayTouchChatSessionParticipant :execrows
+WITH participant AS (
+INSERT INTO chat_session_participants(
+  workspace_id,
+  agent_name,
+  session_id,
+  user_id,
+  first_messaged_at,
+  last_messaged_at
+)
+VALUES (
+  sqlc.arg(workspace_id),
+  sqlc.arg(agent_name),
+  sqlc.arg(session_id),
+  sqlc.arg(user_id),
+  sqlc.arg(messaged_at),
+  sqlc.arg(messaged_at)
+)
+ON CONFLICT (workspace_id, agent_name, session_id, user_id) DO UPDATE SET
+  last_messaged_at = GREATEST(
+    chat_session_participants.last_messaged_at,
+    EXCLUDED.last_messaged_at
+  )
+RETURNING 1
+)
+UPDATE chat_sessions AS sessions
+SET
+  status = 'busy',
+  source_updated_at = GREATEST(sessions.source_updated_at, sqlc.arg(messaged_at)),
+  updated_at = NOW()
+WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.agent_name = sqlc.arg(agent_name)
+  AND sessions.session_id = sqlc.arg(session_id)
+  AND EXISTS (SELECT 1 FROM participant);
+
+-- name: GatewayDeleteChatSession :execrows
+DELETE FROM chat_sessions
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND session_id = sqlc.arg(session_id);
+
+-- name: GatewayDeleteAgentChatSessions :execrows
+DELETE FROM chat_sessions
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name);
+
+-- name: GatewayListChatSessions :many
+SELECT
+  sessions.workspace_id,
+  sessions.agent_name,
+  sessions.session_id,
+  sessions.title,
+  sessions.kind,
+  sessions.status,
+  sessions.source_created_at,
+  sessions.source_updated_at,
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', users.id,
+        'name', users.name,
+        'email', users.email,
+        'image', users.image
+      )
+      ORDER BY participants.last_messaged_at DESC, users.id
+    )
+    FROM chat_session_participants AS participants
+    JOIN users ON users.id = participants.user_id
+    WHERE participants.workspace_id = sessions.workspace_id
+      AND participants.agent_name = sessions.agent_name
+      AND participants.session_id = sessions.session_id
+  ), '[]'::jsonb)::text AS participants_json
+FROM chat_sessions AS sessions
+WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.parent_session_id IS NULL
+  AND (
+    sqlc.arg(include_workflow_runs)::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+  AND (
+    sqlc.narg(agent_name)::text IS NULL
+    OR sessions.agent_name = sqlc.narg(agent_name)::text
+  )
+  AND (
+    cardinality(sqlc.arg(participant_user_ids)::text[]) = 0
+    OR (
+      SELECT COUNT(DISTINCT participants.user_id)
+      FROM chat_session_participants AS participants
+      WHERE participants.workspace_id = sessions.workspace_id
+        AND participants.agent_name = sessions.agent_name
+        AND participants.session_id = sessions.session_id
+        AND participants.user_id = ANY(sqlc.arg(participant_user_ids)::text[])
+    ) = cardinality(sqlc.arg(participant_user_ids)::text[])
+  )
+  AND (
+    NOT sqlc.arg(cursor_set)::boolean
+    OR sessions.source_updated_at < sqlc.arg(cursor_updated_at)
+    OR (
+      sessions.source_updated_at = sqlc.arg(cursor_updated_at)
+      AND sessions.agent_name > sqlc.arg(cursor_agent_name)
+    )
+    OR (
+      sessions.source_updated_at = sqlc.arg(cursor_updated_at)
+      AND sessions.agent_name = sqlc.arg(cursor_agent_name)
+      AND sessions.session_id > sqlc.arg(cursor_session_id)
+    )
+  )
+ORDER BY
+  sessions.source_updated_at DESC,
+  sessions.agent_name ASC,
+  sessions.session_id ASC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListChatSessionFilterUsers :many
+SELECT DISTINCT users.id, users.name, users.email, users.image
+FROM chat_session_participants AS participants
+JOIN chat_sessions AS sessions
+  ON sessions.workspace_id = participants.workspace_id
+  AND sessions.agent_name = participants.agent_name
+  AND sessions.session_id = participants.session_id
+JOIN users ON users.id = participants.user_id
+WHERE participants.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.parent_session_id IS NULL
+  AND (
+    sqlc.arg(include_workflow_runs)::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+ORDER BY users.name, users.email, users.id;
+
+-- name: GatewayGetChatSessionRevision :one
+SELECT
+  (
+    COUNT(*)::text || ':' ||
+    COALESCE(MAX(updated_at), 'epoch'::timestamptz)::text
+  )::text AS revision
+FROM chat_sessions
+WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: GatewayGetWorkspaceChatPreference :one
+SELECT *
+FROM workspace_chat_preferences
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND user_id = sqlc.arg(user_id);
+
+-- name: GatewayUpsertWorkspaceChatPreference :one
+INSERT INTO workspace_chat_preferences(
+  workspace_id,
+  user_id,
+  agent_name,
+  participant_user_ids,
+  include_workflow_runs,
+  last_agent_name
+)
+VALUES (
+  sqlc.arg(workspace_id),
+  sqlc.arg(user_id),
+  sqlc.narg(agent_name),
+  sqlc.arg(participant_user_ids),
+  sqlc.arg(include_workflow_runs),
+  sqlc.narg(last_agent_name)
+)
+ON CONFLICT (workspace_id, user_id) DO UPDATE SET
+  agent_name = EXCLUDED.agent_name,
+  participant_user_ids = EXCLUDED.participant_user_ids,
+  include_workflow_runs = EXCLUDED.include_workflow_runs,
+  last_agent_name = EXCLUDED.last_agent_name,
+  updated_at = NOW()
+RETURNING *;
+
 -- name: GatewayListAgents :many
 SELECT tenant_namespace, agent_name, created_at, updated_at
 FROM agents

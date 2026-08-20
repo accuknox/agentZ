@@ -4,6 +4,50 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type ChatSessionKind = "chat" | "workflow_run"
+
+export type ChatSessionStatus = "idle" | "busy" | "retry"
+
+export type ChatSessionParticipant = {
+  id: string
+  name: string
+  email: string
+  image: string | null
+}
+
+export type ChatSession = {
+  agent_name: AgentName
+  session_id: string
+  title: string
+  kind: ChatSessionKind
+  status: ChatSessionStatus
+  created_at: string
+  updated_at: string
+  participants: Array<ChatSessionParticipant>
+}
+
+export type ListChatSessionsResponse = {
+  sessions: Array<ChatSession>
+  participant_filters: Array<ChatSessionParticipant>
+  has_next_page: boolean
+  next_page_token: string
+}
+
+export type ChatSessionPreferenceInput = {
+  agent_name: AgentName | null
+  participant_user_ids: Array<string>
+  include_workflow_runs: boolean
+  last_agent_name: AgentName | null
+}
+
+export type ChatSessionPreference = ChatSessionPreferenceInput & {
+  updated_at: string
+}
+
+export type WatchChatSessionsEvent = {
+  revision: string
+}
+
 export type EventTrailActorType = "user" | "api_key" | "system"
 
 export type EventTrailResult = "succeeded" | "denied" | "failed"
@@ -2062,6 +2106,21 @@ export type AgentNameQuery = AgentName
 export type AgentNameQueryOptional = AgentName
 
 /**
+ * Human participants required in every returned session.
+ */
+export type ChatSessionParticipantQuery = Array<string>
+
+/**
+ * Include sessions created by WorkflowRuns.
+ */
+export type IncludeWorkflowRunsQuery = boolean
+
+/**
+ * Maximum number of sessions to return.
+ */
+export type ChatSessionLimitQuery = number
+
+/**
  * Agent name.
  */
 export type AgentNamePath = AgentName
@@ -2231,6 +2290,179 @@ export type FromDateQuery = string
  * Inclusive upper bound for MCP tool activity date.
  */
 export type ToDateQuery = string
+
+export type ListChatSessionsData = {
+  body?: never
+  path?: never
+  query?: {
+    /**
+     * Maximum number of sessions to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Optional Agent name.
+     */
+    agent_name?: AgentName
+    /**
+     * Human participants required in every returned session.
+     */
+    participant_user_id?: Array<string>
+    /**
+     * Include sessions created by WorkflowRuns.
+     */
+    include_workflow_runs?: boolean
+  }
+  url: "/api/chat-session"
+}
+
+export type ListChatSessionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListChatSessionsError = ListChatSessionsErrors[keyof ListChatSessionsErrors]
+
+export type ListChatSessionsResponses = {
+  /**
+   * Paginated chat sessions and available participant filters.
+   */
+  200: ListChatSessionsResponse
+}
+
+export type ListChatSessionsResponse2 = ListChatSessionsResponses[keyof ListChatSessionsResponses]
+
+export type WatchChatSessionsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/chat-session/watch"
+}
+
+export type WatchChatSessionsErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WatchChatSessionsError = WatchChatSessionsErrors[keyof WatchChatSessionsErrors]
+
+export type WatchChatSessionsResponses = {
+  /**
+   * Stream of chat inbox invalidations.
+   */
+  200: WatchChatSessionsEvent
+}
+
+export type WatchChatSessionsResponse = WatchChatSessionsResponses[keyof WatchChatSessionsResponses]
+
+export type GetChatSessionPreferenceData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/chat-session-preference"
+}
+
+export type GetChatSessionPreferenceErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetChatSessionPreferenceError =
+  GetChatSessionPreferenceErrors[keyof GetChatSessionPreferenceErrors]
+
+export type GetChatSessionPreferenceResponses = {
+  /**
+   * Workspace-scoped preferences for the current user.
+   */
+  200: ChatSessionPreference
+}
+
+export type GetChatSessionPreferenceResponse =
+  GetChatSessionPreferenceResponses[keyof GetChatSessionPreferenceResponses]
+
+export type UpdateChatSessionPreferenceData = {
+  body: ChatSessionPreferenceInput
+  path?: never
+  query?: never
+  url: "/api/chat-session-preference"
+}
+
+export type UpdateChatSessionPreferenceErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateChatSessionPreferenceError =
+  UpdateChatSessionPreferenceErrors[keyof UpdateChatSessionPreferenceErrors]
+
+export type UpdateChatSessionPreferenceResponses = {
+  /**
+   * Updated Workspace-scoped preferences.
+   */
+  200: ChatSessionPreference
+}
+
+export type UpdateChatSessionPreferenceResponse =
+  UpdateChatSessionPreferenceResponses[keyof UpdateChatSessionPreferenceResponses]
 
 export type ListEventTrailEventsData = {
   body: ListEventTrailEventsRequest

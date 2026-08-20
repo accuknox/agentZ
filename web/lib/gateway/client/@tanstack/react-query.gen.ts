@@ -35,6 +35,7 @@ import {
   exportAgentMutableSkills,
   exportImmutableSkills,
   getAgentOwner,
+  getChatSessionPreference,
   getEventTrailEvent,
   getInferencePool,
   getInferencePoolUsage,
@@ -56,6 +57,7 @@ import {
   listAgents,
   listAgentShares,
   listAgentWorkflowSchedules,
+  listChatSessions,
   listEventTrailEvents,
   listFileObservability,
   listFileObservabilitySummary,
@@ -98,6 +100,7 @@ import {
   statAgentFile,
   transferAgentOwner,
   updateAgent,
+  updateChatSessionPreference,
   updateInferencePool,
   updateInferenceProvider,
   updateSandbox,
@@ -202,6 +205,9 @@ import type {
   GetAgentOwnerData,
   GetAgentOwnerError,
   GetAgentOwnerResponse,
+  GetChatSessionPreferenceData,
+  GetChatSessionPreferenceError,
+  GetChatSessionPreferenceResponse,
   GetEventTrailEventData,
   GetEventTrailEventError,
   GetEventTrailEventResponse,
@@ -265,6 +271,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
+  ListChatSessionsData,
+  ListChatSessionsError,
+  ListChatSessionsResponse2,
   ListEventTrailEventsData,
   ListEventTrailEventsError,
   ListEventTrailEventsResponse2,
@@ -388,6 +397,9 @@ import type {
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
+  UpdateChatSessionPreferenceData,
+  UpdateChatSessionPreferenceError,
+  UpdateChatSessionPreferenceResponse,
   UpdateInferencePoolData,
   UpdateInferencePoolError,
   UpdateInferencePoolResponse,
@@ -416,36 +428,6 @@ import type {
   WriteAgentFileRawResponse,
   WriteAgentFileResponse,
 } from "../types.gen"
-
-/**
- * List Organisation event trail events.
- *
- * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
- *
- */
-export const listEventTrailEventsMutation = (
-  options?: Partial<Options<ListEventTrailEventsData>>
-): UseMutationOptions<
-  ListEventTrailEventsResponse2,
-  ListEventTrailEventsError,
-  Options<ListEventTrailEventsData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    ListEventTrailEventsResponse2,
-    ListEventTrailEventsError,
-    Options<ListEventTrailEventsData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await listEventTrailEvents({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
 
 export type QueryKey<TOptions extends Options> = [
   Pick<TOptions, "baseUrl" | "body" | "headers" | "path" | "query"> & {
@@ -484,6 +466,116 @@ const createQueryKey = <TOptions extends Options>(
     params.query = options.query
   }
   return [params]
+}
+
+export const listChatSessionsQueryKey = (options?: Options<ListChatSessionsData>) =>
+  createQueryKey("listChatSessions", options)
+
+/**
+ * List the current Workspace chat inbox.
+ *
+ * Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination.
+ *
+ */
+export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>) =>
+  queryOptions<
+    ListChatSessionsResponse2,
+    ListChatSessionsError,
+    ListChatSessionsResponse2,
+    ReturnType<typeof listChatSessionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listChatSessions({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listChatSessionsQueryKey(options),
+  })
+
+export const getChatSessionPreferenceQueryKey = (options?: Options<GetChatSessionPreferenceData>) =>
+  createQueryKey("getChatSessionPreference", options)
+
+/**
+ * Get the caller's Workspace chat preferences.
+ */
+export const getChatSessionPreferenceOptions = (options?: Options<GetChatSessionPreferenceData>) =>
+  queryOptions<
+    GetChatSessionPreferenceResponse,
+    GetChatSessionPreferenceError,
+    GetChatSessionPreferenceResponse,
+    ReturnType<typeof getChatSessionPreferenceQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getChatSessionPreference({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getChatSessionPreferenceQueryKey(options),
+  })
+
+/**
+ * Replace the caller's Workspace chat preferences.
+ */
+export const updateChatSessionPreferenceMutation = (
+  options?: Partial<Options<UpdateChatSessionPreferenceData>>
+): UseMutationOptions<
+  UpdateChatSessionPreferenceResponse,
+  UpdateChatSessionPreferenceError,
+  Options<UpdateChatSessionPreferenceData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateChatSessionPreferenceResponse,
+    UpdateChatSessionPreferenceError,
+    Options<UpdateChatSessionPreferenceData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateChatSessionPreference({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * List Organisation event trail events.
+ *
+ * Lists rolling event trail history in the selected scope. An active Superadmin may read Organisation-wide or Workspace events; an active Workspace Admin may read only the Workspace bound into the bearer.
+ *
+ */
+export const listEventTrailEventsMutation = (
+  options?: Partial<Options<ListEventTrailEventsData>>
+): UseMutationOptions<
+  ListEventTrailEventsResponse2,
+  ListEventTrailEventsError,
+  Options<ListEventTrailEventsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ListEventTrailEventsResponse2,
+    ListEventTrailEventsError,
+    Options<ListEventTrailEventsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await listEventTrailEvents({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
 }
 
 export const getEventTrailEventQueryKey = (options: Options<GetEventTrailEventData>) =>

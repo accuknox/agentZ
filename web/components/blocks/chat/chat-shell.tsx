@@ -1,7 +1,10 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import type { ChatSessionPreference } from "@/lib/gateway/client"
 import { FolderTree } from "lucide-react"
+import type { Route } from "next"
+import { useRouter } from "@bprogress/next/app"
 import { useState } from "react"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Button } from "@/components/ui/button"
@@ -18,6 +21,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 
 type ChatShellProps = {
   agentName: string
+  agentNames?: string[]
+  chatPreferences?: ChatSessionPreference
   draftKey?: string
   firstName?: string
   greetingIndex?: number
@@ -37,6 +42,8 @@ const FilesWorkspace = dynamic(
 
 export function ChatShell({
   agentName,
+  agentNames = [agentName],
+  chatPreferences,
   draftKey,
   firstName,
   greetingIndex,
@@ -46,6 +53,7 @@ export function ChatShell({
   workspacePath,
 }: ChatShellProps): React.JSX.Element {
   const [previewerOpen, setPreviewerOpen] = useState(false)
+  const router = useRouter()
   // Soft navigations preserve client trees in this app, so the chat subtree
   // must remount when the logical session target changes.
   const chatKey = `${agentName}:${sessionId ?? `new:${draftKey ?? "default"}`}`
@@ -68,12 +76,19 @@ export function ChatShell({
           <Chat
             key={chatKey}
             agentName={agentName}
+            agentNames={agentNames}
+            chatPreferences={chatPreferences}
             firstName={firstName}
             greetingIndex={greetingIndex}
             promptMobile={previewerOpen}
             sessionId={sessionId}
             workspaceId={workspaceId}
             workspacePath={workspacePath}
+            onAgentChange={(name) => {
+              const url = new URL(window.location.href)
+              url.searchParams.set("agent", name)
+              router.replace(`${url.pathname}${url.search}` as Route)
+            }}
           />
         </div>
         <FilesWorkspace

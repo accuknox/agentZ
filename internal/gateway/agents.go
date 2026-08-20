@@ -854,6 +854,17 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		)
 		return
 	}
+	_, err = q.GatewayDeleteAgentChatSessions(
+		r.Context(),
+		gatewaydb.GatewayDeleteAgentChatSessionsParams{
+			WorkspaceID: access.workspaceID,
+			AgentName:   agentName,
+		},
+	)
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("delete Agent chat sessions: %w", err))
+		return
+	}
 	err = createAgentEventTrail(
 		r.Context(),
 		q,

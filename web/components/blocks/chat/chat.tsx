@@ -1,10 +1,6 @@
 "use client"
 
-import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from "@/components/ai-elements/conversation"
+import { LegendList, type LegendListRef } from "@legendapp/list/react"
 import {
   Attachment,
   AttachmentPreview,
@@ -88,6 +84,9 @@ import {
   promptFileFromPart,
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
+import type { ChatSessionPreference } from "@/lib/gateway/client"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import { updateChatSessionPreference } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { formatByteSize } from "@/lib/format"
@@ -106,6 +105,8 @@ import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import {
   BrainIcon,
+  BotIcon,
+  ArrowDownIcon,
   CheckIcon,
   ChevronDownIcon,
   CpuIcon,
@@ -116,10 +117,17 @@ import {
   Undo2Icon,
 } from "lucide-react"
 import { motion } from "motion/react"
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { toast } from "sonner"
 import { z } from "zod"
-import { useStickToBottomContext } from "use-stick-to-bottom"
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -156,12 +164,15 @@ import type { LanguageModelUsage } from "ai"
 
 type ChatProps = {
   agentName: string
+  agentNames: string[]
+  chatPreferences?: ChatSessionPreference
   firstName?: string
   greetingIndex?: number
   promptMobile?: boolean
   sessionId?: string
   workspaceId: string
   workspacePath: string
+  onAgentChange: (agentName: string) => void
 }
 
 type AuthSession = typeof authClient.$Infer.Session
@@ -485,125 +496,17 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
   return result
 }
 
-function ConversationOverflowFades() {
-  const { contentRef, scrollRef } = useStickToBottomContext()
-  const [overflow, setOverflow] = useState({ bottom: false, top: false })
-
-  const updateOverflow = useCallback(() => {
-    const element = scrollRef.current
-    if (!element) return
-
-    const top = element.scrollTop > 2
-    const bottom = element.scrollTop + element.clientHeight < element.scrollHeight - 2
-    setOverflow((current) => {
-      if (current.bottom === bottom && current.top === top) return current
-      return { bottom, top }
-    })
-  }, [scrollRef])
-
-  useEffect(() => {
-    const content = contentRef.current
-    const element = scrollRef.current
-    if (!element) return
-
-    updateOverflow()
-    element.addEventListener("scroll", updateOverflow, { passive: true })
-    const observer = new ResizeObserver(updateOverflow)
-    observer.observe(element)
-    if (content) observer.observe(content)
-
-    return () => {
-      element.removeEventListener("scroll", updateOverflow)
-      observer.disconnect()
-    }
-  }, [contentRef, scrollRef, updateOverflow])
-
-  return (
-    <>
-      {overflow.top ? (
-        <div
-          aria-hidden="true"
-          className="from-background pointer-events-none absolute inset-x-0 top-0 h-6 bg-linear-to-b to-transparent"
-        />
-      ) : null}
-      {overflow.bottom ? (
-        <div
-          aria-hidden="true"
-          className="from-background pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-linear-to-t to-transparent"
-        />
-      ) : null}
-    </>
-  )
-}
-
-function SelectableTimeline({ children }: { children: ReactNode }) {
-  const [snapshot, setSnapshot] = useState<{ children: ReactNode }>()
-  const rootRef = useRef<HTMLDivElement>(null)
-  const pointerDownRef = useRef(false)
-
-  useEffect(() => {
-    const release = () => {
-      if (pointerDownRef.current) return
-
-      const selection = document.getSelection()
-      const root = rootRef.current
-      if (
-        selection &&
-        !selection.isCollapsed &&
-        selection.rangeCount > 0 &&
-        root &&
-        selection.getRangeAt(0).intersectsNode(root)
-      ) {
-        return
-      }
-
-      setSnapshot(undefined)
-    }
-
-    const finishPointer = () => {
-      pointerDownRef.current = false
-      release()
-    }
-
-    document.addEventListener("pointerup", finishPointer)
-    document.addEventListener("pointercancel", finishPointer)
-    document.addEventListener("selectionchange", release)
-    window.addEventListener("blur", finishPointer)
-
-    return () => {
-      document.removeEventListener("pointerup", finishPointer)
-      document.removeEventListener("pointercancel", finishPointer)
-      document.removeEventListener("selectionchange", release)
-      window.removeEventListener("blur", finishPointer)
-    }
-  }, [])
-
-  return (
-    <div
-      className="flex w-full flex-col gap-4"
-      onPointerDownCapture={(event) => {
-        if (!event.isPrimary || event.button !== 0) return
-
-        // Streaming markdown mutates selected text nodes. Keep this exact tree
-        // mounted until the native selection leaves the timeline.
-        pointerDownRef.current = true
-        setSnapshot((current) => current ?? { children })
-      }}
-      ref={rootRef}
-    >
-      {snapshot ? snapshot.children : children}
-    </div>
-  )
-}
-
 function ChatInner({
   agentName,
+  agentNames,
+  chatPreferences,
   firstName,
   greetingIndex,
   promptMobile = false,
   sessionId,
   workspaceId,
   workspacePath,
+  onAgentChange,
 }: ChatProps) {
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
@@ -614,10 +517,13 @@ function ChatInner({
   const {
     applyOptimisticSession,
     blocked,
+    hasEarlierMessages,
+    isLoadingEarlier,
     loadError,
     isBusy,
     isPending,
     localMessages,
+    loadEarlier,
     messages,
     partsByMessage,
     permissionRequest,
@@ -1112,6 +1018,8 @@ function ChatInner({
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
+  const timelineRef = useRef<LegendListRef>(null)
+  const [timelineAtEnd, setTimelineAtEnd] = useState(true)
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1125,83 +1033,121 @@ function ChatInner({
           <div data-component="session-progress-bar" />
         </div>
       ) : null}
-      <Conversation
+      <div
         className={cn(
-          "transition-opacity duration-200",
+          "relative min-h-0 flex-1 transition-opacity duration-200",
           showStarter && "pointer-events-none opacity-0"
         )}
       >
-        <ConversationContent className="w-full px-4" scrollClassName="[scrollbar-gutter:auto]!">
-          {showHistorySkeleton ? (
-            <div className="mx-auto flex w-full flex-col gap-3 @xl/chat:w-4/5">
-              <Skeleton className="h-16 w-full rounded-md" />
-              <Skeleton className="h-24 w-full rounded-md" />
-              <Skeleton className="h-16 w-2/3 rounded-md" />
-            </div>
-          ) : !showStarter ? (
-            <>
-              <SelectableTimeline>
-                {rows.map((row) => (
-                  <div
-                    className={cn(
-                      row.type === "assistant-error"
-                        ? "-mx-4 w-[calc(100%+2rem)] max-w-none"
-                        : "mx-auto w-full @xl/chat:w-4/5"
-                    )}
-                    key={row.key}
-                  >
-                    <TimelineRowView
-                      agentName={agentName}
-                      actorProfiles={actorProfiles}
-                      isBusy={isBusy}
-                      isLastBlock={rows.at(-1)?.key === row.key}
-                      onRevert={handleRevert}
-                      revertDisabled={isBusy || isStopping || revertPending}
-                      row={row}
-                      user={authSession?.user}
-                      workspacePath={workspacePath}
-                    />
-                  </div>
-                ))}
-                <AgentWorkingIndicator
-                  className="mx-auto w-full @xl/chat:w-4/5"
-                  isWorking={isBusy}
+        {showHistorySkeleton ? (
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4">
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-24 w-full rounded-md" />
+            <Skeleton className="h-16 w-2/3 rounded-md" />
+          </div>
+        ) : !showStarter ? (
+          <LegendList<TimelineRow>
+            className="h-full min-h-0 overflow-x-hidden overscroll-y-contain px-4 [overflow-anchor:none]"
+            data={rows}
+            estimatedItemSize={96}
+            initialScrollAtEnd
+            keyExtractor={(row) => row.key}
+            ListHeaderComponent={
+              hasEarlierMessages ? (
+                <div className="text-muted-foreground/70 flex h-9 items-center justify-center gap-2 text-xs">
+                  {isLoadingEarlier ? (
+                    <>
+                      <Spinner />
+                      Loading earlier turns…
+                    </>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="h-4" />
+              )
+            }
+            ListFooterComponent={
+              <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pt-2 pb-4">
+                <AgentWorkingIndicator isWorking={isBusy} />
+                <RevertDock
+                  items={reverted}
+                  onRestore={restoreMutation.mutate}
+                  pending={revertPending}
+                  restoringId={restoringId}
+                  summary={session?.summary}
                 />
-              </SelectableTimeline>
-              <RevertDock
-                items={reverted}
-                onRestore={restoreMutation.mutate}
-                pending={revertPending}
-                restoringId={restoringId}
-                summary={session?.summary}
-              />
-              {todos.length > 0 ? <TodoDock todos={todos} /> : null}
-              {permissionRequest ? (
-                <PermissionDock
-                  onDecide={handlePermission}
-                  pending={isPermissionPending}
-                  request={permissionRequest}
+                {todos.length > 0 ? <TodoDock todos={todos} /> : null}
+                {permissionRequest ? (
+                  <PermissionDock
+                    onDecide={handlePermission}
+                    pending={isPermissionPending}
+                    request={permissionRequest}
+                  />
+                ) : null}
+                {questionRequest ? (
+                  <QuestionDock
+                    onReject={() => void rejectQuestion()}
+                    onSubmit={(answers) => void submitQuestionAnswer(answers)}
+                    pending={isQuestionPending || isQuestionRejectPending}
+                    request={questionRequest}
+                  />
+                ) : null}
+              </div>
+            }
+            maintainScrollAtEnd={
+              timelineAtEnd
+                ? { animated: false, on: { dataChange: true, itemLayout: true, layout: true } }
+                : false
+            }
+            maintainVisibleContentPosition={{ data: true, size: true }}
+            onScroll={(event) => {
+              const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
+              setTimelineAtEnd(
+                contentOffset.y + layoutMeasurement.height >= contentSize.height - 24
+              )
+            }}
+            onStartReached={() => {
+              if (hasEarlierMessages && !isLoadingEarlier) void loadEarlier()
+            }}
+            onStartReachedThreshold={0.35}
+            ref={timelineRef}
+            renderItem={({ item }) => (
+              <div
+                className={cn(
+                  "py-2",
+                  item.type === "assistant-error"
+                    ? "-mx-4 w-[calc(100%+2rem)] max-w-none"
+                    : "mx-auto w-full max-w-3xl"
+                )}
+              >
+                <TimelineRowView
+                  agentName={agentName}
+                  actorProfiles={actorProfiles}
+                  isBusy={isBusy}
+                  isLastBlock={rows.at(-1)?.key === item.key}
+                  onRevert={handleRevert}
+                  revertDisabled={isBusy || isStopping || revertPending}
+                  row={item}
+                  user={authSession?.user}
+                  workspacePath={workspacePath}
                 />
-              ) : null}
-              {questionRequest ? (
-                <QuestionDock
-                  onReject={() => {
-                    void rejectQuestion()
-                  }}
-                  onSubmit={(answers) => {
-                    void submitQuestionAnswer(answers)
-                  }}
-                  pending={isQuestionPending || isQuestionRejectPending}
-                  key={questionRequest.id}
-                  request={questionRequest}
-                />
-              ) : null}
-            </>
-          ) : null}
-        </ConversationContent>
-        <ConversationOverflowFades />
-        {!showStarter ? <ConversationScrollButton /> : null}
-      </Conversation>
+              </div>
+            )}
+          />
+        ) : null}
+        {!timelineAtEnd && !showStarter ? (
+          <Button
+            aria-label="Scroll to latest message"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full"
+            onClick={() => timelineRef.current?.scrollToEnd({ animated: true })}
+            size="icon"
+            variant="outline"
+          >
+            <ArrowDownIcon />
+          </Button>
+        ) : null}
+        {!showStarter ? <QuickTurnNav listRef={timelineRef} rows={rows} /> : null}
+      </div>
       <motion.div
         className={cn(
           "grid gap-4",
@@ -1213,7 +1159,7 @@ function ChatInner({
         <div
           className={cn(
             "mx-auto flex w-full flex-col",
-            showStarter ? "max-w-3xl gap-8" : "min-w-0 gap-4 px-4 pb-4 @xl/chat:w-4/5 @xl/chat:px-0"
+            showStarter ? "max-w-3xl gap-8" : "max-w-3xl min-w-0 gap-4 px-4 pb-4"
           )}
         >
           {showStarter ? (
@@ -1477,9 +1423,115 @@ function ChatInner({
               </div>
             </PromptInputBody>
           </PromptInput>
+          <div className="border-border/70 bg-muted/35 -mt-px flex h-9 items-center rounded-b-xl border px-2.5">
+            <BotIcon className="text-primary mr-1.5 size-3.5" aria-hidden="true" />
+            <Select
+              disabled={activeSessionId !== undefined || agentNames.length < 2}
+              onValueChange={async (name) => {
+                onAgentChange(name)
+                if (!chatPreferences) return
+                await updateChatSessionPreference({
+                  baseUrl: await getGatewayBaseURL(),
+                  headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                  body: {
+                    agent_name: chatPreferences.agent_name,
+                    include_workflow_runs: chatPreferences.include_workflow_runs,
+                    last_agent_name: name,
+                    participant_user_ids: chatPreferences.participant_user_ids,
+                  },
+                })
+              }}
+              value={agentName}
+            >
+              <ReasoningSelectTrigger
+                aria-label={activeSessionId ? "Agent locked for this chat" : "Choose agent"}
+                className="hover:bg-foreground/5 h-7 max-w-64 min-w-0 border-0 bg-transparent px-1.5 shadow-none"
+                size="sm"
+              >
+                <SelectValue />
+              </ReasoningSelectTrigger>
+              <SelectContent align="start" position="popper" side="top" sideOffset={6}>
+                <SelectGroup>
+                  {agentNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      <BotIcon />
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {activeSessionId ? (
+              <span className="text-muted-foreground ml-auto text-[11px]">
+                Locked for this chat
+              </span>
+            ) : null}
+          </div>
         </div>
       </motion.div>
     </div>
+  )
+}
+
+function QuickTurnNav({
+  listRef,
+  rows,
+}: {
+  listRef: RefObject<LegendListRef | null>
+  rows: TimelineRow[]
+}) {
+  const [active, setActive] = useState<number>()
+  const turns = rows.flatMap((row, index) => {
+    if (row.type !== "user") return []
+    const assistant = rows.slice(index + 1).find((candidate) => candidate.type === "assistant")
+    const assistantText =
+      assistant?.type === "assistant"
+        ? assistant.entries.find((entry) => entry.type === "text")?.content
+        : undefined
+    return [{ assistantText, key: row.key, rowIndex: index, text: row.text }]
+  })
+  if (turns.length < 3) return null
+
+  return (
+    <nav
+      aria-label="Chat turns"
+      className="quick-turn-nav absolute top-1/2 left-1 z-20 hidden h-40 w-5 -translate-y-1/2 lg:block"
+      onMouseLeave={() => setActive(undefined)}
+      onMouseMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        const ratio = Math.min(0.999, Math.max(0, (event.clientY - rect.top) / rect.height))
+        setActive(Math.floor(ratio * turns.length))
+      }}
+    >
+      <div className="absolute top-0 bottom-0 left-1/2 flex -translate-x-1/2 flex-col justify-between py-1">
+        {turns.map((turn, index) => (
+          <button
+            aria-label={`Go to turn ${index + 1}`}
+            className="bg-muted-foreground/35 hover:bg-primary h-0.5 w-2 rounded-full transition-all hover:w-3"
+            key={turn.key}
+            onClick={() => {
+              void listRef.current?.scrollToIndex({
+                animated: true,
+                index: turn.rowIndex,
+                viewOffset: 24,
+              })
+            }}
+            type="button"
+          />
+        ))}
+      </div>
+      {active !== undefined && turns[active] ? (
+        <div
+          className="bg-popover text-popover-foreground ring-foreground/10 pointer-events-none absolute left-6 w-64 -translate-y-1/2 rounded-xl p-3 text-xs shadow-lg ring-1"
+          style={{ top: `${((active + 0.5) / turns.length) * 100}%` }}
+        >
+          <p className="line-clamp-2 font-medium">{turns[active].text || "Attachment"}</p>
+          {turns[active].assistantText ? (
+            <p className="text-muted-foreground mt-2 line-clamp-3">{turns[active].assistantText}</p>
+          ) : null}
+        </div>
+      ) : null}
+    </nav>
   )
 }
 
@@ -1666,7 +1718,7 @@ function TimelineRowView({
                 case "tool-group":
                   return (
                     <div
-                      className="bg-muted dark:bg-card max-w-full min-w-0 overflow-hidden rounded-md p-2"
+                      className="border-border/60 ml-1 max-w-full min-w-0 space-y-1 overflow-hidden border-l py-0.5 pl-3"
                       key={group.key}
                     >
                       {group.entries.map((entry) => {

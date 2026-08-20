@@ -49,6 +49,7 @@ function MultiSelectDropdown({
   allowCustomValues = false,
   className,
   closeOnSelect = false,
+  contentClassName,
   disabled,
   emptyMessage = "No options found.",
   id,
@@ -64,6 +65,7 @@ function MultiSelectDropdown({
   className?: string
   /** Closes after a choice. Event trail filters use this compact interaction. */
   closeOnSelect?: boolean
+  contentClassName?: string
   disabled?: boolean
   emptyMessage?: string
   id?: string
@@ -145,7 +147,10 @@ function MultiSelectDropdown({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[max(var(--radix-popover-trigger-width),24rem)] max-w-[calc(100vw-2rem)] p-0"
+        className={cn(
+          "w-[max(var(--radix-popover-trigger-width),24rem)] max-w-[calc(100vw-2rem)] p-0",
+          contentClassName
+        )}
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           onBlurAction?.()

@@ -13,7 +13,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
-import { Bot, Check, ChevronDown, Filter, SquarePen, Trash2, Users } from "lucide-react"
+import { Bot, ChevronDown, Filter, SquarePen, Trash2, Users } from "lucide-react"
 import { nanoid } from "nanoid"
 import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
@@ -43,7 +43,17 @@ import {
 } from "@/components/ui/context-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
-import { UserAvatar, UserIdentity } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/ui/avatar"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { formatShortAge } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
@@ -66,6 +76,8 @@ type PreferenceMutation = {
   next: ChatSessionPreference
   previous: ChatSessionPreference
 }
+
+const allAgentsValue = "__all_agents__"
 
 const chatSessionKeys = {
   workspace: (workspaceId: string) => ["chatSessions", workspaceId] as const,
@@ -227,77 +239,71 @@ export function NavSessions({
             sideOffset={8}
           >
             <div>
-              <p className="text-sm font-medium">Agent</p>
-              <div className="mt-1.5 grid gap-0.5">
-                <FilterChoice
-                  checked={preferences.agent_name === null}
-                  label="All agents"
-                  onSelect={() =>
-                    updatePreferences((current) => ({
-                      ...current,
-                      agent_name: null,
-                      updated_at: new Date().toISOString(),
-                    }))
-                  }
-                />
-                {availableAgents.map((agent) => (
-                  <FilterChoice
-                    checked={preferences.agent_name === agent.name}
-                    key={agent.name}
-                    label={agent.name}
-                    onSelect={() =>
-                      updatePreferences((current) => ({
-                        ...current,
-                        agent_name: agent.name,
-                        updated_at: new Date().toISOString(),
-                      }))
-                    }
-                  />
-                ))}
-              </div>
+              <label className="text-sm font-medium" htmlFor="chat-agent-filter">
+                Agent
+              </label>
+              <Select
+                value={preferences.agent_name ?? allAgentsValue}
+                onValueChange={(agentName) =>
+                  updatePreferences((current) => ({
+                    ...current,
+                    agent_name: agentName === allAgentsValue ? null : agentName,
+                    updated_at: new Date().toISOString(),
+                  }))
+                }
+              >
+                <SelectTrigger className="mt-1.5 w-full" id="chat-agent-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={allAgentsValue}>
+                      <Bot />
+                      All agents
+                    </SelectItem>
+                    {availableAgents.map((agent) => (
+                      <SelectItem key={agent.name} value={agent.name}>
+                        <Bot />
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <p className="text-sm font-medium">People in chat</p>
-              {participantFilters.length === 0 ? (
-                <p className="text-muted-foreground mt-1.5 text-xs">No participants yet</p>
-              ) : (
-                <div className="mt-1.5 grid gap-1">
-                  {participantFilters.map((participant) => {
-                    const checked = preferences.participant_user_ids.includes(participant.id)
-                    return (
-                      <label
-                        className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1"
-                        key={participant.id}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => {
-                            updatePreferences((current) => {
-                              const selected = current.participant_user_ids.includes(participant.id)
-                              const ids = selected
-                                ? current.participant_user_ids.filter((id) => id !== participant.id)
-                                : [...current.participant_user_ids, participant.id]
-                              return {
-                                ...current,
-                                participant_user_ids: ids,
-                                updated_at: new Date().toISOString(),
-                              }
-                            })
-                          }}
-                        />
-                        <UserIdentity
-                          email={participant.email}
-                          image={participant.image}
-                          name={participant.name}
-                          secondary={false}
-                        />
-                      </label>
-                    )
-                  })}
-                </div>
-              )}
+              <label className="text-sm font-medium" htmlFor="chat-people-filter">
+                People in chat
+              </label>
+              <MultiSelectDropdown
+                className="mt-1.5"
+                contentClassName="w-(--radix-popover-trigger-width) min-w-0"
+                disabled={participantFilters.length === 0}
+                emptyMessage="No people found."
+                id="chat-people-filter"
+                onValueChangeAction={(participantUserIds) =>
+                  updatePreferences((current) => ({
+                    ...current,
+                    participant_user_ids: participantUserIds,
+                    updated_at: new Date().toISOString(),
+                  }))
+                }
+                options={participantFilters.map((participant) => {
+                  const label = participant.name || participant.email
+                  return {
+                    image: participant.image,
+                    initials: label.slice(0, 1).toUpperCase(),
+                    label,
+                    value: participant.id,
+                  }
+                })}
+                placeholder={participantFilters.length === 0 ? "No participants yet" : "All people"}
+                searchPlaceholder="Search people..."
+                value={preferences.participant_user_ids}
+              />
             </div>
-            <label className="flex cursor-pointer items-center gap-2 border-t pt-3 text-sm">
+            <Separator className="-mx-3 w-[calc(100%+1.5rem)]" />
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
               <Checkbox
                 checked={preferences.include_workflow_runs}
                 onCheckedChange={(checked) =>
@@ -355,27 +361,6 @@ export function NavSessions({
         ) : null}
       </div>
     </div>
-  )
-}
-
-function FilterChoice({
-  checked,
-  label,
-  onSelect,
-}: {
-  checked: boolean
-  label: string
-  onSelect: () => void
-}) {
-  return (
-    <button
-      className="hover:bg-accent flex h-8 items-center justify-between rounded-md px-2 text-left text-sm"
-      onClick={onSelect}
-      type="button"
-    >
-      <span className="truncate">{label}</span>
-      {checked ? <Check className="text-primary size-4" aria-hidden="true" /> : null}
-    </button>
   )
 }
 

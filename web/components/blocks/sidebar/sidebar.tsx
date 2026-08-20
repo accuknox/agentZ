@@ -224,6 +224,40 @@ async function WorkspaceNavigation({
     showSecrets ||
     showWorkflows
   const hasWorkspace = showAgents || organization.superadmin || workspace.capabilities.administer
+  let chatSessions: React.JSX.Element | null = null
+  if (showAgents) {
+    const client = getGatewayServerClient(workspace.id)
+    const preference = await getChatSessionPreference({ client })
+    if (preference.error) {
+      throw new Error("Failed to load chat preferences")
+    }
+    const sessions = await listChatSessions({
+      client,
+      query: {
+        agent_name: preference.data.agent_name ?? undefined,
+        include_workflow_runs: preference.data.include_workflow_runs,
+        limit: 10,
+        participant_user_id:
+          preference.data.participant_user_ids.length > 0
+            ? preference.data.participant_user_ids
+            : undefined,
+      },
+    })
+    if (sessions.error) {
+      throw new Error("Failed to load chat sessions")
+    }
+    chatSessions = (
+      <SidebarGroup className="min-h-0 flex-1 px-0 py-1 group-data-[collapsible=icon]:hidden">
+        <NavSessions
+          agents={agents}
+          initialPreferences={preference.data}
+          initialSessions={sessions.data}
+          workspaceId={workspace.id}
+          workspacePath={workspacePath}
+        />
+      </SidebarGroup>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -329,57 +363,8 @@ async function WorkspaceNavigation({
           </SidebarGroup>
         ) : null}
       </div>
-      {showAgents ? (
-        <ChatSessionNavigation
-          agents={agents}
-          workspaceId={workspace.id}
-          workspacePath={workspacePath}
-        />
-      ) : null}
+      {chatSessions}
     </div>
-  )
-}
-
-async function ChatSessionNavigation({
-  agents,
-  workspaceId,
-  workspacePath,
-}: {
-  agents: Awaited<ReturnType<typeof listAllAgentsCachedQuery>>
-  workspaceId: string
-  workspacePath: WorkspacePath
-}) {
-  const client = getGatewayServerClient(workspaceId)
-  const preference = await getChatSessionPreference({ client })
-  if (preference.error) {
-    throw new Error("Failed to load chat preferences")
-  }
-  const sessions = await listChatSessions({
-    client,
-    query: {
-      agent_name: preference.data.agent_name ?? undefined,
-      include_workflow_runs: preference.data.include_workflow_runs,
-      limit: 10,
-      participant_user_id:
-        preference.data.participant_user_ids.length > 0
-          ? preference.data.participant_user_ids
-          : undefined,
-    },
-  })
-  if (sessions.error) {
-    throw new Error("Failed to load chat sessions")
-  }
-
-  return (
-    <SidebarGroup className="min-h-0 flex-1 px-0 py-1 group-data-[collapsible=icon]:hidden">
-      <NavSessions
-        agents={agents}
-        initialPreferences={preference.data}
-        initialSessions={sessions.data}
-        workspaceId={workspaceId}
-        workspacePath={workspacePath}
-      />
-    </SidebarGroup>
   )
 }
 

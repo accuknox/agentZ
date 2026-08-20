@@ -160,7 +160,6 @@ export type {
   ChatSessionParticipant,
   ChatSessionParticipantQuery,
   ChatSessionPreference,
-  ChatSessionPreferenceInput,
   ChatSessionStatus,
   ClientOptions,
   CompatibleProviderConfig,

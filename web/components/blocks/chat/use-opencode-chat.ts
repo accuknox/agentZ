@@ -36,6 +36,11 @@ type SessionMessagePage = {
   records: SessionMessageRecord[]
 }
 
+type SessionMessagePageParam = {
+  before?: string
+  limit: number
+}
+
 type OpencodeChatStore = {
   part: Record<string, Part[]>
   partTextAccumDelta: Record<string, string>
@@ -72,7 +77,7 @@ type UseOpencodeChatResult = {
   isPending: boolean
   hasEarlierMessages: boolean
   isLoadingEarlier: boolean
-  loadEarlier: () => void
+  loadEarlier: () => Promise<void>
   localMessages: OptimisticUserMessage[]
   messages: Message[]
   partsByMessage: Record<string, Part[]>
@@ -157,6 +162,37 @@ function buildStore(
   }
 
   return store
+}
+
+function mergeHistoryPage(
+  store: OpencodeChatStore,
+  sessionID: string,
+  records: SessionMessageRecord[]
+) {
+  const known = new Set((store.message[sessionID] ?? []).map((message) => message.id))
+  const messages = [...(store.message[sessionID] ?? [])]
+  const part = { ...store.part }
+  const partTextAccumDelta = { ...store.partTextAccumDelta }
+
+  for (const record of records) {
+    if (known.has(record.info.id)) continue
+
+    known.add(record.info.id)
+    messages.push(record.info)
+    part[record.info.id] = record.parts
+    for (const item of record.parts) {
+      if (item.type !== "text" && item.type !== "reasoning") continue
+      partTextAccumDelta[item.id] = item.text
+    }
+  }
+
+  messages.sort((x, y) => x.time.created - y.time.created)
+  return {
+    ...store,
+    message: { ...store.message, [sessionID]: messages },
+    part,
+    partTextAccumDelta,
+  }
 }
 
 function upsertRequest<T extends { id: string }>(items: T[], next: T) {
@@ -493,8 +529,8 @@ function sessionMessagesQueryOptions(
   directory: string
 ) {
   return infiniteQueryOptions({
-    initialPageParam: { before: undefined as string | undefined, limit: 20 },
-    queryFn: async ({ pageParam }) => {
+    initialPageParam: { limit: 20 } satisfies SessionMessagePageParam,
+    queryFn: async ({ pageParam }: { pageParam: SessionMessagePageParam }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.messages({
         before: pageParam.before,
@@ -512,7 +548,8 @@ function sessionMessagesQueryOptions(
         records: result.data,
       } satisfies SessionMessagePage
     },
-    getNextPageParam: (page) => (page.cursor ? { before: page.cursor, limit: 40 } : undefined),
+    getNextPageParam: (page): SessionMessagePageParam | undefined =>
+      page.cursor ? { before: page.cursor, limit: 40 } : undefined,
     queryKey: [
       ...sessionMessagesBaseQueryKey(workspaceId, agentName, sessionID),
       directory,
@@ -595,8 +632,8 @@ export function useOpencodeChat(
 ): UseOpencodeChatResult {
   const queryClient = useQueryClient()
   const [liveStore, setLiveStore] = useState<{
-    key: string
     store: OpencodeChatStore
+    version: object
   }>()
   const [hitlLive, setHitlLive] = useState<{ key: number; store: HitlStore }>()
   const [streamError, setStreamError] = useState<string>()
@@ -656,11 +693,15 @@ export function useOpencodeChat(
     }
     return buildStore(sessionID, session.data, [...records.values()])
   }, [history.data, session.data, sessionID])
-  const baseStoreKey = useMemo(() => {
-    const sessionKey = sessionID ?? "new"
-    return `${sessionKey}:${history.dataUpdatedAt}`
-  }, [history.dataUpdatedAt, sessionID])
-  const store = liveStore?.key === baseStoreKey ? liveStore.store : baseStore
+  // Loading another history page retains the first page object, while an
+  // authoritative refetch replaces it. Keep streamed state across pagination
+  // and reset it only when the server snapshot or Session itself changes.
+  const firstHistoryPage = history.data?.pages[0]
+  const baseStoreVersion = useMemo(
+    () => ({ firstHistoryPage, sessionID, sessionUpdatedAt: session.dataUpdatedAt }),
+    [firstHistoryPage, session.dataUpdatedAt, sessionID]
+  )
+  const store = liveStore?.version === baseStoreVersion ? liveStore.store : baseStore
 
   // HITL state reconciles like the chat store: live events fold onto the
   // refetched base, keyed to the fetch so a refetch drops stale events and the
@@ -750,8 +791,11 @@ export function useOpencodeChat(
 
     if (hasStoreUpdate) {
       setLiveStore((current) => ({
-        key: baseStoreKey,
-        store: events.reduce(applyEvent, current?.key === baseStoreKey ? current.store : baseStore),
+        store: events.reduce(
+          applyEvent,
+          current?.version === baseStoreVersion ? current.store : baseStore
+        ),
+        version: baseStoreVersion,
       }))
     }
 
@@ -979,21 +1023,34 @@ export function useOpencodeChat(
   const applyOptimisticSession = useCallback(
     (info: SessionV2) => {
       setLiveStore((current) => {
-        const currentStore = current?.key === baseStoreKey ? current.store : baseStore
+        const currentStore = current?.version === baseStoreVersion ? current.store : baseStore
         if (currentStore.session?.id !== info.id) return current
-        return { key: baseStoreKey, store: { ...currentStore, session: info } }
+        return { store: { ...currentStore, session: info }, version: baseStoreVersion }
       })
     },
-    [baseStore, baseStoreKey]
+    [baseStore, baseStoreVersion]
   )
 
   const reconnectStream = useCallback(() => {
     setStreamError(undefined)
     setStreamEpoch((current) => current + 1)
   }, [])
-  const loadEarlier = useCallback(() => {
-    void fetchNextHistoryPage()
-  }, [fetchNextHistoryPage])
+  const loadEarlier = useCallback(async () => {
+    if (!sessionID) return
+
+    const result = await fetchNextHistoryPage()
+    const page = result.data?.pages.at(-1)
+    if (!page) return
+
+    setLiveStore((current) => ({
+      store: mergeHistoryPage(
+        current?.version === baseStoreVersion ? current.store : baseStore,
+        sessionID,
+        page.records
+      ),
+      version: baseStoreVersion,
+    }))
+  }, [baseStore, baseStoreVersion, fetchNextHistoryPage, sessionID])
 
   return {
     applyOptimisticSession,

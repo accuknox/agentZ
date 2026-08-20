@@ -33,15 +33,11 @@ export type ListChatSessionsResponse = {
   next_page_token: string
 }
 
-export type ChatSessionPreferenceInput = {
+export type ChatSessionPreference = {
   agent_name: AgentName | null
   participant_user_ids: Array<string>
   include_workflow_runs: boolean
   last_agent_name: AgentName | null
-}
-
-export type ChatSessionPreference = ChatSessionPreferenceInput & {
-  updated_at: string
 }
 
 export type WatchChatSessionsEvent = {
@@ -2408,7 +2404,7 @@ export type GetChatSessionPreferenceResponse =
   GetChatSessionPreferenceResponses[keyof GetChatSessionPreferenceResponses]
 
 export type UpdateChatSessionPreferenceData = {
-  body: ChatSessionPreferenceInput
+  body: ChatSessionPreference
   path?: never
   query?: never
   url: "/api/chat-session-preference"

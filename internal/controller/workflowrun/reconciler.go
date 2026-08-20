@@ -402,14 +402,12 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	}
 
 	title := "workflowrun/" + run.Namespace + "/" + run.Name
-	metadata := map[string]any{"agentz.dev/session-kind": "workflow_run"}
 	createResp, err := r.GatewayClient.SessionCreateWithResponse(
 		ctx,
 		run.Spec.AgentName,
 		nil,
 		gatewayapi.SessionCreateJSONRequestBody{
 			Title:      &title,
-			Metadata:   &metadata,
 			Permission: &permission,
 		},
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),

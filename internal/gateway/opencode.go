@@ -31,7 +31,6 @@ const (
 	opencodeSessionCreatePath   = "/api/opencode/{agentName}/session"
 	opencodeSessionPath         = "/api/opencode/{agentName}/session/{sessionID}"
 	opencodeSessionStatusPath   = "/api/opencode/{agentName}/session/status"
-	opencodeSessionKindKey      = "agentz.dev/session-kind"
 )
 
 var opencodeProxyBodyLimitedMethods = map[string]struct{}{
@@ -195,11 +194,6 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	if err := s.recordOpenCodePrompt(r.Context(), route, auth, access.workspaceID, agentName); err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(preq *httputil.ProxyRequest) {
 			preq.Out.URL.Scheme = target.Scheme
@@ -215,7 +209,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 		},
 		ModifyResponse: s.openCodeModifyResponse(
-			r.Context(), route, target, access.workspaceID, agentName,
+			r.Context(), route, target, auth, access.workspaceID, agentName,
 		),
 		FlushInterval: -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
@@ -349,7 +343,7 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 
 // openCodeModifyResponse applies response cleanup, session catalog sync, and
 // optional observer trace deletion after successful upstream session deletion.
-func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRouteMatch, upstream *url.URL, workspaceID, agentName string) func(*http.Response) error {
+func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRouteMatch, upstream *url.URL, auth requestAuth, workspaceID, agentName string) func(*http.Response) error {
 	deleteTarget, hasSessionDelete := matchOpencodeSessionDelete(route, agentName)
 	return func(resp *http.Response) error {
 		stripOpenCodeCORSHeaders(resp)
@@ -364,25 +358,29 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 				route.Method == http.MethodPatch
 		}
 		if storesSession {
+			kind := gatewaydb.ChatSessionKindChat
+			if route.Path == opencodeSessionCreatePath && auth.actorType == requestActorSystem {
+				kind = gatewaydb.ChatSessionKindWorkflowRun
+			}
 			if err := s.storeOpenCodeSessionResponse(
-				ctx, resp, workspaceID, agentName,
+				ctx, resp, workspaceID, agentName, kind,
+			); err != nil {
+				return err
+			}
+		}
+		if route.Method == http.MethodPost &&
+			(route.Path == opencodeSessionPromptPath || route.Path == opencodeSessionAsyncPath) {
+			status := gatewaydb.ChatSessionStatusBusy
+			if route.Path == opencodeSessionPromptPath {
+				status = gatewaydb.ChatSessionStatusIdle
+			}
+			if err := s.recordOpenCodePrompt(
+				ctx, route, auth, workspaceID, agentName, status,
 			); err != nil {
 				return err
 			}
 		}
 		if route.Method == http.MethodPost && route.Path == opencodeSessionPromptPath {
-			_, err := s.queries.GatewaySetChatSessionStatus(
-				ctx,
-				gatewaydb.GatewaySetChatSessionStatusParams{
-					Status:      gatewaydb.ChatSessionStatusIdle,
-					WorkspaceID: workspaceID,
-					AgentName:   agentName,
-					SessionID:   route.Params["sessionID"],
-				},
-			)
-			if err != nil {
-				return fmt.Errorf("set chat session idle: %w", err)
-			}
 			if err := s.refreshOpenCodeSession(
 				ctx, upstream, workspaceID, agentName, route.Params["sessionID"],
 			); err != nil {
@@ -407,7 +405,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 				err,
 			)
 		}
-		_, err := s.queries.GatewayDeleteChatSession(
+		err := s.queries.GatewayDeleteChatSession(
 			ctx,
 			gatewaydb.GatewayDeleteChatSessionParams{
 				WorkspaceID: workspaceID,
@@ -422,14 +420,14 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 	}
 }
 
-func (s *Service) recordOpenCodePrompt(ctx context.Context, route *opencodeRouteMatch, auth requestAuth, workspaceID, agentName string) error {
+func (s *Service) recordOpenCodePrompt(ctx context.Context, route *opencodeRouteMatch, auth requestAuth, workspaceID, agentName string, status gatewaydb.ChatSessionStatus) error {
 	if route.Method != http.MethodPost || auth.actorType != requestActorUser {
 		return nil
 	}
 	if route.Path != opencodeSessionPromptPath && route.Path != opencodeSessionAsyncPath {
 		return nil
 	}
-	_, err := s.queries.GatewayTouchChatSessionParticipant(
+	err := s.queries.GatewayTouchChatSessionParticipant(
 		ctx,
 		gatewaydb.GatewayTouchChatSessionParticipantParams{
 			WorkspaceID: workspaceID,
@@ -437,6 +435,7 @@ func (s *Service) recordOpenCodePrompt(ctx context.Context, route *opencodeRoute
 			SessionID:   route.Params["sessionID"],
 			UserID:      auth.actorID,
 			MessagedAt:  pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			Status:      status,
 		},
 	)
 	if err != nil {
@@ -445,45 +444,17 @@ func (s *Service) recordOpenCodePrompt(ctx context.Context, route *opencodeRoute
 	return nil
 }
 
-func (s *Service) storeOpenCodeSessionResponse(ctx context.Context, resp *http.Response, workspaceID, agentName string) error {
-	const responseLimit = 1024 * 1024
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))
+func (s *Service) storeOpenCodeSessionResponse(ctx context.Context, resp *http.Response, workspaceID, agentName string, kind gatewaydb.ChatSessionKind) error {
+	session, err := decodeOpenCodeResponse[gatewayapi.OpencodeSession](resp)
 	if err != nil {
-		return fmt.Errorf("read OpenCode session response: %w", err)
-	}
-	if len(raw) > responseLimit {
-		return errors.New("OpenCode session response exceeds catalog limit")
-	}
-	if err := resp.Body.Close(); err != nil {
-		return fmt.Errorf("close OpenCode session response: %w", err)
-	}
-	resp.Body = io.NopCloser(bytes.NewReader(raw))
-	resp.ContentLength = int64(len(raw))
-
-	var session gatewayapi.OpencodeSession
-	if err := json.Unmarshal(raw, &session); err != nil {
 		return fmt.Errorf("decode OpenCode session response: %w", err)
 	}
-	return s.storeOpenCodeSession(ctx, workspaceID, agentName, session)
+	return s.storeOpenCodeSession(ctx, workspaceID, agentName, kind, session)
 }
 
 func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *http.Response, workspaceID, agentName string) error {
-	const responseLimit = 1024 * 1024
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))
+	statuses, err := decodeOpenCodeResponse[map[string]gatewayapi.OpencodeSessionStatus](resp)
 	if err != nil {
-		return fmt.Errorf("read OpenCode session status response: %w", err)
-	}
-	if len(raw) > responseLimit {
-		return errors.New("OpenCode session status response exceeds catalog limit")
-	}
-	if err := resp.Body.Close(); err != nil {
-		return fmt.Errorf("close OpenCode session status response: %w", err)
-	}
-	resp.Body = io.NopCloser(bytes.NewReader(raw))
-	resp.ContentLength = int64(len(raw))
-
-	var statuses map[string]gatewayapi.OpencodeSessionStatus
-	if err := json.Unmarshal(raw, &statuses); err != nil {
 		return fmt.Errorf("decode OpenCode session status response: %w", err)
 	}
 	busySessionIDs := make([]string, 0, len(statuses))
@@ -504,7 +475,7 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 		}
 		busySessionIDs = append(busySessionIDs, sessionID)
 	}
-	_, err = s.queries.GatewaySyncAgentChatSessionStatuses(
+	err = s.queries.GatewaySyncAgentChatSessionStatuses(
 		ctx,
 		gatewaydb.GatewaySyncAgentChatSessionStatusesParams{
 			WorkspaceID:     workspaceID,
@@ -537,17 +508,12 @@ func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, w
 	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil {
 		return fmt.Errorf("decode refreshed OpenCode session: %w", err)
 	}
-	return s.storeOpenCodeSession(ctx, workspaceID, agentName, session)
+	return s.storeOpenCodeSession(
+		ctx, workspaceID, agentName, gatewaydb.ChatSessionKindChat, session,
+	)
 }
 
-func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentName string, session gatewayapi.OpencodeSession) error {
-	kind := gatewaydb.ChatSessionKindChat
-	if session.Metadata != nil {
-		value, ok := (*session.Metadata)[opencodeSessionKindKey].(string)
-		if ok && value == string(gatewaydb.ChatSessionKindWorkflowRun) {
-			kind = gatewaydb.ChatSessionKindWorkflowRun
-		}
-	}
+func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentName string, kind gatewaydb.ChatSessionKind, session gatewayapi.OpencodeSession) error {
 	var parentID pgtype.Text
 	if session.ParentID != nil {
 		parentID = pgtype.Text{String: *session.ParentID, Valid: true}
@@ -574,6 +540,28 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 		return fmt.Errorf("store OpenCode session: %w", err)
 	}
 	return nil
+}
+
+func decodeOpenCodeResponse[T any](resp *http.Response) (T, error) {
+	const responseLimit = 1024 * 1024
+
+	var value T
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))
+	if err != nil {
+		return value, fmt.Errorf("read response: %w", err)
+	}
+	if len(raw) > responseLimit {
+		return value, errors.New("response exceeds catalog limit")
+	}
+	if err := resp.Body.Close(); err != nil {
+		return value, fmt.Errorf("close response: %w", err)
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(raw))
+	resp.ContentLength = int64(len(raw))
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return value, err
+	}
+	return value, nil
 }
 
 // stripOpenCodeCORSHeaders removes upstream CORS headers so the gateway writes

@@ -98,7 +98,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode-ai/sdk/v2"
-import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   BrainIcon,
   BotIcon,
@@ -509,11 +509,39 @@ function ChatInner({
   workspacePath,
   onAgentChange,
 }: ChatProps) {
+  const queryClient = useQueryClient()
+  const preferenceKey = ["chatSessionPreference", workspaceId] as const
   const [promotedSessionId, setPromotedSessionId] = useState<string>()
   const activeSessionId = sessionId ?? promotedSessionId
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
   const { data: authSession } = authClient.useSession()
+  const rememberAgent = useMutation({
+    mutationFn: async ({
+      next,
+    }: {
+      next: ChatSessionPreference
+      previous: ChatSessionPreference
+    }) => {
+      const result = await updateChatSessionPreference({
+        baseUrl: await getGatewayBaseURL(),
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        body: next,
+      })
+      if (result.error) throw result.error
+      return result.data
+    },
+    onError: (_, { next, previous }) => {
+      if (queryClient.getQueryData(preferenceKey) !== next) return
+      queryClient.setQueryData(preferenceKey, previous)
+      toast.error("Could not remember the selected agent")
+    },
+    onSuccess: (saved, { next }) => {
+      if (queryClient.getQueryData(preferenceKey) !== next) return
+      queryClient.setQueryData(preferenceKey, saved)
+    },
+    scope: { id: `chat-preferences:${workspaceId}` },
+  })
   const {
     applyOptimisticSession,
     blocked,
@@ -1441,19 +1469,15 @@ function ChatInner({
             <div className="chat-composer-context-strip absolute inset-x-[1.375rem] bottom-0 z-0 flex h-10 items-end px-3 pb-1">
               <Select
                 disabled={activeSessionId !== undefined || agentNames.length < 2}
-                onValueChange={async (name) => {
+                onValueChange={(name) => {
                   onAgentChange(name)
-                  if (!chatPreferences) return
-                  await updateChatSessionPreference({
-                    baseUrl: await getGatewayBaseURL(),
-                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
-                    body: {
-                      agent_name: chatPreferences.agent_name,
-                      include_workflow_runs: chatPreferences.include_workflow_runs,
-                      last_agent_name: name,
-                      participant_user_ids: chatPreferences.participant_user_ids,
-                    },
-                  })
+                  const previous =
+                    queryClient.getQueryData<ChatSessionPreference>(preferenceKey) ??
+                    chatPreferences
+                  if (!previous) return
+                  const next = { ...previous, last_agent_name: name }
+                  queryClient.setQueryData(preferenceKey, next)
+                  rememberAgent.mutate({ next, previous })
                 }}
                 value={agentName}
               >

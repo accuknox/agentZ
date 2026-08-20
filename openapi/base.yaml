@@ -118,7 +118,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatSessionPreferenceInput'
+              $ref: '#/components/schemas/ChatSessionPreference'
       responses:
         '200':
           description: Updated Workspace-scoped preferences.
@@ -4029,7 +4029,7 @@ components:
           type: string
       required: [sessions, participant_filters, has_next_page, next_page_token]
 
-    ChatSessionPreferenceInput:
+    ChatSessionPreference:
       type: object
       additionalProperties: false
       properties:
@@ -4051,17 +4051,6 @@ components:
           - $ref: '#/components/schemas/AgentName'
           nullable: true
       required: [agent_name, participant_user_ids, include_workflow_runs, last_agent_name]
-
-    ChatSessionPreference:
-      allOf:
-      - $ref: '#/components/schemas/ChatSessionPreferenceInput'
-      - type: object
-        additionalProperties: false
-        properties:
-          updated_at:
-            type: string
-            format: date-time
-        required: [updated_at]
 
     WatchChatSessionsEvent:
       type: object

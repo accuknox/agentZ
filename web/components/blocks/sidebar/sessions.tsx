@@ -22,6 +22,7 @@ import { useActionState } from "react"
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { DeleteSessionFormState, ListAgentActionResponse, WorkspacePath } from "@/data/types"
 import { watchAgentsQueryOptions } from "@/components/agent-readiness"
+import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -60,6 +61,7 @@ import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { cn } from "@/lib/utils"
 import {
   listChatSessions,
+  getChatSessionPreference,
   updateChatSessionPreference,
   watchChatSessions,
   type ChatSession,
@@ -67,11 +69,6 @@ import {
   type ListChatSessionsResponse,
   type WatchChatSessionsEvent,
 } from "@/lib/gateway/client"
-
-type SessionPages = {
-  pages: ListChatSessionsResponse[]
-  pageParams: (string | undefined)[]
-}
 
 type PreferenceMutation = {
   next: ChatSessionPreference
@@ -81,6 +78,7 @@ type PreferenceMutation = {
 const allAgentsValue = "__all_agents__"
 
 const chatSessionKeys = {
+  preference: (workspaceId: string) => ["chatSessionPreference", workspaceId] as const,
   workspace: (workspaceId: string) => ["chatSessions", workspaceId] as const,
   list: (workspaceId: string, preferences: ChatSessionPreference) =>
     [
@@ -95,8 +93,8 @@ const chatSessionKeys = {
 function chatSessionsOptions(workspaceId: string, preferences: ChatSessionPreference) {
   return infiniteQueryOptions({
     queryKey: chatSessionKeys.list(workspaceId, preferences),
-    initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) => {
+    initialPageParam: undefined,
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const result = await listChatSessions({
         baseUrl: await getGatewayBaseURL(),
         headers: { "X-AgentZ-Workspace-ID": workspaceId },
@@ -132,8 +130,23 @@ export function NavSessions({
   const queryClient = useQueryClient()
   const router = useRouter()
   const path = usePathname()
-  const [preferences, setPreferences] = useState(initialPreferences)
-  const preferencesRef = useRef(initialPreferences)
+  const preferenceKey = chatSessionKeys.preference(workspaceId)
+  const preference = useQuery({
+    ...queryOptions({
+      queryKey: preferenceKey,
+      queryFn: async () => {
+        const result = await getChatSessionPreference({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        })
+        if (result.error) throw result.error
+        return result.data
+      },
+      staleTime: Infinity,
+    }),
+    initialData: initialPreferences,
+  })
+  const preferences = preference.data
   const agentQuery = useQuery({
     ...watchAgentsQueryOptions(workspaceId, agents.agents ?? []),
     enabled: agents.agents !== undefined,
@@ -149,7 +162,7 @@ export function NavSessions({
   const sessions = useInfiniteQuery({
     ...chatSessionsOptions(workspaceId, preferences),
     initialData: matchesInitialPreferences
-      ? ({ pages: [initialSessions], pageParams: [undefined] } satisfies SessionPages)
+      ? { pages: [initialSessions], pageParams: [undefined] }
       : undefined,
     placeholderData: keepPreviousData,
   })
@@ -159,26 +172,19 @@ export function NavSessions({
       const result = await updateChatSessionPreference({
         baseUrl: await getGatewayBaseURL(),
         headers: { "X-AgentZ-Workspace-ID": workspaceId },
-        body: {
-          agent_name: next.agent_name,
-          include_workflow_runs: next.include_workflow_runs,
-          last_agent_name: next.last_agent_name,
-          participant_user_ids: next.participant_user_ids,
-        },
+        body: next,
       })
       if (result.error) throw result.error
       return result.data
     },
     onError: (_, { next, previous }) => {
-      if (preferencesRef.current !== next) return
-      preferencesRef.current = previous
-      setPreferences(previous)
+      if (queryClient.getQueryData(preferenceKey) !== next) return
+      queryClient.setQueryData(preferenceKey, previous)
       toast.error("Could not save chat filters")
     },
     onSuccess: (saved, { next }) => {
-      if (preferencesRef.current !== next) return
-      preferencesRef.current = saved
-      setPreferences(saved)
+      if (queryClient.getQueryData(preferenceKey) !== next) return
+      queryClient.setQueryData(preferenceKey, saved)
     },
   })
   const watch = useQuery(chatSessionWatchOptions(workspaceId))
@@ -189,10 +195,9 @@ export function NavSessions({
   }, [queryClient, watch.data, workspaceId])
 
   const updatePreferences = (update: (current: ChatSessionPreference) => ChatSessionPreference) => {
-    const previous = preferencesRef.current
+    const previous = queryClient.getQueryData<ChatSessionPreference>(preferenceKey) ?? preferences
     const next = update(previous)
-    preferencesRef.current = next
-    setPreferences(next)
+    queryClient.setQueryData(preferenceKey, next)
     mutation.mutate({ next, previous })
   }
   const rows = sessions.data?.pages.flatMap((page) => page.sessions) ?? []
@@ -249,7 +254,6 @@ export function NavSessions({
                   updatePreferences((current) => ({
                     ...current,
                     agent_name: agentName === allAgentsValue ? null : agentName,
-                    updated_at: new Date().toISOString(),
                   }))
                 }
               >
@@ -286,7 +290,6 @@ export function NavSessions({
                   updatePreferences((current) => ({
                     ...current,
                     participant_user_ids: participantUserIds,
-                    updated_at: new Date().toISOString(),
                   }))
                 }
                 options={participantFilters.map((participant) => {
@@ -311,7 +314,6 @@ export function NavSessions({
                   updatePreferences((current) => ({
                     ...current,
                     include_workflow_runs: checked === true,
-                    updated_at: new Date().toISOString(),
                   }))
                 }
               />
@@ -451,7 +453,7 @@ function SessionCard({
                 {session.status === "idle" ? (
                   formatShortAge(new Date(session.updated_at).getTime())
                 ) : (
-                  <SessionSpinner />
+                  <AgentWorkingIndicator className="gap-0 [&>span:last-child]:sr-only" isWorking />
                 )}
               </span>
             </div>
@@ -539,16 +541,6 @@ function SessionCard({
         </DialogContent>
       </Dialog>
     </ContextMenu>
-  )
-}
-
-function SessionSpinner() {
-  return (
-    <span aria-label="Working" className="inline-flex items-center gap-[3px]" role="status">
-      <span className="bg-sidebar-muted-foreground/30 animate-status-pulse size-1 rounded-full" />
-      <span className="bg-sidebar-muted-foreground/30 animate-status-pulse size-1 rounded-full [animation-delay:200ms]" />
-      <span className="bg-sidebar-muted-foreground/30 animate-status-pulse size-1 rounded-full [animation-delay:400ms]" />
-    </span>
   )
 }
 

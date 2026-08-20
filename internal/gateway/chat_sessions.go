@@ -1,11 +1,15 @@
 package gateway
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -23,6 +27,12 @@ type chatSessionCursor struct {
 	SessionID string    `json:"session_id"`
 }
 
+type chatSessionEvents struct {
+	mu       sync.Mutex
+	revision uint64
+	watchers map[string]map[chan uint64]struct{}
+}
+
 // ListChatSessions handles GET /api/chat-session.
 func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, params gatewayapi.ListChatSessionsParams) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
@@ -31,21 +41,42 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		return
 	}
 
+	capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	agentNames := usableAgentNames(nil, capabilities)
 	if params.AgentName != nil {
-		_, apiErr = s.resolveAgentAccess(
-			r.Context(),
-			*params.AgentName,
-			authorization.OperationUseSharedAgent,
-		)
-		if apiErr != nil {
-			writeError(w, r, apiErr)
-			return
+		capability, ok := capabilities[*params.AgentName]
+		if !ok || !capability.Use {
+			agentNames = []string{}
+		} else {
+			agentNames = []string{*params.AgentName}
 		}
+	}
+	if len(agentNames) == 0 {
+		writeJSON(w, http.StatusOK, gatewayapi.ListChatSessionsResponse{
+			HasNextPage:        false,
+			NextPageToken:      "",
+			ParticipantFilters: []gatewayapi.ChatSessionParticipant{},
+			Sessions:           []gatewayapi.ChatSession{},
+		})
+		return
 	}
 
 	limit := int32(10)
 	if params.Limit != nil {
 		limit = *params.Limit
+	}
+	if limit < 1 || limit > 50 {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 50",
+			errBadRequest,
+		))
+		return
 	}
 	cursor, err := decodeChatSessionCursor(params.PageToken)
 	if err != nil {
@@ -70,6 +101,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	rows, err := s.queries.GatewayListChatSessions(
 		r.Context(),
 		gatewaydb.GatewayListChatSessionsParams{
+			AgentNames:          agentNames,
 			WorkspaceID:         access.workspaceID,
 			IncludeWorkflowRuns: includeWorkflowRuns,
 			AgentName:           agentName,
@@ -114,6 +146,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	filterRows, err := s.queries.GatewayListChatSessionFilterUsers(
 		r.Context(),
 		gatewaydb.GatewayListChatSessionFilterUsersParams{
+			AgentNames:          agentNames,
 			WorkspaceID:         access.workspaceID,
 			IncludeWorkflowRuns: includeWorkflowRuns,
 		},
@@ -177,7 +210,6 @@ func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Reques
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeJSON(w, http.StatusOK, gatewayapi.ChatSessionPreference{
 			ParticipantUserIds: []string{},
-			UpdatedAt:          time.Unix(0, 0).UTC(),
 		})
 		return
 	}
@@ -185,7 +217,19 @@ func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Reques
 		writeInternalError(w, r, fmt.Errorf("get chat session preference: %w", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, chatSessionPreference(row))
+	preference := workspaceChatPreference(row)
+	capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if preference.AgentName != nil && !capabilities[*preference.AgentName].Use {
+		preference.AgentName = nil
+	}
+	if preference.LastAgentName != nil && !capabilities[*preference.LastAgentName].Use {
+		preference.LastAgentName = nil
+	}
+	writeJSON(w, http.StatusOK, preference)
 }
 
 // UpdateChatSessionPreference handles PUT /api/chat-session-preference.
@@ -201,7 +245,7 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var body gatewayapi.ChatSessionPreferenceInput
+	var body gatewayapi.ChatSessionPreference
 	if !decodeJSONBody(w, r, &body, false) {
 		return
 	}
@@ -219,23 +263,30 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
+	var agentName, lastAgentName pgtype.Text
+	if body.AgentName != nil {
+		agentName = pgtype.Text{String: *body.AgentName, Valid: true}
+	}
+	if body.LastAgentName != nil {
+		lastAgentName = pgtype.Text{String: *body.LastAgentName, Valid: true}
+	}
 
 	row, err := s.queries.GatewayUpsertWorkspaceChatPreference(
 		r.Context(),
 		gatewaydb.GatewayUpsertWorkspaceChatPreferenceParams{
 			WorkspaceID:         access.workspaceID,
 			UserID:              claims.UserID,
-			AgentName:           nullableAgentName(body.AgentName),
+			AgentName:           agentName,
 			ParticipantUserIds:  body.ParticipantUserIds,
 			IncludeWorkflowRuns: body.IncludeWorkflowRuns,
-			LastAgentName:       nullableAgentName(body.LastAgentName),
+			LastAgentName:       lastAgentName,
 		},
 	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("update chat session preference: %w", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, chatSessionPreference(row))
+	writeJSON(w, http.StatusOK, workspaceChatPreference(row))
 }
 
 // WatchChatSessions handles GET /api/chat-session/watch.
@@ -256,17 +307,16 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	var previous string
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	events, cancel := s.chatSessionEvents.subscribe(access.workspaceID)
+	defer cancel()
+	heartbeat := time.NewTicker(15 * time.Second)
+	defer heartbeat.Stop()
 	for {
-		revision, err := s.queries.GatewayGetChatSessionRevision(r.Context(), access.workspaceID)
-		if err != nil {
-			recordRequestError(w, "internal_error", fmt.Errorf("watch chat sessions: %w", err))
-			return
-		}
-		if revision != previous {
-			raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{Revision: revision})
+		select {
+		case revision := <-events:
+			raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{
+				Revision: strconv.FormatUint(revision, 10),
+			})
 			if err != nil {
 				recordRequestError(w, "internal_error", err)
 				return
@@ -275,13 +325,13 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			flusher.Flush()
-			previous = revision
-		}
-
-		select {
 		case <-r.Context().Done():
 			return
-		case <-ticker.C:
+		case <-heartbeat.C:
+			if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
 		}
 	}
 }
@@ -312,14 +362,7 @@ func decodeChatSessionCursor(token *gatewayapi.PageTokenQuery) (chatSessionCurso
 	return cursor, nil
 }
 
-func nullableAgentName(name *gatewayapi.AgentName) pgtype.Text {
-	if name == nil {
-		return pgtype.Text{}
-	}
-	return pgtype.Text{String: *name, Valid: true}
-}
-
-func chatSessionPreference(row gatewaydb.WorkspaceChatPreference) gatewayapi.ChatSessionPreference {
+func workspaceChatPreference(row gatewaydb.WorkspaceChatPreference) gatewayapi.ChatSessionPreference {
 	var agentName *gatewayapi.AgentName
 	if row.AgentName.Valid {
 		value := row.AgentName.String
@@ -335,6 +378,82 @@ func chatSessionPreference(row gatewaydb.WorkspaceChatPreference) gatewayapi.Cha
 		ParticipantUserIds:  row.ParticipantUserIds,
 		IncludeWorkflowRuns: row.IncludeWorkflowRuns,
 		LastAgentName:       lastAgentName,
-		UpdatedAt:           row.UpdatedAt.Time,
+	}
+}
+
+func (e *chatSessionEvents) subscribe(workspaceID string) (<-chan uint64, func()) {
+	ch := make(chan uint64, 1)
+	e.mu.Lock()
+	if e.watchers == nil {
+		e.watchers = make(map[string]map[chan uint64]struct{})
+	}
+	watchers := e.watchers[workspaceID]
+	if watchers == nil {
+		watchers = make(map[chan uint64]struct{})
+		e.watchers[workspaceID] = watchers
+	}
+	watchers[ch] = struct{}{}
+	ch <- e.revision
+	e.mu.Unlock()
+
+	cancel := func() {
+		e.mu.Lock()
+		watchers := e.watchers[workspaceID]
+		if _, ok := watchers[ch]; ok {
+			delete(watchers, ch)
+			close(ch)
+		}
+		if len(watchers) == 0 {
+			delete(e.watchers, workspaceID)
+		}
+		e.mu.Unlock()
+	}
+	return ch, cancel
+}
+
+func (e *chatSessionEvents) publish(workspaceID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.revision++
+	for ch := range e.watchers[workspaceID] {
+		select {
+		case ch <- e.revision:
+		default:
+		}
+	}
+}
+
+func (s *Service) runChatSessionNotifications(ctx context.Context) {
+	for {
+		err := s.listenForChatSessionNotifications(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		slog.ErrorContext(ctx, "listen for chat session notifications", slog.Any("err", err))
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+func (s *Service) listenForChatSessionNotifications(ctx context.Context) error {
+	conn, err := s.db.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire postgres notification connection: %w", err)
+	}
+	defer conn.Release()
+
+	queries := gatewaydb.New(conn.Conn())
+	if err := queries.GatewayListenChatSessions(ctx); err != nil {
+		return fmt.Errorf("listen for postgres chat session notifications: %w", err)
+	}
+	for {
+		notification, err := conn.Conn().WaitForNotification(ctx)
+		if err != nil {
+			return fmt.Errorf("wait for postgres chat session notification: %w", err)
+		}
+		s.chatSessionEvents.publish(notification.Payload)
 	}
 }

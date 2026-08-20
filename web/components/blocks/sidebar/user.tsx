@@ -83,11 +83,7 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              aria-label={`Open user menu for ${user.name}`}
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
+            <SidebarMenuButton aria-label={`Open user menu for ${user.name}`} size="lg">
               <Avatar className="size-8 rounded-lg">
                 <AvatarImage src={user.image ?? undefined} alt={user.name} />
                 <AvatarFallback className="rounded-lg bg-transparent">{initials}</AvatarFallback>

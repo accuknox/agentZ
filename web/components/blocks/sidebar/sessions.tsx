@@ -57,6 +57,7 @@ import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { formatShortAge } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import { cn } from "@/lib/utils"
 import {
   listChatSessions,
   updateChatSessionPreference,
@@ -207,19 +208,19 @@ export function NavSessions({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 px-[var(--sidebar-content-inset)] pb-1">
         <Button
-          className="text-sidebar-foreground hover:bg-sidebar-row-hover h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium shadow-none"
+          className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium shadow-none"
           onClick={() => router.push(newSessionPath)}
           size="sm"
           variant="ghost"
         >
-          <SquarePen aria-hidden="true" className="text-muted-foreground size-4" />
+          <SquarePen aria-hidden="true" />
           New chat
         </Button>
         <Popover>
           <PopoverTrigger asChild>
             <Button
               aria-label="Filter chats"
-              className="hover:bg-sidebar-row-hover relative size-8 rounded-md border-0 bg-transparent shadow-none"
+              className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground relative size-8 rounded-md border-0 bg-transparent shadow-none"
               size="icon-sm"
               variant="ghost"
             >
@@ -331,12 +332,12 @@ export function NavSessions({
           <p className="text-destructive px-1 py-3 text-sm">Could not load chats</p>
         ) : null}
         {!sessions.isPending && rows.length === 0 ? (
-          <div className="text-muted-foreground px-2 py-8 text-center text-sm">
+          <div className="text-sidebar-muted-foreground px-2 py-8 text-center text-sm">
             <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
             No chats match these filters
           </div>
         ) : null}
-        <ul className="min-w-0">
+        <ul className="flex min-w-0 flex-col gap-0.5">
           {rows.map((session) => (
             <SessionCard
               key={`${session.agent_name}:${session.session_id}`}
@@ -349,7 +350,7 @@ export function NavSessions({
         </ul>
         {sessions.hasNextPage ? (
           <Button
-            className="text-muted-foreground mt-2 w-full"
+            className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground mt-2 w-full"
             disabled={sessions.isFetchingNextPage}
             onClick={() => void sessions.fetchNextPage()}
             size="sm"
@@ -409,29 +410,30 @@ function SessionCard({
 
   const participants = session.participants.slice(0, 3)
   const overflow = session.participants.length - participants.length
+  const active = path === href
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <li
-          className={
-            path === href
-              ? "bg-sidebar-row-active relative list-none overflow-hidden rounded-md py-0.5"
-              : "hover:bg-sidebar-row-hover relative list-none overflow-hidden rounded-md py-0.5 transition-colors"
-          }
+          className={cn(
+            "text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none overflow-hidden rounded-md py-0.5 transition-colors",
+            active && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
         >
           <Link
             aria-label={`Open ${session.title}`}
-            aria-current={path === href ? "page" : undefined}
+            aria-current={active ? "page" : undefined}
             className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-inset"
             href={href}
           />
           <div className="pointer-events-none relative h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
             <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
-              <Bot className="text-primary size-3.5 shrink-0" aria-hidden="true" />
-              <span className="text-muted-foreground min-w-0 flex-1 truncate font-medium">
+              <Bot className="text-sidebar-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+              <span className="text-sidebar-muted-foreground min-w-0 flex-1 truncate font-medium">
                 {session.agent_name}
               </span>
-              <span className="text-muted-foreground shrink-0 tabular-nums">
+              <span className="text-sidebar-muted-foreground shrink-0 tabular-nums">
                 {session.status === "idle" ? (
                   formatShortAge(new Date(session.updated_at).getTime())
                 ) : (
@@ -456,7 +458,7 @@ function SessionCard({
                     />
                   ))}
                   {overflow > 0 ? (
-                    <span className="bg-sidebar-control-surface text-muted-foreground ring-sidebar grid size-6 place-items-center rounded-full text-[10px] ring-2">
+                    <span className="bg-sidebar-control-surface text-sidebar-muted-foreground ring-sidebar grid size-6 place-items-center rounded-full text-[10px] ring-2">
                       +{overflow}
                     </span>
                   ) : null}
@@ -510,9 +512,9 @@ function SessionCard({
 function SessionSpinner() {
   return (
     <span aria-label="Working" className="inline-flex items-center gap-[3px]" role="status">
-      <span className="bg-muted-foreground/30 animate-status-pulse size-1 rounded-full" />
-      <span className="bg-muted-foreground/30 animate-status-pulse size-1 rounded-full [animation-delay:200ms]" />
-      <span className="bg-muted-foreground/30 animate-status-pulse size-1 rounded-full [animation-delay:400ms]" />
+      <span className="bg-sidebar-muted-foreground/30 animate-status-pulse size-1 rounded-full" />
+      <span className="bg-sidebar-muted-foreground/30 animate-status-pulse size-1 rounded-full [animation-delay:200ms]" />
+      <span className="bg-sidebar-muted-foreground/30 animate-status-pulse size-1 rounded-full [animation-delay:400ms]" />
     </span>
   )
 }

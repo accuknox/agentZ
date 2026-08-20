@@ -10,6 +10,7 @@ import {
   CircleUserRound,
   CloudCog,
   KeyRound,
+  Lock,
   Monitor,
   ScrollText,
   Settings2,
@@ -40,7 +41,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { listAllAgentsCachedQuery } from "@/data/agent.queries"
-import { NavSecrets } from "./secrets"
 import type { OrganizationSummary } from "@/data/organizations"
 import type { WorkspacePath } from "@/data/types"
 import type { ResourceCapabilities, Workspace } from "@/lib/gateway/client"
@@ -303,7 +303,16 @@ async function WorkspaceNavigation({
                   showProviders={inferenceProviderCapabilities.read}
                 />
               ) : null}
-              {showSecrets ? <NavSecrets workspacePath={workspacePath} /> : null}
+              {showSecrets ? (
+                <SidebarMenuItem>
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/secrets` as Route}
+                    label="Secrets"
+                  >
+                    <Lock aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+              ) : null}
               {showWorkflows ? (
                 <>
                   <SidebarMenuItem>

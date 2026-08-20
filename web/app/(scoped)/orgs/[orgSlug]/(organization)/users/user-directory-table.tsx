@@ -66,6 +66,7 @@ function MemberTable({
         header: "User",
         cell: ({ row }) => (
           <UserIdentity
+            className="max-w-[calc(25ch+2.5rem)]"
             email={row.original.email}
             image={row.original.image}
             name={row.original.name}

@@ -173,6 +173,7 @@
     }
   }
   ::-webkit-scrollbar {
+    height: var(--app-scrollbar-width);
     width: var(--app-scrollbar-width);
   }
   ::-webkit-scrollbar-track {
@@ -311,6 +312,97 @@
 
   .dark .chat-composer-glass-host::after {
     box-shadow: inset 0 1px rgb(255 255 255 / 3%);
+  }
+
+  [data-file-type-icon] {
+    color: var(--muted-foreground);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="biome"],
+    [data-icon-token="c"],
+    [data-icon-token="cpp"],
+    [data-icon-token="docker"],
+    [data-icon-token="python"],
+    [data-icon-token="typescript"],
+    [data-icon-token="vscode"],
+    [data-icon-token="webpack"]
+  ) {
+    color: var(--info);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="babel"],
+    [data-icon-token="browserslist"],
+    [data-icon-token="javascript"]
+  ) {
+    color: var(--chart-3);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="bash"],
+    [data-icon-token="markdown"],
+    [data-icon-token="svgo"],
+    [data-icon-token="vue"]
+  ) {
+    color: var(--chart-1);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="git"],
+    [data-icon-token="npm"],
+    [data-icon-token="postcss"],
+    [data-icon-token="ruby"],
+    [data-icon-token="svelte"],
+    [data-icon-token="yml"]
+  ) {
+    color: var(--destructive);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="claude"],
+    [data-icon-token="html"],
+    [data-icon-token="json"],
+    [data-icon-token="rust"],
+    [data-icon-token="svg"],
+    [data-icon-token="swift"],
+    [data-icon-token="zig"],
+    [data-icon-token="zip"]
+  ) {
+    color: var(--warning);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="astro"],
+    [data-icon-token="bootstrap"],
+    [data-icon-token="css"],
+    [data-icon-token="database"],
+    [data-icon-token="eslint"],
+    [data-icon-token="terraform"],
+    [data-icon-token="vite"],
+    [data-icon-token="wasm"]
+  ) {
+    color: var(--primary);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="graphql"],
+    [data-icon-token="image"],
+    [data-icon-token="sass"]
+  ) {
+    color: var(--chart-5);
+  }
+
+  [data-file-type-icon]:is(
+    [data-icon-token="go"],
+    [data-icon-token="mcp"],
+    [data-icon-token="oxc"],
+    [data-icon-token="prettier"],
+    [data-icon-token="react"],
+    [data-icon-token="table"],
+    [data-icon-token="tailwind"]
+  ) {
+    color: var(--chart-4);
   }
 
   [data-administration] [data-slot="card"] {

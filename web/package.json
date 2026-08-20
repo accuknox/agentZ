@@ -36,6 +36,7 @@
     "@octokit/request-error": "^7.1.0",
     "@octokit/rest": "^22.0.1",
     "@opencode-ai/sdk": "1.18.16",
+    "@pierre/trees": "1.0.0-beta.6",
     "@radix-ui/react-use-controllable-state": "^1.2.3",
     "@ridemountainpig/svgl-react": "^1.0.17",
     "@stepperize/react": "^6.1.0",

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import type { ChatSessionPreference } from "@/lib/gateway/client"
-import { FolderTree } from "lucide-react"
+import { PanelRightClose, PanelRightOpen } from "lucide-react"
 import type { Route } from "next"
 import { useRouter } from "@bprogress/next/app"
 import { useState } from "react"
@@ -59,9 +59,10 @@ export function ChatShell({
   const chatKey = `${agentName}:${sessionId ?? `new:${draftKey ?? "default"}`}`
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="flex h-[var(--workspace-topbar-height)] shrink-0 items-center justify-between gap-3 px-3">
-        <div className="flex min-w-0 items-center gap-1.5">
+    <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
+      <SessionFileControl agentName={agentName} />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 pr-12 pl-3">
           <SidebarTrigger className="shrink-0" />
           <span className="text-muted-foreground max-w-1/3 truncate text-sm font-medium">
             {agentName}
@@ -70,10 +71,7 @@ export function ChatShell({
             /
           </span>
           <h1 className="min-w-0 truncate text-sm font-semibold">{title}</h1>
-        </div>
-        <SessionFileControl agentName={agentName} />
-      </header>
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        </header>
         <div className="@container/chat relative min-w-0 flex-1">
           <Chat
             key={chatKey}
@@ -93,13 +91,13 @@ export function ChatShell({
             }}
           />
         </div>
-        <FilesWorkspace
-          agentName={agentName}
-          onPreviewerOpenChange={setPreviewerOpen}
-          sessionId={sessionId}
-          workspaceId={workspaceId}
-        />
       </div>
+      <FilesWorkspace
+        agentName={agentName}
+        onPreviewerOpenChange={setPreviewerOpen}
+        sessionId={sessionId}
+        workspaceId={workspaceId}
+      />
     </div>
   )
 }
@@ -117,7 +115,7 @@ function SessionFileControl({ agentName }: { agentName: string }) {
           <Button
             aria-label={filesOpen ? "Close files" : "Open files"}
             aria-pressed={filesOpen}
-            className="hidden shrink-0 lg:inline-flex"
+            className="absolute top-3 right-3 z-50 hidden lg:inline-flex"
             onClick={() => {
               if (filesOpen && filesDirty) {
                 setConfirmingDiscard(true)
@@ -128,7 +126,11 @@ function SessionFileControl({ agentName }: { agentName: string }) {
             size="icon-sm"
             variant={filesOpen ? "secondary" : "ghost"}
           >
-            <FolderTree aria-hidden="true" />
+            {filesOpen ? (
+              <PanelRightClose aria-hidden="true" />
+            ) : (
+              <PanelRightOpen aria-hidden="true" />
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent>{filesOpen ? "Close files" : "Open files"}</TooltipContent>

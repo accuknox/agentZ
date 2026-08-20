@@ -227,7 +227,7 @@ async function WorkspaceNavigation({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="max-h-[min(50%,24rem)] min-h-0 shrink-0 overflow-y-auto group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:flex-1 group-data-[collapsible=icon]:shrink">
+      <div className="max-h-[min(50%,24rem)] min-h-0 shrink-0 overflow-x-hidden overflow-y-auto group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:flex-1 group-data-[collapsible=icon]:shrink">
         {hasResources ? (
           <SidebarGroup className="px-2 py-2">
             <SidebarMenu>

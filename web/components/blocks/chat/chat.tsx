@@ -1491,72 +1491,161 @@ function QuickTurnNav({
   rows: TimelineRow[]
 }) {
   const [active, setActive] = useState<number>()
-  const turns = rows.flatMap((row, index) => {
-    if (row.type !== "user") return []
-    const assistant = rows.slice(index + 1).find((candidate) => candidate.type === "assistant")
-    const assistantText =
-      assistant?.type === "assistant"
-        ? assistant.entries.find((entry) => entry.type === "text")?.content
-        : undefined
-    return [{ assistantText, key: row.key, rowIndex: index, text: row.text }]
-  })
-  if (turns.length < 3) return null
+  const [viewportWidth, setViewportWidth] = useState(0)
+  const navRef = useRef<HTMLElement>(null)
+  const turns = useMemo(() => {
+    const items: {
+      assistantText: string | undefined
+      key: string
+      rowIndex: number
+      text: string
+    }[] = []
+
+    for (const [rowIndex, row] of rows.entries()) {
+      if (row.type === "user") {
+        items.push({ assistantText: undefined, key: row.key, rowIndex, text: row.text })
+        continue
+      }
+      if (row.type !== "assistant") continue
+
+      const text = row.entries.find((entry) => entry.type === "text")?.content
+      const item = items.at(-1)
+      if (item && text !== undefined) item.assistantText = text
+    }
+
+    return items
+  }, [rows])
+  const hasTurns = turns.length >= 2
+
+  useEffect(() => {
+    const viewport = navRef.current?.parentElement
+    if (!viewport) return
+
+    setViewportWidth(viewport.clientWidth)
+    const observer = new ResizeObserver(() => setViewportWidth(viewport.clientWidth))
+    observer.observe(viewport)
+
+    return () => observer.disconnect()
+  }, [hasTurns])
+
+  if (!hasTurns) return null
+
+  const gutter = Math.max(0, (viewportWidth - Math.min(viewportWidth, 768)) / 2)
+  const hitWidth = Math.max(0, Math.min(40, Math.floor(gutter) - 12))
+  const turnIndexAt = (clientY: number, rail: HTMLElement) => {
+    const rect = rail.getBoundingClientRect()
+    const progress = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
+    return Math.round(progress * (turns.length - 1))
+  }
+  const selected = active === undefined ? undefined : turns[active]
+  const previewWords = selected?.assistantText?.match(/\S+/g)
+  const selectedTop = active === undefined ? 0 : (active / (turns.length - 1)) * 100
+  const previewOffset = active === 0 ? "0%" : active === turns.length - 1 ? "-100%" : "-50%"
 
   return (
     <nav
       aria-label="Chat turns"
-      className="quick-turn-nav pointer-events-none absolute inset-y-0 left-0 z-40 hidden w-18 lg:block"
+      className={cn(
+        "pointer-events-none absolute inset-y-0 left-0 z-40 hidden w-18 [@media(pointer:fine)]:block",
+        gutter >= 48
+          ? "opacity-100"
+          : "opacity-0 transition-opacity duration-150 focus-within:opacity-100 hover:opacity-100"
+      )}
+      ref={navRef}
     >
-      <div
-        className="pointer-events-auto absolute top-1/2 left-3 -translate-y-1/2 cursor-pointer"
-        onMouseLeave={() => setActive(undefined)}
-        onMouseMove={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect()
-          const ratio = Math.min(0.999, Math.max(0, (event.clientY - rect.top) / rect.height))
-          setActive(Math.floor(ratio * turns.length))
+      <button
+        aria-label={`Jump to message: ${selected?.text || "Attachment"}`}
+        className={cn(
+          "focus-visible:ring-ring/70 absolute top-1/2 left-3 -translate-y-1/2 cursor-pointer bg-transparent focus-visible:ring-2 focus-visible:outline-none",
+          hitWidth > 0 ? "pointer-events-auto" : "pointer-events-none"
+        )}
+        onBlur={() => setActive(undefined)}
+        onClick={(event) => {
+          const turn = turns[turnIndexAt(event.clientY, event.currentTarget)]
+          if (!turn) return
+
+          void listRef.current?.scrollToIndex({
+            animated: true,
+            index: turn.rowIndex,
+            viewOffset: 24,
+          })
+          event.currentTarget.blur()
         }}
-        style={{ height: `clamp(4rem, ${turns.length * 0.75}rem, 18rem)` }}
+        onFocus={() => setActive((current) => current ?? 0)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault()
+            setActive((current) => Math.min((current ?? 0) + 1, turns.length - 1))
+            return
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault()
+            setActive((current) => Math.max((current ?? 0) - 1, 0))
+            return
+          }
+          if (event.key === "Home" || event.key === "End") {
+            event.preventDefault()
+            setActive(event.key === "Home" ? 0 : turns.length - 1)
+            return
+          }
+          if ((event.key === "Enter" || event.key === " ") && selected) {
+            event.preventDefault()
+            void listRef.current?.scrollToIndex({
+              animated: true,
+              index: selected.rowIndex,
+              viewOffset: 24,
+            })
+          }
+        }}
+        onMouseDown={(event) => event.preventDefault()}
+        onMouseLeave={() => setActive(undefined)}
+        onMouseMove={(event) => setActive(turnIndexAt(event.clientY, event.currentTarget))}
+        style={{
+          height: `min(${Math.max(1, (turns.length - 1) * 8)}px, calc(100vh - 18rem))`,
+          width: selected ? "22rem" : hitWidth,
+        }}
+        type="button"
       >
         <div className="bg-border/15 absolute top-0 left-3 h-full w-px" />
         {turns.map((turn, index) => (
-          <button
-            aria-label={`Go to turn ${index + 1}`}
+          <span
+            aria-hidden="true"
             className={cn(
-              "bg-muted-foreground/35 hover:bg-primary absolute left-0 h-0.5 -translate-y-1/2 rounded-full transition-[background-color,width] duration-150",
+              "bg-muted-foreground/35 absolute left-0 h-0.5 -translate-y-1/2 rounded-full transition-[background-color,width] duration-150",
               active === index
                 ? "bg-muted-foreground/75 w-6"
                 : active !== undefined && Math.abs(active - index) === 1
                   ? "w-4"
-                  : "w-2"
+                  : active !== undefined && Math.abs(active - index) === 2
+                    ? "w-2.5"
+                    : "w-2"
             )}
             key={turn.key}
-            onClick={() => {
-              void listRef.current?.scrollToIndex({
-                animated: true,
-                index: turn.rowIndex,
-                viewOffset: 24,
-              })
-            }}
-            style={{ top: `${turns.length === 1 ? 0 : (index / (turns.length - 1)) * 100}%` }}
-            type="button"
+            style={{ top: `${(index / (turns.length - 1)) * 100}%` }}
           />
         ))}
-        {active !== undefined && turns[active] ? (
-          <div
-            className="bg-popover/90 text-popover-foreground ring-foreground/10 pointer-events-none absolute left-8 w-80 -translate-y-1/2 rounded-xl p-3 text-left shadow-xl ring-1 backdrop-blur-xl"
-            style={{ top: `${((active + 0.5) / turns.length) * 100}%` }}
+        {selected ? (
+          <span
+            className="pointer-events-auto absolute left-8 w-80 cursor-text select-text"
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onMouseMove={(event) => event.stopPropagation()}
+            style={{ top: `${selectedTop}%`, transform: `translateY(${previewOffset})` }}
           >
-            <p className="truncate text-sm leading-5 font-medium">
-              {turns[active].text || "Attachment"}
-            </p>
-            {turns[active].assistantText ? (
-              <p className="text-muted-foreground mt-1 line-clamp-3 text-sm leading-5">
-                {turns[active].assistantText}
-              </p>
-            ) : null}
-          </div>
+            <span className="bg-popover/90 text-popover-foreground ring-foreground/10 block rounded-xl p-3 text-left shadow-xl ring-1 backdrop-blur-xl">
+              <span className="block truncate text-sm leading-5 font-medium">
+                {selected.text || "Attachment"}
+              </span>
+              {previewWords?.length ? (
+                <span className="text-muted-foreground mt-1 block text-sm leading-5">
+                  {previewWords.slice(0, 30).join(" ")}
+                  {previewWords.length > 30 ? "..." : null}
+                </span>
+              ) : null}
+            </span>
+          </span>
         ) : null}
-      </div>
+      </button>
     </nav>
   )
 }

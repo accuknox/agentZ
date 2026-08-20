@@ -3,10 +3,21 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import Link from "next/link"
-import { MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
-import type { Agent, Sandbox, Skill } from "@/lib/gateway/client"
+import {
+  CheckCircle2,
+  CircleDashed,
+  LoaderCircle,
+  type LucideIcon,
+  MoreHorizontal,
+  Pencil,
+  Settings,
+  Trash2,
+  XCircle,
+} from "lucide-react"
+import type { Agent, AgentStatus, Sandbox, Skill } from "@/lib/gateway/client"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -37,6 +48,21 @@ type DeleteAgentAction = (
   formData: FormData
 ) => Promise<DeleteAgentFormState>
 
+const agentStatusMeta = {
+  IDLE: { icon: CheckCircle2, label: "Idle", variant: "success" },
+  PROGRESSING: { icon: LoaderCircle, label: "Progressing", variant: "pending" },
+  DEGRADED: { icon: XCircle, label: "Degraded", variant: "destructive" },
+  UNSPECIFIED: { icon: CircleDashed, label: "Unknown", variant: "pending" },
+  DELETED: { icon: Trash2, label: "Deleted", variant: "destructive" },
+} satisfies Record<
+  AgentStatus,
+  {
+    icon: LucideIcon
+    label: string
+    variant: React.ComponentProps<typeof Badge>["variant"]
+  }
+>
+
 export function createAgentColumns(
   deleteAgentAction: DeleteAgentAction,
   immutableSkills: Skill[],
@@ -55,6 +81,25 @@ export function createAgentColumns(
         const agent = row.original
 
         return <span className="font-medium">{agent.name}</span>
+      },
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.original.status
+        const meta = agentStatusMeta[status]
+
+        return (
+          <Badge variant={meta.variant}>
+            <meta.icon
+              aria-hidden="true"
+              className={status === "PROGRESSING" ? "motion-safe:animate-spin" : undefined}
+              data-icon="inline-start"
+            />
+            {meta.label}
+          </Badge>
+        )
       },
     },
     {

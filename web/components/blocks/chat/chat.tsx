@@ -1,6 +1,7 @@
 "use client"
 
 import { LegendList, type LegendListRef } from "@legendapp/list/react"
+import { getImageProps } from "next/image"
 import {
   Attachment,
   AttachmentPreview,
@@ -1012,6 +1013,10 @@ function ChatInner({
     () => new Map(actorProfilesQuery.data?.profiles.map((profile) => [profile.id, profile]) ?? []),
     [actorProfilesQuery.data]
   )
+  const timelineIdentity = useMemo(
+    () => ({ actorProfiles, user: authSession?.user }),
+    [actorProfiles, authSession?.user]
+  )
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
   const showStarter = !activeSessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
@@ -1047,6 +1052,7 @@ function ChatInner({
             className="h-full min-h-0 overflow-x-hidden overscroll-y-contain px-4 [overflow-anchor:none]"
             data={rows}
             estimatedItemSize={96}
+            extraData={timelineIdentity}
             initialScrollAtEnd
             keyExtractor={(row) => row.key}
             ListHeaderComponent={
@@ -1123,13 +1129,13 @@ function ChatInner({
               >
                 <TimelineRowView
                   agentName={agentName}
-                  actorProfiles={actorProfiles}
+                  actorProfiles={timelineIdentity.actorProfiles}
                   isBusy={isBusy}
                   isLastBlock={rows.at(-1)?.key === item.key}
                   onRevert={handleRevert}
                   revertDisabled={isBusy || isStopping || revertPending}
                   row={item}
-                  user={authSession?.user}
+                  user={timelineIdentity.user}
                   workspaceId={workspaceId}
                   workspacePath={workspacePath}
                 />
@@ -1583,13 +1589,16 @@ function UserMessageAvatar({
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("")
+  const avatarImage = image
+    ? getImageProps({ alt: displayName, height: 32, src: image, width: 32 }).props
+    : undefined
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span aria-label={label} className="shrink-0">
           <Avatar>
-            <AvatarImage alt={displayName} src={image ?? undefined} />
+            {avatarImage ? <AvatarImage {...avatarImage} /> : null}
             <AvatarFallback>{initials || "U"}</AvatarFallback>
           </Avatar>
         </span>

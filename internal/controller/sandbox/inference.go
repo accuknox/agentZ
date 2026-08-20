@@ -465,15 +465,6 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 	}
 	slices.Sort(extAuthNamespaces)
 	extAuthNamespaces = slices.Compact(extAuthNamespaces)
-	if r.TraceBackend.Mode == TraceBackendModeStatic {
-		egressTargets = append(
-			egressTargets,
-			networkpolicy.Target{
-				Host: r.TraceBackend.Host,
-				Port: r.TraceBackend.Port,
-			},
-		)
-	}
 	_, err = ctrlutil.CreateOrPatch(
 		ctx,
 		r.Client,
@@ -547,7 +538,11 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 				}
 			}
 			policy.OwnerReferences = sandboxOwnerReferences(owners)
-			policy.Spec = gatewayNetworkPolicySpec(namespace, inference.GatewayName)
+			policy.Spec = gatewayNetworkPolicySpec(
+				namespace,
+				inference.GatewayName,
+				r.TraceBackend,
+			)
 			policy.Spec.Ingress = ingress
 			policy.Spec.Egress = append(
 				policy.Spec.Egress,
@@ -560,16 +555,6 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 						namespace,
 						mcp.ExtAuthServiceName,
 						mcp.ExtAuthPort,
-					)...,
-				)
-			}
-			if r.TraceBackend.Mode == TraceBackendModeService {
-				policy.Spec.Egress = append(
-					policy.Spec.Egress,
-					networkpolicy.ServiceEgress(
-						r.TraceBackend.ServiceNamespace,
-						r.TraceBackend.ServiceName,
-						r.TraceBackend.ServicePort,
 					)...,
 				)
 			}

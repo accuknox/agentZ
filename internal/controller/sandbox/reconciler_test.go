@@ -19,13 +19,17 @@ package sandbox
 import (
 	"context"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayfake "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned/fake"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,6 +44,200 @@ import (
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		namespace   = "workspace"
+		agentName   = "agent"
+		sandboxName = "sandbox"
+		wantPath    = "/mcp/agents/workspace/agent/sandboxes/sandbox"
+	)
+	scheme := runtime.NewScheme()
+	adders := []func(*runtime.Scheme) error{
+		corev1.AddToScheme,
+		discoveryv1.AddToScheme,
+		ciliumv2.AddToScheme,
+		gwv1.Install,
+		agentzv1alpha1.AddToScheme,
+	}
+	for _, add := range adders {
+		if err := add(scheme); err != nil {
+			t.Fatalf("add scheme: %v", err)
+		}
+	}
+
+	sandbox := &agentzv1alpha1.Sandbox{
+		ObjectMeta: metav1.ObjectMeta{Name: sandboxName, Namespace: namespace},
+	}
+	agt := &agentzv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: agentName, Namespace: namespace},
+		Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{
+			Scope: agentzv1alpha1.ResourceScopeWorkspace,
+			Name:  sandboxName,
+		}},
+	}
+	k8sClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+				Labels: map[string]string{
+					agentzv1alpha1.WorkspaceNameLabel: namespace,
+				},
+			}},
+			sandbox,
+			agt,
+		).
+		WithIndex(
+			&agentzv1alpha1.Agent{},
+			sandboxutil.AgentBySandboxIndex,
+			func(obj client.Object) []string {
+				agt := obj.(*agentzv1alpha1.Agent)
+				return []string{agt.Spec.SandboxRef.Name}
+			},
+		).
+		Build()
+	r := &Reconciler{
+		Client:       k8sClient,
+		Scheme:       scheme,
+		AgentGateway: agentgatewayfake.NewSimpleClientset(),
+		TraceBackend: TraceBackend{
+			Mode:             TraceBackendModeService,
+			ServiceName:      "observer",
+			ServiceNamespace: "agentz-system",
+			ServicePort:      4317,
+		},
+	}
+	ctx := context.Background()
+	if err := r.reconcileRoute(ctx, sandbox); err != nil {
+		t.Fatalf("reconcileRoute() error = %v", err)
+	}
+	if err := r.reconcileGatewayNetworkPolicy(ctx, namespace, []agentzv1alpha1.Sandbox{*sandbox}); err != nil {
+		t.Fatalf("reconcileGatewayNetworkPolicy() error = %v", err)
+	}
+	if err := r.reconcileTracePolicy(ctx, namespace, []agentzv1alpha1.Sandbox{*sandbox}); err != nil {
+		t.Fatalf("reconcileTracePolicy() error = %v", err)
+	}
+
+	route := &gwv1.HTTPRoute{}
+	key := client.ObjectKey{Name: mcp.SandboxRouteName(sandboxName), Namespace: namespace}
+	if err := k8sClient.Get(ctx, key, route); err != nil {
+		t.Fatalf("get MCP HTTPRoute: %v", err)
+	}
+	if len(route.Spec.Rules) != 1 || len(route.Spec.Rules[0].Matches) != 1 {
+		t.Fatalf("MCP HTTPRoute matches = %#v, want one agent match", route.Spec.Rules)
+	}
+	gotPath := route.Spec.Rules[0].Matches[0].Path.Value
+	if gotPath == nil || *gotPath != wantPath {
+		t.Fatalf("MCP HTTPRoute path = %v, want %q", gotPath, wantPath)
+	}
+
+	policy := &ciliumv2.CiliumNetworkPolicy{}
+	key = client.ObjectKey{Name: mcp.GatewayName, Namespace: namespace}
+	if err := k8sClient.Get(ctx, key, policy); err != nil {
+		t.Fatalf("get MCP CiliumNetworkPolicy: %v", err)
+	}
+	wantL7Path := "^/mcp/agents/workspace/agent/sandboxes/sandbox(/.*)?$"
+	gotL7Path := policy.Spec.Ingress[0].ToPorts[0].Rules.HTTP[0].Path
+	if gotL7Path != wantL7Path {
+		t.Fatalf("MCP CiliumNetworkPolicy path = %q, want %q", gotL7Path, wantL7Path)
+	}
+
+	tracePolicy, err := r.AgentGateway.AgentgatewayAgentgateway().
+		AgentgatewayPolicies(namespace).
+		Get(ctx, tracePolicyName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get MCP trace policy: %v", err)
+	}
+	attrs := map[agentgatewayv1alpha1.ShortString]agentgatewayv1alpha1.CELExpression{}
+	for _, attr := range tracePolicy.Spec.Frontend.Tracing.Attributes.Add {
+		attrs[attr.Name] = attr.Expression
+	}
+	wantTenant := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[3]`)
+	wantAgent := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`)
+	if attrs[agentgatewayv1alpha1.ShortString("agentz.tenant_namespace")] != wantTenant {
+		t.Fatalf("tenant trace attribute = %q, want %q", attrs["agentz.tenant_namespace"], wantTenant)
+	}
+	if attrs[agentgatewayv1alpha1.ShortString("agentz.agent_name")] != wantAgent {
+		t.Fatalf("agent trace attribute = %q, want %q", attrs["agentz.agent_name"], wantAgent)
+	}
+
+	if err := k8sClient.Delete(ctx, agt); err != nil {
+		t.Fatalf("delete Agent: %v", err)
+	}
+	if err := r.reconcileRoute(ctx, sandbox); err != nil {
+		t.Fatalf("reconcileRoute() after Agent deletion error = %v", err)
+	}
+	key = client.ObjectKey{Name: mcp.SandboxRouteName(sandboxName), Namespace: namespace}
+	if err := k8sClient.Get(ctx, key, route); !apierrors.IsNotFound(err) {
+		t.Fatalf("get MCP HTTPRoute after Agent deletion error = %v, want not found", err)
+	}
+}
+
+func TestGatewayNetworkPolicySpecTraceEgress(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		backend TraceBackend
+		want    []ciliumapi.EgressRule
+	}{
+		{
+			name: "service",
+			backend: TraceBackend{
+				Mode:             TraceBackendModeService,
+				ServiceName:      "observer",
+				ServiceNamespace: "agentz-system",
+				ServicePort:      4317,
+			},
+			want: networkpolicy.ServiceEgress("agentz-system", "observer", 4317),
+		},
+		{
+			name: "static",
+			backend: TraceBackend{
+				Mode: TraceBackendModeStatic,
+				Host: "otel.example.com",
+				Port: 4317,
+			},
+			want: networkpolicy.ExternalEgress([]networkpolicy.Target{{
+				Host: "otel.example.com",
+				Port: 4317,
+			}}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy := gatewayNetworkPolicySpec(
+				"workspace",
+				mcp.GatewayName,
+				tt.backend,
+			)
+			// The base permits same-namespace workloads and the control plane only.
+			wantRuleCount := 3 + len(tt.want)
+			if len(policy.Egress) != wantRuleCount {
+				t.Fatalf(
+					"gateway policy has %d egress rules, want %d",
+					len(policy.Egress),
+					wantRuleCount,
+				)
+			}
+			for _, want := range tt.want {
+				if !slices.ContainsFunc(policy.Egress, func(got ciliumapi.EgressRule) bool {
+					return reflect.DeepEqual(got, want)
+				}) {
+					t.Fatalf("gateway policy does not contain trace egress %#v", want)
+				}
+			}
+			for _, rule := range policy.Egress {
+				if slices.Contains(rule.ToEntities, ciliumapi.EntityAll) {
+					t.Fatal("gateway policy permits egress to all entities")
+				}
+			}
+		})
+	}
+}
 
 func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 	t.Parallel()

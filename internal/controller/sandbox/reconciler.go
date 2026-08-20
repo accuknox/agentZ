@@ -820,8 +820,24 @@ func (r *Reconciler) reconcileRoute(ctx context.Context, sandbox *agentzv1alpha1
 	route := &gwv1.HTTPRoute{}
 	route.Name = mcp.SandboxRouteName(sandbox.Name)
 	route.Namespace = sandbox.Namespace
+	agents, err := r.referencingAgents(ctx, sandbox)
+	if err != nil {
+		return fmt.Errorf("find sandbox agents: %w", err)
+	}
+	// HTTPRoute permits 64 matches per rule and 128 per route. Removing an
+	// unrepresentable route keeps a previously valid route from failing open.
+	if len(agents) == 0 || len(agents) > 128 {
+		err := r.Delete(ctx, route)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete route without valid matches: %w", err)
+		}
+		if len(agents) > 128 {
+			return fmt.Errorf("route has %d agent matches; maximum is 128", len(agents))
+		}
+		return nil
+	}
 
-	_, err := ctrlutil.CreateOrPatch(
+	_, err = ctrlutil.CreateOrPatch(
 		ctx,
 		r.Client,
 		route,
@@ -829,30 +845,47 @@ func (r *Reconciler) reconcileRoute(ctx context.Context, sandbox *agentzv1alpha1
 			group := gwv1.Group("agentgateway.dev")
 			kind := gwv1.Kind("AgentgatewayBackend")
 			pathType := gwv1.PathMatchPathPrefix
-			pathValue := mcp.SandboxRoutePath(sandbox.Name)
+			matches := make([]gwv1.HTTPRouteMatch, 0, len(agents))
+			for i := range agents {
+				path := mcp.AgentRoutePath(
+					sandbox.Name,
+					agents[i].Namespace,
+					agents[i].Name,
+				)
+				matches = append(matches, gwv1.HTTPRouteMatch{
+					Path: &gwv1.HTTPPathMatch{
+						Type:  &pathType,
+						Value: &path,
+					},
+				})
+			}
+			backendRefs := []gwv1.HTTPBackendRef{{
+				BackendRef: gwv1.BackendRef{
+					BackendObjectReference: gwv1.BackendObjectReference{
+						Group: &group,
+						Kind:  &kind,
+						Name: gwv1.ObjectName(
+							mcp.SandboxBackendName(sandbox.Name),
+						),
+					},
+				},
+			}}
+			rules := make([]gwv1.HTTPRouteRule, 0, (len(matches)+63)/64)
+			for len(matches) > 0 {
+				n := min(len(matches), 64)
+				rules = append(rules, gwv1.HTTPRouteRule{
+					Matches:     matches[:n],
+					BackendRefs: backendRefs,
+				})
+				matches = matches[n:]
+			}
 			route.Spec = gwv1.HTTPRouteSpec{
 				CommonRouteSpec: gwv1.CommonRouteSpec{
 					ParentRefs: []gwv1.ParentReference{{
 						Name: gwv1.ObjectName(mcp.GatewayName),
 					}},
 				},
-				Rules: []gwv1.HTTPRouteRule{{
-					Matches: []gwv1.HTTPRouteMatch{{
-						Path: &gwv1.HTTPPathMatch{
-							Type:  &pathType,
-							Value: &pathValue,
-						},
-					}},
-					BackendRefs: []gwv1.HTTPBackendRef{{
-						BackendRef: gwv1.BackendRef{
-							BackendObjectReference: gwv1.BackendObjectReference{
-								Group: &group,
-								Kind:  &kind,
-								Name:  gwv1.ObjectName(mcp.SandboxBackendName(sandbox.Name)),
-							},
-						},
-					}},
-				}},
+				Rules: rules,
 			}
 			return ctrl.SetControllerReference(sandbox, route, r.Scheme)
 		},
@@ -960,11 +993,11 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 		Add: []agentgatewayv1alpha1.AttributeAdd{
 			{
 				Name:       agentgatewayv1alpha1.ShortString("agentz.tenant_namespace"),
-				Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
+				Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[3]`),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("agentz.agent_name"),
-				Expression: agentgatewayv1alpha1.CELExpression("source.unverifiedWorkload.serviceAccount"),
+				Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`),
 			},
 			{
 				Name:       agentgatewayv1alpha1.ShortString("session.id"),
@@ -1196,33 +1229,18 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 					)
 					extAuthNamespaces = append(extAuthNamespaces, connections[j].Namespace)
 				}
-				agents := &agentzv1alpha1.AgentList{}
-				err = r.List(
-					ctx,
-					agents,
-					client.MatchingFields{
-						sandboxutil.AgentBySandboxIndex: owners[i].Name,
-					},
-				)
+				agents, err := r.referencingAgents(ctx, &owners[i])
 				if err != nil {
 					return fmt.Errorf("find sandbox agents: %w", err)
 				}
-				for j := range agents.Items {
-					agt := &agents.Items[j]
-					target, err := scope.SelectedNamespace(
-						ctx,
-						r.Client,
+				for j := range agents {
+					agt := &agents[j]
+					routePath := mcp.AgentRoutePath(
+						owners[i].Name,
 						agt.Namespace,
-						scope.Selection{
-							Scope: agt.Spec.SandboxRef.Scope,
-							Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
-							Name:  agt.Spec.SandboxRef.Name,
-						},
+						agt.Name,
 					)
-					if err != nil || target != namespace {
-						continue
-					}
-					path := "^" + regexp.QuoteMeta(mcp.SandboxRoutePath(owners[i].Name)) + "(/.*)?$"
+					path := "^" + regexp.QuoteMeta(routePath) + "(/.*)?$"
 					ingress = append(
 						ingress,
 						ciliumapi.IngressRule{
@@ -1267,7 +1285,11 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 				}
 			}
 			policy.OwnerReferences = sandboxOwnerReferences(owners)
-			policy.Spec = gatewayNetworkPolicySpec(namespace, mcp.GatewayName)
+			policy.Spec = gatewayNetworkPolicySpec(
+				namespace,
+				mcp.GatewayName,
+				r.TraceBackend,
+			)
 			policy.Spec.Ingress = ingress
 			policy.Spec.Egress = append(
 				policy.Spec.Egress,
@@ -1294,7 +1316,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 	return nil
 }
 
-func gatewayNetworkPolicySpec(namespace, gatewayName string) *ciliumapi.Rule {
+func gatewayNetworkPolicySpec(namespace, gatewayName string, traceBackend TraceBackend) *ciliumapi.Rule {
 	rule := &ciliumapi.Rule{
 		EndpointSelector: ciliumapi.NewESFromLabels(
 			ciliumlabels.NewLabel(
@@ -1337,6 +1359,25 @@ func gatewayNetworkPolicySpec(namespace, gatewayName string) *ciliumapi.Rule {
 			agentGatewayControlPlanePort,
 		)...,
 	)
+	switch traceBackend.Mode {
+	case TraceBackendModeService:
+		rule.Egress = append(
+			rule.Egress,
+			networkpolicy.ServiceEgress(
+				traceBackend.ServiceNamespace,
+				traceBackend.ServiceName,
+				traceBackend.ServicePort,
+			)...,
+		)
+	case TraceBackendModeStatic:
+		rule.Egress = append(
+			rule.Egress,
+			networkpolicy.ExternalEgress([]networkpolicy.Target{{
+				Host: traceBackend.Host,
+				Port: traceBackend.Port,
+			}})...,
+		)
+	}
 	return rule
 }
 

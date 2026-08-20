@@ -691,7 +691,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 	}
 	cfg.Packages = packages
 	cfg.AllowedHosts = allowedHosts
-	cfg.MCPURL = r.sandboxMCPURL(ctx, sandboxNamespace, sandbox)
+	cfg.MCPURL = r.sandboxMCPURL(ctx, agt, sandbox)
 	cfg.SandboxNamespace = sandboxNamespace
 	cfg.MCPConsentPermissionIDs = mcpConsentPermissionIDs
 	cfg.MCPRefs = mcpRefs
@@ -725,7 +725,7 @@ func (r *Reconciler) resolveImmutableSkills(ctx context.Context, keys []types.Na
 	return skills, nil
 }
 
-func (r *Reconciler) sandboxMCPURL(ctx context.Context, namespace string, sandbox *agentzv1alpha1.Sandbox) string {
+func (r *Reconciler) sandboxMCPURL(ctx context.Context, agt *agentzv1alpha1.Agent, sandbox *agentzv1alpha1.Sandbox) string {
 	conns, err := mcp.LoadConnections(ctx, r.Client, sandbox)
 	if err != nil || len(conns) == 0 {
 		return ""
@@ -733,8 +733,8 @@ func (r *Reconciler) sandboxMCPURL(ctx context.Context, namespace string, sandbo
 	return fmt.Sprintf(
 		"http://%s.%s.svc.cluster.local%s",
 		mcp.GatewayName,
-		namespace,
-		mcp.SandboxRoutePath(sandbox.Name),
+		sandbox.Namespace,
+		mcp.AgentRoutePath(sandbox.Name, agt.Namespace, agt.Name),
 	)
 }
 

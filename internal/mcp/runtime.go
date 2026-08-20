@@ -109,9 +109,10 @@ func SandboxRouteName(name string) string {
 	return dnsLabel("env-" + name + "-route")
 }
 
-// SandboxRoutePath returns the route path exposed for one sandbox.
-func SandboxRoutePath(name string) string {
-	return "/mcp/" + name
+// AgentRoutePath returns the stable path that gateway policy binds to one
+// Agent identity before forwarding traffic to its Sandbox backend.
+func AgentRoutePath(sandboxName, agentNamespace, agentName string) string {
+	return "/mcp/agents/" + agentNamespace + "/" + agentName + "/sandboxes/" + sandboxName
 }
 
 // SecretPath returns the stable namespace-scoped OpenBao path for one MCP credential record.

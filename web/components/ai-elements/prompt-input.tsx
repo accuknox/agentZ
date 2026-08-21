@@ -66,41 +66,6 @@ function revokeLocalFiles(files: readonly PromptInputItem[]) {
   }
 }
 
-function isFocusableControl(node: EventTarget | null): boolean {
-  if (!(node instanceof HTMLElement)) return false
-
-  if (node.isContentEditable) return true
-
-  const tagName = node.tagName
-  if (
-    tagName === "A" ||
-    tagName === "BUTTON" ||
-    tagName === "INPUT" ||
-    tagName === "SELECT" ||
-    tagName === "TEXTAREA"
-  ) {
-    return true
-  }
-
-  if (node.tabIndex >= 0) return true
-
-  const role = node.getAttribute("role")
-  if (
-    role === "button" ||
-    role === "combobox" ||
-    role === "dialog" ||
-    role === "link" ||
-    role === "listbox" ||
-    role === "menu" ||
-    role === "menuitem" ||
-    role === "option"
-  ) {
-    return true
-  }
-
-  return false
-}
-
 export const usePromptInputAttachments = () => {
   const context = useContext(LocalAttachmentsContext)
   if (!context) {
@@ -599,12 +564,7 @@ export const PromptInputTextarea = ({
         className
       )}
       name="message"
-      onBlur={(event) => {
-        onBlur?.(event)
-        if (event.defaultPrevented) return
-        if (isFocusableControl(event.relatedTarget)) return
-        focusTextarea()
-      }}
+      onBlur={onBlur}
       onChange={onChange}
       onCompositionEnd={() => setIsComposing(false)}
       onCompositionStart={() => setIsComposing(true)}

@@ -1,5 +1,5 @@
 <div align="center">
-    <img src=".github/assets/brand/agentz-logo.svg" alt="AgentZ" width="132">
+    <img src=".github/assets/agentz-logo.svg" alt="AgentZ" width="132">
     <h1>AgentZ</h1>
     <h3>Zero Trust Agentic AI Platform</h3>
     <p><b>Build, run, and govern AI agents. Secure by design.</b></p>

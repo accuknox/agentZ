@@ -1626,7 +1626,7 @@ function QuickTurnNav({
         onMouseMove={(event) => setActive(turnIndexAt(event.clientY, event.currentTarget))}
         style={{
           height: `min(${Math.max(1, (turns.length - 1) * 8)}px, calc(100vh - 18rem))`,
-          width: selected ? "22rem" : hitWidth,
+          width: hitWidth,
         }}
         type="button"
       >
@@ -1650,10 +1650,7 @@ function QuickTurnNav({
         ))}
         {selected ? (
           <span
-            className="pointer-events-auto absolute left-8 w-80 cursor-text select-text"
-            onClick={(event) => event.stopPropagation()}
-            onMouseDown={(event) => event.stopPropagation()}
-            onMouseMove={(event) => event.stopPropagation()}
+            className="pointer-events-none absolute left-8 w-80 select-none"
             style={{ top: `${selectedTop}%`, transform: `translateY(${previewOffset})` }}
           >
             <span className="bg-popover/90 text-popover-foreground ring-foreground/10 block rounded-xl p-3 text-left shadow-xl ring-1 backdrop-blur-xl">

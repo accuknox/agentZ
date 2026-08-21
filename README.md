@@ -9,6 +9,7 @@
         Every agent action is traceable.
     </p>
     <a href="https://www.producthunt.com/products/agentz?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-agentz" target="_blank" rel="noopener noreferrer"><img alt="AgentZ - Zero Trust Platform to Build, Run Govern AI Agents | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1216150&theme=light&t=1787120477230"></a>
+    <br/><br/>
 </div>
 
 AgentZ is a multi-tenant platform for running AI agents. It provides strong
@@ -68,7 +69,7 @@ posture and control over the software packages your agents have access to.
 ## Workflows
 
 - You can ask your agents to develop workflows for repeated tasks
-- Workflows can run on a schedule or can be invoked through a webhook. Check [#40](https://github.com/accuknox/agentZ/pull/40)).
+- Workflows can run on a schedule or can be invoked through a webhook. Check [#40](https://github.com/accuknox/agentZ/pull/40).
 - Workflow supports typed fields and arbitrary JSON (check [#48](https://github.com/accuknox/agentZ/pull/48)) as inputs.
 
 ## OpenCode Interoperability

@@ -950,7 +950,7 @@ var managerCmd = &cli.Command{
 		default:
 			return fmt.Errorf("invalid Tenant Agent default QoS %q", tenantAgentDefaultQoS)
 		}
-		defaultAgentQuota := agentzv1alpha1.AgentQuota{
+		defQuota := agentzv1alpha1.AgentQuota{
 			Count: tenantAgentQuotaCount,
 			Resources: agentzv1alpha1.ComputeResources{
 				CPU:    quotaCPU,
@@ -964,18 +964,17 @@ var managerCmd = &cli.Command{
 				QoSClass: defaultQoS,
 			},
 		}
-		if defaultAgentQuota.Count < 1 {
-			return fmt.Errorf("Tenant Agent quota count must be at least 1")
+		if defQuota.Count < 1 {
+			return fmt.Errorf("tenant Agent quota count must be at least 1")
 		}
-		if defaultAgentQuota.Resources.CPU.Sign() <= 0 || defaultAgentQuota.Resources.Memory.Sign() <= 0 {
-			return fmt.Errorf("Tenant Agent CPU and memory quotas must be positive")
+		if defQuota.Resources.CPU.Sign() <= 0 || defQuota.Resources.Memory.Sign() <= 0 {
+			return fmt.Errorf("tenant Agent CPU and memory quotas must be positive")
 		}
-		if defaultAgentQuota.Defaults.Resources.CPU.Sign() <= 0 || defaultAgentQuota.Defaults.Resources.Memory.Sign() <= 0 {
-			return fmt.Errorf("Tenant Agent default CPU and memory must be positive")
+		if defQuota.Defaults.Resources.CPU.Sign() <= 0 || defQuota.Defaults.Resources.Memory.Sign() <= 0 {
+			return fmt.Errorf("tenant Agent default CPU and memory must be positive")
 		}
-		if defaultAgentQuota.Defaults.Resources.CPU.Cmp(defaultAgentQuota.Resources.CPU) > 0 ||
-			defaultAgentQuota.Defaults.Resources.Memory.Cmp(defaultAgentQuota.Resources.Memory) > 0 {
-			return fmt.Errorf("Tenant Agent defaults must not exceed aggregate quota")
+		if defQuota.Defaults.Resources.CPU.Cmp(defQuota.Resources.CPU) > 0 || defQuota.Defaults.Resources.Memory.Cmp(defQuota.Resources.Memory) > 0 {
+			return fmt.Errorf("tenant Agent defaults must not exceed aggregate quota")
 		}
 		nixPVCAccessModes := make(
 			[]corev1.PersistentVolumeAccessMode,
@@ -1108,10 +1107,11 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "MCPConnection")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupTenantWebhookWithManager(
+			err := webhookv1alpha1.SetupTenantWebhookWithManager(
 				mgr,
-				webhookv1alpha1.TenantWebhookConfig{AgentQuota: defaultAgentQuota},
-			); err != nil {
+				webhookv1alpha1.TenantWebhookConfig{AgentQuota: defQuota},
+			)
+			if err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "Tenant")
 				os.Exit(1)
 			}
@@ -1197,7 +1197,7 @@ var managerCmd = &cli.Command{
 			ManagerServiceAccountNamespace: managerServiceAccountNamespace,
 			GatewayServiceAccountName:      gatewayServiceAccountName,
 			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
-			DefaultAgentQuota:              defaultAgentQuota,
+			DefaultAgentQuota:              defQuota,
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Tenant")

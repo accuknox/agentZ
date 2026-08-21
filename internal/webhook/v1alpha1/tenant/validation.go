@@ -108,46 +108,82 @@ func (v *Validator) validateAgentQuota(ctx context.Context, oldObj, newObj *agen
 	quota := newObj.Spec.AgentQuota
 	issues := field.ErrorList{}
 	if quota.Count < 1 {
-		issues = append(issues, field.Invalid(path.Child("count"), quota.Count, "must be at least 1"))
+		issues = append(issues, field.Invalid(
+			path.Child("count"),
+			quota.Count,
+			"must be at least 1",
+		))
 	}
 	if quota.Resources.CPU.Sign() <= 0 {
-		issues = append(issues, field.Invalid(path.Child("resources").Child("cpu"), quota.Resources.CPU.String(), "must be positive"))
+		issues = append(issues, field.Invalid(
+			path.Child("resources").Child("cpu"),
+			quota.Resources.CPU.String(),
+			"must be positive",
+		))
 	}
 	if quota.Resources.Memory.Sign() <= 0 {
-		issues = append(issues, field.Invalid(path.Child("resources").Child("memory"), quota.Resources.Memory.String(), "must be positive"))
+		issues = append(issues, field.Invalid(
+			path.Child("resources").Child("memory"),
+			quota.Resources.Memory.String(),
+			"must be positive",
+		))
 	}
 	if quota.Defaults.Resources.CPU.Sign() <= 0 {
-		issues = append(issues, field.Invalid(path.Child("defaults").Child("resources").Child("cpu"), quota.Defaults.Resources.CPU.String(), "must be positive"))
+		issues = append(issues, field.Invalid(
+			path.Child("defaults").Child("resources").Child("cpu"),
+			quota.Defaults.Resources.CPU.String(),
+			"must be positive",
+		))
 	}
 	if quota.Defaults.Resources.Memory.Sign() <= 0 {
-		issues = append(issues, field.Invalid(path.Child("defaults").Child("resources").Child("memory"), quota.Defaults.Resources.Memory.String(), "must be positive"))
+		issues = append(issues, field.Invalid(
+			path.Child("defaults").Child("resources").Child("memory"),
+			quota.Defaults.Resources.Memory.String(),
+			"must be positive",
+		))
 	}
 	if quota.Defaults.Resources.CPU.Cmp(quota.Resources.CPU) > 0 {
-		issues = append(issues, field.Invalid(path.Child("defaults").Child("resources").Child("cpu"), quota.Defaults.Resources.CPU.String(), "must not exceed the Tenant CPU quota"))
+		issues = append(issues, field.Invalid(
+			path.Child("defaults").Child("resources").Child("cpu"),
+			quota.Defaults.Resources.CPU.String(),
+			"must not exceed the Tenant CPU quota",
+		))
 	}
 	if quota.Defaults.Resources.Memory.Cmp(quota.Resources.Memory) > 0 {
-		issues = append(issues, field.Invalid(path.Child("defaults").Child("resources").Child("memory"), quota.Defaults.Resources.Memory.String(), "must not exceed the Tenant memory quota"))
+		issues = append(issues, field.Invalid(
+			path.Child("defaults").Child("resources").Child("memory"),
+			quota.Defaults.Resources.Memory.String(),
+			"must not exceed the Tenant memory quota",
+		))
 	}
 	switch quota.Defaults.QoSClass {
 	case corev1.PodQOSGuaranteed, corev1.PodQOSBurstable, corev1.PodQOSBestEffort:
 	default:
-		issues = append(issues, field.NotSupported(path.Child("defaults").Child("qosClass"), quota.Defaults.QoSClass, []string{
-			string(corev1.PodQOSGuaranteed),
-			string(corev1.PodQOSBurstable),
-			string(corev1.PodQOSBestEffort),
-		}))
+		issues = append(issues, field.NotSupported(
+			path.Child("defaults").Child("qosClass"),
+			quota.Defaults.QoSClass,
+			[]string{
+				string(corev1.PodQOSGuaranteed),
+				string(corev1.PodQOSBurstable),
+				string(corev1.PodQOSBestEffort),
+			},
+		))
 	}
 	if oldObj == nil || oldObj.Spec.AgentQuota == nil {
 		return issues
 	}
-	if quota.Count < oldObj.Spec.AgentQuota.Count {
-		issues = append(issues, field.Forbidden(path.Child("count"), "cannot decrease"))
+	oldQuota := oldObj.Spec.AgentQuota
+	if quota.Count < oldQuota.Count {
+		issues = append(issues, field.Forbidden(
+			path.Child("count"),
+			"cannot decrease",
+		))
 	}
 	if v.reader == nil {
 		return issues
 	}
-	cpuReduced := quota.Resources.CPU.Cmp(oldObj.Spec.AgentQuota.Resources.CPU) < 0
-	memoryReduced := quota.Resources.Memory.Cmp(oldObj.Spec.AgentQuota.Resources.Memory) < 0
+	cpuReduced := quota.Resources.CPU.Cmp(oldQuota.Resources.CPU) < 0
+	memoryReduced := quota.Resources.Memory.Cmp(oldQuota.Resources.Memory) < 0
 	if !cpuReduced && !memoryReduced {
 		return issues
 	}
@@ -158,10 +194,16 @@ func (v *Validator) validateAgentQuota(ctx context.Context, oldObj, newObj *agen
 	}
 	exceeded := agentquota.Measure(agents).Exceeded(*quota)
 	if cpuReduced && exceeded.CPU {
-		issues = append(issues, field.Forbidden(path.Child("resources").Child("cpu"), "cannot be less than allocated Agent CPU requests"))
+		issues = append(issues, field.Forbidden(
+			path.Child("resources").Child("cpu"),
+			"cannot be less than allocated Agent CPU requests",
+		))
 	}
 	if memoryReduced && exceeded.Memory {
-		issues = append(issues, field.Forbidden(path.Child("resources").Child("memory"), "cannot be less than allocated Agent memory requests"))
+		issues = append(issues, field.Forbidden(
+			path.Child("resources").Child("memory"),
+			"cannot be less than allocated Agent memory requests",
+		))
 	}
 	return issues
 }

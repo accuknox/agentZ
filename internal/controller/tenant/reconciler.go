@@ -31,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,9 +41,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/controller/gatewayrbac"
 	"github.com/accuknox/agentz/internal/controller/sinjectorca"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -71,11 +75,13 @@ type Reconciler struct {
 	ManagerServiceAccountNamespace string
 	GatewayServiceAccountName      string
 	GatewayServiceAccountNamespace string
+	DefaultAgentQuota              agentzv1alpha1.AgentQuota
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=use
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cilium.io,resources=ciliumnetworkpolicies,verbs=get;list;watch;create;update;patch
@@ -93,6 +99,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("get tenant: %w", err)
+	}
+	if tenant.Spec.AgentQuota == nil {
+		base := tenant.DeepCopy()
+		tenant.Spec.AgentQuota = r.DefaultAgentQuota.DeepCopy()
+		tenant.Spec.AgentQuota.Defaults.QoSClass = corev1.PodQOSBestEffort
+		if err := r.Patch(ctx, &tenant, client.MergeFrom(base)); err != nil {
+			return ctrl.Result{}, fmt.Errorf("migrate Tenant Agent quota: %w", err)
+		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 	organizationLabel := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,
@@ -114,37 +129,39 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	nsName := tenant.Name
-	err := r.updateStatus(
-		ctx,
-		tenant.Name,
-		func(current *agentzv1alpha1.Tenant) {
-			current.Status.Namespace = nsName
-			current.Status.ObservedGeneration = current.Generation
-			current.Status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.TenantConditionProgressing,
-				Status:             metav1.ConditionTrue,
-				Reason:             agentzv1alpha1.TenantReasonBootstrapping,
-				Message:            "tenant bootstrap in progress",
-				ObservedGeneration: current.Generation,
-			})
-			current.Status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.TenantConditionReady,
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.TenantReasonBootstrapping,
-				Message:            "tenant bootstrap in progress",
-				ObservedGeneration: current.Generation,
-			})
-			current.Status.SetCondition(metav1.Condition{
-				Type:               agentzv1alpha1.TenantConditionDegraded,
-				Status:             metav1.ConditionFalse,
-				Reason:             agentzv1alpha1.TenantReasonBootstrapping,
-				Message:            "tenant bootstrap in progress",
-				ObservedGeneration: current.Generation,
-			})
-		},
-	)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("mark tenant progressing: %w", err)
+	if !apimeta.IsStatusConditionTrue(tenant.Status.Conditions, agentzv1alpha1.TenantConditionReady) {
+		err := r.updateStatus(
+			ctx,
+			tenant.Name,
+			func(current *agentzv1alpha1.Tenant) {
+				current.Status.Namespace = nsName
+				current.Status.ObservedGeneration = current.Generation
+				current.Status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.TenantConditionProgressing,
+					Status:             metav1.ConditionTrue,
+					Reason:             agentzv1alpha1.TenantReasonBootstrapping,
+					Message:            "tenant bootstrap in progress",
+					ObservedGeneration: current.Generation,
+				})
+				current.Status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.TenantConditionReady,
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.TenantReasonBootstrapping,
+					Message:            "tenant bootstrap in progress",
+					ObservedGeneration: current.Generation,
+				})
+				current.Status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.TenantConditionDegraded,
+					Status:             metav1.ConditionFalse,
+					Reason:             agentzv1alpha1.TenantReasonBootstrapping,
+					Message:            "tenant bootstrap in progress",
+					ObservedGeneration: current.Generation,
+				})
+			},
+		)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("mark tenant progressing: %w", err)
+		}
 	}
 
 	if err := r.reconcileNamespace(ctx, &tenant, nsName); err != nil {
@@ -214,6 +231,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		log.Error(err, "tenant gateway RBAC reconcile failed", "tenant", tenant.Name)
 		return r.failTenant(ctx, &tenant, "Organisation scoped access could not be reconciled", err)
 	}
+	agents, err := agentquota.Agents(ctx, r.directClient(), tenant.Name)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("measure Tenant Agent quota: %w", err)
+	}
+	usage := agentquota.Measure(agents)
+	exceeded := usage.Exceeded(*tenant.Spec.AgentQuota)
 
 	err = r.updateStatus(
 		ctx,
@@ -221,6 +244,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		func(current *agentzv1alpha1.Tenant) {
 			current.Status.Namespace = nsName
 			current.Status.ObservedGeneration = current.Generation
+			quotaStatus := usage.Status(*tenant.Spec.AgentQuota)
+			current.Status.AgentQuota = &quotaStatus
+			quotaCondition := metav1.Condition{
+				Type:               agentzv1alpha1.TenantConditionQuotaSatisfied,
+				Status:             metav1.ConditionTrue,
+				Reason:             agentzv1alpha1.TenantReasonWithinQuota,
+				Message:            "Agent allocations are within Tenant quota",
+				ObservedGeneration: current.Generation,
+			}
+			if exceeded.Count {
+				quotaCondition.Status = metav1.ConditionFalse
+				quotaCondition.Reason = agentzv1alpha1.TenantReasonAgentCountExceeded
+				quotaCondition.Message = "Agent count exceeds Tenant quota"
+			} else if exceeded.CPU || exceeded.Memory {
+				quotaCondition.Status = metav1.ConditionFalse
+				quotaCondition.Reason = agentzv1alpha1.TenantReasonComputeQuotaExceeded
+				quotaCondition.Message = "Agent resource requests exceed Tenant quota"
+			}
+			current.Status.SetCondition(quotaCondition)
 			current.Status.SetCondition(metav1.Condition{
 				Type:               agentzv1alpha1.TenantConditionProgressing,
 				Status:             metav1.ConditionFalse,
@@ -266,6 +308,21 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
+		Watches(
+			&agentzv1alpha1.Agent{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+				var namespace corev1.Namespace
+				if err := r.directClient().Get(ctx, client.ObjectKey{Name: obj.GetNamespace()}, &namespace); err != nil {
+					return nil
+				}
+				tenantName := namespace.Labels[agentzv1alpha1.TenantOrganizationIDLabel]
+				if tenantName == "" {
+					return nil
+				}
+				return []reconcile.Request{{NamespacedName: client.ObjectKey{Name: tenantName}}}
+			}),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		Named("tenant").
 		Complete(r)
 }

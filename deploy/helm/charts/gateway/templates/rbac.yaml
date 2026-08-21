@@ -8,7 +8,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["namespaces"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents", "sandboxes", "inferencepools", "mcpconnections", "secrets", "workflowruns"]
     verbs: ["get", "list", "watch"]

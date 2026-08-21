@@ -140,6 +140,16 @@ config:
   sinjectorCAKeyPath: /etc/agentz/sinjector-ca/tls.key
   agentCABundlePath: /etc/agentz/sinjector-ca/ca.crt
   tenantSinjectorClusterIssuerName: selfsigned
+  tenantAgentQuota:
+    count: 2
+    resources:
+      cpu: "1"
+      memory: 1600Mi
+    defaults:
+      resources:
+        cpu: 500m
+        memory: 800Mi
+      qosClass: guaranteed
   watchNamespace: ""
   enableWebhooks: true
 

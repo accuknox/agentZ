@@ -30,7 +30,7 @@ type WebhookConfig struct {
 // RegisterWithManager registers the Agent webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager, cfg WebhookConfig) error {
 	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.Agent{}).
-		WithValidator(NewValidator(mgr.GetClient())).
-		WithDefaulter(NewDefaulter(cfg)).
+		WithValidator(NewValidator(mgr.GetAPIReader())).
+		WithDefaulter(NewDefaulter(mgr.GetAPIReader(), cfg)).
 		Complete()
 }

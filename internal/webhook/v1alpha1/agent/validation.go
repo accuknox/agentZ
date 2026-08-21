@@ -19,13 +19,16 @@ package agent
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -36,19 +39,20 @@ import (
 //
 // +kubebuilder:object:generate=false
 type Validator struct {
-	client client.Client
+	reader client.Reader
 }
 
 var _ admission.Validator[*agentzv1alpha1.Agent] = &Validator{}
 
 // NewValidator builds an Agent validator.
-func NewValidator(c client.Client) *Validator {
-	return &Validator{client: c}
+func NewValidator(reader client.Reader) *Validator {
+	return &Validator{reader: reader}
 }
 
 // ValidateCreate validates Agent creation.
 func (v *Validator) ValidateCreate(ctx context.Context, agt *agentzv1alpha1.Agent) (admission.Warnings, error) {
 	allErrs := v.validateAgent(ctx, agt)
+	allErrs = append(allErrs, v.validateQuota(ctx, nil, agt)...)
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
@@ -63,6 +67,7 @@ func (v *Validator) ValidateCreate(ctx context.Context, agt *agentzv1alpha1.Agen
 // ValidateUpdate validates Agent updates.
 func (v *Validator) ValidateUpdate(ctx context.Context, oldAgt, newAgt *agentzv1alpha1.Agent) (admission.Warnings, error) {
 	allErrs := v.validateAgent(ctx, newAgt)
+	allErrs = append(allErrs, v.validateQuota(ctx, oldAgt, newAgt)...)
 	if oldAgt.Spec.NixStoreSize.Cmp(newAgt.Spec.NixStoreSize) != 0 {
 		path := field.NewPath("spec").Child("nixStoreSize")
 		allErrs = append(
@@ -114,10 +119,10 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 			),
 		)
 	}
-	if v.client != nil && agt.Spec.SandboxRef.Name != "" {
+	if v.reader != nil && agt.Spec.SandboxRef.Name != "" {
 		namespace, err := scope.SelectedNamespace(
 			ctx,
-			v.client,
+			v.reader,
 			agt.Namespace,
 			scope.Selection{
 				Scope: agt.Spec.SandboxRef.Scope,
@@ -138,7 +143,7 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 		}
 		sandbox := &agentzv1alpha1.Sandbox{}
 		key := client.ObjectKey{Namespace: namespace, Name: agt.Spec.SandboxRef.Name}
-		err = v.client.Get(ctx, key, sandbox)
+		err = v.reader.Get(ctx, key, sandbox)
 		switch {
 		case apierrors.IsNotFound(err):
 			allErrs = append(
@@ -188,4 +193,48 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 		)
 	}
 	return allErrs
+}
+
+func (v *Validator) validateQuota(ctx context.Context, oldAgt, newAgt *agentzv1alpha1.Agent) field.ErrorList {
+	if v.reader == nil {
+		return nil
+	}
+	tenant, err := agentquota.TenantForNamespace(ctx, v.reader, newAgt.Namespace)
+	if err != nil {
+		return field.ErrorList{field.InternalError(field.NewPath("spec").Child("resources"), err)}
+	}
+	if tenant.Spec.AgentQuota == nil {
+		return nil
+	}
+	agents, err := agentquota.Agents(ctx, v.reader, tenant.Name)
+	if err != nil {
+		return field.ErrorList{field.InternalError(field.NewPath("spec").Child("resources"), err)}
+	}
+	if oldAgt != nil {
+		agents = slices.DeleteFunc(agents, func(agt agentzv1alpha1.Agent) bool {
+			return agt.Namespace == oldAgt.Namespace && agt.Name == oldAgt.Name
+		})
+	}
+
+	usage := agentquota.Measure(agents)
+	prospective := usage.Add(newAgt.Spec.Resources)
+	exceeded := prospective.Exceeded(*tenant.Spec.AgentQuota)
+	if oldAgt != nil {
+		current := usage.Add(oldAgt.Spec.Resources)
+		exceeded.Count = false
+		exceeded.CPU = exceeded.CPU && prospective.Resources.CPU.Cmp(current.Resources.CPU) > 0
+		exceeded.Memory = exceeded.Memory && prospective.Resources.Memory.Cmp(current.Resources.Memory) > 0
+	}
+	path := field.NewPath("spec").Child("resources")
+	issues := field.ErrorList{}
+	if exceeded.Count {
+		issues = append(issues, field.Forbidden(path, "Tenant Agent count quota exceeded"))
+	}
+	if exceeded.CPU {
+		issues = append(issues, field.Forbidden(path.Child("requests").Key(string(corev1.ResourceCPU)), "Tenant CPU quota exceeded"))
+	}
+	if exceeded.Memory {
+		issues = append(issues, field.Forbidden(path.Child("requests").Key(string(corev1.ResourceMemory)), "Tenant memory quota exceeded"))
+	}
+	return issues
 }

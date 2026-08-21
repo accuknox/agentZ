@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -358,6 +359,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
+	_, err = q.GatewayLockOrganization(r.Context(), access.claims.OrganizationID)
+	if err != nil {
+		writeError(w, r, mapGatewayStoreError("lock Agent quota", err))
+		return
+	}
 	_, err = q.GatewayLockActiveWorkspace(
 		r.Context(),
 		gatewaydb.GatewayLockActiveWorkspaceParams{
@@ -405,6 +411,35 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	agt := s.agentFromCreateRequest(req, ns, access.owner, name)
+	tenant, err := tenantObject(r.Context())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if tenant.Spec.AgentQuota != nil {
+		agt.Spec.Resources = agentquota.Resources(tenant.Spec.AgentQuota.Defaults)
+		agents, err := agentquota.Agents(r.Context(), s.k8sClient, tenant.Name)
+		if err != nil {
+			writeInternalError(w, r, fmt.Errorf("measure Agent quota: %w", err))
+			return
+		}
+		exceeded := agentquota.Measure(agents).Add(agt.Spec.Resources).Exceeded(*tenant.Spec.AgentQuota)
+		if exceeded.Count || exceeded.CPU || exceeded.Memory {
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusConflict,
+					"quota_exceeded",
+					"Tenant Agent quota exceeded",
+					errors.New("Agent allocation exceeds Tenant quota"),
+				),
+			)
+			return
+		}
+	}
+
 	row, err := q.GatewayCreateAgent(
 		r.Context(),
 		gatewaydb.GatewayCreateAgentParams{
@@ -432,7 +467,6 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agt := s.agentFromCreateRequest(req, ns, access.owner, name)
 	agt.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
 		CreatedByUserID:      access.claims.UserID,
 		LastModifiedByUserID: access.claims.UserID,

@@ -2,6 +2,7 @@ apiVersion: v2
 name: agentz
 description: Helm umbrella chart for AgentZ platform services.
 type: application
+kubeVersion: ">=1.34.0-0"
 version: 0.2.0
 appVersion: "0.1.0"
 dependencies:

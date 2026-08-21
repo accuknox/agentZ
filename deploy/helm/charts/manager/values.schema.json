@@ -122,6 +122,40 @@
         "sinjectorCAKeyPath": { "type": "string", "minLength": 1 },
         "agentCABundlePath": { "type": "string", "minLength": 1 },
         "tenantSinjectorClusterIssuerName": { "type": "string", "minLength": 1 },
+        "tenantAgentQuota": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["count", "resources", "defaults"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 1 },
+            "resources": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cpu", "memory"],
+              "properties": {
+                "cpu": { "type": "string", "minLength": 1 },
+                "memory": { "type": "string", "minLength": 1 }
+              }
+            },
+            "defaults": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["resources", "qosClass"],
+              "properties": {
+                "resources": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["cpu", "memory"],
+                  "properties": {
+                    "cpu": { "type": "string", "minLength": 1 },
+                    "memory": { "type": "string", "minLength": 1 }
+                  }
+                },
+                "qosClass": { "enum": ["guaranteed", "burstable", "bestEffort"] }
+              }
+            }
+          }
+        },
         "watchNamespace": { "type": "string" },
         "enableWebhooks": { "type": "boolean" }
       }

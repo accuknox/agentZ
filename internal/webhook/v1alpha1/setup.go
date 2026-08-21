@@ -34,6 +34,9 @@ import (
 // AgentWebhookConfig configures Agent defaulting behavior.
 type AgentWebhookConfig = agentwebhook.WebhookConfig
 
+// TenantWebhookConfig configures Tenant defaulting behavior.
+type TenantWebhookConfig = tenantwebhook.WebhookConfig
+
 // SetupAgentWebhookWithManager registers the webhook for Agent in the manager.
 func SetupAgentWebhookWithManager(mgr ctrl.Manager, cfg AgentWebhookConfig) error {
 	return agentwebhook.RegisterWithManager(mgr, cfg)
@@ -60,8 +63,8 @@ func SetupMCPConnectionWebhookWithManager(mgr ctrl.Manager, kubeClient client.Cl
 }
 
 // SetupTenantWebhookWithManager registers the Tenant webhook.
-func SetupTenantWebhookWithManager(mgr ctrl.Manager) error {
-	return tenantwebhook.RegisterWithManager(mgr)
+func SetupTenantWebhookWithManager(mgr ctrl.Manager, cfg TenantWebhookConfig) error {
+	return tenantwebhook.RegisterWithManager(mgr, cfg)
 }
 
 // SetupWorkspaceWebhookWithManager registers the Workspace webhook.

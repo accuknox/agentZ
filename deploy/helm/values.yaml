@@ -281,6 +281,19 @@ manager:
     # Pre-created ClusterIssuer used for tenant sinjector CA certificates.
     tenantSinjectorClusterIssuerName: selfsigned
 
+    # Cluster-admin-only policy copied to each new Tenant CR. Helm upgrades do
+    # not rewrite existing Tenant quotas or existing Agent resources.
+    tenantAgentQuota:
+      count: 2
+      resources:
+        cpu: "1"
+        memory: 1600Mi
+      defaults:
+        resources:
+          cpu: 500m
+          memory: 800Mi
+        qosClass: guaranteed
+
     # Namespace or comma-separated namespaces watched by the manager.
     watchNamespace: ""
 

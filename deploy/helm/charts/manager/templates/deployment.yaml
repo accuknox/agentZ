@@ -117,6 +117,12 @@ spec:
             - --skills-s3-region={{ required "manager.config.skillsS3Region is required" .Values.config.skillsS3Region }}
             - --skills-s3-bucket={{ required "manager.config.skillsS3Bucket is required" .Values.config.skillsS3Bucket }}
             - --tenant-sinjector-clusterissuer-name={{ required "manager.config.tenantSinjectorClusterIssuerName is required" .Values.config.tenantSinjectorClusterIssuerName }}
+            - --tenant-agent-quota-count={{ .Values.config.tenantAgentQuota.count }}
+            - --tenant-agent-quota-cpu={{ required "manager.config.tenantAgentQuota.resources.cpu is required" .Values.config.tenantAgentQuota.resources.cpu }}
+            - --tenant-agent-quota-memory={{ required "manager.config.tenantAgentQuota.resources.memory is required" .Values.config.tenantAgentQuota.resources.memory }}
+            - --tenant-agent-default-cpu={{ required "manager.config.tenantAgentQuota.defaults.resources.cpu is required" .Values.config.tenantAgentQuota.defaults.resources.cpu }}
+            - --tenant-agent-default-memory={{ required "manager.config.tenantAgentQuota.defaults.resources.memory is required" .Values.config.tenantAgentQuota.defaults.resources.memory }}
+            - --tenant-agent-default-qos={{ .Values.config.tenantAgentQuota.defaults.qosClass }}
             {{- if .Values.config.leaderElect }}
             - --leader-elect
             {{- end }}

@@ -22,9 +22,15 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+// WebhookConfig configures Tenant defaulting behavior.
+type WebhookConfig struct {
+	AgentQuota agentzv1alpha1.AgentQuota
+}
+
 // RegisterWithManager registers the Tenant webhook with the manager.
-func RegisterWithManager(mgr ctrl.Manager) error {
+func RegisterWithManager(mgr ctrl.Manager, cfg WebhookConfig) error {
 	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.Tenant{}).
-		WithValidator(&Validator{}).
+		WithValidator(&Validator{reader: mgr.GetAPIReader()}).
+		WithDefaulter(NewDefaulter(cfg.AgentQuota)).
 		Complete()
 }

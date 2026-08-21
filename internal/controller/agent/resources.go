@@ -474,6 +474,25 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 		)
 	}
 
+	containerResources := agt.Spec.Resources.DeepCopy()
+	podResources := &corev1.ResourceRequirements{
+		Limits:   corev1.ResourceList{},
+		Requests: corev1.ResourceList{},
+	}
+	for _, name := range []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+		if quantity, ok := containerResources.Limits[name]; ok {
+			podResources.Limits[name] = quantity
+			delete(containerResources.Limits, name)
+		}
+		if quantity, ok := containerResources.Requests[name]; ok {
+			podResources.Requests[name] = quantity
+			delete(containerResources.Requests, name)
+		}
+	}
+	if len(podResources.Limits) == 0 && len(podResources.Requests) == 0 {
+		podResources = nil
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        agt.Name,
@@ -497,6 +516,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 				Spec: corev1.PodSpec{
 					ServiceAccountName:           agt.Name,
 					AutomountServiceAccountToken: new(false),
+					Resources:                    podResources,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: new(true),
 						FSGroup:      new(agentRuntimeGID),
@@ -518,7 +538,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 								"--port=4096",
 							},
 							Env:       r.agentEnv(agt, envCfg, mountConfig),
-							Resources: agt.Spec.Resources,
+							Resources: *containerResources,
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "http",

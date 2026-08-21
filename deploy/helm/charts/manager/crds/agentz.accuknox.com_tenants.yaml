@@ -25,6 +25,22 @@ spec:
       jsonPath: .status.namespace
       name: Namespace
       type: string
+    - description: Allocated Agents
+      jsonPath: .status.agentQuota.count.allocated
+      name: Agents
+      type: integer
+    - description: Agent count limit
+      jsonPath: .status.agentQuota.count.limit
+      name: Agent Limit
+      type: integer
+    - description: Available Agent CPU
+      jsonPath: .status.agentQuota.resources.available.cpu
+      name: CPU Available
+      type: string
+    - description: Available Agent memory
+      jsonPath: .status.agentQuota.resources.available.memory
+      name: Memory Available
+      type: string
     - description: Age of the Tenant
       jsonPath: .metadata.creationTimestamp
       name: Age
@@ -54,6 +70,88 @@ spec:
           spec:
             description: spec defines the desired state of Tenant.
             properties:
+              agentQuota:
+                description: |-
+                  AgentQuota limits aggregate Agent allocations across every Workspace in
+                  this Organisation. Defaults are copied to new Agents and never change
+                  existing Agent resources.
+                properties:
+                  count:
+                    description: Count is the maximum number of Agents across the
+                      Organisation.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  defaults:
+                    description: Defaults is copied to Agents created without explicit
+                      resources.
+                    properties:
+                      qosClass:
+                        description: QoSClass determines how Resources are written
+                          to a new Agent.
+                        enum:
+                        - Guaranteed
+                        - Burstable
+                        - BestEffort
+                        type: string
+                      resources:
+                        description: Resources is the default whole-Pod CPU and memory
+                          allocation.
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: CPU is measured in Kubernetes CPU units.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: Memory is measured in bytes using Kubernetes
+                              quantity syntax.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        required:
+                        - cpu
+                        - memory
+                        type: object
+                    required:
+                    - qosClass
+                    - resources
+                    type: object
+                  resources:
+                    description: Resources is the Organisation-wide effective request
+                      budget.
+                    properties:
+                      cpu:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: CPU is measured in Kubernetes CPU units.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      memory:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: Memory is measured in bytes using Kubernetes
+                          quantity syntax.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    required:
+                    - cpu
+                    - memory
+                    type: object
+                required:
+                - count
+                - defaults
+                - resources
+                type: object
+                x-kubernetes-validations:
+                - message: count cannot decrease
+                  rule: self.count >= oldSelf.count
               organizationID:
                 description: |-
                   OrganizationID is the immutable Better Auth Organisation ID represented by
@@ -70,6 +168,104 @@ spec:
           status:
             description: status defines the observed state of Tenant.
             properties:
+              agentQuota:
+                description: AgentQuota reports current Agent quota consumption.
+                properties:
+                  count:
+                    description: QuotaCount reports Agent count consumption.
+                    properties:
+                      allocated:
+                        format: int32
+                        type: integer
+                      available:
+                        format: int32
+                        type: integer
+                      limit:
+                        format: int32
+                        type: integer
+                    required:
+                    - allocated
+                    - available
+                    - limit
+                    type: object
+                  resources:
+                    description: QuotaResources reports CPU and memory consumption.
+                    properties:
+                      allocated:
+                        description: ComputeResources is a CPU and memory allocation.
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: CPU is measured in Kubernetes CPU units.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: Memory is measured in bytes using Kubernetes
+                              quantity syntax.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        required:
+                        - cpu
+                        - memory
+                        type: object
+                      available:
+                        description: ComputeResources is a CPU and memory allocation.
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: CPU is measured in Kubernetes CPU units.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: Memory is measured in bytes using Kubernetes
+                              quantity syntax.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        required:
+                        - cpu
+                        - memory
+                        type: object
+                      limit:
+                        description: ComputeResources is a CPU and memory allocation.
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: CPU is measured in Kubernetes CPU units.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: Memory is measured in bytes using Kubernetes
+                              quantity syntax.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        required:
+                        - cpu
+                        - memory
+                        type: object
+                    required:
+                    - allocated
+                    - available
+                    - limit
+                    type: object
+                required:
+                - count
+                - resources
+                type: object
               conditions:
                 description: Conditions represent the current state of the Tenant
                   resource.

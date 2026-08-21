@@ -127,6 +127,12 @@ var (
 	skillsS3Region                                   string
 	skillsS3Bucket                                   string
 	tenantSinjectorClusterIssuerName                 string
+	tenantAgentQuotaCount                            int32
+	tenantAgentQuotaCPU                              string
+	tenantAgentQuotaMemory                           string
+	tenantAgentDefaultCPU                            string
+	tenantAgentDefaultMemory                         string
+	tenantAgentDefaultQoS                            string
 	watchNamespace                                   string
 	enableWebhooks                                   bool
 	workflowRunOrphanRetention                       time.Duration
@@ -622,6 +628,42 @@ var managerCmd = &cli.Command{
 				TrimSpace: true,
 			},
 		},
+		&cli.Int32Flag{
+			Name:        "tenant-agent-quota-count",
+			Usage:       "Default maximum Agent count for new Tenants",
+			Value:       2,
+			Destination: &tenantAgentQuotaCount,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-agent-quota-cpu",
+			Usage:       "Default aggregate Agent CPU quota for new Tenants",
+			Value:       "1",
+			Destination: &tenantAgentQuotaCPU,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-agent-quota-memory",
+			Usage:       "Default aggregate Agent memory quota for new Tenants",
+			Value:       "1600Mi",
+			Destination: &tenantAgentQuotaMemory,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-agent-default-cpu",
+			Usage:       "CPU copied to new Agents that omit resources",
+			Value:       "500m",
+			Destination: &tenantAgentDefaultCPU,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-agent-default-memory",
+			Usage:       "Memory copied to new Agents that omit resources",
+			Value:       "800Mi",
+			Destination: &tenantAgentDefaultMemory,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-agent-default-qos",
+			Usage:       "Resource shape copied to new Agents: guaranteed, burstable, or bestEffort",
+			Value:       "guaranteed",
+			Destination: &tenantAgentDefaultQoS,
+		},
 		&cli.StringFlag{
 			Name:        "watch-namespace",
 			Usage:       "Namespace(s) to watch and manage. Use commas for multiple.",
@@ -881,6 +923,60 @@ var managerCmd = &cli.Command{
 		if err != nil {
 			return fmt.Errorf("parse nix store size: %w", err)
 		}
+		quotaCPU, err := resource.ParseQuantity(tenantAgentQuotaCPU)
+		if err != nil {
+			return fmt.Errorf("parse Tenant Agent CPU quota: %w", err)
+		}
+		quotaMemory, err := resource.ParseQuantity(tenantAgentQuotaMemory)
+		if err != nil {
+			return fmt.Errorf("parse Tenant Agent memory quota: %w", err)
+		}
+		defaultCPU, err := resource.ParseQuantity(tenantAgentDefaultCPU)
+		if err != nil {
+			return fmt.Errorf("parse Tenant Agent default CPU: %w", err)
+		}
+		defaultMemory, err := resource.ParseQuantity(tenantAgentDefaultMemory)
+		if err != nil {
+			return fmt.Errorf("parse Tenant Agent default memory: %w", err)
+		}
+		var defaultQoS corev1.PodQOSClass
+		switch tenantAgentDefaultQoS {
+		case "guaranteed":
+			defaultQoS = corev1.PodQOSGuaranteed
+		case "burstable":
+			defaultQoS = corev1.PodQOSBurstable
+		case "bestEffort":
+			defaultQoS = corev1.PodQOSBestEffort
+		default:
+			return fmt.Errorf("invalid Tenant Agent default QoS %q", tenantAgentDefaultQoS)
+		}
+		defaultAgentQuota := agentzv1alpha1.AgentQuota{
+			Count: tenantAgentQuotaCount,
+			Resources: agentzv1alpha1.ComputeResources{
+				CPU:    quotaCPU,
+				Memory: quotaMemory,
+			},
+			Defaults: agentzv1alpha1.AgentDefaults{
+				Resources: agentzv1alpha1.ComputeResources{
+					CPU:    defaultCPU,
+					Memory: defaultMemory,
+				},
+				QoSClass: defaultQoS,
+			},
+		}
+		if defaultAgentQuota.Count < 1 {
+			return fmt.Errorf("Tenant Agent quota count must be at least 1")
+		}
+		if defaultAgentQuota.Resources.CPU.Sign() <= 0 || defaultAgentQuota.Resources.Memory.Sign() <= 0 {
+			return fmt.Errorf("Tenant Agent CPU and memory quotas must be positive")
+		}
+		if defaultAgentQuota.Defaults.Resources.CPU.Sign() <= 0 || defaultAgentQuota.Defaults.Resources.Memory.Sign() <= 0 {
+			return fmt.Errorf("Tenant Agent default CPU and memory must be positive")
+		}
+		if defaultAgentQuota.Defaults.Resources.CPU.Cmp(defaultAgentQuota.Resources.CPU) > 0 ||
+			defaultAgentQuota.Defaults.Resources.Memory.Cmp(defaultAgentQuota.Resources.Memory) > 0 {
+			return fmt.Errorf("Tenant Agent defaults must not exceed aggregate quota")
+		}
 		nixPVCAccessModes := make(
 			[]corev1.PersistentVolumeAccessMode,
 			0,
@@ -1012,7 +1108,10 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "MCPConnection")
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupTenantWebhookWithManager(mgr); err != nil {
+			if err := webhookv1alpha1.SetupTenantWebhookWithManager(
+				mgr,
+				webhookv1alpha1.TenantWebhookConfig{AgentQuota: defaultAgentQuota},
+			); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "Tenant")
 				os.Exit(1)
 			}
@@ -1098,6 +1197,7 @@ var managerCmd = &cli.Command{
 			ManagerServiceAccountNamespace: managerServiceAccountNamespace,
 			GatewayServiceAccountName:      gatewayServiceAccountName,
 			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
+			DefaultAgentQuota:              defaultAgentQuota,
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Tenant")

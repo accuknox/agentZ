@@ -19,10 +19,13 @@ package agent
 import (
 	"context"
 
+	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/accuknox/agentz/internal/agentquota"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -32,18 +35,19 @@ import (
 //
 // +kubebuilder:object:generate=false
 type Defaulter struct {
+	reader            client.Reader
 	agentDefaultImage string
 }
 
 var _ admission.Defaulter[*agentzv1alpha1.Agent] = &Defaulter{}
 
 // NewDefaulter builds an Agent defaulter.
-func NewDefaulter(cfg WebhookConfig) *Defaulter {
-	return &Defaulter{agentDefaultImage: cfg.AgentDefaultImage}
+func NewDefaulter(reader client.Reader, cfg WebhookConfig) *Defaulter {
+	return &Defaulter{reader: reader, agentDefaultImage: cfg.AgentDefaultImage}
 }
 
 // Default applies defaults to an Agent resource.
-func (d *Defaulter) Default(_ context.Context, agt *agentzv1alpha1.Agent) error {
+func (d *Defaulter) Default(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	if agt.Spec.Image == "" {
 		agt.Spec.Image = d.agentDefaultImage
 	}
@@ -52,6 +56,25 @@ func (d *Defaulter) Default(_ context.Context, agt *agentzv1alpha1.Agent) error 
 	}
 	if agt.Spec.NixStoreSize.IsZero() {
 		agt.Spec.NixStoreSize = resource.MustParse("5Gi")
+	}
+
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	resourcesSpecified := len(agt.Spec.Resources.Requests) > 0 ||
+		len(agt.Spec.Resources.Limits) > 0 ||
+		len(agt.Spec.Resources.Claims) > 0
+	if request.Operation != admissionv1.Create || resourcesSpecified {
+		return nil
+	}
+
+	tenant, err := agentquota.TenantForNamespace(ctx, d.reader, agt.Namespace)
+	if err != nil {
+		return err
+	}
+	if tenant.Spec.AgentQuota != nil {
+		agt.Spec.Resources = agentquota.Resources(tenant.Spec.AgentQuota.Defaults)
 	}
 	return nil
 }

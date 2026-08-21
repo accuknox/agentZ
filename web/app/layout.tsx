@@ -14,7 +14,7 @@ const archivo = Archivo({
 })
 const socialTitle = "AgentZ | By Team AccuKnox"
 const description =
-  "Create and run agents with managed access, isolated sandboxes, skills, and tools."
+  "Zero-trust agentic AI platform. Build, run, and govern AI agents. Secure by design."
 const socialImage = {
   url: "/agentz-social-card.png",
   alt: "AgentZ by Team AccuKnox",

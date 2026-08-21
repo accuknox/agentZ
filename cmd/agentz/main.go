@@ -170,7 +170,7 @@ func newLogger(level, format string, withSource bool) *slog.Logger {
 
 var cmd = &cli.Command{
 	Name:                  "agentz",
-	Usage:                 "Control-plane for your AI agents.",
+	Usage:                 "Zero-trust agentic AI platform. Secure by design.",
 	EnableShellCompletion: true,
 	Authors:               []any{"Murtaza U <murtaza@accuknox.com>"},
 	ExitErrHandler: func(_ context.Context, _ *cli.Command, err error) {

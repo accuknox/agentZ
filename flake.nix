@@ -1,5 +1,5 @@
 {
-  description = "Control-plane for your AI agents";
+  description = "Zero-trust agentic AI platform. Secure by design.";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-oapi-codegen.url = "github:NixOS/nixpkgs/e7a3ca8092b61ff85b6a45bf863ea2b2d6a661b3";

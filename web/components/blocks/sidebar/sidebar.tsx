@@ -11,6 +11,7 @@ import {
   CloudCog,
   KeyRound,
   Lock,
+  LayoutDashboard,
   Monitor,
   ScrollText,
   Settings2,
@@ -68,6 +69,7 @@ export type SidebarScope =
   | ({
       kind: "workspace"
       workspace: Workspace
+      dashboardCapabilities: ResourceCapabilities
       lensCapabilities: ResourceCapabilities
     } & WorkspaceNavigationScope)
 
@@ -126,6 +128,7 @@ export function AppSidebar({
         ) : null}
         {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
           <WorkspaceNavigation
+            dashboardCapabilities={scope.dashboardCapabilities}
             mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
             inferencePoolCapabilities={scope.inferencePoolCapabilities}
             inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
@@ -182,6 +185,7 @@ function SettingsNavigation() {
 }
 
 async function WorkspaceNavigation({
+  dashboardCapabilities,
   mcpConnectionCapabilities,
   inferencePoolCapabilities,
   inferenceProviderCapabilities,
@@ -191,6 +195,7 @@ async function WorkspaceNavigation({
   sandboxCapabilities,
   workspace,
 }: {
+  dashboardCapabilities: ResourceCapabilities
   mcpConnectionCapabilities: ResourceCapabilities
   inferencePoolCapabilities: ResourceCapabilities
   inferenceProviderCapabilities: ResourceCapabilities
@@ -215,6 +220,7 @@ async function WorkspaceNavigation({
     agents.error === undefined && agents.agents.some((agent) => agent.capabilities.use)
   const showAgents = workspace.capabilities.agents.author || hasAgents
   const hasResources =
+    dashboardCapabilities.read ||
     lensCapabilities.read ||
     skillCapabilities.read ||
     mcpConnectionCapabilities.read ||
@@ -265,6 +271,16 @@ async function WorkspaceNavigation({
         {hasResources ? (
           <SidebarGroup className="px-2 py-2">
             <SidebarMenu>
+              {dashboardCapabilities.read ? (
+                <SidebarMenuItem>
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/dashboards` as Route}
+                    label="Dashboards"
+                  >
+                    <LayoutDashboard aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+              ) : null}
               {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
               {skillCapabilities.read ? (
                 <SidebarMenuItem>
@@ -305,10 +321,7 @@ async function WorkspaceNavigation({
               ) : null}
               {showSecrets ? (
                 <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/secrets` as Route}
-                    label="Secrets"
-                  >
+                  <SidebarNavigationLink href={`${workspacePath}/secrets` as Route} label="Secrets">
                     <Lock aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>

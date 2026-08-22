@@ -91,7 +91,10 @@
                 "delete_workflows": true,
                 "delete_workflow_schedule": true,
                 "update_workflow_schedule": true,
-                "set_workflowrun_status": false
+                "set_workflowrun_status": false,
+                "manage_dashboards": true,
+                "write_dashboard_data": true,
+                "delete_dashboard_data": true
               }
             }
             EOF

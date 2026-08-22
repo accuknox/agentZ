@@ -147,6 +147,44 @@ const (
 	CreateInferenceProviderOAuthTicketRequestKindOpenAICodex   CreateInferenceProviderOAuthTicketRequestKind = "OpenAICodex"
 )
 
+// Defines values for DashboardAggregation.
+const (
+	Avg   DashboardAggregation = "avg"
+	Count DashboardAggregation = "count"
+	Max   DashboardAggregation = "max"
+	Min   DashboardAggregation = "min"
+	Sum   DashboardAggregation = "sum"
+)
+
+// Defines values for DashboardDataAction.
+const (
+	Append DashboardDataAction = "append"
+	Upsert DashboardDataAction = "upsert"
+)
+
+// Defines values for DashboardSortDirection.
+const (
+	DashboardSortDirectionAsc  DashboardSortDirection = "asc"
+	DashboardSortDirectionDesc DashboardSortDirection = "desc"
+)
+
+// Defines values for DashboardWidgetKind.
+const (
+	DashboardWidgetArea   DashboardWidgetKind = "area"
+	DashboardWidgetBar    DashboardWidgetKind = "bar"
+	DashboardWidgetDonut  DashboardWidgetKind = "donut"
+	DashboardWidgetLine   DashboardWidgetKind = "line"
+	DashboardWidgetMetric DashboardWidgetKind = "metric"
+	DashboardWidgetTable  DashboardWidgetKind = "table"
+)
+
+// Defines values for DashboardWidgetWidth.
+const (
+	Full  DashboardWidgetWidth = "full"
+	Half  DashboardWidgetWidth = "half"
+	Third DashboardWidgetWidth = "third"
+)
+
 // Defines values for EventTrailActorType.
 const (
 	EventTrailActorTypeApiKey EventTrailActorType = "api_key"
@@ -186,6 +224,7 @@ const (
 // Defines values for EventTrailTargetType.
 const (
 	EventTrailTargetAgent                  EventTrailTargetType = "agent"
+	EventTrailTargetDashboard              EventTrailTargetType = "dashboard"
 	EventTrailTargetInferencePool          EventTrailTargetType = "inference_pool"
 	EventTrailTargetInferenceProvider      EventTrailTargetType = "inference_provider"
 	EventTrailTargetMCPConnection          EventTrailTargetType = "mcp_connection"
@@ -941,8 +980,8 @@ const (
 
 // Defines values for ListWorkflowSchedulesParamsSortOrder.
 const (
-	ListWorkflowSchedulesParamsSortOrderAsc  ListWorkflowSchedulesParamsSortOrder = "asc"
-	ListWorkflowSchedulesParamsSortOrderDesc ListWorkflowSchedulesParamsSortOrder = "desc"
+	Asc  ListWorkflowSchedulesParamsSortOrder = "asc"
+	Desc ListWorkflowSchedulesParamsSortOrder = "desc"
 )
 
 // Defines values for ListWorkspaceInheritedResourcesParamsSortBy.
@@ -1380,6 +1419,172 @@ type CreateWorkspaceRequest struct {
 	AdminMemberIds                []string                      `json:"admin_member_ids"`
 	Name                          string                        `json:"name"`
 	SelectedOrganizationResources SelectedOrganizationResources `json:"selected_organization_resources"`
+}
+
+// Dashboard defines model for Dashboard.
+type Dashboard struct {
+	AgentName  AgentName           `json:"agent_name"`
+	CreatedAt  time.Time           `json:"created_at"`
+	Definition DashboardDefinition `json:"definition"`
+	Id         string              `json:"id"`
+	Revision   int64               `json:"revision"`
+	UpdatedAt  time.Time           `json:"updated_at"`
+}
+
+// DashboardAggregation defines model for DashboardAggregation.
+type DashboardAggregation string
+
+// DashboardDataAction defines model for DashboardDataAction.
+type DashboardDataAction string
+
+// DashboardDataMutationResponse defines model for DashboardDataMutationResponse.
+type DashboardDataMutationResponse struct {
+	Affected int64 `json:"affected"`
+}
+
+// DashboardDataRecord defines model for DashboardDataRecord.
+type DashboardDataRecord struct {
+	Dimensions map[string]string  `json:"dimensions"`
+	Measures   map[string]float64 `json:"measures"`
+	ObservedAt time.Time          `json:"observed_at"`
+	RecordKey  *string            `json:"record_key,omitempty"`
+}
+
+// DashboardDefinition defines model for DashboardDefinition.
+type DashboardDefinition struct {
+	Description string               `json:"description"`
+	Dimensions  []DashboardDimension `json:"dimensions"`
+	Filters     []DashboardFilter    `json:"filters"`
+	Measures    []DashboardMeasure   `json:"measures"`
+	Name        DashboardName        `json:"name"`
+	Title       string               `json:"title"`
+	Widgets     []DashboardWidget    `json:"widgets"`
+}
+
+// DashboardDimension defines model for DashboardDimension.
+type DashboardDimension struct {
+	Label string              `json:"label"`
+	Name  DashboardIdentifier `json:"name"`
+}
+
+// DashboardFilter defines model for DashboardFilter.
+type DashboardFilter struct {
+	Field    DashboardIdentifier `json:"field"`
+	Id       DashboardIdentifier `json:"id"`
+	Label    string              `json:"label"`
+	Multiple bool                `json:"multiple"`
+}
+
+// DashboardFilterOptions defines model for DashboardFilterOptions.
+type DashboardFilterOptions struct {
+	FilterId DashboardIdentifier `json:"filter_id"`
+	Revision int64               `json:"revision"`
+	Values   []string            `json:"values"`
+}
+
+// DashboardIdentifier defines model for DashboardIdentifier.
+type DashboardIdentifier = string
+
+// DashboardMeasure defines model for DashboardMeasure.
+type DashboardMeasure struct {
+	Label string              `json:"label"`
+	Name  DashboardIdentifier `json:"name"`
+	Unit  *string             `json:"unit,omitempty"`
+}
+
+// DashboardName defines model for DashboardName.
+type DashboardName = string
+
+// DashboardPoint defines model for DashboardPoint.
+type DashboardPoint struct {
+	Key    string    `json:"key"`
+	Label  string    `json:"label"`
+	Values []float64 `json:"values"`
+}
+
+// DashboardQueryFilter defines model for DashboardQueryFilter.
+type DashboardQueryFilter struct {
+	FilterId DashboardIdentifier `json:"filter_id"`
+	Values   []string            `json:"values"`
+}
+
+// DashboardQueryRequest defines model for DashboardQueryRequest.
+type DashboardQueryRequest struct {
+	Filters   []DashboardQueryFilter `json:"filters"`
+	TimeRange DashboardTimeRange     `json:"time_range"`
+}
+
+// DashboardSeries defines model for DashboardSeries.
+type DashboardSeries struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+// DashboardSortDirection defines model for DashboardSortDirection.
+type DashboardSortDirection string
+
+// DashboardSummary defines model for DashboardSummary.
+type DashboardSummary struct {
+	AgentName   AgentName     `json:"agent_name"`
+	Description string        `json:"description"`
+	Id          string        `json:"id"`
+	Name        DashboardName `json:"name"`
+	Revision    int64         `json:"revision"`
+	Title       string        `json:"title"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	WidgetCount int64         `json:"widget_count"`
+}
+
+// DashboardTableRow defines model for DashboardTableRow.
+type DashboardTableRow struct {
+	Cells []string `json:"cells"`
+}
+
+// DashboardTimeRange defines model for DashboardTimeRange.
+type DashboardTimeRange struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
+// DashboardWidget Closed widget definition. Query fields are interpreted only by the gateway and validated against the dashboard field contract.
+type DashboardWidget struct {
+	Aggregation   *DashboardAggregation   `json:"aggregation,omitempty"`
+	Columns       *[]string               `json:"columns,omitempty"`
+	Description   *string                 `json:"description,omitempty"`
+	GroupBy       *DashboardIdentifier    `json:"group_by,omitempty"`
+	Id            DashboardIdentifier     `json:"id"`
+	Kind          DashboardWidgetKind     `json:"kind"`
+	Limit         *int32                  `json:"limit,omitempty"`
+	Measure       *DashboardIdentifier    `json:"measure,omitempty"`
+	SortBy        *string                 `json:"sort_by,omitempty"`
+	SortDirection *DashboardSortDirection `json:"sort_direction,omitempty"`
+	Stacked       *bool                   `json:"stacked,omitempty"`
+	Title         string                  `json:"title"`
+	Width         DashboardWidgetWidth    `json:"width"`
+}
+
+// DashboardWidgetKind defines model for DashboardWidgetKind.
+type DashboardWidgetKind string
+
+// DashboardWidgetResult defines model for DashboardWidgetResult.
+type DashboardWidgetResult struct {
+	Columns     []string            `json:"columns"`
+	GeneratedAt time.Time           `json:"generated_at"`
+	Kind        DashboardWidgetKind `json:"kind"`
+	Points      []DashboardPoint    `json:"points"`
+	Revision    int64               `json:"revision"`
+	Rows        []DashboardTableRow `json:"rows"`
+	Series      []DashboardSeries   `json:"series"`
+	Total       *float64            `json:"total"`
+	WidgetId    DashboardIdentifier `json:"widget_id"`
+}
+
+// DashboardWidgetWidth defines model for DashboardWidgetWidth.
+type DashboardWidgetWidth string
+
+// DeleteDashboardDataRequest defines model for DeleteDashboardDataRequest.
+type DeleteDashboardDataRequest struct {
+	RecordKeys []string `json:"record_keys"`
 }
 
 // DeleteSecretsRequest defines model for DeleteSecretsRequest.
@@ -1941,6 +2146,12 @@ type ListChatSessionsResponse struct {
 	NextPageToken      string                   `json:"next_page_token"`
 	ParticipantFilters []ChatSessionParticipant `json:"participant_filters"`
 	Sessions           []ChatSession            `json:"sessions"`
+}
+
+// ListDashboardsResponse defines model for ListDashboardsResponse.
+type ListDashboardsResponse struct {
+	Dashboards    []DashboardSummary `json:"dashboards"`
+	NextPageToken string             `json:"next_page_token"`
 }
 
 // ListEventTrailEventsRequest defines model for ListEventTrailEventsRequest.
@@ -3262,6 +3473,12 @@ type RenameAgentEntryRequest struct {
 	Target string `json:"target"`
 }
 
+// ReplaceDashboardRequest defines model for ReplaceDashboardRequest.
+type ReplaceDashboardRequest struct {
+	Definition       DashboardDefinition `json:"definition"`
+	ExpectedRevision int64               `json:"expected_revision"`
+}
+
 // ReplaceWorkspaceInheritedResourcesRequest defines model for ReplaceWorkspaceInheritedResourcesRequest.
 type ReplaceWorkspaceInheritedResourcesRequest struct {
 	Names []string `json:"names"`
@@ -4004,6 +4221,7 @@ type WorkspaceCapabilities struct {
 	Administer         bool                       `json:"administer"`
 	Agents             AgentWorkspaceCapabilities `json:"agents"`
 	ApiKeys            ResourceCapabilities       `json:"api_keys"`
+	Dashboards         ResourceCapabilities       `json:"dashboards"`
 	InferencePools     ResourceCapabilities       `json:"inference_pools"`
 	InferenceProviders ResourceCapabilities       `json:"inference_providers"`
 	McpConnections     ResourceCapabilities       `json:"mcp_connections"`
@@ -4042,6 +4260,12 @@ type WriteAgentFileRequest struct {
 	Path            string `json:"path"`
 }
 
+// WriteDashboardDataRequest defines model for WriteDashboardDataRequest.
+type WriteDashboardDataRequest struct {
+	Action  DashboardDataAction   `json:"action"`
+	Records []DashboardDataRecord `json:"records"`
+}
+
 // ActionQuery defines model for ActionQuery.
 type ActionQuery = ObservabilityAction
 
@@ -4054,6 +4278,9 @@ type AgentNamePath = AgentName
 // AgentNameQueryOptional defines model for AgentNameQueryOptional.
 type AgentNameQueryOptional = AgentName
 
+// AgentSessionIDHeader defines model for AgentSessionIDHeader.
+type AgentSessionIDHeader = string
+
 // AgentShareIDPath defines model for AgentShareIDPath.
 type AgentShareIDPath = string
 
@@ -4062,6 +4289,18 @@ type ChatSessionLimitQuery = int32
 
 // ChatSessionParticipantQuery defines model for ChatSessionParticipantQuery.
 type ChatSessionParticipantQuery = []string
+
+// DashboardFilterIDPath defines model for DashboardFilterIDPath.
+type DashboardFilterIDPath = DashboardIdentifier
+
+// DashboardIDPath defines model for DashboardIDPath.
+type DashboardIDPath = string
+
+// DashboardNamePath defines model for DashboardNamePath.
+type DashboardNamePath = DashboardName
+
+// DashboardWidgetIDPath defines model for DashboardWidgetIDPath.
+type DashboardWidgetIDPath = DashboardIdentifier
 
 // EventTimeAfterQuery defines model for EventTimeAfterQuery.
 type EventTimeAfterQuery = time.Time
@@ -4156,6 +4395,9 @@ type WorkspaceIDHeader = string
 // WorkspaceIDPath defines model for WorkspaceIDPath.
 type WorkspaceIDPath = string
 
+// WorkspaceIDRequiredHeader defines model for WorkspaceIDRequiredHeader.
+type WorkspaceIDRequiredHeader = string
+
 // WorkspaceSlugPath defines model for WorkspaceSlugPath.
 type WorkspaceSlugPath = string
 
@@ -4179,6 +4421,9 @@ type NotFound = Error
 
 // PayloadTooLarge defines model for PayloadTooLarge.
 type PayloadTooLarge = Error
+
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
@@ -4238,6 +4483,54 @@ type PreviewMutableSkillImportMultipartBody struct {
 type PreviewMutableSkillImportParams struct {
 	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
 	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ListAgentDashboardsParams defines parameters for ListAgentDashboards.
+type ListAgentDashboardsParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZSessionID OpenCode session that invoked the Agent tool.
+	XAgentZSessionID AgentSessionIDHeader `json:"X-AgentZ-Session-ID"`
+}
+
+// CreateAgentDashboardParams defines parameters for CreateAgentDashboard.
+type CreateAgentDashboardParams struct {
+	// XAgentZSessionID OpenCode session that invoked the Agent tool.
+	XAgentZSessionID AgentSessionIDHeader `json:"X-AgentZ-Session-ID"`
+}
+
+// DeleteAgentDashboardParams defines parameters for DeleteAgentDashboard.
+type DeleteAgentDashboardParams struct {
+	// XAgentZSessionID OpenCode session that invoked the Agent tool.
+	XAgentZSessionID AgentSessionIDHeader `json:"X-AgentZ-Session-ID"`
+}
+
+// GetAgentDashboardParams defines parameters for GetAgentDashboard.
+type GetAgentDashboardParams struct {
+	// XAgentZSessionID OpenCode session that invoked the Agent tool.
+	XAgentZSessionID AgentSessionIDHeader `json:"X-AgentZ-Session-ID"`
+}
+
+// ReplaceAgentDashboardParams defines parameters for ReplaceAgentDashboard.
+type ReplaceAgentDashboardParams struct {
+	// XAgentZSessionID OpenCode session that invoked the Agent tool.
+	XAgentZSessionID AgentSessionIDHeader `json:"X-AgentZ-Session-ID"`
+}
+
+// DeleteDashboardDataParams defines parameters for DeleteDashboardData.
+type DeleteDashboardDataParams struct {
+	// XAgentZSessionID OpenCode session that invoked the Agent tool.
+	XAgentZSessionID AgentSessionIDHeader `json:"X-AgentZ-Session-ID"`
+}
+
+// WriteDashboardDataParams defines parameters for WriteDashboardData.
+type WriteDashboardDataParams struct {
+	// XAgentZSessionID OpenCode session that invoked the Agent tool.
+	XAgentZSessionID AgentSessionIDHeader `json:"X-AgentZ-Session-ID"`
 }
 
 // DeleteAgentEntryParams defines parameters for DeleteAgentEntry.
@@ -4331,6 +4624,36 @@ type ListChatSessionsParams struct {
 
 	// IncludeWorkflowRuns Include sessions created by WorkflowRuns.
 	IncludeWorkflowRuns *IncludeWorkflowRunsQuery `form:"include_workflow_runs,omitempty" json:"include_workflow_runs,omitempty"`
+}
+
+// ListDashboardsParams defines parameters for ListDashboards.
+type ListDashboardsParams struct {
+	// Limit Maximum number of items to return.
+	Limit *LimitQuery `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// PageToken Opaque pagination token from a previous response.
+	PageToken *PageTokenQuery `form:"page_token,omitempty" json:"page_token,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting the exact authorized scope.
+	XAgentZWorkspaceID WorkspaceIDRequiredHeader `json:"X-AgentZ-Workspace-ID"`
+}
+
+// GetDashboardParams defines parameters for GetDashboard.
+type GetDashboardParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting the exact authorized scope.
+	XAgentZWorkspaceID WorkspaceIDRequiredHeader `json:"X-AgentZ-Workspace-ID"`
+}
+
+// ListDashboardFilterOptionsParams defines parameters for ListDashboardFilterOptions.
+type ListDashboardFilterOptionsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting the exact authorized scope.
+	XAgentZWorkspaceID WorkspaceIDRequiredHeader `json:"X-AgentZ-Workspace-ID"`
+}
+
+// QueryDashboardWidgetParams defines parameters for QueryDashboardWidget.
+type QueryDashboardWidgetParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting the exact authorized scope.
+	XAgentZWorkspaceID WorkspaceIDRequiredHeader `json:"X-AgentZ-Workspace-ID"`
 }
 
 // ListEventTrailEventsParams defines parameters for ListEventTrailEvents.
@@ -5283,6 +5606,18 @@ type WatchAgentsJSONRequestBody = WatchAgentsRequest
 // UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
 type UpdateAgentJSONRequestBody = UpdateAgentRequest
 
+// CreateAgentDashboardJSONRequestBody defines body for CreateAgentDashboard for application/json ContentType.
+type CreateAgentDashboardJSONRequestBody = DashboardDefinition
+
+// ReplaceAgentDashboardJSONRequestBody defines body for ReplaceAgentDashboard for application/json ContentType.
+type ReplaceAgentDashboardJSONRequestBody = ReplaceDashboardRequest
+
+// DeleteDashboardDataJSONRequestBody defines body for DeleteDashboardData for application/json ContentType.
+type DeleteDashboardDataJSONRequestBody = DeleteDashboardDataRequest
+
+// WriteDashboardDataJSONRequestBody defines body for WriteDashboardData for application/json ContentType.
+type WriteDashboardDataJSONRequestBody = WriteDashboardDataRequest
+
 // CreateAgentDirectoryJSONRequestBody defines body for CreateAgentDirectory for application/json ContentType.
 type CreateAgentDirectoryJSONRequestBody = CreateAgentDirectoryRequest
 
@@ -5309,6 +5644,12 @@ type ExportAgentMutableSkillsJSONRequestBody = ExportMutableSkillsRequest
 
 // UpdateChatSessionPreferenceJSONRequestBody defines body for UpdateChatSessionPreference for application/json ContentType.
 type UpdateChatSessionPreferenceJSONRequestBody = ChatSessionPreference
+
+// ListDashboardFilterOptionsJSONRequestBody defines body for ListDashboardFilterOptions for application/json ContentType.
+type ListDashboardFilterOptionsJSONRequestBody = DashboardTimeRange
+
+// QueryDashboardWidgetJSONRequestBody defines body for QueryDashboardWidget for application/json ContentType.
+type QueryDashboardWidgetJSONRequestBody = DashboardQueryRequest
 
 // ListEventTrailEventsJSONRequestBody defines body for ListEventTrailEvents for application/json ContentType.
 type ListEventTrailEventsJSONRequestBody = ListEventTrailEventsRequest
@@ -8021,6 +8362,35 @@ type ClientInterface interface {
 	// ListAgentAccessTargets request
 	ListAgentAccessTargets(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAgentDashboards request
+	ListAgentDashboards(ctx context.Context, agentName AgentNamePath, params *ListAgentDashboardsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAgentDashboardWithBody request with any body
+	CreateAgentDashboardWithBody(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAgentDashboard(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, body CreateAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentDashboard request
+	DeleteAgentDashboard(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteAgentDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAgentDashboard request
+	GetAgentDashboard(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *GetAgentDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceAgentDashboardWithBody request with any body
+	ReplaceAgentDashboardWithBody(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceAgentDashboard(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, body ReplaceAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteDashboardDataWithBody request with any body
+	DeleteDashboardDataWithBody(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteDashboardData(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, body DeleteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WriteDashboardDataWithBody request with any body
+	WriteDashboardDataWithBody(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WriteDashboardData(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, body WriteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateAgentDirectoryWithBody request with any body
 	CreateAgentDirectoryWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -8101,6 +8471,22 @@ type ClientInterface interface {
 
 	// WatchChatSessions request
 	WatchChatSessions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListDashboards request
+	ListDashboards(ctx context.Context, params *ListDashboardsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDashboard request
+	GetDashboard(ctx context.Context, dashboardId DashboardIDPath, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListDashboardFilterOptionsWithBody request with any body
+	ListDashboardFilterOptionsWithBody(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ListDashboardFilterOptions(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, body ListDashboardFilterOptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// QueryDashboardWidgetWithBody request with any body
+	QueryDashboardWidgetWithBody(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	QueryDashboardWidget(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, body QueryDashboardWidgetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListEventTrailEventsWithBody request with any body
 	ListEventTrailEventsWithBody(ctx context.Context, params *ListEventTrailEventsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8652,6 +9038,138 @@ func (c *Client) ListAgentAccessTargets(ctx context.Context, agentName AgentName
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListAgentDashboards(ctx context.Context, agentName AgentNamePath, params *ListAgentDashboardsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentDashboardsRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentDashboardWithBody(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentDashboardRequestWithBody(c.Server, agentName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentDashboard(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, body CreateAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentDashboardRequest(c.Server, agentName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentDashboard(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteAgentDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentDashboardRequest(c.Server, agentName, dashboardName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentDashboard(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *GetAgentDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentDashboardRequest(c.Server, agentName, dashboardName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceAgentDashboardWithBody(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceAgentDashboardRequestWithBody(c.Server, agentName, dashboardName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceAgentDashboard(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, body ReplaceAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceAgentDashboardRequest(c.Server, agentName, dashboardName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteDashboardDataWithBody(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteDashboardDataRequestWithBody(c.Server, agentName, dashboardName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteDashboardData(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, body DeleteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteDashboardDataRequest(c.Server, agentName, dashboardName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WriteDashboardDataWithBody(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWriteDashboardDataRequestWithBody(c.Server, agentName, dashboardName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WriteDashboardData(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, body WriteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWriteDashboardDataRequest(c.Server, agentName, dashboardName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateAgentDirectoryWithBody(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAgentDirectoryRequestWithBody(c.Server, agentName, contentType, body)
 	if err != nil {
@@ -9002,6 +9520,78 @@ func (c *Client) UpdateChatSessionPreference(ctx context.Context, body UpdateCha
 
 func (c *Client) WatchChatSessions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWatchChatSessionsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDashboards(ctx context.Context, params *ListDashboardsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDashboardsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDashboard(ctx context.Context, dashboardId DashboardIDPath, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDashboardRequest(c.Server, dashboardId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDashboardFilterOptionsWithBody(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDashboardFilterOptionsRequestWithBody(c.Server, dashboardId, filterId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDashboardFilterOptions(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, body ListDashboardFilterOptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDashboardFilterOptionsRequest(c.Server, dashboardId, filterId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) QueryDashboardWidgetWithBody(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueryDashboardWidgetRequestWithBody(c.Server, dashboardId, widgetId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) QueryDashboardWidget(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, body QueryDashboardWidgetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueryDashboardWidgetRequest(c.Server, dashboardId, widgetId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11244,6 +11834,460 @@ func NewListAgentAccessTargetsRequest(server string, agentName AgentNamePath) (*
 	return req, nil
 }
 
+// NewListAgentDashboardsRequest generates requests for ListAgentDashboards
+func NewListAgentDashboardsRequest(server string, agentName AgentNamePath, params *ListAgentDashboardsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/dashboard", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Session-ID", runtime.ParamLocationHeader, params.XAgentZSessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Session-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewCreateAgentDashboardRequest calls the generic CreateAgentDashboard builder with application/json body
+func NewCreateAgentDashboardRequest(server string, agentName AgentNamePath, params *CreateAgentDashboardParams, body CreateAgentDashboardJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentDashboardRequestWithBody(server, agentName, params, "application/json", bodyReader)
+}
+
+// NewCreateAgentDashboardRequestWithBody generates requests for CreateAgentDashboard with any type of body
+func NewCreateAgentDashboardRequestWithBody(server string, agentName AgentNamePath, params *CreateAgentDashboardParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/dashboard", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Session-ID", runtime.ParamLocationHeader, params.XAgentZSessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Session-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteAgentDashboardRequest generates requests for DeleteAgentDashboard
+func NewDeleteAgentDashboardRequest(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteAgentDashboardParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "dashboardName", runtime.ParamLocationPath, dashboardName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/dashboard/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Session-ID", runtime.ParamLocationHeader, params.XAgentZSessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Session-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewGetAgentDashboardRequest generates requests for GetAgentDashboard
+func NewGetAgentDashboardRequest(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *GetAgentDashboardParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "dashboardName", runtime.ParamLocationPath, dashboardName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/dashboard/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Session-ID", runtime.ParamLocationHeader, params.XAgentZSessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Session-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewReplaceAgentDashboardRequest calls the generic ReplaceAgentDashboard builder with application/json body
+func NewReplaceAgentDashboardRequest(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, body ReplaceAgentDashboardJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceAgentDashboardRequestWithBody(server, agentName, dashboardName, params, "application/json", bodyReader)
+}
+
+// NewReplaceAgentDashboardRequestWithBody generates requests for ReplaceAgentDashboard with any type of body
+func NewReplaceAgentDashboardRequestWithBody(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "dashboardName", runtime.ParamLocationPath, dashboardName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/dashboard/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Session-ID", runtime.ParamLocationHeader, params.XAgentZSessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Session-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteDashboardDataRequest calls the generic DeleteDashboardData builder with application/json body
+func NewDeleteDashboardDataRequest(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, body DeleteDashboardDataJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteDashboardDataRequestWithBody(server, agentName, dashboardName, params, "application/json", bodyReader)
+}
+
+// NewDeleteDashboardDataRequestWithBody generates requests for DeleteDashboardData with any type of body
+func NewDeleteDashboardDataRequestWithBody(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "dashboardName", runtime.ParamLocationPath, dashboardName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/dashboard/%s/data", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Session-ID", runtime.ParamLocationHeader, params.XAgentZSessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Session-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewWriteDashboardDataRequest calls the generic WriteDashboardData builder with application/json body
+func NewWriteDashboardDataRequest(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, body WriteDashboardDataJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWriteDashboardDataRequestWithBody(server, agentName, dashboardName, params, "application/json", bodyReader)
+}
+
+// NewWriteDashboardDataRequestWithBody generates requests for WriteDashboardData with any type of body
+func NewWriteDashboardDataRequestWithBody(server string, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "dashboardName", runtime.ParamLocationPath, dashboardName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent/%s/dashboard/%s/data", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Session-ID", runtime.ParamLocationHeader, params.XAgentZSessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Session-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
 // NewCreateAgentDirectoryRequest calls the generic CreateAgentDirectory builder with application/json body
 func NewCreateAgentDirectoryRequest(server string, agentName AgentNamePath, body CreateAgentDirectoryJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -12380,6 +13424,265 @@ func NewWatchChatSessionsRequest(server string) (*http.Request, error) {
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListDashboardsRequest generates requests for ListDashboards
+func NewListDashboardsRequest(server string, params *ListDashboardsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/dashboard")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_token", runtime.ParamLocationQuery, *params.PageToken); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewGetDashboardRequest generates requests for GetDashboard
+func NewGetDashboardRequest(server string, dashboardId DashboardIDPath, params *GetDashboardParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/dashboard/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewListDashboardFilterOptionsRequest calls the generic ListDashboardFilterOptions builder with application/json body
+func NewListDashboardFilterOptionsRequest(server string, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, body ListDashboardFilterOptionsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewListDashboardFilterOptionsRequestWithBody(server, dashboardId, filterId, params, "application/json", bodyReader)
+}
+
+// NewListDashboardFilterOptionsRequestWithBody generates requests for ListDashboardFilterOptions with any type of body
+func NewListDashboardFilterOptionsRequestWithBody(server string, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "filterId", runtime.ParamLocationPath, filterId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/dashboard/%s/filter/%s/options", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewQueryDashboardWidgetRequest calls the generic QueryDashboardWidget builder with application/json body
+func NewQueryDashboardWidgetRequest(server string, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, body QueryDashboardWidgetJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewQueryDashboardWidgetRequestWithBody(server, dashboardId, widgetId, params, "application/json", bodyReader)
+}
+
+// NewQueryDashboardWidgetRequestWithBody generates requests for QueryDashboardWidget with any type of body
+func NewQueryDashboardWidgetRequestWithBody(server string, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "widgetId", runtime.ParamLocationPath, widgetId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/dashboard/%s/widget/%s/query", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, params.XAgentZWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+
 	}
 
 	return req, nil
@@ -20434,6 +21737,35 @@ type ClientWithResponsesInterface interface {
 	// ListAgentAccessTargetsWithResponse request
 	ListAgentAccessTargetsWithResponse(ctx context.Context, agentName AgentNamePath, reqEditors ...RequestEditorFn) (*ListAgentAccessTargetsResp, error)
 
+	// ListAgentDashboardsWithResponse request
+	ListAgentDashboardsWithResponse(ctx context.Context, agentName AgentNamePath, params *ListAgentDashboardsParams, reqEditors ...RequestEditorFn) (*ListAgentDashboardsResp, error)
+
+	// CreateAgentDashboardWithBodyWithResponse request with any body
+	CreateAgentDashboardWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentDashboardResp, error)
+
+	CreateAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, body CreateAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentDashboardResp, error)
+
+	// DeleteAgentDashboardWithResponse request
+	DeleteAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteAgentDashboardParams, reqEditors ...RequestEditorFn) (*DeleteAgentDashboardResp, error)
+
+	// GetAgentDashboardWithResponse request
+	GetAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *GetAgentDashboardParams, reqEditors ...RequestEditorFn) (*GetAgentDashboardResp, error)
+
+	// ReplaceAgentDashboardWithBodyWithResponse request with any body
+	ReplaceAgentDashboardWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceAgentDashboardResp, error)
+
+	ReplaceAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, body ReplaceAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceAgentDashboardResp, error)
+
+	// DeleteDashboardDataWithBodyWithResponse request with any body
+	DeleteDashboardDataWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteDashboardDataResp, error)
+
+	DeleteDashboardDataWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, body DeleteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteDashboardDataResp, error)
+
+	// WriteDashboardDataWithBodyWithResponse request with any body
+	WriteDashboardDataWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WriteDashboardDataResp, error)
+
+	WriteDashboardDataWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, body WriteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*WriteDashboardDataResp, error)
+
 	// CreateAgentDirectoryWithBodyWithResponse request with any body
 	CreateAgentDirectoryWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentDirectoryResp, error)
 
@@ -20514,6 +21846,22 @@ type ClientWithResponsesInterface interface {
 
 	// WatchChatSessionsWithResponse request
 	WatchChatSessionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*WatchChatSessionsResp, error)
+
+	// ListDashboardsWithResponse request
+	ListDashboardsWithResponse(ctx context.Context, params *ListDashboardsParams, reqEditors ...RequestEditorFn) (*ListDashboardsResp, error)
+
+	// GetDashboardWithResponse request
+	GetDashboardWithResponse(ctx context.Context, dashboardId DashboardIDPath, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*GetDashboardResp, error)
+
+	// ListDashboardFilterOptionsWithBodyWithResponse request with any body
+	ListDashboardFilterOptionsWithBodyWithResponse(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListDashboardFilterOptionsResp, error)
+
+	ListDashboardFilterOptionsWithResponse(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, body ListDashboardFilterOptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*ListDashboardFilterOptionsResp, error)
+
+	// QueryDashboardWidgetWithBodyWithResponse request with any body
+	QueryDashboardWidgetWithBodyWithResponse(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueryDashboardWidgetResp, error)
+
+	QueryDashboardWidgetWithResponse(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, body QueryDashboardWidgetJSONRequestBody, reqEditors ...RequestEditorFn) (*QueryDashboardWidgetResp, error)
 
 	// ListEventTrailEventsWithBodyWithResponse request with any body
 	ListEventTrailEventsWithBodyWithResponse(ctx context.Context, params *ListEventTrailEventsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListEventTrailEventsResp, error)
@@ -21143,6 +22491,202 @@ func (r ListAgentAccessTargetsResp) StatusCode() int {
 	return 0
 }
 
+type ListAgentDashboardsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListDashboardsResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentDashboardsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentDashboardsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAgentDashboardResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Dashboard
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON409      *Conflict
+	JSON413      *PayloadTooLarge
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentDashboardResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentDashboardResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentDashboardResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentDashboardResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentDashboardResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAgentDashboardResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Dashboard
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentDashboardResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentDashboardResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReplaceAgentDashboardResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Dashboard
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON413      *PayloadTooLarge
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceAgentDashboardResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceAgentDashboardResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteDashboardDataResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DashboardDataMutationResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDashboardDataResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDashboardDataResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WriteDashboardDataResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DashboardDataMutationResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON413      *PayloadTooLarge
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r WriteDashboardDataResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WriteDashboardDataResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CreateAgentDirectoryResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -21690,6 +23234,116 @@ func (r WatchChatSessionsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r WatchChatSessionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListDashboardsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListDashboardsResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDashboardsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDashboardsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetDashboardResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Dashboard
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDashboardResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDashboardResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListDashboardFilterOptionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DashboardFilterOptions
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDashboardFilterOptionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDashboardFilterOptionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type QueryDashboardWidgetResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DashboardWidgetResult
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r QueryDashboardWidgetResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r QueryDashboardWidgetResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -24663,6 +26317,101 @@ func (c *ClientWithResponses) ListAgentAccessTargetsWithResponse(ctx context.Con
 	return ParseListAgentAccessTargetsResp(rsp)
 }
 
+// ListAgentDashboardsWithResponse request returning *ListAgentDashboardsResp
+func (c *ClientWithResponses) ListAgentDashboardsWithResponse(ctx context.Context, agentName AgentNamePath, params *ListAgentDashboardsParams, reqEditors ...RequestEditorFn) (*ListAgentDashboardsResp, error) {
+	rsp, err := c.ListAgentDashboards(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentDashboardsResp(rsp)
+}
+
+// CreateAgentDashboardWithBodyWithResponse request with arbitrary body returning *CreateAgentDashboardResp
+func (c *ClientWithResponses) CreateAgentDashboardWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentDashboardResp, error) {
+	rsp, err := c.CreateAgentDashboardWithBody(ctx, agentName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentDashboardResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, params *CreateAgentDashboardParams, body CreateAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentDashboardResp, error) {
+	rsp, err := c.CreateAgentDashboard(ctx, agentName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentDashboardResp(rsp)
+}
+
+// DeleteAgentDashboardWithResponse request returning *DeleteAgentDashboardResp
+func (c *ClientWithResponses) DeleteAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteAgentDashboardParams, reqEditors ...RequestEditorFn) (*DeleteAgentDashboardResp, error) {
+	rsp, err := c.DeleteAgentDashboard(ctx, agentName, dashboardName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentDashboardResp(rsp)
+}
+
+// GetAgentDashboardWithResponse request returning *GetAgentDashboardResp
+func (c *ClientWithResponses) GetAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *GetAgentDashboardParams, reqEditors ...RequestEditorFn) (*GetAgentDashboardResp, error) {
+	rsp, err := c.GetAgentDashboard(ctx, agentName, dashboardName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentDashboardResp(rsp)
+}
+
+// ReplaceAgentDashboardWithBodyWithResponse request with arbitrary body returning *ReplaceAgentDashboardResp
+func (c *ClientWithResponses) ReplaceAgentDashboardWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceAgentDashboardResp, error) {
+	rsp, err := c.ReplaceAgentDashboardWithBody(ctx, agentName, dashboardName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceAgentDashboardResp(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceAgentDashboardWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *ReplaceAgentDashboardParams, body ReplaceAgentDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceAgentDashboardResp, error) {
+	rsp, err := c.ReplaceAgentDashboard(ctx, agentName, dashboardName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceAgentDashboardResp(rsp)
+}
+
+// DeleteDashboardDataWithBodyWithResponse request with arbitrary body returning *DeleteDashboardDataResp
+func (c *ClientWithResponses) DeleteDashboardDataWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteDashboardDataResp, error) {
+	rsp, err := c.DeleteDashboardDataWithBody(ctx, agentName, dashboardName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteDashboardDataResp(rsp)
+}
+
+func (c *ClientWithResponses) DeleteDashboardDataWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *DeleteDashboardDataParams, body DeleteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteDashboardDataResp, error) {
+	rsp, err := c.DeleteDashboardData(ctx, agentName, dashboardName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteDashboardDataResp(rsp)
+}
+
+// WriteDashboardDataWithBodyWithResponse request with arbitrary body returning *WriteDashboardDataResp
+func (c *ClientWithResponses) WriteDashboardDataWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WriteDashboardDataResp, error) {
+	rsp, err := c.WriteDashboardDataWithBody(ctx, agentName, dashboardName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWriteDashboardDataResp(rsp)
+}
+
+func (c *ClientWithResponses) WriteDashboardDataWithResponse(ctx context.Context, agentName AgentNamePath, dashboardName DashboardNamePath, params *WriteDashboardDataParams, body WriteDashboardDataJSONRequestBody, reqEditors ...RequestEditorFn) (*WriteDashboardDataResp, error) {
+	rsp, err := c.WriteDashboardData(ctx, agentName, dashboardName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWriteDashboardDataResp(rsp)
+}
+
 // CreateAgentDirectoryWithBodyWithResponse request with arbitrary body returning *CreateAgentDirectoryResp
 func (c *ClientWithResponses) CreateAgentDirectoryWithBodyWithResponse(ctx context.Context, agentName AgentNamePath, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentDirectoryResp, error) {
 	rsp, err := c.CreateAgentDirectoryWithBody(ctx, agentName, contentType, body, reqEditors...)
@@ -24922,6 +26671,58 @@ func (c *ClientWithResponses) WatchChatSessionsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseWatchChatSessionsResp(rsp)
+}
+
+// ListDashboardsWithResponse request returning *ListDashboardsResp
+func (c *ClientWithResponses) ListDashboardsWithResponse(ctx context.Context, params *ListDashboardsParams, reqEditors ...RequestEditorFn) (*ListDashboardsResp, error) {
+	rsp, err := c.ListDashboards(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDashboardsResp(rsp)
+}
+
+// GetDashboardWithResponse request returning *GetDashboardResp
+func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, dashboardId DashboardIDPath, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*GetDashboardResp, error) {
+	rsp, err := c.GetDashboard(ctx, dashboardId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDashboardResp(rsp)
+}
+
+// ListDashboardFilterOptionsWithBodyWithResponse request with arbitrary body returning *ListDashboardFilterOptionsResp
+func (c *ClientWithResponses) ListDashboardFilterOptionsWithBodyWithResponse(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListDashboardFilterOptionsResp, error) {
+	rsp, err := c.ListDashboardFilterOptionsWithBody(ctx, dashboardId, filterId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDashboardFilterOptionsResp(rsp)
+}
+
+func (c *ClientWithResponses) ListDashboardFilterOptionsWithResponse(ctx context.Context, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params *ListDashboardFilterOptionsParams, body ListDashboardFilterOptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*ListDashboardFilterOptionsResp, error) {
+	rsp, err := c.ListDashboardFilterOptions(ctx, dashboardId, filterId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDashboardFilterOptionsResp(rsp)
+}
+
+// QueryDashboardWidgetWithBodyWithResponse request with arbitrary body returning *QueryDashboardWidgetResp
+func (c *ClientWithResponses) QueryDashboardWidgetWithBodyWithResponse(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueryDashboardWidgetResp, error) {
+	rsp, err := c.QueryDashboardWidgetWithBody(ctx, dashboardId, widgetId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueryDashboardWidgetResp(rsp)
+}
+
+func (c *ClientWithResponses) QueryDashboardWidgetWithResponse(ctx context.Context, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params *QueryDashboardWidgetParams, body QueryDashboardWidgetJSONRequestBody, reqEditors ...RequestEditorFn) (*QueryDashboardWidgetResp, error) {
+	rsp, err := c.QueryDashboardWidget(ctx, dashboardId, widgetId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueryDashboardWidgetResp(rsp)
 }
 
 // ListEventTrailEventsWithBodyWithResponse request with arbitrary body returning *ListEventTrailEventsResp
@@ -26705,6 +28506,482 @@ func ParseListAgentAccessTargetsResp(rsp *http.Response) (*ListAgentAccessTarget
 	return response, nil
 }
 
+// ParseListAgentDashboardsResp parses an HTTP response from a ListAgentDashboardsWithResponse call
+func ParseListAgentDashboardsResp(rsp *http.Response) (*ListAgentDashboardsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentDashboardsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListDashboardsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentDashboardResp parses an HTTP response from a CreateAgentDashboardWithResponse call
+func ParseCreateAgentDashboardResp(rsp *http.Response) (*CreateAgentDashboardResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentDashboardResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Dashboard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentDashboardResp parses an HTTP response from a DeleteAgentDashboardWithResponse call
+func ParseDeleteAgentDashboardResp(rsp *http.Response) (*DeleteAgentDashboardResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentDashboardResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentDashboardResp parses an HTTP response from a GetAgentDashboardWithResponse call
+func ParseGetAgentDashboardResp(rsp *http.Response) (*GetAgentDashboardResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentDashboardResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Dashboard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceAgentDashboardResp parses an HTTP response from a ReplaceAgentDashboardWithResponse call
+func ParseReplaceAgentDashboardResp(rsp *http.Response) (*ReplaceAgentDashboardResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceAgentDashboardResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Dashboard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDashboardDataResp parses an HTTP response from a DeleteDashboardDataWithResponse call
+func ParseDeleteDashboardDataResp(rsp *http.Response) (*DeleteDashboardDataResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDashboardDataResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardDataMutationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWriteDashboardDataResp parses an HTTP response from a WriteDashboardDataWithResponse call
+func ParseWriteDashboardDataResp(rsp *http.Response) (*WriteDashboardDataResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WriteDashboardDataResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardDataMutationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCreateAgentDirectoryResp parses an HTTP response from a CreateAgentDirectoryWithResponse call
 func ParseCreateAgentDirectoryResp(rsp *http.Response) (*CreateAgentDirectoryResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -27875,6 +30152,264 @@ func ParseWatchChatSessionsResp(rsp *http.Response) (*WatchChatSessionsResp, err
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDashboardsResp parses an HTTP response from a ListDashboardsWithResponse call
+func ParseListDashboardsResp(rsp *http.Response) (*ListDashboardsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDashboardsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListDashboardsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDashboardResp parses an HTTP response from a GetDashboardWithResponse call
+func ParseGetDashboardResp(rsp *http.Response) (*GetDashboardResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDashboardResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Dashboard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDashboardFilterOptionsResp parses an HTTP response from a ListDashboardFilterOptionsWithResponse call
+func ParseListDashboardFilterOptionsResp(rsp *http.Response) (*ListDashboardFilterOptionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDashboardFilterOptionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardFilterOptions
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseQueryDashboardWidgetResp parses an HTTP response from a QueryDashboardWidgetWithResponse call
+func ParseQueryDashboardWidgetResp(rsp *http.Response) (*QueryDashboardWidgetResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &QueryDashboardWidgetResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardWidgetResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -33407,6 +35942,27 @@ type ServerInterface interface {
 	// List Agent access targets and their eligible capabilities.
 	// (GET /api/agent/{agentName}/access-targets)
 	ListAgentAccessTargets(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
+	// List dashboard definitions owned by the calling Agent.
+	// (GET /api/agent/{agentName}/dashboard)
+	ListAgentDashboards(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListAgentDashboardsParams)
+	// Create a dashboard from an interactive Agent session.
+	// (POST /api/agent/{agentName}/dashboard)
+	CreateAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params CreateAgentDashboardParams)
+	// Delete a dashboard from an interactive Agent session.
+	// (DELETE /api/agent/{agentName}/dashboard/{dashboardName})
+	DeleteAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params DeleteAgentDashboardParams)
+	// Get one dashboard owned by the calling Agent.
+	// (GET /api/agent/{agentName}/dashboard/{dashboardName})
+	GetAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params GetAgentDashboardParams)
+	// Replace a dashboard from an interactive Agent session.
+	// (PUT /api/agent/{agentName}/dashboard/{dashboardName})
+	ReplaceAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params ReplaceAgentDashboardParams)
+	// Delete keyed records from an interactive Agent session.
+	// (DELETE /api/agent/{agentName}/dashboard/{dashboardName}/data)
+	DeleteDashboardData(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params DeleteDashboardDataParams)
+	// Append or upsert retained dashboard records.
+	// (POST /api/agent/{agentName}/dashboard/{dashboardName}/data)
+	WriteDashboardData(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params WriteDashboardDataParams)
 	// Create a directory in the agent workspace.
 	// (POST /api/agent/{agentName}/fs/directory)
 	CreateAgentDirectory(w http.ResponseWriter, r *http.Request, agentName AgentNamePath)
@@ -33470,6 +36026,18 @@ type ServerInterface interface {
 	// Watch the current Workspace chat inbox.
 	// (GET /api/chat-session/watch)
 	WatchChatSessions(w http.ResponseWriter, r *http.Request)
+	// List dashboards in the current Workspace.
+	// (GET /api/dashboard)
+	ListDashboards(w http.ResponseWriter, r *http.Request, params ListDashboardsParams)
+	// Get one dashboard definition.
+	// (GET /api/dashboard/{dashboardId})
+	GetDashboard(w http.ResponseWriter, r *http.Request, dashboardId DashboardIDPath, params GetDashboardParams)
+	// List bounded values for one stored dashboard filter.
+	// (POST /api/dashboard/{dashboardId}/filter/{filterId}/options)
+	ListDashboardFilterOptions(w http.ResponseWriter, r *http.Request, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params ListDashboardFilterOptionsParams)
+	// Query one widget from its stored definition.
+	// (POST /api/dashboard/{dashboardId}/widget/{widgetId}/query)
+	QueryDashboardWidget(w http.ResponseWriter, r *http.Request, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params QueryDashboardWidgetParams)
 	// List Organisation event trail events.
 	// (POST /api/event-trail-event)
 	ListEventTrailEvents(w http.ResponseWriter, r *http.Request, params ListEventTrailEventsParams)
@@ -33857,6 +36425,48 @@ func (_ Unimplemented) ListAgentAccessTargets(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List dashboard definitions owned by the calling Agent.
+// (GET /api/agent/{agentName}/dashboard)
+func (_ Unimplemented) ListAgentDashboards(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params ListAgentDashboardsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a dashboard from an interactive Agent session.
+// (POST /api/agent/{agentName}/dashboard)
+func (_ Unimplemented) CreateAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, params CreateAgentDashboardParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete a dashboard from an interactive Agent session.
+// (DELETE /api/agent/{agentName}/dashboard/{dashboardName})
+func (_ Unimplemented) DeleteAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params DeleteAgentDashboardParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get one dashboard owned by the calling Agent.
+// (GET /api/agent/{agentName}/dashboard/{dashboardName})
+func (_ Unimplemented) GetAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params GetAgentDashboardParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace a dashboard from an interactive Agent session.
+// (PUT /api/agent/{agentName}/dashboard/{dashboardName})
+func (_ Unimplemented) ReplaceAgentDashboard(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params ReplaceAgentDashboardParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete keyed records from an interactive Agent session.
+// (DELETE /api/agent/{agentName}/dashboard/{dashboardName}/data)
+func (_ Unimplemented) DeleteDashboardData(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params DeleteDashboardDataParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Append or upsert retained dashboard records.
+// (POST /api/agent/{agentName}/dashboard/{dashboardName}/data)
+func (_ Unimplemented) WriteDashboardData(w http.ResponseWriter, r *http.Request, agentName AgentNamePath, dashboardName DashboardNamePath, params WriteDashboardDataParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Create a directory in the agent workspace.
 // (POST /api/agent/{agentName}/fs/directory)
 func (_ Unimplemented) CreateAgentDirectory(w http.ResponseWriter, r *http.Request, agentName AgentNamePath) {
@@ -33980,6 +36590,30 @@ func (_ Unimplemented) UpdateChatSessionPreference(w http.ResponseWriter, r *htt
 // Watch the current Workspace chat inbox.
 // (GET /api/chat-session/watch)
 func (_ Unimplemented) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List dashboards in the current Workspace.
+// (GET /api/dashboard)
+func (_ Unimplemented) ListDashboards(w http.ResponseWriter, r *http.Request, params ListDashboardsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get one dashboard definition.
+// (GET /api/dashboard/{dashboardId})
+func (_ Unimplemented) GetDashboard(w http.ResponseWriter, r *http.Request, dashboardId DashboardIDPath, params GetDashboardParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List bounded values for one stored dashboard filter.
+// (POST /api/dashboard/{dashboardId}/filter/{filterId}/options)
+func (_ Unimplemented) ListDashboardFilterOptions(w http.ResponseWriter, r *http.Request, dashboardId DashboardIDPath, filterId DashboardFilterIDPath, params ListDashboardFilterOptionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Query one widget from its stored definition.
+// (POST /api/dashboard/{dashboardId}/widget/{widgetId}/query)
+func (_ Unimplemented) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, dashboardId DashboardIDPath, widgetId DashboardWidgetIDPath, params QueryDashboardWidgetParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -34946,6 +37580,480 @@ func (siw *ServerInterfaceWrapper) ListAgentAccessTargets(w http.ResponseWriter,
 	handler.ServeHTTP(w, r)
 }
 
+// ListAgentDashboards operation middleware
+func (siw *ServerInterfaceWrapper) ListAgentDashboards(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAgentDashboardsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Session-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Session-ID")]; found {
+		var XAgentZSessionID AgentSessionIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Session-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Session-ID", valueList[0], &XAgentZSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Session-ID", Err: err})
+			return
+		}
+
+		params.XAgentZSessionID = XAgentZSessionID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Session-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Session-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgentDashboards(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAgentDashboard operation middleware
+func (siw *ServerInterfaceWrapper) CreateAgentDashboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateAgentDashboardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Session-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Session-ID")]; found {
+		var XAgentZSessionID AgentSessionIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Session-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Session-ID", valueList[0], &XAgentZSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Session-ID", Err: err})
+			return
+		}
+
+		params.XAgentZSessionID = XAgentZSessionID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Session-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Session-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAgentDashboard(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAgentDashboard operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAgentDashboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "dashboardName" -------------
+	var dashboardName DashboardNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardName", chi.URLParam(r, "dashboardName"), &dashboardName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAgentDashboardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Session-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Session-ID")]; found {
+		var XAgentZSessionID AgentSessionIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Session-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Session-ID", valueList[0], &XAgentZSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Session-ID", Err: err})
+			return
+		}
+
+		params.XAgentZSessionID = XAgentZSessionID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Session-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Session-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAgentDashboard(w, r, agentName, dashboardName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAgentDashboard operation middleware
+func (siw *ServerInterfaceWrapper) GetAgentDashboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "dashboardName" -------------
+	var dashboardName DashboardNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardName", chi.URLParam(r, "dashboardName"), &dashboardName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAgentDashboardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Session-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Session-ID")]; found {
+		var XAgentZSessionID AgentSessionIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Session-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Session-ID", valueList[0], &XAgentZSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Session-ID", Err: err})
+			return
+		}
+
+		params.XAgentZSessionID = XAgentZSessionID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Session-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Session-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgentDashboard(w, r, agentName, dashboardName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceAgentDashboard operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceAgentDashboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "dashboardName" -------------
+	var dashboardName DashboardNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardName", chi.URLParam(r, "dashboardName"), &dashboardName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReplaceAgentDashboardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Session-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Session-ID")]; found {
+		var XAgentZSessionID AgentSessionIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Session-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Session-ID", valueList[0], &XAgentZSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Session-ID", Err: err})
+			return
+		}
+
+		params.XAgentZSessionID = XAgentZSessionID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Session-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Session-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceAgentDashboard(w, r, agentName, dashboardName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDashboardData operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDashboardData(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "dashboardName" -------------
+	var dashboardName DashboardNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardName", chi.URLParam(r, "dashboardName"), &dashboardName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteDashboardDataParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Session-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Session-ID")]; found {
+		var XAgentZSessionID AgentSessionIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Session-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Session-ID", valueList[0], &XAgentZSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Session-ID", Err: err})
+			return
+		}
+
+		params.XAgentZSessionID = XAgentZSessionID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Session-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Session-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDashboardData(w, r, agentName, dashboardName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WriteDashboardData operation middleware
+func (siw *ServerInterfaceWrapper) WriteDashboardData(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName AgentNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "dashboardName" -------------
+	var dashboardName DashboardNamePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardName", chi.URLParam(r, "dashboardName"), &dashboardName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WriteDashboardDataParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Session-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Session-ID")]; found {
+		var XAgentZSessionID AgentSessionIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Session-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Session-ID", valueList[0], &XAgentZSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Session-ID", Err: err})
+			return
+		}
+
+		params.XAgentZSessionID = XAgentZSessionID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Session-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Session-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WriteDashboardData(w, r, agentName, dashboardName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateAgentDirectory operation middleware
 func (siw *ServerInterfaceWrapper) CreateAgentDirectory(w http.ResponseWriter, r *http.Request) {
 
@@ -35811,6 +38919,267 @@ func (siw *ServerInterfaceWrapper) WatchChatSessions(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.WatchChatSessions(w, r)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListDashboards operation middleware
+func (siw *ServerInterfaceWrapper) ListDashboards(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"dashboard.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDashboardsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_token" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_token", r.URL.Query(), &params.PageToken)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_token", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDRequiredHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDashboards(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDashboard operation middleware
+func (siw *ServerInterfaceWrapper) GetDashboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "dashboardId" -------------
+	var dashboardId DashboardIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardId", chi.URLParam(r, "dashboardId"), &dashboardId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"dashboard.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDashboardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDRequiredHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDashboard(w, r, dashboardId, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListDashboardFilterOptions operation middleware
+func (siw *ServerInterfaceWrapper) ListDashboardFilterOptions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "dashboardId" -------------
+	var dashboardId DashboardIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardId", chi.URLParam(r, "dashboardId"), &dashboardId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "filterId" -------------
+	var filterId DashboardFilterIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "filterId", chi.URLParam(r, "filterId"), &filterId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filterId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"dashboard.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDashboardFilterOptionsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDRequiredHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDashboardFilterOptions(w, r, dashboardId, filterId, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// QueryDashboardWidget operation middleware
+func (siw *ServerInterfaceWrapper) QueryDashboardWidget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "dashboardId" -------------
+	var dashboardId DashboardIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dashboardId", chi.URLParam(r, "dashboardId"), &dashboardId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "dashboardId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "widgetId" -------------
+	var widgetId DashboardWidgetIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "widgetId", chi.URLParam(r, "widgetId"), &widgetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "widgetId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"dashboard.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params QueryDashboardWidgetParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDRequiredHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = XAgentZWorkspaceID
+
+	} else {
+		err := fmt.Errorf("Header parameter X-AgentZ-Workspace-ID is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.QueryDashboardWidget(w, r, dashboardId, widgetId, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -42192,6 +45561,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/agent/{agentName}/access-targets", wrapper.ListAgentAccessTargets)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/dashboard", wrapper.ListAgentDashboards)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/{agentName}/dashboard", wrapper.CreateAgentDashboard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/agent/{agentName}/dashboard/{dashboardName}", wrapper.DeleteAgentDashboard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/agent/{agentName}/dashboard/{dashboardName}", wrapper.GetAgentDashboard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/agent/{agentName}/dashboard/{dashboardName}", wrapper.ReplaceAgentDashboard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/agent/{agentName}/dashboard/{dashboardName}/data", wrapper.DeleteDashboardData)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/agent/{agentName}/dashboard/{dashboardName}/data", wrapper.WriteDashboardData)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/agent/{agentName}/fs/directory", wrapper.CreateAgentDirectory)
 	})
 	r.Group(func(r chi.Router) {
@@ -42253,6 +45643,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/chat-session/watch", wrapper.WatchChatSessions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/dashboard", wrapper.ListDashboards)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/dashboard/{dashboardId}", wrapper.GetDashboard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/dashboard/{dashboardId}/filter/{filterId}/options", wrapper.ListDashboardFilterOptions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/dashboard/{dashboardId}/widget/{widgetId}/query", wrapper.QueryDashboardWidget)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/event-trail-event", wrapper.ListEventTrailEvents)
@@ -42594,515 +45996,551 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

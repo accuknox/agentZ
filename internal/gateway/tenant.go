@@ -686,8 +686,22 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 	if err != nil {
 		return requestAuth{}, err
 	}
+	tenant, workspaceID, err := s.tenantScopeForNamespace(r.Context(), agt.Namespace)
+	if err != nil {
+		return requestAuth{}, fmt.Errorf("resolve Agent tenant scope: %w", err)
+	}
+	if workspaceID == "" {
+		return requestAuth{}, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"Agent is not scoped to a Workspace",
+			errors.New("dashboard operations require Workspace scope"),
+		)
+	}
 
 	return requestAuth{
+		organizationID:  tenant.Spec.OrganizationID,
+		workspaceID:     workspaceID,
 		tenantNamespace: agt.Namespace,
 		actorType:       requestActorSystem,
 		actorID:         user.namespace + ":" + user.name,
@@ -801,6 +815,29 @@ func workflowAgentAccess(r *http.Request) (string, string, bool) {
 	}
 
 	switch chi.RouteContext(r.Context()).RoutePattern() {
+	case "/api/agent/{agentName}/dashboard":
+		switch r.Method {
+		case http.MethodGet:
+			return agentName, "list-dashboards", true
+		case http.MethodPost:
+			return agentName, "create-dashboard", true
+		}
+	case "/api/agent/{agentName}/dashboard/{dashboardName}":
+		switch r.Method {
+		case http.MethodGet:
+			return agentName, "get-dashboard", true
+		case http.MethodPut:
+			return agentName, "replace-dashboard", true
+		case http.MethodDelete:
+			return agentName, "delete-dashboard", true
+		}
+	case "/api/agent/{agentName}/dashboard/{dashboardName}/data":
+		switch r.Method {
+		case http.MethodPost:
+			return agentName, "write-dashboard-data", true
+		case http.MethodDelete:
+			return agentName, "delete-dashboard-data", true
+		}
 	case "/api/workflow/{agentName}":
 		return workflowAgentAccessRoot(agentName, r.Method)
 	case "/api/workflow/{agentName}/schedule":

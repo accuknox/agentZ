@@ -4,6 +4,170 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type DashboardIdentifier = string
+
+export type DashboardName = string
+
+export type DashboardDimension = {
+  name: DashboardIdentifier
+  label: string
+}
+
+export type DashboardMeasure = {
+  name: DashboardIdentifier
+  label: string
+  unit?: string
+}
+
+export type DashboardFilter = {
+  id: DashboardIdentifier
+  label: string
+  field: DashboardIdentifier
+  multiple: boolean
+}
+
+export type DashboardWidgetKind = "metric" | "line" | "area" | "bar" | "donut" | "table"
+
+export type DashboardWidgetWidth = "third" | "half" | "full"
+
+export type DashboardAggregation = "count" | "sum" | "avg" | "min" | "max"
+
+export type DashboardSortDirection = "asc" | "desc"
+
+/**
+ * Closed widget definition. Query fields are interpreted only by the gateway and validated against the dashboard field contract.
+ *
+ */
+export type DashboardWidget = {
+  id: DashboardIdentifier
+  title: string
+  description?: string
+  kind: DashboardWidgetKind
+  width: DashboardWidgetWidth
+  aggregation?: DashboardAggregation
+  measure?: DashboardIdentifier
+  group_by?: DashboardIdentifier
+  stacked?: boolean
+  columns?: Array<string>
+  sort_by?: string
+  sort_direction?: DashboardSortDirection
+  limit?: number
+}
+
+export type DashboardDefinition = {
+  name: DashboardName
+  title: string
+  description: string
+  dimensions: Array<DashboardDimension>
+  measures: Array<DashboardMeasure>
+  filters: Array<DashboardFilter>
+  widgets: Array<DashboardWidget>
+}
+
+export type DashboardSummary = {
+  id: string
+  agent_name: AgentName
+  name: DashboardName
+  title: string
+  description: string
+  revision: number
+  widget_count: number
+  updated_at: string
+}
+
+export type Dashboard = {
+  id: string
+  agent_name: AgentName
+  revision: number
+  definition: DashboardDefinition
+  created_at: string
+  updated_at: string
+}
+
+export type ListDashboardsResponse = {
+  dashboards: Array<DashboardSummary>
+  next_page_token: string
+}
+
+export type ReplaceDashboardRequest = {
+  expected_revision: number
+  definition: DashboardDefinition
+}
+
+export type DashboardDataAction = "append" | "upsert"
+
+export type DashboardDataRecord = {
+  record_key?: string
+  observed_at: string
+  dimensions: {
+    [key: string]: string
+  }
+  measures: {
+    [key: string]: number
+  }
+}
+
+export type WriteDashboardDataRequest = {
+  action: DashboardDataAction
+  records: Array<DashboardDataRecord>
+}
+
+export type DeleteDashboardDataRequest = {
+  record_keys: Array<string>
+}
+
+export type DashboardDataMutationResponse = {
+  affected: number
+}
+
+export type DashboardTimeRange = {
+  from: string
+  to: string
+}
+
+export type DashboardQueryFilter = {
+  filter_id: DashboardIdentifier
+  values: Array<string>
+}
+
+export type DashboardQueryRequest = {
+  time_range: DashboardTimeRange
+  filters: Array<DashboardQueryFilter>
+}
+
+export type DashboardSeries = {
+  key: string
+  label: string
+}
+
+export type DashboardPoint = {
+  key: string
+  label: string
+  values: Array<number>
+}
+
+export type DashboardTableRow = {
+  cells: Array<string>
+}
+
+export type DashboardWidgetResult = {
+  widget_id: DashboardIdentifier
+  kind: DashboardWidgetKind
+  revision: number
+  generated_at: string
+  total: number | null
+  series: Array<DashboardSeries>
+  points: Array<DashboardPoint>
+  columns: Array<string>
+  rows: Array<DashboardTableRow>
+}
+
+export type DashboardFilterOptions = {
+  filter_id: DashboardIdentifier
+  revision: number
+  values: Array<string>
+}
+
 export type ChatSessionKind = "chat" | "workflow_run"
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
@@ -60,6 +224,7 @@ export type EventTrailTargetType =
   | "inference_provider"
   | "inference_pool"
   | "agent"
+  | "dashboard"
 
 export type EventTrailField = {
   field: "member_id" | "name" | "provisioning_attempt" | "role" | "slug" | "state" | "user_id"
@@ -222,6 +387,7 @@ export type WorkspaceCapabilities = {
   inference_pools: ResourceCapabilities
   api_keys: ResourceCapabilities
   observability: ResourceCapabilities
+  dashboards: ResourceCapabilities
 }
 
 export type AgentWorkspaceCapabilities = {
@@ -2067,6 +2233,11 @@ export type UpdateInferenceProviderRequestWritable = {
 }
 
 /**
+ * Stable Workspace ID selecting the exact authorized scope.
+ */
+export type WorkspaceIdRequiredHeader = string
+
+/**
  * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
  *
  */
@@ -2120,6 +2291,19 @@ export type ChatSessionLimitQuery = number
  * Agent name.
  */
 export type AgentNamePath = AgentName
+
+/**
+ * OpenCode session that invoked the Agent tool.
+ */
+export type AgentSessionIdHeader = string
+
+export type DashboardIdPath = string
+
+export type DashboardNamePath = DashboardName
+
+export type DashboardWidgetIdPath = DashboardIdentifier
+
+export type DashboardFilterIdPath = DashboardIdentifier
 
 /**
  * Stable Agent Share ID.
@@ -2286,6 +2470,649 @@ export type FromDateQuery = string
  * Inclusive upper bound for MCP tool activity date.
  */
 export type ToDateQuery = string
+
+export type ListDashboardsData = {
+  body?: never
+  headers: {
+    /**
+     * Stable Workspace ID selecting the exact authorized scope.
+     */
+    "X-AgentZ-Workspace-ID": string
+  }
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/dashboard"
+}
+
+export type ListDashboardsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListDashboardsError = ListDashboardsErrors[keyof ListDashboardsErrors]
+
+export type ListDashboardsResponses = {
+  /**
+   * Paginated dashboard summaries.
+   */
+  200: ListDashboardsResponse
+}
+
+export type ListDashboardsResponse2 = ListDashboardsResponses[keyof ListDashboardsResponses]
+
+export type GetDashboardData = {
+  body?: never
+  headers: {
+    /**
+     * Stable Workspace ID selecting the exact authorized scope.
+     */
+    "X-AgentZ-Workspace-ID": string
+  }
+  path: {
+    dashboardId: string
+  }
+  query?: never
+  url: "/api/dashboard/{dashboardId}"
+}
+
+export type GetDashboardErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetDashboardError = GetDashboardErrors[keyof GetDashboardErrors]
+
+export type GetDashboardResponses = {
+  /**
+   * Dashboard definition and current revision.
+   */
+  200: Dashboard
+}
+
+export type GetDashboardResponse = GetDashboardResponses[keyof GetDashboardResponses]
+
+export type QueryDashboardWidgetData = {
+  body: DashboardQueryRequest
+  headers: {
+    /**
+     * Stable Workspace ID selecting the exact authorized scope.
+     */
+    "X-AgentZ-Workspace-ID": string
+  }
+  path: {
+    dashboardId: string
+    widgetId: DashboardIdentifier
+  }
+  query?: never
+  url: "/api/dashboard/{dashboardId}/widget/{widgetId}/query"
+}
+
+export type QueryDashboardWidgetErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type QueryDashboardWidgetError = QueryDashboardWidgetErrors[keyof QueryDashboardWidgetErrors]
+
+export type QueryDashboardWidgetResponses = {
+  /**
+   * Bounded data for one widget.
+   */
+  200: DashboardWidgetResult
+}
+
+export type QueryDashboardWidgetResponse =
+  QueryDashboardWidgetResponses[keyof QueryDashboardWidgetResponses]
+
+export type ListDashboardFilterOptionsData = {
+  body: DashboardTimeRange
+  headers: {
+    /**
+     * Stable Workspace ID selecting the exact authorized scope.
+     */
+    "X-AgentZ-Workspace-ID": string
+  }
+  path: {
+    dashboardId: string
+    filterId: DashboardIdentifier
+  }
+  query?: never
+  url: "/api/dashboard/{dashboardId}/filter/{filterId}/options"
+}
+
+export type ListDashboardFilterOptionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListDashboardFilterOptionsError =
+  ListDashboardFilterOptionsErrors[keyof ListDashboardFilterOptionsErrors]
+
+export type ListDashboardFilterOptionsResponses = {
+  /**
+   * Distinct filter values in the selected time range.
+   */
+  200: DashboardFilterOptions
+}
+
+export type ListDashboardFilterOptionsResponse =
+  ListDashboardFilterOptionsResponses[keyof ListDashboardFilterOptionsResponses]
+
+export type ListAgentDashboardsData = {
+  body?: never
+  headers: {
+    /**
+     * OpenCode session that invoked the Agent tool.
+     */
+    "X-AgentZ-Session-ID": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/agent/{agentName}/dashboard"
+}
+
+export type ListAgentDashboardsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentDashboardsError = ListAgentDashboardsErrors[keyof ListAgentDashboardsErrors]
+
+export type ListAgentDashboardsResponses = {
+  /**
+   * Paginated Agent dashboard summaries.
+   */
+  200: ListDashboardsResponse
+}
+
+export type ListAgentDashboardsResponse =
+  ListAgentDashboardsResponses[keyof ListAgentDashboardsResponses]
+
+export type CreateAgentDashboardData = {
+  body: DashboardDefinition
+  headers: {
+    /**
+     * OpenCode session that invoked the Agent tool.
+     */
+    "X-AgentZ-Session-ID": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard"
+}
+
+export type CreateAgentDashboardErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateAgentDashboardError = CreateAgentDashboardErrors[keyof CreateAgentDashboardErrors]
+
+export type CreateAgentDashboardResponses = {
+  /**
+   * Created dashboard.
+   */
+  201: Dashboard
+}
+
+export type CreateAgentDashboardResponse =
+  CreateAgentDashboardResponses[keyof CreateAgentDashboardResponses]
+
+export type DeleteAgentDashboardData = {
+  body?: never
+  headers: {
+    /**
+     * OpenCode session that invoked the Agent tool.
+     */
+    "X-AgentZ-Session-ID": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}"
+}
+
+export type DeleteAgentDashboardErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteAgentDashboardError = DeleteAgentDashboardErrors[keyof DeleteAgentDashboardErrors]
+
+export type DeleteAgentDashboardResponses = {
+  /**
+   * Dashboard deleted.
+   */
+  204: void
+}
+
+export type DeleteAgentDashboardResponse =
+  DeleteAgentDashboardResponses[keyof DeleteAgentDashboardResponses]
+
+export type GetAgentDashboardData = {
+  body?: never
+  headers: {
+    /**
+     * OpenCode session that invoked the Agent tool.
+     */
+    "X-AgentZ-Session-ID": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}"
+}
+
+export type GetAgentDashboardErrors = {
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAgentDashboardError = GetAgentDashboardErrors[keyof GetAgentDashboardErrors]
+
+export type GetAgentDashboardResponses = {
+  /**
+   * Dashboard definition and current revision.
+   */
+  200: Dashboard
+}
+
+export type GetAgentDashboardResponse = GetAgentDashboardResponses[keyof GetAgentDashboardResponses]
+
+export type ReplaceAgentDashboardData = {
+  body: ReplaceDashboardRequest
+  headers: {
+    /**
+     * OpenCode session that invoked the Agent tool.
+     */
+    "X-AgentZ-Session-ID": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}"
+}
+
+export type ReplaceAgentDashboardErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReplaceAgentDashboardError =
+  ReplaceAgentDashboardErrors[keyof ReplaceAgentDashboardErrors]
+
+export type ReplaceAgentDashboardResponses = {
+  /**
+   * Replaced dashboard and new revision.
+   */
+  200: Dashboard
+}
+
+export type ReplaceAgentDashboardResponse =
+  ReplaceAgentDashboardResponses[keyof ReplaceAgentDashboardResponses]
+
+export type DeleteDashboardDataData = {
+  body: DeleteDashboardDataRequest
+  headers: {
+    /**
+     * OpenCode session that invoked the Agent tool.
+     */
+    "X-AgentZ-Session-ID": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}/data"
+}
+
+export type DeleteDashboardDataErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteDashboardDataError = DeleteDashboardDataErrors[keyof DeleteDashboardDataErrors]
+
+export type DeleteDashboardDataResponses = {
+  /**
+   * Record deletion count.
+   */
+  200: DashboardDataMutationResponse
+}
+
+export type DeleteDashboardDataResponse =
+  DeleteDashboardDataResponses[keyof DeleteDashboardDataResponses]
+
+export type WriteDashboardDataData = {
+  body: WriteDashboardDataRequest
+  headers: {
+    /**
+     * OpenCode session that invoked the Agent tool.
+     */
+    "X-AgentZ-Session-ID": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}/data"
+}
+
+export type WriteDashboardDataErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * A scoped request rate or query concurrency limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type WriteDashboardDataError = WriteDashboardDataErrors[keyof WriteDashboardDataErrors]
+
+export type WriteDashboardDataResponses = {
+  /**
+   * Record mutation counts.
+   */
+  200: DashboardDataMutationResponse
+}
+
+export type WriteDashboardDataResponse =
+  WriteDashboardDataResponses[keyof WriteDashboardDataResponses]
 
 export type ListChatSessionsData = {
   body?: never

@@ -70,6 +70,7 @@ const resourceDescriptions: Partial<Record<RoleResource, string>> = {
   inference_provider: "Provider credentials, model catalogs, and model metadata.",
   mcp_connection: "MCP server connections, credentials, and tool catalogs.",
   observability: "Runtime events, traces, and telemetry shown in Lens.",
+  dashboard: "Agent-authored dashboards and their retained data.",
   sandbox: "Isolated runtimes where Agents execute tools.",
   skill: "Immutable Skill files assigned to Agents.",
 }

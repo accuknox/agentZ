@@ -10,6 +10,9 @@ import {
 } from "./client"
 import { client } from "./client.gen"
 import type {
+  CreateAgentDashboardData,
+  CreateAgentDashboardErrors,
+  CreateAgentDashboardResponses,
   CreateAgentData,
   CreateAgentDirectoryData,
   CreateAgentDirectoryErrors,
@@ -49,6 +52,9 @@ import type {
   CreateWorkspaceData,
   CreateWorkspaceErrors,
   CreateWorkspaceResponses,
+  DeleteAgentDashboardData,
+  DeleteAgentDashboardErrors,
+  DeleteAgentDashboardResponses,
   DeleteAgentData,
   DeleteAgentEntryData,
   DeleteAgentEntryErrors,
@@ -61,6 +67,9 @@ import type {
   DeleteAgentShareData,
   DeleteAgentShareErrors,
   DeleteAgentShareResponses,
+  DeleteDashboardDataData,
+  DeleteDashboardDataErrors,
+  DeleteDashboardDataResponses,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
@@ -100,12 +109,18 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
+  GetAgentDashboardData,
+  GetAgentDashboardErrors,
+  GetAgentDashboardResponses,
   GetAgentOwnerData,
   GetAgentOwnerErrors,
   GetAgentOwnerResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
+  GetDashboardData,
+  GetDashboardErrors,
+  GetDashboardResponses,
   GetEventTrailEventData,
   GetEventTrailEventErrors,
   GetEventTrailEventResponses,
@@ -157,6 +172,9 @@ import type {
   ListAgentAccessTargetsData,
   ListAgentAccessTargetsErrors,
   ListAgentAccessTargetsResponses,
+  ListAgentDashboardsData,
+  ListAgentDashboardsErrors,
+  ListAgentDashboardsResponses,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsErrors,
   ListAgentMutableSkillsResponses,
@@ -172,6 +190,12 @@ import type {
   ListChatSessionsData,
   ListChatSessionsErrors,
   ListChatSessionsResponses,
+  ListDashboardFilterOptionsData,
+  ListDashboardFilterOptionsErrors,
+  ListDashboardFilterOptionsResponses,
+  ListDashboardsData,
+  ListDashboardsErrors,
+  ListDashboardsResponses,
   ListEventTrailEventsData,
   ListEventTrailEventsErrors,
   ListEventTrailEventsResponses,
@@ -265,6 +289,9 @@ import type {
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
+  QueryDashboardWidgetData,
+  QueryDashboardWidgetErrors,
+  QueryDashboardWidgetResponses,
   ReadAgentFileData,
   ReadAgentFileErrors,
   ReadAgentFileRawData,
@@ -277,6 +304,9 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
+  ReplaceAgentDashboardData,
+  ReplaceAgentDashboardErrors,
+  ReplaceAgentDashboardResponses,
   ReplaceWorkspaceInheritedResourcesData,
   ReplaceWorkspaceInheritedResourcesErrors,
   ReplaceWorkspaceInheritedResourcesResponses,
@@ -353,9 +383,15 @@ import type {
   WriteAgentFileRawErrors,
   WriteAgentFileRawResponses,
   WriteAgentFileResponses,
+  WriteDashboardDataData,
+  WriteDashboardDataErrors,
+  WriteDashboardDataResponses,
 } from "./types.gen"
 import {
   zCreateAgentBody,
+  zCreateAgentDashboardBody,
+  zCreateAgentDashboardHeaders,
+  zCreateAgentDashboardPath,
   zCreateAgentDirectoryBody,
   zCreateAgentDirectoryPath,
   zCreateAgentFileBody,
@@ -378,6 +414,8 @@ import {
   zCreateWorkflowScheduleBody,
   zCreateWorkflowSchedulePath,
   zCreateWorkspaceBody,
+  zDeleteAgentDashboardHeaders,
+  zDeleteAgentDashboardPath,
   zDeleteAgentEntryPath,
   zDeleteAgentEntryQuery,
   zDeleteAgentMutableSkillsBody,
@@ -385,6 +423,9 @@ import {
   zDeleteAgentMutableSkillsPath,
   zDeleteAgentPath,
   zDeleteAgentSharePath,
+  zDeleteDashboardDataBody,
+  zDeleteDashboardDataHeaders,
+  zDeleteDashboardDataPath,
   zDeleteImmutableSkillsBody,
   zDeleteImmutableSkillsHeaders,
   zDeleteInferencePoolHeaders,
@@ -408,7 +449,11 @@ import {
   zExportAgentMutableSkillsPath,
   zExportImmutableSkillsBody,
   zExportImmutableSkillsHeaders,
+  zGetAgentDashboardHeaders,
+  zGetAgentDashboardPath,
   zGetAgentOwnerPath,
+  zGetDashboardHeaders,
+  zGetDashboardPath,
   zGetEventTrailEventHeaders,
   zGetEventTrailEventPath,
   zGetInferencePoolHeaders,
@@ -441,6 +486,9 @@ import {
   zInvokeWorkflowWebhookPath,
   zInvokeWorkflowWebhookQuery,
   zListAgentAccessTargetsPath,
+  zListAgentDashboardsHeaders,
+  zListAgentDashboardsPath,
+  zListAgentDashboardsQuery,
   zListAgentMutableSkillsHeaders,
   zListAgentMutableSkillsPath,
   zListAgentMutableSkillsQuery,
@@ -450,6 +498,11 @@ import {
   zListAgentWorkflowSchedulesPath,
   zListAgentWorkflowSchedulesQuery,
   zListChatSessionsQuery,
+  zListDashboardFilterOptionsBody,
+  zListDashboardFilterOptionsHeaders,
+  zListDashboardFilterOptionsPath,
+  zListDashboardsHeaders,
+  zListDashboardsQuery,
   zListEventTrailEventsBody,
   zListEventTrailEventsHeaders,
   zListFileObservabilityPath,
@@ -511,6 +564,9 @@ import {
   zPutSecretBody,
   zPutSecretPath,
   zPutSecretQuery,
+  zQueryDashboardWidgetBody,
+  zQueryDashboardWidgetHeaders,
+  zQueryDashboardWidgetPath,
   zReadAgentFilePath,
   zReadAgentFileQuery,
   zReadAgentFileRawPath,
@@ -520,6 +576,9 @@ import {
   zRefreshInferenceProviderModelsQuery,
   zRenameAgentEntryBody,
   zRenameAgentEntryPath,
+  zReplaceAgentDashboardBody,
+  zReplaceAgentDashboardHeaders,
+  zReplaceAgentDashboardPath,
   zReplaceWorkspaceInheritedResourcesBody,
   zReplaceWorkspaceInheritedResourcesPath,
   zResolveWorkspaceSlugPath,
@@ -565,6 +624,9 @@ import {
   zWriteAgentFileRawBody,
   zWriteAgentFileRawPath,
   zWriteAgentFileRawQuery,
+  zWriteDashboardDataBody,
+  zWriteDashboardDataHeaders,
+  zWriteDashboardDataPath,
 } from "./zod.gen"
 
 export type Options<
@@ -584,6 +646,297 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+/**
+ * List dashboards in the current Workspace.
+ */
+export const listDashboards = <ThrowOnError extends boolean = false>(
+  options: Options<ListDashboardsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListDashboardsResponses, ListDashboardsErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          headers: zListDashboardsHeaders,
+          path: z.never().optional(),
+          query: zListDashboardsQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/dashboard",
+    ...options,
+  })
+
+/**
+ * Get one dashboard definition.
+ */
+export const getDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<GetDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetDashboardResponses, GetDashboardErrors, ThrowOnError>({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          headers: zGetDashboardHeaders,
+          path: zGetDashboardPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/dashboard/{dashboardId}",
+    ...options,
+  })
+
+/**
+ * Query one widget from its stored definition.
+ *
+ * The server resolves the widget query; clients cannot submit query expressions.
+ */
+export const queryDashboardWidget = <ThrowOnError extends boolean = false>(
+  options: Options<QueryDashboardWidgetData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    QueryDashboardWidgetResponses,
+    QueryDashboardWidgetErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zQueryDashboardWidgetBody,
+          headers: zQueryDashboardWidgetHeaders,
+          path: zQueryDashboardWidgetPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/dashboard/{dashboardId}/widget/{widgetId}/query",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List bounded values for one stored dashboard filter.
+ */
+export const listDashboardFilterOptions = <ThrowOnError extends boolean = false>(
+  options: Options<ListDashboardFilterOptionsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ListDashboardFilterOptionsResponses,
+    ListDashboardFilterOptionsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zListDashboardFilterOptionsBody,
+          headers: zListDashboardFilterOptionsHeaders,
+          path: zListDashboardFilterOptionsPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/dashboard/{dashboardId}/filter/{filterId}/options",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List dashboard definitions owned by the calling Agent.
+ */
+export const listAgentDashboards = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentDashboardsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListAgentDashboardsResponses,
+    ListAgentDashboardsErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          headers: zListAgentDashboardsHeaders,
+          path: zListAgentDashboardsPath,
+          query: zListAgentDashboardsQuery.optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard",
+    ...options,
+  })
+
+/**
+ * Create a dashboard from an interactive Agent session.
+ */
+export const createAgentDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<CreateAgentDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateAgentDashboardResponses,
+    CreateAgentDashboardErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zCreateAgentDashboardBody,
+          headers: zCreateAgentDashboardHeaders,
+          path: zCreateAgentDashboardPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete a dashboard from an interactive Agent session.
+ */
+export const deleteAgentDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteAgentDashboardResponses,
+    DeleteAgentDashboardErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: z.never().optional(),
+          headers: zDeleteAgentDashboardHeaders,
+          path: zDeleteAgentDashboardPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}",
+    ...options,
+  })
+
+/**
+ * Get one dashboard owned by the calling Agent.
+ */
+export const getAgentDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<GetAgentDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAgentDashboardResponses, GetAgentDashboardErrors, ThrowOnError>(
+    {
+      requestValidator: async (data) =>
+        await z
+          .object({
+            body: z.never().optional(),
+            headers: zGetAgentDashboardHeaders,
+            path: zGetAgentDashboardPath,
+            query: z.never().optional(),
+          })
+          .parseAsync(data),
+      security: [{ scheme: "bearer", type: "http" }],
+      url: "/api/agent/{agentName}/dashboard/{dashboardName}",
+      ...options,
+    }
+  )
+
+/**
+ * Replace a dashboard from an interactive Agent session.
+ */
+export const replaceAgentDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<ReplaceAgentDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    ReplaceAgentDashboardResponses,
+    ReplaceAgentDashboardErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zReplaceAgentDashboardBody,
+          headers: zReplaceAgentDashboardHeaders,
+          path: zReplaceAgentDashboardPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete keyed records from an interactive Agent session.
+ */
+export const deleteDashboardData = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteDashboardDataData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteDashboardDataResponses,
+    DeleteDashboardDataErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zDeleteDashboardDataBody,
+          headers: zDeleteDashboardDataHeaders,
+          path: zDeleteDashboardDataPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}/data",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Append or upsert retained dashboard records.
+ */
+export const writeDashboardData = <ThrowOnError extends boolean = false>(
+  options: Options<WriteDashboardDataData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    WriteDashboardDataResponses,
+    WriteDashboardDataErrors,
+    ThrowOnError
+  >({
+    requestValidator: async (data) =>
+      await z
+        .object({
+          body: zWriteDashboardDataBody,
+          headers: zWriteDashboardDataHeaders,
+          path: zWriteDashboardDataPath,
+          query: z.never().optional(),
+        })
+        .parseAsync(data),
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}/data",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
 
 /**
  * List the current Workspace chat inbox.

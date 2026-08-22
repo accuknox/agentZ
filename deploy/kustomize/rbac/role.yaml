@@ -1,3 +1,4 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -51,21 +52,28 @@ rules:
   - agents
   verbs:
   - create
+  - create-dashboard
   - create-workflow
   - create-workflow-schedule
   - delete
+  - delete-dashboard
+  - delete-dashboard-data
   - delete-workflow-schedule
   - delete-workflows
   - get
+  - get-dashboard
   - get-workflow
   - list
+  - list-dashboards
   - list-workflow-schedules
   - list-workflows
   - patch
+  - replace-dashboard
   - set-workflowrun-status
   - update
   - update-workflow-schedule
   - watch
+  - write-dashboard-data
 - apiGroups:
   - agentz.accuknox.com
   resources:

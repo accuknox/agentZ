@@ -44,6 +44,510 @@ WHERE tenant_namespace = $1
 DELETE FROM agents
 WHERE tenant_namespace = $1;
 
+-- name: GatewayListDashboards :many
+SELECT
+  id,
+  agent_name,
+  name,
+  revision,
+  definition,
+  created_at,
+  updated_at
+FROM dashboards
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND (
+    NOT sqlc.arg(agent_filter_set)::boolean
+    OR agent_name = sqlc.arg(agent_name)
+  )
+  AND (
+    NOT sqlc.arg(cursor_set)::boolean
+    OR (updated_at, id) < (
+      sqlc.arg(cursor_updated_at),
+      sqlc.arg(cursor_id)::text
+    )
+  )
+ORDER BY updated_at DESC, id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayGetDashboardByID :one
+SELECT id, agent_name, name, revision, definition, created_at, updated_at
+FROM dashboards
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id = sqlc.arg(id);
+
+-- name: GatewayGetAgentDashboard :one
+SELECT id, agent_name, name, revision, definition, created_at, updated_at
+FROM dashboards
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND name = sqlc.arg(name);
+
+-- name: GatewayCreateDashboard :one
+INSERT INTO dashboards(
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  name,
+  definition
+)
+VALUES (
+  sqlc.arg(id),
+  sqlc.arg(organization_id),
+  sqlc.arg(workspace_id),
+  sqlc.arg(agent_name),
+  sqlc.arg(name),
+  sqlc.arg(definition)
+)
+RETURNING id, agent_name, name, revision, definition, created_at, updated_at;
+
+-- name: GatewayReplaceDashboard :one
+UPDATE dashboards
+SET
+  name = sqlc.arg(next_name),
+  definition = sqlc.arg(definition),
+  revision = revision + 1,
+  updated_at = NOW()
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND name = sqlc.arg(name)
+  AND revision = sqlc.arg(expected_revision)
+RETURNING id, agent_name, name, revision, definition, created_at, updated_at;
+
+-- name: GatewayDeleteDashboard :execrows
+DELETE FROM dashboards
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND name = sqlc.arg(name);
+
+-- name: GatewayGetDashboardSessionKind :one
+SELECT kind
+FROM chat_sessions
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND session_id = sqlc.arg(session_id);
+
+-- name: GatewayAppendDashboardRecords :execrows
+INSERT INTO dashboard_records(
+  id,
+  dashboard_id,
+  workspace_id,
+  record_key,
+  session_id,
+  observed_at,
+  expires_at,
+  dimensions,
+  measures
+)
+SELECT
+  record.id,
+  sqlc.arg(dashboard_id),
+  sqlc.arg(workspace_id),
+  record.record_key,
+  sqlc.arg(session_id),
+  record.observed_at,
+  NOW() + INTERVAL '30 days',
+  record.dimensions,
+  record.measures
+FROM jsonb_to_recordset(sqlc.arg(records)) AS record(
+  id text,
+  record_key text,
+  observed_at timestamptz,
+  dimensions jsonb,
+  measures jsonb
+)
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayUpsertDashboardRecords :execrows
+INSERT INTO dashboard_records(
+  id,
+  dashboard_id,
+  workspace_id,
+  record_key,
+  session_id,
+  observed_at,
+  expires_at,
+  dimensions,
+  measures
+)
+SELECT
+  record.id,
+  sqlc.arg(dashboard_id),
+  sqlc.arg(workspace_id),
+  record.record_key,
+  sqlc.arg(session_id),
+  record.observed_at,
+  NOW() + INTERVAL '30 days',
+  record.dimensions,
+  record.measures
+FROM jsonb_to_recordset(sqlc.arg(records)) AS record(
+  id text,
+  record_key text,
+  observed_at timestamptz,
+  dimensions jsonb,
+  measures jsonb
+)
+ON CONFLICT (dashboard_id, record_key) WHERE record_key IS NOT NULL DO UPDATE SET
+  session_id = EXCLUDED.session_id,
+  observed_at = EXCLUDED.observed_at,
+  dimensions = EXCLUDED.dimensions,
+  measures = EXCLUDED.measures,
+  updated_at = NOW(),
+  expires_at = NOW() + INTERVAL '30 days';
+
+-- name: GatewayDeleteDashboardRecords :execrows
+DELETE FROM dashboard_records
+WHERE dashboard_id = sqlc.arg(dashboard_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND record_key = ANY(sqlc.arg(record_keys)::text[]);
+
+-- name: GatewayConsumeDashboardRateLimit :one
+INSERT INTO dashboard_rate_limits(key, window_started_at, count)
+VALUES (sqlc.arg(key), sqlc.arg(window_started_at), sqlc.arg(delta))
+ON CONFLICT (key, window_started_at) DO UPDATE SET
+  count = dashboard_rate_limits.count + EXCLUDED.count
+WHERE dashboard_rate_limits.count + EXCLUDED.count <= sqlc.arg(max_count)
+RETURNING count;
+
+-- name: GatewayDeleteExpiredDashboardRecords :execrows
+WITH expired AS (
+  SELECT dashboard_id, id
+  FROM dashboard_records
+  WHERE expires_at <= NOW()
+  ORDER BY expires_at
+  LIMIT sqlc.arg(batch_size)
+  FOR UPDATE SKIP LOCKED
+)
+DELETE FROM dashboard_records AS records
+USING expired
+WHERE records.dashboard_id = expired.dashboard_id
+  AND records.id = expired.id;
+
+-- name: GatewayDeleteExpiredDashboardRateLimits :execrows
+DELETE FROM dashboard_rate_limits
+WHERE window_started_at < sqlc.arg(retained_after);
+
+-- name: GatewaySetDashboardQueryTimeout :exec
+SET LOCAL statement_timeout = '2s';
+
+-- name: GatewayAcquireDashboardQuerySlot :one
+SELECT slot::integer
+FROM generate_series(0, 7) AS slots(slot)
+WHERE pg_try_advisory_xact_lock(
+  hashtextextended(sqlc.arg(workspace_id)::text, slot::bigint)
+)
+LIMIT 1;
+
+-- name: GatewayListDashboardFilterOptions :many
+SELECT DISTINCT (records.dimensions ->> sqlc.arg(field)::text)::text AS value
+FROM dashboard_records AS records
+WHERE records.workspace_id = sqlc.arg(workspace_id)
+  AND records.dashboard_id = sqlc.arg(dashboard_id)
+  AND records.observed_at >= sqlc.arg(observed_after)
+  AND records.observed_at < sqlc.arg(observed_before)
+  AND records.expires_at > NOW()
+  AND records.dimensions ? sqlc.arg(field)::text
+ORDER BY value
+LIMIT 100;
+
+-- name: GatewayQueryDashboardMetric :one
+SELECT COALESCE(
+  CASE sqlc.arg(aggregation)::text
+    WHEN 'avg' THEN AVG(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+    WHEN 'count' THEN COUNT(NULLIF(records.measures ->> sqlc.arg(measure)::text, ''))::double precision
+    WHEN 'max' THEN MAX(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+    WHEN 'min' THEN MIN(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+    WHEN 'sum' THEN SUM(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+  END,
+  0
+)::double precision AS value
+FROM dashboard_records AS records
+WHERE records.workspace_id = sqlc.arg(workspace_id)
+  AND records.dashboard_id = sqlc.arg(dashboard_id)
+  AND records.observed_at >= sqlc.arg(observed_after)
+  AND records.observed_at < sqlc.arg(observed_before)
+  AND records.expires_at > NOW()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset(sqlc.arg(filters)::jsonb) AS selected(field text, values text[])
+    WHERE cardinality(selected.values) > 0
+      AND NOT COALESCE(
+        records.dimensions ->> selected.field = ANY(selected.values),
+        false
+      )
+  );
+
+-- name: GatewayQueryDashboardTimeSeries :many
+WITH filtered AS MATERIALIZED (
+  SELECT
+    records.observed_at,
+    CASE
+      WHEN sqlc.arg(grouped)::boolean
+        THEN COALESCE(records.dimensions ->> sqlc.arg(group_by)::text, 'Unknown')
+      ELSE 'All'
+    END::text AS label,
+    NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision AS value
+  FROM dashboard_records AS records
+  WHERE records.workspace_id = sqlc.arg(workspace_id)
+    AND records.dashboard_id = sqlc.arg(dashboard_id)
+    AND records.observed_at >= sqlc.arg(observed_after)
+    AND records.observed_at < sqlc.arg(observed_before)
+    AND records.expires_at > NOW()
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_to_recordset(sqlc.arg(filters)::jsonb) AS selected(field text, values text[])
+      WHERE cardinality(selected.values) > 0
+        AND NOT COALESCE(
+          records.dimensions ->> selected.field = ANY(selected.values),
+          false
+        )
+    )
+), top_series AS (
+  SELECT
+    filtered.label,
+    COALESCE(
+      CASE sqlc.arg(aggregation)::text
+        WHEN 'avg' THEN AVG(filtered.value)
+        WHEN 'count' THEN COUNT(filtered.value)::double precision
+        WHEN 'max' THEN MAX(filtered.value)
+        WHEN 'min' THEN MIN(filtered.value)
+        WHEN 'sum' THEN SUM(filtered.value)
+      END,
+      0
+    )::double precision AS score
+  FROM filtered
+  GROUP BY filtered.label
+  ORDER BY score DESC, filtered.label
+  LIMIT sqlc.arg(series_limit)
+)
+SELECT
+  date_bin(
+    make_interval(secs => sqlc.arg(bucket_seconds)::integer),
+    filtered.observed_at,
+    timestamptz 'epoch'
+  )::timestamptz AS bucket,
+  filtered.label,
+  COALESCE(
+    CASE sqlc.arg(aggregation)::text
+      WHEN 'avg' THEN AVG(filtered.value)
+      WHEN 'count' THEN COUNT(filtered.value)::double precision
+      WHEN 'max' THEN MAX(filtered.value)
+      WHEN 'min' THEN MIN(filtered.value)
+      WHEN 'sum' THEN SUM(filtered.value)
+    END,
+    0
+  )::double precision AS value
+FROM filtered
+INNER JOIN top_series ON top_series.label = filtered.label
+GROUP BY bucket, filtered.label
+ORDER BY bucket, filtered.label
+LIMIT sqlc.arg(row_limit);
+
+-- name: GatewayQueryDashboardDonut :many
+SELECT
+  COALESCE(records.dimensions ->> sqlc.arg(group_by)::text, 'Unknown')::text AS label,
+  COALESCE(
+    CASE sqlc.arg(aggregation)::text
+      WHEN 'avg' THEN AVG(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+      WHEN 'count' THEN COUNT(NULLIF(records.measures ->> sqlc.arg(measure)::text, ''))::double precision
+      WHEN 'max' THEN MAX(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+      WHEN 'min' THEN MIN(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+      WHEN 'sum' THEN SUM(NULLIF(records.measures ->> sqlc.arg(measure)::text, '')::double precision)
+    END,
+    0
+  )::double precision AS value
+FROM dashboard_records AS records
+WHERE records.workspace_id = sqlc.arg(workspace_id)
+  AND records.dashboard_id = sqlc.arg(dashboard_id)
+  AND records.observed_at >= sqlc.arg(observed_after)
+  AND records.observed_at < sqlc.arg(observed_before)
+  AND records.expires_at > NOW()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset(sqlc.arg(filters)::jsonb) AS selected(field text, values text[])
+    WHERE cardinality(selected.values) > 0
+      AND NOT COALESCE(
+        records.dimensions ->> selected.field = ANY(selected.values),
+        false
+      )
+  )
+GROUP BY label
+ORDER BY value DESC, label
+LIMIT sqlc.arg(row_limit);
+
+-- name: GatewayQueryDashboardTable :many
+SELECT ARRAY(
+  SELECT CASE
+    WHEN selected.column_name = ANY(sqlc.arg(dimension_fields)::text[])
+      THEN COALESCE(records.dimensions ->> selected.column_name, '')
+    ELSE COALESCE(records.measures ->> selected.column_name, '')
+  END
+  FROM unnest(sqlc.arg(columns)::text[]) WITH ORDINALITY AS selected(column_name, position)
+  ORDER BY selected.position
+)::text[] AS cells
+FROM dashboard_records AS records
+WHERE records.workspace_id = sqlc.arg(workspace_id)
+  AND records.dashboard_id = sqlc.arg(dashboard_id)
+  AND records.observed_at >= sqlc.arg(observed_after)
+  AND records.observed_at < sqlc.arg(observed_before)
+  AND records.expires_at > NOW()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset(sqlc.arg(filters)::jsonb) AS selected(field text, values text[])
+    WHERE cardinality(selected.values) > 0
+      AND NOT COALESCE(
+        records.dimensions ->> selected.field = ANY(selected.values),
+        false
+      )
+  )
+ORDER BY
+  CASE
+    WHEN NOT sqlc.arg(sort_set)::boolean THEN records.observed_at
+  END DESC,
+  CASE
+    WHEN sqlc.arg(sort_set)::boolean
+      AND sqlc.arg(sort_dimension)::boolean
+      AND NOT sqlc.arg(sort_descending)::boolean
+      THEN records.dimensions ->> sqlc.arg(sort_by)::text
+  END ASC NULLS LAST,
+  CASE
+    WHEN sqlc.arg(sort_set)::boolean
+      AND sqlc.arg(sort_dimension)::boolean
+      AND sqlc.arg(sort_descending)::boolean
+      THEN records.dimensions ->> sqlc.arg(sort_by)::text
+  END DESC NULLS LAST,
+  CASE
+    WHEN sqlc.arg(sort_set)::boolean
+      AND NOT sqlc.arg(sort_dimension)::boolean
+      AND NOT sqlc.arg(sort_descending)::boolean
+      THEN NULLIF(records.measures ->> sqlc.arg(sort_by)::text, '')::double precision
+  END ASC NULLS LAST,
+  CASE
+    WHEN sqlc.arg(sort_set)::boolean
+      AND NOT sqlc.arg(sort_dimension)::boolean
+      AND sqlc.arg(sort_descending)::boolean
+      THEN NULLIF(records.measures ->> sqlc.arg(sort_by)::text, '')::double precision
+  END DESC NULLS LAST,
+  records.observed_at DESC,
+  records.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: GatewayCreateDashboardIntegrationFixture :exec
+WITH test_organization AS (
+  INSERT INTO organizations(id, name, slug, created_at)
+  VALUES (
+    sqlc.arg(organization_id),
+    'Dashboard test',
+    sqlc.arg(organization_slug),
+    NOW()
+  )
+  RETURNING id
+), test_user AS (
+  INSERT INTO users(id, name, email)
+  VALUES (
+    sqlc.arg(user_id),
+    'Dashboard test',
+    sqlc.arg(user_email)
+  )
+  RETURNING id
+), test_workspace AS (
+  INSERT INTO workspaces(
+    id,
+    organization_id,
+    name,
+    slug,
+    namespace,
+    state
+  )
+  SELECT
+    sqlc.arg(workspace_id),
+    test_organization.id,
+    'Dashboard test',
+    sqlc.arg(workspace_slug),
+    sqlc.arg(workspace_namespace),
+    'ready'
+  FROM test_organization
+  RETURNING id, organization_id
+), test_owner AS (
+  INSERT INTO agent_owners(
+    organization_id,
+    workspace_id,
+    agent_name,
+    creator_user_id,
+    owner_user_id
+  )
+  SELECT
+    test_workspace.organization_id,
+    test_workspace.id,
+    sqlc.arg(agent_name),
+    test_user.id,
+    test_user.id
+  FROM test_workspace
+  CROSS JOIN test_user
+  RETURNING workspace_id, agent_name
+)
+INSERT INTO chat_sessions(
+  workspace_id,
+  agent_name,
+  session_id,
+  title,
+  kind,
+  status,
+  source_created_at,
+  source_updated_at
+)
+SELECT
+  test_owner.workspace_id,
+  test_owner.agent_name,
+  sqlc.arg(session_id),
+  'Dashboard test',
+  'chat',
+  'idle',
+  NOW(),
+  NOW()
+FROM test_owner;
+
+-- name: GatewayDeleteDashboardIntegrationFixture :exec
+WITH deleted_events AS (
+  DELETE FROM event_trail_events AS events
+  WHERE events.organization_id = sqlc.arg(organization_id)
+  RETURNING 1
+), deleted_owners AS (
+  DELETE FROM agent_owners AS owners
+  WHERE owners.workspace_id = sqlc.arg(workspace_id)
+  RETURNING 1
+), deleted_workspace AS (
+  DELETE FROM workspaces AS workspace
+  WHERE workspace.id = sqlc.arg(workspace_id)
+  RETURNING 1
+), deleted_organization AS (
+  DELETE FROM organizations AS organization
+  WHERE organization.id = sqlc.arg(organization_id)
+  RETURNING 1
+)
+DELETE FROM users
+WHERE users.id = sqlc.arg(user_id);
+
+-- name: GatewayExpireDashboardIntegrationRecords :execrows
+UPDATE dashboard_records
+SET
+  ingested_at = NOW() - INTERVAL '31 days',
+  expires_at = NOW() - INTERVAL '1 day'
+WHERE dashboard_id = sqlc.arg(dashboard_id);
+
+-- name: GatewayCountDashboardIntegrationAuditEvents :one
+SELECT COUNT(*)
+FROM event_trail_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND target_type = 'dashboard';
+
+-- name: GatewayMarkDashboardIntegrationSessionAsWorkflowRun :execrows
+UPDATE chat_sessions
+SET kind = 'workflow_run'
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND session_id = sqlc.arg(session_id);
+
 -- name: GatewayDeleteSessionTraces :execrows
 DELETE FROM observer_traces ot
 WHERE ot.tenant_namespace = sqlc.arg(tenant_namespace)

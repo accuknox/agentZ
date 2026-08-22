@@ -324,6 +324,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(eventTrailRetentionDone)
 		svc.runEventTrailRetention(runCtx)
 	}()
+	dashboardRetentionDone := make(chan struct{})
+	go func() {
+		defer close(dashboardRetentionDone)
+		svc.runDashboardRetention(runCtx)
+	}()
 	cleanupDone := make(chan struct{})
 	go func() {
 		defer close(cleanupDone)
@@ -385,6 +390,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	<-chatSessionNotificationsDone
 	<-cleanupDone
 	<-eventTrailRetentionDone
+	<-dashboardRetentionDone
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)
@@ -720,6 +726,7 @@ func (s *Service) routes() http.Handler {
 	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 
 	apiRouter := chi.NewRouter()
+	apiRouter.Use(s.dashboardBodyLimit)
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
 		s.openAPI,
 		&nethttpmiddleware.Options{

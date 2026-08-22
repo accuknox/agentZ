@@ -12,6 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const gatewayAcquireDashboardQuerySlot = `-- name: GatewayAcquireDashboardQuerySlot :one
+SELECT slot::integer
+FROM generate_series(0, 7) AS slots(slot)
+WHERE pg_try_advisory_xact_lock(
+  hashtextextended($1::text, slot::bigint)
+)
+LIMIT 1
+`
+
+func (q *Queries) GatewayAcquireDashboardQuerySlot(ctx context.Context, workspaceID string) (int32, error) {
+	row := q.db.QueryRow(ctx, gatewayAcquireDashboardQuerySlot, workspaceID)
+	var slot int32
+	err := row.Scan(&slot)
+	return slot, err
+}
+
 const gatewayAddAgentShareGrant = `-- name: GatewayAddAgentShareGrant :execrows
 INSERT INTO agent_share_grants(share_id, capability)
 SELECT agent_shares.id, $1
@@ -65,6 +81,58 @@ func (q *Queries) GatewayAgentExists(ctx context.Context, arg GatewayAgentExists
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const gatewayAppendDashboardRecords = `-- name: GatewayAppendDashboardRecords :execrows
+INSERT INTO dashboard_records(
+  id,
+  dashboard_id,
+  workspace_id,
+  record_key,
+  session_id,
+  observed_at,
+  expires_at,
+  dimensions,
+  measures
+)
+SELECT
+  record.id,
+  $1,
+  $2,
+  record.record_key,
+  $3,
+  record.observed_at,
+  NOW() + INTERVAL '30 days',
+  record.dimensions,
+  record.measures
+FROM jsonb_to_recordset($4) AS record(
+  id text,
+  record_key text,
+  observed_at timestamptz,
+  dimensions jsonb,
+  measures jsonb
+)
+ON CONFLICT DO NOTHING
+`
+
+type GatewayAppendDashboardRecordsParams struct {
+	DashboardID string `json:"dashboard_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	Records     []byte `json:"records"`
+}
+
+func (q *Queries) GatewayAppendDashboardRecords(ctx context.Context, arg GatewayAppendDashboardRecordsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayAppendDashboardRecords,
+		arg.DashboardID,
+		arg.WorkspaceID,
+		arg.SessionID,
+		arg.Records,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const gatewayAssignWorkspaceAdmins = `-- name: GatewayAssignWorkspaceAdmins :execrows
@@ -245,6 +313,48 @@ func (q *Queries) GatewayCompleteCleanupJob(ctx context.Context, arg GatewayComp
 	return result.RowsAffected(), nil
 }
 
+const gatewayConsumeDashboardRateLimit = `-- name: GatewayConsumeDashboardRateLimit :one
+INSERT INTO dashboard_rate_limits(key, window_started_at, count)
+VALUES ($1, $2, $3)
+ON CONFLICT (key, window_started_at) DO UPDATE SET
+  count = dashboard_rate_limits.count + EXCLUDED.count
+WHERE dashboard_rate_limits.count + EXCLUDED.count <= $4
+RETURNING count
+`
+
+type GatewayConsumeDashboardRateLimitParams struct {
+	Key             string             `json:"key"`
+	WindowStartedAt pgtype.Timestamptz `json:"window_started_at"`
+	Delta           int32              `json:"delta"`
+	MaxCount        int32              `json:"max_count"`
+}
+
+func (q *Queries) GatewayConsumeDashboardRateLimit(ctx context.Context, arg GatewayConsumeDashboardRateLimitParams) (int32, error) {
+	row := q.db.QueryRow(ctx, gatewayConsumeDashboardRateLimit,
+		arg.Key,
+		arg.WindowStartedAt,
+		arg.Delta,
+		arg.MaxCount,
+	)
+	var count int32
+	err := row.Scan(&count)
+	return count, err
+}
+
+const gatewayCountDashboardIntegrationAuditEvents = `-- name: GatewayCountDashboardIntegrationAuditEvents :one
+SELECT COUNT(*)
+FROM event_trail_events
+WHERE organization_id = $1
+  AND target_type = 'dashboard'
+`
+
+func (q *Queries) GatewayCountDashboardIntegrationAuditEvents(ctx context.Context, organizationID string) (int64, error) {
+	row := q.db.QueryRow(ctx, gatewayCountDashboardIntegrationAuditEvents, organizationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const gatewayCreateAgent = `-- name: GatewayCreateAgent :one
 INSERT INTO agents(tenant_namespace, agent_name)
 VALUES ($1, $2)
@@ -414,6 +524,170 @@ func (q *Queries) GatewayCreateAgentShare(ctx context.Context, arg GatewayCreate
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const gatewayCreateDashboard = `-- name: GatewayCreateDashboard :one
+INSERT INTO dashboards(
+  id,
+  organization_id,
+  workspace_id,
+  agent_name,
+  name,
+  definition
+)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6
+)
+RETURNING id, agent_name, name, revision, definition, created_at, updated_at
+`
+
+type GatewayCreateDashboardParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	AgentName      string `json:"agent_name"`
+	Name           string `json:"name"`
+	Definition     []byte `json:"definition"`
+}
+
+type GatewayCreateDashboardRow struct {
+	ID         string             `json:"id"`
+	AgentName  string             `json:"agent_name"`
+	Name       string             `json:"name"`
+	Revision   int64              `json:"revision"`
+	Definition []byte             `json:"definition"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayCreateDashboard(ctx context.Context, arg GatewayCreateDashboardParams) (GatewayCreateDashboardRow, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateDashboard,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Name,
+		arg.Definition,
+	)
+	var i GatewayCreateDashboardRow
+	err := row.Scan(
+		&i.ID,
+		&i.AgentName,
+		&i.Name,
+		&i.Revision,
+		&i.Definition,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const gatewayCreateDashboardIntegrationFixture = `-- name: GatewayCreateDashboardIntegrationFixture :exec
+WITH test_organization AS (
+  INSERT INTO organizations(id, name, slug, created_at)
+  VALUES (
+    $2,
+    'Dashboard test',
+    $3,
+    NOW()
+  )
+  RETURNING id
+), test_user AS (
+  INSERT INTO users(id, name, email)
+  VALUES (
+    $4,
+    'Dashboard test',
+    $5
+  )
+  RETURNING id
+), test_workspace AS (
+  INSERT INTO workspaces(
+    id,
+    organization_id,
+    name,
+    slug,
+    namespace,
+    state
+  )
+  SELECT
+    $6,
+    test_organization.id,
+    'Dashboard test',
+    $7,
+    $8,
+    'ready'
+  FROM test_organization
+  RETURNING id, organization_id
+), test_owner AS (
+  INSERT INTO agent_owners(
+    organization_id,
+    workspace_id,
+    agent_name,
+    creator_user_id,
+    owner_user_id
+  )
+  SELECT
+    test_workspace.organization_id,
+    test_workspace.id,
+    $9,
+    test_user.id,
+    test_user.id
+  FROM test_workspace
+  CROSS JOIN test_user
+  RETURNING workspace_id, agent_name
+)
+INSERT INTO chat_sessions(
+  workspace_id,
+  agent_name,
+  session_id,
+  title,
+  kind,
+  status,
+  source_created_at,
+  source_updated_at
+)
+SELECT
+  test_owner.workspace_id,
+  test_owner.agent_name,
+  $1,
+  'Dashboard test',
+  'chat',
+  'idle',
+  NOW(),
+  NOW()
+FROM test_owner
+`
+
+type GatewayCreateDashboardIntegrationFixtureParams struct {
+	SessionID          string `json:"session_id"`
+	OrganizationID     string `json:"organization_id"`
+	OrganizationSlug   string `json:"organization_slug"`
+	UserID             string `json:"user_id"`
+	UserEmail          string `json:"user_email"`
+	WorkspaceID        string `json:"workspace_id"`
+	WorkspaceSlug      string `json:"workspace_slug"`
+	WorkspaceNamespace string `json:"workspace_namespace"`
+	AgentName          string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayCreateDashboardIntegrationFixture(ctx context.Context, arg GatewayCreateDashboardIntegrationFixtureParams) error {
+	_, err := q.db.Exec(ctx, gatewayCreateDashboardIntegrationFixture,
+		arg.SessionID,
+		arg.OrganizationID,
+		arg.OrganizationSlug,
+		arg.UserID,
+		arg.UserEmail,
+		arg.WorkspaceID,
+		arg.WorkspaceSlug,
+		arg.WorkspaceNamespace,
+		arg.AgentName,
+	)
+	return err
 }
 
 const gatewayCreateEventTrailEvent = `-- name: GatewayCreateEventTrailEvent :one
@@ -728,6 +1002,117 @@ func (q *Queries) GatewayDeleteChatSession(ctx context.Context, arg GatewayDelet
 	return err
 }
 
+const gatewayDeleteDashboard = `-- name: GatewayDeleteDashboard :execrows
+DELETE FROM dashboards
+WHERE workspace_id = $1
+  AND agent_name = $2
+  AND name = $3
+`
+
+type GatewayDeleteDashboardParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	Name        string `json:"name"`
+}
+
+func (q *Queries) GatewayDeleteDashboard(ctx context.Context, arg GatewayDeleteDashboardParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteDashboard, arg.WorkspaceID, arg.AgentName, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayDeleteDashboardIntegrationFixture = `-- name: GatewayDeleteDashboardIntegrationFixture :exec
+WITH deleted_events AS (
+  DELETE FROM event_trail_events AS events
+  WHERE events.organization_id = $2
+  RETURNING 1
+), deleted_owners AS (
+  DELETE FROM agent_owners AS owners
+  WHERE owners.workspace_id = $3
+  RETURNING 1
+), deleted_workspace AS (
+  DELETE FROM workspaces AS workspace
+  WHERE workspace.id = $3
+  RETURNING 1
+), deleted_organization AS (
+  DELETE FROM organizations AS organization
+  WHERE organization.id = $2
+  RETURNING 1
+)
+DELETE FROM users
+WHERE users.id = $1
+`
+
+type GatewayDeleteDashboardIntegrationFixtureParams struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) GatewayDeleteDashboardIntegrationFixture(ctx context.Context, arg GatewayDeleteDashboardIntegrationFixtureParams) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteDashboardIntegrationFixture, arg.UserID, arg.OrganizationID, arg.WorkspaceID)
+	return err
+}
+
+const gatewayDeleteDashboardRecords = `-- name: GatewayDeleteDashboardRecords :execrows
+DELETE FROM dashboard_records
+WHERE dashboard_id = $1
+  AND workspace_id = $2
+  AND record_key = ANY($3::text[])
+`
+
+type GatewayDeleteDashboardRecordsParams struct {
+	DashboardID string   `json:"dashboard_id"`
+	WorkspaceID string   `json:"workspace_id"`
+	RecordKeys  []string `json:"record_keys"`
+}
+
+func (q *Queries) GatewayDeleteDashboardRecords(ctx context.Context, arg GatewayDeleteDashboardRecordsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteDashboardRecords, arg.DashboardID, arg.WorkspaceID, arg.RecordKeys)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayDeleteExpiredDashboardRateLimits = `-- name: GatewayDeleteExpiredDashboardRateLimits :execrows
+DELETE FROM dashboard_rate_limits
+WHERE window_started_at < $1
+`
+
+func (q *Queries) GatewayDeleteExpiredDashboardRateLimits(ctx context.Context, retainedAfter pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteExpiredDashboardRateLimits, retainedAfter)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayDeleteExpiredDashboardRecords = `-- name: GatewayDeleteExpiredDashboardRecords :execrows
+WITH expired AS (
+  SELECT dashboard_id, id
+  FROM dashboard_records
+  WHERE expires_at <= NOW()
+  ORDER BY expires_at
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+DELETE FROM dashboard_records AS records
+USING expired
+WHERE records.dashboard_id = expired.dashboard_id
+  AND records.id = expired.id
+`
+
+func (q *Queries) GatewayDeleteExpiredDashboardRecords(ctx context.Context, batchSize int32) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteExpiredDashboardRecords, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayDeleteExpiredEventTrailEvents = `-- name: GatewayDeleteExpiredEventTrailEvents :execrows
 DELETE FROM event_trail_events
 WHERE created_at < $1
@@ -796,6 +1181,22 @@ type GatewayDeleteWorkspaceInheritedResourcesParams struct {
 
 func (q *Queries) GatewayDeleteWorkspaceInheritedResources(ctx context.Context, arg GatewayDeleteWorkspaceInheritedResourcesParams) (int64, error) {
 	result, err := q.db.Exec(ctx, gatewayDeleteWorkspaceInheritedResources, arg.WorkspaceID, arg.OrganizationID, arg.Resource)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayExpireDashboardIntegrationRecords = `-- name: GatewayExpireDashboardIntegrationRecords :execrows
+UPDATE dashboard_records
+SET
+  ingested_at = NOW() - INTERVAL '31 days',
+  expires_at = NOW() - INTERVAL '1 day'
+WHERE dashboard_id = $1
+`
+
+func (q *Queries) GatewayExpireDashboardIntegrationRecords(ctx context.Context, dashboardID string) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayExpireDashboardIntegrationRecords, dashboardID)
 	if err != nil {
 		return 0, err
 	}
@@ -929,6 +1330,45 @@ func (q *Queries) GatewayGetAgent(ctx context.Context, arg GatewayGetAgentParams
 	return i, err
 }
 
+const gatewayGetAgentDashboard = `-- name: GatewayGetAgentDashboard :one
+SELECT id, agent_name, name, revision, definition, created_at, updated_at
+FROM dashboards
+WHERE workspace_id = $1
+  AND agent_name = $2
+  AND name = $3
+`
+
+type GatewayGetAgentDashboardParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	Name        string `json:"name"`
+}
+
+type GatewayGetAgentDashboardRow struct {
+	ID         string             `json:"id"`
+	AgentName  string             `json:"agent_name"`
+	Name       string             `json:"name"`
+	Revision   int64              `json:"revision"`
+	Definition []byte             `json:"definition"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayGetAgentDashboard(ctx context.Context, arg GatewayGetAgentDashboardParams) (GatewayGetAgentDashboardRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetAgentDashboard, arg.WorkspaceID, arg.AgentName, arg.Name)
+	var i GatewayGetAgentDashboardRow
+	err := row.Scan(
+		&i.ID,
+		&i.AgentName,
+		&i.Name,
+		&i.Revision,
+		&i.Definition,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const gatewayGetAgentOwner = `-- name: GatewayGetAgentOwner :one
 SELECT
   organization_id,
@@ -1008,6 +1448,64 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const gatewayGetDashboardByID = `-- name: GatewayGetDashboardByID :one
+SELECT id, agent_name, name, revision, definition, created_at, updated_at
+FROM dashboards
+WHERE workspace_id = $1
+  AND id = $2
+`
+
+type GatewayGetDashboardByIDParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	ID          string `json:"id"`
+}
+
+type GatewayGetDashboardByIDRow struct {
+	ID         string             `json:"id"`
+	AgentName  string             `json:"agent_name"`
+	Name       string             `json:"name"`
+	Revision   int64              `json:"revision"`
+	Definition []byte             `json:"definition"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayGetDashboardByID(ctx context.Context, arg GatewayGetDashboardByIDParams) (GatewayGetDashboardByIDRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetDashboardByID, arg.WorkspaceID, arg.ID)
+	var i GatewayGetDashboardByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.AgentName,
+		&i.Name,
+		&i.Revision,
+		&i.Definition,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const gatewayGetDashboardSessionKind = `-- name: GatewayGetDashboardSessionKind :one
+SELECT kind
+FROM chat_sessions
+WHERE workspace_id = $1
+  AND agent_name = $2
+  AND session_id = $3
+`
+
+type GatewayGetDashboardSessionKindParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayGetDashboardSessionKind(ctx context.Context, arg GatewayGetDashboardSessionKindParams) (ChatSessionKind, error) {
+	row := q.db.QueryRow(ctx, gatewayGetDashboardSessionKind, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var kind ChatSessionKind
+	err := row.Scan(&kind)
+	return kind, err
 }
 
 const gatewayGetMCPGraph = `-- name: GatewayGetMCPGraph :many
@@ -2203,6 +2701,135 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 			&i.SourceCreatedAt,
 			&i.SourceUpdatedAt,
 			&i.ParticipantsJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListDashboardFilterOptions = `-- name: GatewayListDashboardFilterOptions :many
+SELECT DISTINCT (records.dimensions ->> $1::text)::text AS value
+FROM dashboard_records AS records
+WHERE records.workspace_id = $2
+  AND records.dashboard_id = $3
+  AND records.observed_at >= $4
+  AND records.observed_at < $5
+  AND records.expires_at > NOW()
+  AND records.dimensions ? $1::text
+ORDER BY value
+LIMIT 100
+`
+
+type GatewayListDashboardFilterOptionsParams struct {
+	Field          string             `json:"field"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DashboardID    string             `json:"dashboard_id"`
+	ObservedAfter  pgtype.Timestamptz `json:"observed_after"`
+	ObservedBefore pgtype.Timestamptz `json:"observed_before"`
+}
+
+func (q *Queries) GatewayListDashboardFilterOptions(ctx context.Context, arg GatewayListDashboardFilterOptionsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, gatewayListDashboardFilterOptions,
+		arg.Field,
+		arg.WorkspaceID,
+		arg.DashboardID,
+		arg.ObservedAfter,
+		arg.ObservedBefore,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		items = append(items, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListDashboards = `-- name: GatewayListDashboards :many
+SELECT
+  id,
+  agent_name,
+  name,
+  revision,
+  definition,
+  created_at,
+  updated_at
+FROM dashboards
+WHERE workspace_id = $1
+  AND (
+    NOT $2::boolean
+    OR agent_name = $3
+  )
+  AND (
+    NOT $4::boolean
+    OR (updated_at, id) < (
+      $5,
+      $6::text
+    )
+  )
+ORDER BY updated_at DESC, id DESC
+LIMIT $7
+`
+
+type GatewayListDashboardsParams struct {
+	WorkspaceID     string             `json:"workspace_id"`
+	AgentFilterSet  bool               `json:"agent_filter_set"`
+	AgentName       string             `json:"agent_name"`
+	CursorSet       bool               `json:"cursor_set"`
+	CursorUpdatedAt pgtype.Timestamptz `json:"cursor_updated_at"`
+	CursorID        string             `json:"cursor_id"`
+	PageSize        int32              `json:"page_size"`
+}
+
+type GatewayListDashboardsRow struct {
+	ID         string             `json:"id"`
+	AgentName  string             `json:"agent_name"`
+	Name       string             `json:"name"`
+	Revision   int64              `json:"revision"`
+	Definition []byte             `json:"definition"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayListDashboards(ctx context.Context, arg GatewayListDashboardsParams) ([]GatewayListDashboardsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListDashboards,
+		arg.WorkspaceID,
+		arg.AgentFilterSet,
+		arg.AgentName,
+		arg.CursorSet,
+		arg.CursorUpdatedAt,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListDashboardsRow{}
+	for rows.Next() {
+		var i GatewayListDashboardsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentName,
+			&i.Name,
+			&i.Revision,
+			&i.Definition,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3948,6 +4575,28 @@ func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams
 	return id, err
 }
 
+const gatewayMarkDashboardIntegrationSessionAsWorkflowRun = `-- name: GatewayMarkDashboardIntegrationSessionAsWorkflowRun :execrows
+UPDATE chat_sessions
+SET kind = 'workflow_run'
+WHERE workspace_id = $1
+  AND agent_name = $2
+  AND session_id = $3
+`
+
+type GatewayMarkDashboardIntegrationSessionAsWorkflowRunParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayMarkDashboardIntegrationSessionAsWorkflowRun(ctx context.Context, arg GatewayMarkDashboardIntegrationSessionAsWorkflowRunParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayMarkDashboardIntegrationSessionAsWorkflowRun, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
 UPDATE members
 SET role = COALESCE((
@@ -3977,6 +4626,421 @@ func (q *Queries) GatewayProjectMemberRoleTransports(ctx context.Context, arg Ga
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayQueryDashboardDonut = `-- name: GatewayQueryDashboardDonut :many
+SELECT
+  COALESCE(records.dimensions ->> $1::text, 'Unknown')::text AS label,
+  COALESCE(
+    CASE $2::text
+      WHEN 'avg' THEN AVG(NULLIF(records.measures ->> $3::text, '')::double precision)
+      WHEN 'count' THEN COUNT(NULLIF(records.measures ->> $3::text, ''))::double precision
+      WHEN 'max' THEN MAX(NULLIF(records.measures ->> $3::text, '')::double precision)
+      WHEN 'min' THEN MIN(NULLIF(records.measures ->> $3::text, '')::double precision)
+      WHEN 'sum' THEN SUM(NULLIF(records.measures ->> $3::text, '')::double precision)
+    END,
+    0
+  )::double precision AS value
+FROM dashboard_records AS records
+WHERE records.workspace_id = $4
+  AND records.dashboard_id = $5
+  AND records.observed_at >= $6
+  AND records.observed_at < $7
+  AND records.expires_at > NOW()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset($8::jsonb) AS selected(field text, values text[])
+    WHERE cardinality(selected.values) > 0
+      AND NOT COALESCE(
+        records.dimensions ->> selected.field = ANY(selected.values),
+        false
+      )
+  )
+GROUP BY label
+ORDER BY value DESC, label
+LIMIT $9
+`
+
+type GatewayQueryDashboardDonutParams struct {
+	GroupBy        string             `json:"group_by"`
+	Aggregation    string             `json:"aggregation"`
+	Measure        string             `json:"measure"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DashboardID    string             `json:"dashboard_id"`
+	ObservedAfter  pgtype.Timestamptz `json:"observed_after"`
+	ObservedBefore pgtype.Timestamptz `json:"observed_before"`
+	Filters        []byte             `json:"filters"`
+	RowLimit       int32              `json:"row_limit"`
+}
+
+type GatewayQueryDashboardDonutRow struct {
+	Label string  `json:"label"`
+	Value float64 `json:"value"`
+}
+
+func (q *Queries) GatewayQueryDashboardDonut(ctx context.Context, arg GatewayQueryDashboardDonutParams) ([]GatewayQueryDashboardDonutRow, error) {
+	rows, err := q.db.Query(ctx, gatewayQueryDashboardDonut,
+		arg.GroupBy,
+		arg.Aggregation,
+		arg.Measure,
+		arg.WorkspaceID,
+		arg.DashboardID,
+		arg.ObservedAfter,
+		arg.ObservedBefore,
+		arg.Filters,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayQueryDashboardDonutRow{}
+	for rows.Next() {
+		var i GatewayQueryDashboardDonutRow
+		if err := rows.Scan(&i.Label, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayQueryDashboardMetric = `-- name: GatewayQueryDashboardMetric :one
+SELECT COALESCE(
+  CASE $1::text
+    WHEN 'avg' THEN AVG(NULLIF(records.measures ->> $2::text, '')::double precision)
+    WHEN 'count' THEN COUNT(NULLIF(records.measures ->> $2::text, ''))::double precision
+    WHEN 'max' THEN MAX(NULLIF(records.measures ->> $2::text, '')::double precision)
+    WHEN 'min' THEN MIN(NULLIF(records.measures ->> $2::text, '')::double precision)
+    WHEN 'sum' THEN SUM(NULLIF(records.measures ->> $2::text, '')::double precision)
+  END,
+  0
+)::double precision AS value
+FROM dashboard_records AS records
+WHERE records.workspace_id = $3
+  AND records.dashboard_id = $4
+  AND records.observed_at >= $5
+  AND records.observed_at < $6
+  AND records.expires_at > NOW()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset($7::jsonb) AS selected(field text, values text[])
+    WHERE cardinality(selected.values) > 0
+      AND NOT COALESCE(
+        records.dimensions ->> selected.field = ANY(selected.values),
+        false
+      )
+  )
+`
+
+type GatewayQueryDashboardMetricParams struct {
+	Aggregation    string             `json:"aggregation"`
+	Measure        string             `json:"measure"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DashboardID    string             `json:"dashboard_id"`
+	ObservedAfter  pgtype.Timestamptz `json:"observed_after"`
+	ObservedBefore pgtype.Timestamptz `json:"observed_before"`
+	Filters        []byte             `json:"filters"`
+}
+
+func (q *Queries) GatewayQueryDashboardMetric(ctx context.Context, arg GatewayQueryDashboardMetricParams) (float64, error) {
+	row := q.db.QueryRow(ctx, gatewayQueryDashboardMetric,
+		arg.Aggregation,
+		arg.Measure,
+		arg.WorkspaceID,
+		arg.DashboardID,
+		arg.ObservedAfter,
+		arg.ObservedBefore,
+		arg.Filters,
+	)
+	var value float64
+	err := row.Scan(&value)
+	return value, err
+}
+
+const gatewayQueryDashboardTable = `-- name: GatewayQueryDashboardTable :many
+SELECT ARRAY(
+  SELECT CASE
+    WHEN selected.column_name = ANY($1::text[])
+      THEN COALESCE(records.dimensions ->> selected.column_name, '')
+    ELSE COALESCE(records.measures ->> selected.column_name, '')
+  END
+  FROM unnest($2::text[]) WITH ORDINALITY AS selected(column_name, position)
+  ORDER BY selected.position
+)::text[] AS cells
+FROM dashboard_records AS records
+WHERE records.workspace_id = $3
+  AND records.dashboard_id = $4
+  AND records.observed_at >= $5
+  AND records.observed_at < $6
+  AND records.expires_at > NOW()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset($7::jsonb) AS selected(field text, values text[])
+    WHERE cardinality(selected.values) > 0
+      AND NOT COALESCE(
+        records.dimensions ->> selected.field = ANY(selected.values),
+        false
+      )
+  )
+ORDER BY
+  CASE
+    WHEN NOT $8::boolean THEN records.observed_at
+  END DESC,
+  CASE
+    WHEN $8::boolean
+      AND $9::boolean
+      AND NOT $10::boolean
+      THEN records.dimensions ->> $11::text
+  END ASC NULLS LAST,
+  CASE
+    WHEN $8::boolean
+      AND $9::boolean
+      AND $10::boolean
+      THEN records.dimensions ->> $11::text
+  END DESC NULLS LAST,
+  CASE
+    WHEN $8::boolean
+      AND NOT $9::boolean
+      AND NOT $10::boolean
+      THEN NULLIF(records.measures ->> $11::text, '')::double precision
+  END ASC NULLS LAST,
+  CASE
+    WHEN $8::boolean
+      AND NOT $9::boolean
+      AND $10::boolean
+      THEN NULLIF(records.measures ->> $11::text, '')::double precision
+  END DESC NULLS LAST,
+  records.observed_at DESC,
+  records.id DESC
+LIMIT $12
+`
+
+type GatewayQueryDashboardTableParams struct {
+	DimensionFields []string           `json:"dimension_fields"`
+	Columns         []string           `json:"columns"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DashboardID     string             `json:"dashboard_id"`
+	ObservedAfter   pgtype.Timestamptz `json:"observed_after"`
+	ObservedBefore  pgtype.Timestamptz `json:"observed_before"`
+	Filters         []byte             `json:"filters"`
+	SortSet         bool               `json:"sort_set"`
+	SortDimension   bool               `json:"sort_dimension"`
+	SortDescending  bool               `json:"sort_descending"`
+	SortBy          string             `json:"sort_by"`
+	RowLimit        int32              `json:"row_limit"`
+}
+
+func (q *Queries) GatewayQueryDashboardTable(ctx context.Context, arg GatewayQueryDashboardTableParams) ([][]string, error) {
+	rows, err := q.db.Query(ctx, gatewayQueryDashboardTable,
+		arg.DimensionFields,
+		arg.Columns,
+		arg.WorkspaceID,
+		arg.DashboardID,
+		arg.ObservedAfter,
+		arg.ObservedBefore,
+		arg.Filters,
+		arg.SortSet,
+		arg.SortDimension,
+		arg.SortDescending,
+		arg.SortBy,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := [][]string{}
+	for rows.Next() {
+		var cells []string
+		if err := rows.Scan(&cells); err != nil {
+			return nil, err
+		}
+		items = append(items, cells)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayQueryDashboardTimeSeries = `-- name: GatewayQueryDashboardTimeSeries :many
+WITH filtered AS MATERIALIZED (
+  SELECT
+    records.observed_at,
+    CASE
+      WHEN $4::boolean
+        THEN COALESCE(records.dimensions ->> $5::text, 'Unknown')
+      ELSE 'All'
+    END::text AS label,
+    NULLIF(records.measures ->> $6::text, '')::double precision AS value
+  FROM dashboard_records AS records
+  WHERE records.workspace_id = $7
+    AND records.dashboard_id = $8
+    AND records.observed_at >= $9
+    AND records.observed_at < $10
+    AND records.expires_at > NOW()
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_to_recordset($11::jsonb) AS selected(field text, values text[])
+      WHERE cardinality(selected.values) > 0
+        AND NOT COALESCE(
+          records.dimensions ->> selected.field = ANY(selected.values),
+          false
+        )
+    )
+), top_series AS (
+  SELECT
+    filtered.label,
+    COALESCE(
+      CASE $2::text
+        WHEN 'avg' THEN AVG(filtered.value)
+        WHEN 'count' THEN COUNT(filtered.value)::double precision
+        WHEN 'max' THEN MAX(filtered.value)
+        WHEN 'min' THEN MIN(filtered.value)
+        WHEN 'sum' THEN SUM(filtered.value)
+      END,
+      0
+    )::double precision AS score
+  FROM filtered
+  GROUP BY filtered.label
+  ORDER BY score DESC, filtered.label
+  LIMIT $12
+)
+SELECT
+  date_bin(
+    make_interval(secs => $1::integer),
+    filtered.observed_at,
+    timestamptz 'epoch'
+  )::timestamptz AS bucket,
+  filtered.label,
+  COALESCE(
+    CASE $2::text
+      WHEN 'avg' THEN AVG(filtered.value)
+      WHEN 'count' THEN COUNT(filtered.value)::double precision
+      WHEN 'max' THEN MAX(filtered.value)
+      WHEN 'min' THEN MIN(filtered.value)
+      WHEN 'sum' THEN SUM(filtered.value)
+    END,
+    0
+  )::double precision AS value
+FROM filtered
+INNER JOIN top_series ON top_series.label = filtered.label
+GROUP BY bucket, filtered.label
+ORDER BY bucket, filtered.label
+LIMIT $3
+`
+
+type GatewayQueryDashboardTimeSeriesParams struct {
+	BucketSeconds  int32              `json:"bucket_seconds"`
+	Aggregation    string             `json:"aggregation"`
+	RowLimit       int32              `json:"row_limit"`
+	Grouped        bool               `json:"grouped"`
+	GroupBy        string             `json:"group_by"`
+	Measure        string             `json:"measure"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DashboardID    string             `json:"dashboard_id"`
+	ObservedAfter  pgtype.Timestamptz `json:"observed_after"`
+	ObservedBefore pgtype.Timestamptz `json:"observed_before"`
+	Filters        []byte             `json:"filters"`
+	SeriesLimit    int32              `json:"series_limit"`
+}
+
+type GatewayQueryDashboardTimeSeriesRow struct {
+	Bucket time.Time `json:"bucket"`
+	Label  string    `json:"label"`
+	Value  float64   `json:"value"`
+}
+
+func (q *Queries) GatewayQueryDashboardTimeSeries(ctx context.Context, arg GatewayQueryDashboardTimeSeriesParams) ([]GatewayQueryDashboardTimeSeriesRow, error) {
+	rows, err := q.db.Query(ctx, gatewayQueryDashboardTimeSeries,
+		arg.BucketSeconds,
+		arg.Aggregation,
+		arg.RowLimit,
+		arg.Grouped,
+		arg.GroupBy,
+		arg.Measure,
+		arg.WorkspaceID,
+		arg.DashboardID,
+		arg.ObservedAfter,
+		arg.ObservedBefore,
+		arg.Filters,
+		arg.SeriesLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayQueryDashboardTimeSeriesRow{}
+	for rows.Next() {
+		var i GatewayQueryDashboardTimeSeriesRow
+		if err := rows.Scan(&i.Bucket, &i.Label, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayReplaceDashboard = `-- name: GatewayReplaceDashboard :one
+UPDATE dashboards
+SET
+  name = $1,
+  definition = $2,
+  revision = revision + 1,
+  updated_at = NOW()
+WHERE workspace_id = $3
+  AND agent_name = $4
+  AND name = $5
+  AND revision = $6
+RETURNING id, agent_name, name, revision, definition, created_at, updated_at
+`
+
+type GatewayReplaceDashboardParams struct {
+	NextName         string `json:"next_name"`
+	Definition       []byte `json:"definition"`
+	WorkspaceID      string `json:"workspace_id"`
+	AgentName        string `json:"agent_name"`
+	Name             string `json:"name"`
+	ExpectedRevision int64  `json:"expected_revision"`
+}
+
+type GatewayReplaceDashboardRow struct {
+	ID         string             `json:"id"`
+	AgentName  string             `json:"agent_name"`
+	Name       string             `json:"name"`
+	Revision   int64              `json:"revision"`
+	Definition []byte             `json:"definition"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GatewayReplaceDashboard(ctx context.Context, arg GatewayReplaceDashboardParams) (GatewayReplaceDashboardRow, error) {
+	row := q.db.QueryRow(ctx, gatewayReplaceDashboard,
+		arg.NextName,
+		arg.Definition,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Name,
+		arg.ExpectedRevision,
+	)
+	var i GatewayReplaceDashboardRow
+	err := row.Scan(
+		&i.ID,
+		&i.AgentName,
+		&i.Name,
+		&i.Revision,
+		&i.Definition,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const gatewayResolvePermissions = `-- name: GatewayResolvePermissions :many
@@ -4302,6 +5366,15 @@ func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevo
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewaySetDashboardQueryTimeout = `-- name: GatewaySetDashboardQueryTimeout :exec
+SET LOCAL statement_timeout = '2s'
+`
+
+func (q *Queries) GatewaySetDashboardQueryTimeout(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewaySetDashboardQueryTimeout)
+	return err
 }
 
 const gatewaySyncAgentChatSessionStatuses = `-- name: GatewaySyncAgentChatSessionStatuses :exec
@@ -4637,6 +5710,64 @@ func (q *Queries) GatewayUpsertChatSession(ctx context.Context, arg GatewayUpser
 		arg.SourceUpdatedAt,
 	)
 	return err
+}
+
+const gatewayUpsertDashboardRecords = `-- name: GatewayUpsertDashboardRecords :execrows
+INSERT INTO dashboard_records(
+  id,
+  dashboard_id,
+  workspace_id,
+  record_key,
+  session_id,
+  observed_at,
+  expires_at,
+  dimensions,
+  measures
+)
+SELECT
+  record.id,
+  $1,
+  $2,
+  record.record_key,
+  $3,
+  record.observed_at,
+  NOW() + INTERVAL '30 days',
+  record.dimensions,
+  record.measures
+FROM jsonb_to_recordset($4) AS record(
+  id text,
+  record_key text,
+  observed_at timestamptz,
+  dimensions jsonb,
+  measures jsonb
+)
+ON CONFLICT (dashboard_id, record_key) WHERE record_key IS NOT NULL DO UPDATE SET
+  session_id = EXCLUDED.session_id,
+  observed_at = EXCLUDED.observed_at,
+  dimensions = EXCLUDED.dimensions,
+  measures = EXCLUDED.measures,
+  updated_at = NOW(),
+  expires_at = NOW() + INTERVAL '30 days'
+`
+
+type GatewayUpsertDashboardRecordsParams struct {
+	DashboardID string `json:"dashboard_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	Records     []byte `json:"records"`
+}
+
+func (q *Queries) GatewayUpsertDashboardRecords(ctx context.Context, arg GatewayUpsertDashboardRecordsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayUpsertDashboardRecords,
+		arg.DashboardID,
+		arg.WorkspaceID,
+		arg.SessionID,
+		arg.Records,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const gatewayUpsertWorkspaceChatPreference = `-- name: GatewayUpsertWorkspaceChatPreference :one

@@ -132,15 +132,22 @@ func (r *Reconciler) reconcileGatewayAccess(ctx context.Context, agt *agentzv1al
 				Resources:     []string{"agents"},
 				ResourceNames: []string{agt.Name},
 				Verbs: []string{
+					"create-dashboard",
 					"create-workflow",
+					"delete-dashboard",
+					"delete-dashboard-data",
 					"create-workflow-schedule",
 					"delete-workflow-schedule",
 					"delete-workflows",
 					"get-workflow",
+					"get-dashboard",
+					"list-dashboards",
 					"list-workflow-schedules",
 					"list-workflows",
 					"set-workflowrun-status",
+					"replace-dashboard",
 					"update-workflow-schedule",
+					"write-dashboard-data",
 				},
 			}}
 			return ctrl.SetControllerReference(agt, role, r.Scheme)

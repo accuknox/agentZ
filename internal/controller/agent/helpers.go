@@ -58,6 +58,9 @@ const (
 	deleteWorkflowScheduleToolName = "delete_workflow_schedule"
 	setWorkflowRunStatusToolName   = "set_workflowrun_status"
 	updateWorkflowScheduleToolName = "update_workflow_schedule"
+	manageDashboardsToolName       = "manage_dashboards"
+	writeDashboardDataToolName     = "write_dashboard_data"
+	deleteDashboardDataToolName    = "delete_dashboard_data"
 	nixAgentVolume                 = "nix-agent"
 	nixRuntimeStoreVolume          = "nix-runtime-store"
 	nixAgentMount                  = "/mnt/nix"
@@ -277,6 +280,9 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 		deleteWorkflowScheduleToolName: true,
 		setWorkflowRunStatusToolName:   false,
 		updateWorkflowScheduleToolName: true,
+		manageDashboardsToolName:       true,
+		writeDashboardDataToolName:     true,
+		deleteDashboardDataToolName:    true,
 	}
 	if envCfg.MCPURL != "" {
 		cfg.MCP = map[string]opencodeMCPRemoteFile{

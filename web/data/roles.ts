@@ -88,6 +88,13 @@ const roleResourceCatalog: RoleResourceDefinition[] = [
     workspace: true,
     actions: ["read"],
   },
+  {
+    resource: "dashboard",
+    label: "Dashboards",
+    organisation: false,
+    workspace: true,
+    actions: ["read"],
+  },
 ]
 
 const agentCapabilityCatalog: { action: RoleAction; label: string }[] = [

@@ -18,7 +18,7 @@ export default async function NewChatPage({
   searchParams,
 }: {
   params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<{ agent?: string; draft?: string }>
+  searchParams: Promise<{ agent?: string }>
 }) {
   const [{ orgSlug, workspaceSlug }, query, requestHeaders] = await Promise.all([
     params,
@@ -66,7 +66,6 @@ export default async function NewChatPage({
         agentName={selected.name}
         agentNames={agents.map((agent) => agent.name)}
         chatPreferences={preference.data}
-        draftKey={query.draft}
         firstName={firstName}
         greetingIndex={randomInt(10)}
         title="New chat"

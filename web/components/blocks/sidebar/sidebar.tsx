@@ -305,10 +305,7 @@ async function WorkspaceNavigation({
               ) : null}
               {showSecrets ? (
                 <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/secrets` as Route}
-                    label="Secrets"
-                  >
+                  <SidebarNavigationLink href={`${workspacePath}/secrets` as Route} label="Secrets">
                     <Lock aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>

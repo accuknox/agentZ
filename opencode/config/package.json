@@ -10,12 +10,14 @@
     "@opencode-ai/plugin": "1.18.16",
     "clawpdf": "0.3.0",
     "gray-matter": "^4.0.3",
+    "js-yaml": "4.3.1",
     "officeparser": "7.3.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "4.1.8"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.97.2",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.10.0",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",

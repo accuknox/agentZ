@@ -5,7 +5,12 @@ import type { Route } from "next"
 import dynamic from "next/dynamic"
 import { useRouter } from "@bprogress/next/app"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
+import {
+  getCoreRowModel,
+  type ColumnDef,
+  type PaginationState,
+  useReactTable,
+} from "@tanstack/react-table"
 import { CalendarDays, LayoutDashboard, ListFilter, RefreshCw } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
@@ -22,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TablePagination } from "@/components/table-pagination"
 import { dayjs } from "@/lib/format"
 import {
   listDashboardFilterOptions,
@@ -381,7 +387,21 @@ export function DashboardWidgetView({
   const { dashboard, liveDuration, observeVisibility, request, workspaceId } = context
   const [visible, setVisible] = React.useState(false)
   const [initialRequest] = React.useState(request)
+  const [tablePage, setTablePage] = React.useState(() => ({
+    pageIndex: 0,
+    pageSize: 50,
+    pageTokens: [undefined] as Array<string | undefined>,
+    request,
+  }))
   const sectionRef = React.useRef<HTMLElement>(null)
+  const currentTablePage =
+    tablePage.request === request
+      ? tablePage
+      : { pageIndex: 0, pageSize: tablePage.pageSize, pageTokens: [undefined], request }
+  if (tablePage.request !== request) {
+    setTablePage(currentTablePage)
+  }
+  const pageToken = currentTablePage.pageTokens[currentTablePage.pageIndex]
   const query = useQuery(
     queryOptions({
       queryKey: [
@@ -389,13 +409,21 @@ export function DashboardWidgetView({
         workspaceId,
         dashboard.id,
         widget.id,
+        widget.kind,
         request,
         liveDuration,
+        currentTablePage.pageIndex,
+        currentTablePage.pageSize,
+        pageToken,
       ] as const,
       queryFn: async () => {
         const result = await queryDashboardWidget({
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           path: { dashboardId: dashboard.id, widgetId: widget.id },
+          query:
+            widget.kind === "table"
+              ? { limit: currentTablePage.pageSize, page_token: pageToken }
+              : undefined,
           body: {
             ...request,
             time_range: liveDuration ? recentTimeRange(liveDuration) : request.time_range,
@@ -406,7 +434,8 @@ export function DashboardWidgetView({
         return result.data
       },
       enabled: visible,
-      initialData: request === initialRequest ? initialData : undefined,
+      initialData:
+        request === initialRequest && currentTablePage.pageIndex === 0 ? initialData : undefined,
       meta: { dashboardId: dashboard.id, workspaceId },
       placeholderData: (previous) => previous,
       refetchInterval: visible && liveDuration ? 30_000 : false,
@@ -422,6 +451,27 @@ export function DashboardWidgetView({
     if (!section) return
     return observeVisibility(section, setVisible)
   }, [observeVisibility])
+
+  function goToNextTablePage() {
+    const nextPageToken = query.data?.next_page_token
+    if (!nextPageToken) return
+
+    setTablePage((current) => {
+      const page = current.request === request ? current : currentTablePage
+      return {
+        ...page,
+        pageIndex: page.pageIndex + 1,
+        pageTokens: [...page.pageTokens.slice(0, page.pageIndex + 1), nextPageToken],
+      }
+    })
+  }
+
+  function goToPreviousTablePage() {
+    setTablePage((current) => {
+      const page = current.request === request ? current : currentTablePage
+      return { ...page, pageIndex: Math.max(0, page.pageIndex - 1) }
+    })
+  }
 
   const width =
     widget.width === "full"
@@ -444,14 +494,24 @@ export function DashboardWidgetView({
         <div className="text-destructive flex h-52 items-center justify-center text-sm">
           Could not load this widget.
         </div>
+      ) : widget.kind === "table" ? (
+        <DashboardTable
+          data={query.data}
+          goNext={goToNextTablePage}
+          goPrevious={goToPreviousTablePage}
+          pagination={currentTablePage}
+          pending={query.isFetching}
+          title={widget.title}
+        />
       ) : (
         <WidgetContent
           data={query.data}
+          kind={widget.kind}
+          stacked={widget.stacked}
           unit={
             dashboard.definition.measures.find((measure) => measure.name === widget.measure)?.unit
           }
           visible={visible}
-          widget={widget}
         />
       )}
     </section>
@@ -460,16 +520,18 @@ export function DashboardWidgetView({
 
 function WidgetContent({
   data,
+  kind,
+  stacked,
   unit,
   visible,
-  widget,
 }: {
   data: DashboardWidgetResult
+  kind: Exclude<DashboardWidget["kind"], "table">
+  stacked?: boolean
   unit?: string
   visible: boolean
-  widget: DashboardWidget
 }) {
-  if (widget.kind === "metric") {
+  if (kind === "metric") {
     return (
       <div className="flex min-h-16 items-end px-4 pb-2 md:px-6">
         <p className="font-heading text-4xl font-semibold tracking-tight tabular-nums">
@@ -481,14 +543,25 @@ function WidgetContent({
       </div>
     )
   }
-  if (widget.kind === "table") {
-    return <DashboardTable data={data} title={widget.title} />
-  }
   if (!visible) return <Skeleton className="h-64 w-full" />
-  return <DashboardChart data={data} kind={widget.kind} stacked={widget.stacked} />
+  return <DashboardChart data={data} kind={kind} stacked={stacked} />
 }
 
-function DashboardTable({ data, title }: { data: DashboardWidgetResult; title: string }) {
+function DashboardTable({
+  data,
+  goNext,
+  goPrevious,
+  pagination,
+  pending,
+  title,
+}: {
+  data: DashboardWidgetResult
+  goNext: () => void
+  goPrevious: () => void
+  pagination: PaginationState
+  pending: boolean
+  title: string
+}) {
   "use no memo"
 
   const { columns, layout } = React.useMemo(() => {
@@ -507,13 +580,30 @@ function DashboardTable({ data, title }: { data: DashboardWidgetResult; title: s
     return { columns, layout }
   }, [data.columns])
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({ data: data.rows, columns, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({
+    data: data.rows,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    state: { pagination },
+  })
 
   return (
     <AdminDataGrid
       ariaLabel={title}
       emptyState={<p className="text-muted-foreground py-8 text-center">No rows to display.</p>}
       layout={layout}
+      pagination={
+        <div className="bg-muted/10 py-3">
+          <TablePagination
+            canGoNext={data.next_page_token !== ""}
+            canGoPrevious={pagination.pageIndex > 0}
+            goNext={goNext}
+            goPrevious={goPrevious}
+            pending={pending}
+          />
+        </div>
+      }
       rows={data.rows}
       table={table}
     />

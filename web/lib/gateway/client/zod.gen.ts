@@ -149,6 +149,7 @@ export const zDashboardWidgetResult = z.object({
   points: z.array(zDashboardPoint),
   columns: z.array(z.string()),
   rows: z.array(zDashboardTableRow),
+  next_page_token: z.string(),
 })
 
 export const zDashboardFilterOptions = z.object({

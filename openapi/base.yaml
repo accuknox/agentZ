@@ -92,12 +92,15 @@ paths:
       summary: Query a dashboard widget.
       description: >
         Runs the query saved in the widget definition. The request cannot supply
-        SQL or query expressions.
+        SQL or query expressions. Table widgets use limit and page_token for
+        cursor pagination; other widget kinds return one complete result.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
       - $ref: '#/components/parameters/DashboardIDPath'
       - $ref: '#/components/parameters/DashboardWidgetIDPath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
       requestBody:
         required: true
         content:
@@ -4408,6 +4411,7 @@ components:
           format: int32
           minimum: 1
           maximum: 100
+          description: Maximum group count for donut widgets.
       required: [id, title, kind, width]
 
     DashboardDefinition:
@@ -4667,7 +4671,10 @@ components:
         rows:
           type: array
           items: {$ref: '#/components/schemas/DashboardTableRow'}
-      required: [widget_id, kind, revision, generated_at, total, series, points, columns, rows]
+        next_page_token:
+          type: string
+          description: Opaque cursor for the next table page, or empty when no rows remain.
+      required: [widget_id, kind, revision, generated_at, total, series, points, columns, rows, next_page_token]
 
     DashboardFilterOptions:
       type: object

@@ -96,7 +96,7 @@ type Querier interface {
 	GatewayProjectMemberRoleTransports(ctx context.Context, arg GatewayProjectMemberRoleTransportsParams) (int64, error)
 	GatewayQueryDashboardDonut(ctx context.Context, arg GatewayQueryDashboardDonutParams) ([]GatewayQueryDashboardDonutRow, error)
 	GatewayQueryDashboardMetric(ctx context.Context, arg GatewayQueryDashboardMetricParams) (float64, error)
-	GatewayQueryDashboardTable(ctx context.Context, arg GatewayQueryDashboardTableParams) ([][]string, error)
+	GatewayQueryDashboardTable(ctx context.Context, arg GatewayQueryDashboardTableParams) ([]GatewayQueryDashboardTableRow, error)
 	GatewayQueryDashboardTimeSeries(ctx context.Context, arg GatewayQueryDashboardTimeSeriesParams) ([]GatewayQueryDashboardTimeSeriesRow, error)
 	GatewayReplaceDashboard(ctx context.Context, arg GatewayReplaceDashboardParams) (GatewayReplaceDashboardRow, error)
 	GatewayResolvePermissions(ctx context.Context, arg GatewayResolvePermissionsParams) ([]GatewayResolvePermissionsRow, error)

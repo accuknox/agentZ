@@ -48,7 +48,7 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-1njC/e3AOpXCKlSYF9JGFHasjd8LM/Q12e/5IU/Tm/4=";
+            outputHash = "sha256-mG6r82SefFgegYtf/D9DpxX44Fao29aXS1vlZLXwXPc=";
           };
           cfg = pkgs.runCommand "opencode-config" { } ''
             mkdir -p \

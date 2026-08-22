@@ -347,60 +347,165 @@ ORDER BY value DESC, label
 LIMIT sqlc.arg(row_limit);
 
 -- name: GatewayQueryDashboardTable :many
-SELECT ARRAY(
-  SELECT CASE
-    WHEN selected.column_name = ANY(sqlc.arg(dimension_fields)::text[])
-      THEN COALESCE(records.dimensions ->> selected.column_name, '')
-    ELSE COALESCE(records.measures ->> selected.column_name, '')
-  END
-  FROM unnest(sqlc.arg(columns)::text[]) WITH ORDINALITY AS selected(column_name, position)
-  ORDER BY selected.position
-)::text[] AS cells
-FROM dashboard_records AS records
-WHERE records.workspace_id = sqlc.arg(workspace_id)
-  AND records.dashboard_id = sqlc.arg(dashboard_id)
-  AND records.observed_at >= sqlc.arg(observed_after)
-  AND records.observed_at < sqlc.arg(observed_before)
-  AND records.expires_at > NOW()
-  AND NOT EXISTS (
-    SELECT 1
-    FROM jsonb_to_recordset(sqlc.arg(filters)::jsonb) AS selected(field text, values text[])
-    WHERE cardinality(selected.values) > 0
-      AND NOT COALESCE(
-        records.dimensions ->> selected.field = ANY(selected.values),
-        false
+WITH filtered AS MATERIALIZED (
+  SELECT
+    records.id,
+    records.observed_at,
+    records.dimensions,
+    records.measures,
+    CASE
+      WHEN sqlc.arg(sort_set)::boolean
+        AND sqlc.arg(sort_dimension)::boolean
+        THEN records.dimensions ->> sqlc.arg(sort_by)::text
+    END::text AS sort_text,
+    CASE
+      WHEN sqlc.arg(sort_set)::boolean
+        AND NOT sqlc.arg(sort_dimension)::boolean
+        THEN NULLIF(records.measures ->> sqlc.arg(sort_by)::text, '')::double precision
+    END::double precision AS sort_number
+  FROM dashboard_records AS records
+  WHERE records.workspace_id = sqlc.arg(workspace_id)
+    AND records.dashboard_id = sqlc.arg(dashboard_id)
+    AND records.observed_at >= sqlc.arg(observed_after)
+    AND records.observed_at < sqlc.arg(observed_before)
+    AND records.expires_at > NOW()
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_to_recordset(sqlc.arg(filters)::jsonb) AS selected(field text, values text[])
+      WHERE cardinality(selected.values) > 0
+        AND NOT COALESCE(
+          records.dimensions ->> selected.field = ANY(selected.values),
+          false
+        )
+    )
+), paged AS (
+  SELECT *
+  FROM filtered
+  WHERE NOT sqlc.arg(cursor_set)::boolean
+    OR (
+      NOT sqlc.arg(sort_set)::boolean
+      AND (observed_at, id) < (
+        sqlc.arg(cursor_observed_at)::timestamptz,
+        sqlc.arg(cursor_id)::text
       )
-  )
+    )
+    OR (
+      sqlc.arg(sort_set)::boolean
+      AND sqlc.arg(sort_dimension)::boolean
+      AND (
+        (
+          sqlc.arg(cursor_sort_null)::boolean
+          AND sort_text IS NULL
+          AND (observed_at, id) < (
+            sqlc.arg(cursor_observed_at)::timestamptz,
+            sqlc.arg(cursor_id)::text
+          )
+        )
+        OR (
+          NOT sqlc.arg(cursor_sort_null)::boolean
+          AND (
+            sort_text IS NULL
+            OR (
+              NOT sqlc.arg(sort_descending)::boolean
+              AND sort_text > sqlc.arg(cursor_sort_text)::text
+            )
+            OR (
+              sqlc.arg(sort_descending)::boolean
+              AND sort_text < sqlc.arg(cursor_sort_text)::text
+            )
+            OR (
+              sort_text = sqlc.arg(cursor_sort_text)::text
+              AND (observed_at, id) < (
+                sqlc.arg(cursor_observed_at)::timestamptz,
+                sqlc.arg(cursor_id)::text
+              )
+            )
+          )
+        )
+      )
+    )
+    OR (
+      sqlc.arg(sort_set)::boolean
+      AND NOT sqlc.arg(sort_dimension)::boolean
+      AND (
+        (
+          sqlc.arg(cursor_sort_null)::boolean
+          AND sort_number IS NULL
+          AND (observed_at, id) < (
+            sqlc.arg(cursor_observed_at)::timestamptz,
+            sqlc.arg(cursor_id)::text
+          )
+        )
+        OR (
+          NOT sqlc.arg(cursor_sort_null)::boolean
+          AND (
+            sort_number IS NULL
+            OR (
+              NOT sqlc.arg(sort_descending)::boolean
+              AND sort_number > sqlc.arg(cursor_sort_number)::double precision
+            )
+            OR (
+              sqlc.arg(sort_descending)::boolean
+              AND sort_number < sqlc.arg(cursor_sort_number)::double precision
+            )
+            OR (
+              sort_number = sqlc.arg(cursor_sort_number)::double precision
+              AND (observed_at, id) < (
+                sqlc.arg(cursor_observed_at)::timestamptz,
+                sqlc.arg(cursor_id)::text
+              )
+            )
+          )
+        )
+      )
+    )
+)
+SELECT
+  ARRAY(
+    SELECT CASE
+      WHEN selected.column_name = ANY(sqlc.arg(dimension_fields)::text[])
+        THEN COALESCE(paged.dimensions ->> selected.column_name, '')
+      ELSE COALESCE(paged.measures ->> selected.column_name, '')
+    END
+    FROM unnest(sqlc.arg(columns)::text[]) WITH ORDINALITY AS selected(column_name, position)
+    ORDER BY selected.position
+  )::text[] AS cells,
+  id,
+  observed_at,
+  COALESCE(sort_text IS NULL AND sort_number IS NULL, true)::boolean AS sort_null,
+  COALESCE(sort_text, '')::text AS sort_text,
+  COALESCE(sort_number, 0)::double precision AS sort_number
+FROM paged
 ORDER BY
   CASE
-    WHEN NOT sqlc.arg(sort_set)::boolean THEN records.observed_at
+    WHEN NOT sqlc.arg(sort_set)::boolean THEN observed_at
   END DESC,
   CASE
     WHEN sqlc.arg(sort_set)::boolean
       AND sqlc.arg(sort_dimension)::boolean
       AND NOT sqlc.arg(sort_descending)::boolean
-      THEN records.dimensions ->> sqlc.arg(sort_by)::text
+      THEN sort_text
   END ASC NULLS LAST,
   CASE
     WHEN sqlc.arg(sort_set)::boolean
       AND sqlc.arg(sort_dimension)::boolean
       AND sqlc.arg(sort_descending)::boolean
-      THEN records.dimensions ->> sqlc.arg(sort_by)::text
+      THEN sort_text
   END DESC NULLS LAST,
   CASE
     WHEN sqlc.arg(sort_set)::boolean
       AND NOT sqlc.arg(sort_dimension)::boolean
       AND NOT sqlc.arg(sort_descending)::boolean
-      THEN NULLIF(records.measures ->> sqlc.arg(sort_by)::text, '')::double precision
+      THEN sort_number
   END ASC NULLS LAST,
   CASE
     WHEN sqlc.arg(sort_set)::boolean
       AND NOT sqlc.arg(sort_dimension)::boolean
       AND sqlc.arg(sort_descending)::boolean
-      THEN NULLIF(records.measures ->> sqlc.arg(sort_by)::text, '')::double precision
+      THEN sort_number
   END DESC NULLS LAST,
-  records.observed_at DESC,
-  records.id DESC
+  observed_at DESC,
+  id DESC
 LIMIT sqlc.arg(row_limit);
 
 -- name: GatewayDeleteSessionTraces :execrows

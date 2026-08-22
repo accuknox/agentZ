@@ -1,4 +1,5 @@
 import matter from "gray-matter"
+import { load as loadYaml } from "js-yaml"
 import fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
@@ -123,7 +124,14 @@ async function readSkillFile(
 
   let parsed: matter.GrayMatterFile<string>
   try {
-    parsed = matter(raw)
+    parsed = matter(raw, {
+      engines: {
+        yaml: (input) => {
+          const value = loadYaml(input)
+          return typeof value === "object" && value !== null ? value : {}
+        },
+      },
+    })
   } catch {
     return
   }

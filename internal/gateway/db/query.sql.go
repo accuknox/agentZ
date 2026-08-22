@@ -4522,104 +4522,237 @@ func (q *Queries) GatewayQueryDashboardMetric(ctx context.Context, arg GatewayQu
 }
 
 const gatewayQueryDashboardTable = `-- name: GatewayQueryDashboardTable :many
-SELECT ARRAY(
-  SELECT CASE
-    WHEN selected.column_name = ANY($1::text[])
-      THEN COALESCE(records.dimensions ->> selected.column_name, '')
-    ELSE COALESCE(records.measures ->> selected.column_name, '')
-  END
-  FROM unnest($2::text[]) WITH ORDINALITY AS selected(column_name, position)
-  ORDER BY selected.position
-)::text[] AS cells
-FROM dashboard_records AS records
-WHERE records.workspace_id = $3
-  AND records.dashboard_id = $4
-  AND records.observed_at >= $5
-  AND records.observed_at < $6
-  AND records.expires_at > NOW()
-  AND NOT EXISTS (
-    SELECT 1
-    FROM jsonb_to_recordset($7::jsonb) AS selected(field text, values text[])
-    WHERE cardinality(selected.values) > 0
-      AND NOT COALESCE(
-        records.dimensions ->> selected.field = ANY(selected.values),
-        false
+WITH filtered AS MATERIALIZED (
+  SELECT
+    records.id,
+    records.observed_at,
+    records.dimensions,
+    records.measures,
+    CASE
+      WHEN $3::boolean
+        AND $4::boolean
+        THEN records.dimensions ->> $7::text
+    END::text AS sort_text,
+    CASE
+      WHEN $3::boolean
+        AND NOT $4::boolean
+        THEN NULLIF(records.measures ->> $7::text, '')::double precision
+    END::double precision AS sort_number
+  FROM dashboard_records AS records
+  WHERE records.workspace_id = $8
+    AND records.dashboard_id = $9
+    AND records.observed_at >= $10
+    AND records.observed_at < $11
+    AND records.expires_at > NOW()
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_to_recordset($12::jsonb) AS selected(field text, values text[])
+      WHERE cardinality(selected.values) > 0
+        AND NOT COALESCE(
+          records.dimensions ->> selected.field = ANY(selected.values),
+          false
+        )
+    )
+), paged AS (
+  SELECT id, observed_at, dimensions, measures, sort_text, sort_number
+  FROM filtered
+  WHERE NOT $13::boolean
+    OR (
+      NOT $3::boolean
+      AND (observed_at, id) < (
+        $14::timestamptz,
+        $15::text
       )
-  )
+    )
+    OR (
+      $3::boolean
+      AND $4::boolean
+      AND (
+        (
+          $16::boolean
+          AND sort_text IS NULL
+          AND (observed_at, id) < (
+            $14::timestamptz,
+            $15::text
+          )
+        )
+        OR (
+          NOT $16::boolean
+          AND (
+            sort_text IS NULL
+            OR (
+              NOT $5::boolean
+              AND sort_text > $17::text
+            )
+            OR (
+              $5::boolean
+              AND sort_text < $17::text
+            )
+            OR (
+              sort_text = $17::text
+              AND (observed_at, id) < (
+                $14::timestamptz,
+                $15::text
+              )
+            )
+          )
+        )
+      )
+    )
+    OR (
+      $3::boolean
+      AND NOT $4::boolean
+      AND (
+        (
+          $16::boolean
+          AND sort_number IS NULL
+          AND (observed_at, id) < (
+            $14::timestamptz,
+            $15::text
+          )
+        )
+        OR (
+          NOT $16::boolean
+          AND (
+            sort_number IS NULL
+            OR (
+              NOT $5::boolean
+              AND sort_number > $18::double precision
+            )
+            OR (
+              $5::boolean
+              AND sort_number < $18::double precision
+            )
+            OR (
+              sort_number = $18::double precision
+              AND (observed_at, id) < (
+                $14::timestamptz,
+                $15::text
+              )
+            )
+          )
+        )
+      )
+    )
+)
+SELECT
+  ARRAY(
+    SELECT CASE
+      WHEN selected.column_name = ANY($1::text[])
+        THEN COALESCE(paged.dimensions ->> selected.column_name, '')
+      ELSE COALESCE(paged.measures ->> selected.column_name, '')
+    END
+    FROM unnest($2::text[]) WITH ORDINALITY AS selected(column_name, position)
+    ORDER BY selected.position
+  )::text[] AS cells,
+  id,
+  observed_at,
+  COALESCE(sort_text IS NULL AND sort_number IS NULL, true)::boolean AS sort_null,
+  COALESCE(sort_text, '')::text AS sort_text,
+  COALESCE(sort_number, 0)::double precision AS sort_number
+FROM paged
 ORDER BY
   CASE
-    WHEN NOT $8::boolean THEN records.observed_at
+    WHEN NOT $3::boolean THEN observed_at
   END DESC,
   CASE
-    WHEN $8::boolean
-      AND $9::boolean
-      AND NOT $10::boolean
-      THEN records.dimensions ->> $11::text
+    WHEN $3::boolean
+      AND $4::boolean
+      AND NOT $5::boolean
+      THEN sort_text
   END ASC NULLS LAST,
   CASE
-    WHEN $8::boolean
-      AND $9::boolean
-      AND $10::boolean
-      THEN records.dimensions ->> $11::text
+    WHEN $3::boolean
+      AND $4::boolean
+      AND $5::boolean
+      THEN sort_text
   END DESC NULLS LAST,
   CASE
-    WHEN $8::boolean
-      AND NOT $9::boolean
-      AND NOT $10::boolean
-      THEN NULLIF(records.measures ->> $11::text, '')::double precision
+    WHEN $3::boolean
+      AND NOT $4::boolean
+      AND NOT $5::boolean
+      THEN sort_number
   END ASC NULLS LAST,
   CASE
-    WHEN $8::boolean
-      AND NOT $9::boolean
-      AND $10::boolean
-      THEN NULLIF(records.measures ->> $11::text, '')::double precision
+    WHEN $3::boolean
+      AND NOT $4::boolean
+      AND $5::boolean
+      THEN sort_number
   END DESC NULLS LAST,
-  records.observed_at DESC,
-  records.id DESC
-LIMIT $12
+  observed_at DESC,
+  id DESC
+LIMIT $6
 `
 
 type GatewayQueryDashboardTableParams struct {
-	DimensionFields []string           `json:"dimension_fields"`
-	Columns         []string           `json:"columns"`
-	WorkspaceID     string             `json:"workspace_id"`
-	DashboardID     string             `json:"dashboard_id"`
-	ObservedAfter   pgtype.Timestamptz `json:"observed_after"`
-	ObservedBefore  pgtype.Timestamptz `json:"observed_before"`
-	Filters         []byte             `json:"filters"`
-	SortSet         bool               `json:"sort_set"`
-	SortDimension   bool               `json:"sort_dimension"`
-	SortDescending  bool               `json:"sort_descending"`
-	SortBy          string             `json:"sort_by"`
-	RowLimit        int32              `json:"row_limit"`
+	DimensionFields  []string           `json:"dimension_fields"`
+	Columns          []string           `json:"columns"`
+	SortSet          bool               `json:"sort_set"`
+	SortDimension    bool               `json:"sort_dimension"`
+	SortDescending   bool               `json:"sort_descending"`
+	RowLimit         int32              `json:"row_limit"`
+	SortBy           string             `json:"sort_by"`
+	WorkspaceID      string             `json:"workspace_id"`
+	DashboardID      string             `json:"dashboard_id"`
+	ObservedAfter    pgtype.Timestamptz `json:"observed_after"`
+	ObservedBefore   pgtype.Timestamptz `json:"observed_before"`
+	Filters          []byte             `json:"filters"`
+	CursorSet        bool               `json:"cursor_set"`
+	CursorObservedAt time.Time          `json:"cursor_observed_at"`
+	CursorID         string             `json:"cursor_id"`
+	CursorSortNull   bool               `json:"cursor_sort_null"`
+	CursorSortText   string             `json:"cursor_sort_text"`
+	CursorSortNumber float64            `json:"cursor_sort_number"`
 }
 
-func (q *Queries) GatewayQueryDashboardTable(ctx context.Context, arg GatewayQueryDashboardTableParams) ([][]string, error) {
+type GatewayQueryDashboardTableRow struct {
+	Cells      []string           `json:"cells"`
+	ID         string             `json:"id"`
+	ObservedAt pgtype.Timestamptz `json:"observed_at"`
+	SortNull   bool               `json:"sort_null"`
+	SortText   string             `json:"sort_text"`
+	SortNumber float64            `json:"sort_number"`
+}
+
+func (q *Queries) GatewayQueryDashboardTable(ctx context.Context, arg GatewayQueryDashboardTableParams) ([]GatewayQueryDashboardTableRow, error) {
 	rows, err := q.db.Query(ctx, gatewayQueryDashboardTable,
 		arg.DimensionFields,
 		arg.Columns,
+		arg.SortSet,
+		arg.SortDimension,
+		arg.SortDescending,
+		arg.RowLimit,
+		arg.SortBy,
 		arg.WorkspaceID,
 		arg.DashboardID,
 		arg.ObservedAfter,
 		arg.ObservedBefore,
 		arg.Filters,
-		arg.SortSet,
-		arg.SortDimension,
-		arg.SortDescending,
-		arg.SortBy,
-		arg.RowLimit,
+		arg.CursorSet,
+		arg.CursorObservedAt,
+		arg.CursorID,
+		arg.CursorSortNull,
+		arg.CursorSortText,
+		arg.CursorSortNumber,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := [][]string{}
+	items := []GatewayQueryDashboardTableRow{}
 	for rows.Next() {
-		var cells []string
-		if err := rows.Scan(&cells); err != nil {
+		var i GatewayQueryDashboardTableRow
+		if err := rows.Scan(
+			&i.Cells,
+			&i.ID,
+			&i.ObservedAt,
+			&i.SortNull,
+			&i.SortText,
+			&i.SortNumber,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, cells)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

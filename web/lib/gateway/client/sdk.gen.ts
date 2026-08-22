@@ -431,7 +431,7 @@ export const getDashboard = <ThrowOnError extends boolean = false>(
 /**
  * Query a dashboard widget.
  *
- * Runs the query saved in the widget definition. The request cannot supply SQL or query expressions.
+ * Runs the query saved in the widget definition. The request cannot supply SQL or query expressions. Table widgets use limit and page_token for cursor pagination; other widget kinds return one complete result.
  *
  */
 export const queryDashboardWidget = <ThrowOnError extends boolean = false>(

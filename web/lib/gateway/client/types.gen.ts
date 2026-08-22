@@ -55,6 +55,9 @@ export type DashboardWidget = {
   columns?: Array<string>
   sort_by?: string
   sort_direction?: DashboardSortDirection
+  /**
+   * Maximum group count for donut widgets.
+   */
   limit?: number
 }
 
@@ -164,6 +167,10 @@ export type DashboardWidgetResult = {
   points: Array<DashboardPoint>
   columns: Array<string>
   rows: Array<DashboardTableRow>
+  /**
+   * Opaque cursor for the next table page, or empty when no rows remain.
+   */
+  next_page_token: string
 }
 
 export type DashboardFilterOptions = {
@@ -2595,7 +2602,16 @@ export type QueryDashboardWidgetData = {
     dashboardId: string
     widgetId: DashboardIdentifier
   }
-  query?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
   url: "/api/dashboard/{dashboardId}/widget/{widgetId}/query"
 }
 

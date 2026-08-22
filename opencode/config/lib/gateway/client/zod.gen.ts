@@ -149,6 +149,7 @@ export const zDashboardWidgetResult = z.object({
   points: z.array(zDashboardPoint),
   columns: z.array(z.string()),
   rows: z.array(zDashboardTableRow),
+  next_page_token: z.string(),
 })
 
 export const zDashboardFilterOptions = z.object({
@@ -2701,6 +2702,11 @@ export const zQueryDashboardWidgetHeaders = z.object({
 export const zQueryDashboardWidgetPath = z.object({
   dashboardId: z.string().min(1).max(128),
   widgetId: zDashboardIdentifier,
+})
+
+export const zQueryDashboardWidgetQuery = z.object({
+  limit: z.int().gte(1).lte(200).optional().default(50),
+  page_token: z.string().min(1).optional(),
 })
 
 /**

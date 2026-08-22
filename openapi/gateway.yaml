@@ -1833,6 +1833,7 @@ components:
         kind:
           $ref: '#/components/schemas/DashboardWidgetKind'
         limit:
+          description: Maximum group count for donut widgets.
           format: int32
           maximum: 100
           minimum: 1
@@ -1887,6 +1888,9 @@ components:
           type: string
         kind:
           $ref: '#/components/schemas/DashboardWidgetKind'
+        next_page_token:
+          description: Opaque cursor for the next table page, or empty when no rows remain.
+          type: string
         points:
           items:
             $ref: '#/components/schemas/DashboardPoint'
@@ -1919,6 +1923,7 @@ components:
       - points
       - columns
       - rows
+      - next_page_token
       type: object
     DashboardWidgetWidth:
       enum:
@@ -25939,12 +25944,14 @@ paths:
   /api/dashboard/{dashboardId}/widget/{widgetId}/query:
     post:
       description: |
-        Runs the query saved in the widget definition. The request cannot supply SQL or query expressions.
+        Runs the query saved in the widget definition. The request cannot supply SQL or query expressions. Table widgets use limit and page_token for cursor pagination; other widget kinds return one complete result.
       operationId: queryDashboardWidget
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
       - $ref: '#/components/parameters/DashboardIDPath'
       - $ref: '#/components/parameters/DashboardWidgetIDPath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
       requestBody:
         content:
           application/json:

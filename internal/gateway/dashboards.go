@@ -35,7 +35,6 @@ const (
 	dashboardMaxWriteRecords = 100
 	dashboardMaxBuckets      = 300
 	dashboardMaxSeries       = 10
-	dashboardMaxTableRows    = 100
 	dashboardMaxGroups       = 100
 )
 
@@ -44,6 +43,14 @@ var errDashboardRevisionConflict = errors.New("dashboard revision conflict")
 type dashboardCursor struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	ID        string    `json:"id"`
+}
+
+type dashboardTableCursor struct {
+	ObservedAt time.Time `json:"observed_at"`
+	ID         string    `json:"id"`
+	SortNull   bool      `json:"sort_null"`
+	SortText   string    `json:"sort_text"`
+	SortNumber float64   `json:"sort_number"`
 }
 
 type storedDashboard struct {
@@ -539,7 +546,7 @@ func createDashboardEventTrail(ctx context.Context, q gatewaydb.Querier, auth re
 	return nil
 }
 
-// QueryDashboardWidget returns bounded data for one dashboard widget.
+// QueryDashboardWidget returns data for one dashboard widget.
 func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, dashboardID gatewayapi.DashboardIDPath, widgetID gatewayapi.DashboardWidgetIDPath, params gatewayapi.QueryDashboardWidgetParams) {
 	row, definition, userID, ok := s.readDashboardForUser(w, r, dashboardID, params.XAgentZWorkspaceID)
 	if !ok {
@@ -585,6 +592,22 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_dashboard_filter", err.Error(), err))
 		return
 	}
+	tableCursor, cursorSet, ok := decodeCursorPageToken[dashboardTableCursor](w, r, params.PageToken)
+	if !ok {
+		return
+	}
+	if cursorSet && widget.Kind != gatewayapi.DashboardWidgetTable {
+		writeInvalidPageToken(w, r, errors.New("widget does not return paginated rows"))
+		return
+	}
+	if cursorSet && (tableCursor.ObservedAt.IsZero() || tableCursor.ID == "") {
+		writeInvalidPageToken(w, r, errors.New("invalid dashboard table cursor"))
+		return
+	}
+	pageSize := int32(50)
+	if params.Limit != nil {
+		pageSize = *params.Limit
+	}
 	tx, err := s.db.BeginTx(r.Context(), pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("begin dashboard query: %w", err))
@@ -615,7 +638,7 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 	result := gatewayapi.DashboardWidgetResult{
 		WidgetId: widget.Id, Kind: widget.Kind, Revision: row.Revision, GeneratedAt: time.Now(),
 		Series: []gatewayapi.DashboardSeries{}, Points: []gatewayapi.DashboardPoint{},
-		Columns: []string{}, Rows: []gatewayapi.DashboardTableRow{},
+		Columns: []string{}, Rows: []gatewayapi.DashboardTableRow{}, NextPageToken: "",
 	}
 	switch widget.Kind {
 	case gatewayapi.DashboardWidgetMetric:
@@ -636,7 +659,8 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 	case gatewayapi.DashboardWidgetTable:
 		err = queryDashboardTable(
 			r.Context(), queries, params.XAgentZWorkspaceID, row.ID, definition,
-			*widget, req.TimeRange, filters, &result,
+			*widget, req.TimeRange, filters, tableCursor, cursorSet, pageSize,
+			&result,
 		)
 	default:
 		err = fmt.Errorf("unsupported dashboard widget kind %q", widget.Kind)
@@ -936,16 +960,12 @@ func queryDashboardDonut(ctx context.Context, queries gatewaydb.Querier, workspa
 	return nil
 }
 
-func queryDashboardTable(ctx context.Context, queries gatewaydb.Querier, workspaceID, dashboardID string, definition gatewayapi.DashboardDefinition, widget gatewayapi.DashboardWidget, timeRange gatewayapi.DashboardTimeRange, filters []byte, result *gatewayapi.DashboardWidgetResult) error {
+func queryDashboardTable(ctx context.Context, queries gatewaydb.Querier, workspaceID, dashboardID string, definition gatewayapi.DashboardDefinition, widget gatewayapi.DashboardWidget, timeRange gatewayapi.DashboardTimeRange, filters []byte, cursor dashboardTableCursor, cursorSet bool, pageSize int32, result *gatewayapi.DashboardWidgetResult) error {
 	dimensionFields := make([]string, 0, len(definition.Dimensions))
 	sortDimension := false
 	for _, dimension := range definition.Dimensions {
 		dimensionFields = append(dimensionFields, dimension.Name)
 		sortDimension = sortDimension || widget.SortBy != nil && dimension.Name == *widget.SortBy
-	}
-	limit := int32(dashboardMaxTableRows)
-	if widget.Limit != nil {
-		limit = min(limit, *widget.Limit)
 	}
 	sortBy := ""
 	if widget.SortBy != nil {
@@ -963,15 +983,32 @@ func queryDashboardTable(ctx context.Context, queries gatewaydb.Querier, workspa
 		SortDimension:   sortDimension,
 		SortDescending: widget.SortDirection != nil &&
 			*widget.SortDirection == gatewayapi.DashboardSortDirectionDesc,
-		SortBy:   sortBy,
-		RowLimit: limit,
+		SortBy:           sortBy,
+		CursorSet:        cursorSet,
+		CursorObservedAt: cursor.ObservedAt,
+		CursorID:         cursor.ID,
+		CursorSortNull:   cursor.SortNull,
+		CursorSortText:   cursor.SortText,
+		CursorSortNumber: cursor.SortNumber,
+		RowLimit:         pageSize + 1,
 	})
 	if err != nil {
 		return err
 	}
+	if len(rows) > int(pageSize) {
+		last := rows[pageSize-1]
+		result.NextPageToken = encodeCursorPageToken(dashboardTableCursor{
+			ObservedAt: last.ObservedAt.Time,
+			ID:         last.ID,
+			SortNull:   last.SortNull,
+			SortText:   last.SortText,
+			SortNumber: last.SortNumber,
+		})
+		rows = rows[:pageSize]
+	}
 	result.Columns = append(result.Columns, (*widget.Columns)...)
-	for _, cells := range rows {
-		result.Rows = append(result.Rows, gatewayapi.DashboardTableRow{Cells: cells})
+	for _, row := range rows {
+		result.Rows = append(result.Rows, gatewayapi.DashboardTableRow{Cells: row.Cells})
 	}
 	return nil
 }
@@ -1228,6 +1265,9 @@ func validateDashboardDefinition(definition gatewayapi.DashboardDefinition) erro
 			if widget.Measure != nil || widget.Aggregation != nil || widget.GroupBy != nil ||
 				widget.Stacked != nil {
 				return fmt.Errorf("table widget %q has chart-only properties", widget.Id)
+			}
+			if widget.Limit != nil {
+				return fmt.Errorf("table widget %q cannot declare a row limit", widget.Id)
 			}
 			if widget.Columns == nil || len(*widget.Columns) == 0 {
 				return fmt.Errorf("table widget %q requires columns", widget.Id)

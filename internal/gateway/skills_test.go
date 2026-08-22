@@ -6,11 +6,53 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
+
+func TestReadSkillUploadReportsSpoolFailureAsInternal(t *testing.T) {
+	notDirectory := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(notDirectory, nil, 0o600); err != nil {
+		t.Fatalf("create non-directory temp path: %v", err)
+	}
+	t.Setenv("TMPDIR", notDirectory)
+
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	file, err := form.CreateFormFile("file", "SKILL.md")
+	if err != nil {
+		t.Fatalf("create file part: %v", err)
+	}
+	content := []byte("---\nname: valid-skill\ndescription: A valid skill.\n---\n")
+	if _, err := file.Write(content); err != nil {
+		t.Fatalf("write file part: %v", err)
+	}
+	if err := form.Close(); err != nil {
+		t.Fatalf("close multipart form: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/skill/import/preview", &body)
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	res := httptest.NewRecorder()
+	if _, ok := readSkillUpload(res, req); ok {
+		t.Fatal("upload succeeded")
+	}
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusInternalServerError)
+	}
+
+	var response gatewayapi.Error
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Code != "internal_error" {
+		t.Fatalf("code = %q, want internal_error", response.Code)
+	}
+}
 
 func TestReadSkillUploadDiagnostics(t *testing.T) {
 	t.Parallel()

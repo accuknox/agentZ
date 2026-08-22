@@ -31,6 +31,11 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+var (
+	errMultipleSkillUploadFiles = errors.New("skill upload contains multiple files")
+	errSkillImportFieldTooLarge = errors.New("skill import field is too large")
+)
+
 func (s *Service) resolveSkillAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (resourceAccess, *apiError) {
 	req := resourceAccessRequest{
 		resource:    "Skill",
@@ -1529,7 +1534,7 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 		}
 		switch {
 		case part.FormName() == "file" && hasFile:
-			err = errors.New("skill upload contains multiple files")
+			err = errMultipleSkillUploadFiles
 		case part.FormName() == "file":
 			bundle, err = skill.Parse(part.FileName(), part)
 			hasFile = true
@@ -1537,7 +1542,7 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 			var value []byte
 			value, err = io.ReadAll(io.LimitReader(part, (64<<10)+1))
 			if err == nil && len(value) > 64<<10 {
-				err = errors.New("skill import field is too large")
+				err = errSkillImportFieldTooLarge
 			}
 			if err == nil {
 				name := part.FormName()
@@ -1548,35 +1553,61 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 		if err == nil {
 			continue
 		}
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusRequestEntityTooLarge,
+					"upload_too_large",
+					"The skill could not be imported.",
+					err,
+				),
+			)
+			return skill.Bundle{}, false
+		}
+		if errors.Is(err, errMultipleSkillUploadFiles) ||
+			errors.Is(err, errSkillImportFieldTooLarge) {
+			writeError(
+				w,
+				r,
+				newAPIError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"skill upload is invalid",
+					err,
+				),
+			)
+			return skill.Bundle{}, false
+		}
+
+		var issue *skill.ImportIssue
+		if !errors.As(err, &issue) {
+			writeInternalError(w, r, err)
+			return skill.Bundle{}, false
+		}
+
 		status := http.StatusBadRequest
 		code := "invalid_archive"
 		message := "The skill could not be imported."
-		fields := []gatewayapi.FieldError{}
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		fields := []gatewayapi.FieldError{{
+			Field: "file:" + issue.Path, Message: issue.Message,
+		}}
+		switch issue.Kind {
+		case skill.ImportIssueUnsupportedFileType:
+			code = "unsupported_file_type"
+		case skill.ImportIssueInvalidArchive:
+			code = "invalid_archive"
+		case skill.ImportIssueInvalidTree:
+			code = "invalid_skill_tree"
+		case skill.ImportIssueLimitExceeded:
 			status = http.StatusRequestEntityTooLarge
 			code = "upload_too_large"
-		}
-		var issue *skill.ImportIssue
-		if errors.As(err, &issue) {
-			fields = append(fields, gatewayapi.FieldError{
-				Field: "file:" + issue.Path, Message: issue.Message,
-			})
-			switch issue.Kind {
-			case skill.ImportIssueUnsupportedFileType:
-				code = "unsupported_file_type"
-			case skill.ImportIssueInvalidArchive:
-				code = "invalid_archive"
-			case skill.ImportIssueInvalidTree:
-				code = "invalid_skill_tree"
-			case skill.ImportIssueLimitExceeded:
-				status = http.StatusRequestEntityTooLarge
-				code = "upload_too_large"
-			case skill.ImportIssueMalformedFrontmatter,
-				skill.ImportIssueInvalidName,
-				skill.ImportIssueInvalidDescription,
-				skill.ImportIssueInvalidUTF8:
-				code = "malformed_skill_metadata"
-			}
+		case skill.ImportIssueMalformedFrontmatter,
+			skill.ImportIssueInvalidName,
+			skill.ImportIssueInvalidDescription,
+			skill.ImportIssueInvalidUTF8:
+			code = "malformed_skill_metadata"
 		}
 		writeError(w, r, newAPIError(status, code, message, err, fields...))
 		return skill.Bundle{}, false

@@ -1078,6 +1078,7 @@ function ChatInner({
         ) : !showStarter ? (
           <LegendList<TimelineRow>
             className="h-full min-h-0 overflow-x-hidden overscroll-y-contain px-4 [overflow-anchor:none]"
+            recycleItems={false}
             data={rows}
             estimatedItemSize={96}
             extraData={timelineIdentity}

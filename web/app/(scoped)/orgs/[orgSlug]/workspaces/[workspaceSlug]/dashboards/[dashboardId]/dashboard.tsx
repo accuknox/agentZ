@@ -2,28 +2,13 @@
 
 import * as React from "react"
 import type { Route } from "next"
+import dynamic from "next/dynamic"
 import { useRouter } from "@bprogress/next/app"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarDays, LayoutDashboard, ListFilter, RefreshCw } from "lucide-react"
 import type { DateRange } from "react-day-picker"
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  XAxis,
-  YAxis,
-  type TooltipContentProps,
-} from "recharts"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -50,7 +35,6 @@ import {
   type Dashboard,
   type DashboardFilter,
   type DashboardQueryRequest,
-  type DashboardSeries,
   type DashboardSummary,
   type DashboardTimeRange,
   type DashboardWidget,
@@ -58,13 +42,13 @@ import {
 } from "@/lib/gateway/client"
 import { cn } from "@/lib/utils"
 
-const chartColors = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-] as const
+const DashboardChart = dynamic(
+  () => import("./dashboard-chart").then((module) => module.DashboardChart),
+  {
+    loading: () => <Skeleton className="h-64 w-full" />,
+    ssr: false,
+  }
+)
 
 const defaultDashboardDuration = 24 * 60 * 60 * 1000
 
@@ -75,51 +59,12 @@ type DashboardRange =
 type DashboardContextValue = {
   dashboard: Dashboard
   liveDuration?: number
+  observeVisibility: (element: HTMLElement, listener: (visible: boolean) => void) => () => void
   request: DashboardQueryRequest
   workspaceId: string
 }
 
 const DashboardContext = React.createContext<DashboardContextValue | null>(null)
-
-const dashboardWidgetQueryOptions = (
-  workspaceId: string,
-  dashboardId: string,
-  widgetId: string,
-  request: DashboardQueryRequest,
-  liveDuration?: number,
-  initialData?: DashboardWidgetResult
-) =>
-  queryOptions({
-    queryKey: [
-      "dashboard-widget",
-      workspaceId,
-      dashboardId,
-      widgetId,
-      request,
-      liveDuration,
-    ] as const,
-    queryFn: async () => {
-      const result = await queryDashboardWidget({
-        headers: { "X-AgentZ-Workspace-ID": workspaceId },
-        path: { dashboardId, widgetId },
-        body: {
-          ...request,
-          time_range: liveDuration ? recentTimeRange(liveDuration) : request.time_range,
-        },
-        throwOnError: false,
-      })
-      if (result.error) throw new Error(result.error.message)
-      return result.data
-    },
-    initialData,
-    meta: { dashboardId, workspaceId },
-    placeholderData: (previous) => previous,
-    refetchInterval: liveDuration ? 30_000 : false,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
-    retry: 2,
-    staleTime: 30_000,
-  })
 
 export function DashboardView({
   children,
@@ -140,8 +85,34 @@ export function DashboardView({
     }
   })
   const [filters, setFilters] = React.useState<Record<string, string[]>>({})
+  const observerRef = React.useRef<IntersectionObserver | null>(null)
+  const visibilityListenersRef = React.useRef(new Map<Element, (visible: boolean) => void>())
   const queryClient = useQueryClient()
   const liveDuration = range.kind === "live" ? range.duration : undefined
+  const observeVisibility = React.useCallback(
+    (element: HTMLElement, listener: (visible: boolean) => void) => {
+      let observer = observerRef.current
+      if (!observer) {
+        observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              visibilityListenersRef.current.get(entry.target)?.(entry.isIntersecting)
+            }
+          },
+          { rootMargin: "256px 0px" }
+        )
+        observerRef.current = observer
+      }
+      visibilityListenersRef.current.set(element, listener)
+      observer.observe(element)
+
+      return () => {
+        observer.unobserve(element)
+        visibilityListenersRef.current.delete(element)
+      }
+    },
+    []
+  )
   const request = React.useMemo<DashboardQueryRequest>(() => {
     return {
       time_range: {
@@ -155,8 +126,18 @@ export function DashboardView({
     }
   }, [dashboard.definition.filters, filters, range])
 
+  React.useEffect(() => {
+    const visibilityListeners = visibilityListenersRef.current
+    return () => {
+      observerRef.current?.disconnect()
+      visibilityListeners.clear()
+    }
+  }, [])
+
   return (
-    <DashboardContext.Provider value={{ dashboard, liveDuration, request, workspaceId }}>
+    <DashboardContext.Provider
+      value={{ dashboard, liveDuration, observeVisibility, request, workspaceId }}
+    >
       <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 md:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <DashboardDateRange range={range} onRangeChange={setRange} />
@@ -177,7 +158,7 @@ export function DashboardView({
         </div>
         <div className="flex items-center gap-3">
           {liveDuration ? (
-            <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs">
+            <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
               <span aria-hidden="true" className="bg-primary size-1.5 rounded-full" />
               Live · 30s
             </span>
@@ -220,6 +201,7 @@ function DashboardFilterSelect({
   value: string[]
   workspaceId: string
 }) {
+  const [open, setOpen] = React.useState(false)
   const query = useQuery(
     queryOptions({
       queryKey: [
@@ -240,8 +222,11 @@ function DashboardFilterSelect({
         if (result.error) throw new Error(result.error.message)
         return result.data
       },
+      enabled: open,
       meta: { dashboardId, workspaceId },
-      refetchInterval: liveDuration ? 30_000 : false,
+      refetchInterval: open && liveDuration ? 30_000 : false,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: false,
       staleTime: 30_000,
     })
   )
@@ -249,8 +234,14 @@ function DashboardFilterSelect({
   return (
     <MultiSelectDropdown
       className="w-48"
-      disabled={query.isPending}
-      emptyMessage="No values for this period"
+      emptyMessage={
+        query.isPending
+          ? "Loading values..."
+          : query.isError
+            ? "Could not load values."
+            : "No values for this period"
+      }
+      onOpenChangeAction={setOpen}
       onValueChangeAction={(next) => onValueChange(filter.multiple ? next : next.slice(-1))}
       options={(query.data?.values ?? []).map((option) => ({
         icon: ListFilter,
@@ -393,18 +384,51 @@ export function DashboardWidgetView({
 }) {
   const context = React.useContext(DashboardContext)
   if (!context) throw new Error("DashboardWidgetView must be rendered inside DashboardView")
-  const { dashboard, liveDuration, request, workspaceId } = context
+  const { dashboard, liveDuration, observeVisibility, request, workspaceId } = context
+  const [visible, setVisible] = React.useState(false)
   const [initialRequest] = React.useState(request)
+  const sectionRef = React.useRef<HTMLElement>(null)
   const query = useQuery(
-    dashboardWidgetQueryOptions(
-      workspaceId,
-      dashboard.id,
-      widget.id,
-      request,
-      liveDuration,
-      request === initialRequest ? initialData : undefined
-    )
+    queryOptions({
+      queryKey: [
+        "dashboard-widget",
+        workspaceId,
+        dashboard.id,
+        widget.id,
+        request,
+        liveDuration,
+      ] as const,
+      queryFn: async () => {
+        const result = await queryDashboardWidget({
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { dashboardId: dashboard.id, widgetId: widget.id },
+          body: {
+            ...request,
+            time_range: liveDuration ? recentTimeRange(liveDuration) : request.time_range,
+          },
+          throwOnError: false,
+        })
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      enabled: visible,
+      initialData: request === initialRequest ? initialData : undefined,
+      meta: { dashboardId: dashboard.id, workspaceId },
+      placeholderData: (previous) => previous,
+      refetchInterval: visible && liveDuration ? 30_000 : false,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: false,
+      retry: 2,
+      staleTime: 30_000,
+    })
   )
+
+  React.useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    return observeVisibility(section, setVisible)
+  }, [observeVisibility])
+
   const width =
     widget.width === "full"
       ? "col-span-12"
@@ -413,7 +437,7 @@ export function DashboardWidgetView({
         : "col-span-12 md:col-span-6 xl:col-span-4"
 
   return (
-    <section aria-busy={query.isFetching} className={cn(width, "min-w-0 py-2")}>
+    <section aria-busy={query.isFetching} className={cn(width, "min-w-0 py-2")} ref={sectionRef}>
       <header className="mb-2 flex flex-col gap-1 px-1">
         <h2 className="text-sm font-semibold">{widget.title}</h2>
         {widget.description ? (
@@ -432,6 +456,7 @@ export function DashboardWidgetView({
           unit={
             dashboard.definition.measures.find((measure) => measure.name === widget.measure)?.unit
           }
+          visible={visible}
           widget={widget}
         />
       )}
@@ -442,10 +467,12 @@ export function DashboardWidgetView({
 function WidgetContent({
   data,
   unit,
+  visible,
   widget,
 }: {
   data: DashboardWidgetResult
   unit?: string
+  visible: boolean
   widget: DashboardWidget
 }) {
   if (widget.kind === "metric") {
@@ -482,155 +509,8 @@ function WidgetContent({
       </Table>
     )
   }
-
-  const config = Object.fromEntries(
-    data.series.map((series, index) => [
-      series.key,
-      { label: series.label, color: chartColors[index % chartColors.length] },
-    ])
-  ) satisfies ChartConfig
-  const points = data.points.map((point) => ({
-    key: point.key,
-    label: point.label,
-    ...Object.fromEntries(
-      data.series.map((series, index) => [series.key, point.values[index] ?? 0])
-    ),
-  }))
-  const valuesByLabel = new Map<string | number, number[]>(
-    data.points.map((point) => [point.label, point.values])
-  )
-  const tooltip = (
-    <ChartTooltip
-      content={(props) => (
-        <DashboardChartTooltip {...props} series={data.series} valuesByLabel={valuesByLabel} />
-      )}
-    />
-  )
-
-  if (widget.kind === "donut") {
-    return (
-      <ChartContainer className="h-64 w-full" config={config}>
-        <PieChart accessibilityLayer>
-          {tooltip}
-          <Pie data={points} dataKey="s0" innerRadius="55%" nameKey="label" outerRadius="82%">
-            {points.map((point, index) => (
-              <Cell fill={chartColors[index % chartColors.length]} key={point.key} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ChartContainer>
-    )
-  }
-
-  const common = (
-    <>
-      <CartesianGrid vertical={false} />
-      <XAxis
-        axisLine={false}
-        dataKey="label"
-        minTickGap={28}
-        tickFormatter={(label: string) => dayjs(label).format("MMM D, h:mm A")}
-        tickLine={false}
-      />
-      <YAxis axisLine={false} tickLine={false} width={42} />
-      {tooltip}
-    </>
-  )
-  if (widget.kind === "line") {
-    return (
-      <ChartContainer className="h-64 w-full" config={config}>
-        <LineChart data={points} accessibilityLayer>
-          {common}
-          {data.series.map((series, index) => (
-            <Line
-              dataKey={series.key}
-              dot={false}
-              key={series.key}
-              name={series.label}
-              stroke={chartColors[index % chartColors.length]}
-              strokeWidth={2}
-              type="monotone"
-            />
-          ))}
-        </LineChart>
-      </ChartContainer>
-    )
-  }
-  if (widget.kind === "area") {
-    return (
-      <ChartContainer className="h-64 w-full" config={config}>
-        <AreaChart data={points} accessibilityLayer>
-          {common}
-          {data.series.map((series, index) => (
-            <Area
-              dataKey={series.key}
-              fill={chartColors[index % chartColors.length]}
-              fillOpacity={0.18}
-              key={series.key}
-              name={series.label}
-              stackId={widget.stacked ? "dashboard" : undefined}
-              stroke={chartColors[index % chartColors.length]}
-              strokeWidth={2}
-              type="monotone"
-            />
-          ))}
-        </AreaChart>
-      </ChartContainer>
-    )
-  }
-  return (
-    <ChartContainer className="h-64 w-full" config={config}>
-      <BarChart data={points} accessibilityLayer>
-        {common}
-        {data.series.map((series, index) => (
-          <Bar
-            dataKey={series.key}
-            fill={chartColors[index % chartColors.length]}
-            key={series.key}
-            name={series.label}
-            radius={[4, 4, 0, 0]}
-            stackId={widget.stacked ? "dashboard" : undefined}
-          />
-        ))}
-      </BarChart>
-    </ChartContainer>
-  )
-}
-
-function DashboardChartTooltip({
-  active,
-  label,
-  series,
-  valuesByLabel,
-}: TooltipContentProps & {
-  series: DashboardSeries[]
-  valuesByLabel: Map<string | number, number[]>
-}) {
-  const values = label === undefined ? undefined : valuesByLabel.get(label)
-  if (!active || !values) return null
-
-  return (
-    <div className="border-border/50 bg-background grid min-w-32 gap-2 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
-      <div className="font-medium">{label}</div>
-      <div className="grid gap-1.5">
-        {series.map((item, index) => (
-          <div className="flex items-center justify-between gap-4" key={item.key}>
-            <span className="text-muted-foreground flex items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className="size-2 rounded-sm"
-                style={{ backgroundColor: chartColors[index % chartColors.length] }}
-              />
-              {item.label}
-            </span>
-            <span className="text-foreground font-mono font-medium tabular-nums">
-              {values[index]?.toLocaleString() ?? "0"}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+  if (!visible) return <Skeleton className="h-64 w-full" />
+  return <DashboardChart data={data} kind={widget.kind} stacked={widget.stacked} />
 }
 
 function recentTimeRange(duration: number): DashboardTimeRange {

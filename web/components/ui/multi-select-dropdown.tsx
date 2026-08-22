@@ -55,6 +55,7 @@ function MultiSelectDropdown({
   id,
   invalid = false,
   onBlurAction,
+  onOpenChangeAction,
   onValueChangeAction,
   options,
   placeholder = "Select options",
@@ -71,6 +72,7 @@ function MultiSelectDropdown({
   id?: string
   invalid?: boolean
   onBlurAction?: () => void
+  onOpenChangeAction?: (open: boolean) => void
   onValueChangeAction: (value: string[]) => void
   options: MultiSelectDropdownOption[]
   placeholder?: string
@@ -127,7 +129,13 @@ function MultiSelectDropdown({
         : `${value.length} selected`
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        onOpenChangeAction?.(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           id={id}

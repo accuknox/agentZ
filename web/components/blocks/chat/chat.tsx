@@ -1085,6 +1085,7 @@ function ChatInner({
             extraData={timelineIdentity}
             initialScrollAtEnd
             keyExtractor={(row) => row.key}
+            recycleItems={false}
             ListHeaderComponent={
               hasEarlierMessages ? (
                 <div className="text-muted-foreground/70 flex h-9 items-center justify-center gap-2 text-xs">

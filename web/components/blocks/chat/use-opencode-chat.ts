@@ -459,8 +459,8 @@ function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
   }
 }
 
-function chatOverlayQueryKey(workspaceId: string, agentName: string, sessionID?: string) {
-  return ["opencode", "chatOverlay", workspaceId, agentName, sessionID ?? "new"] as const
+function chatOverlayQueryKey(workspaceId: string, agentName: string, chatID?: string) {
+  return ["opencode", "chatOverlay", workspaceId, agentName, chatID ?? "new"] as const
 }
 
 export function sessionInfoQueryKey(workspaceId: string, agentName: string, sessionID: string) {
@@ -471,28 +471,53 @@ function sessionMessagesBaseQueryKey(workspaceId: string, agentName: string, ses
   return ["opencode", "sessionMessages", workspaceId, agentName, sessionID] as const
 }
 
-export function addOptimisticUserMessage(
+export function upsertOptimisticUserMessage(
   queryClient: QueryClient,
   workspaceId: string,
   agentName: string,
-  sessionID: string | undefined,
+  chatID: string | undefined,
   message: OptimisticUserMessage
 ) {
   queryClient.setQueryData<OptimisticUserMessage[]>(
-    chatOverlayQueryKey(workspaceId, agentName, sessionID),
-    (current) => [...(current ?? []), message].slice(-50)
+    chatOverlayQueryKey(workspaceId, agentName, chatID),
+    (current) => {
+      const messages = [...(current ?? [])]
+      const index = messages.findIndex((item) => item.id === message.id)
+      if (index === -1) messages.push(message)
+      else messages[index] = message
+      return messages.slice(-50)
+    }
   )
+}
+
+export function promoteChatOverlay(
+  queryClient: QueryClient,
+  workspaceId: string,
+  agentName: string,
+  draftID: string | undefined,
+  sessionID: string
+) {
+  const messages = queryClient.getQueryData<OptimisticUserMessage[]>(
+    chatOverlayQueryKey(workspaceId, agentName, draftID)
+  )
+  if (!messages?.length) return
+
+  queryClient.setQueryData(chatOverlayQueryKey(workspaceId, agentName, sessionID), messages)
+  queryClient.removeQueries({
+    exact: true,
+    queryKey: chatOverlayQueryKey(workspaceId, agentName, draftID),
+  })
 }
 
 export function markOptimisticUserMessageFailed(
   queryClient: QueryClient,
   workspaceId: string,
   agentName: string,
-  sessionID: string | undefined,
+  chatID: string | undefined,
   messageID: string
 ) {
   queryClient.setQueryData<OptimisticUserMessage[]>(
-    chatOverlayQueryKey(workspaceId, agentName, sessionID),
+    chatOverlayQueryKey(workspaceId, agentName, chatID),
     (current) =>
       (current ?? []).map((item) => {
         if (item.id !== messageID) return item
@@ -628,7 +653,8 @@ export function sessionStatusQueryOptions(
 export function useOpencodeChat(
   agentName: string,
   workspaceId: string,
-  sessionID?: string
+  sessionID?: string,
+  draftID?: string
 ): UseOpencodeChatResult {
   const queryClient = useQueryClient()
   const [liveStore, setLiveStore] = useState<{
@@ -670,7 +696,7 @@ export function useOpencodeChat(
   const localMessages = useQuery({
     ...queryOptions({
       queryFn: (): OptimisticUserMessage[] => [],
-      queryKey: chatOverlayQueryKey(workspaceId, agentName, sessionID),
+      queryKey: chatOverlayQueryKey(workspaceId, agentName, sessionID ?? draftID),
       staleTime: Infinity,
     }),
     initialData: [],

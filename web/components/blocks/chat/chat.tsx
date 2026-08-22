@@ -162,6 +162,7 @@ type ChatProps = {
   agentName: string
   agentNames: string[]
   chatPreferences?: ChatSessionPreference
+  draftId?: string
   firstName?: string
   greetingIndex?: number
   promptMobile?: boolean
@@ -502,6 +503,7 @@ function ChatInner({
   agentName,
   agentNames,
   chatPreferences,
+  draftId,
   firstName,
   greetingIndex,
   promptMobile = false,
@@ -564,7 +566,7 @@ function ChatInner({
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, workspaceId, sessionId)
+  } = useOpencodeChat(agentName, workspaceId, sessionId, draftId)
 
   useEffect(() => {
     const id = `chat:${agentName}:${sessionId ?? "new"}:history-error`
@@ -780,8 +782,8 @@ function ChatInner({
   const { abortMessage, canSubmit, isStopping, sendMessage, sendState } = useOpencodeSend(
     agentName,
     workspaceId,
-    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions`,
     sessionId,
+    draftId,
     directory,
     isBusy || isPending || blocked || agentReadiness.isGettingReady,
     onSessionCreated
@@ -1456,12 +1458,15 @@ function ChatInner({
                         isStopping ||
                         agentReadiness.isGettingReady ||
                         revertPending ||
+                        sendState === "submitted" ||
                         (!isBusy && (!selectedModel || !canSubmit))
                       }
                       onStop={
-                        isBusy && !isStopping ? () => void abortMessage(directory) : undefined
+                        isBusy && !sendState && !isStopping
+                          ? () => void abortMessage(directory)
+                          : undefined
                       }
-                      status={isBusy ? "streaming" : sendState}
+                      status={sendState ?? (isBusy ? "streaming" : undefined)}
                     />
                   </motion.div>
                 </div>

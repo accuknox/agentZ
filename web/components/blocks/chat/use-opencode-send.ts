@@ -1,8 +1,7 @@
 "use client"
 
-import { useRouter } from "@bprogress/next/app"
 import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query"
-import { startTransition, useCallback, useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "sonner"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
@@ -15,10 +14,11 @@ import {
 } from "@/components/blocks/chat/attachments"
 import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import {
-  addOptimisticUserMessage,
   markOptimisticUserMessageFailed,
+  promoteChatOverlay,
   sessionInfoQueryKey,
   sessionStatusQueryOptions,
+  upsertOptimisticUserMessage,
 } from "@/components/blocks/chat/use-opencode-chat"
 
 type SendMessageInput = {
@@ -54,13 +54,12 @@ function createMessageID() {
 export function useOpencodeSend(
   agentName: string,
   workspaceId: string,
-  sessionsPath: string,
   sessionID?: string,
+  draftID?: string,
   directory?: string,
   isBusy?: boolean,
   onSessionCreated?: (sessionID: string) => void
 ) {
-  const router = useRouter()
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
   const abortKey = ["opencode", "sessionAbort", agentName] as const
@@ -121,11 +120,20 @@ export function useOpencodeSend(
         throw new Error("Wait for the current run to finish before sending another message")
       }
 
+      const pendingID = createMessageID()
+      const createdAt = dayjs().valueOf()
+      let overlayID = input.sessionID ?? draftID
+      upsertOptimisticUserMessage(queryClient, workspaceId, agentName, overlayID, {
+        attachments: [],
+        createdAt,
+        id: pendingID,
+        status: "pending",
+        text,
+      })
+
       let resolvedSessionID = input.sessionID
       let sessionDirectory = directory
-      let optimisticID: string | undefined
-      let optimisticSessionID: string | undefined
-      let optimisticStatus: SessionStatus | undefined
+      let optimisticStatus: { sessionID: string; value: SessionStatus } | undefined
 
       try {
         const client = await createAgentOpencodeClient(agentName, workspaceId)
@@ -149,11 +157,9 @@ export function useOpencodeSend(
             sessionInfoQueryKey(workspaceId, agentName, createResult.data.id),
             createResult.data
           )
+          promoteChatOverlay(queryClient, workspaceId, agentName, overlayID, createResult.data.id)
+          overlayID = createResult.data.id
           onSessionCreated?.(createResult.data.id)
-          const sessionPath = `${sessionsPath}/${encodeURIComponent(createResult.data.id)}`
-          startTransition(() => {
-            router.replace(sessionPath)
-          })
         }
 
         const activeSessionID = resolvedSessionID
@@ -164,11 +170,8 @@ export function useOpencodeSend(
           input.files
         )
         const parts = opencodePartsFromMessage(text, uploaded)
-        const pendingID = createMessageID()
         const pendingStatus: SessionStatus = { type: "busy" }
-        optimisticID = pendingID
-        optimisticSessionID = activeSessionID
-        optimisticStatus = pendingStatus
+        optimisticStatus = { sessionID: activeSessionID, value: pendingStatus }
         const sessionStatusOptions = sessionStatusQueryOptions(
           agentName,
           workspaceId,
@@ -181,9 +184,9 @@ export function useOpencodeSend(
             [activeSessionID]: pendingStatus,
           })
         )
-        addOptimisticUserMessage(queryClient, workspaceId, agentName, activeSessionID, {
+        upsertOptimisticUserMessage(queryClient, workspaceId, agentName, activeSessionID, {
           attachments: uploaded,
-          createdAt: dayjs().valueOf(),
+          createdAt,
           id: pendingID,
           status: "pending",
           text,
@@ -209,16 +212,9 @@ export function useOpencodeSend(
           sessionID: activeSessionID,
         }
       } catch (error) {
-        if (optimisticID && optimisticSessionID && optimisticStatus) {
-          const failedSessionID = optimisticSessionID
-          const failedStatus = optimisticStatus
-          markOptimisticUserMessageFailed(
-            queryClient,
-            workspaceId,
-            agentName,
-            failedSessionID,
-            optimisticID
-          )
+        markOptimisticUserMessageFailed(queryClient, workspaceId, agentName, overlayID, pendingID)
+        if (optimisticStatus) {
+          const { sessionID: failedSessionID, value: failedStatus } = optimisticStatus
           queryClient.setQueryData<SessionStatusResponse>(
             sessionStatusQueryOptions(agentName, workspaceId, sessionDirectory ?? "").queryKey,
             (current) => {

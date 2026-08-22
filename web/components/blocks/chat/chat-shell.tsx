@@ -6,6 +6,7 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react"
 import type { Route } from "next"
 import { useRouter } from "@bprogress/next/app"
 import { useState } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +24,6 @@ type ChatShellProps = {
   agentName: string
   agentNames?: string[]
   chatPreferences?: ChatSessionPreference
-  draftKey?: string
   firstName?: string
   greetingIndex?: number
   sessionId?: string
@@ -44,7 +44,6 @@ export function ChatShell({
   agentName,
   agentNames = [agentName],
   chatPreferences,
-  draftKey,
   firstName,
   greetingIndex,
   sessionId,
@@ -58,18 +57,26 @@ export function ChatShell({
     sessionId: string
   }>()
   const router = useRouter()
+  const pathname = usePathname()
+  const draftKey = useSearchParams().get("draft")
+  const draftPath = `${workspacePath}/sessions/new`
+  const routeSessionId = pathname === draftPath ? undefined : sessionId
   // Soft navigations preserve client trees in this app, so the chat subtree
   // must remount when the logical session target changes. Promoting a new chat
   // keeps its key because the live stream belongs to the session just created.
-  const routeChatKey = `${agentName}:${sessionId ?? `new:${draftKey ?? "default"}`}`
+  const routeChatKey = `${agentName}:${routeSessionId ?? `new:${draftKey ?? "default"}`}`
+  const promotedSessionPath = promotedSession
+    ? `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(promotedSession.sessionId)}`
+    : undefined
   const activePromotion =
     promotedSession &&
-    (sessionId === promotedSession.sessionId ||
-      (sessionId === undefined && routeChatKey === promotedSession.chatKey))
+    (pathname === promotedSessionPath ||
+      routeSessionId === promotedSession.sessionId ||
+      (routeSessionId === undefined && routeChatKey === promotedSession.chatKey))
       ? promotedSession
       : undefined
   const chatKey = activePromotion?.chatKey ?? routeChatKey
-  const activeSessionId = sessionId ?? activePromotion?.sessionId
+  const activeSessionId = routeSessionId ?? activePromotion?.sessionId
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
@@ -91,10 +98,22 @@ export function ChatShell({
             agentName={agentName}
             agentNames={agentNames}
             chatPreferences={chatPreferences}
+            draftId={draftKey ?? undefined}
             firstName={firstName}
             greetingIndex={greetingIndex}
             onSessionCreated={(id) => {
               setPromotedSession({ chatKey: routeChatKey, sessionId: id })
+
+              const url = new URL(window.location.href)
+              if (url.pathname !== draftPath || url.searchParams.get("draft") !== draftKey) {
+                return
+              }
+
+              const sessionPath =
+                `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/` +
+                encodeURIComponent(id)
+              window.history.replaceState(null, "", sessionPath)
+              router.refresh({ showProgress: false })
             }}
             promptMobile={previewerOpen}
             sessionId={activeSessionId}
@@ -103,7 +122,7 @@ export function ChatShell({
             onAgentChange={(name) => {
               const url = new URL(window.location.href)
               url.searchParams.set("agent", name)
-              router.replace(`${url.pathname}${url.search}` as Route)
+              router.replace(`${url.pathname}${url.search}` as Route, { showProgress: false })
             }}
           />
         </div>
@@ -111,7 +130,7 @@ export function ChatShell({
       <FilesWorkspace
         agentName={agentName}
         onPreviewerOpenChange={setPreviewerOpen}
-        sessionId={sessionId}
+        sessionId={activeSessionId}
         workspaceId={workspaceId}
       />
     </div>

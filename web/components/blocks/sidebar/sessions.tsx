@@ -207,14 +207,17 @@ export function NavSessions({
     (preferences.agent_name ? 1 : 0) +
     preferences.participant_user_ids.length +
     (preferences.include_workflow_runs ? 1 : 0)
-  const newSessionPath = `${workspacePath}/sessions/new?draft=${nanoid()}` as Route
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 px-[var(--sidebar-content-inset)] pb-1">
         <Button
           className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium shadow-none"
-          onClick={() => router.push(newSessionPath)}
+          onClick={() => {
+            const path = `${workspacePath}/sessions/new?draft=${nanoid()}`
+            window.history.pushState(null, "", path)
+            router.refresh({ showProgress: false })
+          }}
           size="sm"
           variant="ghost"
         >
@@ -403,7 +406,9 @@ function SessionCard({
           agent: session.agent_name,
           draft: nanoid(),
         })
-        router.push(`${workspacePath}/sessions/new?${search}` as Route)
+        router.push(`${workspacePath}/sessions/new?${search}` as Route, {
+          showProgress: false,
+        })
       }
 
       void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })

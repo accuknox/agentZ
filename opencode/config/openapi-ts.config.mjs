@@ -15,7 +15,10 @@ const config = {
         strategy: "flat",
       },
       validator: {
-        request: "zod",
+        // The fetch client passes a Headers instance to request validators.
+        // Zod treats required header properties as missing, so requests with
+        // X-AgentZ-Session-ID fail before fetch runs.
+        request: false,
       },
     },
     "zod",

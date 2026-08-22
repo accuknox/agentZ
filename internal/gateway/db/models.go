@@ -828,7 +828,7 @@ type Dashboard struct {
 	WorkspaceID    string             `json:"workspace_id"`
 	AgentName      string             `json:"agent_name"`
 	Name           string             `json:"name"`
-	Revision       int64              `json:"revision"`
+	Revision       int32              `json:"revision"`
 	Definition     []byte             `json:"definition"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`

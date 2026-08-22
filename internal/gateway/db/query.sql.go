@@ -83,58 +83,6 @@ func (q *Queries) GatewayAgentExists(ctx context.Context, arg GatewayAgentExists
 	return exists, err
 }
 
-const gatewayAppendDashboardRecords = `-- name: GatewayAppendDashboardRecords :execrows
-INSERT INTO dashboard_records(
-  id,
-  dashboard_id,
-  workspace_id,
-  record_key,
-  session_id,
-  observed_at,
-  expires_at,
-  dimensions,
-  measures
-)
-SELECT
-  record.id,
-  $1,
-  $2,
-  record.record_key,
-  $3,
-  record.observed_at,
-  NOW() + INTERVAL '30 days',
-  record.dimensions,
-  record.measures
-FROM jsonb_to_recordset($4) AS record(
-  id text,
-  record_key text,
-  observed_at timestamptz,
-  dimensions jsonb,
-  measures jsonb
-)
-ON CONFLICT DO NOTHING
-`
-
-type GatewayAppendDashboardRecordsParams struct {
-	DashboardID string `json:"dashboard_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Records     []byte `json:"records"`
-}
-
-func (q *Queries) GatewayAppendDashboardRecords(ctx context.Context, arg GatewayAppendDashboardRecordsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayAppendDashboardRecords,
-		arg.DashboardID,
-		arg.WorkspaceID,
-		arg.SessionID,
-		arg.Records,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const gatewayAssignWorkspaceAdmins = `-- name: GatewayAssignWorkspaceAdmins :execrows
 INSERT INTO member_roles(member_id, role_id, organization_id)
 SELECT members.id, role_scopes.role_id, members.organization_id
@@ -337,20 +285,6 @@ func (q *Queries) GatewayConsumeDashboardRateLimit(ctx context.Context, arg Gate
 		arg.MaxCount,
 	)
 	var count int32
-	err := row.Scan(&count)
-	return count, err
-}
-
-const gatewayCountDashboardIntegrationAuditEvents = `-- name: GatewayCountDashboardIntegrationAuditEvents :one
-SELECT COUNT(*)
-FROM event_trail_events
-WHERE organization_id = $1
-  AND target_type = 'dashboard'
-`
-
-func (q *Queries) GatewayCountDashboardIntegrationAuditEvents(ctx context.Context, organizationID string) (int64, error) {
-	row := q.db.QueryRow(ctx, gatewayCountDashboardIntegrationAuditEvents, organizationID)
-	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
@@ -559,7 +493,7 @@ type GatewayCreateDashboardRow struct {
 	ID         string             `json:"id"`
 	AgentName  string             `json:"agent_name"`
 	Name       string             `json:"name"`
-	Revision   int64              `json:"revision"`
+	Revision   int32              `json:"revision"`
 	Definition []byte             `json:"definition"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
@@ -585,109 +519,6 @@ func (q *Queries) GatewayCreateDashboard(ctx context.Context, arg GatewayCreateD
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const gatewayCreateDashboardIntegrationFixture = `-- name: GatewayCreateDashboardIntegrationFixture :exec
-WITH test_organization AS (
-  INSERT INTO organizations(id, name, slug, created_at)
-  VALUES (
-    $2,
-    'Dashboard test',
-    $3,
-    NOW()
-  )
-  RETURNING id
-), test_user AS (
-  INSERT INTO users(id, name, email)
-  VALUES (
-    $4,
-    'Dashboard test',
-    $5
-  )
-  RETURNING id
-), test_workspace AS (
-  INSERT INTO workspaces(
-    id,
-    organization_id,
-    name,
-    slug,
-    namespace,
-    state
-  )
-  SELECT
-    $6,
-    test_organization.id,
-    'Dashboard test',
-    $7,
-    $8,
-    'ready'
-  FROM test_organization
-  RETURNING id, organization_id
-), test_owner AS (
-  INSERT INTO agent_owners(
-    organization_id,
-    workspace_id,
-    agent_name,
-    creator_user_id,
-    owner_user_id
-  )
-  SELECT
-    test_workspace.organization_id,
-    test_workspace.id,
-    $9,
-    test_user.id,
-    test_user.id
-  FROM test_workspace
-  CROSS JOIN test_user
-  RETURNING workspace_id, agent_name
-)
-INSERT INTO chat_sessions(
-  workspace_id,
-  agent_name,
-  session_id,
-  title,
-  kind,
-  status,
-  source_created_at,
-  source_updated_at
-)
-SELECT
-  test_owner.workspace_id,
-  test_owner.agent_name,
-  $1,
-  'Dashboard test',
-  'chat',
-  'idle',
-  NOW(),
-  NOW()
-FROM test_owner
-`
-
-type GatewayCreateDashboardIntegrationFixtureParams struct {
-	SessionID          string `json:"session_id"`
-	OrganizationID     string `json:"organization_id"`
-	OrganizationSlug   string `json:"organization_slug"`
-	UserID             string `json:"user_id"`
-	UserEmail          string `json:"user_email"`
-	WorkspaceID        string `json:"workspace_id"`
-	WorkspaceSlug      string `json:"workspace_slug"`
-	WorkspaceNamespace string `json:"workspace_namespace"`
-	AgentName          string `json:"agent_name"`
-}
-
-func (q *Queries) GatewayCreateDashboardIntegrationFixture(ctx context.Context, arg GatewayCreateDashboardIntegrationFixtureParams) error {
-	_, err := q.db.Exec(ctx, gatewayCreateDashboardIntegrationFixture,
-		arg.SessionID,
-		arg.OrganizationID,
-		arg.OrganizationSlug,
-		arg.UserID,
-		arg.UserEmail,
-		arg.WorkspaceID,
-		arg.WorkspaceSlug,
-		arg.WorkspaceNamespace,
-		arg.AgentName,
-	)
-	return err
 }
 
 const gatewayCreateEventTrailEvent = `-- name: GatewayCreateEventTrailEvent :one
@@ -1002,11 +833,12 @@ func (q *Queries) GatewayDeleteChatSession(ctx context.Context, arg GatewayDelet
 	return err
 }
 
-const gatewayDeleteDashboard = `-- name: GatewayDeleteDashboard :execrows
+const gatewayDeleteDashboard = `-- name: GatewayDeleteDashboard :one
 DELETE FROM dashboards
 WHERE workspace_id = $1
   AND agent_name = $2
   AND name = $3
+RETURNING id
 `
 
 type GatewayDeleteDashboardParams struct {
@@ -1015,45 +847,11 @@ type GatewayDeleteDashboardParams struct {
 	Name        string `json:"name"`
 }
 
-func (q *Queries) GatewayDeleteDashboard(ctx context.Context, arg GatewayDeleteDashboardParams) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayDeleteDashboard, arg.WorkspaceID, arg.AgentName, arg.Name)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const gatewayDeleteDashboardIntegrationFixture = `-- name: GatewayDeleteDashboardIntegrationFixture :exec
-WITH deleted_events AS (
-  DELETE FROM event_trail_events AS events
-  WHERE events.organization_id = $2
-  RETURNING 1
-), deleted_owners AS (
-  DELETE FROM agent_owners AS owners
-  WHERE owners.workspace_id = $3
-  RETURNING 1
-), deleted_workspace AS (
-  DELETE FROM workspaces AS workspace
-  WHERE workspace.id = $3
-  RETURNING 1
-), deleted_organization AS (
-  DELETE FROM organizations AS organization
-  WHERE organization.id = $2
-  RETURNING 1
-)
-DELETE FROM users
-WHERE users.id = $1
-`
-
-type GatewayDeleteDashboardIntegrationFixtureParams struct {
-	UserID         string `json:"user_id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-}
-
-func (q *Queries) GatewayDeleteDashboardIntegrationFixture(ctx context.Context, arg GatewayDeleteDashboardIntegrationFixtureParams) error {
-	_, err := q.db.Exec(ctx, gatewayDeleteDashboardIntegrationFixture, arg.UserID, arg.OrganizationID, arg.WorkspaceID)
-	return err
+func (q *Queries) GatewayDeleteDashboard(ctx context.Context, arg GatewayDeleteDashboardParams) (string, error) {
+	row := q.db.QueryRow(ctx, gatewayDeleteDashboard, arg.WorkspaceID, arg.AgentName, arg.Name)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const gatewayDeleteDashboardRecords = `-- name: GatewayDeleteDashboardRecords :execrows
@@ -1181,22 +979,6 @@ type GatewayDeleteWorkspaceInheritedResourcesParams struct {
 
 func (q *Queries) GatewayDeleteWorkspaceInheritedResources(ctx context.Context, arg GatewayDeleteWorkspaceInheritedResourcesParams) (int64, error) {
 	result, err := q.db.Exec(ctx, gatewayDeleteWorkspaceInheritedResources, arg.WorkspaceID, arg.OrganizationID, arg.Resource)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const gatewayExpireDashboardIntegrationRecords = `-- name: GatewayExpireDashboardIntegrationRecords :execrows
-UPDATE dashboard_records
-SET
-  ingested_at = NOW() - INTERVAL '31 days',
-  expires_at = NOW() - INTERVAL '1 day'
-WHERE dashboard_id = $1
-`
-
-func (q *Queries) GatewayExpireDashboardIntegrationRecords(ctx context.Context, dashboardID string) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayExpireDashboardIntegrationRecords, dashboardID)
 	if err != nil {
 		return 0, err
 	}
@@ -1348,7 +1130,7 @@ type GatewayGetAgentDashboardRow struct {
 	ID         string             `json:"id"`
 	AgentName  string             `json:"agent_name"`
 	Name       string             `json:"name"`
-	Revision   int64              `json:"revision"`
+	Revision   int32              `json:"revision"`
 	Definition []byte             `json:"definition"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
@@ -1466,7 +1248,7 @@ type GatewayGetDashboardByIDRow struct {
 	ID         string             `json:"id"`
 	AgentName  string             `json:"agent_name"`
 	Name       string             `json:"name"`
-	Revision   int64              `json:"revision"`
+	Revision   int32              `json:"revision"`
 	Definition []byte             `json:"definition"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
@@ -2799,7 +2581,7 @@ type GatewayListDashboardsRow struct {
 	ID         string             `json:"id"`
 	AgentName  string             `json:"agent_name"`
 	Name       string             `json:"name"`
-	Revision   int64              `json:"revision"`
+	Revision   int32              `json:"revision"`
 	Definition []byte             `json:"definition"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
@@ -4575,28 +4357,6 @@ func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams
 	return id, err
 }
 
-const gatewayMarkDashboardIntegrationSessionAsWorkflowRun = `-- name: GatewayMarkDashboardIntegrationSessionAsWorkflowRun :execrows
-UPDATE chat_sessions
-SET kind = 'workflow_run'
-WHERE workspace_id = $1
-  AND agent_name = $2
-  AND session_id = $3
-`
-
-type GatewayMarkDashboardIntegrationSessionAsWorkflowRunParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	SessionID   string `json:"session_id"`
-}
-
-func (q *Queries) GatewayMarkDashboardIntegrationSessionAsWorkflowRun(ctx context.Context, arg GatewayMarkDashboardIntegrationSessionAsWorkflowRunParams) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayMarkDashboardIntegrationSessionAsWorkflowRun, arg.WorkspaceID, arg.AgentName, arg.SessionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
 UPDATE members
 SET role = COALESCE((
@@ -5008,14 +4768,14 @@ type GatewayReplaceDashboardParams struct {
 	WorkspaceID      string `json:"workspace_id"`
 	AgentName        string `json:"agent_name"`
 	Name             string `json:"name"`
-	ExpectedRevision int64  `json:"expected_revision"`
+	ExpectedRevision int32  `json:"expected_revision"`
 }
 
 type GatewayReplaceDashboardRow struct {
 	ID         string             `json:"id"`
 	AgentName  string             `json:"agent_name"`
 	Name       string             `json:"name"`
-	Revision   int64              `json:"revision"`
+	Revision   int32              `json:"revision"`
 	Definition []byte             `json:"definition"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
@@ -5712,64 +5472,6 @@ func (q *Queries) GatewayUpsertChatSession(ctx context.Context, arg GatewayUpser
 	return err
 }
 
-const gatewayUpsertDashboardRecords = `-- name: GatewayUpsertDashboardRecords :execrows
-INSERT INTO dashboard_records(
-  id,
-  dashboard_id,
-  workspace_id,
-  record_key,
-  session_id,
-  observed_at,
-  expires_at,
-  dimensions,
-  measures
-)
-SELECT
-  record.id,
-  $1,
-  $2,
-  record.record_key,
-  $3,
-  record.observed_at,
-  NOW() + INTERVAL '30 days',
-  record.dimensions,
-  record.measures
-FROM jsonb_to_recordset($4) AS record(
-  id text,
-  record_key text,
-  observed_at timestamptz,
-  dimensions jsonb,
-  measures jsonb
-)
-ON CONFLICT (dashboard_id, record_key) WHERE record_key IS NOT NULL DO UPDATE SET
-  session_id = EXCLUDED.session_id,
-  observed_at = EXCLUDED.observed_at,
-  dimensions = EXCLUDED.dimensions,
-  measures = EXCLUDED.measures,
-  updated_at = NOW(),
-  expires_at = NOW() + INTERVAL '30 days'
-`
-
-type GatewayUpsertDashboardRecordsParams struct {
-	DashboardID string `json:"dashboard_id"`
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Records     []byte `json:"records"`
-}
-
-func (q *Queries) GatewayUpsertDashboardRecords(ctx context.Context, arg GatewayUpsertDashboardRecordsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, gatewayUpsertDashboardRecords,
-		arg.DashboardID,
-		arg.WorkspaceID,
-		arg.SessionID,
-		arg.Records,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const gatewayUpsertWorkspaceChatPreference = `-- name: GatewayUpsertWorkspaceChatPreference :one
 INSERT INTO workspace_chat_preferences(
   workspace_id,
@@ -5826,4 +5528,65 @@ func (q *Queries) GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const gatewayWriteDashboardRecords = `-- name: GatewayWriteDashboardRecords :execrows
+INSERT INTO dashboard_records(
+  id,
+  dashboard_id,
+  workspace_id,
+  record_key,
+  session_id,
+  observed_at,
+  expires_at,
+  dimensions,
+  measures
+)
+SELECT
+  record.id,
+  $1,
+  $2,
+  record.record_key,
+  $3,
+  record.observed_at,
+  NOW() + INTERVAL '30 days',
+  record.dimensions,
+  record.measures
+FROM jsonb_to_recordset($4) AS record(
+  id text,
+  record_key text,
+  observed_at timestamptz,
+  dimensions jsonb,
+  measures jsonb
+)
+ON CONFLICT (dashboard_id, record_key) WHERE record_key IS NOT NULL DO UPDATE SET
+  session_id = EXCLUDED.session_id,
+  observed_at = EXCLUDED.observed_at,
+  dimensions = EXCLUDED.dimensions,
+  measures = EXCLUDED.measures,
+  updated_at = NOW(),
+  expires_at = NOW() + INTERVAL '30 days'
+WHERE $5::boolean
+`
+
+type GatewayWriteDashboardRecordsParams struct {
+	DashboardID string `json:"dashboard_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	Records     []byte `json:"records"`
+	Upsert      bool   `json:"upsert"`
+}
+
+func (q *Queries) GatewayWriteDashboardRecords(ctx context.Context, arg GatewayWriteDashboardRecordsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayWriteDashboardRecords,
+		arg.DashboardID,
+		arg.WorkspaceID,
+		arg.SessionID,
+		arg.Records,
+		arg.Upsert,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

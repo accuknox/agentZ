@@ -686,22 +686,8 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 	if err != nil {
 		return requestAuth{}, err
 	}
-	tenant, workspaceID, err := s.tenantScopeForNamespace(r.Context(), agt.Namespace)
-	if err != nil {
-		return requestAuth{}, fmt.Errorf("resolve Agent tenant scope: %w", err)
-	}
-	if workspaceID == "" {
-		return requestAuth{}, newAPIError(
-			http.StatusForbidden,
-			"forbidden",
-			"this Agent does not belong to a Workspace",
-			errors.New("dashboard requests require a Workspace ID"),
-		)
-	}
 
 	return requestAuth{
-		organizationID:  tenant.Spec.OrganizationID,
-		workspaceID:     workspaceID,
 		tenantNamespace: agt.Namespace,
 		actorType:       requestActorSystem,
 		actorID:         user.namespace + ":" + user.name,

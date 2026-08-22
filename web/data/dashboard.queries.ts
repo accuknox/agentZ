@@ -1,35 +1,31 @@
-import { cacheLife, cacheTag } from "next/cache"
 import {
   getDashboard,
   listDashboards,
-  listDashboardFilterOptions,
   queryDashboardWidget,
   type DashboardQueryRequest,
-  type DashboardTimeRange,
+  type DashboardSummary,
 } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
-const dashboardsTag = "dashboards"
+export async function listAllDashboardsQuery(workspaceId: string) {
+  const dashboards: DashboardSummary[] = []
+  let pageToken: string | undefined
 
-export async function listDashboardsCachedQuery(workspaceId: string, pageToken?: string) {
-  "use cache: private"
+  do {
+    const result = await listDashboards({
+      client: getGatewayServerClient(workspaceId),
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      query: { limit: 100, page_token: pageToken },
+    })
+    if (result.error) throw new Error(result.error.message)
+    dashboards.push(...result.data.dashboards)
+    pageToken = result.data.next_page_token || undefined
+  } while (pageToken)
 
-  cacheLife({ stale: 30, revalidate: 60, expire: 300 })
-  cacheTag(dashboardsTag, `${dashboardsTag}:${workspaceId}`)
-  const result = await listDashboards({
-    client: getGatewayServerClient(workspaceId),
-    headers: { "X-AgentZ-Workspace-ID": workspaceId },
-    query: { limit: 100, page_token: pageToken },
-  })
-  if (result.error) throw new Error(result.error.message)
-  return result.data
+  return dashboards
 }
 
-export async function getDashboardCachedQuery(workspaceId: string, dashboardId: string) {
-  "use cache: private"
-
-  cacheLife({ stale: 30, revalidate: 60, expire: 300 })
-  cacheTag(dashboardsTag, `${dashboardsTag}:${workspaceId}`, `${dashboardsTag}:${dashboardId}`)
+export async function getDashboardQuery(workspaceId: string, dashboardId: string) {
   const result = await getDashboard({
     client: getGatewayServerClient(workspaceId),
     headers: { "X-AgentZ-Workspace-ID": workspaceId },
@@ -46,24 +42,10 @@ export async function queryDashboardWidgetServer(
   widgetId: string,
   body: DashboardQueryRequest
 ) {
-  return await queryDashboardWidget({
+  return queryDashboardWidget({
     client: getGatewayServerClient(workspaceId),
     headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: { dashboardId, widgetId },
-    body,
-  })
-}
-
-export async function listDashboardFilterOptionsServer(
-  workspaceId: string,
-  dashboardId: string,
-  filterId: string,
-  body: DashboardTimeRange
-) {
-  return await listDashboardFilterOptions({
-    client: getGatewayServerClient(workspaceId),
-    headers: { "X-AgentZ-Workspace-ID": workspaceId },
-    path: { dashboardId, filterId },
     body,
   })
 }

@@ -3,10 +3,15 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getDashboardCachedQuery, queryDashboardWidgetServer } from "@/data/dashboard.queries"
+import {
+  getDashboardQuery,
+  listAllDashboardsQuery,
+  queryDashboardWidgetServer,
+} from "@/data/dashboard.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import type { DashboardQueryRequest, DashboardWidget } from "@/lib/gateway/client"
-import { DashboardView, DashboardWidgetCard } from "./dashboard"
+import { dayjs } from "@/lib/format"
+import { DashboardPicker, DashboardView, DashboardWidgetView } from "./dashboard"
 
 export const metadata: Metadata = { title: "Dashboard" }
 
@@ -20,31 +25,46 @@ export default async function DashboardPage({
   if (scope.kind !== "ready" || !scope.workspace.capabilities.dashboards.read) {
     notFound()
   }
-  const dashboard = await getDashboardCachedQuery(scope.workspace.id, route.dashboardId)
+  const [dashboard, dashboards] = await Promise.all([
+    getDashboardQuery(scope.workspace.id, route.dashboardId),
+    listAllDashboardsQuery(scope.workspace.id),
+  ])
   if (!dashboard) notFound()
-  const to = new Date()
-  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
+  const to = dayjs()
+  const from = to.subtract(24, "hour")
   const initialRequest = {
     time_range: { from: from.toISOString(), to: to.toISOString() },
     filters: [],
   } satisfies DashboardQueryRequest
-  const widgetRequests = new Map(
-    dashboard.definition.widgets.map((widget) => [
+  const widgets = dashboard.definition.widgets.map((widget) => ({
+    request: queryDashboardWidgetServer(
+      scope.workspace.id,
+      dashboard.id,
       widget.id,
-      queryDashboardWidgetServer(scope.workspace.id, dashboard.id, widget.id, initialRequest),
-    ])
-  )
+      initialRequest
+    ),
+    widget,
+  }))
+  const root = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/dashboards`
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-5 pb-6">
+    <main className="flex min-w-0 flex-1 flex-col gap-6 pb-8">
       <AdministrationPageHeader
         title={dashboard.definition.title}
         description={dashboard.definition.description}
+        actions={
+          <DashboardPicker
+            dashboards={dashboards}
+            root={root}
+            selectedId={dashboard.id}
+            workspaceId={scope.workspace.id}
+          />
+        }
       />
       <DashboardView dashboard={dashboard} workspaceId={scope.workspace.id}>
-        {dashboard.definition.widgets.map((widget) => (
+        {widgets.map(({ request, widget }) => (
           <Suspense fallback={<WidgetSkeleton widget={widget} />} key={widget.id}>
-            <WidgetStream request={widgetRequests.get(widget.id)!} widget={widget} />
+            <WidgetStream request={request} widget={widget} />
           </Suspense>
         ))}
       </DashboardView>
@@ -63,7 +83,7 @@ async function WidgetStream({
   if (result.error) {
     throw new Error(result.error.message)
   }
-  return <DashboardWidgetCard initialData={result.data} widget={widget} />
+  return <DashboardWidgetView initialData={result.data} widget={widget} />
 }
 
 function WidgetSkeleton({ widget }: { widget: DashboardWidget }) {
@@ -74,7 +94,7 @@ function WidgetSkeleton({ widget }: { widget: DashboardWidget }) {
         ? "col-span-12 lg:col-span-6"
         : "col-span-12 md:col-span-6 xl:col-span-4"
   return (
-    <div className={`${width} rounded-xl border p-4`}>
+    <div className={`${width} py-3`}>
       <Skeleton className="h-5 w-36" />
       <Skeleton className="mt-5 h-52 w-full" />
     </div>

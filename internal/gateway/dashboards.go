@@ -8,9 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,16 +26,20 @@ import (
 )
 
 const (
-	dashboardRetention        = 30 * 24 * time.Hour
-	dashboardRetentionSweep   = time.Hour
-	dashboardMaxBodyBytes     = 1 << 20
-	dashboardMaxFields        = 32
-	dashboardMaxWriteRecords  = 100
-	dashboardMaxBuckets       = 300
-	dashboardMaxSeries        = 10
-	dashboardMaxTableRows     = 100
-	dashboardMaxFilterOptions = 100
+	dashboardRetention       = 30 * 24 * time.Hour
+	dashboardRetentionSweep  = time.Hour
+	dashboardMaxBodyBytes    = 1 << 20
+	dashboardMaxFields       = 32
+	dashboardMaxFilters      = 32
+	dashboardMaxWidgets      = 64
+	dashboardMaxWriteRecords = 100
+	dashboardMaxBuckets      = 300
+	dashboardMaxSeries       = 10
+	dashboardMaxTableRows    = 100
+	dashboardMaxGroups       = 100
 )
+
+var errDashboardRevisionConflict = errors.New("dashboard revision conflict")
 
 type dashboardCursor struct {
 	UpdatedAt time.Time `json:"updated_at"`
@@ -44,8 +49,7 @@ type dashboardCursor struct {
 type storedDashboard struct {
 	ID         string
 	AgentName  string
-	Name       string
-	Revision   int64
+	Revision   int32
 	Definition []byte
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -64,11 +68,20 @@ type dashboardQueryFilter struct {
 	Values []string `json:"values"`
 }
 
-func (s *Service) dashboardBodyLimit(next http.Handler) http.Handler {
+func dashboardBodyLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/dashboard") && r.Body != nil {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		dashboardRoute := len(parts) >= 2 && parts[0] == "api" && parts[1] == "dashboard"
+		dashboardRoute = dashboardRoute || len(parts) >= 4 && parts[0] == "api" &&
+			parts[1] == "agent" && parts[3] == "dashboard"
+		if dashboardRoute {
 			if r.ContentLength > dashboardMaxBodyBytes {
-				writeError(w, r, newAPIError(http.StatusRequestEntityTooLarge, "payload_too_large", "dashboard request body must not exceed 1 MiB", errors.New("dashboard request body exceeds 1 MiB")))
+				writeError(w, r, newAPIError(
+					http.StatusRequestEntityTooLarge,
+					"payload_too_large",
+					"dashboard request body must not exceed 1 MiB",
+					errors.New("dashboard request body exceeds 1 MiB"),
+				))
 				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, dashboardMaxBodyBytes)
@@ -77,6 +90,7 @@ func (s *Service) dashboardBodyLimit(next http.Handler) http.Handler {
 	})
 }
 
+// ListDashboards lists dashboards visible in the selected Workspace.
 func (s *Service) ListDashboards(w http.ResponseWriter, r *http.Request, params gatewayapi.ListDashboardsParams) {
 	access, apiErr := s.resolveResourceAccess(r.Context(), resourceAccessRequest{
 		resource: "dashboard", workspaceID: params.XAgentZWorkspaceID,
@@ -93,6 +107,7 @@ func (s *Service) ListDashboards(w http.ResponseWriter, r *http.Request, params 
 	s.listDashboards(w, r, access.workspaceID, "", params.Limit, params.PageToken)
 }
 
+// GetDashboard returns one dashboard visible in the selected Workspace.
 func (s *Service) GetDashboard(w http.ResponseWriter, r *http.Request, dashboardID gatewayapi.DashboardIDPath, params gatewayapi.GetDashboardParams) {
 	access, apiErr := s.resolveResourceAccess(r.Context(), resourceAccessRequest{
 		resource: "dashboard", workspaceID: params.XAgentZWorkspaceID,
@@ -117,31 +132,40 @@ func (s *Service) GetDashboard(w http.ResponseWriter, r *http.Request, dashboard
 		return
 	}
 	s.writeStoredDashboard(w, r, storedDashboard{
-		ID: row.ID, AgentName: row.AgentName, Name: row.Name, Revision: row.Revision,
+		ID: row.ID, AgentName: row.AgentName, Revision: row.Revision,
 		Definition: row.Definition, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 	}, http.StatusOK)
 }
 
+// ListAgentDashboards lists dashboards owned by the authenticated Agent.
 func (s *Service) ListAgentDashboards(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListAgentDashboardsParams) {
-	auth, sessionKind, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
+	auth, _, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
 	if !ok {
 		return
 	}
-	_ = sessionKind
 	if !s.consumeDashboardRateLimit(w, r, "agent-read:"+auth.actorID, 1, 600, time.Minute) {
 		return
 	}
 	s.listDashboards(w, r, auth.workspaceID, agentName, params.Limit, params.PageToken)
 }
 
+// GetAgentDashboard returns a dashboard owned by the authenticated Agent.
 func (s *Service) GetAgentDashboard(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, dashboardName gatewayapi.DashboardNamePath, params gatewayapi.GetAgentDashboardParams) {
 	auth, _, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
 	if !ok {
 		return
 	}
-	row, err := s.queries.GatewayGetAgentDashboard(r.Context(), gatewaydb.GatewayGetAgentDashboardParams{
-		WorkspaceID: auth.workspaceID, AgentName: agentName, Name: dashboardName,
-	})
+	if !s.consumeDashboardRateLimit(w, r, "agent-read:"+auth.actorID, 1, 600, time.Minute) {
+		return
+	}
+	row, err := s.queries.GatewayGetAgentDashboard(
+		r.Context(),
+		gatewaydb.GatewayGetAgentDashboardParams{
+			WorkspaceID: auth.workspaceID,
+			AgentName:   agentName,
+			Name:        dashboardName,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard not found", err))
 		return
@@ -151,11 +175,16 @@ func (s *Service) GetAgentDashboard(w http.ResponseWriter, r *http.Request, agen
 		return
 	}
 	s.writeStoredDashboard(w, r, storedDashboard{
-		ID: row.ID, AgentName: row.AgentName, Name: row.Name, Revision: row.Revision,
-		Definition: row.Definition, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+		ID:         row.ID,
+		AgentName:  row.AgentName,
+		Revision:   row.Revision,
+		Definition: row.Definition,
+		CreatedAt:  row.CreatedAt.Time,
+		UpdatedAt:  row.UpdatedAt.Time,
 	}, http.StatusOK)
 }
 
+// CreateAgentDashboard creates a dashboard from an interactive Agent session.
 func (s *Service) CreateAgentDashboard(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.CreateAgentDashboardParams) {
 	auth, kind, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
 	if !ok || !requireInteractiveDashboardSession(w, r, kind) {
@@ -177,29 +206,48 @@ func (s *Service) CreateAgentDashboard(w http.ResponseWriter, r *http.Request, a
 		writeInternalError(w, r, fmt.Errorf("encode dashboard definition: %w", err))
 		return
 	}
-	row, err := s.queries.GatewayCreateDashboard(r.Context(), gatewaydb.GatewayCreateDashboardParams{
-		ID: uuid.NewString(), OrganizationID: auth.organizationID, WorkspaceID: auth.workspaceID,
-		AgentName: agentName, Name: definition.Name, Definition: encoded,
+	var row gatewaydb.GatewayCreateDashboardRow
+	err = pgx.BeginFunc(r.Context(), s.db, func(tx pgx.Tx) error {
+		q := gatewaydb.New(tx)
+		row, err = q.GatewayCreateDashboard(
+			r.Context(),
+			gatewaydb.GatewayCreateDashboardParams{
+				ID:             uuid.NewString(),
+				OrganizationID: auth.organizationID,
+				WorkspaceID:    auth.workspaceID,
+				AgentName:      agentName,
+				Name:           definition.Name,
+				Definition:     encoded,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		return createDashboardEventTrail(
+			r.Context(), q, auth, row.ID, definition.Name, "create",
+		)
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			writeError(w, r, newAPIError(http.StatusConflict, "conflict", "a dashboard with this name already exists", err))
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"a dashboard with this name already exists",
+				err,
+			))
 			return
 		}
 		writeInternalError(w, r, fmt.Errorf("create dashboard: %w", err))
 		return
 	}
-	if err := s.createDashboardEventTrail(r.Context(), auth, row.ID, "create"); err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
 	s.writeStoredDashboard(w, r, storedDashboard{
-		ID: row.ID, AgentName: row.AgentName, Name: row.Name, Revision: row.Revision,
+		ID: row.ID, AgentName: row.AgentName, Revision: row.Revision,
 		Definition: row.Definition, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 	}, http.StatusCreated)
 }
 
+// ReplaceAgentDashboard replaces a dashboard from an interactive Agent session.
 func (s *Service) ReplaceAgentDashboard(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, dashboardName gatewayapi.DashboardNamePath, params gatewayapi.ReplaceAgentDashboardParams) {
 	auth, kind, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
 	if !ok || !requireInteractiveDashboardSession(w, r, kind) {
@@ -221,42 +269,77 @@ func (s *Service) ReplaceAgentDashboard(w http.ResponseWriter, r *http.Request, 
 		writeInternalError(w, r, fmt.Errorf("encode dashboard definition: %w", err))
 		return
 	}
-	row, err := s.queries.GatewayReplaceDashboard(r.Context(), gatewaydb.GatewayReplaceDashboardParams{
-		NextName: req.Definition.Name, Definition: encoded, WorkspaceID: auth.workspaceID,
-		AgentName: agentName, Name: dashboardName, ExpectedRevision: req.ExpectedRevision,
+	var row gatewaydb.GatewayReplaceDashboardRow
+	err = pgx.BeginFunc(r.Context(), s.db, func(tx pgx.Tx) error {
+		q := gatewaydb.New(tx)
+		row, err = q.GatewayReplaceDashboard(
+			r.Context(),
+			gatewaydb.GatewayReplaceDashboardParams{
+				NextName:         req.Definition.Name,
+				Definition:       encoded,
+				WorkspaceID:      auth.workspaceID,
+				AgentName:        agentName,
+				Name:             dashboardName,
+				ExpectedRevision: req.ExpectedRevision,
+			},
+		)
+		if !errors.Is(err, pgx.ErrNoRows) {
+			if err != nil {
+				return err
+			}
+			return createDashboardEventTrail(
+				r.Context(), q, auth, row.ID, req.Definition.Name, "replace",
+			)
+		}
+		_, err = q.GatewayGetAgentDashboard(
+			r.Context(),
+			gatewaydb.GatewayGetAgentDashboardParams{
+				WorkspaceID: auth.workspaceID,
+				AgentName:   agentName,
+				Name:        dashboardName,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		return errDashboardRevisionConflict
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		_, getErr := s.queries.GatewayGetAgentDashboard(r.Context(), gatewaydb.GatewayGetAgentDashboardParams{
-			WorkspaceID: auth.workspaceID, AgentName: agentName, Name: dashboardName,
-		})
-		if errors.Is(getErr, pgx.ErrNoRows) {
-			writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard not found", getErr))
-		} else if getErr != nil {
-			writeInternalError(w, r, fmt.Errorf("check dashboard revision: %w", getErr))
-		} else {
-			writeError(w, r, newAPIError(http.StatusConflict, "revision_conflict", "dashboard changed since you loaded it", err))
-		}
+		writeError(w, r, newAPIError(
+			http.StatusNotFound, "not_found", "dashboard not found", err,
+		))
+		return
+	}
+	if errors.Is(err, errDashboardRevisionConflict) {
+		writeError(w, r, newAPIError(
+			http.StatusConflict,
+			"revision_conflict",
+			"dashboard changed since you loaded it",
+			err,
+		))
 		return
 	}
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			writeError(w, r, newAPIError(http.StatusConflict, "conflict", "a dashboard with this name already exists", err))
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"conflict",
+				"a dashboard with this name already exists",
+				err,
+			))
 			return
 		}
 		writeInternalError(w, r, fmt.Errorf("replace dashboard: %w", err))
 		return
 	}
-	if err := s.createDashboardEventTrail(r.Context(), auth, row.ID, "replace"); err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
 	s.writeStoredDashboard(w, r, storedDashboard{
-		ID: row.ID, AgentName: row.AgentName, Name: row.Name, Revision: row.Revision,
+		ID: row.ID, AgentName: row.AgentName, Revision: row.Revision,
 		Definition: row.Definition, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 	}, http.StatusOK)
 }
 
+// DeleteAgentDashboard deletes a dashboard from an interactive Agent session.
 func (s *Service) DeleteAgentDashboard(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, dashboardName gatewayapi.DashboardNamePath, params gatewayapi.DeleteAgentDashboardParams) {
 	auth, kind, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
 	if !ok || !requireInteractiveDashboardSession(w, r, kind) {
@@ -265,24 +348,37 @@ func (s *Service) DeleteAgentDashboard(w http.ResponseWriter, r *http.Request, a
 	if !s.consumeDashboardRateLimit(w, r, "definition:"+auth.actorID, 1, 20, time.Hour) {
 		return
 	}
-	affected, err := s.queries.GatewayDeleteDashboard(r.Context(), gatewaydb.GatewayDeleteDashboardParams{
-		WorkspaceID: auth.workspaceID, AgentName: agentName, Name: dashboardName,
+	var dashboardID string
+	err := pgx.BeginFunc(r.Context(), s.db, func(tx pgx.Tx) error {
+		q := gatewaydb.New(tx)
+		var err error
+		dashboardID, err = q.GatewayDeleteDashboard(
+			r.Context(),
+			gatewaydb.GatewayDeleteDashboardParams{
+				WorkspaceID: auth.workspaceID,
+				AgentName:   agentName,
+				Name:        dashboardName,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		return createDashboardEventTrail(
+			r.Context(), q, auth, dashboardID, dashboardName, "delete",
+		)
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard not found", err))
+		return
+	}
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("delete dashboard: %w", err))
-		return
-	}
-	if affected == 0 {
-		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard not found", pgx.ErrNoRows))
-		return
-	}
-	if err := s.createDashboardEventTrail(r.Context(), auth, dashboardName, "delete"); err != nil {
-		writeInternalError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// WriteDashboardData publishes records for a dashboard owned by the Agent.
 func (s *Service) WriteDashboardData(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, dashboardName gatewayapi.DashboardNamePath, params gatewayapi.WriteDashboardDataParams) {
 	auth, _, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
 	if !ok {
@@ -297,54 +393,76 @@ func (s *Service) WriteDashboardData(w http.ResponseWriter, r *http.Request, age
 		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_dashboard_data", err.Error(), err))
 		return
 	}
-	if !s.consumeDashboardRateLimit(w, r, "write-calls:"+auth.actorID, 1, 120, time.Hour) ||
-		!s.consumeDashboardRateLimit(w, r, "write-records:"+auth.actorID, len(req.Records), 5000, time.Hour) {
+	if !s.consumeDashboardRateLimit(
+		w, r, "write-calls:"+auth.actorID, 1, 120, time.Hour,
+	) {
 		return
 	}
-	row, err := s.queries.GatewayGetAgentDashboard(r.Context(), gatewaydb.GatewayGetAgentDashboardParams{
-		WorkspaceID: auth.workspaceID, AgentName: agentName, Name: dashboardName,
+	if !s.consumeDashboardRateLimit(
+		w, r, "write-records:"+auth.actorID, len(req.Records), 5000, time.Hour,
+	) {
+		return
+	}
+	var affected int64
+	var requestErr error
+	err := pgx.BeginFunc(r.Context(), s.db, func(tx pgx.Tx) error {
+		q := gatewaydb.New(tx)
+		row, err := q.GatewayGetAgentDashboard(
+			r.Context(),
+			gatewaydb.GatewayGetAgentDashboardParams{
+				WorkspaceID: auth.workspaceID,
+				AgentName:   agentName,
+				Name:        dashboardName,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		var definition gatewayapi.DashboardDefinition
+		err = json.Unmarshal(row.Definition, &definition)
+		if err != nil {
+			return fmt.Errorf("decode stored dashboard definition: %w", err)
+		}
+		var encoded []byte
+		encoded, requestErr = encodeDashboardRecords(definition, req)
+		if requestErr != nil {
+			return requestErr
+		}
+		affected, err = q.GatewayWriteDashboardRecords(
+			r.Context(),
+			gatewaydb.GatewayWriteDashboardRecordsParams{
+				DashboardID: row.ID,
+				WorkspaceID: auth.workspaceID,
+				SessionID:   params.XAgentZSessionID,
+				Records:     encoded,
+				Upsert:      req.Action == gatewayapi.Upsert,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("write dashboard records: %w", err)
+		}
+		return createDashboardEventTrail(
+			r.Context(), q, auth, row.ID, dashboardName, "write-data",
+		)
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard not found", err))
 		return
 	}
-	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get dashboard for data write: %w", err))
+	if requestErr != nil {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest, "invalid_dashboard_data", requestErr.Error(), requestErr,
+		))
 		return
-	}
-	var definition gatewayapi.DashboardDefinition
-	if err := json.Unmarshal(row.Definition, &definition); err != nil {
-		writeInternalError(w, r, fmt.Errorf("decode stored dashboard definition: %w", err))
-		return
-	}
-	encoded, err := validateDashboardRecords(definition, req)
-	if err != nil {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_dashboard_data", err.Error(), err))
-		return
-	}
-	query := gatewaydb.GatewayAppendDashboardRecordsParams{
-		DashboardID: row.ID, WorkspaceID: auth.workspaceID, SessionID: params.XAgentZSessionID, Records: encoded,
-	}
-	var affected int64
-	switch req.Action {
-	case gatewayapi.Append:
-		affected, err = s.queries.GatewayAppendDashboardRecords(r.Context(), query)
-	case gatewayapi.Upsert:
-		affected, err = s.queries.GatewayUpsertDashboardRecords(r.Context(), gatewaydb.GatewayUpsertDashboardRecordsParams(query))
-	default:
-		err = fmt.Errorf("unsupported data action %q", req.Action)
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("write dashboard records: %w", err))
-		return
-	}
-	if err := s.createDashboardEventTrail(r.Context(), auth, row.ID, "write-data"); err != nil {
-		writeInternalError(w, r, err)
+		writeInternalError(w, r, fmt.Errorf("publish dashboard data: %w", err))
 		return
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.DashboardDataMutationResponse{Affected: affected})
 }
 
+// DeleteDashboardData removes keyed records from an Agent dashboard.
 func (s *Service) DeleteDashboardData(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, dashboardName gatewayapi.DashboardNamePath, params gatewayapi.DeleteDashboardDataParams) {
 	auth, kind, ok := s.dashboardAgentSession(w, r, agentName, params.XAgentZSessionID)
 	if !ok || !requireInteractiveDashboardSession(w, r, kind) {
@@ -354,42 +472,60 @@ func (s *Service) DeleteDashboardData(w http.ResponseWriter, r *http.Request, ag
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	if !s.consumeDashboardRateLimit(w, r, "delete-data:"+auth.actorID, len(req.RecordKeys), 1000, time.Hour) {
+	allowed := s.consumeDashboardRateLimit(
+		w, r, "delete-data:"+auth.actorID, len(req.RecordKeys), 1000, time.Hour,
+	)
+	if !allowed {
 		return
 	}
-	row, err := s.queries.GatewayGetAgentDashboard(r.Context(), gatewaydb.GatewayGetAgentDashboardParams{
-		WorkspaceID: auth.workspaceID, AgentName: agentName, Name: dashboardName,
+	var affected int64
+	err := pgx.BeginFunc(r.Context(), s.db, func(tx pgx.Tx) error {
+		q := gatewaydb.New(tx)
+		row, err := q.GatewayGetAgentDashboard(
+			r.Context(),
+			gatewaydb.GatewayGetAgentDashboardParams{
+				WorkspaceID: auth.workspaceID,
+				AgentName:   agentName,
+				Name:        dashboardName,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		affected, err = q.GatewayDeleteDashboardRecords(
+			r.Context(),
+			gatewaydb.GatewayDeleteDashboardRecordsParams{
+				DashboardID: row.ID,
+				WorkspaceID: auth.workspaceID,
+				RecordKeys:  req.RecordKeys,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("delete dashboard records: %w", err)
+		}
+		return createDashboardEventTrail(
+			r.Context(), q, auth, row.ID, dashboardName, "delete-data",
+		)
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard not found", err))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get dashboard for data delete: %w", err))
-		return
-	}
-	affected, err := s.queries.GatewayDeleteDashboardRecords(r.Context(), gatewaydb.GatewayDeleteDashboardRecordsParams{
-		DashboardID: row.ID, WorkspaceID: auth.workspaceID, RecordKeys: req.RecordKeys,
-	})
-	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("delete dashboard records: %w", err))
-		return
-	}
-	if err := s.createDashboardEventTrail(r.Context(), auth, row.ID, "delete-data"); err != nil {
-		writeInternalError(w, r, err)
+		writeInternalError(w, r, fmt.Errorf("delete dashboard data: %w", err))
 		return
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.DashboardDataMutationResponse{Affected: affected})
 }
 
-func (s *Service) createDashboardEventTrail(ctx context.Context, auth requestAuth, dashboardID, action string) error {
+func createDashboardEventTrail(ctx context.Context, q gatewaydb.Querier, auth requestAuth, dashboardID, dashboardName, action string) error {
 	fields, err := json.Marshal([]gatewayapi.EventTrailField{{
-		Field: gatewayapi.EventTrailFieldName, Value: dashboardID,
+		Field: gatewayapi.EventTrailFieldName, Value: dashboardName,
 	}})
 	if err != nil {
 		return fmt.Errorf("encode dashboard event trail summary: %w", err)
 	}
-	_, err = s.queries.GatewayCreateEventTrailEvent(ctx, gatewaydb.GatewayCreateEventTrailEventParams{
+	_, err = q.GatewayCreateEventTrailEvent(ctx, gatewaydb.GatewayCreateEventTrailEventParams{
 		ID: "event-trail-" + uuid.NewString(), OrganizationID: auth.organizationID,
 		WorkspaceID: pgtype.Text{String: auth.workspaceID, Valid: true},
 		ActorType:   gatewaydb.EventTrailActorSystem,
@@ -403,13 +539,21 @@ func (s *Service) createDashboardEventTrail(ctx context.Context, auth requestAut
 	return nil
 }
 
+// QueryDashboardWidget returns bounded data for one dashboard widget.
 func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, dashboardID gatewayapi.DashboardIDPath, widgetID gatewayapi.DashboardWidgetIDPath, params gatewayapi.QueryDashboardWidgetParams) {
-	row, definition, userID, ok := s.externalDashboard(w, r, dashboardID, params.XAgentZWorkspaceID)
+	row, definition, userID, ok := s.readDashboardForUser(w, r, dashboardID, params.XAgentZWorkspaceID)
 	if !ok {
 		return
 	}
-	if !s.consumeDashboardRateLimit(w, r, "query:user:"+userID, 1, 600, time.Minute) ||
-		!s.consumeDashboardRateLimit(w, r, "query:workspace:"+params.XAgentZWorkspaceID, 1, 3000, time.Minute) {
+	if !s.consumeDashboardRateLimit(
+		w, r, "query:user:"+userID, 1, 600, time.Minute,
+	) {
+		return
+	}
+	if !s.consumeDashboardRateLimit(
+		w, r, "query:workspace:"+params.XAgentZWorkspaceID, 1, 3000,
+		time.Minute,
+	) {
 		return
 	}
 	var req gatewayapi.DashboardQueryRequest
@@ -428,7 +572,12 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 		}
 	}
 	if widget == nil {
-		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard widget not found", pgx.ErrNoRows))
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"dashboard widget not found",
+			pgx.ErrNoRows,
+		))
 		return
 	}
 	filters, err := dashboardQueryFilters(definition, req.Filters)
@@ -450,7 +599,12 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 	_, err = queries.GatewayAcquireDashboardQuerySlot(r.Context(), params.XAgentZWorkspaceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		w.Header().Set("Retry-After", "1")
-		writeError(w, r, newAPIError(http.StatusTooManyRequests, "query_busy", "all dashboard query slots are busy", err))
+		writeError(w, r, newAPIError(
+			http.StatusTooManyRequests,
+			"query_busy",
+			"all dashboard query slots are busy",
+			err,
+		))
 		return
 	}
 	if err != nil {
@@ -465,13 +619,25 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 	}
 	switch widget.Kind {
 	case gatewayapi.DashboardWidgetMetric:
-		err = queryDashboardMetric(r.Context(), queries, params.XAgentZWorkspaceID, row.ID, *widget, req.TimeRange, filters, &result)
+		err = queryDashboardMetric(
+			r.Context(), queries, params.XAgentZWorkspaceID, row.ID, *widget,
+			req.TimeRange, filters, &result,
+		)
 	case gatewayapi.DashboardWidgetLine, gatewayapi.DashboardWidgetArea, gatewayapi.DashboardWidgetBar:
-		err = queryDashboardTimeSeries(r.Context(), queries, params.XAgentZWorkspaceID, row.ID, *widget, req.TimeRange, filters, &result)
+		err = queryDashboardTimeSeries(
+			r.Context(), queries, params.XAgentZWorkspaceID, row.ID, *widget,
+			req.TimeRange, filters, &result,
+		)
 	case gatewayapi.DashboardWidgetDonut:
-		err = queryDashboardDonut(r.Context(), queries, params.XAgentZWorkspaceID, row.ID, *widget, req.TimeRange, filters, &result)
+		err = queryDashboardDonut(
+			r.Context(), queries, params.XAgentZWorkspaceID, row.ID, *widget,
+			req.TimeRange, filters, &result,
+		)
 	case gatewayapi.DashboardWidgetTable:
-		err = queryDashboardTable(r.Context(), queries, params.XAgentZWorkspaceID, row.ID, definition, *widget, req.TimeRange, filters, &result)
+		err = queryDashboardTable(
+			r.Context(), queries, params.XAgentZWorkspaceID, row.ID, definition,
+			*widget, req.TimeRange, filters, &result,
+		)
 	default:
 		err = fmt.Errorf("unsupported dashboard widget kind %q", widget.Kind)
 	}
@@ -486,12 +652,19 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 	writeJSON(w, http.StatusOK, result)
 }
 
+// ListDashboardFilterOptions returns bounded values for one categorical filter.
 func (s *Service) ListDashboardFilterOptions(w http.ResponseWriter, r *http.Request, dashboardID gatewayapi.DashboardIDPath, filterID gatewayapi.DashboardFilterIDPath, params gatewayapi.ListDashboardFilterOptionsParams) {
-	row, definition, userID, ok := s.externalDashboard(w, r, dashboardID, params.XAgentZWorkspaceID)
+	row, definition, userID, ok := s.readDashboardForUser(w, r, dashboardID, params.XAgentZWorkspaceID)
 	if !ok {
 		return
 	}
 	if !s.consumeDashboardRateLimit(w, r, "filter:user:"+userID, 1, 120, time.Minute) {
+		return
+	}
+	if !s.consumeDashboardRateLimit(
+		w, r, "filter:workspace:"+params.XAgentZWorkspaceID, 1, 3000,
+		time.Minute,
+	) {
 		return
 	}
 	var selected *gatewayapi.DashboardFilter
@@ -502,7 +675,12 @@ func (s *Service) ListDashboardFilterOptions(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	if selected == nil {
-		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard filter not found", pgx.ErrNoRows))
+		writeError(w, r, newAPIError(
+			http.StatusNotFound,
+			"not_found",
+			"dashboard filter not found",
+			pgx.ErrNoRows,
+		))
 		return
 	}
 	var timeRange gatewayapi.DashboardTimeRange
@@ -527,20 +705,28 @@ func (s *Service) ListDashboardFilterOptions(w http.ResponseWriter, r *http.Requ
 	_, err = queries.GatewayAcquireDashboardQuerySlot(r.Context(), params.XAgentZWorkspaceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		w.Header().Set("Retry-After", "1")
-		writeError(w, r, newAPIError(http.StatusTooManyRequests, "query_busy", "all dashboard query slots are busy", err))
+		writeError(w, r, newAPIError(
+			http.StatusTooManyRequests,
+			"query_busy",
+			"all dashboard query slots are busy",
+			err,
+		))
 		return
 	}
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("acquire dashboard filter query slot: %w", err))
 		return
 	}
-	values, err := queries.GatewayListDashboardFilterOptions(r.Context(), gatewaydb.GatewayListDashboardFilterOptionsParams{
-		Field:          selected.Field,
-		WorkspaceID:    params.XAgentZWorkspaceID,
-		DashboardID:    row.ID,
-		ObservedAfter:  pgtype.Timestamptz{Time: timeRange.From, Valid: true},
-		ObservedBefore: pgtype.Timestamptz{Time: timeRange.To, Valid: true},
-	})
+	values, err := queries.GatewayListDashboardFilterOptions(
+		r.Context(),
+		gatewaydb.GatewayListDashboardFilterOptionsParams{
+			Field:          selected.Field,
+			WorkspaceID:    params.XAgentZWorkspaceID,
+			DashboardID:    row.ID,
+			ObservedAfter:  pgtype.Timestamptz{Time: timeRange.From, Valid: true},
+			ObservedBefore: pgtype.Timestamptz{Time: timeRange.To, Valid: true},
+		},
+	)
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("list dashboard filter options: %w", err))
 		return
@@ -549,37 +735,38 @@ func (s *Service) ListDashboardFilterOptions(w http.ResponseWriter, r *http.Requ
 		writeInternalError(w, r, fmt.Errorf("commit dashboard filter query: %w", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.DashboardFilterOptions{FilterId: filterID, Revision: row.Revision, Values: values})
+	writeJSON(w, http.StatusOK, gatewayapi.DashboardFilterOptions{
+		FilterId: filterID,
+		Revision: row.Revision,
+		Values:   values,
+	})
 }
 
-func (s *Service) externalDashboard(w http.ResponseWriter, r *http.Request, dashboardID, workspaceID string) (storedDashboard, gatewayapi.DashboardDefinition, string, bool) {
+func (s *Service) readDashboardForUser(w http.ResponseWriter, r *http.Request, dashboardID, workspaceID string) (gatewaydb.GatewayGetDashboardByIDRow, gatewayapi.DashboardDefinition, string, bool) {
 	access, apiErr := s.resolveResourceAccess(r.Context(), resourceAccessRequest{
 		resource: "dashboard", workspaceID: workspaceID, operation: authorization.OperationReadDashboards,
 	})
 	if apiErr != nil {
 		writeError(w, r, apiErr)
-		return storedDashboard{}, gatewayapi.DashboardDefinition{}, "", false
+		return gatewaydb.GatewayGetDashboardByIDRow{}, gatewayapi.DashboardDefinition{}, "", false
 	}
 	row, err := s.queries.GatewayGetDashboardByID(r.Context(), gatewaydb.GatewayGetDashboardByIDParams{
 		WorkspaceID: workspaceID, ID: dashboardID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "dashboard not found", err))
-		return storedDashboard{}, gatewayapi.DashboardDefinition{}, "", false
+		return gatewaydb.GatewayGetDashboardByIDRow{}, gatewayapi.DashboardDefinition{}, "", false
 	}
 	if err != nil {
 		writeInternalError(w, r, fmt.Errorf("get dashboard: %w", err))
-		return storedDashboard{}, gatewayapi.DashboardDefinition{}, "", false
+		return gatewaydb.GatewayGetDashboardByIDRow{}, gatewayapi.DashboardDefinition{}, "", false
 	}
 	var definition gatewayapi.DashboardDefinition
 	if err := json.Unmarshal(row.Definition, &definition); err != nil {
 		writeInternalError(w, r, fmt.Errorf("decode dashboard definition: %w", err))
-		return storedDashboard{}, gatewayapi.DashboardDefinition{}, "", false
+		return gatewaydb.GatewayGetDashboardByIDRow{}, gatewayapi.DashboardDefinition{}, "", false
 	}
-	return storedDashboard{
-		ID: row.ID, AgentName: row.AgentName, Name: row.Name, Revision: row.Revision,
-		Definition: row.Definition, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
-	}, definition, access.claims.UserID, true
+	return row, definition, access.claims.UserID, true
 }
 
 func validateDashboardTimeRange(timeRange gatewayapi.DashboardTimeRange) error {
@@ -596,14 +783,14 @@ func validateDashboardTimeRange(timeRange gatewayapi.DashboardTimeRange) error {
 }
 
 func dashboardQueryFilters(definition gatewayapi.DashboardDefinition, filters []gatewayapi.DashboardQueryFilter) ([]byte, error) {
-	fields := make(map[string]string, len(definition.Filters))
+	declared := make(map[string]gatewayapi.DashboardFilter, len(definition.Filters))
 	for _, filter := range definition.Filters {
-		fields[filter.Id] = filter.Field
+		declared[filter.Id] = filter
 	}
 	seen := make(map[string]struct{}, len(filters))
 	selected := make([]dashboardQueryFilter, 0, len(filters))
 	for _, filter := range filters {
-		field, exists := fields[filter.FilterId]
+		declaredFilter, exists := declared[filter.FilterId]
 		if !exists {
 			return nil, fmt.Errorf("unknown filter %q", filter.FilterId)
 		}
@@ -614,7 +801,12 @@ func dashboardQueryFilters(definition gatewayapi.DashboardDefinition, filters []
 		if len(filter.Values) == 0 {
 			continue
 		}
-		selected = append(selected, dashboardQueryFilter{Field: field, Values: filter.Values})
+		if !declaredFilter.Multiple && len(filter.Values) > 1 {
+			return nil, fmt.Errorf("filter %q accepts one value", filter.FilterId)
+		}
+		selected = append(selected, dashboardQueryFilter{
+			Field: declaredFilter.Field, Values: filter.Values,
+		})
 	}
 	encoded, err := json.Marshal(selected)
 	if err != nil {
@@ -657,59 +849,65 @@ func queryDashboardTimeSeries(ctx context.Context, queries gatewaydb.Querier, wo
 	if widget.GroupBy != nil {
 		groupBy = *widget.GroupBy
 	}
-	rows, err := queries.GatewayQueryDashboardTimeSeries(ctx, gatewaydb.GatewayQueryDashboardTimeSeriesParams{
-		BucketSeconds:  bucketSeconds,
-		Aggregation:    string(*widget.Aggregation),
-		RowLimit:       dashboardMaxBuckets * dashboardMaxSeries,
-		Grouped:        widget.GroupBy != nil,
-		GroupBy:        groupBy,
-		Measure:        *widget.Measure,
-		WorkspaceID:    workspaceID,
-		DashboardID:    dashboardID,
-		ObservedAfter:  pgtype.Timestamptz{Time: timeRange.From, Valid: true},
-		ObservedBefore: pgtype.Timestamptz{Time: timeRange.To, Valid: true},
-		Filters:        filters,
-		SeriesLimit:    dashboardMaxSeries,
-	})
+	rows, err := queries.GatewayQueryDashboardTimeSeries(
+		ctx,
+		gatewaydb.GatewayQueryDashboardTimeSeriesParams{
+			BucketSeconds:  bucketSeconds,
+			Aggregation:    string(*widget.Aggregation),
+			RowLimit:       dashboardMaxBuckets * dashboardMaxSeries,
+			Grouped:        widget.GroupBy != nil,
+			GroupBy:        groupBy,
+			Measure:        *widget.Measure,
+			WorkspaceID:    workspaceID,
+			DashboardID:    dashboardID,
+			ObservedAfter:  pgtype.Timestamptz{Time: timeRange.From, Valid: true},
+			ObservedBefore: pgtype.Timestamptz{Time: timeRange.To, Valid: true},
+			Filters:        filters,
+			SeriesLimit:    dashboardMaxSeries,
+		},
+	)
 	if err != nil {
 		return err
 	}
-	type bucketValues struct {
-		at     time.Time
-		values map[string]float64
-	}
-	buckets := make(map[time.Time]*bucketValues)
+	buckets := make(map[time.Time]map[string]float64)
 	labels := make(map[string]struct{})
 	for _, row := range rows {
-		bucket := buckets[row.Bucket]
-		if bucket == nil {
-			bucket = &bucketValues{at: row.Bucket, values: make(map[string]float64)}
-			buckets[row.Bucket] = bucket
+		values := buckets[row.Bucket]
+		if values == nil {
+			values = make(map[string]float64)
+			buckets[row.Bucket] = values
 		}
-		bucket.values[row.Label] = row.Value
+		values[row.Label] = row.Value
 		labels[row.Label] = struct{}{}
 	}
-	seriesLabels := sortedDashboardSeries(labels)
+	seriesLabels := slices.Sorted(maps.Keys(labels))
 	for index, label := range seriesLabels {
-		result.Series = append(result.Series, gatewayapi.DashboardSeries{Key: fmt.Sprintf("s%d", index), Label: label})
+		result.Series = append(result.Series, gatewayapi.DashboardSeries{
+			Key:   fmt.Sprintf("s%d", index),
+			Label: label,
+		})
 	}
 	ordered := make([]time.Time, 0, len(buckets))
 	for at := range buckets {
 		ordered = append(ordered, at)
 	}
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Before(ordered[j]) })
+	slices.SortFunc(ordered, time.Time.Compare)
 	for _, at := range ordered {
 		values := make([]float64, len(seriesLabels))
 		for index, label := range seriesLabels {
-			values[index] = buckets[at].values[label]
+			values[index] = buckets[at][label]
 		}
-		result.Points = append(result.Points, gatewayapi.DashboardPoint{Key: at.Format(time.RFC3339), Label: at.Format(time.RFC3339), Values: values})
+		result.Points = append(result.Points, gatewayapi.DashboardPoint{
+			Key:    at.Format(time.RFC3339),
+			Label:  at.Format(time.RFC3339),
+			Values: values,
+		})
 	}
 	return nil
 }
 
 func queryDashboardDonut(ctx context.Context, queries gatewaydb.Querier, workspaceID, dashboardID string, widget gatewayapi.DashboardWidget, timeRange gatewayapi.DashboardTimeRange, filters []byte, result *gatewayapi.DashboardWidgetResult) error {
-	limit := int32(dashboardMaxFilterOptions)
+	limit := int32(dashboardMaxGroups)
 	if widget.Limit != nil {
 		limit = min(limit, *widget.Limit)
 	}
@@ -729,7 +927,11 @@ func queryDashboardDonut(ctx context.Context, queries gatewaydb.Querier, workspa
 	}
 	result.Series = append(result.Series, gatewayapi.DashboardSeries{Key: "s0", Label: widget.Title})
 	for _, row := range rows {
-		result.Points = append(result.Points, gatewayapi.DashboardPoint{Key: row.Label, Label: row.Label, Values: []float64{row.Value}})
+		result.Points = append(result.Points, gatewayapi.DashboardPoint{
+			Key:    row.Label,
+			Label:  row.Label,
+			Values: []float64{row.Value},
+		})
 	}
 	return nil
 }
@@ -759,9 +961,10 @@ func queryDashboardTable(ctx context.Context, queries gatewaydb.Querier, workspa
 		Filters:         filters,
 		SortSet:         widget.SortBy != nil,
 		SortDimension:   sortDimension,
-		SortDescending:  widget.SortDirection != nil && *widget.SortDirection == gatewayapi.DashboardSortDirectionDesc,
-		SortBy:          sortBy,
-		RowLimit:        limit,
+		SortDescending: widget.SortDirection != nil &&
+			*widget.SortDirection == gatewayapi.DashboardSortDirectionDesc,
+		SortBy:   sortBy,
+		RowLimit: limit,
 	})
 	if err != nil {
 		return err
@@ -788,7 +991,10 @@ func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, workspa
 	}
 	rows, err := s.queries.GatewayListDashboards(r.Context(), gatewaydb.GatewayListDashboardsParams{
 		WorkspaceID: workspaceID, AgentFilterSet: agentName != "", AgentName: agentName,
-		CursorSet: cursorSet, CursorUpdatedAt: pgtype.Timestamptz{Time: cursor.UpdatedAt, Valid: cursorSet},
+		CursorSet: cursorSet,
+		CursorUpdatedAt: pgtype.Timestamptz{
+			Time: cursor.UpdatedAt, Valid: cursorSet,
+		},
 		CursorID: cursor.ID, PageSize: pageSize + 1,
 	})
 	if err != nil {
@@ -814,7 +1020,10 @@ func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, workspa
 			WidgetCount: int64(len(definition.Widgets)), UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListDashboardsResponse{Dashboards: summaries, NextPageToken: next})
+	writeJSON(w, http.StatusOK, gatewayapi.ListDashboardsResponse{
+		Dashboards:    summaries,
+		NextPageToken: next,
+	})
 }
 
 func (s *Service) writeStoredDashboard(w http.ResponseWriter, r *http.Request, row storedDashboard, status int) {
@@ -831,15 +1040,46 @@ func (s *Service) writeStoredDashboard(w http.ResponseWriter, r *http.Request, r
 
 func (s *Service) dashboardAgentSession(w http.ResponseWriter, r *http.Request, agentName, sessionID string) (requestAuth, gatewaydb.ChatSessionKind, bool) {
 	auth, ok := requestAuthState(r.Context())
-	if !ok || auth.actorType != requestActorSystem || auth.workspaceID == "" || auth.actorName != agentName {
-		writeError(w, r, newAPIError(http.StatusForbidden, "forbidden", "this session cannot access dashboards for the Agent", errors.New("invalid Agent request identity")))
+	if !ok || auth.actorType != requestActorSystem || auth.actorName != agentName {
+		writeError(w, r, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"this session cannot access dashboards for the Agent",
+			errors.New("invalid agent request identity"),
+		))
 		return requestAuth{}, "", false
 	}
-	kind, err := s.queries.GatewayGetDashboardSessionKind(r.Context(), gatewaydb.GatewayGetDashboardSessionKindParams{
-		WorkspaceID: auth.workspaceID, AgentName: agentName, SessionID: sessionID,
-	})
+	tenant, workspaceID, err := s.tenantScopeForNamespace(r.Context(), auth.tenantNamespace)
+	if err != nil {
+		writeInternalError(w, r, fmt.Errorf("resolve dashboard tenant scope: %w", err))
+		return requestAuth{}, "", false
+	}
+	if workspaceID == "" {
+		writeError(w, r, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"this Agent does not belong to a Workspace",
+			errors.New("dashboard requests require a workspace ID"),
+		))
+		return requestAuth{}, "", false
+	}
+	auth.organizationID = tenant.Spec.OrganizationID
+	auth.workspaceID = workspaceID
+	kind, err := s.queries.GatewayGetDashboardSessionKind(
+		r.Context(),
+		gatewaydb.GatewayGetDashboardSessionKindParams{
+			WorkspaceID: auth.workspaceID,
+			AgentName:   agentName,
+			SessionID:   sessionID,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, newAPIError(http.StatusForbidden, "forbidden", "OpenCode session is not registered", err))
+		writeError(w, r, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"OpenCode session is not registered",
+			err,
+		))
 		return requestAuth{}, "", false
 	}
 	if err != nil {
@@ -853,24 +1093,39 @@ func requireInteractiveDashboardSession(w http.ResponseWriter, r *http.Request, 
 	if kind == gatewaydb.ChatSessionKindChat {
 		return true
 	}
-	writeError(w, r, newAPIError(http.StatusForbidden, "forbidden", "scheduled workflows can publish dashboard data but cannot change dashboards", errors.New("interactive session required")))
+	writeError(w, r, newAPIError(
+		http.StatusForbidden,
+		"forbidden",
+		"scheduled workflows can publish dashboard data but cannot change dashboards",
+		errors.New("interactive session required"),
+	))
 	return false
 }
 
 func (s *Service) consumeDashboardRateLimit(w http.ResponseWriter, r *http.Request, key string, delta, maximum int, window time.Duration) bool {
 	started := time.Now().UTC().Truncate(window)
 	digest := sha256.Sum256([]byte(key))
-	_, err := s.queries.GatewayConsumeDashboardRateLimit(r.Context(), gatewaydb.GatewayConsumeDashboardRateLimitParams{
-		Key: hex.EncodeToString(digest[:]), WindowStartedAt: pgtype.Timestamptz{Time: started, Valid: true},
-		Delta: int32(delta), MaxCount: int32(maximum),
-	})
+	_, err := s.queries.GatewayConsumeDashboardRateLimit(
+		r.Context(),
+		gatewaydb.GatewayConsumeDashboardRateLimitParams{
+			Key:             hex.EncodeToString(digest[:]),
+			WindowStartedAt: pgtype.Timestamptz{Time: started, Valid: true},
+			Delta:           int32(delta),
+			MaxCount:        int32(maximum),
+		},
+	)
 	if err == nil {
 		return true
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		retry := max(1, int(time.Until(started.Add(window)).Seconds()))
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", retry))
-		writeError(w, r, newAPIError(http.StatusTooManyRequests, "rate_limited", "dashboard request limit reached", err))
+		writeError(w, r, newAPIError(
+			http.StatusTooManyRequests,
+			"rate_limited",
+			"dashboard request limit reached",
+			err,
+		))
 		return false
 	}
 	writeInternalError(w, r, fmt.Errorf("consume dashboard rate limit: %w", err))
@@ -879,7 +1134,16 @@ func (s *Service) consumeDashboardRateLimit(w http.ResponseWriter, r *http.Reque
 
 func validateDashboardDefinition(definition gatewayapi.DashboardDefinition) error {
 	if len(definition.Dimensions)+len(definition.Measures) > dashboardMaxFields {
-		return fmt.Errorf("dashboard may declare at most %d fields across dimensions and measures", dashboardMaxFields)
+		return fmt.Errorf(
+			"dashboard may declare at most %d fields across dimensions and measures",
+			dashboardMaxFields,
+		)
+	}
+	if len(definition.Filters) > dashboardMaxFilters {
+		return fmt.Errorf("dashboard may declare at most %d filters", dashboardMaxFilters)
+	}
+	if len(definition.Widgets) > dashboardMaxWidgets {
+		return fmt.Errorf("dashboard may declare at most %d widgets", dashboardMaxWidgets)
 	}
 	dimensions := make(map[string]struct{}, len(definition.Dimensions))
 	measures := make(map[string]struct{}, len(definition.Measures))
@@ -915,7 +1179,11 @@ func validateDashboardDefinition(definition gatewayapi.DashboardDefinition) erro
 		}
 		widgetIDs[widget.Id] = struct{}{}
 		switch widget.Kind {
-		case gatewayapi.DashboardWidgetMetric, gatewayapi.DashboardWidgetLine, gatewayapi.DashboardWidgetArea, gatewayapi.DashboardWidgetBar, gatewayapi.DashboardWidgetDonut:
+		case gatewayapi.DashboardWidgetMetric,
+			gatewayapi.DashboardWidgetLine,
+			gatewayapi.DashboardWidgetArea,
+			gatewayapi.DashboardWidgetBar,
+			gatewayapi.DashboardWidgetDonut:
 			if widget.Measure == nil || widget.Aggregation == nil {
 				return fmt.Errorf("widget %q requires measure and aggregation", widget.Id)
 			}
@@ -932,20 +1200,60 @@ func validateDashboardDefinition(definition gatewayapi.DashboardDefinition) erro
 					return fmt.Errorf("widget %q references unknown dimension %q", widget.Id, *widget.GroupBy)
 				}
 			}
-			if widget.Kind == gatewayapi.DashboardWidgetDonut && widget.GroupBy == nil {
-				return fmt.Errorf("donut widget %q requires group_by", widget.Id)
+			if widget.Columns != nil || widget.SortBy != nil || widget.SortDirection != nil {
+				return fmt.Errorf("widget %q has table-only properties", widget.Id)
+			}
+			switch widget.Kind {
+			case gatewayapi.DashboardWidgetMetric:
+				if widget.GroupBy != nil || widget.Stacked != nil || widget.Limit != nil {
+					return fmt.Errorf("metric widget %q has unsupported properties", widget.Id)
+				}
+			case gatewayapi.DashboardWidgetLine:
+				if widget.Stacked != nil || widget.Limit != nil {
+					return fmt.Errorf("line widget %q has unsupported properties", widget.Id)
+				}
+			case gatewayapi.DashboardWidgetArea, gatewayapi.DashboardWidgetBar:
+				if widget.Limit != nil {
+					return fmt.Errorf("widget %q does not support limit", widget.Id)
+				}
+			case gatewayapi.DashboardWidgetDonut:
+				if widget.GroupBy == nil {
+					return fmt.Errorf("donut widget %q requires group_by", widget.Id)
+				}
+				if widget.Stacked != nil {
+					return fmt.Errorf("donut widget %q does not support stacked", widget.Id)
+				}
 			}
 		case gatewayapi.DashboardWidgetTable:
+			if widget.Measure != nil || widget.Aggregation != nil || widget.GroupBy != nil ||
+				widget.Stacked != nil {
+				return fmt.Errorf("table widget %q has chart-only properties", widget.Id)
+			}
 			if widget.Columns == nil || len(*widget.Columns) == 0 {
 				return fmt.Errorf("table widget %q requires columns", widget.Id)
 			}
+			if len(*widget.Columns) > dashboardMaxFields {
+				return fmt.Errorf(
+					"table widget %q may declare at most %d columns",
+					widget.Id,
+					dashboardMaxFields,
+				)
+			}
+			columns := make(map[string]struct{}, len(*widget.Columns))
 			for _, column := range *widget.Columns {
+				if _, duplicate := columns[column]; duplicate {
+					return fmt.Errorf("table widget %q column %q is duplicated", widget.Id, column)
+				}
+				columns[column] = struct{}{}
 				if _, dimension := dimensions[column]; dimension {
 					continue
 				}
 				if _, measure := measures[column]; !measure {
 					return fmt.Errorf("table widget %q references unknown field %q", widget.Id, column)
 				}
+			}
+			if widget.SortBy == nil && widget.SortDirection != nil {
+				return fmt.Errorf("table widget %q sort_direction requires sort_by", widget.Id)
 			}
 			if widget.SortBy != nil {
 				found := false
@@ -963,7 +1271,12 @@ func validateDashboardDefinition(definition gatewayapi.DashboardDefinition) erro
 	return nil
 }
 
-func validateDashboardRecords(definition gatewayapi.DashboardDefinition, req gatewayapi.WriteDashboardDataRequest) ([]byte, error) {
+func encodeDashboardRecords(definition gatewayapi.DashboardDefinition, req gatewayapi.WriteDashboardDataRequest) ([]byte, error) {
+	switch req.Action {
+	case gatewayapi.Append, gatewayapi.Upsert:
+	default:
+		return nil, fmt.Errorf("unsupported data action %q", req.Action)
+	}
 	dimensions := make(map[string]struct{}, len(definition.Dimensions))
 	for _, field := range definition.Dimensions {
 		dimensions[field.Name] = struct{}{}
@@ -976,8 +1289,13 @@ func validateDashboardRecords(definition gatewayapi.DashboardDefinition, req gat
 	keys := make(map[string]struct{}, len(req.Records))
 	records := make([]dashboardRecordInput, 0, len(req.Records))
 	for index, record := range req.Records {
-		if record.ObservedAt.Before(now.Add(-dashboardRetention)) || record.ObservedAt.After(now.Add(5*time.Minute)) {
-			return nil, fmt.Errorf("records[%d].observed_at must be between 30 days ago and 5 minutes from now", index)
+		tooOld := record.ObservedAt.Before(now.Add(-dashboardRetention))
+		tooNew := record.ObservedAt.After(now.Add(5 * time.Minute))
+		if tooOld || tooNew {
+			return nil, fmt.Errorf(
+				"records[%d].observed_at must be between 30 days ago and 5 minutes from now",
+				index,
+			)
 		}
 		if req.Action == gatewayapi.Upsert && record.RecordKey == nil {
 			return nil, fmt.Errorf("records[%d].record_key is required for upsert", index)
@@ -1025,7 +1343,12 @@ func (s *Service) runDashboardRetention(ctx context.Context) {
 				break
 			}
 		}
-		_, err := s.queries.GatewayDeleteExpiredDashboardRateLimits(ctx, pgtype.Timestamptz{Time: time.Now().Add(-2 * time.Hour), Valid: true})
+		_, err := s.queries.GatewayDeleteExpiredDashboardRateLimits(
+			ctx,
+			pgtype.Timestamptz{
+				Time: time.Now().Add(-2 * time.Hour), Valid: true,
+			},
+		)
 		if err != nil && ctx.Err() == nil {
 			slog.ErrorContext(ctx, "delete expired dashboard rate limits", slog.Any("err", err))
 		}
@@ -1035,13 +1358,4 @@ func (s *Service) runDashboardRetention(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
-}
-
-func sortedDashboardSeries(labels map[string]struct{}) []string {
-	values := make([]string, 0, len(labels))
-	for label := range labels {
-		values = append(values, label)
-	}
-	sort.Strings(values)
-	return values
 }

@@ -13,6 +13,7 @@ A dashboard has a stable DNS-label `name`, a title, a description, and a field s
 - Measures are finite numbers used for aggregation.
 - A name can appear in either dimensions or measures, never both. A dashboard may declare up to 32 fields in total.
 - Filters reference declared dimensions.
+- Every dashboard has a built-in calendar that filters `observed_at`. Keep definition filters categorical. Never create a date or time filter.
 - Widgets reference declared fields. Supported kinds are metric, line, area, bar, donut, and table.
 
 Metric, line, area, bar, and donut widgets require a measure and one of `sum`, `avg`, `min`, `max`, or `count`. Donut widgets also require `group_by`. Table widgets require `columns`. Put summary metrics before charts and tables, then choose `third`, `half`, or `full` for each widget's width.

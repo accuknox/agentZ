@@ -115,6 +115,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '429': {$ref: '#/components/responses/TooManyRequests'}
         '500': {$ref: '#/components/responses/InternalError'}
 
@@ -144,6 +145,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '429': {$ref: '#/components/responses/TooManyRequests'}
         '500': {$ref: '#/components/responses/InternalError'}
 
@@ -317,6 +319,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '429': {$ref: '#/components/responses/TooManyRequests'}
         '500': {$ref: '#/components/responses/InternalError'}
 
@@ -4328,6 +4331,9 @@ components:
     DashboardFilter:
       type: object
       additionalProperties: false
+      description: >
+        A categorical dimension filter. Every dashboard separately receives a
+        system-owned observed_at calendar range.
       properties:
         id: {$ref: '#/components/schemas/DashboardIdentifier'}
         label:
@@ -4337,7 +4343,6 @@ components:
         field: {$ref: '#/components/schemas/DashboardIdentifier'}
         multiple:
           type: boolean
-          default: true
       required: [id, label, field, multiple]
 
     DashboardWidgetKind:
@@ -4385,9 +4390,9 @@ components:
         group_by: {$ref: '#/components/schemas/DashboardIdentifier'}
         stacked:
           type: boolean
-          default: false
         columns:
           type: array
+          maxItems: 32
           uniqueItems: true
           items:
             type: string
@@ -4429,9 +4434,11 @@ components:
           items: {$ref: '#/components/schemas/DashboardMeasure'}
         filters:
           type: array
+          maxItems: 32
           items: {$ref: '#/components/schemas/DashboardFilter'}
         widgets:
           type: array
+          maxItems: 64
           items: {$ref: '#/components/schemas/DashboardWidget'}
       required: [name, title, description, dimensions, measures, filters, widgets]
 
@@ -4446,7 +4453,7 @@ components:
         description: {type: string}
         revision:
           type: integer
-          format: int64
+          format: int32
           minimum: 1
         widget_count:
           type: integer
@@ -4465,7 +4472,7 @@ components:
         agent_name: {$ref: '#/components/schemas/AgentName'}
         revision:
           type: integer
-          format: int64
+          format: int32
           minimum: 1
         definition: {$ref: '#/components/schemas/DashboardDefinition'}
         created_at:
@@ -4492,7 +4499,7 @@ components:
       properties:
         expected_revision:
           type: integer
-          format: int64
+          format: int32
           minimum: 1
         definition: {$ref: '#/components/schemas/DashboardDefinition'}
       required: [expected_revision, definition]
@@ -4514,11 +4521,13 @@ components:
           format: date-time
         dimensions:
           type: object
+          maxProperties: 32
           additionalProperties:
             type: string
             maxLength: 1024
         measures:
           type: object
+          maxProperties: 32
           additionalProperties:
             type: number
             format: double
@@ -4595,6 +4604,7 @@ components:
         time_range: {$ref: '#/components/schemas/DashboardTimeRange'}
         filters:
           type: array
+          maxItems: 32
           items: {$ref: '#/components/schemas/DashboardQueryFilter'}
       required: [time_range, filters]
 
@@ -4636,7 +4646,7 @@ components:
         kind: {$ref: '#/components/schemas/DashboardWidgetKind'}
         revision:
           type: integer
-          format: int64
+          format: int32
           minimum: 1
         generated_at:
           type: string
@@ -4666,7 +4676,7 @@ components:
         filter_id: {$ref: '#/components/schemas/DashboardIdentifier'}
         revision:
           type: integer
-          format: int64
+          format: int32
           minimum: 1
         values:
           type: array

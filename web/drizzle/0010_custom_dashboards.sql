@@ -33,7 +33,7 @@ CREATE TABLE "dashboards" (
 	"workspace_id" text NOT NULL,
 	"agent_name" text NOT NULL,
 	"name" text NOT NULL,
-	"revision" bigint DEFAULT 1 NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
 	"definition" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

@@ -726,7 +726,7 @@ func (s *Service) routes() http.Handler {
 	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 
 	apiRouter := chi.NewRouter()
-	apiRouter.Use(s.dashboardBodyLimit)
+	apiRouter.Use(dashboardBodyLimit)
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
 		s.openAPI,
 		&nethttpmiddleware.Options{
@@ -734,6 +734,15 @@ func (s *Service) routes() http.Handler {
 				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
 			},
 			ErrorHandlerWithOpts: func(_ context.Context, err error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
+				if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+					writeError(w, r, newAPIError(
+						http.StatusRequestEntityTooLarge,
+						"payload_too_large",
+						"request body is too large",
+						err,
+					))
+					return
+				}
 				converted := openapi3filter.ConvertErrors(err)
 				status := opts.StatusCode
 				if statusErr, ok := converted.(openapi3filter.StatusCoder); ok {

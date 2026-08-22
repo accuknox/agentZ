@@ -1,6 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
 
 import { writeDashboardData, zError } from "../lib/gateway"
+import { zDashboardName, zWriteDashboardDataRequest } from "../lib/gateway/client/zod.gen"
 import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
 export default tool({
@@ -10,25 +11,9 @@ Write up to 100 records to a dashboard. The gateway keeps each record for 30 day
 Load the built-in "dashboard-publisher" skill first. Every dimension and measure must exist in the dashboard definition. Use append to keep records separate. Use upsert with a stable record_key when a new write should replace the current record. Do not add fields or change value types.
 `.trim(),
   args: {
-    dashboard_name: tool.schema
-      .string()
-      .min(1)
-      .max(32)
-      .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
-    action: tool.schema.enum(["append", "upsert"]),
-    records: tool.schema
-      .array(
-        tool.schema.object({
-          record_key: tool.schema.string().min(1).max(256).optional(),
-          observed_at: tool.schema
-            .string()
-            .describe("Time the source event occurred, formatted as RFC 3339."),
-          dimensions: tool.schema.record(tool.schema.string(), tool.schema.string().max(1024)),
-          measures: tool.schema.record(tool.schema.string(), tool.schema.number()),
-        })
-      )
-      .min(1)
-      .max(100),
+    dashboard_name: zDashboardName,
+    action: zWriteDashboardDataRequest.shape.action,
+    records: zWriteDashboardDataRequest.shape.records,
   },
   async execute(args, context) {
     const agentName = workflowAgentName()

@@ -114,11 +114,12 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND revision = sqlc.arg(expected_revision)
 RETURNING id, agent_name, name, revision, definition, created_at, updated_at;
 
--- name: GatewayDeleteDashboard :execrows
+-- name: GatewayDeleteDashboard :one
 DELETE FROM dashboards
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
-  AND name = sqlc.arg(name);
+  AND name = sqlc.arg(name)
+RETURNING id;
 
 -- name: GatewayGetDashboardSessionKind :one
 SELECT kind
@@ -127,38 +128,7 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
   AND session_id = sqlc.arg(session_id);
 
--- name: GatewayAppendDashboardRecords :execrows
-INSERT INTO dashboard_records(
-  id,
-  dashboard_id,
-  workspace_id,
-  record_key,
-  session_id,
-  observed_at,
-  expires_at,
-  dimensions,
-  measures
-)
-SELECT
-  record.id,
-  sqlc.arg(dashboard_id),
-  sqlc.arg(workspace_id),
-  record.record_key,
-  sqlc.arg(session_id),
-  record.observed_at,
-  NOW() + INTERVAL '30 days',
-  record.dimensions,
-  record.measures
-FROM jsonb_to_recordset(sqlc.arg(records)) AS record(
-  id text,
-  record_key text,
-  observed_at timestamptz,
-  dimensions jsonb,
-  measures jsonb
-)
-ON CONFLICT DO NOTHING;
-
--- name: GatewayUpsertDashboardRecords :execrows
+-- name: GatewayWriteDashboardRecords :execrows
 INSERT INTO dashboard_records(
   id,
   dashboard_id,
@@ -193,7 +163,8 @@ ON CONFLICT (dashboard_id, record_key) WHERE record_key IS NOT NULL DO UPDATE SE
   dimensions = EXCLUDED.dimensions,
   measures = EXCLUDED.measures,
   updated_at = NOW(),
-  expires_at = NOW() + INTERVAL '30 days';
+  expires_at = NOW() + INTERVAL '30 days'
+WHERE sqlc.arg(upsert)::boolean;
 
 -- name: GatewayDeleteDashboardRecords :execrows
 DELETE FROM dashboard_records
@@ -431,122 +402,6 @@ ORDER BY
   records.observed_at DESC,
   records.id DESC
 LIMIT sqlc.arg(row_limit);
-
--- name: GatewayCreateDashboardIntegrationFixture :exec
-WITH test_organization AS (
-  INSERT INTO organizations(id, name, slug, created_at)
-  VALUES (
-    sqlc.arg(organization_id),
-    'Dashboard test',
-    sqlc.arg(organization_slug),
-    NOW()
-  )
-  RETURNING id
-), test_user AS (
-  INSERT INTO users(id, name, email)
-  VALUES (
-    sqlc.arg(user_id),
-    'Dashboard test',
-    sqlc.arg(user_email)
-  )
-  RETURNING id
-), test_workspace AS (
-  INSERT INTO workspaces(
-    id,
-    organization_id,
-    name,
-    slug,
-    namespace,
-    state
-  )
-  SELECT
-    sqlc.arg(workspace_id),
-    test_organization.id,
-    'Dashboard test',
-    sqlc.arg(workspace_slug),
-    sqlc.arg(workspace_namespace),
-    'ready'
-  FROM test_organization
-  RETURNING id, organization_id
-), test_owner AS (
-  INSERT INTO agent_owners(
-    organization_id,
-    workspace_id,
-    agent_name,
-    creator_user_id,
-    owner_user_id
-  )
-  SELECT
-    test_workspace.organization_id,
-    test_workspace.id,
-    sqlc.arg(agent_name),
-    test_user.id,
-    test_user.id
-  FROM test_workspace
-  CROSS JOIN test_user
-  RETURNING workspace_id, agent_name
-)
-INSERT INTO chat_sessions(
-  workspace_id,
-  agent_name,
-  session_id,
-  title,
-  kind,
-  status,
-  source_created_at,
-  source_updated_at
-)
-SELECT
-  test_owner.workspace_id,
-  test_owner.agent_name,
-  sqlc.arg(session_id),
-  'Dashboard test',
-  'chat',
-  'idle',
-  NOW(),
-  NOW()
-FROM test_owner;
-
--- name: GatewayDeleteDashboardIntegrationFixture :exec
-WITH deleted_events AS (
-  DELETE FROM event_trail_events AS events
-  WHERE events.organization_id = sqlc.arg(organization_id)
-  RETURNING 1
-), deleted_owners AS (
-  DELETE FROM agent_owners AS owners
-  WHERE owners.workspace_id = sqlc.arg(workspace_id)
-  RETURNING 1
-), deleted_workspace AS (
-  DELETE FROM workspaces AS workspace
-  WHERE workspace.id = sqlc.arg(workspace_id)
-  RETURNING 1
-), deleted_organization AS (
-  DELETE FROM organizations AS organization
-  WHERE organization.id = sqlc.arg(organization_id)
-  RETURNING 1
-)
-DELETE FROM users
-WHERE users.id = sqlc.arg(user_id);
-
--- name: GatewayExpireDashboardIntegrationRecords :execrows
-UPDATE dashboard_records
-SET
-  ingested_at = NOW() - INTERVAL '31 days',
-  expires_at = NOW() - INTERVAL '1 day'
-WHERE dashboard_id = sqlc.arg(dashboard_id);
-
--- name: GatewayCountDashboardIntegrationAuditEvents :one
-SELECT COUNT(*)
-FROM event_trail_events
-WHERE organization_id = sqlc.arg(organization_id)
-  AND target_type = 'dashboard';
-
--- name: GatewayMarkDashboardIntegrationSessionAsWorkflowRun :execrows
-UPDATE chat_sessions
-SET kind = 'workflow_run'
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND agent_name = sqlc.arg(agent_name)
-  AND session_id = sqlc.arg(session_id);
 
 -- name: GatewayDeleteSessionTraces :execrows
 DELETE FROM observer_traces ot

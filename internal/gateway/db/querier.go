@@ -14,18 +14,15 @@ type Querier interface {
 	GatewayAcquireDashboardQuerySlot(ctx context.Context, workspaceID string) (int32, error)
 	GatewayAddAgentShareGrant(ctx context.Context, arg GatewayAddAgentShareGrantParams) (int64, error)
 	GatewayAgentExists(ctx context.Context, arg GatewayAgentExistsParams) (bool, error)
-	GatewayAppendDashboardRecords(ctx context.Context, arg GatewayAppendDashboardRecordsParams) (int64, error)
 	GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayAssignWorkspaceAdminsParams) (int64, error)
 	GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCleanupJobParams) (CleanupJob, error)
 	GatewayClearAgentChatPreferences(ctx context.Context, arg GatewayClearAgentChatPreferencesParams) error
 	GatewayCompleteCleanupJob(ctx context.Context, arg GatewayCompleteCleanupJobParams) (int64, error)
 	GatewayConsumeDashboardRateLimit(ctx context.Context, arg GatewayConsumeDashboardRateLimitParams) (int32, error)
-	GatewayCountDashboardIntegrationAuditEvents(ctx context.Context, organizationID string) (int64, error)
 	GatewayCreateAgent(ctx context.Context, arg GatewayCreateAgentParams) (Agent, error)
 	GatewayCreateAgentOwner(ctx context.Context, arg GatewayCreateAgentOwnerParams) (AgentOwner, error)
 	GatewayCreateAgentShare(ctx context.Context, arg GatewayCreateAgentShareParams) (AgentShare, error)
 	GatewayCreateDashboard(ctx context.Context, arg GatewayCreateDashboardParams) (GatewayCreateDashboardRow, error)
-	GatewayCreateDashboardIntegrationFixture(ctx context.Context, arg GatewayCreateDashboardIntegrationFixtureParams) error
 	GatewayCreateEventTrailEvent(ctx context.Context, arg GatewayCreateEventTrailEventParams) (EventTrailEvent, error)
 	GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) error
 	GatewayCreateWorkspaceAdminRole(ctx context.Context, arg GatewayCreateWorkspaceAdminRoleParams) (RoleScope, error)
@@ -34,8 +31,7 @@ type Querier interface {
 	GatewayDeleteAgentOwner(ctx context.Context, arg GatewayDeleteAgentOwnerParams) (int64, error)
 	GatewayDeleteAgentShare(ctx context.Context, arg GatewayDeleteAgentShareParams) (int64, error)
 	GatewayDeleteChatSession(ctx context.Context, arg GatewayDeleteChatSessionParams) error
-	GatewayDeleteDashboard(ctx context.Context, arg GatewayDeleteDashboardParams) (int64, error)
-	GatewayDeleteDashboardIntegrationFixture(ctx context.Context, arg GatewayDeleteDashboardIntegrationFixtureParams) error
+	GatewayDeleteDashboard(ctx context.Context, arg GatewayDeleteDashboardParams) (string, error)
 	GatewayDeleteDashboardRecords(ctx context.Context, arg GatewayDeleteDashboardRecordsParams) (int64, error)
 	GatewayDeleteExpiredDashboardRateLimits(ctx context.Context, retainedAfter pgtype.Timestamptz) (int64, error)
 	GatewayDeleteExpiredDashboardRecords(ctx context.Context, batchSize int32) (int64, error)
@@ -43,7 +39,6 @@ type Querier interface {
 	GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDeleteSessionTracesParams) (int64, error)
 	GatewayDeleteWorkspaceAgents(ctx context.Context, tenantNamespace string) (int64, error)
 	GatewayDeleteWorkspaceInheritedResources(ctx context.Context, arg GatewayDeleteWorkspaceInheritedResourcesParams) (int64, error)
-	GatewayExpireDashboardIntegrationRecords(ctx context.Context, dashboardID string) (int64, error)
 	GatewayFailCleanupJob(ctx context.Context, arg GatewayFailCleanupJobParams) (int64, error)
 	GatewayGetAPIKeyByHash(ctx context.Context, arg GatewayGetAPIKeyByHashParams) (GatewayGetAPIKeyByHashRow, error)
 	GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (ApiKeyScope, error)
@@ -98,7 +93,6 @@ type Querier interface {
 	GatewayLockAgentShares(ctx context.Context, arg GatewayLockAgentSharesParams) ([]AgentShare, error)
 	GatewayLockOrganization(ctx context.Context, organizationID string) (GatewayLockOrganizationRow, error)
 	GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams) (string, error)
-	GatewayMarkDashboardIntegrationSessionAsWorkflowRun(ctx context.Context, arg GatewayMarkDashboardIntegrationSessionAsWorkflowRunParams) (int64, error)
 	GatewayProjectMemberRoleTransports(ctx context.Context, arg GatewayProjectMemberRoleTransportsParams) (int64, error)
 	GatewayQueryDashboardDonut(ctx context.Context, arg GatewayQueryDashboardDonutParams) ([]GatewayQueryDashboardDonutRow, error)
 	GatewayQueryDashboardMetric(ctx context.Context, arg GatewayQueryDashboardMetricParams) (float64, error)
@@ -118,8 +112,8 @@ type Querier interface {
 	GatewayTransferAgentOwner(ctx context.Context, arg GatewayTransferAgentOwnerParams) (AgentOwner, error)
 	GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error)
 	GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) error
-	GatewayUpsertDashboardRecords(ctx context.Context, arg GatewayUpsertDashboardRecordsParams) (int64, error)
 	GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg GatewayUpsertWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error)
+	GatewayWriteDashboardRecords(ctx context.Context, arg GatewayWriteDashboardRecordsParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

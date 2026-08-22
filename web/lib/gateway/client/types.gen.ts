@@ -19,6 +19,10 @@ export type DashboardMeasure = {
   unit?: string
 }
 
+/**
+ * A categorical dimension filter. Every dashboard separately receives a system-owned observed_at calendar range.
+ *
+ */
 export type DashboardFilter = {
   id: DashboardIdentifier
   label: string
@@ -2614,6 +2618,10 @@ export type QueryDashboardWidgetErrors = {
    */
   404: Error
   /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
    * The caller exceeded a rate limit or all allowed query slots are busy.
    *
    */
@@ -2670,6 +2678,10 @@ export type ListDashboardFilterOptionsErrors = {
    *
    */
   404: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
   /**
    * The caller exceeded a rate limit or all allowed query slots are busy.
    *
@@ -3038,6 +3050,10 @@ export type DeleteDashboardDataErrors = {
    *
    */
   404: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
   /**
    * The caller exceeded a rate limit or all allowed query slots are busy.
    *

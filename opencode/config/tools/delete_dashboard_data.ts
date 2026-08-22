@@ -1,18 +1,15 @@
 import { tool } from "@opencode-ai/plugin"
 
 import { deleteDashboardData, zError } from "../lib/gateway"
+import { zDashboardName, zDeleteDashboardDataRequest } from "../lib/gateway/client/zod.gen"
 import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
 export default tool({
   description:
     "Delete dashboard records by record key. Only interactive chat sessions may run this tool. It cannot delete records without keys.",
   args: {
-    dashboard_name: tool.schema
-      .string()
-      .min(1)
-      .max(32)
-      .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
-    record_keys: tool.schema.array(tool.schema.string().min(1).max(256)).min(1).max(100),
+    dashboard_name: zDashboardName,
+    record_keys: zDeleteDashboardDataRequest.shape.record_keys,
   },
   async execute(args, context) {
     const agentName = workflowAgentName()

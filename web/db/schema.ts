@@ -741,7 +741,7 @@ export const dashboards = pgTable(
     workspaceId: text("workspace_id").notNull(),
     agentName: text("agent_name").notNull(),
     name: text("name").notNull(),
-    revision: bigint("revision", { mode: "number" }).default(1).notNull(),
+    revision: integer("revision").default(1).notNull(),
     definition: jsonb("definition").$type<DashboardDefinition>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

@@ -188,7 +188,7 @@ export function DashboardView({
                 <MultiSelectDropdown
                   className="w-48"
                   disabled={optionQuery.isPending}
-                  emptyMessage="No values in this period."
+                  emptyMessage="No values for this period"
                   key={filter.id}
                   onValueChangeAction={(next) =>
                     setFilters((current) => ({
@@ -202,14 +202,14 @@ export function DashboardView({
                     value,
                   }))}
                   placeholder={filter.label}
-                  searchPlaceholder={`Search ${filter.label.toLowerCase()}...`}
+                  searchPlaceholder={`Search ${filter.label.toLowerCase()}`}
                   value={values}
                 />
               )
             })}
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-muted-foreground text-xs">Refreshes every 30 seconds</span>
+            <span className="text-muted-foreground text-xs">Updates every 30 seconds</span>
             <Button
               onClick={() =>
                 void queryClient.invalidateQueries({
@@ -272,7 +272,7 @@ export function DashboardWidgetCard({
           <Skeleton className="h-52 w-full" />
         ) : query.isError ? (
           <div className="text-destructive flex h-52 items-center justify-center text-sm">
-            Widget data is unavailable.
+            Could not load this widget.
           </div>
         ) : (
           <WidgetContent

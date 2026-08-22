@@ -694,8 +694,8 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		return requestAuth{}, newAPIError(
 			http.StatusForbidden,
 			"forbidden",
-			"Agent is not scoped to a Workspace",
-			errors.New("dashboard operations require Workspace scope"),
+			"this Agent does not belong to a Workspace",
+			errors.New("dashboard requests require a Workspace ID"),
 		)
 	}
 

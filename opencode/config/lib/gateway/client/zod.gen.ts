@@ -41,7 +41,7 @@ export const zDashboardAggregation = z.enum(["count", "sum", "avg", "min", "max"
 export const zDashboardSortDirection = z.enum(["asc", "desc"])
 
 /**
- * Closed widget definition. Query fields are interpreted only by the gateway and validated against the dashboard field contract.
+ * Declares the widget type, fields, grouping, sort, and width. The gateway rejects fields that are missing from the dashboard definition.
  *
  */
 export const zDashboardWidget = z.object({
@@ -2559,7 +2559,7 @@ export const zUpdateInferenceProviderRequestWritable = z.object({
 })
 
 /**
- * Stable Workspace ID selecting the exact authorized scope.
+ * Workspace ID used for authorization and data lookup.
  */
 export const zWorkspaceIdRequiredHeader = z.string().min(1).max(128)
 
@@ -2619,7 +2619,7 @@ export const zChatSessionLimitQuery = z.int().gte(1).lte(50).default(10)
 export const zAgentNamePath = zAgentName
 
 /**
- * OpenCode session that invoked the Agent tool.
+ * OpenCode session ID supplied to the Agent tool.
  */
 export const zAgentSessionIdHeader = z.string().min(1).max(256)
 
@@ -2813,7 +2813,7 @@ export const zListDashboardsQuery = z.object({
 })
 
 /**
- * Paginated dashboard summaries.
+ * One page of dashboard summaries.
  */
 export const zListDashboardsResponse2 = zListDashboardsResponse
 
@@ -2826,7 +2826,7 @@ export const zGetDashboardPath = z.object({
 })
 
 /**
- * Dashboard definition and current revision.
+ * Dashboard definition with its current revision.
  */
 export const zGetDashboardResponse = zDashboard
 
@@ -2842,7 +2842,7 @@ export const zQueryDashboardWidgetPath = z.object({
 })
 
 /**
- * Bounded data for one widget.
+ * Query result for one widget.
  */
 export const zQueryDashboardWidgetResponse = zDashboardWidgetResult
 
@@ -2858,7 +2858,7 @@ export const zListDashboardFilterOptionsPath = z.object({
 })
 
 /**
- * Distinct filter values in the selected time range.
+ * Distinct filter values found in the requested time range.
  */
 export const zListDashboardFilterOptionsResponse = zDashboardFilterOptions
 
@@ -2876,7 +2876,7 @@ export const zListAgentDashboardsQuery = z.object({
 })
 
 /**
- * Paginated Agent dashboard summaries.
+ * One page of dashboards owned by the Agent.
  */
 export const zListAgentDashboardsResponse = zListDashboardsResponse
 
@@ -2891,7 +2891,7 @@ export const zCreateAgentDashboardPath = z.object({
 })
 
 /**
- * Created dashboard.
+ * Dashboard created by the Agent.
  */
 export const zCreateAgentDashboardResponse = zDashboard
 
@@ -2919,7 +2919,7 @@ export const zGetAgentDashboardPath = z.object({
 })
 
 /**
- * Dashboard definition and current revision.
+ * Dashboard definition with its current revision.
  */
 export const zGetAgentDashboardResponse = zDashboard
 
@@ -2935,7 +2935,7 @@ export const zReplaceAgentDashboardPath = z.object({
 })
 
 /**
- * Replaced dashboard and new revision.
+ * Updated dashboard with its new revision.
  */
 export const zReplaceAgentDashboardResponse = zDashboard
 
@@ -2951,7 +2951,7 @@ export const zDeleteDashboardDataPath = z.object({
 })
 
 /**
- * Record deletion count.
+ * Number of records deleted.
  */
 export const zDeleteDashboardDataResponse = zDashboardDataMutationResponse
 
@@ -2967,7 +2967,7 @@ export const zWriteDashboardDataPath = z.object({
 })
 
 /**
- * Record mutation counts.
+ * Number of records written.
  */
 export const zWriteDashboardDataResponse = zDashboardDataMutationResponse
 

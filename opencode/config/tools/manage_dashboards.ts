@@ -67,11 +67,11 @@ const definition = tool.schema.object({
 
 export default tool({
   description: `
-List, inspect, create, replace, or delete backend-driven dashboards owned by this agent.
+Read or change dashboards owned by the current Agent.
 
-Load and follow the built-in "dashboard-creator" skill before creating or replacing a dashboard. A definition is a closed field contract and widget query plan; it never contains SQL, JSONPath, JavaScript, CSS, chart props, or colors.
+Before create or replace, load the built-in "dashboard-creator" skill. A definition declares fields, filters, and widgets. It cannot contain SQL, JSONPath, JavaScript, CSS, chart-library properties, or colors.
 
-Creation and replacement are only available in interactive chat sessions. Replacement requires the revision returned by get or list so concurrent edits cannot be lost.
+Only an interactive chat session may create, replace, or delete a dashboard. Replace requires the revision returned by get or list. The request fails if another session changed the dashboard after that revision.
 `.trim(),
   args: {
     action: tool.schema.enum(["list", "get", "create", "replace", "delete"]),
@@ -134,7 +134,7 @@ Creation and replacement are only available in interactive chat sessions. Replac
                 : undefined
 
     if (!result) {
-      return "Dashboard request is incomplete. get/delete require dashboard_name; create requires definition; replace requires dashboard_name, definition, and expected_revision."
+      return "The dashboard request is missing an argument. get and delete need dashboard_name. create needs definition. replace needs dashboard_name, definition, and expected_revision."
     }
     if (result.data) {
       return JSON.stringify(result.data, null, 2)
@@ -145,6 +145,6 @@ Creation and replacement are only available in interactive chat sessions. Replac
     const error = zError.safeParse(result.error)
     return error.success
       ? workflowErrorOutput(error.data)
-      : "The dashboard service returned an unexpected error shape."
+      : "The dashboard service returned an invalid response."
   },
 })

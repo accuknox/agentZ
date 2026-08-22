@@ -5,9 +5,9 @@ import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
 export default tool({
   description: `
-Append observations or upsert keyed current state into a dashboard's 30-day retained dataset.
+Write up to 100 records to a dashboard. The gateway keeps each record for 30 days.
 
-Load and follow the built-in "dashboard-publisher" skill before using this tool. Every dimension and measure must match the dashboard's declared contract exactly. Use append for historical events. Use upsert with a stable record_key for replaceable current state. Never invent fields or coerce values.
+Load the built-in "dashboard-publisher" skill first. Every dimension and measure must exist in the dashboard definition. Use append to keep records separate. Use upsert with a stable record_key when a new write should replace the current record. Do not add fields or change value types.
 `.trim(),
   args: {
     dashboard_name: tool.schema
@@ -22,7 +22,7 @@ Load and follow the built-in "dashboard-publisher" skill before using this tool.
           record_key: tool.schema.string().min(1).max(256).optional(),
           observed_at: tool.schema
             .string()
-            .describe("RFC 3339 timestamp for when the observation occurred"),
+            .describe("Time the source event occurred, formatted as RFC 3339."),
           dimensions: tool.schema.record(tool.schema.string(), tool.schema.string().max(1024)),
           measures: tool.schema.record(tool.schema.string(), tool.schema.number()),
         })
@@ -56,6 +56,6 @@ Load and follow the built-in "dashboard-publisher" skill before using this tool.
     const error = zError.safeParse(result.error)
     return error.success
       ? workflowErrorOutput(error.data)
-      : "The dashboard service returned an unexpected error shape."
+      : "The dashboard service returned an invalid response."
   },
 })

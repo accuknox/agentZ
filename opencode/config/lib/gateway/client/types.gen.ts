@@ -35,7 +35,7 @@ export type DashboardAggregation = "count" | "sum" | "avg" | "min" | "max"
 export type DashboardSortDirection = "asc" | "desc"
 
 /**
- * Closed widget definition. Query fields are interpreted only by the gateway and validated against the dashboard field contract.
+ * Declares the widget type, fields, grouping, sort, and width. The gateway rejects fields that are missing from the dashboard definition.
  *
  */
 export type DashboardWidget = {
@@ -2227,7 +2227,7 @@ export type UpdateInferenceProviderRequestWritable = {
 }
 
 /**
- * Stable Workspace ID selecting the exact authorized scope.
+ * Workspace ID used for authorization and data lookup.
  */
 export type WorkspaceIdRequiredHeader = string
 
@@ -2287,7 +2287,7 @@ export type ChatSessionLimitQuery = number
 export type AgentNamePath = AgentName
 
 /**
- * OpenCode session that invoked the Agent tool.
+ * OpenCode session ID supplied to the Agent tool.
  */
 export type AgentSessionIdHeader = string
 
@@ -2465,7 +2465,7 @@ export type ListDashboardsData = {
   body?: never
   headers: {
     /**
-     * Stable Workspace ID selecting the exact authorized scope.
+     * Workspace ID used for authorization and data lookup.
      */
     "X-AgentZ-Workspace-ID": string
   }
@@ -2497,7 +2497,8 @@ export type ListDashboardsErrors = {
    */
   403: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2510,7 +2511,7 @@ export type ListDashboardsError = ListDashboardsErrors[keyof ListDashboardsError
 
 export type ListDashboardsResponses = {
   /**
-   * Paginated dashboard summaries.
+   * One page of dashboard summaries.
    */
   200: ListDashboardsResponse
 }
@@ -2521,7 +2522,7 @@ export type GetDashboardData = {
   body?: never
   headers: {
     /**
-     * Stable Workspace ID selecting the exact authorized scope.
+     * Workspace ID used for authorization and data lookup.
      */
     "X-AgentZ-Workspace-ID": string
   }
@@ -2547,7 +2548,8 @@ export type GetDashboardErrors = {
    */
   404: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2560,7 +2562,7 @@ export type GetDashboardError = GetDashboardErrors[keyof GetDashboardErrors]
 
 export type GetDashboardResponses = {
   /**
-   * Dashboard definition and current revision.
+   * Dashboard definition with its current revision.
    */
   200: Dashboard
 }
@@ -2571,7 +2573,7 @@ export type QueryDashboardWidgetData = {
   body: DashboardQueryRequest
   headers: {
     /**
-     * Stable Workspace ID selecting the exact authorized scope.
+     * Workspace ID used for authorization and data lookup.
      */
     "X-AgentZ-Workspace-ID": string
   }
@@ -2602,7 +2604,8 @@ export type QueryDashboardWidgetErrors = {
    */
   404: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2615,7 +2618,7 @@ export type QueryDashboardWidgetError = QueryDashboardWidgetErrors[keyof QueryDa
 
 export type QueryDashboardWidgetResponses = {
   /**
-   * Bounded data for one widget.
+   * Query result for one widget.
    */
   200: DashboardWidgetResult
 }
@@ -2627,7 +2630,7 @@ export type ListDashboardFilterOptionsData = {
   body: DashboardTimeRange
   headers: {
     /**
-     * Stable Workspace ID selecting the exact authorized scope.
+     * Workspace ID used for authorization and data lookup.
      */
     "X-AgentZ-Workspace-ID": string
   }
@@ -2658,7 +2661,8 @@ export type ListDashboardFilterOptionsErrors = {
    */
   404: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2672,7 +2676,7 @@ export type ListDashboardFilterOptionsError =
 
 export type ListDashboardFilterOptionsResponses = {
   /**
-   * Distinct filter values in the selected time range.
+   * Distinct filter values found in the requested time range.
    */
   200: DashboardFilterOptions
 }
@@ -2684,7 +2688,7 @@ export type ListAgentDashboardsData = {
   body?: never
   headers: {
     /**
-     * OpenCode session that invoked the Agent tool.
+     * OpenCode session ID supplied to the Agent tool.
      */
     "X-AgentZ-Session-ID": string
   }
@@ -2721,7 +2725,8 @@ export type ListAgentDashboardsErrors = {
    */
   403: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2734,7 +2739,7 @@ export type ListAgentDashboardsError = ListAgentDashboardsErrors[keyof ListAgent
 
 export type ListAgentDashboardsResponses = {
   /**
-   * Paginated Agent dashboard summaries.
+   * One page of dashboards owned by the Agent.
    */
   200: ListDashboardsResponse
 }
@@ -2746,7 +2751,7 @@ export type CreateAgentDashboardData = {
   body: DashboardDefinition
   headers: {
     /**
-     * OpenCode session that invoked the Agent tool.
+     * OpenCode session ID supplied to the Agent tool.
      */
     "X-AgentZ-Session-ID": string
   }
@@ -2783,7 +2788,8 @@ export type CreateAgentDashboardErrors = {
    */
   413: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2796,7 +2802,7 @@ export type CreateAgentDashboardError = CreateAgentDashboardErrors[keyof CreateA
 
 export type CreateAgentDashboardResponses = {
   /**
-   * Created dashboard.
+   * Dashboard created by the Agent.
    */
   201: Dashboard
 }
@@ -2808,7 +2814,7 @@ export type DeleteAgentDashboardData = {
   body?: never
   headers: {
     /**
-     * OpenCode session that invoked the Agent tool.
+     * OpenCode session ID supplied to the Agent tool.
      */
     "X-AgentZ-Session-ID": string
   }
@@ -2838,7 +2844,8 @@ export type DeleteAgentDashboardErrors = {
    */
   404: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2863,7 +2870,7 @@ export type GetAgentDashboardData = {
   body?: never
   headers: {
     /**
-     * OpenCode session that invoked the Agent tool.
+     * OpenCode session ID supplied to the Agent tool.
      */
     "X-AgentZ-Session-ID": string
   }
@@ -2893,7 +2900,8 @@ export type GetAgentDashboardErrors = {
    */
   404: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2906,7 +2914,7 @@ export type GetAgentDashboardError = GetAgentDashboardErrors[keyof GetAgentDashb
 
 export type GetAgentDashboardResponses = {
   /**
-   * Dashboard definition and current revision.
+   * Dashboard definition with its current revision.
    */
   200: Dashboard
 }
@@ -2917,7 +2925,7 @@ export type ReplaceAgentDashboardData = {
   body: ReplaceDashboardRequest
   headers: {
     /**
-     * OpenCode session that invoked the Agent tool.
+     * OpenCode session ID supplied to the Agent tool.
      */
     "X-AgentZ-Session-ID": string
   }
@@ -2960,7 +2968,8 @@ export type ReplaceAgentDashboardErrors = {
    */
   413: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -2974,7 +2983,7 @@ export type ReplaceAgentDashboardError =
 
 export type ReplaceAgentDashboardResponses = {
   /**
-   * Replaced dashboard and new revision.
+   * Updated dashboard with its new revision.
    */
   200: Dashboard
 }
@@ -2986,7 +2995,7 @@ export type DeleteDashboardDataData = {
   body: DeleteDashboardDataRequest
   headers: {
     /**
-     * OpenCode session that invoked the Agent tool.
+     * OpenCode session ID supplied to the Agent tool.
      */
     "X-AgentZ-Session-ID": string
   }
@@ -3020,7 +3029,8 @@ export type DeleteDashboardDataErrors = {
    */
   404: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -3033,7 +3043,7 @@ export type DeleteDashboardDataError = DeleteDashboardDataErrors[keyof DeleteDas
 
 export type DeleteDashboardDataResponses = {
   /**
-   * Record deletion count.
+   * Number of records deleted.
    */
   200: DashboardDataMutationResponse
 }
@@ -3045,7 +3055,7 @@ export type WriteDashboardDataData = {
   body: WriteDashboardDataRequest
   headers: {
     /**
-     * OpenCode session that invoked the Agent tool.
+     * OpenCode session ID supplied to the Agent tool.
      */
     "X-AgentZ-Session-ID": string
   }
@@ -3083,7 +3093,8 @@ export type WriteDashboardDataErrors = {
    */
   413: Error
   /**
-   * A scoped request rate or query concurrency limit was reached.
+   * The caller exceeded a rate limit or all allowed query slots are busy.
+   *
    */
   429: Error
   /**
@@ -3096,7 +3107,7 @@ export type WriteDashboardDataError = WriteDashboardDataErrors[keyof WriteDashbo
 
 export type WriteDashboardDataResponses = {
   /**
-   * Record mutation counts.
+   * Number of records written.
    */
   200: DashboardDataMutationResponse
 }

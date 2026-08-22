@@ -61,7 +61,7 @@ func TestValidateDashboardDefinition(t *testing.T) {
 	t.Run("rejects field type overlap", func(t *testing.T) {
 		invalid := definition
 		invalid.Measures = []gatewayapi.DashboardMeasure{{Name: "service", Label: "Service"}}
-		if err := validateDashboardDefinition(invalid); err == nil || err.Error() != `field "service" cannot be both a dimension and measure` {
+		if err := validateDashboardDefinition(invalid); err == nil || err.Error() != `field "service" cannot be both a dimension and a measure` {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -124,7 +124,7 @@ func TestValidateDashboardRecords(t *testing.T) {
 			ObservedAt: time.Now(), Dimensions: map[string]string{}, Measures: map[string]float64{},
 		}}
 		_, err := validateDashboardRecords(definition, invalid)
-		if err == nil || err.Error() != "record 0 requires record_key for upsert" {
+		if err == nil || err.Error() != "records[0].record_key is required for upsert" {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -136,7 +136,7 @@ func TestValidateDashboardRecords(t *testing.T) {
 			Dimensions: map[string]string{"secret": "value"}, Measures: map[string]float64{},
 		}}
 		_, err := validateDashboardRecords(definition, invalid)
-		if err == nil || err.Error() != `record 0 contains unknown dimension "secret"` {
+		if err == nil || err.Error() != `records[0].dimensions contains unknown field "secret"` {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})

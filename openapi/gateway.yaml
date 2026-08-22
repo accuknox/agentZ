@@ -45,7 +45,7 @@ components:
       schema:
         $ref: '#/components/schemas/AgentName'
     AgentSessionIDHeader:
-      description: OpenCode session that invoked the Agent tool.
+      description: OpenCode session ID supplied to the Agent tool.
       in: header
       name: X-AgentZ-Session-ID
       required: true
@@ -448,7 +448,7 @@ components:
         minLength: 1
         type: string
     WorkspaceIDRequiredHeader:
-      description: Stable Workspace ID selecting the exact authorized scope.
+      description: Workspace ID used for authorization and data lookup.
       in: header
       name: X-AgentZ-Workspace-ID
       required: true
@@ -516,10 +516,11 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-      description: A scoped request rate or query concurrency limit was reached.
+      description: |
+        The caller exceeded a rate limit or all allowed query slots are busy.
       headers:
         Retry-After:
-          description: Seconds until this request may be retried.
+          description: Seconds to wait before retrying.
           schema:
             minimum: 1
             type: integer
@@ -1805,7 +1806,7 @@ components:
     DashboardWidget:
       additionalProperties: false
       description: |
-        Closed widget definition. Query fields are interpreted only by the gateway and validated against the dashboard field contract.
+        Declares the widget type, fields, grouping, sort, and width. The gateway rejects fields that are missing from the dashboard definition.
       properties:
         aggregation:
           $ref: '#/components/schemas/DashboardAggregation'
@@ -24832,7 +24833,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListDashboardsResponse'
-          description: Paginated Agent dashboard summaries.
+          description: One page of dashboards owned by the Agent.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -24846,7 +24847,7 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: List dashboard definitions owned by the calling Agent.
+      summary: List dashboards owned by the Agent.
       tags:
       - dashboards
     post:
@@ -24866,7 +24867,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Dashboard'
-          description: Created dashboard.
+          description: Dashboard created by the Agent.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -24925,7 +24926,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Dashboard'
-          description: Dashboard definition and current revision.
+          description: Dashboard definition with its current revision.
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -24939,7 +24940,7 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: Get one dashboard owned by the calling Agent.
+      summary: Get a dashboard owned by the Agent.
       tags:
       - dashboards
     put:
@@ -24960,7 +24961,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Dashboard'
-          description: Replaced dashboard and new revision.
+          description: Updated dashboard with its new revision.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -25002,7 +25003,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardDataMutationResponse'
-          description: Record deletion count.
+          description: Number of records deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -25018,7 +25019,7 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: Delete keyed records from an interactive Agent session.
+      summary: Delete dashboard records by key from an interactive Agent session.
       tags:
       - dashboards
     post:
@@ -25039,7 +25040,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardDataMutationResponse'
-          description: Record mutation counts.
+          description: Number of records written.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -25057,7 +25058,7 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: Append or upsert retained dashboard records.
+      summary: Append or upsert dashboard records.
       tags:
       - dashboards
   /api/agent/{agentName}/fs/directory:
@@ -25853,7 +25854,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListDashboardsResponse'
-          description: Paginated dashboard summaries.
+          description: One page of dashboard summaries.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -25867,7 +25868,7 @@ paths:
       security:
       - GatewayBearer:
         - dashboard.read
-      summary: List dashboards in the current Workspace.
+      summary: List dashboards for the current Workspace.
       tags:
       - dashboards
   /api/dashboard/{dashboardId}:
@@ -25882,7 +25883,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Dashboard'
-          description: Dashboard definition and current revision.
+          description: Dashboard definition with its current revision.
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -25896,7 +25897,7 @@ paths:
       security:
       - GatewayBearer:
         - dashboard.read
-      summary: Get one dashboard definition.
+      summary: Get a dashboard.
       tags:
       - dashboards
   /api/dashboard/{dashboardId}/filter/{filterId}/options:
@@ -25918,7 +25919,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardFilterOptions'
-          description: Distinct filter values in the selected time range.
+          description: Distinct filter values found in the requested time range.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -25934,13 +25935,13 @@ paths:
       security:
       - GatewayBearer:
         - dashboard.read
-      summary: List bounded values for one stored dashboard filter.
+      summary: List up to 100 values for a dashboard filter.
       tags:
       - dashboards
   /api/dashboard/{dashboardId}/widget/{widgetId}/query:
     post:
-      description: The server resolves the widget query; clients cannot submit query
-        expressions.
+      description: |
+        Runs the query saved in the widget definition. The request cannot supply SQL or query expressions.
       operationId: queryDashboardWidget
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
@@ -25958,7 +25959,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardWidgetResult'
-          description: Bounded data for one widget.
+          description: Query result for one widget.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -25974,7 +25975,7 @@ paths:
       security:
       - GatewayBearer:
         - dashboard.read
-      summary: Query one widget from its stored definition.
+      summary: Query a dashboard widget.
       tags:
       - dashboards
   /api/event-trail-event:
@@ -41634,7 +41635,7 @@ tags:
   name: workflow-webhooks
 - description: Workspace chat inbox and preference APIs.
   name: chat-sessions
-- description: Agent-authored Workspace dashboards and retained data APIs.
+- description: Read and change Agent dashboards and their 30-day records.
   name: dashboards
 - description: Control plane routes.
   name: control

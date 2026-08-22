@@ -68,7 +68,7 @@ func (s *Service) dashboardBodyLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/dashboard") && r.Body != nil {
 			if r.ContentLength > dashboardMaxBodyBytes {
-				writeError(w, r, newAPIError(http.StatusRequestEntityTooLarge, "payload_too_large", "dashboard request body is too large", errors.New("dashboard request body exceeds one MiB")))
+				writeError(w, r, newAPIError(http.StatusRequestEntityTooLarge, "payload_too_large", "dashboard request body must not exceed 1 MiB", errors.New("dashboard request body exceeds 1 MiB")))
 				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, dashboardMaxBodyBytes)
@@ -147,7 +147,7 @@ func (s *Service) GetAgentDashboard(w http.ResponseWriter, r *http.Request, agen
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get Agent dashboard: %w", err))
+		writeInternalError(w, r, fmt.Errorf("get agent dashboard: %w", err))
 		return
 	}
 	s.writeStoredDashboard(w, r, storedDashboard{
@@ -184,7 +184,7 @@ func (s *Service) CreateAgentDashboard(w http.ResponseWriter, r *http.Request, a
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			writeError(w, r, newAPIError(http.StatusConflict, "conflict", "dashboard name already exists", err))
+			writeError(w, r, newAPIError(http.StatusConflict, "conflict", "a dashboard with this name already exists", err))
 			return
 		}
 		writeInternalError(w, r, fmt.Errorf("create dashboard: %w", err))
@@ -234,14 +234,14 @@ func (s *Service) ReplaceAgentDashboard(w http.ResponseWriter, r *http.Request, 
 		} else if getErr != nil {
 			writeInternalError(w, r, fmt.Errorf("check dashboard revision: %w", getErr))
 		} else {
-			writeError(w, r, newAPIError(http.StatusConflict, "revision_conflict", "dashboard revision changed", err))
+			writeError(w, r, newAPIError(http.StatusConflict, "revision_conflict", "dashboard changed since you loaded it", err))
 		}
 		return
 	}
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			writeError(w, r, newAPIError(http.StatusConflict, "conflict", "dashboard name already exists", err))
+			writeError(w, r, newAPIError(http.StatusConflict, "conflict", "a dashboard with this name already exists", err))
 			return
 		}
 		writeInternalError(w, r, fmt.Errorf("replace dashboard: %w", err))
@@ -293,7 +293,7 @@ func (s *Service) WriteDashboardData(w http.ResponseWriter, r *http.Request, age
 		return
 	}
 	if len(req.Records) == 0 || len(req.Records) > dashboardMaxWriteRecords {
-		err := fmt.Errorf("records must contain between 1 and %d items", dashboardMaxWriteRecords)
+		err := fmt.Errorf("records must contain 1 to %d items", dashboardMaxWriteRecords)
 		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_dashboard_data", err.Error(), err))
 		return
 	}
@@ -450,7 +450,7 @@ func (s *Service) QueryDashboardWidget(w http.ResponseWriter, r *http.Request, d
 	_, err = queries.GatewayAcquireDashboardQuerySlot(r.Context(), params.XAgentZWorkspaceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		w.Header().Set("Retry-After", "1")
-		writeError(w, r, newAPIError(http.StatusTooManyRequests, "query_busy", "too many dashboard queries are running", err))
+		writeError(w, r, newAPIError(http.StatusTooManyRequests, "query_busy", "all dashboard query slots are busy", err))
 		return
 	}
 	if err != nil {
@@ -527,7 +527,7 @@ func (s *Service) ListDashboardFilterOptions(w http.ResponseWriter, r *http.Requ
 	_, err = queries.GatewayAcquireDashboardQuerySlot(r.Context(), params.XAgentZWorkspaceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		w.Header().Set("Retry-After", "1")
-		writeError(w, r, newAPIError(http.StatusTooManyRequests, "query_busy", "too many dashboard queries are running", err))
+		writeError(w, r, newAPIError(http.StatusTooManyRequests, "query_busy", "all dashboard query slots are busy", err))
 		return
 	}
 	if err != nil {
@@ -584,13 +584,13 @@ func (s *Service) externalDashboard(w http.ResponseWriter, r *http.Request, dash
 
 func validateDashboardTimeRange(timeRange gatewayapi.DashboardTimeRange) error {
 	if !timeRange.From.Before(timeRange.To) {
-		return errors.New("time range from must be before to")
+		return errors.New("time_range.from must be earlier than time_range.to")
 	}
 	if timeRange.To.Sub(timeRange.From) > dashboardRetention {
-		return fmt.Errorf("time range cannot exceed %s", dashboardRetention)
+		return errors.New("time_range must not span more than 30 days")
 	}
 	if timeRange.To.After(time.Now().Add(5 * time.Minute)) {
-		return errors.New("time range cannot end in the future")
+		return errors.New("time_range.to must not be more than 5 minutes in the future")
 	}
 	return nil
 }
@@ -832,7 +832,7 @@ func (s *Service) writeStoredDashboard(w http.ResponseWriter, r *http.Request, r
 func (s *Service) dashboardAgentSession(w http.ResponseWriter, r *http.Request, agentName, sessionID string) (requestAuth, gatewaydb.ChatSessionKind, bool) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.actorType != requestActorSystem || auth.workspaceID == "" || auth.actorName != agentName {
-		writeError(w, r, newAPIError(http.StatusForbidden, "forbidden", "Agent dashboard access is forbidden", errors.New("invalid Agent request identity")))
+		writeError(w, r, newAPIError(http.StatusForbidden, "forbidden", "this session cannot access dashboards for the Agent", errors.New("invalid Agent request identity")))
 		return requestAuth{}, "", false
 	}
 	kind, err := s.queries.GatewayGetDashboardSessionKind(r.Context(), gatewaydb.GatewayGetDashboardSessionKindParams{
@@ -853,7 +853,7 @@ func requireInteractiveDashboardSession(w http.ResponseWriter, r *http.Request, 
 	if kind == gatewaydb.ChatSessionKindChat {
 		return true
 	}
-	writeError(w, r, newAPIError(http.StatusForbidden, "forbidden", "scheduled workflow sessions may only publish dashboard data", errors.New("interactive session required")))
+	writeError(w, r, newAPIError(http.StatusForbidden, "forbidden", "scheduled workflows can publish dashboard data but cannot change dashboards", errors.New("interactive session required")))
 	return false
 }
 
@@ -870,7 +870,7 @@ func (s *Service) consumeDashboardRateLimit(w http.ResponseWriter, r *http.Reque
 	if errors.Is(err, pgx.ErrNoRows) {
 		retry := max(1, int(time.Until(started.Add(window)).Seconds()))
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", retry))
-		writeError(w, r, newAPIError(http.StatusTooManyRequests, "rate_limited", "dashboard request rate exceeded", err))
+		writeError(w, r, newAPIError(http.StatusTooManyRequests, "rate_limited", "dashboard request limit reached", err))
 		return false
 	}
 	writeInternalError(w, r, fmt.Errorf("consume dashboard rate limit: %w", err))
@@ -879,7 +879,7 @@ func (s *Service) consumeDashboardRateLimit(w http.ResponseWriter, r *http.Reque
 
 func validateDashboardDefinition(definition gatewayapi.DashboardDefinition) error {
 	if len(definition.Dimensions)+len(definition.Measures) > dashboardMaxFields {
-		return fmt.Errorf("dashboard field contract may contain at most %d fields", dashboardMaxFields)
+		return fmt.Errorf("dashboard may declare at most %d fields across dimensions and measures", dashboardMaxFields)
 	}
 	dimensions := make(map[string]struct{}, len(definition.Dimensions))
 	measures := make(map[string]struct{}, len(definition.Measures))
@@ -891,7 +891,7 @@ func validateDashboardDefinition(definition gatewayapi.DashboardDefinition) erro
 	}
 	for _, measure := range definition.Measures {
 		if _, exists := dimensions[measure.Name]; exists {
-			return fmt.Errorf("field %q cannot be both a dimension and measure", measure.Name)
+			return fmt.Errorf("field %q cannot be both a dimension and a measure", measure.Name)
 		}
 		if _, exists := measures[measure.Name]; exists {
 			return fmt.Errorf("measure %q is duplicated", measure.Name)
@@ -977,28 +977,28 @@ func validateDashboardRecords(definition gatewayapi.DashboardDefinition, req gat
 	records := make([]dashboardRecordInput, 0, len(req.Records))
 	for index, record := range req.Records {
 		if record.ObservedAt.Before(now.Add(-dashboardRetention)) || record.ObservedAt.After(now.Add(5*time.Minute)) {
-			return nil, fmt.Errorf("record %d observed_at must be within the retained time range", index)
+			return nil, fmt.Errorf("records[%d].observed_at must be between 30 days ago and 5 minutes from now", index)
 		}
 		if req.Action == gatewayapi.Upsert && record.RecordKey == nil {
-			return nil, fmt.Errorf("record %d requires record_key for upsert", index)
+			return nil, fmt.Errorf("records[%d].record_key is required for upsert", index)
 		}
 		if record.RecordKey != nil {
 			if _, exists := keys[*record.RecordKey]; exists {
-				return nil, fmt.Errorf("record_key %q is duplicated in the batch", *record.RecordKey)
+				return nil, fmt.Errorf("records[%d].record_key duplicates %q", index, *record.RecordKey)
 			}
 			keys[*record.RecordKey] = struct{}{}
 		}
 		for name := range record.Dimensions {
 			if _, exists := dimensions[name]; !exists {
-				return nil, fmt.Errorf("record %d contains unknown dimension %q", index, name)
+				return nil, fmt.Errorf("records[%d].dimensions contains unknown field %q", index, name)
 			}
 		}
 		for name, value := range record.Measures {
 			if _, exists := measures[name]; !exists {
-				return nil, fmt.Errorf("record %d contains unknown measure %q", index, name)
+				return nil, fmt.Errorf("records[%d].measures contains unknown field %q", index, name)
 			}
 			if math.IsNaN(value) || math.IsInf(value, 0) {
-				return nil, fmt.Errorf("record %d measure %q must be finite", index, name)
+				return nil, fmt.Errorf("records[%d].measures.%s must be finite", index, name)
 			}
 		}
 		records = append(records, dashboardRecordInput{

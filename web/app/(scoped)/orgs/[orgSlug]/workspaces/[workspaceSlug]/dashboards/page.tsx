@@ -30,7 +30,7 @@ export default async function DashboardsPage({
     <main className="flex min-w-0 flex-1 flex-col gap-6">
       <AdministrationPageHeader
         title="Dashboards"
-        description="Live views assembled from data published by your agents and scheduled workflows."
+        description="Data published to this Workspace by agents and scheduled workflows."
       />
       <div className="px-4 pb-6 md:px-6">
         {directory.dashboards.length === 0 ? (
@@ -41,7 +41,8 @@ export default async function DashboardsPage({
               </EmptyMedia>
               <EmptyTitle>No dashboards yet</EmptyTitle>
               <EmptyDescription>
-                Ask an agent to create a dashboard after it has produced a representative dataset.
+                Run the agent task once, check the fields it produces, then ask the agent to build a
+                dashboard.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -62,7 +63,7 @@ export default async function DashboardsPage({
                     </p>
                   </CardHeader>
                   <CardContent className="text-muted-foreground line-clamp-3 text-sm">
-                    {dashboard.description || "No description provided."}
+                    {dashboard.description || "This dashboard has no description."}
                   </CardContent>
                 </Card>
               </Link>

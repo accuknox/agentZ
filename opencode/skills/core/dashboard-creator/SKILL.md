@@ -1,24 +1,24 @@
 ---
 name: dashboard-creator
-description: Design and maintain secure backend-driven AgentZ dashboards.
+description: Create and update AgentZ dashboards without executable query or presentation code.
 ---
 
 # Dashboard creator
 
-Use `manage_dashboards` to list or inspect existing definitions before changing one. Create and replace definitions only after the producing task has been exercised manually and the actual record shape is known.
+Use `manage_dashboards` to inspect existing dashboards before changing one. Run the task that will publish the data at least once, then use its actual fields to design the dashboard.
 
-A dashboard has one stable DNS-label `name`, human-facing title and description, and a closed field contract:
+A dashboard has a stable DNS-label `name`, a title, a description, and a field schema.
 
 - Dimensions are strings used for grouping and filtering.
 - Measures are finite numbers used for aggregation.
-- A field name is unique across both sets. Keep the total at 32 or fewer.
+- A name can appear in either dimensions or measures, never both. A dashboard may declare up to 32 fields in total.
 - Filters reference declared dimensions.
 - Widgets reference declared fields. Supported kinds are metric, line, area, bar, donut, and table.
 
-Metric, line, area, bar, and donut widgets require a measure and one of `sum`, `avg`, `min`, `max`, or `count`. Donut widgets require `group_by`. Table widgets require declared `columns`. Use `third`, `half`, or `full` widths to establish a coherent reading order.
+Metric, line, area, bar, and donut widgets require a measure and one of `sum`, `avg`, `min`, `max`, or `count`. Donut widgets also require `group_by`. Table widgets require `columns`. Put summary metrics before charts and tables, then choose `third`, `half`, or `full` for each widget's width.
 
-Definitions are data, not executable presentation code. Never put SQL, JSONPath, JavaScript, CSS, chart-library properties, arbitrary colors, URLs, or secrets in a definition. The gateway owns query compilation, output bounds, and the chart palette.
+Never put SQL, JSONPath, JavaScript, CSS, chart-library properties, colors, URLs, or secrets in a definition. The gateway chooses the SQL, caps each result, and assigns chart colors.
 
-Use `get` immediately before `replace` and pass its exact revision. Do not retry a revision conflict blindly; inspect the newer definition and reconcile the intended edit.
+Call `get` immediately before `replace` and pass the returned revision. If `replace` reports a revision conflict, fetch the dashboard again and apply your change to the newer definition.
 
-After creation, publish a small representative dataset with `write_dashboard_data` and verify every widget in the web dashboard before considering the work complete.
+After creation, publish enough test records to cover every filter and grouping used by the widgets. Open the dashboard and check every widget.

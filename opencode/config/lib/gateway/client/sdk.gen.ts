@@ -648,7 +648,7 @@ export type Options<
 }
 
 /**
- * List dashboards in the current Workspace.
+ * List dashboards for the current Workspace.
  */
 export const listDashboards = <ThrowOnError extends boolean = false>(
   options: Options<ListDashboardsData, ThrowOnError>
@@ -669,7 +669,7 @@ export const listDashboards = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Get one dashboard definition.
+ * Get a dashboard.
  */
 export const getDashboard = <ThrowOnError extends boolean = false>(
   options: Options<GetDashboardData, ThrowOnError>
@@ -690,9 +690,10 @@ export const getDashboard = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Query one widget from its stored definition.
+ * Query a dashboard widget.
  *
- * The server resolves the widget query; clients cannot submit query expressions.
+ * Runs the query saved in the widget definition. The request cannot supply SQL or query expressions.
+ *
  */
 export const queryDashboardWidget = <ThrowOnError extends boolean = false>(
   options: Options<QueryDashboardWidgetData, ThrowOnError>
@@ -721,7 +722,7 @@ export const queryDashboardWidget = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List bounded values for one stored dashboard filter.
+ * List up to 100 values for a dashboard filter.
  */
 export const listDashboardFilterOptions = <ThrowOnError extends boolean = false>(
   options: Options<ListDashboardFilterOptionsData, ThrowOnError>
@@ -750,7 +751,7 @@ export const listDashboardFilterOptions = <ThrowOnError extends boolean = false>
   })
 
 /**
- * List dashboard definitions owned by the calling Agent.
+ * List dashboards owned by the Agent.
  */
 export const listAgentDashboards = <ThrowOnError extends boolean = false>(
   options: Options<ListAgentDashboardsData, ThrowOnError>
@@ -829,7 +830,7 @@ export const deleteAgentDashboard = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Get one dashboard owned by the calling Agent.
+ * Get a dashboard owned by the Agent.
  */
 export const getAgentDashboard = <ThrowOnError extends boolean = false>(
   options: Options<GetAgentDashboardData, ThrowOnError>
@@ -881,7 +882,7 @@ export const replaceAgentDashboard = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Delete keyed records from an interactive Agent session.
+ * Delete dashboard records by key from an interactive Agent session.
  */
 export const deleteDashboardData = <ThrowOnError extends boolean = false>(
   options: Options<DeleteDashboardDataData, ThrowOnError>
@@ -910,7 +911,7 @@ export const deleteDashboardData = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Append or upsert retained dashboard records.
+ * Append or upsert dashboard records.
  */
 export const writeDashboardData = <ThrowOnError extends boolean = false>(
   options: Options<WriteDashboardDataData, ThrowOnError>

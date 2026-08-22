@@ -5,7 +5,7 @@ import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
 export default tool({
   description:
-    "Delete explicitly keyed dashboard records. This destructive tool is restricted to interactive sessions and never deletes unkeyed history.",
+    "Delete dashboard records by record key. Only interactive chat sessions may run this tool. It cannot delete records without keys.",
   args: {
     dashboard_name: tool.schema
       .string()
@@ -34,11 +34,11 @@ export default tool({
       throwOnError: false,
     })
     if (result.data) {
-      return `Deleted ${result.data.affected} keyed dashboard records.`
+      return `Deleted ${result.data.affected} dashboard records.`
     }
     const error = zError.safeParse(result.error)
     return error.success
       ? workflowErrorOutput(error.data)
-      : "The dashboard service returned an unexpected error shape."
+      : "The dashboard service returned an invalid response."
   },
 })

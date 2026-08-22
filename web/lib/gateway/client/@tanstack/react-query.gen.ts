@@ -516,7 +516,7 @@ export const listDashboardsQueryKey = (options: Options<ListDashboardsData>) =>
   createQueryKey("listDashboards", options)
 
 /**
- * List dashboards in the current Workspace.
+ * List dashboards for the current Workspace.
  */
 export const listDashboardsOptions = (options: Options<ListDashboardsData>) =>
   queryOptions<
@@ -541,7 +541,7 @@ export const getDashboardQueryKey = (options: Options<GetDashboardData>) =>
   createQueryKey("getDashboard", options)
 
 /**
- * Get one dashboard definition.
+ * Get a dashboard.
  */
 export const getDashboardOptions = (options: Options<GetDashboardData>) =>
   queryOptions<
@@ -563,9 +563,10 @@ export const getDashboardOptions = (options: Options<GetDashboardData>) =>
   })
 
 /**
- * Query one widget from its stored definition.
+ * Query a dashboard widget.
  *
- * The server resolves the widget query; clients cannot submit query expressions.
+ * Runs the query saved in the widget definition. The request cannot supply SQL or query expressions.
+ *
  */
 export const queryDashboardWidgetMutation = (
   options?: Partial<Options<QueryDashboardWidgetData>>
@@ -592,7 +593,7 @@ export const queryDashboardWidgetMutation = (
 }
 
 /**
- * List bounded values for one stored dashboard filter.
+ * List up to 100 values for a dashboard filter.
  */
 export const listDashboardFilterOptionsMutation = (
   options?: Partial<Options<ListDashboardFilterOptionsData>>
@@ -622,7 +623,7 @@ export const listAgentDashboardsQueryKey = (options: Options<ListAgentDashboards
   createQueryKey("listAgentDashboards", options)
 
 /**
- * List dashboard definitions owned by the calling Agent.
+ * List dashboards owned by the Agent.
  */
 export const listAgentDashboardsOptions = (options: Options<ListAgentDashboardsData>) =>
   queryOptions<
@@ -701,7 +702,7 @@ export const getAgentDashboardQueryKey = (options: Options<GetAgentDashboardData
   createQueryKey("getAgentDashboard", options)
 
 /**
- * Get one dashboard owned by the calling Agent.
+ * Get a dashboard owned by the Agent.
  */
 export const getAgentDashboardOptions = (options: Options<GetAgentDashboardData>) =>
   queryOptions<
@@ -750,7 +751,7 @@ export const replaceAgentDashboardMutation = (
 }
 
 /**
- * Delete keyed records from an interactive Agent session.
+ * Delete dashboard records by key from an interactive Agent session.
  */
 export const deleteDashboardDataMutation = (
   options?: Partial<Options<DeleteDashboardDataData>>
@@ -777,7 +778,7 @@ export const deleteDashboardDataMutation = (
 }
 
 /**
- * Append or upsert retained dashboard records.
+ * Append or upsert dashboard records.
  */
 export const writeDashboardDataMutation = (
   options?: Partial<Options<WriteDashboardDataData>>

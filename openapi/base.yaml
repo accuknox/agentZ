@@ -40,13 +40,13 @@ tags:
 - name: chat-sessions
   description: Workspace chat inbox and preference APIs.
 - name: dashboards
-  description: Agent-authored Workspace dashboards and retained data APIs.
+  description: Read and change Agent dashboards and their 30-day records.
 
 paths:
   /api/dashboard:
     get:
       operationId: listDashboards
-      summary: List dashboards in the current Workspace.
+      summary: List dashboards for the current Workspace.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
@@ -54,7 +54,7 @@ paths:
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
-          description: Paginated dashboard summaries.
+          description: One page of dashboard summaries.
           content:
             application/json:
               schema:
@@ -68,14 +68,14 @@ paths:
   /api/dashboard/{dashboardId}:
     get:
       operationId: getDashboard
-      summary: Get one dashboard definition.
+      summary: Get a dashboard.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
       - $ref: '#/components/parameters/DashboardIDPath'
       responses:
         '200':
-          description: Dashboard definition and current revision.
+          description: Dashboard definition with its current revision.
           content:
             application/json:
               schema:
@@ -89,8 +89,10 @@ paths:
   /api/dashboard/{dashboardId}/widget/{widgetId}/query:
     post:
       operationId: queryDashboardWidget
-      summary: Query one widget from its stored definition.
-      description: The server resolves the widget query; clients cannot submit query expressions.
+      summary: Query a dashboard widget.
+      description: >
+        Runs the query saved in the widget definition. The request cannot supply
+        SQL or query expressions.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
@@ -104,7 +106,7 @@ paths:
               $ref: '#/components/schemas/DashboardQueryRequest'
       responses:
         '200':
-          description: Bounded data for one widget.
+          description: Query result for one widget.
           content:
             application/json:
               schema:
@@ -119,7 +121,7 @@ paths:
   /api/dashboard/{dashboardId}/filter/{filterId}/options:
     post:
       operationId: listDashboardFilterOptions
-      summary: List bounded values for one stored dashboard filter.
+      summary: List up to 100 values for a dashboard filter.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
@@ -133,7 +135,7 @@ paths:
               $ref: '#/components/schemas/DashboardTimeRange'
       responses:
         '200':
-          description: Distinct filter values in the selected time range.
+          description: Distinct filter values found in the requested time range.
           content:
             application/json:
               schema:
@@ -148,7 +150,7 @@ paths:
   /api/agent/{agentName}/dashboard:
     get:
       operationId: listAgentDashboards
-      summary: List dashboard definitions owned by the calling Agent.
+      summary: List dashboards owned by the Agent.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -157,7 +159,7 @@ paths:
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
         '200':
-          description: Paginated Agent dashboard summaries.
+          description: One page of dashboards owned by the Agent.
           content:
             application/json:
               schema:
@@ -182,7 +184,7 @@ paths:
               $ref: '#/components/schemas/DashboardDefinition'
       responses:
         '201':
-          description: Created dashboard.
+          description: Dashboard created by the Agent.
           content:
             application/json:
               schema:
@@ -198,7 +200,7 @@ paths:
   /api/agent/{agentName}/dashboard/{dashboardName}:
     get:
       operationId: getAgentDashboard
-      summary: Get one dashboard owned by the calling Agent.
+      summary: Get a dashboard owned by the Agent.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -206,7 +208,7 @@ paths:
       - $ref: '#/components/parameters/AgentSessionIDHeader'
       responses:
         '200':
-          description: Dashboard definition and current revision.
+          description: Dashboard definition with its current revision.
           content:
             application/json:
               schema:
@@ -232,7 +234,7 @@ paths:
               $ref: '#/components/schemas/ReplaceDashboardRequest'
       responses:
         '200':
-          description: Replaced dashboard and new revision.
+          description: Updated dashboard with its new revision.
           content:
             application/json:
               schema:
@@ -264,7 +266,7 @@ paths:
   /api/agent/{agentName}/dashboard/{dashboardName}/data:
     post:
       operationId: writeDashboardData
-      summary: Append or upsert retained dashboard records.
+      summary: Append or upsert dashboard records.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -278,7 +280,7 @@ paths:
               $ref: '#/components/schemas/WriteDashboardDataRequest'
       responses:
         '200':
-          description: Record mutation counts.
+          description: Number of records written.
           content:
             application/json:
               schema:
@@ -292,7 +294,7 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
     delete:
       operationId: deleteDashboardData
-      summary: Delete keyed records from an interactive Agent session.
+      summary: Delete dashboard records by key from an interactive Agent session.
       tags: [dashboards]
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
@@ -306,7 +308,7 @@ paths:
               $ref: '#/components/schemas/DeleteDashboardDataRequest'
       responses:
         '200':
-          description: Record deletion count.
+          description: Number of records deleted.
           content:
             application/json:
               schema:
@@ -3721,7 +3723,7 @@ components:
       name: X-AgentZ-Workspace-ID
       in: header
       required: true
-      description: Stable Workspace ID selecting the exact authorized scope.
+      description: Workspace ID used for authorization and data lookup.
       schema:
         type: string
         minLength: 1
@@ -3846,7 +3848,7 @@ components:
       name: X-AgentZ-Session-ID
       in: header
       required: true
-      description: OpenCode session that invoked the Agent tool.
+      description: OpenCode session ID supplied to the Agent tool.
       schema:
         type: string
         minLength: 1
@@ -4272,10 +4274,11 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     TooManyRequests:
-      description: A scoped request rate or query concurrency limit was reached.
+      description: >
+        The caller exceeded a rate limit or all allowed query slots are busy.
       headers:
         Retry-After:
-          description: Seconds until this request may be retried.
+          description: Seconds to wait before retrying.
           schema:
             type: integer
             minimum: 1
@@ -4364,8 +4367,8 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Closed widget definition. Query fields are interpreted only by the
-        gateway and validated against the dashboard field contract.
+        Declares the widget type, fields, grouping, sort, and width. The gateway
+        rejects fields that are missing from the dashboard definition.
       properties:
         id: {$ref: '#/components/schemas/DashboardIdentifier'}
         title:

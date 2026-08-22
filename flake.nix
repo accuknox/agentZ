@@ -18,7 +18,7 @@
             src = ./.;
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-OQCX2bozUS1X8CKzoH4XTg5HAJL5enffg03Ro1t9BqE=";
+            vendorHash = "sha256-gyhfjyxY4QlQGHMRShe//tNNIhVKPRVB6XFtBhvaiOw=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";
@@ -48,7 +48,7 @@
             dontFixup = true;
             outputHashMode = "recursive";
             outputHashAlgo = "sha256";
-            outputHash = "sha256-4YQOwvbC6pep7vV6Tfuq4bdV3n3IsKeqFKM9rwYBZsg=";
+            outputHash = "sha256-mG6r82SefFgegYtf/D9DpxX44Fao29aXS1vlZLXwXPc=";
           };
           cfg = pkgs.runCommand "opencode-config" { } ''
             mkdir -p \
@@ -91,7 +91,10 @@
                 "delete_workflows": true,
                 "delete_workflow_schedule": true,
                 "update_workflow_schedule": true,
-                "set_workflowrun_status": false
+                "set_workflowrun_status": false,
+                "manage_dashboards": true,
+                "write_dashboard_data": true,
+                "delete_dashboard_data": true
               }
             }
             EOF

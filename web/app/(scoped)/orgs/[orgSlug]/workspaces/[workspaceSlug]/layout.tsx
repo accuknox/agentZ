@@ -146,6 +146,7 @@ export default async function WorkspaceLayout({
             scope={{
               canCreateWorkspace: result.directory.can_create,
               canEnterOrganization: result.directory.can_enter_organization,
+              dashboardCapabilities: result.workspace.capabilities.dashboards,
               kind: "workspace",
               mcpConnectionCapabilities: result.workspace.capabilities.mcp_connections,
               inferencePoolCapabilities: result.workspace.capabilities.inference_pools,

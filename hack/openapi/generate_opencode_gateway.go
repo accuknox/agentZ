@@ -40,6 +40,12 @@ type operationCapability struct {
 }
 
 var baseOperationCapabilities = map[string][]string{
+	"dashboard.read": {
+		"getDashboard",
+		"listDashboardFilterOptions",
+		"listDashboards",
+		"queryDashboardWidget",
+	},
 	"agent.author": {
 		"createAgent",
 	},
@@ -50,6 +56,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+		"createAgentDashboard",
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
@@ -57,6 +64,8 @@ var baseOperationCapabilities = map[string][]string{
 		"createWorkflowSchedule",
 		"deleteAgent",
 		"deleteAgentEntry",
+		"deleteAgentDashboard",
+		"deleteDashboardData",
 		"deleteAgentMutableSkills",
 		"deleteAgentShare",
 		"deleteWorkflowRun",
@@ -64,11 +73,13 @@ var baseOperationCapabilities = map[string][]string{
 		"deleteWorkflowSchedule",
 		"exportAgentMutableSkills",
 		"getChatSessionPreference",
+		"getAgentDashboard",
 		"importMutableSkills",
 		"getAgentOwner",
 		"getWorkflow",
 		"getWorkflowRun",
 		"listAgents",
+		"listAgentDashboards",
 		"listChatSessions",
 		"listAgentAccessTargets",
 		"listAgentMutableSkills",
@@ -81,6 +92,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listWorkflowWebhookTriggers",
 		"readAgentFile",
 		"readAgentFileRaw",
+		"replaceAgentDashboard",
 		"renameAgentEntry",
 		"statAgentFile",
 		"transferAgentOwner",
@@ -93,6 +105,7 @@ var baseOperationCapabilities = map[string][]string{
 		"watchWorkflowRuns",
 		"writeAgentFile",
 		"writeAgentFileRaw",
+		"writeDashboardData",
 	},
 	"agent.write_shared_secret": {
 		"putSecret",

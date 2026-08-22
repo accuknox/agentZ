@@ -801,6 +801,29 @@ func workflowAgentAccess(r *http.Request) (string, string, bool) {
 	}
 
 	switch chi.RouteContext(r.Context()).RoutePattern() {
+	case "/api/agent/{agentName}/dashboard":
+		switch r.Method {
+		case http.MethodGet:
+			return agentName, "list-dashboards", true
+		case http.MethodPost:
+			return agentName, "create-dashboard", true
+		}
+	case "/api/agent/{agentName}/dashboard/{dashboardName}":
+		switch r.Method {
+		case http.MethodGet:
+			return agentName, "get-dashboard", true
+		case http.MethodPut:
+			return agentName, "replace-dashboard", true
+		case http.MethodDelete:
+			return agentName, "delete-dashboard", true
+		}
+	case "/api/agent/{agentName}/dashboard/{dashboardName}/data":
+		switch r.Method {
+		case http.MethodPost:
+			return agentName, "write-dashboard-data", true
+		case http.MethodDelete:
+			return agentName, "delete-dashboard-data", true
+		}
 	case "/api/workflow/{agentName}":
 		return workflowAgentAccessRoot(agentName, r.Method)
 	case "/api/workflow/{agentName}/schedule":

@@ -133,6 +133,9 @@ export async function resolveWorkspaceDestination(
   if (scope.scope.organization.superadmin || scope.workspace.capabilities.administer) {
     return `${root}/roles` as Route
   }
+  if (scope.workspace.capabilities.dashboards.read) {
+    return `${root}/dashboards` as Route
+  }
   if (scope.workspace.capabilities.observability.read) {
     return `${root}/lens/traces` as Route
   }

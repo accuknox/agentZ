@@ -2,6 +2,165 @@
 
 import * as z from "zod"
 
+export const zDashboardIdentifier = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9_]*$/)
+
+export const zDashboardName = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zDashboardDimension = z.object({
+  name: zDashboardIdentifier,
+  label: z.string().min(1).max(128),
+})
+
+export const zDashboardMeasure = z.object({
+  name: zDashboardIdentifier,
+  label: z.string().min(1).max(128),
+  unit: z.string().max(32).optional(),
+})
+
+/**
+ * A categorical dimension filter. Every dashboard separately receives a system-owned observed_at calendar range.
+ *
+ */
+export const zDashboardFilter = z.object({
+  id: zDashboardIdentifier,
+  label: z.string().min(1).max(128),
+  field: zDashboardIdentifier,
+  multiple: z.boolean(),
+})
+
+export const zDashboardWidgetKind = z.enum(["metric", "line", "area", "bar", "donut", "table"])
+
+export const zDashboardWidgetWidth = z.enum(["third", "half", "full"])
+
+export const zDashboardAggregation = z.enum(["count", "sum", "avg", "min", "max"])
+
+export const zDashboardSortDirection = z.enum(["asc", "desc"])
+
+/**
+ * Declares the widget type, fields, grouping, sort, and width. The gateway rejects fields that are missing from the dashboard definition.
+ *
+ */
+export const zDashboardWidget = z.object({
+  id: zDashboardIdentifier,
+  title: z.string().min(1).max(256),
+  description: z.string().max(1024).optional(),
+  kind: zDashboardWidgetKind,
+  width: zDashboardWidgetWidth,
+  aggregation: zDashboardAggregation.optional(),
+  measure: zDashboardIdentifier.optional(),
+  group_by: zDashboardIdentifier.optional(),
+  stacked: z.boolean().optional(),
+  columns: z.array(z.string().min(1).max(64)).max(32).optional(),
+  sort_by: z.string().min(1).max(64).optional(),
+  sort_direction: zDashboardSortDirection.optional(),
+  limit: z.int().gte(1).lte(100).optional(),
+})
+
+export const zDashboardDefinition = z.object({
+  name: zDashboardName,
+  title: z.string().min(1).max(256),
+  description: z.string().max(2048),
+  dimensions: z.array(zDashboardDimension).max(32),
+  measures: z.array(zDashboardMeasure).max(32),
+  filters: z.array(zDashboardFilter).max(32),
+  widgets: z.array(zDashboardWidget).max(64),
+})
+
+export const zReplaceDashboardRequest = z.object({
+  expected_revision: z
+    .int()
+    .gte(1)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  definition: zDashboardDefinition,
+})
+
+export const zDashboardDataAction = z.enum(["append", "upsert"])
+
+export const zDashboardDataRecord = z.object({
+  record_key: z.string().min(1).max(256).optional(),
+  observed_at: z.iso.datetime(),
+  dimensions: z.record(z.string(), z.string().max(1024)),
+  measures: z.record(z.string(), z.number()),
+})
+
+export const zWriteDashboardDataRequest = z.object({
+  action: zDashboardDataAction,
+  records: z.array(zDashboardDataRecord).min(1).max(100),
+})
+
+export const zDeleteDashboardDataRequest = z.object({
+  record_keys: z.array(z.string().min(1).max(256)).min(1).max(100),
+})
+
+export const zDashboardDataMutationResponse = z.object({
+  affected: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+})
+
+export const zDashboardTimeRange = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+})
+
+export const zDashboardQueryFilter = z.object({
+  filter_id: zDashboardIdentifier,
+  values: z.array(z.string().max(1024)).min(1).max(100),
+})
+
+export const zDashboardQueryRequest = z.object({
+  time_range: zDashboardTimeRange,
+  filters: z.array(zDashboardQueryFilter).max(32),
+})
+
+export const zDashboardSeries = z.object({
+  key: z.string(),
+  label: z.string(),
+})
+
+export const zDashboardPoint = z.object({
+  key: z.string(),
+  label: z.string(),
+  values: z.array(z.number()),
+})
+
+export const zDashboardTableRow = z.object({
+  cells: z.array(z.string()),
+})
+
+export const zDashboardWidgetResult = z.object({
+  widget_id: zDashboardIdentifier,
+  kind: zDashboardWidgetKind,
+  revision: z
+    .int()
+    .gte(1)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  generated_at: z.iso.datetime(),
+  total: z.number().nullable(),
+  series: z.array(zDashboardSeries),
+  points: z.array(zDashboardPoint),
+  columns: z.array(z.string()),
+  rows: z.array(zDashboardTableRow),
+  next_page_token: z.string(),
+})
+
+export const zDashboardFilterOptions = z.object({
+  filter_id: zDashboardIdentifier,
+  revision: z
+    .int()
+    .gte(1)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  values: z.array(z.string()),
+})
+
 export const zChatSessionKind = z.enum(["chat", "workflow_run"])
 
 export const zChatSessionStatus = z.enum(["idle", "busy", "retry"])
@@ -33,6 +192,7 @@ export const zEventTrailTargetType = z.enum([
   "inference_provider",
   "inference_pool",
   "agent",
+  "dashboard",
 ])
 
 export const zEventTrailField = z.object({
@@ -196,6 +356,7 @@ export const zWorkspaceCapabilities = z.object({
   inference_pools: zResourceCapabilities,
   api_keys: zResourceCapabilities,
   observability: zResourceCapabilities,
+  dashboards: zResourceCapabilities,
 })
 
 export const zWorkspace = z.object({
@@ -299,6 +460,39 @@ export const zAgentName = z
   .min(1)
   .max(32)
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zDashboardSummary = z.object({
+  id: z.string(),
+  agent_name: zAgentName,
+  name: zDashboardName,
+  title: z.string(),
+  description: z.string(),
+  revision: z
+    .int()
+    .gte(1)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  widget_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  updated_at: z.iso.datetime(),
+})
+
+export const zDashboard = z.object({
+  id: z.string(),
+  agent_name: zAgentName,
+  revision: z
+    .int()
+    .gte(1)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  definition: zDashboardDefinition,
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+})
+
+export const zListDashboardsResponse = z.object({
+  dashboards: z.array(zDashboardSummary),
+  next_page_token: z.string(),
+})
 
 export const zChatSession = z.object({
   agent_name: zAgentName,
@@ -2228,6 +2422,11 @@ export const zUpdateInferenceProviderRequestWritable = z.object({
 })
 
 /**
+ * Workspace ID used for authorization and data lookup.
+ */
+export const zWorkspaceIdRequiredHeader = z.string().min(1).max(128)
+
+/**
  * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
  *
  */
@@ -2281,6 +2480,19 @@ export const zChatSessionLimitQuery = z.int().gte(1).lte(50).default(10)
  * Agent name.
  */
 export const zAgentNamePath = zAgentName
+
+/**
+ * OpenCode session ID supplied to the Agent tool.
+ */
+export const zAgentSessionIdHeader = z.string().min(1).max(256)
+
+export const zDashboardIdPath = z.string().min(1).max(128)
+
+export const zDashboardNamePath = zDashboardName
+
+export const zDashboardWidgetIdPath = zDashboardIdentifier
+
+export const zDashboardFilterIdPath = zDashboardIdentifier
 
 /**
  * Stable Agent Share ID.
@@ -2453,6 +2665,61 @@ export const zFromDateQuery = z.iso.date()
  * Inclusive upper bound for MCP tool activity date.
  */
 export const zToDateQuery = z.iso.date()
+
+/**
+ * One page of dashboard summaries.
+ */
+export const zListDashboardsResponse2 = zListDashboardsResponse
+
+/**
+ * Dashboard definition with its current revision.
+ */
+export const zGetDashboardResponse = zDashboard
+
+/**
+ * Query result for one widget.
+ */
+export const zQueryDashboardWidgetResponse = zDashboardWidgetResult
+
+/**
+ * Distinct filter values found in the requested time range.
+ */
+export const zListDashboardFilterOptionsResponse = zDashboardFilterOptions
+
+/**
+ * One page of dashboards owned by the Agent.
+ */
+export const zListAgentDashboardsResponse = zListDashboardsResponse
+
+/**
+ * Dashboard created by the Agent.
+ */
+export const zCreateAgentDashboardResponse = zDashboard
+
+/**
+ * Dashboard deleted.
+ */
+export const zDeleteAgentDashboardResponse = z.void()
+
+/**
+ * Dashboard definition with its current revision.
+ */
+export const zGetAgentDashboardResponse = zDashboard
+
+/**
+ * Updated dashboard with its new revision.
+ */
+export const zReplaceAgentDashboardResponse = zDashboard
+
+/**
+ * Number of records deleted.
+ */
+export const zDeleteDashboardDataResponse = zDashboardDataMutationResponse
+
+/**
+ * Number of records written.
+ */
+export const zWriteDashboardDataResponse = zDashboardDataMutationResponse
 
 /**
  * Paginated chat sessions and available participant filters.

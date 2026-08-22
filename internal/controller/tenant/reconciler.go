@@ -253,11 +253,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				Message:            "Agent allocations are within Tenant quota",
 				ObservedGeneration: current.Generation,
 			}
-			if exceeded.Count {
+			switch {
+			case exceeded.Count:
 				quotaCondition.Status = metav1.ConditionFalse
 				quotaCondition.Reason = agentzv1alpha1.TenantReasonAgentCountExceeded
 				quotaCondition.Message = "Agent count exceeds Tenant quota"
-			} else if exceeded.CPU || exceeded.Memory {
+			case exceeded.CPU || exceeded.Memory:
 				quotaCondition.Status = metav1.ConditionFalse
 				quotaCondition.Reason = agentzv1alpha1.TenantReasonComputeQuotaExceeded
 				quotaCondition.Message = "Agent resource requests exceed Tenant quota"

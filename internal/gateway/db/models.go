@@ -422,6 +422,7 @@ const (
 	EventTrailTargetApiKey                 EventTrailTarget = "api_key"
 	EventTrailTargetWorkspaceAccess        EventTrailTarget = "workspace_access"
 	EventTrailTargetWorkspace              EventTrailTarget = "workspace"
+	EventTrailTargetDashboard              EventTrailTarget = "dashboard"
 )
 
 func (e *EventTrailTarget) Scan(src interface{}) error {
@@ -521,6 +522,7 @@ const (
 	PermissionResourceAgent             PermissionResource = "agent"
 	PermissionResourceApiKey            PermissionResource = "api_key"
 	PermissionResourceObservability     PermissionResource = "observability"
+	PermissionResourceDashboard         PermissionResource = "dashboard"
 )
 
 func (e *PermissionResource) Scan(src interface{}) error {
@@ -818,6 +820,38 @@ type CleanupJob struct {
 	CreatedAt      pgtype.Timestamptz   `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz   `json:"updated_at"`
 	CompletedAt    pgtype.Timestamptz   `json:"completed_at"`
+}
+
+type Dashboard struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	AgentName      string             `json:"agent_name"`
+	Name           string             `json:"name"`
+	Revision       int32              `json:"revision"`
+	Definition     []byte             `json:"definition"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DashboardRateLimit struct {
+	Key             string             `json:"key"`
+	WindowStartedAt pgtype.Timestamptz `json:"window_started_at"`
+	Count           int32              `json:"count"`
+}
+
+type DashboardRecord struct {
+	ID          string             `json:"id"`
+	DashboardID string             `json:"dashboard_id"`
+	WorkspaceID string             `json:"workspace_id"`
+	RecordKey   pgtype.Text        `json:"record_key"`
+	SessionID   string             `json:"session_id"`
+	ObservedAt  pgtype.Timestamptz `json:"observed_at"`
+	IngestedAt  pgtype.Timestamptz `json:"ingested_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	Dimensions  []byte             `json:"dimensions"`
+	Measures    []byte             `json:"measures"`
 }
 
 type EventTrailEvent struct {

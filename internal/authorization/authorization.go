@@ -134,6 +134,8 @@ const (
 	OperationDeleteAPIKey Operation = "deleteAPIKey"
 	// OperationReadObservability reads Workspace observability.
 	OperationReadObservability Operation = "readObservability"
+	// OperationReadDashboards reads Workspace dashboards and their retained data.
+	OperationReadDashboards Operation = "readDashboards"
 )
 
 // BearerScope returns the generated bearer scope for the operation.
@@ -561,6 +563,8 @@ func mapOperation(operation Operation) (gatewaydb.PermissionResource, gatewaydb.
 		return gatewaydb.PermissionResourceApiKey, gatewaydb.PermissionActionDelete, true
 	case OperationReadObservability:
 		return gatewaydb.PermissionResourceObservability, gatewaydb.PermissionActionRead, true
+	case OperationReadDashboards:
+		return gatewaydb.PermissionResourceDashboard, gatewaydb.PermissionActionRead, true
 	default:
 		return "", "", false
 	}

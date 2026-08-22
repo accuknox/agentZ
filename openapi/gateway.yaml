@@ -43,6 +43,15 @@ components:
       required: false
       schema:
         $ref: '#/components/schemas/AgentName'
+    AgentSessionIDHeader:
+      description: OpenCode session ID supplied to the Agent tool.
+      in: header
+      name: X-AgentZ-Session-ID
+      required: true
+      schema:
+        maxLength: 256
+        minLength: 1
+        type: string
     AgentShareIDPath:
       description: Stable Agent Share ID.
       in: path
@@ -76,6 +85,32 @@ components:
         type: array
         uniqueItems: true
       style: form
+    DashboardFilterIDPath:
+      in: path
+      name: filterId
+      required: true
+      schema:
+        $ref: '#/components/schemas/DashboardIdentifier'
+    DashboardIDPath:
+      in: path
+      name: dashboardId
+      required: true
+      schema:
+        maxLength: 128
+        minLength: 1
+        type: string
+    DashboardNamePath:
+      in: path
+      name: dashboardName
+      required: true
+      schema:
+        $ref: '#/components/schemas/DashboardName'
+    DashboardWidgetIDPath:
+      in: path
+      name: widgetId
+      required: true
+      schema:
+        $ref: '#/components/schemas/DashboardIdentifier'
     EventTimeAfterQuery:
       description: Inclusive lower bound for event time.
       in: query
@@ -411,6 +446,15 @@ components:
         maxLength: 128
         minLength: 1
         type: string
+    WorkspaceIDRequiredHeader:
+      description: Workspace ID used for authorization and data lookup.
+      in: header
+      name: X-AgentZ-Workspace-ID
+      required: true
+      schema:
+        maxLength: 128
+        minLength: 1
+        type: string
     WorkspaceSlugPath:
       description: Current or historical Workspace slug.
       in: path
@@ -466,6 +510,19 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
       description: Request body or expanded content exceeds a documented limit.
+    TooManyRequests:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      description: |
+        The caller exceeded a rate limit or all allowed query slots are busy.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            minimum: 1
+            type: integer
     Unauthorized:
       content:
         application/json:
@@ -1432,6 +1489,463 @@ components:
       - admin_member_ids
       - selected_organization_resources
       type: object
+    Dashboard:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        created_at:
+          format: date-time
+          type: string
+        definition:
+          $ref: '#/components/schemas/DashboardDefinition'
+        id:
+          type: string
+        revision:
+          format: int32
+          minimum: 1
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+      required:
+      - id
+      - agent_name
+      - revision
+      - definition
+      - created_at
+      - updated_at
+      type: object
+    DashboardAggregation:
+      enum:
+      - count
+      - sum
+      - avg
+      - min
+      - max
+      type: string
+    DashboardDataAction:
+      enum:
+      - append
+      - upsert
+      type: string
+    DashboardDataMutationResponse:
+      additionalProperties: false
+      properties:
+        affected:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+      - affected
+      type: object
+    DashboardDataRecord:
+      additionalProperties: false
+      properties:
+        dimensions:
+          additionalProperties:
+            maxLength: 1024
+            type: string
+          maxProperties: 32
+          type: object
+        measures:
+          additionalProperties:
+            format: double
+            type: number
+          maxProperties: 32
+          type: object
+        observed_at:
+          format: date-time
+          type: string
+        record_key:
+          maxLength: 256
+          minLength: 1
+          type: string
+      required:
+      - observed_at
+      - dimensions
+      - measures
+      type: object
+    DashboardDefinition:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 2048
+          type: string
+        dimensions:
+          items:
+            $ref: '#/components/schemas/DashboardDimension'
+          maxItems: 32
+          type: array
+          uniqueItems: true
+        filters:
+          items:
+            $ref: '#/components/schemas/DashboardFilter'
+          maxItems: 32
+          type: array
+        measures:
+          items:
+            $ref: '#/components/schemas/DashboardMeasure'
+          maxItems: 32
+          type: array
+          uniqueItems: true
+        name:
+          $ref: '#/components/schemas/DashboardName'
+        title:
+          maxLength: 256
+          minLength: 1
+          type: string
+        widgets:
+          items:
+            $ref: '#/components/schemas/DashboardWidget'
+          maxItems: 64
+          type: array
+      required:
+      - name
+      - title
+      - description
+      - dimensions
+      - measures
+      - filters
+      - widgets
+      type: object
+    DashboardDimension:
+      additionalProperties: false
+      properties:
+        label:
+          maxLength: 128
+          minLength: 1
+          type: string
+        name:
+          $ref: '#/components/schemas/DashboardIdentifier'
+      required:
+      - name
+      - label
+      type: object
+    DashboardFilter:
+      additionalProperties: false
+      description: |
+        A categorical dimension filter. Every dashboard separately receives a system-owned observed_at calendar range.
+      properties:
+        field:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        id:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        label:
+          maxLength: 128
+          minLength: 1
+          type: string
+        multiple:
+          type: boolean
+      required:
+      - id
+      - label
+      - field
+      - multiple
+      type: object
+    DashboardFilterOptions:
+      additionalProperties: false
+      properties:
+        filter_id:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        revision:
+          format: int32
+          minimum: 1
+          type: integer
+        values:
+          items:
+            type: string
+          type: array
+      required:
+      - filter_id
+      - revision
+      - values
+      type: object
+    DashboardIdentifier:
+      maxLength: 64
+      minLength: 1
+      pattern: ^[a-z][a-z0-9_]*$
+      type: string
+    DashboardMeasure:
+      additionalProperties: false
+      properties:
+        label:
+          maxLength: 128
+          minLength: 1
+          type: string
+        name:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        unit:
+          maxLength: 32
+          type: string
+      required:
+      - name
+      - label
+      type: object
+    DashboardName:
+      maxLength: 64
+      minLength: 1
+      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+      type: string
+    DashboardPoint:
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        values:
+          items:
+            format: double
+            type: number
+          type: array
+      required:
+      - key
+      - label
+      - values
+      type: object
+    DashboardQueryFilter:
+      additionalProperties: false
+      properties:
+        filter_id:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        values:
+          items:
+            maxLength: 1024
+            type: string
+          maxItems: 100
+          minItems: 1
+          type: array
+          uniqueItems: true
+      required:
+      - filter_id
+      - values
+      type: object
+    DashboardQueryRequest:
+      additionalProperties: false
+      properties:
+        filters:
+          items:
+            $ref: '#/components/schemas/DashboardQueryFilter'
+          maxItems: 32
+          type: array
+        time_range:
+          $ref: '#/components/schemas/DashboardTimeRange'
+      required:
+      - time_range
+      - filters
+      type: object
+    DashboardSeries:
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+      required:
+      - key
+      - label
+      type: object
+    DashboardSortDirection:
+      enum:
+      - asc
+      - desc
+      type: string
+    DashboardSummary:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          $ref: '#/components/schemas/DashboardName'
+        revision:
+          format: int32
+          minimum: 1
+          type: integer
+        title:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        widget_count:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+      - id
+      - agent_name
+      - name
+      - title
+      - description
+      - revision
+      - widget_count
+      - updated_at
+      type: object
+    DashboardTableRow:
+      additionalProperties: false
+      properties:
+        cells:
+          items:
+            type: string
+          type: array
+      required:
+      - cells
+      type: object
+    DashboardTimeRange:
+      additionalProperties: false
+      properties:
+        from:
+          format: date-time
+          type: string
+        to:
+          format: date-time
+          type: string
+      required:
+      - from
+      - to
+      type: object
+    DashboardWidget:
+      additionalProperties: false
+      description: |
+        Declares the widget type, fields, grouping, sort, and width. The gateway rejects fields that are missing from the dashboard definition.
+      properties:
+        aggregation:
+          $ref: '#/components/schemas/DashboardAggregation'
+        columns:
+          items:
+            maxLength: 64
+            minLength: 1
+            type: string
+          maxItems: 32
+          type: array
+          uniqueItems: true
+        description:
+          maxLength: 1024
+          type: string
+        group_by:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        id:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        kind:
+          $ref: '#/components/schemas/DashboardWidgetKind'
+        limit:
+          description: Maximum group count for donut widgets.
+          format: int32
+          maximum: 100
+          minimum: 1
+          type: integer
+        measure:
+          $ref: '#/components/schemas/DashboardIdentifier'
+        sort_by:
+          maxLength: 64
+          minLength: 1
+          type: string
+        sort_direction:
+          $ref: '#/components/schemas/DashboardSortDirection'
+        stacked:
+          type: boolean
+        title:
+          maxLength: 256
+          minLength: 1
+          type: string
+        width:
+          $ref: '#/components/schemas/DashboardWidgetWidth'
+      required:
+      - id
+      - title
+      - kind
+      - width
+      type: object
+    DashboardWidgetKind:
+      enum:
+      - metric
+      - line
+      - area
+      - bar
+      - donut
+      - table
+      type: string
+      x-enum-varnames:
+      - DashboardWidgetMetric
+      - DashboardWidgetLine
+      - DashboardWidgetArea
+      - DashboardWidgetBar
+      - DashboardWidgetDonut
+      - DashboardWidgetTable
+    DashboardWidgetResult:
+      additionalProperties: false
+      properties:
+        columns:
+          items:
+            type: string
+          type: array
+        generated_at:
+          format: date-time
+          type: string
+        kind:
+          $ref: '#/components/schemas/DashboardWidgetKind'
+        next_page_token:
+          description: Opaque cursor for the next table page, or empty when no rows remain.
+          type: string
+        points:
+          items:
+            $ref: '#/components/schemas/DashboardPoint'
+          type: array
+        revision:
+          format: int32
+          minimum: 1
+          type: integer
+        rows:
+          items:
+            $ref: '#/components/schemas/DashboardTableRow'
+          type: array
+        series:
+          items:
+            $ref: '#/components/schemas/DashboardSeries'
+          type: array
+        total:
+          format: double
+          nullable: true
+          type: number
+        widget_id:
+          $ref: '#/components/schemas/DashboardIdentifier'
+      required:
+      - widget_id
+      - kind
+      - revision
+      - generated_at
+      - total
+      - series
+      - points
+      - columns
+      - rows
+      - next_page_token
+      type: object
+    DashboardWidgetWidth:
+      enum:
+      - third
+      - half
+      - full
+      type: string
+    DeleteDashboardDataRequest:
+      additionalProperties: false
+      properties:
+        record_keys:
+          items:
+            maxLength: 256
+            minLength: 1
+            type: string
+          maxItems: 100
+          minItems: 1
+          type: array
+          uniqueItems: true
+      required:
+      - record_keys
+      type: object
     DeleteSecretsRequest:
       additionalProperties: false
       properties:
@@ -1674,6 +2188,7 @@ components:
       - inference_provider
       - inference_pool
       - agent
+      - dashboard
       type: string
       x-enum-varnames:
       - EventTrailTargetOrganization
@@ -1687,6 +2202,7 @@ components:
       - EventTrailTargetInferenceProvider
       - EventTrailTargetInferencePool
       - EventTrailTargetAgent
+      - EventTrailTargetDashboard
     EventTrailWorkspace:
       additionalProperties: false
       properties:
@@ -2735,6 +3251,19 @@ components:
       - sessions
       - participant_filters
       - has_next_page
+      - next_page_token
+      type: object
+    ListDashboardsResponse:
+      additionalProperties: false
+      properties:
+        dashboards:
+          items:
+            $ref: '#/components/schemas/DashboardSummary'
+          type: array
+        next_page_token:
+          type: string
+      required:
+      - dashboards
       - next_page_token
       type: object
     ListEventTrailEventsRequest:
@@ -22285,6 +22814,19 @@ components:
       - name
       - rename
       type: object
+    ReplaceDashboardRequest:
+      additionalProperties: false
+      properties:
+        definition:
+          $ref: '#/components/schemas/DashboardDefinition'
+        expected_revision:
+          format: int32
+          minimum: 1
+          type: integer
+      required:
+      - expected_revision
+      - definition
+      type: object
     ReplaceWorkspaceInheritedResourcesRequest:
       additionalProperties: false
       properties:
@@ -24001,6 +24543,8 @@ components:
           $ref: '#/components/schemas/AgentWorkspaceCapabilities'
         api_keys:
           $ref: '#/components/schemas/ResourceCapabilities'
+        dashboards:
+          $ref: '#/components/schemas/ResourceCapabilities'
         inference_pools:
           $ref: '#/components/schemas/ResourceCapabilities'
         inference_providers:
@@ -24023,6 +24567,7 @@ components:
       - inference_pools
       - api_keys
       - observability
+      - dashboards
       type: object
     WorkspaceInheritedResource:
       additionalProperties: false
@@ -24100,6 +24645,21 @@ components:
       - path
       - content
       - expected_version
+      type: object
+    WriteDashboardDataRequest:
+      additionalProperties: false
+      properties:
+        action:
+          $ref: '#/components/schemas/DashboardDataAction'
+        records:
+          items:
+            $ref: '#/components/schemas/DashboardDataRecord'
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+      - action
+      - records
       type: object
   securitySchemes:
     GatewayAPIKey:
@@ -24258,6 +24818,250 @@ paths:
       summary: List Agent access targets and their eligible capabilities.
       tags:
       - agents
+  /api/agent/{agentName}/dashboard:
+    get:
+      operationId: listAgentDashboards
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/AgentSessionIDHeader'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListDashboardsResponse'
+          description: One page of dashboards owned by the Agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: List dashboards owned by the Agent.
+      tags:
+      - dashboards
+    post:
+      operationId: createAgentDashboard
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/AgentSessionIDHeader'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardDefinition'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: Dashboard created by the Agent.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Create a dashboard from an interactive Agent session.
+      tags:
+      - dashboards
+  /api/agent/{agentName}/dashboard/{dashboardName}:
+    delete:
+      operationId: deleteAgentDashboard
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/DashboardNamePath'
+      - $ref: '#/components/parameters/AgentSessionIDHeader'
+      responses:
+        "204":
+          description: Dashboard deleted.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Delete a dashboard from an interactive Agent session.
+      tags:
+      - dashboards
+    get:
+      operationId: getAgentDashboard
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/DashboardNamePath'
+      - $ref: '#/components/parameters/AgentSessionIDHeader'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: Dashboard definition with its current revision.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Get a dashboard owned by the Agent.
+      tags:
+      - dashboards
+    put:
+      operationId: replaceAgentDashboard
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/DashboardNamePath'
+      - $ref: '#/components/parameters/AgentSessionIDHeader'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceDashboardRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: Updated dashboard with its new revision.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Replace a dashboard from an interactive Agent session.
+      tags:
+      - dashboards
+  /api/agent/{agentName}/dashboard/{dashboardName}/data:
+    delete:
+      operationId: deleteDashboardData
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/DashboardNamePath'
+      - $ref: '#/components/parameters/AgentSessionIDHeader'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteDashboardDataRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardDataMutationResponse'
+          description: Number of records deleted.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Delete dashboard records by key from an interactive Agent session.
+      tags:
+      - dashboards
+    post:
+      operationId: writeDashboardData
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - $ref: '#/components/parameters/DashboardNamePath'
+      - $ref: '#/components/parameters/AgentSessionIDHeader'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteDashboardDataRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardDataMutationResponse'
+          description: Number of records written.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Append or upsert dashboard records.
+      tags:
+      - dashboards
   /api/agent/{agentName}/fs/directory:
     post:
       operationId: createAgentDirectory
@@ -25038,6 +25842,149 @@ paths:
       summary: Watch the current Workspace chat inbox.
       tags:
       - chat-sessions
+  /api/dashboard:
+    get:
+      operationId: listDashboards
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListDashboardsResponse'
+          description: One page of dashboard summaries.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - dashboard.read
+      summary: List dashboards for the current Workspace.
+      tags:
+      - dashboards
+  /api/dashboard/{dashboardId}:
+    get:
+      operationId: getDashboard
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
+      - $ref: '#/components/parameters/DashboardIDPath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: Dashboard definition with its current revision.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - dashboard.read
+      summary: Get a dashboard.
+      tags:
+      - dashboards
+  /api/dashboard/{dashboardId}/filter/{filterId}/options:
+    post:
+      operationId: listDashboardFilterOptions
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
+      - $ref: '#/components/parameters/DashboardIDPath'
+      - $ref: '#/components/parameters/DashboardFilterIDPath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardTimeRange'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardFilterOptions'
+          description: Distinct filter values found in the requested time range.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - dashboard.read
+      summary: List up to 100 values for a dashboard filter.
+      tags:
+      - dashboards
+  /api/dashboard/{dashboardId}/widget/{widgetId}/query:
+    post:
+      description: |
+        Runs the query saved in the widget definition. The request cannot supply SQL or query expressions. Table widgets use limit and page_token for cursor pagination; other widget kinds return one complete result.
+      operationId: queryDashboardWidget
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDRequiredHeader'
+      - $ref: '#/components/parameters/DashboardIDPath'
+      - $ref: '#/components/parameters/DashboardWidgetIDPath'
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardQueryRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardWidgetResult'
+          description: Query result for one widget.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - dashboard.read
+      summary: Query a dashboard widget.
+      tags:
+      - dashboards
   /api/event-trail-event:
     post:
       description: |
@@ -40621,6 +41568,8 @@ tags:
   name: workflow-webhooks
 - description: Workspace chat inbox and preference APIs.
   name: chat-sessions
+- description: Read and change Agent dashboards and their 30-day records.
+  name: dashboards
 - description: Control plane routes.
   name: control
 - description: Control-plane orchestration routes.

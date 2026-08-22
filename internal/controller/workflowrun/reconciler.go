@@ -690,6 +690,9 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) ([]byte, error) {
 			"get_workflow":           true,
 			"question":               false,
 			"set_workflowrun_status": true,
+			"manage_dashboards":      false,
+			"write_dashboard_data":   true,
+			"delete_dashboard_data":  false,
 		},
 	}
 	data, err := json.Marshal(body)

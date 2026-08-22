@@ -5,6 +5,7 @@ import { queryOptions, type UseMutationOptions } from "@tanstack/react-query"
 import { client } from "../client.gen"
 import {
   createAgent,
+  createAgentDashboard,
   createAgentDirectory,
   createAgentFile,
   createInferencePool,
@@ -18,9 +19,11 @@ import {
   createWorkflowSchedule,
   createWorkspace,
   deleteAgent,
+  deleteAgentDashboard,
   deleteAgentEntry,
   deleteAgentMutableSkills,
   deleteAgentShare,
+  deleteDashboardData,
   deleteImmutableSkills,
   deleteInferencePool,
   deleteInferenceProvider,
@@ -34,8 +37,10 @@ import {
   ensureTenant,
   exportAgentMutableSkills,
   exportImmutableSkills,
+  getAgentDashboard,
   getAgentOwner,
   getChatSessionPreference,
+  getDashboard,
   getEventTrailEvent,
   getInferencePool,
   getInferencePoolUsage,
@@ -53,11 +58,14 @@ import {
   importMutableSkills,
   invokeWorkflowWebhook,
   listAgentAccessTargets,
+  listAgentDashboards,
   listAgentMutableSkills,
   listAgents,
   listAgentShares,
   listAgentWorkflowSchedules,
   listChatSessions,
+  listDashboardFilterOptions,
+  listDashboards,
   listEventTrailEvents,
   listFileObservability,
   listFileObservabilitySummary,
@@ -90,10 +98,12 @@ import {
   previewImmutableSkillImport,
   previewMutableSkillImport,
   putSecret,
+  queryDashboardWidget,
   readAgentFile,
   readAgentFileRaw,
   refreshInferenceProviderModels,
   renameAgentEntry,
+  replaceAgentDashboard,
   replaceWorkspaceInheritedResources,
   resolveWorkspaceSlug,
   retryWorkspace,
@@ -110,8 +120,12 @@ import {
   upsertAgentShare,
   writeAgentFile,
   writeAgentFileRaw,
+  writeDashboardData,
 } from "../sdk.gen"
 import type {
+  CreateAgentDashboardData,
+  CreateAgentDashboardError,
+  CreateAgentDashboardResponse,
   CreateAgentData,
   CreateAgentDirectoryData,
   CreateAgentDirectoryError,
@@ -151,6 +165,9 @@ import type {
   CreateWorkspaceData,
   CreateWorkspaceError,
   CreateWorkspaceResponse,
+  DeleteAgentDashboardData,
+  DeleteAgentDashboardError,
+  DeleteAgentDashboardResponse,
   DeleteAgentData,
   DeleteAgentEntryData,
   DeleteAgentEntryError,
@@ -163,6 +180,9 @@ import type {
   DeleteAgentShareData,
   DeleteAgentShareError,
   DeleteAgentShareResponse,
+  DeleteDashboardDataData,
+  DeleteDashboardDataError,
+  DeleteDashboardDataResponse,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsError,
   DeleteImmutableSkillsResponse,
@@ -202,12 +222,18 @@ import type {
   ExportImmutableSkillsData,
   ExportImmutableSkillsError,
   ExportImmutableSkillsResponse,
+  GetAgentDashboardData,
+  GetAgentDashboardError,
+  GetAgentDashboardResponse,
   GetAgentOwnerData,
   GetAgentOwnerError,
   GetAgentOwnerResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
+  GetDashboardData,
+  GetDashboardError,
+  GetDashboardResponse,
   GetEventTrailEventData,
   GetEventTrailEventError,
   GetEventTrailEventResponse,
@@ -259,6 +285,9 @@ import type {
   ListAgentAccessTargetsData,
   ListAgentAccessTargetsError,
   ListAgentAccessTargetsResponse2,
+  ListAgentDashboardsData,
+  ListAgentDashboardsError,
+  ListAgentDashboardsResponse,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsError,
   ListAgentMutableSkillsResponse,
@@ -274,6 +303,12 @@ import type {
   ListChatSessionsData,
   ListChatSessionsError,
   ListChatSessionsResponse2,
+  ListDashboardFilterOptionsData,
+  ListDashboardFilterOptionsError,
+  ListDashboardFilterOptionsResponse,
+  ListDashboardsData,
+  ListDashboardsError,
+  ListDashboardsResponse2,
   ListEventTrailEventsData,
   ListEventTrailEventsError,
   ListEventTrailEventsResponse2,
@@ -367,6 +402,9 @@ import type {
   PutSecretData,
   PutSecretError,
   PutSecretResponse,
+  QueryDashboardWidgetData,
+  QueryDashboardWidgetError,
+  QueryDashboardWidgetResponse,
   ReadAgentFileData,
   ReadAgentFileError,
   ReadAgentFileRawData,
@@ -379,6 +417,9 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryError,
   RenameAgentEntryResponse,
+  ReplaceAgentDashboardData,
+  ReplaceAgentDashboardError,
+  ReplaceAgentDashboardResponse,
   ReplaceWorkspaceInheritedResourcesData,
   ReplaceWorkspaceInheritedResourcesError,
   ReplaceWorkspaceInheritedResourcesResponse,
@@ -427,6 +468,9 @@ import type {
   WriteAgentFileRawError,
   WriteAgentFileRawResponse,
   WriteAgentFileResponse,
+  WriteDashboardDataData,
+  WriteDashboardDataError,
+  WriteDashboardDataResponse,
 } from "../types.gen"
 
 export type QueryKey<TOptions extends Options> = [
@@ -466,6 +510,298 @@ const createQueryKey = <TOptions extends Options>(
     params.query = options.query
   }
   return [params]
+}
+
+export const listDashboardsQueryKey = (options: Options<ListDashboardsData>) =>
+  createQueryKey("listDashboards", options)
+
+/**
+ * List dashboards for the current Workspace.
+ */
+export const listDashboardsOptions = (options: Options<ListDashboardsData>) =>
+  queryOptions<
+    ListDashboardsResponse2,
+    ListDashboardsError,
+    ListDashboardsResponse2,
+    ReturnType<typeof listDashboardsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listDashboards({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listDashboardsQueryKey(options),
+  })
+
+export const getDashboardQueryKey = (options: Options<GetDashboardData>) =>
+  createQueryKey("getDashboard", options)
+
+/**
+ * Get a dashboard.
+ */
+export const getDashboardOptions = (options: Options<GetDashboardData>) =>
+  queryOptions<
+    GetDashboardResponse,
+    GetDashboardError,
+    GetDashboardResponse,
+    ReturnType<typeof getDashboardQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getDashboard({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getDashboardQueryKey(options),
+  })
+
+/**
+ * Query a dashboard widget.
+ *
+ * Runs the query saved in the widget definition. The request cannot supply SQL or query expressions. Table widgets use limit and page_token for cursor pagination; other widget kinds return one complete result.
+ *
+ */
+export const queryDashboardWidgetMutation = (
+  options?: Partial<Options<QueryDashboardWidgetData>>
+): UseMutationOptions<
+  QueryDashboardWidgetResponse,
+  QueryDashboardWidgetError,
+  Options<QueryDashboardWidgetData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    QueryDashboardWidgetResponse,
+    QueryDashboardWidgetError,
+    Options<QueryDashboardWidgetData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await queryDashboardWidget({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * List up to 100 values for a dashboard filter.
+ */
+export const listDashboardFilterOptionsMutation = (
+  options?: Partial<Options<ListDashboardFilterOptionsData>>
+): UseMutationOptions<
+  ListDashboardFilterOptionsResponse,
+  ListDashboardFilterOptionsError,
+  Options<ListDashboardFilterOptionsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ListDashboardFilterOptionsResponse,
+    ListDashboardFilterOptionsError,
+    Options<ListDashboardFilterOptionsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await listDashboardFilterOptions({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listAgentDashboardsQueryKey = (options: Options<ListAgentDashboardsData>) =>
+  createQueryKey("listAgentDashboards", options)
+
+/**
+ * List dashboards owned by the Agent.
+ */
+export const listAgentDashboardsOptions = (options: Options<ListAgentDashboardsData>) =>
+  queryOptions<
+    ListAgentDashboardsResponse,
+    ListAgentDashboardsError,
+    ListAgentDashboardsResponse,
+    ReturnType<typeof listAgentDashboardsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentDashboards({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentDashboardsQueryKey(options),
+  })
+
+/**
+ * Create a dashboard from an interactive Agent session.
+ */
+export const createAgentDashboardMutation = (
+  options?: Partial<Options<CreateAgentDashboardData>>
+): UseMutationOptions<
+  CreateAgentDashboardResponse,
+  CreateAgentDashboardError,
+  Options<CreateAgentDashboardData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateAgentDashboardResponse,
+    CreateAgentDashboardError,
+    Options<CreateAgentDashboardData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createAgentDashboard({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete a dashboard from an interactive Agent session.
+ */
+export const deleteAgentDashboardMutation = (
+  options?: Partial<Options<DeleteAgentDashboardData>>
+): UseMutationOptions<
+  DeleteAgentDashboardResponse,
+  DeleteAgentDashboardError,
+  Options<DeleteAgentDashboardData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteAgentDashboardResponse,
+    DeleteAgentDashboardError,
+    Options<DeleteAgentDashboardData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteAgentDashboard({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getAgentDashboardQueryKey = (options: Options<GetAgentDashboardData>) =>
+  createQueryKey("getAgentDashboard", options)
+
+/**
+ * Get a dashboard owned by the Agent.
+ */
+export const getAgentDashboardOptions = (options: Options<GetAgentDashboardData>) =>
+  queryOptions<
+    GetAgentDashboardResponse,
+    GetAgentDashboardError,
+    GetAgentDashboardResponse,
+    ReturnType<typeof getAgentDashboardQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAgentDashboard({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAgentDashboardQueryKey(options),
+  })
+
+/**
+ * Replace a dashboard from an interactive Agent session.
+ */
+export const replaceAgentDashboardMutation = (
+  options?: Partial<Options<ReplaceAgentDashboardData>>
+): UseMutationOptions<
+  ReplaceAgentDashboardResponse,
+  ReplaceAgentDashboardError,
+  Options<ReplaceAgentDashboardData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReplaceAgentDashboardResponse,
+    ReplaceAgentDashboardError,
+    Options<ReplaceAgentDashboardData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await replaceAgentDashboard({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete dashboard records by key from an interactive Agent session.
+ */
+export const deleteDashboardDataMutation = (
+  options?: Partial<Options<DeleteDashboardDataData>>
+): UseMutationOptions<
+  DeleteDashboardDataResponse,
+  DeleteDashboardDataError,
+  Options<DeleteDashboardDataData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteDashboardDataResponse,
+    DeleteDashboardDataError,
+    Options<DeleteDashboardDataData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteDashboardData({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Append or upsert dashboard records.
+ */
+export const writeDashboardDataMutation = (
+  options?: Partial<Options<WriteDashboardDataData>>
+): UseMutationOptions<
+  WriteDashboardDataResponse,
+  WriteDashboardDataError,
+  Options<WriteDashboardDataData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    WriteDashboardDataResponse,
+    WriteDashboardDataError,
+    Options<WriteDashboardDataData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await writeDashboardData({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
 }
 
 export const listChatSessionsQueryKey = (options?: Options<ListChatSessionsData>) =>

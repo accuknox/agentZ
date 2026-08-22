@@ -324,6 +324,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(eventTrailRetentionDone)
 		svc.runEventTrailRetention(runCtx)
 	}()
+	dashboardRetentionDone := make(chan struct{})
+	go func() {
+		defer close(dashboardRetentionDone)
+		svc.runDashboardRetention(runCtx)
+	}()
 	cleanupDone := make(chan struct{})
 	go func() {
 		defer close(cleanupDone)
@@ -385,6 +390,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	<-chatSessionNotificationsDone
 	<-cleanupDone
 	<-eventTrailRetentionDone
+	<-dashboardRetentionDone
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)
@@ -720,6 +726,7 @@ func (s *Service) routes() http.Handler {
 	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 
 	apiRouter := chi.NewRouter()
+	apiRouter.Use(dashboardBodyLimit)
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
 		s.openAPI,
 		&nethttpmiddleware.Options{
@@ -727,6 +734,15 @@ func (s *Service) routes() http.Handler {
 				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
 			},
 			ErrorHandlerWithOpts: func(_ context.Context, err error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
+				if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+					writeError(w, r, newAPIError(
+						http.StatusRequestEntityTooLarge,
+						"payload_too_large",
+						"request body is too large",
+						err,
+					))
+					return
+				}
 				converted := openapi3filter.ConvertErrors(err)
 				status := opts.StatusCode
 				if statusErr, ok := converted.(openapi3filter.StatusCoder); ok {

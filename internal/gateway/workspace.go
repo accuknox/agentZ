@@ -1002,6 +1002,7 @@ func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdmini
 			InferenceProviders: capabilities.inferenceProvider,
 			McpConnections:     capabilities.mcp,
 			Observability:      capabilities.observability,
+			Dashboards:         capabilities.dashboard,
 			Sandboxes:          capabilities.sandbox,
 			Skills:             capabilities.skill,
 		},

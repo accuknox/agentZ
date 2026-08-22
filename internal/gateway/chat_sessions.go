@@ -48,10 +48,9 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	}
 	agentNames := usableAgentNames(nil, capabilities)
 	if params.AgentName != nil {
+		agentNames = []string{}
 		capability, ok := capabilities[*params.AgentName]
-		if !ok || !capability.Use {
-			agentNames = []string{}
-		} else {
+		if ok && capability.Use {
 			agentNames = []string{*params.AgentName}
 		}
 	}

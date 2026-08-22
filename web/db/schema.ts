@@ -16,7 +16,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
-import type { EventTrailField } from "@/lib/gateway/client/types.gen"
+import type { DashboardDefinition, EventTrailField } from "@/lib/gateway/client/types.gen"
 import { dayjs } from "@/lib/format"
 import {
   apikeys,
@@ -47,6 +47,7 @@ export const permissionResource = pgEnum("permission_resource", [
   "agent",
   "api_key",
   "observability",
+  "dashboard",
 ])
 export const permissionAction = pgEnum("permission_action", [
   "read",
@@ -85,6 +86,7 @@ export const eventTrailTarget = pgEnum("event_trail_target", [
   "api_key",
   "workspace_access",
   "workspace",
+  "dashboard",
 ])
 export const cleanupState = pgEnum("cleanup_state", [
   "pending",
@@ -727,6 +729,99 @@ export const agentShareGrants = pgTable(
     capability: agentShareCapability("capability").notNull(),
   },
   (table) => [primaryKey({ columns: [table.shareId, table.capability] })]
+)
+
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id").notNull(),
+    agentName: text("agent_name").notNull(),
+    name: text("name").notNull(),
+    revision: integer("revision").default(1).notNull(),
+    definition: jsonb("definition").$type<DashboardDefinition>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => dayjs().toDate())
+      .notNull(),
+  },
+  (table) => [
+    unique("dashboards_id_workspace_uidx").on(table.id, table.workspaceId),
+    uniqueIndex("dashboards_workspace_agent_name_uidx").on(
+      table.workspaceId,
+      table.agentName,
+      table.name
+    ),
+    index("dashboards_workspace_updated_idx").on(table.workspaceId, table.updatedAt, table.id),
+    foreignKey({
+      columns: [table.workspaceId, table.organizationId],
+      foreignColumns: [workspaces.id, workspaces.organizationId],
+      name: "dashboards_workspace_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.workspaceId, table.agentName, table.organizationId],
+      foreignColumns: [agentOwners.workspaceId, agentOwners.agentName, agentOwners.organizationId],
+      name: "dashboards_agent_owner_fk",
+    }).onDelete("cascade"),
+    check("dashboards_name_ck", sql`NULLIF(BTRIM(${table.name}), '') IS NOT NULL`),
+    check("dashboards_revision_ck", sql`${table.revision} >= 1`),
+    check("dashboards_definition_ck", sql`jsonb_typeof(${table.definition}) = 'object'`),
+  ]
+)
+
+export const dashboardRecords = pgTable(
+  "dashboard_records",
+  {
+    id: text("id").notNull(),
+    dashboardId: text("dashboard_id").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+    recordKey: text("record_key"),
+    sessionId: text("session_id").notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    ingestedAt: timestamp("ingested_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    dimensions: jsonb("dimensions").$type<Record<string, string>>().notNull(),
+    measures: jsonb("measures").$type<Record<string, number>>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.dashboardId, table.id] }),
+    uniqueIndex("dashboard_records_key_uidx")
+      .on(table.dashboardId, table.recordKey)
+      .where(sql`${table.recordKey} IS NOT NULL`),
+    index("dashboard_records_query_idx").on(table.workspaceId, table.dashboardId, table.observedAt),
+    index("dashboard_records_expiry_idx").on(table.expiresAt),
+    foreignKey({
+      columns: [table.dashboardId, table.workspaceId],
+      foreignColumns: [dashboards.id, dashboards.workspaceId],
+      name: "dashboard_records_dashboard_workspace_fk",
+    }).onDelete("cascade"),
+    check(
+      "dashboard_records_record_key_ck",
+      sql`${table.recordKey} IS NULL OR NULLIF(BTRIM(${table.recordKey}), '') IS NOT NULL`
+    ),
+    check("dashboard_records_dimensions_ck", sql`jsonb_typeof(${table.dimensions}) = 'object'`),
+    check("dashboard_records_measures_ck", sql`jsonb_typeof(${table.measures}) = 'object'`),
+    check("dashboard_records_expiry_ck", sql`${table.expiresAt} > ${table.ingestedAt}`),
+  ]
+)
+
+export const dashboardRateLimits = pgTable(
+  "dashboard_rate_limits",
+  {
+    key: text("key").notNull(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    count: integer("count").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.key, table.windowStartedAt] }),
+    index("dashboard_rate_limits_window_idx").on(table.windowStartedAt),
+    check("dashboard_rate_limits_count_ck", sql`${table.count} > 0`),
+  ]
 )
 
 type CleanupImpact = {

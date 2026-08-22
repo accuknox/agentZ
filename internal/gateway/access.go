@@ -237,6 +237,7 @@ type resourceCapabilitySet struct {
 	inferencePool     gatewayapi.ResourceCapabilities
 	apiKey            gatewayapi.ResourceCapabilities
 	observability     gatewayapi.ResourceCapabilities
+	dashboard         gatewayapi.ResourceCapabilities
 	canAuthorAgents   bool
 }
 
@@ -299,6 +300,9 @@ func resourceCapabilities(effective authorization.Effective, organizationID, wor
 		}
 		capabilities.observability = gatewayapi.ResourceCapabilities{
 			Read: effective.Allows(scope, authorization.OperationReadObservability),
+		}
+		capabilities.dashboard = gatewayapi.ResourceCapabilities{
+			Read: effective.Allows(scope, authorization.OperationReadDashboards),
 		}
 		capabilities.apiKey = gatewayapi.ResourceCapabilities{
 			Read:   effective.Allows(scope, authorization.OperationListAPIKeys),

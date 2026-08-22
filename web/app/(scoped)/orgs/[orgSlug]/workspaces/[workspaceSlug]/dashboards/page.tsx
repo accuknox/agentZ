@@ -34,7 +34,7 @@ export default async function DashboardsPage({
       />
       <div className="px-4 pb-6 md:px-6">
         {directory.dashboards.length === 0 ? (
-          <Empty className="min-h-72 border">
+          <Empty className="border-primary min-h-72 border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <LayoutDashboard aria-hidden="true" />

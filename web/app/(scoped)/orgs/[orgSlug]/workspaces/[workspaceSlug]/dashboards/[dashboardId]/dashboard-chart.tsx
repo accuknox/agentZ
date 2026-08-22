@@ -17,7 +17,7 @@ import {
 } from "recharts"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
 import { dayjs } from "@/lib/format"
-import type { DashboardSeries, DashboardWidget, DashboardWidgetResult } from "@/lib/gateway/client"
+import type { DashboardWidget, DashboardWidgetResult } from "@/lib/gateway/client"
 
 const chartColors = [
   "var(--chart-1)",
@@ -49,23 +49,19 @@ export function DashboardChart({
       data.series.map((series, index) => [series.key, point.values[index] ?? 0])
     ),
   }))
-  const valuesByLabel = new Map<string | number, number[]>(
-    data.points.map((point) => [point.label, point.values])
-  )
-  const tooltip = (
-    <ChartTooltip
-      content={(props) => (
-        <DashboardChartTooltip {...props} series={data.series} valuesByLabel={valuesByLabel} />
-      )}
-      isAnimationActive={false}
-    />
-  )
+  const tooltip = <ChartTooltip content={DashboardChartTooltip} isAnimationActive={false} />
 
   if (kind === "donut") {
     return (
       <ChartContainer className="h-64 w-full" config={config} resizeDebounce={250}>
         <PieChart accessibilityLayer>
-          {tooltip}
+          <ChartTooltip
+            content={(props) => (
+              <DashboardChartTooltip {...props} valueLabel={data.series[0]?.label} />
+            )}
+            cursor={false}
+            isAnimationActive={false}
+          />
           <Pie
             data={points}
             dataKey="s0"
@@ -164,31 +160,28 @@ export function DashboardChart({
 function DashboardChartTooltip({
   active,
   label,
-  series,
-  valuesByLabel,
-}: TooltipContentProps & {
-  series: DashboardSeries[]
-  valuesByLabel: Map<string | number, number[]>
-}) {
-  const values = label === undefined ? undefined : valuesByLabel.get(label)
-  if (!active || !values) return null
+  payload,
+  valueLabel,
+}: TooltipContentProps & { valueLabel?: string }) {
+  const first = payload[0]
+  if (!active || !first) return null
 
   return (
     <div className="border-border/50 bg-background grid min-w-32 gap-2 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
-      <div className="font-medium">{label}</div>
+      <div className="font-medium">{label ?? first.name}</div>
       <div className="grid gap-1.5">
-        {series.map((item, index) => (
-          <div className="flex items-center justify-between gap-4" key={item.key}>
+        {payload.map((item, index) => (
+          <div className="flex items-center justify-between gap-4" key={`${item.name}:${index}`}>
             <span className="text-muted-foreground flex items-center gap-1.5">
               <span
                 aria-hidden="true"
                 className="size-2 rounded-sm"
-                style={{ backgroundColor: chartColors[index % chartColors.length] }}
+                style={{ backgroundColor: item.color }}
               />
-              {item.label}
+              {valueLabel ?? item.name}
             </span>
             <span className="text-foreground font-mono font-medium tabular-nums">
-              {values[index]?.toLocaleString() ?? "0"}
+              {item.value?.toLocaleString() ?? "0"}
             </span>
           </div>
         ))}

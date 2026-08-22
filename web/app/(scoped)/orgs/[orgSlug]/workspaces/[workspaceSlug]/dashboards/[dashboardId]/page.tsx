@@ -95,7 +95,9 @@ function WidgetSkeleton({ widget }: { widget: DashboardWidget }) {
         : "col-span-12 md:col-span-6 xl:col-span-4"
   return (
     <div className={`${width} py-3`}>
-      <Skeleton className="h-5 w-36" />
+      <div className="px-4 md:px-6">
+        <Skeleton className="h-5 w-36" />
+      </div>
       <Skeleton className="mt-5 h-52 w-full" />
     </div>
   )

@@ -5,8 +5,10 @@ import type { Route } from "next"
 import dynamic from "next/dynamic"
 import { useRouter } from "@bprogress/next/app"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import { CalendarDays, LayoutDashboard, ListFilter, RefreshCw } from "lucide-react"
 import type { DateRange } from "react-day-picker"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
@@ -20,14 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { dayjs } from "@/lib/format"
 import {
   listDashboardFilterOptions,
@@ -179,7 +173,7 @@ export function DashboardView({
           </Button>
         </div>
       </div>
-      <div className="grid grid-cols-12 gap-x-10 gap-y-6 px-4 md:px-6">{children}</div>
+      <div className="grid grid-cols-12 gap-x-10 gap-y-6">{children}</div>
     </DashboardContext.Provider>
   )
 }
@@ -438,7 +432,7 @@ export function DashboardWidgetView({
 
   return (
     <section aria-busy={query.isFetching} className={cn(width, "min-w-0 py-2")} ref={sectionRef}>
-      <header className="mb-2 flex flex-col gap-1 px-1">
+      <header className="mb-2 flex flex-col gap-1 px-4 md:px-6">
         <h2 className="text-sm font-semibold">{widget.title}</h2>
         {widget.description ? (
           <p className="text-muted-foreground text-xs">{widget.description}</p>
@@ -477,7 +471,7 @@ function WidgetContent({
 }) {
   if (widget.kind === "metric") {
     return (
-      <div className="flex min-h-16 items-end px-1 pb-2">
+      <div className="flex min-h-16 items-end px-4 pb-2 md:px-6">
         <p className="font-heading text-4xl font-semibold tracking-tight tabular-nums">
           {new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(data.total ?? 0)}
           {unit ? (
@@ -488,29 +482,42 @@ function WidgetContent({
     )
   }
   if (widget.kind === "table") {
-    return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {data.columns.map((column) => (
-              <TableHead key={column}>{column}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.rows.map((row, index) => (
-            <TableRow key={index}>
-              {row.cells.map((cell, cellIndex) => (
-                <TableCell key={`${index}:${data.columns[cellIndex]}`}>{cell}</TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    )
+    return <DashboardTable data={data} title={widget.title} />
   }
   if (!visible) return <Skeleton className="h-64 w-full" />
   return <DashboardChart data={data} kind={widget.kind} stacked={widget.stacked} />
+}
+
+function DashboardTable({ data, title }: { data: DashboardWidgetResult; title: string }) {
+  "use no memo"
+
+  const { columns, layout } = React.useMemo(() => {
+    const layout: Record<string, AdminColumnLayout> = {}
+    const columns: ColumnDef<DashboardWidgetResult["rows"][number]>[] = data.columns.map(
+      (header, index) => {
+        const id = `column-${index}`
+        layout[id] = { minWidth: 144 }
+        return {
+          id,
+          header,
+          cell: ({ row }) => row.original.cells[index],
+        }
+      }
+    )
+    return { columns, layout }
+  }, [data.columns])
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({ data: data.rows, columns, getCoreRowModel: getCoreRowModel() })
+
+  return (
+    <AdminDataGrid
+      ariaLabel={title}
+      emptyState={<p className="text-muted-foreground py-8 text-center">No rows to display.</p>}
+      layout={layout}
+      rows={data.rows}
+      table={table}
+    />
+  )
 }
 
 function recentTimeRange(duration: number): DashboardTimeRange {

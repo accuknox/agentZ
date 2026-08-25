@@ -16,6 +16,9 @@ AgentZ is a multi-tenant platform for running AI agents. It provides strong
 isolation guarantees, zero credential exposure to agents, default-deny network
 posture and control over the software packages your agents have access to.
 
+**[Website](https://accuknox.com/platform/agentz/)**: the AgentZ landing page.
+**[DeepWiki](https://deepwiki.com/accuknox/agentZ)**: chat with the repo and contribute fast.
+
 ![](./.github/assets/organisation.png)
 
 ## Building Blocks

@@ -604,8 +604,12 @@ export function OAuthSecretSheet({
       if (result.status === "oauth_pending" && result.oauth) {
         openOAuthPopup(result.oauth, {
           onError: setClientSubmitError,
-          onSuccess() {
-            toast.success("Secret created")
+          onSuccess(warning) {
+            if (warning) {
+              toast.warning(warning)
+            } else {
+              toast.success("Secret created")
+            }
             reset(initialFormValues)
             onOpenChangeAction(false)
             router.refresh()

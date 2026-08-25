@@ -1208,8 +1208,14 @@ export type SecretListItem = {
   token_expiry_time?: string
 }
 
+export type SecretWarning = {
+  code: "InheritedSandboxNotUpdated"
+  message: string
+}
+
 export type PutSecretsResponse = {
   secret: SecretListItem
+  warning?: SecretWarning
 }
 
 export type DeleteSecretsRequest = {
@@ -2212,7 +2218,7 @@ export type InheritedResourceSortOrderQuery = "asc" | "desc"
 export type WorkflowScheduleSortByQuery = "name" | "workflow_name" | "schedule" | "created_at"
 
 /**
- * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+ * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret. Inherited Organisation sandboxes are not changed; the response includes a warning.
  *
  */
 export type UpdateSandboxQuery = boolean
@@ -5504,7 +5510,7 @@ export type PutSecretData = {
   }
   query?: {
     /**
-     * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+     * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret. Inherited Organisation sandboxes are not changed; the response includes a warning.
      *
      */
     update_sandbox?: boolean

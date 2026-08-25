@@ -36,6 +36,7 @@ import (
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	agentzfake "github.com/accuknox/agentz/pkg/controller/clientset/versioned/fake"
 )
 
 const (
@@ -330,6 +331,55 @@ func TestValidateSandboxDependenciesAllowsWorkspaceReadForInheritedResources(t *
 	}
 	if len(fields) != 0 {
 		t.Fatalf("dependency errors = %#v, want none", fields)
+	}
+}
+
+func TestUpdateSecretSandboxHostsAllowsInheritedSandbox(t *testing.T) {
+	t.Parallel()
+
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		testOrganizationID,
+	)
+	agt := &agentzv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: testWorkspaceNS},
+		Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{
+			Scope: agentzv1alpha1.ResourceScopeOrganisation,
+			Name:  "organization-sandbox",
+		}},
+	}
+	sandbox := &agentzv1alpha1.Sandbox{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agt.Spec.SandboxRef.Name,
+			Namespace: organizationNamespace,
+		},
+		Spec: agentzv1alpha1.SandboxSpec{
+			ResourceAudit: agentzv1alpha1.ResourceAudit{
+				CreatedByUserID:      testUserID,
+				LastModifiedByUserID: testUserID,
+			},
+		},
+	}
+	client := agentzfake.NewSimpleClientset(agt, sandbox)
+	svc := &Service{resolver: &resolver{client: client}}
+
+	warning, apiErr := svc.updateSecretSandboxHosts(
+		context.Background(),
+		testWorkspaceNS,
+		agt.Name,
+		"user-2",
+		[]string{"api.example.com"},
+	)
+	if apiErr != nil {
+		t.Fatalf("updateSecretSandboxHosts() error = %v, want inherited sandbox unchanged", apiErr)
+	}
+	if warning == nil || warning.Code != gatewayapi.InheritedSandboxNotUpdated {
+		t.Fatalf("updateSecretSandboxHosts() warning = %#v, want inherited sandbox warning", warning)
+	}
+	for _, action := range client.Actions() {
+		if action.GetResource().Resource == "sandboxes" {
+			t.Fatalf("inherited sandbox action = %s, want none", action.GetVerb())
+		}
 	}
 }
 

@@ -47,7 +47,11 @@ export function SecretSheet({
     async (state: PutSecretFormState, formData: FormData) => {
       const result = await putSecretAction(agentName, state, formData)
       if (result.success) {
-        toast.success("Secret created")
+        if (result.warning) {
+          toast.warning(result.warning.message)
+        } else {
+          toast.success("Secret created")
+        }
         onOpenChangeAction(false)
       }
       return result

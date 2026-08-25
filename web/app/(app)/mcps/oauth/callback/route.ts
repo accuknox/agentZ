@@ -106,6 +106,7 @@ export async function GET(request: Request) {
       return popupFailure(pending.flowId, result.error.message)
     }
 
+    let warning: string | undefined
     if (pending.operation.kind === "create") {
       const createResult = await createMcpConnection({
         body: {
@@ -165,6 +166,7 @@ export async function GET(request: Request) {
         })
         throw new Error("OAuth secret could not be saved")
       }
+      warning = createResult.data.warning?.message
 
       revalidateTag(secretsTag, { expire: 0 })
       revalidateTag(agentSecretsTag(pending.operation.secret.agentName), {
@@ -177,6 +179,7 @@ export async function GET(request: Request) {
         success: true,
         flowId: pending.flowId,
         message: result.value.message,
+        warning,
       })
     )
   } catch (error) {

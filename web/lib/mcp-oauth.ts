@@ -1062,6 +1062,7 @@ export function oauthCallbackResultPage(input: {
   success: boolean
   flowId: string
   message: string
+  warning?: string
 }) {
   const payload = scriptJSON({
     source: oauthWindowMessageSource,
@@ -1069,6 +1070,7 @@ export function oauthCallbackResultPage(input: {
     flowId: input.flowId,
     status: input.success ? "success" : "error",
     message: input.message,
+    warning: input.warning,
   } satisfies OAuthPopupMessage)
   const message = scriptJSON(input.message)
   const channelName = scriptJSON(oauthBroadcastChannelName)

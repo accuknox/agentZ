@@ -830,6 +830,7 @@ export type {
   SecretState,
   SecretType,
   SecretValue,
+  SecretWarning,
   SelectedOrganizationResources,
   SessionIdQuery,
   Skill,

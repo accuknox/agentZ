@@ -3767,7 +3767,8 @@ components:
       required: false
       description: >
         When true, append compatible secret hosts that are missing from the
-        agent sandbox allowed host list before creating the secret.
+        agent sandbox allowed host list before creating the secret. Inherited
+        Organisation sandboxes are not changed; the response includes a warning.
       schema:
         type: boolean
         default: false
@@ -7087,12 +7088,25 @@ components:
           format: date-time
       required: [key, type, hosts, status, reason, message, created_at, created_by, last_modified_by]
 
+    SecretWarning:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          enum: [InheritedSandboxNotUpdated]
+        message:
+          type: string
+      required: [code, message]
+
     PutSecretsResponse:
       type: object
       additionalProperties: false
       properties:
         secret:
           $ref: '#/components/schemas/SecretListItem'
+        warning:
+          $ref: '#/components/schemas/SecretWarning'
       required: [secret]
 
     DeleteSecretsRequest:

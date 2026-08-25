@@ -56,7 +56,7 @@ export async function putSecretFormAction(
 
   updateTag(secretsTag)
   updateTag(agentSecretsTag(agentName))
-  return { success: true }
+  return { success: true, warning: result.data.warning }
 }
 
 export async function startOAuthSecretFormAction(

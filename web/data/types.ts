@@ -3,6 +3,7 @@ import type {
   Sandbox,
   Error,
   McpGraphResponse,
+  SecretWarning,
   WorkflowArbitraryJson,
   WorkflowInputs,
 } from "@/lib/gateway/client"
@@ -333,6 +334,7 @@ export type CreateSandboxFormState = {
 export type PutSecretFormState = {
   error?: Error
   success?: boolean
+  warning?: SecretWarning
   status?: "oauth_pending"
   oauth?: {
     flowId: string

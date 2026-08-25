@@ -97,8 +97,9 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		LastModifiedByUserID: claims.UserID,
 	}
 
+	var warning *gatewayapi.SecretWarning
 	if params.UpdateSandbox != nil && *params.UpdateSandbox {
-		apiErr = s.updateSecretSandboxHosts(
+		warning, apiErr = s.updateSecretSandboxHosts(
 			r.Context(),
 			ns,
 			name,
@@ -142,24 +143,22 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		w,
 		http.StatusCreated,
 		gatewayapi.PutSecretsResponse{
-			Secret: s.secretListItem(*secret, actors),
+			Secret:  s.secretListItem(*secret, actors),
+			Warning: warning,
 		},
 	)
 }
 
-func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, userID string, secretHosts []string) *apiError {
+func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, userID string, secretHosts []string) (*gatewayapi.SecretWarning, *apiError) {
 	agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(
 		ctx,
 		agtName,
 		metav1.GetOptions{},
 	)
 	if err != nil {
-		return mapKubeHTTPError("get agent", err)
+		return nil, mapKubeHTTPError("get agent", err)
 	}
-	sandboxName := strings.TrimSpace(agt.Spec.SandboxRef.Name)
-	if sandboxName == "" {
-		return nil
-	}
+	sandboxName := agt.Spec.SandboxRef.Name
 
 	addHosts := make([]string, 0, len(secretHosts))
 	for _, host := range secretHosts {
@@ -170,7 +169,7 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 
 		parsed, err := sandboxutil.ParseHost(host)
 		if err != nil {
-			return newAPIError(
+			return nil, newAPIError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -183,8 +182,16 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 		}
 		addHosts = append(addHosts, parsed.Value)
 	}
-	if len(addHosts) == 0 {
-		return nil
+
+	if agt.Spec.SandboxRef.Scope == agentzv1alpha1.ResourceScopeOrganisation {
+		return &gatewayapi.SecretWarning{
+			Code: gatewayapi.InheritedSandboxNotUpdated,
+			Message: fmt.Sprintf(
+				"Secret created without changing inherited Organisation sandbox %q. "+
+					"Ask an Organisation admin to verify that it allows the secret hosts.",
+				sandboxName,
+			),
+		}, nil
 	}
 
 	err = retry.RetryOnConflict(
@@ -233,10 +240,10 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 		},
 	)
 	if err != nil {
-		return mapKubeHTTPError("update sandbox", err)
+		return nil, mapKubeHTTPError("update sandbox", err)
 	}
 
-	return nil
+	return nil, nil
 }
 
 // DeleteSecret handles POST /api/secret/{agentName}/delete.

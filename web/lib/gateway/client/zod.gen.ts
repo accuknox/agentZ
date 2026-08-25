@@ -1398,8 +1398,14 @@ export const zSecretListItem = z.object({
   token_expiry_time: z.iso.datetime().optional(),
 })
 
+export const zSecretWarning = z.object({
+  code: z.enum(["InheritedSandboxNotUpdated"]),
+  message: z.string(),
+})
+
 export const zPutSecretsResponse = z.object({
   secret: zSecretListItem,
+  warning: zSecretWarning.optional(),
 })
 
 export const zDeleteSecretsRequest = z.object({
@@ -2389,7 +2395,7 @@ export const zWorkflowScheduleSortByQuery = z.enum([
 ])
 
 /**
- * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+ * When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret. Inherited Organisation sandboxes are not changed; the response includes a warning.
  *
  */
 export const zUpdateSandboxQuery = z.boolean().default(false)

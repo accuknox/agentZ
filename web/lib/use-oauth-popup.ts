@@ -15,7 +15,7 @@ type OAuthPopup = {
 
 type OAuthPopupHandlers = {
   onError: (message: string) => void
-  onSuccess: () => void
+  onSuccess: (warning?: string) => void
 }
 
 type OAuthPopupCleanup = {
@@ -105,7 +105,7 @@ export function useOAuthPopup(windowNamePrefix: string) {
         cleanup({ closePopup: true })
 
         if (message.status === "success") {
-          handlers.onSuccess()
+          handlers.onSuccess(message.warning)
           return
         }
         handlers.onError(message.message)

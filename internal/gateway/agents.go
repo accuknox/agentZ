@@ -433,7 +433,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 					http.StatusConflict,
 					"quota_exceeded",
 					"Tenant Agent quota exceeded",
-					errors.New("Agent allocation exceeds Tenant quota"),
+					errors.New("agent allocation exceeds tenant quota"),
 				),
 			)
 			return

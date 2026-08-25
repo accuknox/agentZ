@@ -15,6 +15,7 @@ const oauthPopupResultMessageSchema = z.object({
   flowId: z.string().min(1),
   status: z.enum(["success", "error"]),
   message: z.string(),
+  warning: z.string().optional(),
 })
 
 const oauthPopupAckMessageSchema = z.object({
@@ -30,6 +31,7 @@ export type OAuthPopupMessage =
       flowId: string
       status: "success" | "error"
       message: string
+      warning?: string
     }
   | {
       source: typeof oauthWindowMessageSource

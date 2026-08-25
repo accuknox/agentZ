@@ -368,7 +368,7 @@ components:
         $ref: '#/components/schemas/TraceID'
     UpdateSandboxQuery:
       description: |
-        When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret.
+        When true, append compatible secret hosts that are missing from the agent sandbox allowed host list before creating the secret. Inherited Organisation sandboxes are not changed; the response includes a warning.
       in: query
       name: update_sandbox
       required: false
@@ -22251,6 +22251,8 @@ components:
       properties:
         secret:
           $ref: '#/components/schemas/SecretListItem'
+        warning:
+          $ref: '#/components/schemas/SecretWarning'
       required:
       - secret
       type: object
@@ -22606,6 +22608,19 @@ components:
       description: Secret value. Max 48 KB.
       maxLength: 49152
       type: string
+    SecretWarning:
+      additionalProperties: false
+      properties:
+        code:
+          enum:
+          - InheritedSandboxNotUpdated
+          type: string
+        message:
+          type: string
+      required:
+      - code
+      - message
+      type: object
     SelectedOrganizationResources:
       additionalProperties: false
       properties:

@@ -19,7 +19,7 @@ export function DashboardSkeleton({ dashboard }: { dashboard?: Dashboard }) {
           <Skeleton className="size-7" />
         </div>
       </div>
-      <div className="bg-muted/45 grid grid-cols-12 gap-2 p-2">
+      <div className="bg-muted/30 grid grid-cols-12 gap-2 p-2">
         {dashboard ? (
           dashboard.widgets.map((widget) => (
             <DashboardWidgetSkeleton
@@ -55,16 +55,17 @@ function DashboardWidgetSkeleton({
 }) {
   return (
     <section
-      className={`bg-background h-80 min-w-0 overflow-hidden rounded-sm border ${dashboardWidgetWidthClasses[width]}`}
+      className={`bg-card h-80 min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] ${dashboardWidgetWidthClasses[width]}`}
     >
-      <header className="flex h-11 items-center border-b px-4">
+      <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
+        <Skeleton className="size-7 rounded-md" />
         {title ? (
-          <h2 className="truncate text-sm font-semibold">{title}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h2>
         ) : (
-          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-32 flex-1" />
         )}
       </header>
-      <div className="h-[calc(20rem-2.75rem)]">
+      <div className="h-[calc(20rem-3rem)]">
         {kind === "table" ? (
           <DashboardTableSkeleton columnCount={columnCount ?? 4} />
         ) : (

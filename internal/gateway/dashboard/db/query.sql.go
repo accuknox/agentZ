@@ -380,6 +380,39 @@ WITH widget AS (
             WHERE jsonb_typeof(value) <> 'number'
           )
         )
+        WHEN 'funnel' THEN NOT (
+          payload - ARRAY['category', 'values'] = '{}'::jsonb AND
+          jsonb_typeof(payload->'category') = 'string' AND
+          jsonb_typeof(payload->'values') = 'array' AND
+          jsonb_array_length(values) = 1 AND
+          NOT EXISTS (
+            SELECT 1 FROM jsonb_array_elements(values) value
+            WHERE CASE WHEN jsonb_typeof(value) = 'number'
+              THEN (value #>> '{}')::double precision < 0 ELSE true END
+          )
+        )
+        WHEN 'horizontal_funnel' THEN NOT (
+          payload - ARRAY['category', 'values'] = '{}'::jsonb AND
+          jsonb_typeof(payload->'category') = 'string' AND
+          jsonb_typeof(payload->'values') = 'array' AND
+          jsonb_array_length(values) = 1 AND
+          NOT EXISTS (
+            SELECT 1 FROM jsonb_array_elements(values) value
+            WHERE CASE WHEN jsonb_typeof(value) = 'number'
+              THEN (value #>> '{}')::double precision < 0 ELSE true END
+          )
+        )
+        WHEN 'sankey' THEN CASE
+          WHEN jsonb_typeof(payload->'source') = 'string' AND
+               jsonb_typeof(payload->'target') = 'string' AND
+               jsonb_typeof(payload->'value') = 'number'
+          THEN NOT (
+            payload - ARRAY['source', 'target', 'value'] = '{}'::jsonb AND
+            payload->>'source' <> payload->>'target' AND
+            (payload->>'value')::double precision > 0
+          )
+          ELSE true
+        END
         WHEN 'scatter' THEN CASE
           WHEN jsonb_typeof(payload->'series') = 'number' AND
                jsonb_typeof(payload->'x') = 'number' AND

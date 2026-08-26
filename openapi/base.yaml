@@ -8595,7 +8595,19 @@ components:
 
     DashboardWidgetKind:
       type: string
-      enum: [line, pie, bar, horizontal_grouped_bar, area, step, table, scatter, gauge]
+      enum:
+      - line
+      - pie
+      - bar
+      - horizontal_grouped_bar
+      - area
+      - step
+      - funnel
+      - horizontal_funnel
+      - sankey
+      - table
+      - scatter
+      - gauge
 
     DashboardWidgetMode:
       type: string
@@ -8855,6 +8867,19 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+        source:
+          type: string
+          minLength: 1
+          maxLength: 120
+        target:
+          type: string
+          minLength: 1
+          maxLength: 120
+        value:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
         cells:
           type: array
           maxItems: 12
@@ -8964,6 +8989,35 @@ components:
           maxLength: 120
       required: [series, x, 'y']
 
+    DashboardSankeyNode:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required: [name]
+
+    DashboardSankeyLink:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: integer
+          format: int32
+          minimum: 0
+        target:
+          type: integer
+          format: int32
+          minimum: 0
+        value:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+      required: [source, target, value]
+
     DashboardWidgetError:
       type: object
       additionalProperties: false
@@ -9018,12 +9072,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DashboardScatterPoint'
+        sankey_nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardSankeyNode'
+        sankey_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardSankeyLink'
         value:
           type: number
           format: double
         error:
           $ref: '#/components/schemas/DashboardWidgetError'
-      required: [widget_name, data_revision, kind, status, points, categories, scatter]
+      required:
+      - widget_name
+      - data_revision
+      - kind
+      - status
+      - points
+      - categories
+      - scatter
+      - sankey_nodes
+      - sankey_links
 
     QueryDashboardResponse:
       type: object

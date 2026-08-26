@@ -31,7 +31,8 @@ CREATE TABLE dashboard_widgets (
   ),
   title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 80),
   kind TEXT NOT NULL CHECK (kind IN (
-    'line', 'pie', 'bar', 'horizontal_grouped_bar', 'area', 'step', 'table', 'scatter', 'gauge'
+    'line', 'pie', 'bar', 'horizontal_grouped_bar', 'area', 'step',
+    'funnel', 'horizontal_funnel', 'sankey', 'table', 'scatter', 'gauge'
   )),
   mode TEXT NOT NULL CHECK (mode IN ('temporal', 'latest')),
   width TEXT NOT NULL CHECK (width IN ('full', 'half', 'third')),

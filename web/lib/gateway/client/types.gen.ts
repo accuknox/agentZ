@@ -1948,6 +1948,9 @@ export type DashboardWidgetKind =
   | "horizontal_grouped_bar"
   | "area"
   | "step"
+  | "funnel"
+  | "horizontal_funnel"
+  | "sankey"
   | "table"
   | "scatter"
   | "gauge"
@@ -2048,6 +2051,9 @@ export type DashboardDataRecord = {
   x?: number
   y?: number
   label?: string
+  source?: string
+  target?: string
+  value?: number
   cells?: Array<DashboardCell>
 }
 
@@ -2086,6 +2092,16 @@ export type DashboardScatterPoint = {
   label?: string
 }
 
+export type DashboardSankeyNode = {
+  name: string
+}
+
+export type DashboardSankeyLink = {
+  source: number
+  target: number
+  value: number
+}
+
 export type DashboardWidgetError = {
   code: string
   message: string
@@ -2110,6 +2126,8 @@ export type DashboardWidgetQueryResult = {
   points: Array<DashboardTimePoint>
   categories: Array<DashboardCategory>
   scatter: Array<DashboardScatterPoint>
+  sankey_nodes: Array<DashboardSankeyNode>
+  sankey_links: Array<DashboardSankeyLink>
   value?: number
   error?: DashboardWidgetError
 }

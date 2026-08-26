@@ -1580,6 +1580,19 @@ components:
           maximum: 4
           minimum: 0
           type: integer
+        source:
+          maxLength: 120
+          minLength: 1
+          type: string
+        target:
+          maxLength: 120
+          minLength: 1
+          type: string
+        value:
+          exclusiveMinimum: true
+          format: double
+          minimum: 0
+          type: number
         values:
           items:
             format: double
@@ -1614,6 +1627,37 @@ components:
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
       type: string
+    DashboardSankeyLink:
+      additionalProperties: false
+      properties:
+        source:
+          format: int32
+          minimum: 0
+          type: integer
+        target:
+          format: int32
+          minimum: 0
+          type: integer
+        value:
+          exclusiveMinimum: true
+          format: double
+          minimum: 0
+          type: number
+      required:
+      - source
+      - target
+      - value
+      type: object
+    DashboardSankeyNode:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 120
+          minLength: 1
+          type: string
+      required:
+      - name
+      type: object
     DashboardScatterAxes:
       additionalProperties: false
       properties:
@@ -1874,6 +1918,9 @@ components:
       - horizontal_grouped_bar
       - area
       - step
+      - funnel
+      - horizontal_funnel
+      - sankey
       - table
       - scatter
       - gauge
@@ -1910,6 +1957,14 @@ components:
           items:
             $ref: '#/components/schemas/DashboardTimePoint'
           type: array
+        sankey_links:
+          items:
+            $ref: '#/components/schemas/DashboardSankeyLink'
+          type: array
+        sankey_nodes:
+          items:
+            $ref: '#/components/schemas/DashboardSankeyNode'
+          type: array
         scatter:
           items:
             $ref: '#/components/schemas/DashboardScatterPoint'
@@ -1929,6 +1984,8 @@ components:
       - points
       - categories
       - scatter
+      - sankey_nodes
+      - sankey_links
       type: object
     DashboardWidgetQueryStatus:
       enum:

@@ -577,8 +577,11 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		switch definition.Kind {
 		case gatewayapi.Line, gatewayapi.Area, gatewayapi.Step:
 			estimatedCells += int64(maxPoints) * int64(len(definition.Series)+1)
-		case gatewayapi.Pie, gatewayapi.Bar, gatewayapi.HorizontalGroupedBar:
+		case gatewayapi.Pie, gatewayapi.Bar, gatewayapi.HorizontalGroupedBar,
+			gatewayapi.Funnel, gatewayapi.HorizontalFunnel:
 			estimatedCells += 13 * int64(len(definition.Series)+1)
+		case gatewayapi.Sankey:
+			estimatedCells += 400
 		case gatewayapi.Scatter:
 			estimatedCells += int64(maxPoints) * 5
 		case gatewayapi.Gauge:
@@ -628,6 +631,8 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 			Points:       []gatewayapi.DashboardTimePoint{},
 			Categories:   []gatewayapi.DashboardCategory{},
 			Scatter:      []gatewayapi.DashboardScatterPoint{},
+			SankeyNodes:  []gatewayapi.DashboardSankeyNode{},
+			SankeyLinks:  []gatewayapi.DashboardSankeyLink{},
 		}
 		invalid, err := queries.DashboardCountInvalidRecords(ctx, dashboarddb.DashboardCountInvalidRecordsParams{
 			TenantNamespace: auth.tenantNamespace,
@@ -704,6 +709,76 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 				}
 			}
 			if len(result.Categories) == 0 && result.Error == nil {
+				result.Status = gatewayapi.Empty
+			}
+		case gatewayapi.Funnel, gatewayapi.HorizontalFunnel:
+			rows, queryErr := queries.DashboardReadRecords(ctx, dashboarddb.DashboardReadRecordsParams{
+				TenantNamespace: auth.tenantNamespace,
+				WidgetRevision:  widget.Revision,
+				RowLimit:        100,
+			})
+			if queryErr != nil {
+				writeError(w, r, mapDashboardStoreError("query funnel", queryErr))
+				return
+			}
+			result.Categories = make([]gatewayapi.DashboardCategory, len(rows))
+			for i, row := range rows {
+				var record gatewayapi.DashboardDataRecord
+				if err := json.Unmarshal(row.Payload, &record); err != nil {
+					result.Status = gatewayapi.InvalidData
+					result.Error = dashboardDataError(1)
+					result.Categories = []gatewayapi.DashboardCategory{}
+					break
+				}
+				result.Categories[i] = gatewayapi.DashboardCategory{
+					Label:  *record.Category,
+					Values: *record.Values,
+				}
+			}
+			if len(result.Categories) == 0 && result.Error == nil {
+				result.Status = gatewayapi.Empty
+			}
+		case gatewayapi.Sankey:
+			rows, queryErr := queries.DashboardReadRecords(ctx, dashboarddb.DashboardReadRecordsParams{
+				TenantNamespace: auth.tenantNamespace,
+				WidgetRevision:  widget.Revision,
+				RowLimit:        100,
+			})
+			if queryErr != nil {
+				writeError(w, r, mapDashboardStoreError("query sankey", queryErr))
+				return
+			}
+			indices := make(map[string]int32, len(rows)+1)
+			for _, row := range rows {
+				var record gatewayapi.DashboardDataRecord
+				if err := json.Unmarshal(row.Payload, &record); err != nil {
+					result.Status = gatewayapi.InvalidData
+					result.Error = dashboardDataError(1)
+					result.SankeyNodes = []gatewayapi.DashboardSankeyNode{}
+					result.SankeyLinks = []gatewayapi.DashboardSankeyLink{}
+					break
+				}
+				source, ok := indices[*record.Source]
+				if !ok {
+					source = int32(len(result.SankeyNodes))
+					indices[*record.Source] = source
+					result.SankeyNodes = append(result.SankeyNodes,
+						gatewayapi.DashboardSankeyNode{Name: *record.Source})
+				}
+				target, ok := indices[*record.Target]
+				if !ok {
+					target = int32(len(result.SankeyNodes))
+					indices[*record.Target] = target
+					result.SankeyNodes = append(result.SankeyNodes,
+						gatewayapi.DashboardSankeyNode{Name: *record.Target})
+				}
+				result.SankeyLinks = append(result.SankeyLinks, gatewayapi.DashboardSankeyLink{
+					Source: source,
+					Target: target,
+					Value:  *record.Value,
+				})
+			}
+			if len(result.SankeyLinks) == 0 && result.Error == nil {
 				result.Status = gatewayapi.Empty
 			}
 		case gatewayapi.Scatter:
@@ -1106,6 +1181,14 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 		if widget.Mode != gatewayapi.Latest || seriesCount != 1 || columnCount != 0 {
 			return errors.New("pie charts require latest mode, one series, and no columns")
 		}
+	case gatewayapi.Funnel, gatewayapi.HorizontalFunnel:
+		if widget.Mode != gatewayapi.Latest || seriesCount != 1 || columnCount != 0 {
+			return errors.New("funnel charts require latest mode, one series, and no columns")
+		}
+	case gatewayapi.Sankey:
+		if widget.Mode != gatewayapi.Latest || seriesCount != 1 || columnCount != 0 {
+			return errors.New("sankey charts require latest mode, one series, and no columns")
+		}
 	case gatewayapi.Gauge:
 		if widget.Mode != gatewayapi.Latest || seriesCount != 1 || columnCount != 0 || widget.Minimum == nil || widget.Maximum == nil || *widget.Minimum >= *widget.Maximum {
 			return errors.New("gauges require latest mode, one series, no columns, and an increasing range")
@@ -1169,6 +1252,7 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 		return errors.New("gauges require exactly one record")
 	}
 	for i, record := range records {
+		hasFlow := record.Source != nil || record.Target != nil || record.Value != nil
 		if widget.Mode == gatewayapi.Temporal {
 			if record.RecordedAt == nil {
 				return fmt.Errorf("records[%d]: recorded_at is required for temporal widgets", i)
@@ -1192,7 +1276,8 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 				record.Series == nil &&
 				record.X == nil &&
 				record.Y == nil &&
-				record.Label == nil
+				record.Label == nil &&
+				!hasFlow
 			if !valuesMatch || !onlyValues {
 				expected := "values only"
 				if widget.Mode == gatewayapi.Temporal {
@@ -1204,13 +1289,15 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 					len(widget.Series),
 				)
 			}
-		case gatewayapi.Pie, gatewayapi.Bar, gatewayapi.HorizontalGroupedBar:
+		case gatewayapi.Pie, gatewayapi.Bar, gatewayapi.HorizontalGroupedBar,
+			gatewayapi.Funnel, gatewayapi.HorizontalFunnel:
 			valuesMatch := record.Values != nil && len(*record.Values) == len(widget.Series)
 			onlyCategoryValues := record.Cells == nil &&
 				record.Series == nil &&
 				record.X == nil &&
 				record.Y == nil &&
-				record.Label == nil
+				record.Label == nil &&
+				!hasFlow
 			if record.Category == nil || !valuesMatch || !onlyCategoryValues {
 				expected := "category and values only"
 				if widget.Mode == gatewayapi.Temporal {
@@ -1224,12 +1311,37 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 			} else if utf8.RuneCountInString(*record.Category) < 1 ||
 				utf8.RuneCountInString(*record.Category) > 120 {
 				err = errors.New("category must contain 1-120 characters")
+			} else if (widget.Kind == gatewayapi.Funnel ||
+				widget.Kind == gatewayapi.HorizontalFunnel) && (*record.Values)[0] < 0 {
+				err = errors.New("funnel values must not be negative")
+			}
+		case gatewayapi.Sankey:
+			onlyFlow := record.Category == nil &&
+				record.Values == nil &&
+				record.Cells == nil &&
+				record.Series == nil &&
+				record.X == nil &&
+				record.Y == nil &&
+				record.Label == nil
+			if record.Source == nil || record.Target == nil || record.Value == nil || !onlyFlow {
+				err = errors.New("expected source, target, and value only")
+			} else if utf8.RuneCountInString(*record.Source) < 1 ||
+				utf8.RuneCountInString(*record.Source) > 120 {
+				err = errors.New("source must contain 1-120 characters")
+			} else if utf8.RuneCountInString(*record.Target) < 1 ||
+				utf8.RuneCountInString(*record.Target) > 120 {
+				err = errors.New("target must contain 1-120 characters")
+			} else if *record.Source == *record.Target {
+				err = errors.New("source and target must differ")
+			} else if *record.Value <= 0 {
+				err = errors.New("value must be positive")
 			}
 		case gatewayapi.Scatter:
 			seriesMatches := record.Series != nil &&
 				*record.Series >= 0 &&
 				int(*record.Series) < len(widget.Series)
-			onlyScatter := record.Category == nil && record.Values == nil && record.Cells == nil
+			onlyScatter := record.Category == nil && record.Values == nil &&
+				record.Cells == nil && !hasFlow
 			if record.X == nil || record.Y == nil || !seriesMatches || !onlyScatter {
 				expected := "series, x, y, and optional label only"
 				if widget.Mode == gatewayapi.Temporal {
@@ -1248,7 +1360,8 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 				record.Series == nil &&
 				record.X == nil &&
 				record.Y == nil &&
-				record.Label == nil
+				record.Label == nil &&
+				!hasFlow
 			if !cellsMatch || !onlyCells {
 				expected := "cells only"
 				if widget.Mode == gatewayapi.Temporal {
@@ -1275,6 +1388,61 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 		if err != nil {
 			return fmt.Errorf("records[%d]: %w", i, err)
 		}
+	}
+	if widget.Kind == gatewayapi.Funnel || widget.Kind == gatewayapi.HorizontalFunnel {
+		stages := make(map[string]struct{}, len(records))
+		previous := math.Inf(1)
+		for i, record := range records {
+			if _, exists := stages[*record.Category]; exists {
+				return fmt.Errorf("records[%d]: category is duplicated", i)
+			}
+			stages[*record.Category] = struct{}{}
+			if (*record.Values)[0] > previous {
+				return fmt.Errorf("records[%d]: funnel values must not increase", i)
+			}
+			previous = (*record.Values)[0]
+		}
+	}
+	if widget.Kind != gatewayapi.Sankey {
+		return nil
+	}
+
+	edges := make(map[string]map[string]struct{}, len(records))
+	indegree := make(map[string]int, len(records)+1)
+	for i, record := range records {
+		targets := edges[*record.Source]
+		if targets == nil {
+			targets = map[string]struct{}{}
+			edges[*record.Source] = targets
+		}
+		if _, exists := targets[*record.Target]; exists {
+			return fmt.Errorf("records[%d]: source and target pair is duplicated", i)
+		}
+		targets[*record.Target] = struct{}{}
+		indegree[*record.Target]++
+		if _, exists := indegree[*record.Source]; !exists {
+			indegree[*record.Source] = 0
+		}
+	}
+	queue := make([]string, 0, len(indegree))
+	for node, degree := range indegree {
+		if degree == 0 {
+			queue = append(queue, node)
+		}
+	}
+	visited := 0
+	for next := 0; next < len(queue); next++ {
+		node := queue[next]
+		visited++
+		for target := range edges[node] {
+			indegree[target]--
+			if indegree[target] == 0 {
+				queue = append(queue, target)
+			}
+		}
+	}
+	if visited != len(indegree) {
+		return errors.New("sankey links must form an acyclic graph")
 	}
 	return nil
 }

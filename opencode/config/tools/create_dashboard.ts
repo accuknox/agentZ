@@ -115,6 +115,36 @@ const widget = tool.schema.discriminatedUnion("kind", [
   tool.schema
     .object({
       ...common,
+      kind: tool.schema.literal("funnel"),
+      mode: tool.schema.literal("latest"),
+      series: tool.schema.array(series).length(1),
+      columns: emptyColumns,
+      thresholds: noThresholds,
+    })
+    .strict(),
+  tool.schema
+    .object({
+      ...common,
+      kind: tool.schema.literal("horizontal_funnel"),
+      mode: tool.schema.literal("latest"),
+      series: tool.schema.array(series).length(1),
+      columns: emptyColumns,
+      thresholds: noThresholds,
+    })
+    .strict(),
+  tool.schema
+    .object({
+      ...common,
+      kind: tool.schema.literal("sankey"),
+      mode: tool.schema.literal("latest"),
+      series: tool.schema.array(series).length(1),
+      columns: emptyColumns,
+      thresholds: noThresholds,
+    })
+    .strict(),
+  tool.schema
+    .object({
+      ...common,
       kind: tool.schema.literal("scatter"),
       mode: tool.schema.enum(["temporal", "latest"]),
       axes: tool.schema.object({ x: axis, y: axis }).strict(),

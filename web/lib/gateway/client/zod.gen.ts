@@ -2133,6 +2133,9 @@ export const zDashboardWidgetKind = z.enum([
   "horizontal_grouped_bar",
   "area",
   "step",
+  "funnel",
+  "horizontal_funnel",
+  "sankey",
   "table",
   "scatter",
   "gauge",
@@ -2254,6 +2257,9 @@ export const zDashboardDataRecord = z.object({
   x: z.number().optional(),
   y: z.number().optional(),
   label: z.string().min(1).max(120).optional(),
+  source: z.string().min(1).max(120).optional(),
+  target: z.string().min(1).max(120).optional(),
+  value: z.number().gt(0).optional(),
   cells: z.array(zDashboardCell).max(12).optional(),
 })
 
@@ -2298,6 +2304,22 @@ export const zDashboardScatterPoint = z.object({
   label: z.string().min(1).max(120).optional(),
 })
 
+export const zDashboardSankeyNode = z.object({
+  name: z.string().min(1).max(120),
+})
+
+export const zDashboardSankeyLink = z.object({
+  source: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  target: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  value: z.number().gt(0),
+})
+
 export const zDashboardWidgetError = z.object({
   code: z.string(),
   message: z.string(),
@@ -2331,6 +2353,8 @@ export const zDashboardWidgetQueryResult = z.object({
   points: z.array(zDashboardTimePoint),
   categories: z.array(zDashboardCategory),
   scatter: z.array(zDashboardScatterPoint),
+  sankey_nodes: z.array(zDashboardSankeyNode),
+  sankey_links: z.array(zDashboardSankeyLink),
   value: z.number().optional(),
   error: zDashboardWidgetError.optional(),
 })

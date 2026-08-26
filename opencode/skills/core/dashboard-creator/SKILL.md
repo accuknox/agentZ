@@ -25,6 +25,8 @@ Build the dashboard from values you have already computed. The gateway validates
 - `line`, `area`, `step`: temporal only; 1–5 series. Each record contains only `recorded_at` and `values`, with one number per series.
 - `pie`: latest only; exactly one series. Each record contains only `category` and one `values` entry.
 - `bar`, `horizontal_grouped_bar`: temporal or latest; 1–5 series. Each record contains `category` and one value per series.
+- `funnel`, `horizontal_funnel`: latest only; exactly one series. Publish uniquely named stages in display order with non-increasing values. Each record contains `category` and one non-negative value.
+- `sankey`: latest only; exactly one series. Each record contains `source`, `target`, and a positive `value`. Source/target pairs must be unique, and all links together must form an acyclic graph.
 - `scatter`: temporal or latest; 1–5 declared series and `axes` metadata for `x` and `y`. Each axis has a display `label` and optional `unit`. Each record contains `series`, `x`, `y`, and an optional `label`.
 - `gauge`: latest only; exactly one series, an increasing `minimum`/`maximum`, and up to five increasing thresholds. Publish exactly one record containing one value.
 - `table`: temporal or latest; 1–12 columns and no series. Each record contains `cells`, one cell per declared column. A cell must contain exactly one matching key: `text`, `number`, `boolean`, or `datetime`.
@@ -48,7 +50,7 @@ Use `sum`, `average`, `minimum`, `maximum`, `last`, or `count` to declare how te
 - `recorded_at` and `datetime` values are RFC 3339 timestamps. Offsets such as `+05:30` are valid.
 - Temporal publishing appends records at their explicit `recorded_at` timestamps. Timestamps must be within the 30-day retention window and no more than five minutes in the future.
 - Latest publishing atomically replaces that widget's current snapshot.
-- Compute categories, series values, scatter coordinates, table cells, and gauge values before publishing.
+- Compute categories, series values, funnel stages, Sankey links, scatter coordinates, table cells, and gauge values before publishing.
 - Publish small datasets inline. When records already exist on disk or would make the tool call large, pass `records: {"json_file":"path"}` without reading the file first. The file must contain a UTF-8 JSON array and must not exceed 8 MiB.
 - Never send extra fields “just in case.” Shape mismatches are rejected.
 - Do not exceed five series, twelve table columns, one hundred records per publish, or the configured publish request-byte limit.

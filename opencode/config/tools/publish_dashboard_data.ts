@@ -53,6 +53,13 @@ const record = tool.schema.union([
     .strict(),
   tool.schema
     .object({
+      source: tool.schema.string().min(1).max(120),
+      target: tool.schema.string().min(1).max(120),
+      value: tool.schema.number().positive(),
+    })
+    .strict(),
+  tool.schema
+    .object({
       recorded_at: recordedAt,
       cells: tool.schema.array(cell).min(1).max(12),
     })

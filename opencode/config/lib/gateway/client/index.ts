@@ -267,6 +267,8 @@ export type {
   DashboardGaugeThreshold,
   DashboardName,
   DashboardNamePath,
+  DashboardSankeyLink,
+  DashboardSankeyNode,
   DashboardScatterAxes,
   DashboardScatterAxis,
   DashboardScatterPoint,

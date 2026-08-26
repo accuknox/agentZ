@@ -19,7 +19,22 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { BotIcon, LayoutDashboard, RefreshCw } from "lucide-react"
+import {
+  BotIcon,
+  ChartArea,
+  ChartBar,
+  ChartNoAxesCombined,
+  ChartPie,
+  ChartSpline,
+  Funnel as FunnelIcon,
+  Gauge,
+  LayoutDashboard,
+  RefreshCw,
+  ScatterChart,
+  Table2,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react"
 import {
   listDashboardTableRows,
   queryDashboard,
@@ -27,6 +42,7 @@ import {
   type DashboardSummary,
   type DashboardTableRow,
   type DashboardWidget,
+  type DashboardWidgetKind,
   type DashboardWidgetQueryResult,
   type QueryDashboardResponse,
 } from "@/lib/gateway/client"
@@ -58,6 +74,21 @@ const DashboardChart = dynamic(
     ssr: false,
   }
 )
+
+const widgetIcons = {
+  area: ChartArea,
+  bar: ChartBar,
+  funnel: FunnelIcon,
+  gauge: Gauge,
+  horizontal_funnel: FunnelIcon,
+  horizontal_grouped_bar: ChartBar,
+  line: ChartSpline,
+  pie: ChartPie,
+  sankey: Workflow,
+  scatter: ScatterChart,
+  step: ChartNoAxesCombined,
+  table: Table2,
+} satisfies Record<DashboardWidgetKind, LucideIcon>
 
 export function DashboardView({
   dashboard,
@@ -222,7 +253,7 @@ export function DashboardView({
           {widgetsQuery.error.message}
         </div>
       ) : null}
-      <div className="bg-muted/45 grid grid-cols-12 gap-2 p-2">
+      <div className="bg-muted/30 grid grid-cols-12 gap-2 p-2">
         {dashboard.widgets.map((widget) => (
           <Widget
             key={widget.name}
@@ -262,6 +293,7 @@ function Widget({
 }) {
   const [seen, setSeen] = React.useState(false)
   const sectionRef = React.useRef<HTMLElement>(null)
+  const Icon = widgetIcons[widget.kind]
 
   React.useEffect(() => {
     const section = sectionRef.current
@@ -287,15 +319,20 @@ function Widget({
     <section
       aria-busy={pending}
       className={cn(
-        "bg-background h-80 min-w-0 overflow-hidden rounded-sm border [content-visibility:auto]",
+        "bg-card h-80 min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] transition-shadow duration-200 [content-visibility:auto] hover:shadow-[0_8px_24px_color-mix(in_oklab,var(--foreground)_8%,transparent)]",
         dashboardWidgetWidthClasses[widget.width]
       )}
       ref={sectionRef}
     >
-      <header className="flex h-11 items-center border-b px-4">
-        <h2 className="truncate text-sm font-semibold">{widget.title}</h2>
+      <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
+        <span className="bg-primary/8 text-primary ring-primary/10 flex size-7 shrink-0 items-center justify-center rounded-md ring-1">
+          <Icon className="size-3.5" strokeWidth={2.25} />
+        </span>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[-0.01em]">
+          {widget.title}
+        </h2>
       </header>
-      <div className={cn("h-[calc(20rem-2.75rem)] min-w-0", widget.kind !== "table" && "p-3")}>
+      <div className={cn("h-[calc(20rem-3rem)] min-w-0", widget.kind !== "table" && "p-3")}>
         {widget.kind === "table" ? (
           <DashboardTable
             key={widget.data_revision}

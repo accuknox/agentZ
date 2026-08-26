@@ -49,5 +49,6 @@ Use `sum`, `average`, `minimum`, `maximum`, `last`, or `count` to declare how te
 - Temporal publishing appends records at their explicit `recorded_at` timestamps. Timestamps must be within the 30-day retention window and no more than five minutes in the future.
 - Latest publishing atomically replaces that widget's current snapshot.
 - Compute categories, series values, scatter coordinates, table cells, and gauge values before publishing.
+- Publish small datasets inline. When records already exist on disk or would make the tool call large, pass `records: {"json_file":"path"}` without reading the file first. The file must contain a UTF-8 JSON array and must not exceed 8 MiB.
 - Never send extra fields “just in case.” Shape mismatches are rejected.
-- Do not exceed five series, twelve table columns, or one hundred records per publish.
+- Do not exceed five series, twelve table columns, one hundred records per publish, or the configured publish request-byte limit.

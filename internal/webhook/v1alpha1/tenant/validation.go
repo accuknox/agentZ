@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -89,11 +90,99 @@ func (v *Validator) validateTenant(ctx context.Context, oldObj, newObj *agentzv1
 		)
 	}
 	issues = append(issues, v.validateAgentQuota(ctx, oldObj, newObj)...)
+	issues = append(issues, validateDashboardQuota(oldObj, newObj)...)
 
 	if len(issues) == 0 {
 		return nil
 	}
 	return apierrors.NewInvalid(tenantGroupKind, newObj.Name, issues)
+}
+
+func validateDashboardQuota(oldObj, newObj *agentzv1alpha1.Tenant) field.ErrorList {
+	path := field.NewPath("spec").Child("dashboardQuota")
+	if newObj.Spec.DashboardQuota == nil {
+		if oldObj != nil && oldObj.Spec.DashboardQuota != nil {
+			return field.ErrorList{field.Forbidden(path, "cannot be removed")}
+		}
+		return nil
+	}
+
+	quota := newObj.Spec.DashboardQuota
+	issues := field.ErrorList{}
+	positiveCounts := []struct {
+		path  *field.Path
+		value int64
+	}{
+		{path.Child("dashboardsPerAgent"), int64(quota.DashboardsPerAgent)},
+		{path.Child("widgetsPerDashboard"), int64(quota.WidgetsPerDashboard)},
+		{path.Child("publish").Child("recordsPerRequest"), int64(quota.Publish.RecordsPerRequest)},
+		{path.Child("publish").Child("requestsPerMinutePerAgent"), int64(quota.Publish.RequestsPerMinutePerAgent)},
+		{path.Child("publish").Child("temporalRecordsPerDay"), quota.Publish.TemporalRecordsPerDay},
+		{path.Child("publish").Child("retainedTemporalRecords"), quota.Publish.RetainedTemporalRecords},
+		{path.Child("query").Child("requestsPerMinutePerUser"), int64(quota.Query.RequestsPerMinutePerUser)},
+		{path.Child("query").Child("returnedCellsPerHour"), quota.Query.ReturnedCellsPerHour},
+		{path.Child("query").Child("concurrentRequests"), int64(quota.Query.ConcurrentRequests)},
+		{path.Child("query").Child("cellsPerRequest"), int64(quota.Query.CellsPerRequest)},
+		{path.Child("query").Child("pointsPerSeries"), int64(quota.Query.PointsPerSeries)},
+	}
+	for _, value := range positiveCounts {
+		if value.value < 1 {
+			issues = append(issues, field.Invalid(value.path, value.value, "must be at least 1"))
+		}
+	}
+	positiveQuantities := []struct {
+		path     *field.Path
+		quantity resource.Quantity
+	}{
+		{path.Child("publish").Child("requestBytes"), quota.Publish.RequestBytes},
+		{path.Child("publish").Child("acceptedBytesPerDay"), quota.Publish.AcceptedBytesPerDay},
+		{path.Child("publish").Child("latestBytesPerAgent"), quota.Publish.LatestBytesPerAgent},
+		{path.Child("query").Child("responseBytes"), quota.Query.ResponseBytes},
+	}
+	for _, value := range positiveQuantities {
+		if value.quantity.Sign() <= 0 {
+			issues = append(issues, field.Invalid(value.path, value.quantity.String(), "must be positive"))
+		}
+	}
+	if quota.Query.Timeout.Duration <= 0 {
+		issues = append(issues, field.Invalid(
+			path.Child("query").Child("timeout"),
+			quota.Query.Timeout.Duration.String(),
+			"must be positive",
+		))
+	}
+	if oldObj == nil || oldObj.Spec.DashboardQuota == nil {
+		return issues
+	}
+
+	old := oldObj.Spec.DashboardQuota
+	decreases := []struct {
+		path      *field.Path
+		decreased bool
+	}{
+		{path.Child("dashboardsPerAgent"), quota.DashboardsPerAgent < old.DashboardsPerAgent},
+		{path.Child("widgetsPerDashboard"), quota.WidgetsPerDashboard < old.WidgetsPerDashboard},
+		{path.Child("publish").Child("requestBytes"), quota.Publish.RequestBytes.Cmp(old.Publish.RequestBytes) < 0},
+		{path.Child("publish").Child("recordsPerRequest"), quota.Publish.RecordsPerRequest < old.Publish.RecordsPerRequest},
+		{path.Child("publish").Child("requestsPerMinutePerAgent"), quota.Publish.RequestsPerMinutePerAgent < old.Publish.RequestsPerMinutePerAgent},
+		{path.Child("publish").Child("acceptedBytesPerDay"), quota.Publish.AcceptedBytesPerDay.Cmp(old.Publish.AcceptedBytesPerDay) < 0},
+		{path.Child("publish").Child("temporalRecordsPerDay"), quota.Publish.TemporalRecordsPerDay < old.Publish.TemporalRecordsPerDay},
+		{path.Child("publish").Child("retainedTemporalRecords"), quota.Publish.RetainedTemporalRecords < old.Publish.RetainedTemporalRecords},
+		{path.Child("publish").Child("latestBytesPerAgent"), quota.Publish.LatestBytesPerAgent.Cmp(old.Publish.LatestBytesPerAgent) < 0},
+		{path.Child("query").Child("requestsPerMinutePerUser"), quota.Query.RequestsPerMinutePerUser < old.Query.RequestsPerMinutePerUser},
+		{path.Child("query").Child("returnedCellsPerHour"), quota.Query.ReturnedCellsPerHour < old.Query.ReturnedCellsPerHour},
+		{path.Child("query").Child("concurrentRequests"), quota.Query.ConcurrentRequests < old.Query.ConcurrentRequests},
+		{path.Child("query").Child("cellsPerRequest"), quota.Query.CellsPerRequest < old.Query.CellsPerRequest},
+		{path.Child("query").Child("responseBytes"), quota.Query.ResponseBytes.Cmp(old.Query.ResponseBytes) < 0},
+		{path.Child("query").Child("pointsPerSeries"), quota.Query.PointsPerSeries < old.Query.PointsPerSeries},
+		{path.Child("query").Child("timeout"), quota.Query.Timeout.Duration < old.Query.Timeout.Duration},
+	}
+	for _, value := range decreases {
+		if value.decreased {
+			issues = append(issues, field.Forbidden(value.path, "cannot decrease"))
+		}
+	}
+	return issues
 }
 
 func (v *Validator) validateAgentQuota(ctx context.Context, oldObj, newObj *agentzv1alpha1.Tenant) field.ErrorList {

@@ -102,6 +102,15 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty 
 	if errors.Is(err, io.EOF) && allowEmpty {
 		return nil
 	}
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		return NewError(
+			http.StatusRequestEntityTooLarge,
+			"payload_too_large",
+			"request body exceeds the configured limit",
+			err,
+		)
+	}
 	if err != nil {
 		return NewError(
 			http.StatusBadRequest,

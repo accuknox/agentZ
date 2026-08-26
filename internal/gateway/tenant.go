@@ -612,6 +612,7 @@ func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, namespace
 	}
 
 	return requestAuth{
+		organizationID:  tenant.Spec.OrganizationID,
 		tenantName:      tenant.Name,
 		tenantNamespace: namespace,
 		workspaceID:     workspaceID,

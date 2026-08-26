@@ -293,6 +293,25 @@ manager:
           cpu: 500m
           memory: 800Mi
         qosClass: guaranteed
+    tenantDashboardQuota:
+      dashboardsPerAgent: 25
+      widgetsPerDashboard: 24
+      publish:
+        requestBytes: 256Ki
+        recordsPerRequest: 100
+        requestsPerMinutePerAgent: 30
+        acceptedBytesPerDay: 64Mi
+        temporalRecordsPerDay: 50000
+        retainedTemporalRecords: 1500000
+        latestBytesPerAgent: 64Mi
+      query:
+        requestsPerMinutePerUser: 30
+        returnedCellsPerHour: 5000000
+        concurrentRequests: 4
+        cellsPerRequest: 50000
+        responseBytes: 2Mi
+        pointsPerSeries: 500
+        timeout: 5s
 
     # Namespace or comma-separated namespaces watched by the manager.
     watchNamespace: ""

@@ -36,6 +36,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
@@ -94,6 +95,7 @@ type Service struct {
 	ctx                context.Context
 	resolver           *resolver
 	queries            gatewaydb.Querier
+	dashboards         dashboarddb.Querier
 	db                 *pgxpool.Pool
 	cfg                Config
 	bao                *baoapi.Client
@@ -301,6 +303,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		ctx:                ctx,
 		resolver:           resolver,
 		queries:            gatewaydb.New(db),
+		dashboards:         dashboarddb.New(db),
 		db:                 db,
 		cfg:                cfg,
 		bao:                baoClient,
@@ -323,6 +326,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	go func() {
 		defer close(eventTrailRetentionDone)
 		svc.runEventTrailRetention(runCtx)
+	}()
+	dashboardRetentionDone := make(chan struct{})
+	go func() {
+		defer close(dashboardRetentionDone)
+		svc.runDashboardRetention(runCtx)
 	}()
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -382,6 +390,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 	}
 	stopRun()
+	<-dashboardRetentionDone
 	<-chatSessionNotificationsDone
 	<-cleanupDone
 	<-eventTrailRetentionDone

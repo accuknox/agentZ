@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -23,6 +24,43 @@ func TestValidatorRejectsAgentCountDecrease(t *testing.T) {
 	_, err := (&Validator{}).ValidateUpdate(context.Background(), oldTenant, newTenant)
 	if err == nil {
 		t.Fatal("ValidateUpdate() accepted an Agent count decrease")
+	}
+}
+
+func TestValidatorRejectsDashboardQuotaRemovalAndDecrease(t *testing.T) {
+	t.Parallel()
+
+	oldTenant := tenantWithQuota("tenant", "1")
+	tests := []struct {
+		name   string
+		change func(*agentzv1alpha1.Tenant)
+	}{
+		{name: "removed", change: func(tenant *agentzv1alpha1.Tenant) { tenant.Spec.DashboardQuota = nil }},
+		{name: "count", change: func(tenant *agentzv1alpha1.Tenant) { tenant.Spec.DashboardQuota.Query.ConcurrentRequests-- }},
+		{name: "quantity", change: func(tenant *agentzv1alpha1.Tenant) {
+			tenant.Spec.DashboardQuota.Publish.RequestBytes = resource.MustParse("128Ki")
+		}},
+		{name: "duration", change: func(tenant *agentzv1alpha1.Tenant) { tenant.Spec.DashboardQuota.Query.Timeout.Duration-- }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			updated := oldTenant.DeepCopy()
+			test.change(updated)
+			if issues := validateDashboardQuota(oldTenant, updated); len(issues) == 0 {
+				t.Fatal("validateDashboardQuota() accepted a quota reduction")
+			}
+		})
+	}
+}
+
+func TestValidatorRejectsNonPositiveDashboardQuota(t *testing.T) {
+	t.Parallel()
+
+	tenant := tenantWithQuota("tenant", "1")
+	tenant.Spec.DashboardQuota.Publish.TemporalRecordsPerDay = 0
+	if issues := validateDashboardQuota(nil, tenant); len(issues) == 0 {
+		t.Fatal("validateDashboardQuota() accepted a zero limit")
 	}
 }
 
@@ -88,6 +126,28 @@ func tenantWithQuota(name, cpu string) *agentzv1alpha1.Tenant {
 						Memory: resource.MustParse("400Mi"),
 					},
 					QoSClass: corev1.PodQOSGuaranteed,
+				},
+			},
+			DashboardQuota: &agentzv1alpha1.DashboardQuota{
+				DashboardsPerAgent:  25,
+				WidgetsPerDashboard: 24,
+				Publish: agentzv1alpha1.DashboardPublishQuota{
+					RequestBytes:              resource.MustParse("256Ki"),
+					RecordsPerRequest:         100,
+					RequestsPerMinutePerAgent: 30,
+					AcceptedBytesPerDay:       resource.MustParse("64Mi"),
+					TemporalRecordsPerDay:     50_000,
+					RetainedTemporalRecords:   1_500_000,
+					LatestBytesPerAgent:       resource.MustParse("64Mi"),
+				},
+				Query: agentzv1alpha1.DashboardQueryQuota{
+					RequestsPerMinutePerUser: 30,
+					ReturnedCellsPerHour:     5_000_000,
+					ConcurrentRequests:       4,
+					CellsPerRequest:          50_000,
+					ResponseBytes:            resource.MustParse("2Mi"),
+					PointsPerSeries:          500,
+					Timeout:                  metav1.Duration{Duration: 5 * time.Second},
 				},
 			},
 		},

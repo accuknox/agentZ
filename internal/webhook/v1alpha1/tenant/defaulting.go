@@ -30,20 +30,24 @@ import (
 //
 // +kubebuilder:object:generate=false
 type Defaulter struct {
-	agentQuota agentzv1alpha1.AgentQuota
+	agentQuota     agentzv1alpha1.AgentQuota
+	dashboardQuota agentzv1alpha1.DashboardQuota
 }
 
 var _ admission.Defaulter[*agentzv1alpha1.Tenant] = &Defaulter{}
 
 // NewDefaulter builds a Tenant defaulter.
-func NewDefaulter(agentQuota agentzv1alpha1.AgentQuota) *Defaulter {
-	return &Defaulter{agentQuota: agentQuota}
+func NewDefaulter(agentQuota agentzv1alpha1.AgentQuota, dashboardQuota agentzv1alpha1.DashboardQuota) *Defaulter {
+	return &Defaulter{agentQuota: agentQuota, dashboardQuota: dashboardQuota}
 }
 
 // Default applies the configured quota when a Tenant omits it.
 func (d *Defaulter) Default(_ context.Context, tenant *agentzv1alpha1.Tenant) error {
 	if tenant.Spec.AgentQuota == nil {
 		tenant.Spec.AgentQuota = d.agentQuota.DeepCopy()
+	}
+	if tenant.Spec.DashboardQuota == nil {
+		tenant.Spec.DashboardQuota = d.dashboardQuota.DeepCopy()
 	}
 	return nil
 }

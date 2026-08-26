@@ -1,0 +1,122 @@
+import type { Metadata } from "next"
+import { Suspense } from "react"
+import * as z from "zod"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  getDashboardCachedQuery,
+  listDashboardsCachedQuery,
+  queryDashboardInitial,
+} from "@/data/dashboard.queries"
+import { getWorkspaceScope } from "@/data/workspaces"
+import { DashboardView } from "./dashboard-view"
+
+export const metadata: Metadata = { title: "Dashboards" }
+
+const searchSchema = z.object({
+  agent_name: z.string().optional(),
+  dashboard_name: z.string().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+})
+
+export default async function DashboardsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgSlug: string; workspaceSlug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const route = await params
+  return (
+    <main className="flex min-w-0 flex-1 flex-col">
+      <AdministrationPageHeader title="Dashboards" />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent route={route} searchParams={searchParams} />
+      </Suspense>
+    </main>
+  )
+}
+
+async function DashboardContent({
+  route,
+  searchParams,
+}: {
+  route: { orgSlug: string; workspaceSlug: string }
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
+  const parsed = searchSchema.safeParse(await searchParams)
+  const search = parsed.success ? parsed.data : {}
+  const listed = await listDashboardsCachedQuery(scope.workspace.id)
+  if (listed.error)
+    return (
+      <AdministrationState
+        kind="failed"
+        title="Unable to load dashboards"
+        description={listed.error.message}
+      />
+    )
+  if (listed.dashboards.length === 0)
+    return (
+      <AdministrationState
+        kind="empty"
+        title="No dashboards"
+        description="Ask an agent to create a dashboard from its results."
+      />
+    )
+
+  const selected =
+    listed.dashboards.find(
+      (dashboard) =>
+        dashboard.agent_name === search.agent_name && dashboard.name === search.dashboard_name
+    ) ?? listed.dashboards.at(0)
+  if (!selected) return <AdministrationState kind="empty" title="No dashboards" />
+  const loaded = await getDashboardCachedQuery(
+    scope.workspace.id,
+    selected.agent_name,
+    selected.name
+  )
+  if (loaded.error)
+    return (
+      <AdministrationState
+        kind="failed"
+        title="Unable to load dashboard"
+        description={loaded.error.message}
+      />
+    )
+
+  const now = new Date()
+  const to = search.to ?? now.toISOString()
+  const from = search.from ?? new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+  const initialData = await queryDashboardInitial(
+    scope.workspace.id,
+    loaded.dashboard.agent_name,
+    loaded.dashboard.name,
+    from,
+    to
+  )
+  const workspacePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
+  return (
+    <DashboardView
+      dashboard={loaded.dashboard}
+      dashboards={listed.dashboards}
+      initialData={initialData}
+      initialFrom={from}
+      initialTo={to}
+      workspaceId={scope.workspace.id}
+      workspacePath={workspacePath}
+    />
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="bg-muted/45 grid grid-cols-12 gap-2 p-2">
+      {[0, 1, 2, 3].map((item) => (
+        <Skeleton className="col-span-12 h-80 rounded-sm lg:col-span-6" key={item} />
+      ))}
+    </div>
+  )
+}

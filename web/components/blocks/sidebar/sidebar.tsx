@@ -10,6 +10,7 @@ import {
   CircleUserRound,
   CloudCog,
   KeyRound,
+  LayoutDashboard,
   Lock,
   Monitor,
   ScrollText,
@@ -329,6 +330,16 @@ async function WorkspaceNavigation({
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
                 </>
+              ) : null}
+              {showWorkflows ? (
+                <SidebarMenuItem>
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/dashboards` as Route}
+                    label="Dashboards"
+                  >
+                    <LayoutDashboard aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
               ) : null}
             </SidebarMenu>
           </SidebarGroup>

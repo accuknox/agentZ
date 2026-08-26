@@ -5,6 +5,7 @@ export const skillsTag = "skills"
 export const mcpsTag = "mcps"
 export const secretsTag = "secrets"
 export const workflowsTag = "workflows"
+export const dashboardsTag = "dashboards"
 export const workflowRunsTag = "workflow-runs"
 export const inferenceProvidersTag = "inference-providers"
 export const inferencePoolsTag = "inference-pools"
@@ -19,4 +20,8 @@ export function agentWorkflowsTag(agentName: string) {
 
 export function workflowTag(agentName: string, workflowName: string) {
   return `${workflowsTag}:${agentName}:${workflowName}`
+}
+
+export function dashboardTag(agentName: string, dashboardName: string) {
+  return `${dashboardsTag}:${agentName}:${dashboardName}`
 }

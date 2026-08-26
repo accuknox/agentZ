@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: tenants.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -144,6 +144,127 @@ spec:
                 x-kubernetes-validations:
                 - message: count cannot decrease
                   rule: self.count >= oldSelf.count
+              dashboardQuota:
+                description: |-
+                  DashboardQuota limits dashboard definitions, ingestion, and queries across
+                  every Workspace in this Organisation.
+                properties:
+                  dashboardsPerAgent:
+                    description: DashboardsPerAgent is the maximum number of dashboards owned by one Agent.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  publish:
+                    description: Publish limits dashboard data ingestion.
+                    properties:
+                      acceptedBytesPerDay:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: AcceptedBytesPerDay limits accepted JSON bytes across the Organisation.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      latestBytesPerAgent:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: LatestBytesPerAgent limits current latest-widget data owned by one Agent.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      recordsPerRequest:
+                        description: RecordsPerRequest is the maximum number of records in one publish.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      requestBytes:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: RequestBytes is the maximum JSON request size.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      requestsPerMinutePerAgent:
+                        description: RequestsPerMinutePerAgent limits publish attempts by one Agent.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      retainedTemporalRecords:
+                        description: RetainedTemporalRecords limits retained temporal records across the Organisation.
+                        format: int64
+                        minimum: 1
+                        type: integer
+                      temporalRecordsPerDay:
+                        description: TemporalRecordsPerDay limits accepted temporal records across the Organisation.
+                        format: int64
+                        minimum: 1
+                        type: integer
+                    required:
+                    - acceptedBytesPerDay
+                    - latestBytesPerAgent
+                    - recordsPerRequest
+                    - requestBytes
+                    - requestsPerMinutePerAgent
+                    - retainedTemporalRecords
+                    - temporalRecordsPerDay
+                    type: object
+                  query:
+                    description: Query limits dashboard reads.
+                    properties:
+                      cellsPerRequest:
+                        description: CellsPerRequest limits cells returned by one query.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      concurrentRequests:
+                        description: ConcurrentRequests limits active queries across the Organisation.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      pointsPerSeries:
+                        description: PointsPerSeries limits returned points for one chart series.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      requestsPerMinutePerUser:
+                        description: RequestsPerMinutePerUser limits query attempts by one user.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      responseBytes:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: ResponseBytes limits one encoded query response.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      returnedCellsPerHour:
+                        description: ReturnedCellsPerHour limits returned cells across the Organisation.
+                        format: int64
+                        minimum: 1
+                        type: integer
+                      timeout:
+                        description: Timeout limits PostgreSQL execution time for one query.
+                        type: string
+                    required:
+                    - cellsPerRequest
+                    - concurrentRequests
+                    - pointsPerSeries
+                    - requestsPerMinutePerUser
+                    - responseBytes
+                    - returnedCellsPerHour
+                    - timeout
+                    type: object
+                  widgetsPerDashboard:
+                    description: WidgetsPerDashboard is the maximum number of widgets in one dashboard.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                required:
+                - dashboardsPerAgent
+                - publish
+                - query
+                - widgetsPerDashboard
+                type: object
               organizationID:
                 description: |-
                   OrganizationID is the immutable Better Auth Organisation ID represented by
@@ -314,6 +435,131 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              dashboardQuota:
+                description: DashboardQuota reports the effective dashboard limits.
+                properties:
+                  limits:
+                    description: DashboardQuota limits dashboard definitions, ingestion, and queries.
+                    properties:
+                      dashboardsPerAgent:
+                        description: DashboardsPerAgent is the maximum number of dashboards owned by one Agent.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      publish:
+                        description: Publish limits dashboard data ingestion.
+                        properties:
+                          acceptedBytesPerDay:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: AcceptedBytesPerDay limits accepted JSON bytes across the Organisation.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          latestBytesPerAgent:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: LatestBytesPerAgent limits current latest-widget data owned by one Agent.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          recordsPerRequest:
+                            description: RecordsPerRequest is the maximum number of records in one publish.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          requestBytes:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: RequestBytes is the maximum JSON request size.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          requestsPerMinutePerAgent:
+                            description: RequestsPerMinutePerAgent limits publish attempts by one Agent.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          retainedTemporalRecords:
+                            description: RetainedTemporalRecords limits retained temporal records across the Organisation.
+                            format: int64
+                            minimum: 1
+                            type: integer
+                          temporalRecordsPerDay:
+                            description: TemporalRecordsPerDay limits accepted temporal records across the Organisation.
+                            format: int64
+                            minimum: 1
+                            type: integer
+                        required:
+                        - acceptedBytesPerDay
+                        - latestBytesPerAgent
+                        - recordsPerRequest
+                        - requestBytes
+                        - requestsPerMinutePerAgent
+                        - retainedTemporalRecords
+                        - temporalRecordsPerDay
+                        type: object
+                      query:
+                        description: Query limits dashboard reads.
+                        properties:
+                          cellsPerRequest:
+                            description: CellsPerRequest limits cells returned by one query.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          concurrentRequests:
+                            description: ConcurrentRequests limits active queries across the Organisation.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          pointsPerSeries:
+                            description: PointsPerSeries limits returned points for one chart series.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          requestsPerMinutePerUser:
+                            description: RequestsPerMinutePerUser limits query attempts by one user.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          responseBytes:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: ResponseBytes limits one encoded query response.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          returnedCellsPerHour:
+                            description: ReturnedCellsPerHour limits returned cells across the Organisation.
+                            format: int64
+                            minimum: 1
+                            type: integer
+                          timeout:
+                            description: Timeout limits PostgreSQL execution time for one query.
+                            type: string
+                        required:
+                        - cellsPerRequest
+                        - concurrentRequests
+                        - pointsPerSeries
+                        - requestsPerMinutePerUser
+                        - responseBytes
+                        - returnedCellsPerHour
+                        - timeout
+                        type: object
+                      widgetsPerDashboard:
+                        description: WidgetsPerDashboard is the maximum number of widgets in one dashboard.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                    required:
+                    - dashboardsPerAgent
+                    - publish
+                    - query
+                    - widgetsPerDashboard
+                    type: object
+                required:
+                - limits
+                type: object
               namespace:
                 description: Namespace is the isolated Kubernetes namespace for this tenant.
                 type: string

@@ -2114,6 +2114,235 @@ export const zCreateMcpConnectionRequest = z.object({
   credentials: zMcpConnectionCredentials,
 })
 
+export const zDashboardName = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zDashboardWidgetName = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zDashboardWidgetKind = z.enum([
+  "line",
+  "pie",
+  "bar",
+  "horizontal_grouped_bar",
+  "area",
+  "step",
+  "table",
+  "scatter",
+  "gauge",
+])
+
+export const zDashboardWidgetMode = z.enum(["temporal", "latest"])
+
+export const zDashboardWidgetWidth = z.enum(["full", "half", "third"])
+
+export const zDashboardAggregation = z.enum([
+  "sum",
+  "average",
+  "minimum",
+  "maximum",
+  "last",
+  "count",
+])
+
+export const zDashboardSeries = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  label: z.string().min(1).max(80),
+  aggregation: zDashboardAggregation,
+})
+
+export const zDashboardTableColumnType = z.enum(["text", "number", "boolean", "datetime"])
+
+export const zDashboardTableColumn = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  label: z.string().min(1).max(80),
+  type: zDashboardTableColumnType,
+  sortable: z.boolean(),
+})
+
+export const zDashboardGaugeThreshold = z.object({
+  value: z.number(),
+  tone: z.enum(["neutral", "warning", "critical"]),
+})
+
+export const zDashboardWidgetDefinition = z.object({
+  name: zDashboardWidgetName,
+  title: z.string().min(1).max(80),
+  kind: zDashboardWidgetKind,
+  mode: zDashboardWidgetMode,
+  width: zDashboardWidgetWidth,
+  series: z.array(zDashboardSeries).max(5),
+  columns: z.array(zDashboardTableColumn).max(12),
+  minimum: z.number().optional(),
+  maximum: z.number().optional(),
+  thresholds: z.array(zDashboardGaugeThreshold).max(5),
+})
+
+export const zDashboardWidget = zDashboardWidgetDefinition.and(
+  z.object({
+    data_revision: z.uuid(),
+  })
+)
+
+export const zDashboard = z.object({
+  name: zDashboardName,
+  title: z.string().min(1).max(80),
+  agent_name: zAgentName,
+  widgets: z.array(zDashboardWidget),
+  created_at: z.iso.datetime(),
+})
+
+export const zDashboardSummary = z.object({
+  name: zDashboardName,
+  title: z.string(),
+  agent_name: zAgentName,
+  widget_count: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  created_at: z.iso.datetime(),
+})
+
+export const zListDashboardsResponse = z.object({
+  dashboards: z.array(zDashboardSummary),
+  next_page_token: z.string(),
+})
+
+export const zCreateDashboardRequest = z.object({
+  name: zDashboardName,
+  title: z.string().min(1).max(80),
+  widgets: z.array(zDashboardWidgetDefinition).min(1).max(48),
+})
+
+export const zDashboardCell = z.object({
+  text: z.string().max(1024).optional(),
+  number: z.number().optional(),
+  boolean: z.boolean().optional(),
+  datetime: z.iso.datetime().optional(),
+})
+
+export const zDashboardDataRecord = z.object({
+  category: z.string().min(1).max(120).optional(),
+  series: z.int().gte(0).lte(4).optional(),
+  values: z.array(z.number()).max(5).optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  size: z.number().gte(0).optional(),
+  label: z.string().max(120).optional(),
+  cells: z.array(zDashboardCell).max(12).optional(),
+})
+
+export const zPublishDashboardDataRequest = z.object({
+  data_revision: z.uuid(),
+  records: z.array(zDashboardDataRecord).min(1).max(1000),
+})
+
+export const zPublishDashboardDataResponse = z.object({
+  received_at: z.iso.datetime(),
+  accepted_records: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  replayed: z.boolean(),
+})
+
+export const zQueryDashboardRequest = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  max_points: z.int().gte(1).lte(1000).optional().default(240),
+  widgets: z.array(zDashboardWidgetName).max(48).optional(),
+})
+
+export const zDashboardTimePoint = z.object({
+  at: z.iso.datetime(),
+  values: z.array(z.number().nullable()).max(5),
+})
+
+export const zDashboardCategory = z.object({
+  label: z.string(),
+  values: z.array(z.number()).max(5),
+})
+
+export const zDashboardScatterPoint = z.object({
+  series: z
+    .int()
+    .min(-2147483648, { error: "Invalid value: Expected int32 to be >= -2147483648" })
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  x: z.number(),
+  y: z.number(),
+  size: z.number().optional(),
+  label: z.string().optional(),
+})
+
+export const zDashboardWidgetError = z.object({
+  code: z.string(),
+  message: z.string(),
+  issue_paths: z.array(z.string()).max(5),
+  invalid_record_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  remediation: z.string(),
+})
+
+export const zDashboardWidgetQueryStatus = z.enum([
+  "ok",
+  "empty",
+  "invalid_data",
+  "limit_exceeded",
+  "query_failed",
+])
+
+export const zDashboardWidgetQueryResult = z.object({
+  widget_name: zDashboardWidgetName,
+  data_revision: z.uuid(),
+  kind: zDashboardWidgetKind,
+  status: zDashboardWidgetQueryStatus,
+  bucket_seconds: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  points: z.array(zDashboardTimePoint),
+  categories: z.array(zDashboardCategory),
+  scatter: z.array(zDashboardScatterPoint),
+  value: z.number().optional(),
+  error: zDashboardWidgetError.optional(),
+})
+
+export const zQueryDashboardResponse = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  widgets: z.array(zDashboardWidgetQueryResult),
+})
+
+export const zDashboardTableRow = z.object({
+  received_at: z.iso.datetime(),
+  cells: z.array(zDashboardCell).max(12),
+})
+
+export const zDashboardTablePage = z.object({
+  status: zDashboardWidgetQueryStatus,
+  rows: z.array(zDashboardTableRow).max(25),
+  next_page_token: z.string(),
+  error: zDashboardWidgetError.optional(),
+})
+
 export const zJsonValueWritable = z
   .union([
     z.boolean(),
@@ -2459,6 +2688,21 @@ export const zFromDateQuery = z.iso.date()
  * Inclusive upper bound for MCP tool activity date.
  */
 export const zToDateQuery = z.iso.date()
+
+/**
+ * Dashboard name.
+ */
+export const zDashboardNamePath = zDashboardName
+
+/**
+ * Widget name.
+ */
+export const zDashboardWidgetNamePath = zDashboardWidgetName
+
+/**
+ * Stable publish call identifier.
+ */
+export const zIdempotencyKeyHeader = z.string().min(1).max(128)
 
 export const zListChatSessionsQuery = z.object({
   limit: z.int().gte(1).lte(50).optional().default(10),
@@ -3888,3 +4132,133 @@ export const zPatchWorkflowRunNodeStatusPath = z.object({
  * WorkflowRun node status updated.
  */
 export const zPatchWorkflowRunNodeStatusResponse = z.void()
+
+export const zListDashboardsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+export const zListDashboardsQuery = z.object({
+  agent_name: zAgentName.optional(),
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * One page of dashboard summaries.
+ */
+export const zListDashboardsResponse2 = zListDashboardsResponse
+
+export const zListAgentDashboardsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+export const zListAgentDashboardsPath = z.object({
+  agentName: zAgentName,
+})
+
+export const zListAgentDashboardsQuery = z.object({
+  page_token: z.string().min(1).optional(),
+})
+
+/**
+ * One page of dashboard summaries.
+ */
+export const zListAgentDashboardsResponse = zListDashboardsResponse
+
+export const zCreateDashboardBody = zCreateDashboardRequest
+
+export const zCreateDashboardHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+export const zCreateDashboardPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Dashboard created.
+ */
+export const zCreateDashboardResponse = zDashboard
+
+export const zDeleteDashboardHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+export const zDeleteDashboardPath = z.object({
+  agentName: zAgentName,
+  dashboardName: zDashboardName,
+})
+
+/**
+ * Dashboard deleted.
+ */
+export const zDeleteDashboardResponse = z.void()
+
+export const zGetDashboardHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+export const zGetDashboardPath = z.object({
+  agentName: zAgentName,
+  dashboardName: zDashboardName,
+})
+
+/**
+ * Dashboard definition.
+ */
+export const zGetDashboardResponse = zDashboard
+
+export const zPublishDashboardDataBody = zPublishDashboardDataRequest
+
+export const zPublishDashboardDataHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+  "Idempotency-Key": z.string().min(1).max(128),
+})
+
+export const zPublishDashboardDataPath = z.object({
+  agentName: zAgentName,
+  dashboardName: zDashboardName,
+  widgetName: zDashboardWidgetName,
+})
+
+/**
+ * Data accepted or an identical retry replayed.
+ */
+export const zPublishDashboardDataResponse2 = zPublishDashboardDataResponse
+
+export const zQueryDashboardBody = zQueryDashboardRequest
+
+export const zQueryDashboardHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+export const zQueryDashboardPath = z.object({
+  agentName: zAgentName,
+  dashboardName: zDashboardName,
+})
+
+/**
+ * Per-widget query results.
+ */
+export const zQueryDashboardResponse2 = zQueryDashboardResponse
+
+export const zListDashboardTableRowsHeaders = z.object({
+  "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
+})
+
+export const zListDashboardTableRowsPath = z.object({
+  agentName: zAgentName,
+  dashboardName: zDashboardName,
+  widgetName: zDashboardWidgetName,
+})
+
+export const zListDashboardTableRowsQuery = z.object({
+  event_time_after: z.iso.datetime().optional(),
+  event_time_before: z.iso.datetime().optional(),
+  page_token: z.string().min(1).optional(),
+  sort: z.array(z.string().min(1).max(80)).max(3).optional(),
+})
+
+/**
+ * One 25-row table page.
+ */
+export const zListDashboardTableRowsResponse = zDashboardTablePage

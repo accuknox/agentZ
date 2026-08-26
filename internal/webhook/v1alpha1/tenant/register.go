@@ -24,13 +24,14 @@ import (
 
 // WebhookConfig configures Tenant defaulting behavior.
 type WebhookConfig struct {
-	AgentQuota agentzv1alpha1.AgentQuota
+	AgentQuota     agentzv1alpha1.AgentQuota
+	DashboardQuota agentzv1alpha1.DashboardQuota
 }
 
 // RegisterWithManager registers the Tenant webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager, cfg WebhookConfig) error {
 	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.Tenant{}).
 		WithValidator(&Validator{reader: mgr.GetAPIReader()}).
-		WithDefaulter(NewDefaulter(cfg.AgentQuota)).
+		WithDefaulter(NewDefaulter(cfg.AgentQuota, cfg.DashboardQuota)).
 		Complete()
 }

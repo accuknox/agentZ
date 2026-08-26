@@ -156,6 +156,43 @@
             }
           }
         },
+        "tenantDashboardQuota": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dashboardsPerAgent", "widgetsPerDashboard", "publish", "query"],
+          "properties": {
+            "dashboardsPerAgent": { "type": "integer", "minimum": 1 },
+            "widgetsPerDashboard": { "type": "integer", "minimum": 1 },
+            "publish": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["requestBytes", "recordsPerRequest", "requestsPerMinutePerAgent", "acceptedBytesPerDay", "temporalRecordsPerDay", "retainedTemporalRecords", "latestBytesPerAgent"],
+              "properties": {
+                "requestBytes": { "type": "string", "minLength": 1 },
+                "recordsPerRequest": { "type": "integer", "minimum": 1 },
+                "requestsPerMinutePerAgent": { "type": "integer", "minimum": 1 },
+                "acceptedBytesPerDay": { "type": "string", "minLength": 1 },
+                "temporalRecordsPerDay": { "type": "integer", "minimum": 1 },
+                "retainedTemporalRecords": { "type": "integer", "minimum": 1 },
+                "latestBytesPerAgent": { "type": "string", "minLength": 1 }
+              }
+            },
+            "query": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["requestsPerMinutePerUser", "returnedCellsPerHour", "concurrentRequests", "cellsPerRequest", "responseBytes", "pointsPerSeries", "timeout"],
+              "properties": {
+                "requestsPerMinutePerUser": { "type": "integer", "minimum": 1 },
+                "returnedCellsPerHour": { "type": "integer", "minimum": 1 },
+                "concurrentRequests": { "type": "integer", "minimum": 1 },
+                "cellsPerRequest": { "type": "integer", "minimum": 1 },
+                "responseBytes": { "type": "string", "minLength": 1 },
+                "pointsPerSeries": { "type": "integer", "minimum": 1 },
+                "timeout": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
         "watchNamespace": { "type": "string" },
         "enableWebhooks": { "type": "boolean" }
       }

@@ -291,29 +291,7 @@ function Widget({
   workspaceId: string
   workspacePath: string
 }) {
-  const [seen, setSeen] = React.useState(false)
-  const sectionRef = React.useRef<HTMLElement>(null)
   const Icon = widgetIcons[widget.kind]
-
-  React.useEffect(() => {
-    const section = sectionRef.current
-    if (!section) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue
-          // Keep charts mounted after first paint so revisiting them does not
-          // move Recharts initialization work back onto the scroll path.
-          setSeen(true)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: "256px 0px" }
-    )
-    observer.observe(section)
-    return () => observer.disconnect()
-  }, [])
 
   return (
     <section
@@ -322,7 +300,6 @@ function Widget({
         "bg-card h-80 min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] transition-shadow duration-200 [content-visibility:auto] hover:shadow-[0_8px_24px_color-mix(in_oklab,var(--foreground)_8%,transparent)]",
         dashboardWidgetWidthClasses[widget.width]
       )}
-      ref={sectionRef}
     >
       <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
         <span className="bg-primary/8 text-primary ring-primary/10 flex size-7 shrink-0 items-center justify-center rounded-md ring-1">
@@ -355,10 +332,8 @@ function Widget({
           <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
             No data
           </div>
-        ) : seen ? (
-          <DashboardChart widget={widget} result={result} />
         ) : (
-          <DashboardWidgetBodySkeleton />
+          <DashboardChart widget={widget} result={result} />
         )}
       </div>
     </section>

@@ -89,12 +89,8 @@ async function DashboardContent({
     )
 
   const now = dayjs()
-  const from = dayjs(search.from ?? now)
-    .startOf("day")
-    .toISOString()
-  const to = dayjs(search.to ?? now)
-    .endOf("day")
-    .toISOString()
+  const from = search.from ?? now.startOf("day").toISOString()
+  const to = search.to ?? now.endOf("day").toISOString()
   const workspacePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
   return (
     <Suspense fallback={<DashboardSkeleton dashboard={loaded.dashboard} />}>

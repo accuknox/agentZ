@@ -35,16 +35,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Spinner } from "@/components/ui/spinner"
 import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
 import { dayjs } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import {
+  DashboardTableSkeleton,
+  DashboardWidgetBodySkeleton,
+  dashboardWidgetWidthClasses,
+} from "./dashboard-skeleton"
 
 const DashboardChart = dynamic(
   () => import("./dashboard-chart").then((module) => module.DashboardChart),
   {
-    loading: () => <Skeleton className="h-full w-full" />,
+    loading: () => <DashboardWidgetBodySkeleton />,
     ssr: false,
   }
 )
@@ -182,6 +185,7 @@ export function DashboardView({
             key={widget.name}
             dashboard={dashboard}
             from={from}
+            pending={query.isPending}
             result={results.get(widget.name)}
             to={to}
             widget={widget}
@@ -197,6 +201,7 @@ export function DashboardView({
 function Widget({
   dashboard,
   from,
+  pending,
   result,
   to,
   widget,
@@ -205,6 +210,7 @@ function Widget({
 }: {
   dashboard: Dashboard
   from: string
+  pending: boolean
   result?: DashboardWidgetQueryResult
   to: string
   widget: DashboardWidget
@@ -234,17 +240,12 @@ function Widget({
     return () => observer.disconnect()
   }, [])
 
-  const width =
-    widget.width === "full"
-      ? "col-span-12"
-      : widget.width === "half"
-        ? "col-span-12 lg:col-span-6"
-        : "col-span-12 md:col-span-6 xl:col-span-4"
   return (
     <section
+      aria-busy={pending}
       className={cn(
         "bg-background h-80 min-w-0 overflow-hidden rounded-sm border [content-visibility:auto]",
-        width
+        dashboardWidgetWidthClasses[widget.width]
       )}
       ref={sectionRef}
     >
@@ -268,6 +269,8 @@ function Widget({
             message={result.error?.message}
             workspacePath={workspacePath}
           />
+        ) : pending ? (
+          <DashboardWidgetBodySkeleton />
         ) : !result || result.status === "empty" ? (
           <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
             No data
@@ -275,7 +278,7 @@ function Widget({
         ) : seen ? (
           <DashboardChart widget={widget} result={result} />
         ) : (
-          <Skeleton className="h-full w-full" />
+          <DashboardWidgetBodySkeleton />
         )}
       </div>
     </section>
@@ -425,6 +428,15 @@ function DashboardTable({
   })
   const data = query.data
 
+  if (query.isPending) {
+    return (
+      <div className="h-full" role="status">
+        <span className="sr-only">Loading {widget.title}</span>
+        <DashboardTableSkeleton columnCount={widget.columns.length} />
+      </div>
+    )
+  }
+
   if (data?.status === "invalid_data")
     return (
       <InvalidWidget
@@ -440,9 +452,7 @@ function DashboardTable({
       className="h-full gap-0 [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&>nav]:h-14 [&>nav]:shrink-0"
       emptyState={
         <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-          {query.isPending ? (
-            <Spinner />
-          ) : query.error ? (
+          {query.error ? (
             <span className="text-destructive">{query.error.message}</span>
           ) : (
             (data?.error?.message ?? "No data")

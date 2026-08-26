@@ -1,8 +1,7 @@
 import type { Metadata } from "next"
-import { Suspense } from "react"
+import { Suspense, type ComponentProps } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   getDashboardCachedQuery,
   listDashboardsCachedQuery,
@@ -10,6 +9,7 @@ import {
 } from "@/data/dashboard.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { dayjs } from "@/lib/format"
+import { DashboardSkeleton } from "./dashboard-skeleton"
 import { DashboardView } from "./dashboard-view"
 
 export const metadata: Metadata = { title: "Dashboards" }
@@ -95,33 +95,28 @@ async function DashboardContent({
   const to = dayjs(search.to ?? now)
     .endOf("day")
     .toISOString()
-  const initialData = await queryDashboardInitial(
-    scope.workspace.id,
-    loaded.dashboard.agent_name,
-    loaded.dashboard.name,
-    from,
-    to
-  )
   const workspacePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
   return (
-    <DashboardView
-      dashboard={loaded.dashboard}
-      dashboards={listed.dashboards}
-      initialData={initialData}
-      initialFrom={from}
-      initialTo={to}
-      workspaceId={scope.workspace.id}
-      workspacePath={workspacePath}
-    />
+    <Suspense fallback={<DashboardSkeleton dashboard={loaded.dashboard} />}>
+      <DashboardData
+        dashboard={loaded.dashboard}
+        dashboards={listed.dashboards}
+        initialFrom={from}
+        initialTo={to}
+        workspaceId={scope.workspace.id}
+        workspacePath={workspacePath}
+      />
+    </Suspense>
   )
 }
 
-function DashboardSkeleton() {
-  return (
-    <div className="bg-muted/45 grid grid-cols-12 gap-2 p-2">
-      {[0, 1, 2, 3].map((item) => (
-        <Skeleton className="col-span-12 h-80 rounded-sm lg:col-span-6" key={item} />
-      ))}
-    </div>
+async function DashboardData(props: Omit<ComponentProps<typeof DashboardView>, "initialData">) {
+  const initialData = await queryDashboardInitial(
+    props.workspaceId,
+    props.dashboard.agent_name,
+    props.dashboard.name,
+    props.initialFrom,
+    props.initialTo
   )
+  return <DashboardView {...props} initialData={initialData} />
 }

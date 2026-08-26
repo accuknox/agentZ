@@ -1,11 +1,18 @@
 "use client"
 
 import * as React from "react"
+import { useProgress } from "@bprogress/next"
 import type { Route } from "next"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query"
+import {
+  keepPreviousData,
+  queryOptions,
+  useIsFetching,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import {
   type ColumnDef,
   getCoreRowModel,
@@ -55,31 +62,59 @@ const DashboardChart = dynamic(
 export function DashboardView({
   dashboard,
   dashboards,
+  from,
   initialData,
-  initialFrom,
-  initialTo,
+  to,
   workspaceId,
   workspacePath,
 }: {
   dashboard: Dashboard
   dashboards: DashboardSummary[]
+  from: string
   initialData?: QueryDashboardResponse
-  initialFrom: string
-  initialTo: string
+  to: string
   workspaceId: string
   workspacePath: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [from, setFrom] = React.useState(initialFrom)
-  const [to, setTo] = React.useState(initialTo)
+  const [navigationPending, startNavigation] = React.useTransition()
+  const progress = useProgress()
+  const queryClient = useQueryClient()
+  const dashboardQueryKey = [
+    "dashboard",
+    workspaceId,
+    dashboard.agent_name,
+    dashboard.name,
+    from,
+    to,
+  ] as const
+  const fetchingCount = useIsFetching({ queryKey: dashboardQueryKey })
 
-  const query = useQuery(
+  React.useEffect(() => {
+    if (navigationPending) {
+      progress.start(undefined, 100)
+      return
+    }
+
+    progress.stop()
+  }, [navigationPending, progress])
+
+  const widgetsQuery = useQuery(
     queryOptions({
-      queryKey: ["dashboard", workspaceId, dashboard.agent_name, dashboard.name, from, to],
-      queryFn: async () => {
+      queryKey: [
+        "dashboard",
+        workspaceId,
+        dashboard.agent_name,
+        dashboard.name,
+        from,
+        to,
+        "widgets",
+      ],
+      queryFn: async ({ signal }) => {
         const { data, error } = await queryDashboard({
+          signal,
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           path: { agentName: dashboard.agent_name, dashboardName: dashboard.name },
           body: { from, to, max_points: 240 },
@@ -101,25 +136,29 @@ export function DashboardView({
     to?: string
   }) {
     const params = new URLSearchParams(searchParams)
-    if (next.agentName) params.set("agent_name", next.agentName)
-    if (next.dashboardName) params.set("dashboard_name", next.dashboardName)
+    params.set("agent_name", next.agentName ?? dashboard.agent_name)
+    params.set("dashboard_name", next.dashboardName ?? dashboard.name)
     if (next.from) params.set("from", next.from)
     if (next.to) params.set("to", next.to)
-    router.replace(`${pathname}?${params.toString()}` as Route)
+    startNavigation(() => {
+      router.replace(`${pathname}?${params.toString()}` as Route)
+    })
   }
 
   const agents = [...new Set(dashboards.map((item) => item.agent_name))]
   const agentDashboards = dashboards.filter((item) => item.agent_name === dashboard.agent_name)
-  const results = new Map(query.data?.widgets.map((widget) => [widget.widget_name, widget]))
+  const results = new Map(widgetsQuery.data?.widgets.map((widget) => [widget.widget_name, widget]))
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="bg-background flex min-h-14 flex-wrap items-center gap-2 border-b px-4 py-2 sm:px-6">
         <Select
+          disabled={navigationPending}
           value={dashboard.agent_name}
           onValueChange={(agentName) => {
             const first = dashboards.find((item) => item.agent_name === agentName)
-            updateLocation({ agentName, dashboardName: first?.name })
+            if (!first) return
+            updateLocation({ agentName, dashboardName: first.name })
           }}
         >
           <SelectTrigger className="h-8 w-48">
@@ -137,6 +176,7 @@ export function DashboardView({
           </SelectContent>
         </Select>
         <Select
+          disabled={navigationPending}
           value={dashboard.name}
           onValueChange={(dashboardName) => updateLocation({ dashboardName })}
         >
@@ -156,28 +196,31 @@ export function DashboardView({
         </Select>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <DateRangePicker
+            disabled={navigationPending}
             onSelect={(nextRange) => {
               const nextFrom = dayjs(nextRange.from).toISOString()
               const nextTo = dayjs(nextRange.to).toISOString()
-              setFrom(nextFrom)
-              setTo(nextTo)
               updateLocation({ from: nextFrom, to: nextTo })
             }}
             range={{ from: dayjs(from).toDate(), to: dayjs(to).toDate() }}
           />
           <Button
             aria-label="Refresh dashboard"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
+            disabled={navigationPending || fetchingCount > 0}
+            onClick={() =>
+              void queryClient.refetchQueries({ queryKey: dashboardQueryKey, type: "active" })
+            }
             size="icon-sm"
             variant="ghost"
           >
-            <RefreshCw className={cn(query.isFetching && "animate-spin")} />
+            <RefreshCw className={cn(fetchingCount > 0 && "animate-spin")} />
           </Button>
         </div>
       </div>
-      {query.error ? (
-        <div className="text-destructive border-b px-6 py-3 text-sm">{query.error.message}</div>
+      {widgetsQuery.error ? (
+        <div className="text-destructive border-b px-6 py-3 text-sm">
+          {widgetsQuery.error.message}
+        </div>
       ) : null}
       <div className="bg-muted/45 grid grid-cols-12 gap-2 p-2">
         {dashboard.widgets.map((widget) => (
@@ -185,7 +228,7 @@ export function DashboardView({
             key={widget.name}
             dashboard={dashboard}
             from={from}
-            pending={query.isPending}
+            pending={widgetsQuery.isPending}
             result={results.get(widget.name)}
             to={to}
             widget={widget}
@@ -255,7 +298,7 @@ function Widget({
       <div className={cn("h-[calc(20rem-2.75rem)] min-w-0", widget.kind !== "table" && "p-3")}>
         {widget.kind === "table" ? (
           <DashboardTable
-            key={`${widget.data_revision}:${from}:${to}`}
+            key={widget.data_revision}
             dashboard={dashboard}
             from={from}
             to={to}
@@ -332,19 +375,21 @@ function DashboardTable({
   const query = useQuery(
     queryOptions({
       queryKey: [
-        "dashboard-table",
+        "dashboard",
         workspaceId,
         dashboard.agent_name,
         dashboard.name,
-        widget.name,
-        widget.data_revision,
         from,
         to,
+        "table",
+        widget.name,
+        widget.data_revision,
         sorting,
         pageToken,
       ],
-      queryFn: async () => {
+      queryFn: async ({ signal }) => {
         const { data, error } = await listDashboardTableRows({
+          signal,
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           path: {
             agentName: dashboard.agent_name,

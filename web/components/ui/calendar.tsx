@@ -62,6 +62,7 @@ const dayRangePresets = [
 
 interface DateRangePickerProps {
   className?: string
+  disabled?: boolean
   label?: string
   onOpenChange?: (open: boolean) => void
   onSelect: (range: DateRangeValue) => void
@@ -248,6 +249,7 @@ function CalendarDayButton({
 
 function DateRangePicker({
   className,
+  disabled,
   label,
   onOpenChange,
   onSelect,
@@ -270,6 +272,7 @@ function DateRangePicker({
       <PopoverTrigger asChild>
         <Button
           className={cn("max-w-full justify-start font-normal", className)}
+          disabled={disabled}
           size={size}
           type="button"
           variant="outline"

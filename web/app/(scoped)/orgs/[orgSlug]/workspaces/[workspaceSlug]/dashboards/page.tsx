@@ -101,8 +101,8 @@ async function DashboardContent({
       <DashboardData
         dashboard={loaded.dashboard}
         dashboards={listed.dashboards}
-        initialFrom={from}
-        initialTo={to}
+        from={from}
+        to={to}
         workspaceId={scope.workspace.id}
         workspacePath={workspacePath}
       />
@@ -115,8 +115,20 @@ async function DashboardData(props: Omit<ComponentProps<typeof DashboardView>, "
     props.workspaceId,
     props.dashboard.agent_name,
     props.dashboard.name,
-    props.initialFrom,
-    props.initialTo
+    props.from,
+    props.to
   )
-  return <DashboardView {...props} initialData={initialData} />
+  return (
+    <DashboardView
+      key={JSON.stringify([
+        props.workspaceId,
+        props.dashboard.agent_name,
+        props.dashboard.name,
+        props.from,
+        props.to,
+      ])}
+      {...props}
+      initialData={initialData}
+    />
+  )
 }

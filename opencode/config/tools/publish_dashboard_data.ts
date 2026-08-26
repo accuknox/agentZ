@@ -42,8 +42,7 @@ const record = tool.schema.union([
       series: tool.schema.number().int().min(0).max(4),
       x: tool.schema.number(),
       y: tool.schema.number(),
-      size: tool.schema.number().min(0).optional(),
-      label: tool.schema.string().max(120).optional(),
+      label: tool.schema.string().min(1).max(120).optional(),
     })
     .strict(),
   tool.schema

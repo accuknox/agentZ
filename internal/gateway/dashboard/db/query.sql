@@ -368,14 +368,10 @@ WITH widget AS (
                jsonb_typeof(payload->'x') = 'number' AND
                jsonb_typeof(payload->'y') = 'number'
           THEN NOT (
-            payload - ARRAY['series', 'x', 'y', 'size', 'label'] = '{}'::jsonb AND
+            payload - ARRAY['series', 'x', 'y', 'label'] = '{}'::jsonb AND
             (payload->>'series')::numeric = trunc((payload->>'series')::numeric) AND
             (payload->>'series')::numeric >= 0 AND
             (payload->>'series')::numeric < jsonb_array_length(definition->'series') AND
-            (NOT payload ? 'size' OR (
-              jsonb_typeof(payload->'size') = 'number' AND
-              (payload->>'size')::numeric >= 0
-            )) AND
             (NOT payload ? 'label' OR jsonb_typeof(payload->'label') = 'string')
           )
           ELSE true

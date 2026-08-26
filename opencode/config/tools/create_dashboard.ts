@@ -17,6 +17,13 @@ const series = tool.schema
   })
   .strict()
 
+const axis = tool.schema
+  .object({
+    label: tool.schema.string().min(1).max(80),
+    unit: tool.schema.string().min(1).max(32).optional(),
+  })
+  .strict()
+
 const column = tool.schema
   .object({
     name,
@@ -110,6 +117,7 @@ const widget = tool.schema.discriminatedUnion("kind", [
       ...common,
       kind: tool.schema.literal("scatter"),
       mode: tool.schema.enum(["temporal", "latest"]),
+      axes: tool.schema.object({ x: axis, y: axis }).strict(),
       series: chartSeries,
       columns: emptyColumns,
       thresholds: noThresholds,

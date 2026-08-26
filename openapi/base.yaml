@@ -8626,6 +8626,30 @@ components:
           $ref: '#/components/schemas/DashboardAggregation'
       required: [name, label, aggregation]
 
+    DashboardScatterAxis:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 80
+        unit:
+          type: string
+          minLength: 1
+          maxLength: 32
+      required: [label]
+
+    DashboardScatterAxes:
+      type: object
+      additionalProperties: false
+      properties:
+        x:
+          $ref: '#/components/schemas/DashboardScatterAxis'
+        'y':
+          $ref: '#/components/schemas/DashboardScatterAxis'
+      required: [x, 'y']
+
     DashboardTableColumnType:
       type: string
       enum: [text, number, boolean, datetime]
@@ -8677,6 +8701,8 @@ components:
           $ref: '#/components/schemas/DashboardWidgetMode'
         width:
           $ref: '#/components/schemas/DashboardWidgetWidth'
+        axes:
+          $ref: '#/components/schemas/DashboardScatterAxes'
         series:
           type: array
           maxItems: 5
@@ -8825,12 +8851,9 @@ components:
         'y':
           type: number
           format: double
-        size:
-          type: number
-          format: double
-          minimum: 0
         label:
           type: string
+          minLength: 1
           maxLength: 120
         cells:
           type: array
@@ -8935,11 +8958,10 @@ components:
         'y':
           type: number
           format: double
-        size:
-          type: number
-          format: double
         label:
           type: string
+          minLength: 1
+          maxLength: 120
       required: [series, x, 'y']
 
     DashboardWidgetError:

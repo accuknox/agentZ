@@ -268,6 +268,7 @@ func (s *Service) dashboard(ctx context.Context, auth requestAuth, agentName, da
 			return gatewayapi.Dashboard{}, fmt.Errorf("decode widget %q definition: %w", row.Name, err)
 		}
 		widgets[i] = gatewayapi.DashboardWidget{
+			Axes:         definition.Axes,
 			Columns:      definition.Columns,
 			DataRevision: row.Revision,
 			Kind:         definition.Kind,
@@ -731,7 +732,6 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 					Series: *record.Series,
 					X:      *record.X,
 					Y:      *record.Y,
-					Size:   record.Size,
 					Label:  record.Label,
 				}
 			}
@@ -1127,8 +1127,26 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 			return errors.New("bar charts require 1-5 series and no columns")
 		}
 	case gatewayapi.Scatter:
-		if seriesCount == 0 || seriesCount > 5 || columnCount != 0 {
-			return errors.New("scatter plots require 1-5 series and no columns")
+		if widget.Axes == nil || seriesCount == 0 || seriesCount > 5 || columnCount != 0 {
+			return errors.New("scatter plots require axes, 1-5 series, and no columns")
+		}
+		if utf8.RuneCountInString(widget.Axes.X.Label) < 1 ||
+			utf8.RuneCountInString(widget.Axes.X.Label) > 80 {
+			return errors.New("axes.x.label must contain 1-80 characters")
+		}
+		if widget.Axes.X.Unit != nil &&
+			(utf8.RuneCountInString(*widget.Axes.X.Unit) < 1 ||
+				utf8.RuneCountInString(*widget.Axes.X.Unit) > 32) {
+			return errors.New("axes.x.unit must contain 1-32 characters")
+		}
+		if utf8.RuneCountInString(widget.Axes.Y.Label) < 1 ||
+			utf8.RuneCountInString(widget.Axes.Y.Label) > 80 {
+			return errors.New("axes.y.label must contain 1-80 characters")
+		}
+		if widget.Axes.Y.Unit != nil &&
+			(utf8.RuneCountInString(*widget.Axes.Y.Unit) < 1 ||
+				utf8.RuneCountInString(*widget.Axes.Y.Unit) > 32) {
+			return errors.New("axes.y.unit must contain 1-32 characters")
 		}
 	case gatewayapi.Table:
 		if columnCount == 0 || columnCount > 12 || seriesCount != 0 {
@@ -1139,6 +1157,9 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 	}
 	if widget.Kind != gatewayapi.Gauge && (widget.Minimum != nil || widget.Maximum != nil || len(widget.Thresholds) != 0) {
 		return errors.New("only gauges may declare a range or thresholds")
+	}
+	if widget.Kind != gatewayapi.Scatter && widget.Axes != nil {
+		return errors.New("only scatter plots may declare axes")
 	}
 	return nil
 }
@@ -1171,7 +1192,6 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 				record.Series == nil &&
 				record.X == nil &&
 				record.Y == nil &&
-				record.Size == nil &&
 				record.Label == nil
 			if !valuesMatch || !onlyValues {
 				expected := "values only"
@@ -1190,7 +1210,6 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 				record.Series == nil &&
 				record.X == nil &&
 				record.Y == nil &&
-				record.Size == nil &&
 				record.Label == nil
 			if record.Category == nil || !valuesMatch || !onlyCategoryValues {
 				expected := "category and values only"
@@ -1212,15 +1231,15 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 				int(*record.Series) < len(widget.Series)
 			onlyScatter := record.Category == nil && record.Values == nil && record.Cells == nil
 			if record.X == nil || record.Y == nil || !seriesMatches || !onlyScatter {
-				expected := "series, x, y, and optional size and label only"
+				expected := "series, x, y, and optional label only"
 				if widget.Mode == gatewayapi.Temporal {
-					expected = "recorded_at, series, x, y, and optional size and label only"
+					expected = "recorded_at, series, x, y, and optional label only"
 				}
 				err = fmt.Errorf("expected %s", expected)
-			} else if record.Size != nil && *record.Size < 0 {
-				err = errors.New("size must not be negative")
-			} else if record.Label != nil && utf8.RuneCountInString(*record.Label) > 120 {
-				err = errors.New("label must contain at most 120 characters")
+			} else if record.Label != nil &&
+				(utf8.RuneCountInString(*record.Label) < 1 ||
+					utf8.RuneCountInString(*record.Label) > 120) {
+				err = errors.New("label must contain 1-120 characters")
 			}
 		case gatewayapi.Table:
 			cellsMatch := record.Cells != nil && len(*record.Cells) == len(widget.Columns)
@@ -1229,7 +1248,6 @@ func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, recor
 				record.Series == nil &&
 				record.X == nil &&
 				record.Y == nil &&
-				record.Size == nil &&
 				record.Label == nil
 			if !cellsMatch || !onlyCells {
 				expected := "cells only"

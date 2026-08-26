@@ -2161,6 +2161,16 @@ export const zDashboardSeries = z.object({
   aggregation: zDashboardAggregation,
 })
 
+export const zDashboardScatterAxis = z.object({
+  label: z.string().min(1).max(80),
+  unit: z.string().min(1).max(32).optional(),
+})
+
+export const zDashboardScatterAxes = z.object({
+  x: zDashboardScatterAxis,
+  y: zDashboardScatterAxis,
+})
+
 export const zDashboardTableColumnType = z.enum(["text", "number", "boolean", "datetime"])
 
 export const zDashboardTableColumn = z.object({
@@ -2185,6 +2195,7 @@ export const zDashboardWidgetDefinition = z.object({
   kind: zDashboardWidgetKind,
   mode: zDashboardWidgetMode,
   width: zDashboardWidgetWidth,
+  axes: zDashboardScatterAxes.optional(),
   series: z.array(zDashboardSeries).max(5),
   columns: z.array(zDashboardTableColumn).max(12),
   minimum: z.number().optional(),
@@ -2242,8 +2253,7 @@ export const zDashboardDataRecord = z.object({
   values: z.array(z.number()).max(5).optional(),
   x: z.number().optional(),
   y: z.number().optional(),
-  size: z.number().gte(0).optional(),
-  label: z.string().max(120).optional(),
+  label: z.string().min(1).max(120).optional(),
   cells: z.array(zDashboardCell).max(12).optional(),
 })
 
@@ -2285,8 +2295,7 @@ export const zDashboardScatterPoint = z.object({
     .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
   x: z.number(),
   y: z.number(),
-  size: z.number().optional(),
-  label: z.string().optional(),
+  label: z.string().min(1).max(120).optional(),
 })
 
 export const zDashboardWidgetError = z.object({

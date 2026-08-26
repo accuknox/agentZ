@@ -1958,6 +1958,16 @@ export type DashboardSeries = {
   aggregation: DashboardAggregation
 }
 
+export type DashboardScatterAxis = {
+  label: string
+  unit?: string
+}
+
+export type DashboardScatterAxes = {
+  x: DashboardScatterAxis
+  y: DashboardScatterAxis
+}
+
 export type DashboardTableColumnType = "text" | "number" | "boolean" | "datetime"
 
 export type DashboardTableColumn = {
@@ -1978,6 +1988,7 @@ export type DashboardWidgetDefinition = {
   kind: DashboardWidgetKind
   mode: DashboardWidgetMode
   width: DashboardWidgetWidth
+  axes?: DashboardScatterAxes
   series: Array<DashboardSeries>
   columns: Array<DashboardTableColumn>
   minimum?: number
@@ -2030,7 +2041,6 @@ export type DashboardDataRecord = {
   values?: Array<number>
   x?: number
   y?: number
-  size?: number
   label?: string
   cells?: Array<DashboardCell>
 }
@@ -2067,7 +2077,6 @@ export type DashboardScatterPoint = {
   series: number
   x: number
   y: number
-  size?: number
   label?: string
 }
 

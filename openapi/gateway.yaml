@@ -1570,6 +1570,7 @@ components:
           type: array
         label:
           maxLength: 120
+          minLength: 1
           type: string
         recorded_at:
           format: date-time
@@ -1579,10 +1580,6 @@ components:
           maximum: 4
           minimum: 0
           type: integer
-        size:
-          format: double
-          minimum: 0
-          type: number
         values:
           items:
             format: double
@@ -1617,17 +1614,41 @@ components:
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
       type: string
+    DashboardScatterAxes:
+      additionalProperties: false
+      properties:
+        x:
+          $ref: '#/components/schemas/DashboardScatterAxis'
+        "y":
+          $ref: '#/components/schemas/DashboardScatterAxis'
+      required:
+      - x
+      - "y"
+      type: object
+    DashboardScatterAxis:
+      additionalProperties: false
+      properties:
+        label:
+          maxLength: 80
+          minLength: 1
+          type: string
+        unit:
+          maxLength: 32
+          minLength: 1
+          type: string
+      required:
+      - label
+      type: object
     DashboardScatterPoint:
       additionalProperties: false
       properties:
         label:
+          maxLength: 120
+          minLength: 1
           type: string
         series:
           format: int32
           type: integer
-        size:
-          format: double
-          type: number
         x:
           format: double
           type: number
@@ -1775,6 +1796,8 @@ components:
     DashboardWidgetDefinition:
       additionalProperties: false
       properties:
+        axes:
+          $ref: '#/components/schemas/DashboardScatterAxes'
         columns:
           items:
             $ref: '#/components/schemas/DashboardTableColumn'

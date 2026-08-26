@@ -7,6 +7,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  DefaultTooltipContent,
   Label,
   Legend,
   Line,
@@ -177,13 +178,28 @@ export function DashboardChart({
   }
 
   if (widget.kind === "scatter") {
+    if (!widget.axes) {
+      throw new Error(`scatter widget ${widget.name} is missing axes`)
+    }
+
     return (
       <ChartContainer className="h-full w-full" config={config} resizeDebounce={resizeDebounce}>
         <ScatterChart>
           <CartesianGrid />
-          <XAxis dataKey="x" type="number" />
-          <YAxis dataKey="y" type="number" width={40} />
-          <ChartTooltip isAnimationActive={false} />
+          <XAxis dataKey="x" name={widget.axes.x.label} type="number" unit={widget.axes.x.unit} />
+          <YAxis
+            dataKey="y"
+            name={widget.axes.y.label}
+            type="number"
+            unit={widget.axes.y.unit}
+            width="auto"
+          />
+          <ChartTooltip
+            content={(props) => (
+              <DefaultTooltipContent {...props} label={props.payload?.[0]?.payload.label} />
+            )}
+            isAnimationActive={false}
+          />
           <Legend />
           {widget.series.map((series, index) => (
             <Scatter

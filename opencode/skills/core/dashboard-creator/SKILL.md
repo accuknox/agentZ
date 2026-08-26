@@ -25,7 +25,7 @@ Build the dashboard from values you have already computed. The gateway validates
 - `line`, `area`, `step`: temporal only; 1–5 series. Each record contains only `recorded_at` and `values`, with one number per series.
 - `pie`: latest only; exactly one series. Each record contains only `category` and one `values` entry.
 - `bar`, `horizontal_grouped_bar`: temporal or latest; 1–5 series. Each record contains `category` and one value per series.
-- `scatter`: temporal or latest; 1–5 declared series. Each record contains `series`, `x`, `y`, and optionally `size` and `label`.
+- `scatter`: temporal or latest; 1–5 declared series and `axes` metadata for `x` and `y`. Each axis has a display `label` and optional `unit`. Each record contains `series`, `x`, `y`, and an optional `label`.
 - `gauge`: latest only; exactly one series, an increasing `minimum`/`maximum`, and up to five increasing thresholds. Publish exactly one record containing one value.
 - `table`: temporal or latest; 1–12 columns and no series. Each record contains `cells`, one cell per declared column. A cell must contain exactly one matching key: `text`, `number`, `boolean`, or `datetime`.
 
@@ -40,6 +40,7 @@ Use `sum`, `average`, `minimum`, `maximum`, `last`, or `count` to declare how te
 - Choose `full`, `half`, or `third` width.
 - Prefer a varied layout. Use full width for dense tables and multi-series time charts; use half or third width for gauges and compact categorical charts.
 - Keep titles short. Do not encode units or explanatory paragraphs into titles; put units in series or column labels.
+- Put scatter coordinate units in `axes.x.unit` and `axes.y.unit`.
 
 ## Data rules
 

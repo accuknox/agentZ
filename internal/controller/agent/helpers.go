@@ -92,7 +92,7 @@ const (
 	agentHomeDir                   = "/home/agentz"
 	opencodeImmutableSkillsPath    = "/var/lib/agentz/skills/immutable"
 	opencodeWritableSkillsPath     = agentHomeDir + "/.agents/skills"
-	opencodeBundledSkillsPath      = "/etc/opencode/skills/defaults"
+	opencodeBundledSkillsPath      = "/etc/opencode/skills/core"
 	immutableSkillsBucketVolume    = "immutable-skills-bucket"
 	immutableSkillsSecretMount     = "/var/run/secrets/agentz/immutable-skills-bucket"
 	immutableSkillsInitName        = "immutable-skills-init"

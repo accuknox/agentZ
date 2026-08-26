@@ -15,7 +15,7 @@ const config = {
         strategy: "flat",
       },
       validator: {
-        request: "zod",
+        request: false,
       },
     },
     "zod",

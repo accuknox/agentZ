@@ -13,6 +13,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Label,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -361,12 +363,14 @@ function Chart({
             <XAxis dataKey="at" minTickGap={28} />
             <YAxis width={40} />
             <ChartTooltip />
-            {widget.series.map((_, index) => (
+            <Legend />
+            {widget.series.map((series, index) => (
               <Area
-                key={index}
+                key={series.name}
                 dataKey={`s${index}`}
                 fill={`var(--color-s${index})`}
                 fillOpacity={0.14}
+                name={series.label}
                 stroke={`var(--color-s${index})`}
                 type="monotone"
               />
@@ -382,11 +386,13 @@ function Chart({
           <XAxis dataKey="at" minTickGap={28} />
           <YAxis width={40} />
           <ChartTooltip />
-          {widget.series.map((_, index) => (
+          <Legend />
+          {widget.series.map((series, index) => (
             <Line
-              key={index}
+              key={series.name}
               dataKey={`s${index}`}
               dot={false}
+              name={series.label}
               stroke={`var(--color-s${index})`}
               strokeWidth={2}
               type={widget.kind === "step" ? "stepAfter" : "monotone"}
@@ -405,6 +411,7 @@ function Chart({
       <ChartContainer className="h-full w-full" config={config}>
         <PieChart>
           <ChartTooltip />
+          <Legend />
           <Pie data={data} dataKey="value" nameKey="name" innerRadius={52} outerRadius={92}>
             {data.map((item, index) => (
               <Cell key={item.name} fill={palette[index % palette.length]} />
@@ -438,8 +445,15 @@ function Chart({
             </>
           )}
           <ChartTooltip />
-          {widget.series.map((_, index) => (
-            <Bar key={index} dataKey={`s${index}`} fill={`var(--color-s${index})`} radius={2} />
+          <Legend />
+          {widget.series.map((series, index) => (
+            <Bar
+              key={series.name}
+              dataKey={`s${index}`}
+              fill={`var(--color-s${index})`}
+              name={series.label}
+              radius={2}
+            />
           ))}
         </BarChart>
       </ChartContainer>
@@ -453,11 +467,13 @@ function Chart({
           <XAxis dataKey="x" type="number" />
           <YAxis dataKey="y" type="number" width={40} />
           <ChartTooltip />
-          {widget.series.map((_, index) => (
+          <Legend />
+          {widget.series.map((series, index) => (
             <Scatter
-              key={index}
+              key={series.name}
               data={result.scatter.filter((point) => point.series === index)}
               fill={`var(--color-s${index})`}
+              name={series.label}
             />
           ))}
         </ScatterChart>
@@ -472,23 +488,24 @@ function Chart({
   const fill =
     tone === "critical" ? "var(--destructive)" : tone === "warning" ? "var(--warning)" : palette[0]
   return (
-    <div className="relative h-full">
-      <ChartContainer className="h-full w-full" config={config}>
-        <RadialBarChart
-          data={[{ value: percent, fill }]}
-          innerRadius="72%"
-          outerRadius="100%"
-          startAngle={210}
-          endAngle={-30}
-        >
-          <PolarAngleAxis angleAxisId={0} domain={[0, 100]} tick={false} type="number" />
-          <RadialBar dataKey="value" background cornerRadius={4} />
-        </RadialBarChart>
-      </ChartContainer>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center pt-8 text-3xl font-semibold tabular-nums">
-        {value.toLocaleString()}
-      </div>
-    </div>
+    <ChartContainer className="h-full w-full" config={config}>
+      <RadialBarChart
+        data={[{ name: widget.series[0]?.label ?? widget.title, value: percent, fill }]}
+        innerRadius="72%"
+        outerRadius="100%"
+        startAngle={210}
+        endAngle={-30}
+      >
+        <PolarAngleAxis angleAxisId={0} domain={[0, 100]} tick={false} type="number" />
+        <RadialBar dataKey="value" background cornerRadius={4} />
+        <Label
+          className="fill-foreground text-3xl font-semibold tabular-nums"
+          position="center"
+          value={value.toLocaleString()}
+        />
+        <Legend />
+      </RadialBarChart>
+    </ChartContainer>
   )
 }
 

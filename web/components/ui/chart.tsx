@@ -108,7 +108,8 @@ function ChartTooltip(props: React.ComponentProps<typeof RechartsPrimitive.Toolt
         borderRadius: "var(--radius)",
         color: "var(--popover-foreground)",
       }}
-      itemStyle={{ color: "var(--popover-foreground)" }}
+      itemStyle={{ color: "var(--popover-foreground)", paddingBlock: 0 }}
+      labelStyle={{ marginBottom: 8 }}
       {...props}
     />
   )

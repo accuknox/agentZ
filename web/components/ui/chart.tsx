@@ -99,6 +99,19 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+function ChartTooltip(props: React.ComponentProps<typeof RechartsPrimitive.Tooltip>) {
+  return (
+    <RechartsPrimitive.Tooltip
+      contentStyle={{
+        backgroundColor: "var(--popover)",
+        borderColor: "var(--border)",
+        borderRadius: "var(--radius)",
+        color: "var(--popover-foreground)",
+      }}
+      itemStyle={{ color: "var(--popover-foreground)" }}
+      {...props}
+    />
+  )
+}
 
 export { ChartContainer, ChartTooltip }

@@ -2,12 +2,11 @@
 
 import * as React from "react"
 import { useRouter } from "@bprogress/next/app"
-import { CalendarIcon, ChevronDown, FunnelPlus, X } from "lucide-react"
+import { ChevronDown, FunnelPlus, X } from "lucide-react"
 import { usePathname, useSearchParams } from "next/navigation"
-import type { DateRange } from "react-day-picker"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
-import { Calendar } from "@/components/ui/calendar"
+import { DateRangePicker } from "@/components/ui/calendar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -16,7 +15,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type {
   EventTrailFilter,
   EventTrailFilterField,
@@ -47,7 +45,6 @@ export function EventTrailFilters({
   const [current, setCurrent] = React.useOptimistic(filters)
   const [activeField, setActiveField] = React.useState<EventTrailFilterField>()
   const [editorOpen, setEditorOpen] = React.useState(false)
-  const [dateRange, setDateRange] = React.useState<DateRange>()
 
   const fieldByName = {
     actor_type: {
@@ -157,108 +154,95 @@ export function EventTrailFilters({
       {visibleFilters.map((filter) => {
         const field = fieldByName[filter.field]
 
+        if (field.kind === "date") {
+          const range = filter.values.length
+            ? {
+                from: dayjs(filter.values[0]).toDate(),
+                to: dayjs(filter.values[1]).toDate(),
+              }
+            : undefined
+          const label = range
+            ? `${field.label}: ${dayjs(range.from).format("MMM D, YYYY")} to ${dayjs(range.to).format("MMM D, YYYY")}`
+            : `${field.label}: Select range`
+
+          return (
+            <DateRangePicker
+              className="max-w-72"
+              key={filter.field}
+              label={label}
+              onOpenChange={(open) => {
+                if (!open) setActiveField(undefined)
+              }}
+              onSelect={(nextRange) => {
+                setFilter(filter.field, [
+                  dayjs(nextRange.from).toISOString(),
+                  dayjs(nextRange.to).toISOString(),
+                ])
+                setActiveField(undefined)
+              }}
+              range={range}
+              size="sm"
+            />
+          )
+        }
+
         if (filter.field === activeField) {
           return (
             <ButtonGroup key={filter.field}>
               <ButtonGroupText className="border-primary/20 bg-primary/5 text-primary h-7 text-xs">
                 {field.label}
               </ButtonGroupText>
-
-              {field.kind === "options" ? (
-                <DropdownMenu
-                  open={editorOpen}
-                  onOpenChange={(open) => {
-                    setEditorOpen(open)
-                    if (!open) setActiveField(undefined)
-                  }}
-                >
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      className="border-primary/20 bg-primary/5 hover:bg-primary/10 min-w-32 justify-between font-normal"
-                      size="sm"
-                      variant="outline"
+              <DropdownMenu
+                open={editorOpen}
+                onOpenChange={(open) => {
+                  setEditorOpen(open)
+                  if (!open) setActiveField(undefined)
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className="border-primary/20 bg-primary/5 hover:bg-primary/10 min-w-32 justify-between font-normal"
+                    size="sm"
+                    variant="outline"
+                  >
+                    {filter.values.length ? `${filter.values.length} selected` : "Select values"}
+                    <ChevronDown data-icon="inline-end" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="min-w-56">
+                  {field.options.map((option) => (
+                    <DropdownMenuCheckboxItem
+                      checked={filter.values.includes(option.value)}
+                      key={option.value}
+                      onCheckedChange={(checked) =>
+                        setFilter(
+                          filter.field,
+                          checked
+                            ? [...filter.values, option.value]
+                            : filter.values.filter((value) => value !== option.value)
+                        )
+                      }
                     >
-                      {filter.values.length ? `${filter.values.length} selected` : "Select values"}
-                      <ChevronDown data-icon="inline-end" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="min-w-56">
-                    {field.options.map((option) => (
-                      <DropdownMenuCheckboxItem
-                        checked={filter.values.includes(option.value)}
-                        key={option.value}
-                        onCheckedChange={(checked) =>
-                          setFilter(
-                            filter.field,
-                            checked
-                              ? [...filter.values, option.value]
-                              : filter.values.filter((value) => value !== option.value)
-                          )
-                        }
-                      >
-                        {filter.field === "actor_id" ? (
-                          <Avatar size="sm">
-                            <AvatarImage alt={option.label} src={actorImages[option.value]} />
-                            <AvatarFallback>
-                              {option.label.slice(0, 1).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : null}
-                        {option.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Popover
-                  open={editorOpen}
-                  onOpenChange={(open) => {
-                    setEditorOpen(open)
-                    if (!open) setActiveField(undefined)
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      className="border-primary/20 bg-primary/5 hover:bg-primary/10 font-normal"
-                      size="sm"
-                      variant="outline"
-                    >
-                      <CalendarIcon data-icon="inline-start" />
-                      Select range
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-fit p-0">
-                    <Calendar
-                      mode="range"
-                      numberOfMonths={2}
-                      resetOnSelect
-                      selected={dateRange}
-                      onSelect={(range) => {
-                        setDateRange(range)
-                        if (!range?.from || !range.to) return
-
-                        setFilter(filter.field, [
-                          dayjs(range.from).startOf("day").toISOString(),
-                          dayjs(range.to).endOf("day").toISOString(),
-                        ])
-                        setEditorOpen(false)
-                        setActiveField(undefined)
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              )}
+                      {filter.field === "actor_id" ? (
+                        <Avatar size="sm">
+                          <AvatarImage alt={option.label} src={actorImages[option.value]} />
+                          <AvatarFallback>{option.label.slice(0, 1).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      ) : null}
+                      {option.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </ButtonGroup>
           )
         }
 
         const value =
-          field.kind === "date"
-            ? `${dayjs(filter.values[0]).format("MMM D, YYYY")} to ${dayjs(filter.values[1]).format("MMM D, YYYY")}`
-            : filter.values.length === 1
-              ? (field.options.find((option) => option.value === filter.values[0])?.label ??
-                filter.values[0])
-              : `${filter.values.length} selected`
+          filter.values.length === 1
+            ? (field.options.find((option) => option.value === filter.values[0])?.label ??
+              filter.values[0])
+            : `${filter.values.length} selected`
 
         return (
           <ButtonGroup key={filter.field}>
@@ -267,12 +251,6 @@ export function EventTrailFilters({
               className="border-primary/20 bg-primary/5 hover:bg-primary/10 max-w-72 font-normal"
               onClick={() => {
                 setActiveField(filter.field)
-                if (filter.field === "created_at") {
-                  setDateRange({
-                    from: dayjs(filter.values[0]).toDate(),
-                    to: dayjs(filter.values[1]).toDate(),
-                  })
-                }
                 setEditorOpen(true)
               }}
               size="sm"
@@ -282,18 +260,16 @@ export function EventTrailFilters({
               <span className="text-primary">{field.label}:</span>
               <span className="truncate font-medium">{value}</span>
             </Button>
-            {field.kind === "options" ? (
-              <Button
-                aria-label={`Remove ${field.label} filter`}
-                className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
-                onClick={() => setFilter(filter.field, [])}
-                size="icon-sm"
-                type="button"
-                variant="outline"
-              >
-                <X />
-              </Button>
-            ) : null}
+            <Button
+              aria-label={`Remove ${field.label} filter`}
+              className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
+              onClick={() => setFilter(filter.field, [])}
+              size="icon-sm"
+              type="button"
+              variant="outline"
+            >
+              <X />
+            </Button>
           </ButtonGroup>
         )
       })}
@@ -316,7 +292,6 @@ export function EventTrailFilters({
                 key={field}
                 onSelect={() => {
                   setActiveField(field)
-                  setDateRange(undefined)
                   setEditorOpen(false)
                 }}
               >

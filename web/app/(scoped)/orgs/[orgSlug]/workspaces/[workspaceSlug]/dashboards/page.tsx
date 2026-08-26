@@ -9,6 +9,7 @@ import {
   queryDashboardInitial,
 } from "@/data/dashboard.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
+import { dayjs } from "@/lib/format"
 import { DashboardView } from "./dashboard-view"
 
 export const metadata: Metadata = { title: "Dashboards" }
@@ -87,9 +88,13 @@ async function DashboardContent({
       />
     )
 
-  const now = new Date()
-  const to = search.to ?? now.toISOString()
-  const from = search.from ?? new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+  const now = dayjs()
+  const from = dayjs(search.from ?? now)
+    .startOf("day")
+    .toISOString()
+  const to = dayjs(search.to ?? now)
+    .endOf("day")
+    .toISOString()
   const initialData = await queryDashboardInitial(
     scope.workspace.id,
     loaded.dashboard.agent_name,

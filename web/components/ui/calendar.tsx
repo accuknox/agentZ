@@ -1,12 +1,74 @@
 "use client"
 
 import * as React from "react"
-import { DayPicker, getDefaultClassNames, type DayButton, type Locale } from "react-day-picker"
+import {
+  DayPicker,
+  getDefaultClassNames,
+  type DateRange,
+  type DayButton,
+  type Locale,
+} from "react-day-picker"
+import { CalendarIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { dayjs } from "@/lib/format"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Separator } from "@/components/ui/separator"
+
+interface DateRangeValue {
+  from: Date
+  to: Date
+}
+
+interface DateRangePreset {
+  label: string
+  getRange: () => DateRangeValue
+}
+
+const dayRangePresets = [
+  {
+    label: "Last 24h",
+    getRange() {
+      const now = dayjs()
+      return { from: now.subtract(24, "hour").toDate(), to: now.toDate() }
+    },
+  },
+  {
+    label: "Last 2d",
+    getRange() {
+      const now = dayjs()
+      return { from: now.subtract(2, "day").toDate(), to: now.toDate() }
+    },
+  },
+  {
+    label: "Last 7d",
+    getRange() {
+      const now = dayjs()
+      return {
+        from: now.subtract(7, "day").toDate(),
+        to: now.toDate(),
+      }
+    },
+  },
+  {
+    label: "Last 30d",
+    getRange() {
+      const now = dayjs()
+      return { from: now.subtract(30, "day").toDate(), to: now.toDate() }
+    },
+  },
+] satisfies readonly DateRangePreset[]
+
+interface DateRangePickerProps {
+  className?: string
+  label?: string
+  onOpenChange?: (open: boolean) => void
+  onSelect: (range: DateRangeValue) => void
+  presets?: readonly DateRangePreset[]
+  range?: DateRangeValue
+  size?: React.ComponentProps<typeof Button>["size"]
+}
 
 function Calendar({
   className,
@@ -184,4 +246,89 @@ function CalendarDayButton({
   )
 }
 
-export { Calendar }
+function DateRangePicker({
+  className,
+  label,
+  onOpenChange,
+  onSelect,
+  presets = dayRangePresets,
+  range,
+  size,
+}: DateRangePickerProps) {
+  const [open, setOpen] = React.useState(false)
+  const [draft, setDraft] = React.useState<DateRange | undefined>(range)
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) setDraft(range)
+        onOpenChange?.(nextOpen)
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          className={cn("max-w-full justify-start font-normal", className)}
+          size={size}
+          type="button"
+          variant="outline"
+        >
+          <CalendarIcon data-icon="inline-start" />
+          <span className="truncate">
+            {label ??
+              (range
+                ? `${dayjs(range.from).format("MMM D, YYYY")} - ${dayjs(range.to).format("MMM D, YYYY")}`
+                : "Date range")}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="max-w-[calc(100vw-2rem)] gap-0 overflow-auto p-0 sm:w-fit"
+      >
+        <Calendar
+          defaultMonth={range?.from}
+          mode="range"
+          numberOfMonths={2}
+          resetOnSelect
+          selected={draft}
+          onSelect={(nextRange) => {
+            setDraft(nextRange)
+            if (!nextRange?.from || !nextRange.to) return
+
+            onSelect({
+              from: dayjs(nextRange.from).startOf("day").toDate(),
+              to: dayjs(nextRange.to).endOf("day").toDate(),
+            })
+            setOpen(false)
+            onOpenChange?.(false)
+          }}
+        />
+        <Separator />
+        <div aria-label="Date range presets" className="flex flex-wrap gap-1.5 p-2" role="group">
+          {presets.map((preset) => (
+            <Button
+              className="flex-1"
+              key={preset.label}
+              onClick={() => {
+                const nextRange = preset.getRange()
+                setDraft(nextRange)
+                onSelect(nextRange)
+                setOpen(false)
+                onOpenChange?.(false)
+              }}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export { Calendar, DateRangePicker }

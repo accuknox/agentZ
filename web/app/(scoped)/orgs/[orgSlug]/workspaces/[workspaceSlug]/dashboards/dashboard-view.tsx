@@ -11,7 +11,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { RefreshCw } from "lucide-react"
+import { BotIcon, LayoutDashboard, RefreshCw } from "lucide-react"
 import {
   Area,
   AreaChart,
@@ -46,17 +46,19 @@ import {
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { TablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
+import { DateRangePicker } from "@/components/ui/calendar"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
+import { dayjs } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 const palette = [
@@ -66,16 +68,6 @@ const palette = [
   "var(--chart-4)",
   "var(--chart-5)",
 ] as const
-
-const ranges = {
-  "1h": 60 * 60 * 1000,
-  "6h": 6 * 60 * 60 * 1000,
-  "24h": 24 * 60 * 60 * 1000,
-  "7d": 7 * 24 * 60 * 60 * 1000,
-  "30d": 30 * 24 * 60 * 60 * 1000,
-} as const
-
-type RangeName = keyof typeof ranges | "custom"
 
 export function DashboardView({
   dashboard,
@@ -97,7 +89,6 @@ export function DashboardView({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [range, setRange] = React.useState<RangeName>("24h")
   const [from, setFrom] = React.useState(initialFrom)
   const [to, setTo] = React.useState(initialTo)
 
@@ -134,16 +125,6 @@ export function DashboardView({
     router.replace(`${pathname}?${params.toString()}` as Route)
   }
 
-  function chooseRange(next: RangeName) {
-    setRange(next)
-    if (next === "custom") return
-    const nextTo = new Date().toISOString()
-    const nextFrom = new Date(Date.parse(nextTo) - ranges[next]).toISOString()
-    setFrom(nextFrom)
-    setTo(nextTo)
-    updateLocation({ from: nextFrom, to: nextTo })
-  }
-
   const agents = [...new Set(dashboards.map((item) => item.agent_name))]
   const agentDashboards = dashboards.filter((item) => item.agent_name === dashboard.agent_name)
   const results = new Map(query.data?.widgets.map((widget) => [widget.widget_name, widget]))
@@ -162,11 +143,14 @@ export function DashboardView({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {agents.map((agent) => (
-              <SelectItem key={agent} value={agent}>
-                {agent}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {agents.map((agent) => (
+                <SelectItem key={agent} value={agent}>
+                  <BotIcon className="inline-block" />
+                  {agent}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <Select
@@ -177,58 +161,33 @@ export function DashboardView({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {agentDashboards.map((item) => (
-              <SelectItem key={item.name} value={item.name}>
-                {item.title}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {agentDashboards.map((item) => (
+                <SelectItem key={item.name} value={item.name}>
+                  <LayoutDashboard className="inline-block" />
+                  {item.title}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Select value={range} onValueChange={(value) => chooseRange(value as RangeName)}>
-            <SelectTrigger className="h-8 w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1h">Last hour</SelectItem>
-              <SelectItem value="6h">Last 6h</SelectItem>
-              <SelectItem value="24h">Last 24h</SelectItem>
-              <SelectItem value="7d">Last 7d</SelectItem>
-              <SelectItem value="30d">Last 30d</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
-          {range === "custom" ? (
-            <>
-              <Input
-                aria-label="From"
-                className="h-8 w-48"
-                type="datetime-local"
-                value={from.slice(0, 16)}
-                onChange={(event) => {
-                  if (event.target.value) setFrom(new Date(event.target.value).toISOString())
-                }}
-              />
-              <Input
-                aria-label="To"
-                className="h-8 w-48"
-                type="datetime-local"
-                value={to.slice(0, 16)}
-                onChange={(event) => {
-                  if (!event.target.value) return
-                  const nextTo = new Date(event.target.value).toISOString()
-                  setTo(nextTo)
-                  updateLocation({ from, to: nextTo })
-                }}
-              />
-            </>
-          ) : null}
+          <DateRangePicker
+            onSelect={(nextRange) => {
+              const nextFrom = dayjs(nextRange.from).toISOString()
+              const nextTo = dayjs(nextRange.to).toISOString()
+              setFrom(nextFrom)
+              setTo(nextTo)
+              updateLocation({ from: nextFrom, to: nextTo })
+            }}
+            range={{ from: dayjs(from).toDate(), to: dayjs(to).toDate() }}
+          />
           <Button
             aria-label="Refresh dashboard"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
             size="icon-sm"
-            variant="outline"
+            variant="ghost"
           >
             <RefreshCw className={cn(query.isFetching && "animate-spin")} />
           </Button>
@@ -352,7 +311,7 @@ function Chart({
   if (widget.kind === "line" || widget.kind === "step" || widget.kind === "area") {
     const data = result.points.map((point) =>
       Object.assign(
-        { at: new Date(point.at).toLocaleString() },
+        { at: dayjs(point.at).format("lll") },
         Object.fromEntries(point.values.map((value, index) => [`s${index}`, value]))
       )
     )

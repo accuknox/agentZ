@@ -887,8 +887,7 @@ type DashboardTemporalRecord struct {
 	ID              int64     `json:"id"`
 	TenantNamespace string    `json:"tenant_namespace"`
 	WidgetRevision  uuid.UUID `json:"widget_revision"`
-	ReceivedAt      time.Time `json:"received_at"`
-	Ordinal         int32     `json:"ordinal"`
+	RecordedAt      time.Time `json:"recorded_at"`
 	Payload         []byte    `json:"payload"`
 	ByteSize        int32     `json:"byte_size"`
 }

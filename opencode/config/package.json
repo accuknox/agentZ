@@ -4,6 +4,7 @@
     "lint": "eslint",
     "format": "prettier . --write",
     "gen:openapi-client": "openapi-ts",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -12,6 +13,7 @@
     "gray-matter": "^4.0.3",
     "officeparser": "7.3.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "yaml": "^2.9.0",
     "zod": "^4.4.1"
   },
   "devDependencies": {

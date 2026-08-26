@@ -561,7 +561,7 @@ function DashboardTable({
           </TableHeader>
           <TableBody>
             {query.data?.rows.map((row, rowIndex) => (
-              <TableRow key={`${row.received_at}-${rowIndex}`}>
+              <TableRow key={`${row.at}-${rowIndex}`}>
                 {widget.columns.map((column, index) => {
                   const cell = row.cells.at(index)
                   return (

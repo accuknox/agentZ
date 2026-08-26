@@ -2024,6 +2024,7 @@ export type DashboardCell = {
 }
 
 export type DashboardDataRecord = {
+  recorded_at?: string
   category?: string
   series?: number
   values?: Array<number>
@@ -2101,7 +2102,7 @@ export type QueryDashboardResponse = {
 }
 
 export type DashboardTableRow = {
-  received_at: string
+  at: string
   cells: Array<DashboardCell>
 }
 

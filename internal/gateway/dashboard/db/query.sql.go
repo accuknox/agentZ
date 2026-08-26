@@ -62,23 +62,23 @@ WITH widget AS (
   WHERE w.tenant_namespace = $1
     AND w.revision = $2
 ), source AS (
-  SELECT r.received_at, r.id AS sequence, r.payload
-  FROM dashboard_temporal_records r, widget
-  WHERE r.tenant_namespace = $1
-    AND r.widget_revision = $2
-    AND r.received_at >= $3
-    AND r.received_at < $4
+  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  FROM dashboard_temporal_records temporal, widget
+  WHERE temporal.tenant_namespace = $1
+    AND temporal.widget_revision = $2
+    AND temporal.recorded_at >= $3
+    AND temporal.recorded_at < $4
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT r.received_at, r.ordinal::bigint AS sequence, r.payload
-  FROM dashboard_latest_records r, widget
-  WHERE r.tenant_namespace = $1
-    AND r.widget_revision = $2
+  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
+  FROM dashboard_latest_records latest, widget
+  WHERE latest.tenant_namespace = $1
+    AND latest.widget_revision = $2
     AND widget.mode = 'latest'
 ), expanded AS (
   SELECT
     source.payload->>'category' AS category,
-    source.received_at,
+    source.at,
     source.sequence,
     (value.ordinality - 1)::integer AS series_index,
     (value.value #>> '{}')::double precision AS value,
@@ -95,7 +95,7 @@ WITH widget AS (
       WHEN 'minimum' THEN min(value)
       WHEN 'maximum' THEN max(value)
       WHEN 'count' THEN count(value)::double precision
-      WHEN 'last' THEN (array_agg(value ORDER BY received_at DESC, sequence DESC))[1]
+      WHEN 'last' THEN (array_agg(value ORDER BY at DESC, sequence DESC))[1]
     END AS value
   FROM expanded
   GROUP BY category, series_index, aggregation
@@ -180,10 +180,10 @@ WITH series AS (
   SELECT
     date_bin(
       make_interval(secs => $3::integer),
-      r.received_at,
+      r.recorded_at,
       $4::timestamptz
     ) AS bucket,
-    r.received_at,
+    r.recorded_at,
     r.id,
     (value.ordinality - 1)::integer AS series_index,
     (value.value #>> '{}')::double precision AS value
@@ -191,8 +191,8 @@ WITH series AS (
        jsonb_array_elements(r.payload->'values') WITH ORDINALITY AS value(value, ordinality)
   WHERE r.tenant_namespace = $1
     AND r.widget_revision = $2
-    AND r.received_at >= $4
-    AND r.received_at < $5
+    AND r.recorded_at >= $4
+    AND r.recorded_at < $5
 ), aggregated AS (
   SELECT
     e.bucket,
@@ -203,7 +203,7 @@ WITH series AS (
       WHEN 'minimum' THEN min(e.value)
       WHEN 'maximum' THEN max(e.value)
       WHEN 'count' THEN count(e.value)::double precision
-      WHEN 'last' THEN (array_agg(e.value ORDER BY e.received_at DESC, e.id DESC))[1]
+      WHEN 'last' THEN (array_agg(e.value ORDER BY e.recorded_at DESC, e.id DESC))[1]
     END AS value
   FROM expanded e
   JOIN series s USING (series_index)
@@ -288,8 +288,8 @@ WITH widget AS (
   FROM dashboard_temporal_records temporal, widget
   WHERE temporal.tenant_namespace = $1
     AND temporal.widget_revision = $2
-    AND temporal.received_at >= $3
-    AND temporal.received_at < $4
+    AND temporal.recorded_at >= $3
+    AND temporal.recorded_at < $4
     AND widget.mode = 'temporal'
   UNION ALL
   SELECT latest.payload
@@ -543,8 +543,8 @@ const dashboardDeleteExpired = `-- name: DashboardDeleteExpired :one
 WITH expired AS MATERIALIZED (
   SELECT temporal.id, temporal.tenant_namespace, temporal.byte_size
   FROM dashboard_temporal_records temporal
-  WHERE temporal.received_at < $1
-  ORDER BY temporal.received_at, temporal.id
+  WHERE temporal.recorded_at < $1
+  ORDER BY temporal.recorded_at, temporal.id
   FOR UPDATE SKIP LOCKED
   LIMIT $2
 ), removed AS (
@@ -751,28 +751,26 @@ func (q *Queries) DashboardGetWidget(ctx context.Context, arg DashboardGetWidget
 
 const dashboardInsertTemporalRecords = `-- name: DashboardInsertTemporalRecords :execrows
 INSERT INTO dashboard_temporal_records (
-  tenant_namespace, widget_revision, received_at, ordinal, payload, byte_size
+  tenant_namespace, widget_revision, recorded_at, payload, byte_size
 )
 SELECT
-  $1, $2, $3,
-  (input.ordinality - 1)::integer, input.value->'payload', (input.value->>'byte_size')::integer
-FROM jsonb_array_elements($4::jsonb) WITH ORDINALITY AS input(value, ordinality)
+  $1, $2,
+  input.recorded_at, input.payload, input.byte_size
+FROM jsonb_to_recordset($3::jsonb) AS input(
+  recorded_at TIMESTAMPTZ,
+  payload JSONB,
+  byte_size INTEGER
+)
 `
 
 type DashboardInsertTemporalRecordsParams struct {
 	TenantNamespace string    `json:"tenant_namespace"`
 	WidgetRevision  uuid.UUID `json:"widget_revision"`
-	ReceivedAt      time.Time `json:"received_at"`
 	Records         []byte    `json:"records"`
 }
 
 func (q *Queries) DashboardInsertTemporalRecords(ctx context.Context, arg DashboardInsertTemporalRecordsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, dashboardInsertTemporalRecords,
-		arg.TenantNamespace,
-		arg.WidgetRevision,
-		arg.ReceivedAt,
-		arg.Records,
-	)
+	result, err := q.db.Exec(ctx, dashboardInsertTemporalRecords, arg.TenantNamespace, arg.WidgetRevision, arg.Records)
 	if err != nil {
 		return 0, err
 	}
@@ -1046,57 +1044,6 @@ func (q *Queries) DashboardReadRecords(ctx context.Context, arg DashboardReadRec
 	return items, nil
 }
 
-const dashboardReadTemporalRecords = `-- name: DashboardReadTemporalRecords :many
-SELECT received_at, id, payload
-FROM dashboard_temporal_records
-WHERE tenant_namespace = $1
-  AND widget_revision = $2
-  AND received_at >= $3
-  AND received_at < $4
-ORDER BY received_at, id
-LIMIT $5
-`
-
-type DashboardReadTemporalRecordsParams struct {
-	TenantNamespace string    `json:"tenant_namespace"`
-	WidgetRevision  uuid.UUID `json:"widget_revision"`
-	FromTime        time.Time `json:"from_time"`
-	ToTime          time.Time `json:"to_time"`
-	RowLimit        int32     `json:"row_limit"`
-}
-
-type DashboardReadTemporalRecordsRow struct {
-	ReceivedAt time.Time `json:"received_at"`
-	ID         int64     `json:"id"`
-	Payload    []byte    `json:"payload"`
-}
-
-func (q *Queries) DashboardReadTemporalRecords(ctx context.Context, arg DashboardReadTemporalRecordsParams) ([]DashboardReadTemporalRecordsRow, error) {
-	rows, err := q.db.Query(ctx, dashboardReadTemporalRecords,
-		arg.TenantNamespace,
-		arg.WidgetRevision,
-		arg.FromTime,
-		arg.ToTime,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DashboardReadTemporalRecordsRow{}
-	for rows.Next() {
-		var i DashboardReadTemporalRecordsRow
-		if err := rows.Scan(&i.ReceivedAt, &i.ID, &i.Payload); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const dashboardReleaseQueryLease = `-- name: DashboardReleaseQueryLease :execrows
 DELETE FROM dashboard_query_leases
 WHERE token = $1
@@ -1331,23 +1278,23 @@ WITH widget AS (
   WHERE w.tenant_namespace = $2
     AND w.revision = $3
 ), source AS (
-  SELECT r.received_at, r.id AS sequence, r.payload
-  FROM dashboard_temporal_records r, widget
-  WHERE r.tenant_namespace = $2
-    AND r.widget_revision = $3
-    AND r.received_at >= $4
-    AND r.received_at < $5
+  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  FROM dashboard_temporal_records temporal, widget
+  WHERE temporal.tenant_namespace = $2
+    AND temporal.widget_revision = $3
+    AND temporal.recorded_at >= $4
+    AND temporal.recorded_at < $5
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT r.received_at, r.ordinal::bigint AS sequence, r.payload
-  FROM dashboard_latest_records r, widget
-  WHERE r.tenant_namespace = $2
-    AND r.widget_revision = $3
+  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
+  FROM dashboard_latest_records latest, widget
+  WHERE latest.tenant_namespace = $2
+    AND latest.widget_revision = $3
     AND widget.mode = 'latest'
 ), numbered AS (
   SELECT
     payload,
-    row_number() OVER (ORDER BY received_at, sequence) AS row_number,
+    row_number() OVER (ORDER BY at, sequence) AS row_number,
     count(*) OVER () AS total
   FROM source
 )
@@ -1440,21 +1387,21 @@ WITH widget AS (
   WHERE w.tenant_namespace = $9
     AND w.revision = $10
 ), source AS (
-  SELECT r.received_at, r.id AS sequence, r.payload
-  FROM dashboard_temporal_records r, widget
-  WHERE r.tenant_namespace = $9
-    AND r.widget_revision = $10
-    AND r.received_at >= $11
-    AND r.received_at < $12
+  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  FROM dashboard_temporal_records temporal, widget
+  WHERE temporal.tenant_namespace = $9
+    AND temporal.widget_revision = $10
+    AND temporal.recorded_at >= $11
+    AND temporal.recorded_at < $12
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT r.received_at, r.ordinal::bigint AS sequence, r.payload
-  FROM dashboard_latest_records r, widget
-  WHERE r.tenant_namespace = $9
-    AND r.widget_revision = $10
+  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
+  FROM dashboard_latest_records latest, widget
+  WHERE latest.tenant_namespace = $9
+    AND latest.widget_revision = $10
     AND widget.mode = 'latest'
 )
-SELECT received_at, payload
+SELECT at, payload
 FROM source
 ORDER BY
   CASE WHEN $1::boolean THEN payload->'cells'->$2::integer END ASC,
@@ -1463,7 +1410,7 @@ ORDER BY
   CASE WHEN NOT $3::boolean THEN payload->'cells'->$4::integer END DESC,
   CASE WHEN $5::boolean THEN payload->'cells'->$6::integer END ASC,
   CASE WHEN NOT $5::boolean THEN payload->'cells'->$6::integer END DESC,
-  received_at DESC,
+  at DESC,
   sequence DESC
 LIMIT $8
 OFFSET $7
@@ -1485,8 +1432,8 @@ type DashboardTableRowsParams struct {
 }
 
 type DashboardTableRowsRow struct {
-	ReceivedAt time.Time `json:"received_at"`
-	Payload    []byte    `json:"payload"`
+	At      time.Time `json:"at"`
+	Payload []byte    `json:"payload"`
 }
 
 func (q *Queries) DashboardTableRows(ctx context.Context, arg DashboardTableRowsParams) ([]DashboardTableRowsRow, error) {
@@ -1511,7 +1458,7 @@ func (q *Queries) DashboardTableRows(ctx context.Context, arg DashboardTableRows
 	items := []DashboardTableRowsRow{}
 	for rows.Next() {
 		var i DashboardTableRowsRow
-		if err := rows.Scan(&i.ReceivedAt, &i.Payload); err != nil {
+		if err := rows.Scan(&i.At, &i.Payload); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -2236,6 +2236,7 @@ export const zDashboardCell = z.object({
 })
 
 export const zDashboardDataRecord = z.object({
+  recorded_at: z.iso.datetime().optional(),
   category: z.string().min(1).max(120).optional(),
   series: z.int().gte(0).lte(4).optional(),
   values: z.array(z.number()).max(5).optional(),
@@ -2248,7 +2249,7 @@ export const zDashboardDataRecord = z.object({
 
 export const zPublishDashboardDataRequest = z.object({
   data_revision: z.uuid(),
-  records: z.array(zDashboardDataRecord).min(1).max(1000),
+  records: z.array(zDashboardDataRecord).min(1).max(100),
 })
 
 export const zPublishDashboardDataResponse = z.object({
@@ -2332,7 +2333,7 @@ export const zQueryDashboardResponse = z.object({
 })
 
 export const zDashboardTableRow = z.object({
-  received_at: z.iso.datetime(),
+  at: z.iso.datetime(),
   cells: z.array(zDashboardCell).max(12),
 })
 

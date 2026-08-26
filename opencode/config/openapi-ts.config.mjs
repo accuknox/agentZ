@@ -18,7 +18,12 @@ const config = {
         request: false,
       },
     },
-    "zod",
+    {
+      name: "zod",
+      dates: {
+        offset: true,
+      },
+    },
     {
       name: "@hey-api/client-fetch",
       baseUrl: "http://localhost",

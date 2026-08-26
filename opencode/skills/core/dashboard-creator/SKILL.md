@@ -22,12 +22,15 @@ Build the dashboard from values you have already computed. The gateway validates
 
 ## Widget contracts
 
-- `line`, `area`, `step`: temporal only; 1–5 series. Each record contains only `values`, with one number per series.
+- `line`, `area`, `step`: temporal only; 1–5 series. Each record contains only `recorded_at` and `values`, with one number per series.
 - `pie`: latest only; exactly one series. Each record contains only `category` and one `values` entry.
-- `bar`, `horizontal_grouped_bar`: temporal or latest; 1–5 series. Each record contains only `category` and one value per series.
+- `bar`, `horizontal_grouped_bar`: temporal or latest; 1–5 series. Each record contains `category` and one value per series.
 - `scatter`: temporal or latest; 1–5 declared series. Each record contains `series`, `x`, `y`, and optionally `size` and `label`.
-- `gauge`: latest only; exactly one series and an increasing `minimum`/`maximum`. Publish exactly one record containing one value.
-- `table`: temporal or latest; 1–12 columns and no series. Each record contains only `cells`, one cell per declared column. A cell must contain exactly one matching key: `text`, `number`, `boolean`, or `datetime`.
+- `gauge`: latest only; exactly one series, an increasing `minimum`/`maximum`, and up to five increasing thresholds. Publish exactly one record containing one value.
+- `table`: temporal or latest; 1–12 columns and no series. Each record contains `cells`, one cell per declared column. A cell must contain exactly one matching key: `text`, `number`, `boolean`, or `datetime`.
+
+Temporal `bar`, `horizontal_grouped_bar`, `scatter`, and `table` records also require `recorded_at`. Latest records must omit it.
+Only gauges support thresholds. Use an empty `thresholds` array for every other widget kind.
 
 Use `sum`, `average`, `minimum`, `maximum`, `last`, or `count` to declare how temporal values combine inside a server-selected time bucket.
 
@@ -40,7 +43,9 @@ Use `sum`, `average`, `minimum`, `maximum`, `last`, or `count` to declare how te
 
 ## Data rules
 
-- Temporal publishing appends every accepted record using gateway receive time. Retention is 30 days.
+- Dashboard, widget, series, and column names are lowercase DNS labels: letters, numbers, and internal hyphens only.
+- `recorded_at` and `datetime` values are RFC 3339 timestamps. Offsets such as `+05:30` are valid.
+- Temporal publishing appends records at their explicit `recorded_at` timestamps. Timestamps must be within the 30-day retention window and no more than five minutes in the future.
 - Latest publishing atomically replaces that widget's current snapshot.
 - Compute categories, series values, scatter coordinates, table cells, and gauge values before publishing.
 - Never send extra fields “just in case.” Shape mismatches are rejected.

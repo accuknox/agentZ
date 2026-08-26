@@ -27,7 +27,11 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-const dashboardPageSize = 25
+const (
+	dashboardPageSize   = 25
+	dashboardRetention  = 30 * 24 * time.Hour
+	dashboardFutureSkew = 5 * time.Minute
+)
 
 type dashboardPageCursor struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -45,8 +49,9 @@ type dashboardWidgetInsert struct {
 }
 
 type dashboardStoredRecord struct {
-	Payload  gatewayapi.DashboardDataRecord `json:"payload"`
-	ByteSize int                            `json:"byte_size"`
+	RecordedAt *time.Time                     `json:"recorded_at,omitempty"`
+	Payload    gatewayapi.DashboardDataRecord `json:"payload"`
+	ByteSize   int                            `json:"byte_size"`
 }
 
 func (s *Service) ListDashboards(w http.ResponseWriter, r *http.Request, params gatewayapi.ListDashboardsParams) {
@@ -355,7 +360,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		writeInternalError(w, r, fmt.Errorf("decode stored widget definition: %w", err))
 		return
 	}
-	if err := validateDashboardRecords(definition, req.Records); err != nil {
+	if err := validateDashboardRecords(definition, req.Records, receivedAt); err != nil {
 		writeError(w, r, newAPIError(http.StatusUnprocessableEntity, "invalid_dashboard_data", err.Error(), err))
 		return
 	}
@@ -385,12 +390,18 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 	stored := make([]dashboardStoredRecord, len(req.Records))
 	var acceptedBytes int64
 	for i, record := range req.Records {
+		var recordedAt *time.Time
+		if record.RecordedAt != nil {
+			at := record.RecordedAt.UTC()
+			recordedAt = &at
+			record.RecordedAt = nil
+		}
 		raw, err := json.Marshal(record)
 		if err != nil {
 			writeInternalError(w, r, fmt.Errorf("encode record %d: %w", i, err))
 			return
 		}
-		stored[i] = dashboardStoredRecord{Payload: record, ByteSize: len(raw)}
+		stored[i] = dashboardStoredRecord{RecordedAt: recordedAt, Payload: record, ByteSize: len(raw)}
 		acceptedBytes += int64(len(raw))
 	}
 	storedJSON, err := json.Marshal(stored)
@@ -449,7 +460,6 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		inserted, err := queries.DashboardInsertTemporalRecords(r.Context(), dashboarddb.DashboardInsertTemporalRecordsParams{
 			TenantNamespace: auth.tenantNamespace,
 			WidgetRevision:  widget.Revision,
-			ReceivedAt:      receivedAt,
 			Records:         storedJSON,
 		})
 		if err != nil || inserted != int64(len(stored)) {
@@ -519,7 +529,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	if !req.To.After(req.From) || req.To.Sub(req.From) > 30*24*time.Hour {
+	if !req.To.After(req.From) || req.To.Sub(req.From) > dashboardRetention {
 		writeError(w, r, newAPIError(http.StatusUnprocessableEntity, "invalid_time_range", "time range must be positive and no longer than 30 days", errBadRequest))
 		return
 	}
@@ -806,7 +816,7 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 	if params.EventTimeBefore != nil {
 		to = *params.EventTimeBefore
 	}
-	if !to.After(from) || to.Sub(from) > 30*24*time.Hour {
+	if !to.After(from) || to.Sub(from) > dashboardRetention {
 		writeError(w, r, newAPIError(http.StatusUnprocessableEntity, "invalid_time_range", "time range must be positive and no longer than 30 days", errBadRequest))
 		return
 	}
@@ -906,7 +916,7 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 			})
 			return
 		}
-		result[i] = gatewayapi.DashboardTableRow{ReceivedAt: row.ReceivedAt, Cells: *record.Cells}
+		result[i] = gatewayapi.DashboardTableRow{At: row.At, Cells: *record.Cells}
 	}
 	status := gatewayapi.Ok
 	if len(result) == 0 {
@@ -1133,34 +1143,104 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 	return nil
 }
 
-func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, records []gatewayapi.DashboardDataRecord) error {
+func validateDashboardRecords(widget gatewayapi.DashboardWidgetDefinition, records []gatewayapi.DashboardDataRecord, receivedAt time.Time) error {
 	if widget.Kind == gatewayapi.Gauge && len(records) != 1 {
 		return errors.New("gauges require exactly one record")
 	}
 	for i, record := range records {
+		if widget.Mode == gatewayapi.Temporal {
+			if record.RecordedAt == nil {
+				return fmt.Errorf("records[%d]: recorded_at is required for temporal widgets", i)
+			}
+			if record.RecordedAt.Before(receivedAt.Add(-dashboardRetention)) {
+				return fmt.Errorf("records[%d]: recorded_at is outside the retained period", i)
+			}
+			if record.RecordedAt.After(receivedAt.Add(dashboardFutureSkew)) {
+				return fmt.Errorf("records[%d]: recorded_at is too far in the future", i)
+			}
+		} else if record.RecordedAt != nil {
+			return fmt.Errorf("records[%d]: recorded_at is forbidden for latest widgets", i)
+		}
+
 		var err error
 		switch widget.Kind {
 		case gatewayapi.Line, gatewayapi.Area, gatewayapi.Step, gatewayapi.Gauge:
-			if record.Values == nil || len(*record.Values) != len(widget.Series) || record.Category != nil || record.Cells != nil || record.Series != nil || record.X != nil || record.Y != nil || record.Size != nil || record.Label != nil {
-				err = errors.New("expected only one value for each declared series")
+			valuesMatch := record.Values != nil && len(*record.Values) == len(widget.Series)
+			onlyValues := record.Category == nil &&
+				record.Cells == nil &&
+				record.Series == nil &&
+				record.X == nil &&
+				record.Y == nil &&
+				record.Size == nil &&
+				record.Label == nil
+			if !valuesMatch || !onlyValues {
+				expected := "values only"
+				if widget.Mode == gatewayapi.Temporal {
+					expected = "recorded_at and values only"
+				}
+				err = fmt.Errorf(
+					"expected %s, with one value for each of %d series",
+					expected,
+					len(widget.Series),
+				)
 			}
 		case gatewayapi.Pie, gatewayapi.Bar, gatewayapi.HorizontalGroupedBar:
-			if record.Category == nil || record.Values == nil || len(*record.Values) != len(widget.Series) || record.Cells != nil || record.Series != nil || record.X != nil || record.Y != nil || record.Size != nil || record.Label != nil {
-				err = errors.New("expected category and one value for each declared series")
-			} else if utf8.RuneCountInString(*record.Category) < 1 || utf8.RuneCountInString(*record.Category) > 120 {
+			valuesMatch := record.Values != nil && len(*record.Values) == len(widget.Series)
+			onlyCategoryValues := record.Cells == nil &&
+				record.Series == nil &&
+				record.X == nil &&
+				record.Y == nil &&
+				record.Size == nil &&
+				record.Label == nil
+			if record.Category == nil || !valuesMatch || !onlyCategoryValues {
+				expected := "category and values only"
+				if widget.Mode == gatewayapi.Temporal {
+					expected = "recorded_at, category, and values only"
+				}
+				err = fmt.Errorf(
+					"expected %s, with one value for each of %d series",
+					expected,
+					len(widget.Series),
+				)
+			} else if utf8.RuneCountInString(*record.Category) < 1 ||
+				utf8.RuneCountInString(*record.Category) > 120 {
 				err = errors.New("category must contain 1-120 characters")
 			}
 		case gatewayapi.Scatter:
-			if record.X == nil || record.Y == nil || record.Series == nil || *record.Series < 0 || int(*record.Series) >= len(widget.Series) || record.Category != nil || record.Values != nil || record.Cells != nil {
-				err = errors.New("expected x, y, and a declared series index")
+			seriesMatches := record.Series != nil &&
+				*record.Series >= 0 &&
+				int(*record.Series) < len(widget.Series)
+			onlyScatter := record.Category == nil && record.Values == nil && record.Cells == nil
+			if record.X == nil || record.Y == nil || !seriesMatches || !onlyScatter {
+				expected := "series, x, y, and optional size and label only"
+				if widget.Mode == gatewayapi.Temporal {
+					expected = "recorded_at, series, x, y, and optional size and label only"
+				}
+				err = fmt.Errorf("expected %s", expected)
 			} else if record.Size != nil && *record.Size < 0 {
 				err = errors.New("size must not be negative")
 			} else if record.Label != nil && utf8.RuneCountInString(*record.Label) > 120 {
 				err = errors.New("label must contain at most 120 characters")
 			}
 		case gatewayapi.Table:
-			if record.Cells == nil || len(*record.Cells) != len(widget.Columns) || record.Category != nil || record.Values != nil || record.Series != nil || record.X != nil || record.Y != nil || record.Size != nil || record.Label != nil {
-				err = errors.New("expected one cell for each declared column")
+			cellsMatch := record.Cells != nil && len(*record.Cells) == len(widget.Columns)
+			onlyCells := record.Category == nil &&
+				record.Values == nil &&
+				record.Series == nil &&
+				record.X == nil &&
+				record.Y == nil &&
+				record.Size == nil &&
+				record.Label == nil
+			if !cellsMatch || !onlyCells {
+				expected := "cells only"
+				if widget.Mode == gatewayapi.Temporal {
+					expected = "recorded_at and cells only"
+				}
+				err = fmt.Errorf(
+					"expected %s, with one cell for each of %d columns",
+					expected,
+					len(widget.Columns),
+				)
 			} else {
 				for column, cell := range *record.Cells {
 					if !dashboardCellMatches(widget.Columns[column].Type, cell) {
@@ -1254,7 +1334,7 @@ func (s *Service) runDashboardRetention(ctx context.Context) {
 		for time.Now().Before(deadline) {
 			batchCtx, cancel := context.WithDeadline(ctx, deadline)
 			removed, err := s.dashboards.DashboardDeleteExpired(batchCtx, dashboarddb.DashboardDeleteExpiredParams{
-				Cutoff:    now.Add(-30 * 24 * time.Hour),
+				Cutoff:    now.Add(-dashboardRetention),
 				BatchSize: 1000,
 			})
 			cancel()
@@ -1273,7 +1353,7 @@ func (s *Service) runDashboardRetention(ctx context.Context) {
 		if deletedRecords > 0 {
 			slog.InfoContext(ctx, "deleted expired dashboard records", slog.Int64("records", deletedRecords), slog.Int64("bytes", deletedBytes))
 		}
-		if err := s.dashboards.DashboardDeleteExpiredAccounting(ctx, now.Add(-30*24*time.Hour)); err != nil && ctx.Err() == nil {
+		if err := s.dashboards.DashboardDeleteExpiredAccounting(ctx, now.Add(-dashboardRetention)); err != nil && ctx.Err() == nil {
 			slog.ErrorContext(ctx, "delete expired dashboard idempotency records", slog.Any("err", err))
 		}
 		if err := s.dashboards.DashboardDeleteExpiredWindows(ctx, now.Add(-48*time.Hour)); err != nil && ctx.Err() == nil {

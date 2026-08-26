@@ -50,17 +50,15 @@ CREATE TABLE dashboard_temporal_records (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   tenant_namespace TEXT NOT NULL,
   widget_revision UUID NOT NULL,
-  received_at TIMESTAMPTZ NOT NULL,
-  ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+  recorded_at TIMESTAMPTZ NOT NULL,
   payload JSONB NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
   byte_size INTEGER NOT NULL CHECK (byte_size > 0),
-  UNIQUE (widget_revision, received_at, ordinal),
   FOREIGN KEY (tenant_namespace, widget_revision)
     REFERENCES dashboard_widgets(tenant_namespace, revision) ON DELETE CASCADE
 );
 
 CREATE INDEX dashboard_temporal_query_idx
-ON dashboard_temporal_records(tenant_namespace, widget_revision, received_at, id);
+ON dashboard_temporal_records(tenant_namespace, widget_revision, recorded_at, id);
 
 CREATE TABLE dashboard_latest_records (
   tenant_namespace TEXT NOT NULL,

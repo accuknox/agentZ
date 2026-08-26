@@ -182,12 +182,16 @@ RETURNING latest_bytes;
 
 -- name: DashboardInsertTemporalRecords :execrows
 INSERT INTO dashboard_temporal_records (
-  tenant_namespace, widget_revision, received_at, ordinal, payload, byte_size
+  tenant_namespace, widget_revision, recorded_at, payload, byte_size
 )
 SELECT
-  sqlc.arg(tenant_namespace), sqlc.arg(widget_revision), sqlc.arg(received_at),
-  (input.ordinality - 1)::integer, input.value->'payload', (input.value->>'byte_size')::integer
-FROM jsonb_array_elements(sqlc.arg(records)::jsonb) WITH ORDINALITY AS input(value, ordinality);
+  sqlc.arg(tenant_namespace), sqlc.arg(widget_revision),
+  input.recorded_at, input.payload, input.byte_size
+FROM jsonb_to_recordset(sqlc.arg(records)::jsonb) AS input(
+  recorded_at TIMESTAMPTZ,
+  payload JSONB,
+  byte_size INTEGER
+);
 
 -- name: DashboardReplaceLatestRecords :exec
 WITH removed AS (
@@ -267,8 +271,8 @@ WITH widget AS (
   FROM dashboard_temporal_records temporal, widget
   WHERE temporal.tenant_namespace = sqlc.arg(tenant_namespace)
     AND temporal.widget_revision = sqlc.arg(widget_revision)
-    AND temporal.received_at >= sqlc.arg(from_time)
-    AND temporal.received_at < sqlc.arg(to_time)
+    AND temporal.recorded_at >= sqlc.arg(from_time)
+    AND temporal.recorded_at < sqlc.arg(to_time)
     AND widget.mode = 'temporal'
   UNION ALL
   SELECT latest.payload
@@ -412,10 +416,10 @@ WITH series AS (
   SELECT
     date_bin(
       make_interval(secs => sqlc.arg(bucket_seconds)::integer),
-      r.received_at,
+      r.recorded_at,
       sqlc.arg(from_time)::timestamptz
     ) AS bucket,
-    r.received_at,
+    r.recorded_at,
     r.id,
     (value.ordinality - 1)::integer AS series_index,
     (value.value #>> '{}')::double precision AS value
@@ -423,8 +427,8 @@ WITH series AS (
        jsonb_array_elements(r.payload->'values') WITH ORDINALITY AS value(value, ordinality)
   WHERE r.tenant_namespace = sqlc.arg(tenant_namespace)
     AND r.widget_revision = sqlc.arg(widget_revision)
-    AND r.received_at >= sqlc.arg(from_time)
-    AND r.received_at < sqlc.arg(to_time)
+    AND r.recorded_at >= sqlc.arg(from_time)
+    AND r.recorded_at < sqlc.arg(to_time)
 ), aggregated AS (
   SELECT
     e.bucket,
@@ -435,7 +439,7 @@ WITH series AS (
       WHEN 'minimum' THEN min(e.value)
       WHEN 'maximum' THEN max(e.value)
       WHEN 'count' THEN count(e.value)::double precision
-      WHEN 'last' THEN (array_agg(e.value ORDER BY e.received_at DESC, e.id DESC))[1]
+      WHEN 'last' THEN (array_agg(e.value ORDER BY e.recorded_at DESC, e.id DESC))[1]
     END AS value
   FROM expanded e
   JOIN series s USING (series_index)
@@ -456,16 +460,6 @@ WHERE tenant_namespace = sqlc.arg(tenant_namespace)
 ORDER BY ordinal
 LIMIT sqlc.arg(row_limit);
 
--- name: DashboardReadTemporalRecords :many
-SELECT received_at, id, payload
-FROM dashboard_temporal_records
-WHERE tenant_namespace = sqlc.arg(tenant_namespace)
-  AND widget_revision = sqlc.arg(widget_revision)
-  AND received_at >= sqlc.arg(from_time)
-  AND received_at < sqlc.arg(to_time)
-ORDER BY received_at, id
-LIMIT sqlc.arg(row_limit);
-
 -- name: DashboardAggregateCategories :many
 WITH widget AS (
   SELECT mode, definition
@@ -473,23 +467,23 @@ WITH widget AS (
   WHERE w.tenant_namespace = sqlc.arg(tenant_namespace)
     AND w.revision = sqlc.arg(widget_revision)
 ), source AS (
-  SELECT r.received_at, r.id AS sequence, r.payload
-  FROM dashboard_temporal_records r, widget
-  WHERE r.tenant_namespace = sqlc.arg(tenant_namespace)
-    AND r.widget_revision = sqlc.arg(widget_revision)
-    AND r.received_at >= sqlc.arg(from_time)
-    AND r.received_at < sqlc.arg(to_time)
+  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  FROM dashboard_temporal_records temporal, widget
+  WHERE temporal.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND temporal.widget_revision = sqlc.arg(widget_revision)
+    AND temporal.recorded_at >= sqlc.arg(from_time)
+    AND temporal.recorded_at < sqlc.arg(to_time)
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT r.received_at, r.ordinal::bigint AS sequence, r.payload
-  FROM dashboard_latest_records r, widget
-  WHERE r.tenant_namespace = sqlc.arg(tenant_namespace)
-    AND r.widget_revision = sqlc.arg(widget_revision)
+  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
+  FROM dashboard_latest_records latest, widget
+  WHERE latest.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND latest.widget_revision = sqlc.arg(widget_revision)
     AND widget.mode = 'latest'
 ), expanded AS (
   SELECT
     source.payload->>'category' AS category,
-    source.received_at,
+    source.at,
     source.sequence,
     (value.ordinality - 1)::integer AS series_index,
     (value.value #>> '{}')::double precision AS value,
@@ -506,7 +500,7 @@ WITH widget AS (
       WHEN 'minimum' THEN min(value)
       WHEN 'maximum' THEN max(value)
       WHEN 'count' THEN count(value)::double precision
-      WHEN 'last' THEN (array_agg(value ORDER BY received_at DESC, sequence DESC))[1]
+      WHEN 'last' THEN (array_agg(value ORDER BY at DESC, sequence DESC))[1]
     END AS value
   FROM expanded
   GROUP BY category, series_index, aggregation
@@ -545,23 +539,23 @@ WITH widget AS (
   WHERE w.tenant_namespace = sqlc.arg(tenant_namespace)
     AND w.revision = sqlc.arg(widget_revision)
 ), source AS (
-  SELECT r.received_at, r.id AS sequence, r.payload
-  FROM dashboard_temporal_records r, widget
-  WHERE r.tenant_namespace = sqlc.arg(tenant_namespace)
-    AND r.widget_revision = sqlc.arg(widget_revision)
-    AND r.received_at >= sqlc.arg(from_time)
-    AND r.received_at < sqlc.arg(to_time)
+  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  FROM dashboard_temporal_records temporal, widget
+  WHERE temporal.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND temporal.widget_revision = sqlc.arg(widget_revision)
+    AND temporal.recorded_at >= sqlc.arg(from_time)
+    AND temporal.recorded_at < sqlc.arg(to_time)
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT r.received_at, r.ordinal::bigint AS sequence, r.payload
-  FROM dashboard_latest_records r, widget
-  WHERE r.tenant_namespace = sqlc.arg(tenant_namespace)
-    AND r.widget_revision = sqlc.arg(widget_revision)
+  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
+  FROM dashboard_latest_records latest, widget
+  WHERE latest.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND latest.widget_revision = sqlc.arg(widget_revision)
     AND widget.mode = 'latest'
 ), numbered AS (
   SELECT
     payload,
-    row_number() OVER (ORDER BY received_at, sequence) AS row_number,
+    row_number() OVER (ORDER BY at, sequence) AS row_number,
     count(*) OVER () AS total
   FROM source
 )
@@ -578,21 +572,21 @@ WITH widget AS (
   WHERE w.tenant_namespace = sqlc.arg(tenant_namespace)
     AND w.revision = sqlc.arg(widget_revision)
 ), source AS (
-  SELECT r.received_at, r.id AS sequence, r.payload
-  FROM dashboard_temporal_records r, widget
-  WHERE r.tenant_namespace = sqlc.arg(tenant_namespace)
-    AND r.widget_revision = sqlc.arg(widget_revision)
-    AND r.received_at >= sqlc.arg(from_time)
-    AND r.received_at < sqlc.arg(to_time)
+  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  FROM dashboard_temporal_records temporal, widget
+  WHERE temporal.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND temporal.widget_revision = sqlc.arg(widget_revision)
+    AND temporal.recorded_at >= sqlc.arg(from_time)
+    AND temporal.recorded_at < sqlc.arg(to_time)
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT r.received_at, r.ordinal::bigint AS sequence, r.payload
-  FROM dashboard_latest_records r, widget
-  WHERE r.tenant_namespace = sqlc.arg(tenant_namespace)
-    AND r.widget_revision = sqlc.arg(widget_revision)
+  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
+  FROM dashboard_latest_records latest, widget
+  WHERE latest.tenant_namespace = sqlc.arg(tenant_namespace)
+    AND latest.widget_revision = sqlc.arg(widget_revision)
     AND widget.mode = 'latest'
 )
-SELECT received_at, payload
+SELECT at, payload
 FROM source
 ORDER BY
   CASE WHEN sqlc.arg(sort_0_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_0_index)::integer END ASC,
@@ -601,7 +595,7 @@ ORDER BY
   CASE WHEN NOT sqlc.arg(sort_1_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_1_index)::integer END DESC,
   CASE WHEN sqlc.arg(sort_2_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_2_index)::integer END ASC,
   CASE WHEN NOT sqlc.arg(sort_2_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_2_index)::integer END DESC,
-  received_at DESC,
+  at DESC,
   sequence DESC
 LIMIT sqlc.arg(page_size)
 OFFSET sqlc.arg(page_offset);
@@ -610,8 +604,8 @@ OFFSET sqlc.arg(page_offset);
 WITH expired AS MATERIALIZED (
   SELECT temporal.id, temporal.tenant_namespace, temporal.byte_size
   FROM dashboard_temporal_records temporal
-  WHERE temporal.received_at < sqlc.arg(cutoff)
-  ORDER BY temporal.received_at, temporal.id
+  WHERE temporal.recorded_at < sqlc.arg(cutoff)
+  ORDER BY temporal.recorded_at, temporal.id
   FOR UPDATE SKIP LOCKED
   LIMIT sqlc.arg(batch_size)
 ), removed AS (

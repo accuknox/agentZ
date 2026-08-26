@@ -1571,6 +1571,9 @@ components:
         label:
           maxLength: 120
           type: string
+        recorded_at:
+          format: date-time
+          type: string
         series:
           format: int32
           maximum: 4
@@ -1729,16 +1732,16 @@ components:
     DashboardTableRow:
       additionalProperties: false
       properties:
+        at:
+          format: date-time
+          type: string
         cells:
           items:
             $ref: '#/components/schemas/DashboardCell'
           maxItems: 12
           type: array
-        received_at:
-          format: date-time
-          type: string
       required:
-      - received_at
+      - at
       - cells
       type: object
     DashboardTimePoint:
@@ -22756,7 +22759,7 @@ components:
         records:
           items:
             $ref: '#/components/schemas/DashboardDataRecord'
-          maxItems: 1000
+          maxItems: 100
           minItems: 1
           type: array
       required:

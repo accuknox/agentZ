@@ -32,7 +32,6 @@ type Querier interface {
 	DashboardListWidgets(ctx context.Context, arg DashboardListWidgetsParams) ([]DashboardWidget, error)
 	DashboardLockWidget(ctx context.Context, arg DashboardLockWidgetParams) (DashboardLockWidgetRow, error)
 	DashboardReadRecords(ctx context.Context, arg DashboardReadRecordsParams) ([]DashboardReadRecordsRow, error)
-	DashboardReadTemporalRecords(ctx context.Context, arg DashboardReadTemporalRecordsParams) ([]DashboardReadTemporalRecordsRow, error)
 	DashboardReleaseQueryLease(ctx context.Context, arg DashboardReleaseQueryLeaseParams) (int64, error)
 	DashboardReplaceLatestRecords(ctx context.Context, arg DashboardReplaceLatestRecordsParams) error
 	DashboardReserveLatestUsage(ctx context.Context, arg DashboardReserveLatestUsageParams) (int64, error)

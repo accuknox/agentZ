@@ -4,7 +4,13 @@ import * as React from "react"
 import type { Route } from "next"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { queryOptions, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query"
+import {
+  type ColumnDef,
+  getCoreRowModel,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table"
 import { RefreshCw } from "lucide-react"
 import {
   Area,
@@ -31,13 +37,14 @@ import {
   listDashboardTableRows,
   queryDashboard,
   type Dashboard,
-  type DashboardCell,
   type DashboardSummary,
-  type DashboardTableColumn,
+  type DashboardTableRow,
   type DashboardWidget,
   type DashboardWidgetQueryResult,
   type QueryDashboardResponse,
 } from "@/lib/gateway/client"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { TablePagination } from "@/components/table-pagination"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
 import { Input } from "@/components/ui/input"
@@ -48,14 +55,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Spinner } from "@/components/ui/spinner"
+import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
 const palette = [
@@ -282,10 +283,10 @@ function Widget({
       <header className="flex h-11 items-center border-b px-4">
         <h2 className="truncate text-sm font-semibold">{widget.title}</h2>
       </header>
-      <div className="h-[calc(20rem-2.75rem)] min-w-0 p-3">
+      <div className={cn("h-[calc(20rem-2.75rem)] min-w-0", widget.kind !== "table" && "p-3")}>
         {widget.kind === "table" ? (
           <DashboardTable
-            key={`${from}:${to}`}
+            key={`${widget.data_revision}:${from}:${to}`}
             dashboard={dashboard}
             from={from}
             to={to}
@@ -524,8 +525,11 @@ function DashboardTable({
   workspaceId: string
   workspacePath: string
 }) {
+  "use no memo"
+
   const [pageToken, setPageToken] = React.useState<string>()
-  const [history, setHistory] = React.useState<string[]>([])
+  const [history, setHistory] = React.useState<(string | undefined)[]>([])
+  const [sorting, setSorting] = React.useState<SortingState>([])
   const query = useQuery(
     queryOptions({
       queryKey: [
@@ -537,6 +541,7 @@ function DashboardTable({
         widget.data_revision,
         from,
         to,
+        sorting,
         pageToken,
       ],
       queryFn: async () => {
@@ -547,7 +552,12 @@ function DashboardTable({
             dashboardName: dashboard.name,
             widgetName: widget.name,
           },
-          query: { event_time_after: from, event_time_before: to, page_token: pageToken },
+          query: {
+            event_time_after: from,
+            event_time_before: to,
+            page_token: pageToken,
+            sort: sorting.map(({ desc, id }) => `${id}:${desc ? "desc" : "asc"}`),
+          },
         })
         if (error) throw new Error(error.message)
         return data
@@ -555,79 +565,115 @@ function DashboardTable({
       refetchInterval: 60_000,
       refetchIntervalInBackground: false,
       refetchOnWindowFocus: true,
+      placeholderData: keepPreviousData,
     })
   )
-  if (query.data?.status === "invalid_data")
+
+  const columns = React.useMemo<ColumnDef<DashboardTableRow>[]>(
+    () =>
+      widget.columns.map((column, index) => ({
+        id: column.name,
+        accessorFn: (row) => row.cells.at(index)?.[column.type],
+        header: column.label,
+        enableSorting: column.sortable,
+        cell: ({ row }) => {
+          switch (column.type) {
+            case "text":
+              return row.original.cells.at(index)?.text || <EmptyValue />
+            case "number": {
+              const value = row.original.cells.at(index)?.number
+              return value === undefined ? <EmptyValue /> : value.toLocaleString()
+            }
+            case "boolean": {
+              const value = row.original.cells.at(index)?.boolean
+              return value === undefined ? <EmptyValue /> : value ? "True" : "False"
+            }
+            case "datetime": {
+              const value = row.original.cells.at(index)?.datetime
+              return value === undefined ? <EmptyValue /> : <RelativeDateTime value={value} />
+            }
+          }
+        },
+      })),
+    [widget.columns]
+  )
+  const layout = React.useMemo<Record<string, AdminColumnLayout>>(
+    () =>
+      Object.fromEntries(
+        widget.columns.map((column) => [
+          column.name,
+          {
+            align: column.type === "number" ? "end" : undefined,
+            minWidth: { boolean: 96, datetime: 176, number: 128, text: 160 }[column.type],
+          },
+        ])
+      ),
+    [widget.columns]
+  )
+  const rows = React.useMemo(() => query.data?.rows ?? [], [query.data?.rows])
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({
+    columns,
+    data: rows,
+    enableMultiSort: true,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    maxMultiSortColCount: 3,
+    onSortingChange: (update) => {
+      setSorting(update)
+      setPageToken(undefined)
+      setHistory([])
+    },
+    state: { sorting },
+  })
+  const data = query.data
+
+  if (data?.status === "invalid_data")
     return (
       <InvalidWidget
         agentName={dashboard.agent_name}
-        message={query.data.error?.message}
+        message={data.error?.message}
         workspacePath={workspacePath}
       />
     )
-  return (
-    <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {widget.columns.map((column) => (
-                <TableHead key={column.name}>{column.label}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {query.data?.rows.map((row, rowIndex) => (
-              <TableRow key={`${row.at}-${rowIndex}`}>
-                {widget.columns.map((column, index) => {
-                  const cell = row.cells.at(index)
-                  return (
-                    <TableCell key={column.name}>{cell ? formatCell(column, cell) : "—"}</TableCell>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="flex h-9 items-end justify-end gap-1">
-        <Button
-          disabled={history.length === 0}
-          onClick={() => {
-            const next = [...history]
-            setPageToken(next.pop())
-            setHistory(next)
-          }}
-          size="sm"
-          variant="ghost"
-        >
-          Previous
-        </Button>
-        <Button
-          disabled={!query.data?.next_page_token}
-          onClick={() => {
-            setHistory((items) => [...items, pageToken ?? ""])
-            setPageToken(query.data?.next_page_token)
-          }}
-          size="sm"
-          variant="ghost"
-        >
-          Next
-        </Button>
-      </div>
-    </div>
-  )
-}
 
-function formatCell(column: DashboardTableColumn, cell: DashboardCell) {
-  switch (column.type) {
-    case "text":
-      return cell.text
-    case "number":
-      return cell.number?.toLocaleString()
-    case "boolean":
-      return cell.boolean ? "True" : "False"
-    case "datetime":
-      return cell.datetime ? new Date(cell.datetime).toLocaleString() : ""
-  }
+  return (
+    <AdminDataGrid
+      ariaLabel={widget.title}
+      className="h-full gap-0 [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&>nav]:h-14 [&>nav]:shrink-0"
+      emptyState={
+        <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+          {query.isPending ? (
+            <Spinner />
+          ) : query.error ? (
+            <span className="text-destructive">{query.error.message}</span>
+          ) : (
+            (data?.error?.message ?? "No data")
+          )}
+        </div>
+      }
+      layout={layout}
+      pagination={
+        data ? (
+          <TablePagination
+            canGoNext={data.next_page_token !== ""}
+            canGoPrevious={history.length > 0}
+            goNext={() => {
+              setHistory((items) => [...items, pageToken])
+              setPageToken(data.next_page_token)
+            }}
+            goPrevious={() => {
+              setPageToken(history.at(-1))
+              setHistory((items) => items.slice(0, -1))
+            }}
+            pending={query.isFetching}
+          />
+        ) : null
+      }
+      rows={rows}
+      table={table}
+      viewportClassName="min-h-0 flex-1 overflow-y-auto"
+    />
+  )
 }

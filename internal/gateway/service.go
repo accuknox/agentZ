@@ -722,6 +722,7 @@ func (s *Service) routes() http.Handler {
 		AllowedOrigins:   s.cfg.AllowedWebOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
+		ExposedHeaders:   []string{"X-Next-Cursor"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))

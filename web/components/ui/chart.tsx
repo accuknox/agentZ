@@ -9,6 +9,15 @@ import { cn } from "@/lib/utils"
 const THEMES = { light: "", dark: ".dark" } as const
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
+export const chartTooltipStyle = {
+  backgroundColor: "var(--popover)",
+  borderColor: "var(--border)",
+  borderRadius: "calc(var(--radius) * 1.4)",
+  boxShadow: "0 10px 30px color-mix(in oklab, var(--foreground) 10%, transparent)",
+  color: "var(--popover-foreground)",
+  padding: "8px 10px",
+} satisfies React.CSSProperties
+
 export type ChartConfig = Record<
   string,
   {
@@ -32,6 +41,7 @@ function ChartContainer({
   children,
   config,
   initialDimension = INITIAL_DIMENSION,
+  resizeDebounce = 0,
   ...props
 }: React.ComponentProps<"div"> & {
   config: ChartConfig
@@ -40,6 +50,7 @@ function ChartContainer({
     width: number
     height: number
   }
+  resizeDebounce?: React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer>["debounce"]
 }) {
   const uniqueId = React.useId()
   const chartId = `chart-${id ?? uniqueId.replace(/:/g, "")}`
@@ -56,7 +67,10 @@ function ChartContainer({
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer initialDimension={initialDimension}>
+        <RechartsPrimitive.ResponsiveContainer
+          debounce={resizeDebounce}
+          initialDimension={initialDimension}
+        >
           {children}
         </RechartsPrimitive.ResponsiveContainer>
       </div>
@@ -94,6 +108,15 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+function ChartTooltip(props: React.ComponentProps<typeof RechartsPrimitive.Tooltip>) {
+  return (
+    <RechartsPrimitive.Tooltip
+      contentStyle={chartTooltipStyle}
+      itemStyle={{ color: "var(--popover-foreground)", paddingBlock: 0 }}
+      labelStyle={{ marginBottom: 8 }}
+      {...props}
+    />
+  )
+}
 
 export { ChartContainer, ChartTooltip }

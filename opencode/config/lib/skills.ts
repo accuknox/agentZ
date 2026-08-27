@@ -2,6 +2,7 @@ import matter from "gray-matter"
 import fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
+import { parse } from "yaml"
 import * as z from "zod"
 
 export type SkillRecord = {
@@ -123,7 +124,7 @@ async function readSkillFile(
 
   let parsed: matter.GrayMatterFile<string>
   try {
-    parsed = matter(raw)
+    parsed = matter(raw, { engines: { yaml: parse } })
   } catch {
     return
   }

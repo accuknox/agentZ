@@ -1937,6 +1937,219 @@ export type McpConnectionOAuthCredentials = {
   revocation?: JsonObject
 }
 
+export type DashboardName = string
+
+export type DashboardWidgetName = string
+
+export type DashboardWidgetKind =
+  | "line"
+  | "pie"
+  | "bar"
+  | "horizontal_grouped_bar"
+  | "area"
+  | "step"
+  | "funnel"
+  | "horizontal_funnel"
+  | "sankey"
+  | "table"
+  | "scatter"
+  | "gauge"
+
+export type DashboardWidgetMode = "temporal" | "latest"
+
+export type DashboardWidgetWidth = "full" | "half" | "third"
+
+export type DashboardAggregation = "sum" | "average" | "minimum" | "maximum" | "last" | "count"
+
+export type DashboardSeries = {
+  name: string
+  label: string
+  aggregation: DashboardAggregation
+}
+
+export type DashboardScatterAxis = {
+  label: string
+  unit?: string
+}
+
+export type DashboardScatterAxes = {
+  x: DashboardScatterAxis
+  y: DashboardScatterAxis
+}
+
+export type DashboardTableColumnType = "text" | "number" | "boolean" | "datetime"
+
+export type DashboardTableColumn = {
+  name: string
+  label: string
+  type: DashboardTableColumnType
+  sortable: boolean
+}
+
+export type DashboardGaugeThreshold = {
+  value: number
+  tone: "neutral" | "warning" | "critical"
+}
+
+export type DashboardWidgetDefinition = {
+  name: DashboardWidgetName
+  title: string
+  kind: DashboardWidgetKind
+  mode: DashboardWidgetMode
+  width: DashboardWidgetWidth
+  axes?: DashboardScatterAxes
+  series: Array<DashboardSeries>
+  columns: Array<DashboardTableColumn>
+  minimum?: number
+  maximum?: number
+  thresholds: Array<DashboardGaugeThreshold>
+}
+
+export type DashboardWidget = DashboardWidgetDefinition & {
+  data_revision: string
+}
+
+export type Dashboard = {
+  name: DashboardName
+  title: string
+  agent_name: AgentName
+  widgets: Array<DashboardWidget>
+  created_at: string
+}
+
+export type DashboardSummary = {
+  name: DashboardName
+  title: string
+  agent_name: AgentName
+  widget_count: number
+  created_at: string
+}
+
+export type ListDashboardsResponse = {
+  dashboards: Array<DashboardSummary>
+  next_page_token: string
+}
+
+export type CreateDashboardRequest = {
+  name: DashboardName
+  title: string
+  widgets: Array<DashboardWidgetDefinition>
+}
+
+export type DashboardCell = {
+  text?: string
+  number?: number
+  boolean?: boolean
+  datetime?: string
+}
+
+export type DashboardDataRecord = {
+  recorded_at?: string
+  category?: string
+  series?: number
+  values?: Array<number>
+  x?: number
+  y?: number
+  label?: string
+  source?: string
+  target?: string
+  value?: number
+  cells?: Array<DashboardCell>
+}
+
+export type PublishDashboardDataRequest = {
+  data_revision: string
+  records: Array<DashboardDataRecord>
+}
+
+export type PublishDashboardDataResponse = {
+  received_at: string
+  accepted_records: number
+  replayed: boolean
+}
+
+export type QueryDashboardRequest = {
+  from: string
+  to: string
+  max_points?: number
+  widgets?: Array<DashboardWidgetName>
+}
+
+export type DashboardTimePoint = {
+  at: string
+  values: Array<number | null>
+}
+
+export type DashboardCategory = {
+  label: string
+  values: Array<number>
+}
+
+export type DashboardScatterPoint = {
+  series: number
+  x: number
+  y: number
+  label?: string
+}
+
+export type DashboardSankeyNode = {
+  name: string
+}
+
+export type DashboardSankeyLink = {
+  source: number
+  target: number
+  value: number
+}
+
+export type DashboardWidgetError = {
+  code: string
+  message: string
+  issue_paths: Array<string>
+  invalid_record_count: number
+  remediation: string
+}
+
+export type DashboardWidgetQueryStatus =
+  | "ok"
+  | "empty"
+  | "invalid_data"
+  | "limit_exceeded"
+  | "query_failed"
+
+export type DashboardWidgetQueryResult = {
+  widget_name: DashboardWidgetName
+  data_revision: string
+  kind: DashboardWidgetKind
+  status: DashboardWidgetQueryStatus
+  bucket_seconds?: number
+  points: Array<DashboardTimePoint>
+  categories: Array<DashboardCategory>
+  scatter: Array<DashboardScatterPoint>
+  sankey_nodes: Array<DashboardSankeyNode>
+  sankey_links: Array<DashboardSankeyLink>
+  value?: number
+  error?: DashboardWidgetError
+}
+
+export type QueryDashboardResponse = {
+  from: string
+  to: string
+  widgets: Array<DashboardWidgetQueryResult>
+}
+
+export type DashboardTableRow = {
+  at: string
+  cells: Array<DashboardCell>
+}
+
+export type DashboardTablePage = {
+  status: DashboardWidgetQueryStatus
+  rows: Array<DashboardTableRow>
+  next_page_token: string
+  error?: DashboardWidgetError
+}
+
 export type WorkflowRunInputsWritable = JsonValueWritable
 
 export type JsonValueWritable =
@@ -2292,6 +2505,21 @@ export type FromDateQuery = string
  * Inclusive upper bound for MCP tool activity date.
  */
 export type ToDateQuery = string
+
+/**
+ * Dashboard name.
+ */
+export type DashboardNamePath = DashboardName
+
+/**
+ * Widget name.
+ */
+export type DashboardWidgetNamePath = DashboardWidgetName
+
+/**
+ * Stable publish call identifier.
+ */
+export type IdempotencyKeyHeader = string
 
 export type ListChatSessionsData = {
   body?: never
@@ -7977,3 +8205,444 @@ export type PatchWorkflowRunNodeStatusResponses = {
 
 export type PatchWorkflowRunNodeStatusResponse =
   PatchWorkflowRunNodeStatusResponses[keyof PatchWorkflowRunNodeStatusResponses]
+
+export type ListDashboardsData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: {
+    /**
+     * Optional Agent name.
+     */
+    agent_name?: AgentName
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/dashboard"
+}
+
+export type ListDashboardsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListDashboardsError = ListDashboardsErrors[keyof ListDashboardsErrors]
+
+export type ListDashboardsResponses = {
+  /**
+   * One page of dashboard summaries.
+   */
+  200: ListDashboardsResponse
+}
+
+export type ListDashboardsResponse2 = ListDashboardsResponses[keyof ListDashboardsResponses]
+
+export type ListAgentDashboardsData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: {
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/agent/{agentName}/dashboard"
+}
+
+export type ListAgentDashboardsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentDashboardsError = ListAgentDashboardsErrors[keyof ListAgentDashboardsErrors]
+
+export type ListAgentDashboardsResponses = {
+  /**
+   * One page of dashboard summaries.
+   */
+  200: ListDashboardsResponse
+}
+
+export type ListAgentDashboardsResponse =
+  ListAgentDashboardsResponses[keyof ListAgentDashboardsResponses]
+
+export type CreateDashboardData = {
+  body: CreateDashboardRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard"
+}
+
+export type CreateDashboardErrors = {
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateDashboardError = CreateDashboardErrors[keyof CreateDashboardErrors]
+
+export type CreateDashboardResponses = {
+  /**
+   * Dashboard created.
+   */
+  201: Dashboard
+}
+
+export type CreateDashboardResponse = CreateDashboardResponses[keyof CreateDashboardResponses]
+
+export type DeleteDashboardData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Dashboard name.
+     */
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}"
+}
+
+export type DeleteDashboardErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteDashboardError = DeleteDashboardErrors[keyof DeleteDashboardErrors]
+
+export type DeleteDashboardResponses = {
+  /**
+   * Dashboard deleted.
+   */
+  204: void
+}
+
+export type DeleteDashboardResponse = DeleteDashboardResponses[keyof DeleteDashboardResponses]
+
+export type GetDashboardData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Dashboard name.
+     */
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}"
+}
+
+export type GetDashboardErrors = {
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetDashboardError = GetDashboardErrors[keyof GetDashboardErrors]
+
+export type GetDashboardResponses = {
+  /**
+   * Dashboard definition.
+   */
+  200: Dashboard
+}
+
+export type GetDashboardResponse = GetDashboardResponses[keyof GetDashboardResponses]
+
+export type PublishDashboardDataData = {
+  body: PublishDashboardDataRequest
+  headers: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+    /**
+     * Stable publish call identifier.
+     */
+    "Idempotency-Key": string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Dashboard name.
+     */
+    dashboardName: DashboardName
+    /**
+     * Widget name.
+     */
+    widgetName: DashboardWidgetName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}/widget/{widgetName}/data"
+}
+
+export type PublishDashboardDataErrors = {
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Request body or expanded content exceeds a documented limit.
+   */
+  413: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * A dashboard rate or quota limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type PublishDashboardDataError = PublishDashboardDataErrors[keyof PublishDashboardDataErrors]
+
+export type PublishDashboardDataResponses = {
+  /**
+   * Data accepted or an identical retry replayed.
+   */
+  200: PublishDashboardDataResponse
+}
+
+export type PublishDashboardDataResponse2 =
+  PublishDashboardDataResponses[keyof PublishDashboardDataResponses]
+
+export type QueryDashboardData = {
+  body: QueryDashboardRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Dashboard name.
+     */
+    dashboardName: DashboardName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}/query"
+}
+
+export type QueryDashboardErrors = {
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * A dashboard rate or quota limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+  /**
+   * The dashboard query exceeded its configured timeout.
+   */
+  504: Error
+}
+
+export type QueryDashboardError = QueryDashboardErrors[keyof QueryDashboardErrors]
+
+export type QueryDashboardResponses = {
+  /**
+   * Per-widget query results.
+   */
+  200: QueryDashboardResponse
+}
+
+export type QueryDashboardResponse2 = QueryDashboardResponses[keyof QueryDashboardResponses]
+
+export type ListDashboardTableRowsData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    /**
+     * Dashboard name.
+     */
+    dashboardName: DashboardName
+    /**
+     * Widget name.
+     */
+    widgetName: DashboardWidgetName
+  }
+  query?: {
+    /**
+     * Inclusive lower bound for event time.
+     */
+    event_time_after?: string
+    /**
+     * Inclusive upper bound for event time.
+     */
+    event_time_before?: string
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    sort?: Array<string>
+  }
+  url: "/api/agent/{agentName}/dashboard/{dashboardName}/widget/{widgetName}/rows"
+}
+
+export type ListDashboardTableRowsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * A dashboard rate or quota limit was reached.
+   */
+  429: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+  /**
+   * The dashboard query exceeded its configured timeout.
+   */
+  504: Error
+}
+
+export type ListDashboardTableRowsError =
+  ListDashboardTableRowsErrors[keyof ListDashboardTableRowsErrors]
+
+export type ListDashboardTableRowsResponses = {
+  /**
+   * One 25-row table page.
+   */
+  200: DashboardTablePage
+}
+
+export type ListDashboardTableRowsResponse =
+  ListDashboardTableRowsResponses[keyof ListDashboardTableRowsResponses]

@@ -17,6 +17,9 @@ import type {
   CreateAgentFileErrors,
   CreateAgentFileResponses,
   CreateAgentResponses,
+  CreateDashboardData,
+  CreateDashboardErrors,
+  CreateDashboardResponses,
   CreateInferencePoolData,
   CreateInferencePoolErrors,
   CreateInferencePoolResponses,
@@ -59,6 +62,9 @@ import type {
   DeleteAgentShareData,
   DeleteAgentShareErrors,
   DeleteAgentShareResponses,
+  DeleteDashboardData,
+  DeleteDashboardErrors,
+  DeleteDashboardResponses,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
@@ -104,6 +110,9 @@ import type {
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
+  GetDashboardData,
+  GetDashboardErrors,
+  GetDashboardResponses,
   GetEventTrailEventData,
   GetEventTrailEventErrors,
   GetEventTrailEventResponses,
@@ -155,6 +164,9 @@ import type {
   ListAgentAccessTargetsData,
   ListAgentAccessTargetsErrors,
   ListAgentAccessTargetsResponses,
+  ListAgentDashboardsData,
+  ListAgentDashboardsErrors,
+  ListAgentDashboardsResponses,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsErrors,
   ListAgentMutableSkillsResponses,
@@ -170,6 +182,12 @@ import type {
   ListChatSessionsData,
   ListChatSessionsErrors,
   ListChatSessionsResponses,
+  ListDashboardsData,
+  ListDashboardsErrors,
+  ListDashboardsResponses,
+  ListDashboardTableRowsData,
+  ListDashboardTableRowsErrors,
+  ListDashboardTableRowsResponses,
   ListEventTrailEventsData,
   ListEventTrailEventsErrors,
   ListEventTrailEventsResponses,
@@ -260,9 +278,15 @@ import type {
   PreviewMutableSkillImportData,
   PreviewMutableSkillImportErrors,
   PreviewMutableSkillImportResponses,
+  PublishDashboardDataData,
+  PublishDashboardDataErrors,
+  PublishDashboardDataResponses,
   PutSecretData,
   PutSecretErrors,
   PutSecretResponses,
+  QueryDashboardData,
+  QueryDashboardErrors,
+  QueryDashboardResponses,
   ReadAgentFileData,
   ReadAgentFileErrors,
   ReadAgentFileRawData,
@@ -2306,4 +2330,124 @@ export const patchWorkflowRunNodeStatus = <ThrowOnError extends boolean = false>
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * List accessible dashboards in the current Workspace.
+ */
+export const listDashboards = <ThrowOnError extends boolean = false>(
+  options?: Options<ListDashboardsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListDashboardsResponses, ListDashboardsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/dashboard",
+    ...options,
+  })
+
+/**
+ * List dashboards owned by one Agent.
+ */
+export const listAgentDashboards = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentDashboardsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListAgentDashboardsResponses,
+    ListAgentDashboardsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard",
+    ...options,
+  })
+
+/**
+ * Create an immutable Agent dashboard.
+ */
+export const createDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<CreateDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateDashboardResponses, CreateDashboardErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete an Agent dashboard and its data.
+ */
+export const deleteDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<DeleteDashboardResponses, DeleteDashboardErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}",
+    ...options,
+  })
+
+/**
+ * Get an Agent dashboard definition.
+ */
+export const getDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<GetDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetDashboardResponses, GetDashboardErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}",
+    ...options,
+  })
+
+/**
+ * Append temporal records or replace one latest snapshot.
+ */
+export const publishDashboardData = <ThrowOnError extends boolean = false>(
+  options: Options<PublishDashboardDataData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PublishDashboardDataResponses,
+    PublishDashboardDataErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}/widget/{widgetName}/data",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Query bounded non-table widget data.
+ */
+export const queryDashboard = <ThrowOnError extends boolean = false>(
+  options: Options<QueryDashboardData, ThrowOnError>
+) =>
+  (options.client ?? client).post<QueryDashboardResponses, QueryDashboardErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}/query",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Query one gateway-paginated table widget page.
+ */
+export const listDashboardTableRows = <ThrowOnError extends boolean = false>(
+  options: Options<ListDashboardTableRowsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListDashboardTableRowsResponses,
+    ListDashboardTableRowsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/dashboard/{dashboardName}/widget/{widgetName}/rows",
+    ...options,
   })

@@ -3,22 +3,22 @@ name: agentz
 description: Helm umbrella chart for AgentZ platform services.
 type: application
 kubeVersion: ">=1.34.0-0"
-version: 0.2.0
-appVersion: "0.1.0"
+version: 0.3.0
+appVersion: "0.2.0"
 dependencies:
   - name: manager
-    version: 0.2.0
+    version: 0.3.0
     repository: file://charts/manager
     condition: manager.enabled
   - name: gateway
-    version: 0.2.0
+    version: 0.3.0
     repository: file://charts/gateway
     condition: gateway.enabled
   - name: observer
-    version: 0.2.0
+    version: 0.3.0
     repository: file://charts/observer
     condition: observer.enabled
   - name: web
-    version: 0.2.0
+    version: 0.3.0
     repository: file://charts/web
     condition: web.enabled

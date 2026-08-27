@@ -40,6 +40,7 @@ import (
 	"github.com/urfave/cli/v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -133,6 +134,22 @@ var (
 	tenantAgentDefaultCPU                            string
 	tenantAgentDefaultMemory                         string
 	tenantAgentDefaultQoS                            string
+	tenantDashboardQuotaDashboardsPerAgent           int32
+	tenantDashboardQuotaWidgetsPerDashboard          int32
+	tenantDashboardQuotaRequestBytes                 string
+	tenantDashboardQuotaRecordsPerRequest            int32
+	tenantDashboardQuotaRequestsPerMinutePerAgent    int32
+	tenantDashboardQuotaAcceptedBytesPerDay          string
+	tenantDashboardQuotaTemporalRecordsPerDay        int64
+	tenantDashboardQuotaRetainedTemporalRecords      int64
+	tenantDashboardQuotaLatestBytesPerAgent          string
+	tenantDashboardQuotaRequestsPerMinutePerUser     int32
+	tenantDashboardQuotaReturnedCellsPerHour         int64
+	tenantDashboardQuotaConcurrentRequests           int32
+	tenantDashboardQuotaCellsPerRequest              int32
+	tenantDashboardQuotaResponseBytes                string
+	tenantDashboardQuotaPointsPerSeries              int32
+	tenantDashboardQuotaTimeout                      time.Duration
 	watchNamespace                                   string
 	enableWebhooks                                   bool
 	workflowRunOrphanRetention                       time.Duration
@@ -664,6 +681,102 @@ var managerCmd = &cli.Command{
 			Value:       "guaranteed",
 			Destination: &tenantAgentDefaultQoS,
 		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-dashboards-per-agent",
+			Usage:       "Default maximum dashboard count per Agent",
+			Value:       25,
+			Destination: &tenantDashboardQuotaDashboardsPerAgent,
+		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-widgets-per-dashboard",
+			Usage:       "Default maximum widget count per dashboard",
+			Value:       24,
+			Destination: &tenantDashboardQuotaWidgetsPerDashboard,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-dashboard-quota-request-bytes",
+			Usage:       "Default maximum dashboard publish request size",
+			Value:       "256Ki",
+			Destination: &tenantDashboardQuotaRequestBytes,
+		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-records-per-request",
+			Usage:       "Default maximum records per dashboard publish",
+			Value:       100,
+			Destination: &tenantDashboardQuotaRecordsPerRequest,
+		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-requests-per-minute-per-agent",
+			Usage:       "Default dashboard publish attempts per minute per Agent",
+			Value:       30,
+			Destination: &tenantDashboardQuotaRequestsPerMinutePerAgent,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-dashboard-quota-accepted-bytes-per-day",
+			Usage:       "Default accepted dashboard bytes per day per Tenant",
+			Value:       "64Mi",
+			Destination: &tenantDashboardQuotaAcceptedBytesPerDay,
+		},
+		&cli.Int64Flag{
+			Name:        "tenant-dashboard-quota-temporal-records-per-day",
+			Usage:       "Default accepted temporal records per day per Tenant",
+			Value:       50_000,
+			Destination: &tenantDashboardQuotaTemporalRecordsPerDay,
+		},
+		&cli.Int64Flag{
+			Name:        "tenant-dashboard-quota-retained-temporal-records",
+			Usage:       "Default retained temporal records per Tenant",
+			Value:       1_500_000,
+			Destination: &tenantDashboardQuotaRetainedTemporalRecords,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-dashboard-quota-latest-bytes-per-agent",
+			Usage:       "Default latest-widget bytes per Agent",
+			Value:       "64Mi",
+			Destination: &tenantDashboardQuotaLatestBytesPerAgent,
+		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-requests-per-minute-per-user",
+			Usage:       "Default dashboard query attempts per minute per user",
+			Value:       30,
+			Destination: &tenantDashboardQuotaRequestsPerMinutePerUser,
+		},
+		&cli.Int64Flag{
+			Name:        "tenant-dashboard-quota-returned-cells-per-hour",
+			Usage:       "Default returned dashboard cells per hour per Tenant",
+			Value:       5_000_000,
+			Destination: &tenantDashboardQuotaReturnedCellsPerHour,
+		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-concurrent-requests",
+			Usage:       "Default concurrent dashboard queries per Tenant",
+			Value:       4,
+			Destination: &tenantDashboardQuotaConcurrentRequests,
+		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-cells-per-request",
+			Usage:       "Default maximum returned cells per dashboard query",
+			Value:       50_000,
+			Destination: &tenantDashboardQuotaCellsPerRequest,
+		},
+		&cli.StringFlag{
+			Name:        "tenant-dashboard-quota-response-bytes",
+			Usage:       "Default maximum encoded dashboard query response size",
+			Value:       "2Mi",
+			Destination: &tenantDashboardQuotaResponseBytes,
+		},
+		&cli.Int32Flag{
+			Name:        "tenant-dashboard-quota-points-per-series",
+			Usage:       "Default maximum returned points per dashboard series",
+			Value:       500,
+			Destination: &tenantDashboardQuotaPointsPerSeries,
+		},
+		&cli.DurationFlag{
+			Name:        "tenant-dashboard-quota-timeout",
+			Usage:       "Default PostgreSQL timeout for one dashboard query",
+			Value:       5 * time.Second,
+			Destination: &tenantDashboardQuotaTimeout,
+		},
 		&cli.StringFlag{
 			Name:        "watch-namespace",
 			Usage:       "Namespace(s) to watch and manage. Use commas for multiple.",
@@ -939,6 +1052,22 @@ var managerCmd = &cli.Command{
 		if err != nil {
 			return fmt.Errorf("parse Tenant Agent default memory: %w", err)
 		}
+		dashboardRequestBytes, err := resource.ParseQuantity(tenantDashboardQuotaRequestBytes)
+		if err != nil {
+			return fmt.Errorf("parse Tenant dashboard request bytes: %w", err)
+		}
+		dashboardAcceptedBytes, err := resource.ParseQuantity(tenantDashboardQuotaAcceptedBytesPerDay)
+		if err != nil {
+			return fmt.Errorf("parse Tenant dashboard accepted bytes: %w", err)
+		}
+		dashboardLatestBytes, err := resource.ParseQuantity(tenantDashboardQuotaLatestBytesPerAgent)
+		if err != nil {
+			return fmt.Errorf("parse Tenant dashboard latest bytes: %w", err)
+		}
+		dashboardResponseBytes, err := resource.ParseQuantity(tenantDashboardQuotaResponseBytes)
+		if err != nil {
+			return fmt.Errorf("parse Tenant dashboard response bytes: %w", err)
+		}
 		var defaultQoS corev1.PodQOSClass
 		switch tenantAgentDefaultQoS {
 		case "guaranteed":
@@ -964,6 +1093,28 @@ var managerCmd = &cli.Command{
 				QoSClass: defaultQoS,
 			},
 		}
+		defDashboardQuota := agentzv1alpha1.DashboardQuota{
+			DashboardsPerAgent:  tenantDashboardQuotaDashboardsPerAgent,
+			WidgetsPerDashboard: tenantDashboardQuotaWidgetsPerDashboard,
+			Publish: agentzv1alpha1.DashboardPublishQuota{
+				RequestBytes:              dashboardRequestBytes,
+				RecordsPerRequest:         tenantDashboardQuotaRecordsPerRequest,
+				RequestsPerMinutePerAgent: tenantDashboardQuotaRequestsPerMinutePerAgent,
+				AcceptedBytesPerDay:       dashboardAcceptedBytes,
+				TemporalRecordsPerDay:     tenantDashboardQuotaTemporalRecordsPerDay,
+				RetainedTemporalRecords:   tenantDashboardQuotaRetainedTemporalRecords,
+				LatestBytesPerAgent:       dashboardLatestBytes,
+			},
+			Query: agentzv1alpha1.DashboardQueryQuota{
+				RequestsPerMinutePerUser: tenantDashboardQuotaRequestsPerMinutePerUser,
+				ReturnedCellsPerHour:     tenantDashboardQuotaReturnedCellsPerHour,
+				ConcurrentRequests:       tenantDashboardQuotaConcurrentRequests,
+				CellsPerRequest:          tenantDashboardQuotaCellsPerRequest,
+				ResponseBytes:            dashboardResponseBytes,
+				PointsPerSeries:          tenantDashboardQuotaPointsPerSeries,
+				Timeout:                  metav1.Duration{Duration: tenantDashboardQuotaTimeout},
+			},
+		}
 		if defQuota.Count < 1 {
 			return fmt.Errorf("tenant Agent quota count must be at least 1")
 		}
@@ -975,6 +1126,25 @@ var managerCmd = &cli.Command{
 		}
 		if defQuota.Defaults.Resources.CPU.Cmp(defQuota.Resources.CPU) > 0 || defQuota.Defaults.Resources.Memory.Cmp(defQuota.Resources.Memory) > 0 {
 			return fmt.Errorf("tenant Agent defaults must not exceed aggregate quota")
+		}
+		if defDashboardQuota.DashboardsPerAgent < 1 || defDashboardQuota.WidgetsPerDashboard < 1 ||
+			defDashboardQuota.Publish.RecordsPerRequest < 1 ||
+			defDashboardQuota.Publish.RequestsPerMinutePerAgent < 1 ||
+			defDashboardQuota.Publish.TemporalRecordsPerDay < 1 ||
+			defDashboardQuota.Publish.RetainedTemporalRecords < 1 ||
+			defDashboardQuota.Query.RequestsPerMinutePerUser < 1 ||
+			defDashboardQuota.Query.ReturnedCellsPerHour < 1 ||
+			defDashboardQuota.Query.ConcurrentRequests < 1 ||
+			defDashboardQuota.Query.CellsPerRequest < 1 ||
+			defDashboardQuota.Query.PointsPerSeries < 1 {
+			return fmt.Errorf("tenant dashboard count quotas must be positive")
+		}
+		if defDashboardQuota.Publish.RequestBytes.Sign() <= 0 ||
+			defDashboardQuota.Publish.AcceptedBytesPerDay.Sign() <= 0 ||
+			defDashboardQuota.Publish.LatestBytesPerAgent.Sign() <= 0 ||
+			defDashboardQuota.Query.ResponseBytes.Sign() <= 0 ||
+			defDashboardQuota.Query.Timeout.Duration <= 0 {
+			return fmt.Errorf("tenant dashboard size and timeout quotas must be positive")
 		}
 		nixPVCAccessModes := make(
 			[]corev1.PersistentVolumeAccessMode,
@@ -1109,7 +1279,10 @@ var managerCmd = &cli.Command{
 			}
 			err := webhookv1alpha1.SetupTenantWebhookWithManager(
 				mgr,
-				webhookv1alpha1.TenantWebhookConfig{AgentQuota: defQuota},
+				webhookv1alpha1.TenantWebhookConfig{
+					AgentQuota:     defQuota,
+					DashboardQuota: defDashboardQuota,
+				},
 			)
 			if err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "Tenant")
@@ -1198,6 +1371,7 @@ var managerCmd = &cli.Command{
 			GatewayServiceAccountName:      gatewayServiceAccountName,
 			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
 			DefaultAgentQuota:              defQuota,
+			DefaultDashboardQuota:          defDashboardQuota,
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "failed to create controller", "controller", "Tenant")

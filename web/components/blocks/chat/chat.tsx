@@ -1088,13 +1088,15 @@ function ChatInner({
             recycleItems={false}
             ListHeaderComponent={
               hasEarlierMessages ? (
-                <div className="text-muted-foreground/70 flex h-9 items-center justify-center gap-2 text-xs">
-                  {isLoadingEarlier ? (
-                    <>
-                      <Spinner />
-                      Loading earlier turns…
-                    </>
-                  ) : null}
+                <div className="mx-auto w-full max-w-3xl pt-4 pb-2">
+                  <button
+                    className="text-muted-foreground/70 hover:text-foreground w-full py-1.5 text-xs disabled:cursor-default"
+                    disabled={isLoadingEarlier}
+                    onClick={() => void loadEarlier()}
+                    type="button"
+                  >
+                    {isLoadingEarlier ? "Loading earlier turns…" : "Load earlier turns"}
+                  </button>
                 </div>
               ) : (
                 <div className="h-4" />
@@ -1140,10 +1142,6 @@ function ChatInner({
                 contentOffset.y + layoutMeasurement.height >= contentSize.height - 24
               )
             }}
-            onStartReached={() => {
-              if (hasEarlierMessages && !isLoadingEarlier) void loadEarlier()
-            }}
-            onStartReachedThreshold={0.35}
             ref={timelineRef}
             renderItem={({ item }) => (
               <div

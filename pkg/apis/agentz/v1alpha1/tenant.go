@@ -87,6 +87,91 @@ type TenantSpec struct {
 	// existing Agent resources.
 	// +optional
 	AgentQuota *AgentQuota `json:"agentQuota,omitempty"`
+
+	// DashboardQuota configures dashboard definition, ingestion, and query
+	// limits for Agents in this Tenant.
+	// +optional
+	DashboardQuota *DashboardQuota `json:"dashboardQuota,omitempty"`
+}
+
+// DashboardQuota limits dashboard definitions, ingestion, and queries.
+type DashboardQuota struct {
+	// DashboardsPerAgent is the maximum number of dashboards owned by one Agent.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=25
+	DashboardsPerAgent int32 `json:"dashboardsPerAgent"`
+
+	// WidgetsPerDashboard is the maximum number of widgets in one dashboard.
+	// +kubebuilder:validation:Minimum=1
+	WidgetsPerDashboard int32 `json:"widgetsPerDashboard"`
+
+	// Publish limits dashboard data ingestion.
+	Publish DashboardPublishQuota `json:"publish"`
+
+	// Query limits dashboard reads.
+	Query DashboardQueryQuota `json:"query"`
+}
+
+// DashboardPublishQuota limits dashboard data ingestion.
+type DashboardPublishQuota struct {
+	// RequestBytes is the maximum JSON request size.
+	RequestBytes resource.Quantity `json:"requestBytes"`
+
+	// RecordsPerRequest is the maximum number of records in one publish.
+	// +kubebuilder:validation:Minimum=1
+	RecordsPerRequest int32 `json:"recordsPerRequest"`
+
+	// RequestsPerMinutePerAgent limits publish attempts by one Agent.
+	// +kubebuilder:validation:Minimum=1
+	RequestsPerMinutePerAgent int32 `json:"requestsPerMinutePerAgent"`
+
+	// AcceptedBytesPerDay limits JSON bytes accepted from one Agent per day.
+	AcceptedBytesPerDay resource.Quantity `json:"acceptedBytesPerDay"`
+
+	// TemporalRecordsPerDay limits temporal records accepted from one Agent per day.
+	// +kubebuilder:validation:Minimum=1
+	TemporalRecordsPerDay int64 `json:"temporalRecordsPerDay"`
+
+	// RetainedTemporalRecords limits temporal records retained in this Tenant.
+	// +kubebuilder:validation:Minimum=1
+	RetainedTemporalRecords int64 `json:"retainedTemporalRecords"`
+
+	// LatestBytesPerAgent limits current latest-widget data owned by one Agent.
+	LatestBytesPerAgent resource.Quantity `json:"latestBytesPerAgent"`
+}
+
+// DashboardQueryQuota limits dashboard reads.
+type DashboardQueryQuota struct {
+	// RequestsPerMinutePerUser limits query attempts by one user.
+	// +kubebuilder:validation:Minimum=1
+	RequestsPerMinutePerUser int32 `json:"requestsPerMinutePerUser"`
+
+	// ReturnedCellsPerHour limits cells returned in this Tenant per hour.
+	// +kubebuilder:validation:Minimum=1
+	ReturnedCellsPerHour int64 `json:"returnedCellsPerHour"`
+
+	// ConcurrentRequests limits active dashboard queries in this Tenant.
+	// +kubebuilder:validation:Minimum=1
+	ConcurrentRequests int32 `json:"concurrentRequests"`
+
+	// CellsPerRequest limits cells returned by one query.
+	// +kubebuilder:validation:Minimum=1
+	CellsPerRequest int32 `json:"cellsPerRequest"`
+
+	// ResponseBytes limits one encoded query response.
+	ResponseBytes resource.Quantity `json:"responseBytes"`
+
+	// PointsPerSeries limits returned points for one chart series.
+	// +kubebuilder:validation:Minimum=1
+	PointsPerSeries int32 `json:"pointsPerSeries"`
+
+	// Timeout limits PostgreSQL execution time for one query.
+	Timeout metav1.Duration `json:"timeout"`
+}
+
+// DashboardQuotaStatus reports the effective configured limits.
+type DashboardQuotaStatus struct {
+	Limits DashboardQuota `json:"limits"`
 }
 
 // ComputeResources is a CPU and memory allocation.
@@ -155,6 +240,10 @@ type TenantStatus struct {
 	// AgentQuota reports current Agent quota consumption.
 	// +optional
 	AgentQuota *AgentQuotaStatus `json:"agentQuota,omitempty"`
+
+	// DashboardQuota reports the effective dashboard limits.
+	// +optional
+	DashboardQuota *DashboardQuotaStatus `json:"dashboardQuota,omitempty"`
 
 	// Conditions represent the current state of the Tenant resource.
 	// +listType=map

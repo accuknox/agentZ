@@ -41,6 +41,8 @@ type SessionMessagePageParam = {
   limit: number
 }
 
+const historyMessagePageSize = 200
+
 type OpencodeChatStore = {
   part: Record<string, Part[]>
   partTextAccumDelta: Record<string, string>
@@ -555,26 +557,48 @@ function sessionMessagesQueryOptions(
 ) {
   return infiniteQueryOptions({
     initialPageParam: { limit: 20 } satisfies SessionMessagePageParam,
-    queryFn: async ({ pageParam }: { pageParam: SessionMessagePageParam }) => {
+    queryFn: async ({
+      pageParam,
+      signal,
+    }: {
+      pageParam: SessionMessagePageParam
+      signal: AbortSignal
+    }): Promise<SessionMessagePage> => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
-      const result = await client.session.messages({
-        before: pageParam.before,
-        directory,
-        limit: pageParam.limit,
-        sessionID,
-      })
+      const records: SessionMessageRecord[] = []
+      let before = pageParam.before
+      let limit = pageParam.limit
 
-      if (result.error || !result.data) {
-        throw new Error(opencodeErrorMessage(result.error, "Failed to load session messages"))
+      // OpenCode pages individual messages, while the timeline renders turns
+      // rooted at user prompts. Follow cursors when a page starts inside an
+      // assistant response.
+      for (;;) {
+        const result = await client.session.messages(
+          {
+            before,
+            directory,
+            limit,
+            sessionID,
+          },
+          { signal }
+        )
+
+        if (result.error || !result.data) {
+          throw new Error(opencodeErrorMessage(result.error, "Failed to load session messages"))
+        }
+
+        records.push(...result.data)
+        const cursor = result.response.headers.get("X-Next-Cursor") ?? undefined
+        if (!cursor || result.data[0]?.info.role !== "assistant") {
+          return { cursor, records }
+        }
+
+        before = cursor
+        limit = historyMessagePageSize
       }
-
-      return {
-        cursor: result.response.headers.get("X-Next-Cursor") ?? undefined,
-        records: result.data,
-      } satisfies SessionMessagePage
     },
     getNextPageParam: (page): SessionMessagePageParam | undefined =>
-      page.cursor ? { before: page.cursor, limit: 40 } : undefined,
+      page.cursor ? { before: page.cursor, limit: historyMessagePageSize } : undefined,
     queryKey: [
       ...sessionMessagesBaseQueryKey(workspaceId, agentName, sessionID),
       directory,
@@ -1064,7 +1088,7 @@ export function useOpencodeChat(
   const loadEarlier = useCallback(async () => {
     if (!sessionID) return
 
-    const result = await fetchNextHistoryPage()
+    const result = await fetchNextHistoryPage({ cancelRefetch: false })
     const page = result.data?.pages.at(-1)
     if (!page) return
 

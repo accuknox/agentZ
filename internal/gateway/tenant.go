@@ -612,6 +612,7 @@ func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, namespace
 	}
 
 	return requestAuth{
+		organizationID:  tenant.Spec.OrganizationID,
 		tenantName:      tenant.Name,
 		tenantNamespace: namespace,
 		workspaceID:     workspaceID,
@@ -625,7 +626,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		return requestAuth{}, err
 	}
 
-	agentName, verb, ok := workflowAgentAccess(r)
+	agentName, verb, ok := agentRequestAccess(r)
 	if !ok {
 		return requestAuth{}, newAPIError(
 			http.StatusForbidden,
@@ -687,8 +688,21 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		return requestAuth{}, err
 	}
 
+	tenant, workspaceID, err := s.tenantScopeForNamespace(r.Context(), agt.Namespace)
+	if err != nil {
+		return requestAuth{}, newAPIError(
+			http.StatusForbidden,
+			"forbidden",
+			"internal caller is not authorized for agent",
+			err,
+		)
+	}
+
 	return requestAuth{
+		organizationID:  tenant.Spec.OrganizationID,
+		tenantName:      tenant.Name,
 		tenantNamespace: agt.Namespace,
+		workspaceID:     workspaceID,
 		actorType:       requestActorSystem,
 		actorID:         user.namespace + ":" + user.name,
 		actorName:       user.name,
@@ -794,13 +808,31 @@ func serviceAccountUser(username string) (serviceAccountName, error) {
 	}, nil
 }
 
-func workflowAgentAccess(r *http.Request) (string, string, bool) {
+func agentRequestAccess(r *http.Request) (string, string, bool) {
 	agentName := strings.TrimSpace(chi.URLParam(r, "agentName"))
 	if agentName == "" {
 		return "", "", false
 	}
 
 	switch chi.RouteContext(r.Context()).RoutePattern() {
+	case "/api/agent/{agentName}/dashboard":
+		switch r.Method {
+		case http.MethodGet:
+			return agentName, "list-dashboards", true
+		case http.MethodPost:
+			return agentName, "create-dashboard", true
+		}
+	case "/api/agent/{agentName}/dashboard/{dashboardName}":
+		switch r.Method {
+		case http.MethodGet:
+			return agentName, "get-dashboard", true
+		case http.MethodDelete:
+			return agentName, "delete-dashboard", true
+		}
+	case "/api/agent/{agentName}/dashboard/{dashboardName}/widget/{widgetName}/data":
+		if r.Method == http.MethodPost {
+			return agentName, "publish-dashboard-data", true
+		}
 	case "/api/workflow/{agentName}":
 		return workflowAgentAccessRoot(agentName, r.Method)
 	case "/api/workflow/{agentName}/schedule":

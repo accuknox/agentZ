@@ -18,6 +18,7 @@ export type AdminColumnLayout = {
 
 export type AdminDataGridProps<T> = {
   ariaLabel: string
+  className?: string
   rows: T[]
   table: TanStackTable<T>
   layout: Record<string, AdminColumnLayout>
@@ -28,6 +29,7 @@ export type AdminDataGridProps<T> = {
   rowAriaLabel?: (row: T) => string
   rowCanActivate?: (row: T) => boolean
   rowHref?: (row: T) => Route | undefined
+  viewportClassName?: string
 }
 
 const hiddenClasses = {
@@ -45,6 +47,7 @@ const alignClasses = {
 
 export function AdminDataGrid<T>({
   ariaLabel,
+  className,
   emptyState,
   layout,
   onRowActivate,
@@ -55,6 +58,7 @@ export function AdminDataGrid<T>({
   rowHref,
   rows,
   table,
+  viewportClassName,
 }: AdminDataGridProps<T>) {
   "use no memo"
 
@@ -108,12 +112,13 @@ export function AdminDataGrid<T>({
     })
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className={cn("flex min-w-0 flex-col gap-4", className)}>
       <div
         aria-label={overflowing ? ariaLabel : undefined}
         className={cn(
           "w-full min-w-0 overscroll-x-contain border-b",
-          overflowing ? "overflow-x-auto" : "overflow-x-clip"
+          overflowing ? "overflow-x-auto" : "overflow-x-clip",
+          viewportClassName
         )}
         ref={viewportRef}
         role={overflowing ? "region" : undefined}

@@ -19,7 +19,7 @@ const (
 	baseSpecPath      = "openapi/base.yaml"
 	outputSpecPath    = "openapi/gateway.yaml"
 	routeManifestPath = "internal/gateway/opencode.routes.gen.go"
-	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/refs/tags/v1.18.16/packages/sdk/openapi.json"
+	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json"
 	opencodePrefix    = "/api/opencode/{agentName}"
 	opencodeNS        = "Opencode"
 )
@@ -50,6 +50,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+		"createDashboard",
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
@@ -62,19 +63,26 @@ var baseOperationCapabilities = map[string][]string{
 		"deleteWorkflowRun",
 		"deleteWorkflows",
 		"deleteWorkflowSchedule",
+		"deleteDashboard",
 		"exportAgentMutableSkills",
 		"getChatSessionPreference",
 		"importMutableSkills",
 		"getAgentOwner",
 		"getWorkflow",
+		"getDashboard",
 		"getWorkflowRun",
 		"listAgents",
+		"listAgentDashboards",
+		"listDashboards",
+		"listDashboardTableRows",
 		"listChatSessions",
 		"listAgentAccessTargets",
 		"listAgentMutableSkills",
 		"listAgentShares",
 		"listAgentWorkflowSchedules",
 		"previewMutableSkillImport",
+		"publishDashboardData",
+		"queryDashboard",
 		"listWorkflowRuns",
 		"listWorkflowSchedules",
 		"listWorkflowSummaries",
@@ -824,6 +832,19 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 			map[string]any{"$ref": "#/components/schemas/SubtaskPartInput"},
 		},
 	}
+	textPartInput, ok := schemas["TextPartInput"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no TextPartInput schema")
+	}
+	textPartProperties, ok := textPartInput["properties"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream TextPartInput schema has no properties")
+	}
+	textPartType, ok := textPartProperties["type"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream TextPartInput schema has no type property")
+	}
+	textPartType["x-enum-varnames"] = []any{"OpencodeTextPartInputTypeText"}
 
 	paths, ok := doc["paths"].(map[string]any)
 	if !ok {

@@ -76,6 +76,7 @@ type Reconciler struct {
 	GatewayServiceAccountName      string
 	GatewayServiceAccountNamespace string
 	DefaultAgentQuota              agentzv1alpha1.AgentQuota
+	DefaultDashboardQuota          agentzv1alpha1.DashboardQuota
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=tenants,verbs=get;list;watch;update;patch
@@ -100,12 +101,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return ctrl.Result{}, fmt.Errorf("get tenant: %w", err)
 	}
-	if tenant.Spec.AgentQuota == nil {
+	if tenant.Spec.AgentQuota == nil || tenant.Spec.DashboardQuota == nil {
 		base := tenant.DeepCopy()
-		tenant.Spec.AgentQuota = r.DefaultAgentQuota.DeepCopy()
-		tenant.Spec.AgentQuota.Defaults.QoSClass = corev1.PodQOSBestEffort
+		if tenant.Spec.AgentQuota == nil {
+			tenant.Spec.AgentQuota = r.DefaultAgentQuota.DeepCopy()
+			tenant.Spec.AgentQuota.Defaults.QoSClass = corev1.PodQOSBestEffort
+		}
+		if tenant.Spec.DashboardQuota == nil {
+			tenant.Spec.DashboardQuota = r.DefaultDashboardQuota.DeepCopy()
+		}
 		if err := r.Patch(ctx, &tenant, client.MergeFrom(base)); err != nil {
-			return ctrl.Result{}, fmt.Errorf("migrate Tenant Agent quota: %w", err)
+			return ctrl.Result{}, fmt.Errorf("migrate Tenant quotas: %w", err)
 		}
 		return ctrl.Result{Requeue: true}, nil
 	}
@@ -246,6 +252,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			current.Status.ObservedGeneration = current.Generation
 			quotaStatus := usage.Status(*tenant.Spec.AgentQuota)
 			current.Status.AgentQuota = &quotaStatus
+			current.Status.DashboardQuota = &agentzv1alpha1.DashboardQuotaStatus{
+				Limits: *tenant.Spec.DashboardQuota.DeepCopy(),
+			}
 			quotaCondition := metav1.Condition{
 				Type:               agentzv1alpha1.TenantConditionQuotaSatisfied,
 				Status:             metav1.ConditionTrue,
@@ -253,11 +262,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				Message:            "Agent allocations are within Tenant quota",
 				ObservedGeneration: current.Generation,
 			}
-			if exceeded.Count {
+			switch {
+			case exceeded.Count:
 				quotaCondition.Status = metav1.ConditionFalse
 				quotaCondition.Reason = agentzv1alpha1.TenantReasonAgentCountExceeded
 				quotaCondition.Message = "Agent count exceeds Tenant quota"
-			} else if exceeded.CPU || exceeded.Memory {
+			case exceeded.CPU || exceeded.Memory:
 				quotaCondition.Status = metav1.ConditionFalse
 				quotaCondition.Reason = agentzv1alpha1.TenantReasonComputeQuotaExceeded
 				quotaCondition.Message = "Agent resource requests exceed Tenant quota"

@@ -2114,6 +2114,269 @@ export const zCreateMcpConnectionRequest = z.object({
   credentials: zMcpConnectionCredentials,
 })
 
+export const zDashboardName = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zDashboardWidgetName = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+
+export const zDashboardWidgetKind = z.enum([
+  "line",
+  "pie",
+  "bar",
+  "horizontal_grouped_bar",
+  "area",
+  "step",
+  "funnel",
+  "horizontal_funnel",
+  "sankey",
+  "table",
+  "scatter",
+  "gauge",
+])
+
+export const zDashboardWidgetMode = z.enum(["temporal", "latest"])
+
+export const zDashboardWidgetWidth = z.enum(["full", "half", "third"])
+
+export const zDashboardAggregation = z.enum([
+  "sum",
+  "average",
+  "minimum",
+  "maximum",
+  "last",
+  "count",
+])
+
+export const zDashboardSeries = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  label: z.string().min(1).max(80),
+  aggregation: zDashboardAggregation,
+})
+
+export const zDashboardScatterAxis = z.object({
+  label: z.string().min(1).max(80),
+  unit: z.string().min(1).max(32).optional(),
+})
+
+export const zDashboardScatterAxes = z.object({
+  x: zDashboardScatterAxis,
+  y: zDashboardScatterAxis,
+})
+
+export const zDashboardTableColumnType = z.enum(["text", "number", "boolean", "datetime"])
+
+export const zDashboardTableColumn = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+  label: z.string().min(1).max(80),
+  type: zDashboardTableColumnType,
+  sortable: z.boolean(),
+})
+
+export const zDashboardGaugeThreshold = z.object({
+  value: z.number(),
+  tone: z.enum(["neutral", "warning", "critical"]),
+})
+
+export const zDashboardWidgetDefinition = z.object({
+  name: zDashboardWidgetName,
+  title: z.string().min(1).max(80),
+  kind: zDashboardWidgetKind,
+  mode: zDashboardWidgetMode,
+  width: zDashboardWidgetWidth,
+  axes: zDashboardScatterAxes.optional(),
+  series: z.array(zDashboardSeries).max(5),
+  columns: z.array(zDashboardTableColumn).max(12),
+  minimum: z.number().optional(),
+  maximum: z.number().optional(),
+  thresholds: z.array(zDashboardGaugeThreshold).max(5),
+})
+
+export const zDashboardWidget = zDashboardWidgetDefinition.and(
+  z.object({
+    data_revision: z.uuid(),
+  })
+)
+
+export const zDashboard = z.object({
+  name: zDashboardName,
+  title: z.string().min(1).max(80),
+  agent_name: zAgentName,
+  widgets: z.array(zDashboardWidget),
+  created_at: z.iso.datetime(),
+})
+
+export const zDashboardSummary = z.object({
+  name: zDashboardName,
+  title: z.string(),
+  agent_name: zAgentName,
+  widget_count: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  created_at: z.iso.datetime(),
+})
+
+export const zListDashboardsResponse = z.object({
+  dashboards: z.array(zDashboardSummary),
+  next_page_token: z.string(),
+})
+
+export const zCreateDashboardRequest = z.object({
+  name: zDashboardName,
+  title: z.string().min(1).max(80),
+  widgets: z.array(zDashboardWidgetDefinition).min(1).max(48),
+})
+
+export const zDashboardCell = z.object({
+  text: z.string().max(1024).optional(),
+  number: z.number().optional(),
+  boolean: z.boolean().optional(),
+  datetime: z.iso.datetime().optional(),
+})
+
+export const zDashboardDataRecord = z.object({
+  recorded_at: z.iso.datetime().optional(),
+  category: z.string().min(1).max(120).optional(),
+  series: z.int().gte(0).lte(4).optional(),
+  values: z.array(z.number()).max(5).optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  label: z.string().min(1).max(120).optional(),
+  source: z.string().min(1).max(120).optional(),
+  target: z.string().min(1).max(120).optional(),
+  value: z.number().gt(0).optional(),
+  cells: z.array(zDashboardCell).max(12).optional(),
+})
+
+export const zPublishDashboardDataRequest = z.object({
+  data_revision: z.uuid(),
+  records: z.array(zDashboardDataRecord).min(1).max(100),
+})
+
+export const zPublishDashboardDataResponse = z.object({
+  received_at: z.iso.datetime(),
+  accepted_records: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  replayed: z.boolean(),
+})
+
+export const zQueryDashboardRequest = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  max_points: z.int().gte(1).lte(1000).optional().default(240),
+  widgets: z.array(zDashboardWidgetName).max(48).optional(),
+})
+
+export const zDashboardTimePoint = z.object({
+  at: z.iso.datetime(),
+  values: z.array(z.number().nullable()).max(5),
+})
+
+export const zDashboardCategory = z.object({
+  label: z.string(),
+  values: z.array(z.number()).max(5),
+})
+
+export const zDashboardScatterPoint = z.object({
+  series: z
+    .int()
+    .min(-2147483648, { error: "Invalid value: Expected int32 to be >= -2147483648" })
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  x: z.number(),
+  y: z.number(),
+  label: z.string().min(1).max(120).optional(),
+})
+
+export const zDashboardSankeyNode = z.object({
+  name: z.string().min(1).max(120),
+})
+
+export const zDashboardSankeyLink = z.object({
+  source: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  target: z
+    .int()
+    .gte(0)
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  value: z.number().gt(0),
+})
+
+export const zDashboardWidgetError = z.object({
+  code: z.string(),
+  message: z.string(),
+  issue_paths: z.array(z.string()).max(5),
+  invalid_record_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  remediation: z.string(),
+})
+
+export const zDashboardWidgetQueryStatus = z.enum([
+  "ok",
+  "empty",
+  "invalid_data",
+  "limit_exceeded",
+  "query_failed",
+])
+
+export const zDashboardWidgetQueryResult = z.object({
+  widget_name: zDashboardWidgetName,
+  data_revision: z.uuid(),
+  kind: zDashboardWidgetKind,
+  status: zDashboardWidgetQueryStatus,
+  bucket_seconds: z.coerce
+    .bigint()
+    .gte(BigInt(1))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  points: z.array(zDashboardTimePoint),
+  categories: z.array(zDashboardCategory),
+  scatter: z.array(zDashboardScatterPoint),
+  sankey_nodes: z.array(zDashboardSankeyNode),
+  sankey_links: z.array(zDashboardSankeyLink),
+  value: z.number().optional(),
+  error: zDashboardWidgetError.optional(),
+})
+
+export const zQueryDashboardResponse = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  widgets: z.array(zDashboardWidgetQueryResult),
+})
+
+export const zDashboardTableRow = z.object({
+  at: z.iso.datetime(),
+  cells: z.array(zDashboardCell).max(12),
+})
+
+export const zDashboardTablePage = z.object({
+  status: zDashboardWidgetQueryStatus,
+  rows: z.array(zDashboardTableRow).max(25),
+  next_page_token: z.string(),
+  error: zDashboardWidgetError.optional(),
+})
+
 export const zJsonValueWritable = z
   .union([
     z.boolean(),
@@ -2459,6 +2722,21 @@ export const zFromDateQuery = z.iso.date()
  * Inclusive upper bound for MCP tool activity date.
  */
 export const zToDateQuery = z.iso.date()
+
+/**
+ * Dashboard name.
+ */
+export const zDashboardNamePath = zDashboardName
+
+/**
+ * Widget name.
+ */
+export const zDashboardWidgetNamePath = zDashboardWidgetName
+
+/**
+ * Stable publish call identifier.
+ */
+export const zIdempotencyKeyHeader = z.string().min(1).max(128)
 
 /**
  * Paginated chat sessions and available participant filters.
@@ -3024,3 +3302,43 @@ export const zPatchWorkflowRunStatusResponse = z.void()
  * WorkflowRun node status updated.
  */
 export const zPatchWorkflowRunNodeStatusResponse = z.void()
+
+/**
+ * One page of dashboard summaries.
+ */
+export const zListDashboardsResponse2 = zListDashboardsResponse
+
+/**
+ * One page of dashboard summaries.
+ */
+export const zListAgentDashboardsResponse = zListDashboardsResponse
+
+/**
+ * Dashboard created.
+ */
+export const zCreateDashboardResponse = zDashboard
+
+/**
+ * Dashboard deleted.
+ */
+export const zDeleteDashboardResponse = z.void()
+
+/**
+ * Dashboard definition.
+ */
+export const zGetDashboardResponse = zDashboard
+
+/**
+ * Data accepted or an identical retry replayed.
+ */
+export const zPublishDashboardDataResponse2 = zPublishDashboardDataResponse
+
+/**
+ * Per-widget query results.
+ */
+export const zQueryDashboardResponse2 = zQueryDashboardResponse
+
+/**
+ * One 25-row table page.
+ */
+export const zListDashboardTableRowsResponse = zDashboardTablePage

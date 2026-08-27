@@ -1,13 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { BotIcon, CalendarIcon, MessageSquareQuote } from "lucide-react"
-import type { DateRange } from "react-day-picker"
+import { BotIcon, MessageSquareQuote } from "lucide-react"
 import { useRouter } from "@bprogress/next/app"
 import { usePathname, useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { DateRangePicker } from "@/components/ui/calendar"
 import {
   Select,
   SelectContent,
@@ -22,11 +19,11 @@ import type { Agent } from "@/lib/gateway/client"
 
 type LensFiltersProps = {
   agents: Agent[]
-  from?: string
+  from: string
   selectedAgentName?: string
   selectedSessionId?: string
   sessions?: TraceSessionFilterItem[]
-  to?: string
+  to: string
 }
 
 export function LensFilters({
@@ -106,87 +103,18 @@ export function LensFilters({
             </SelectContent>
           </Select>
         ) : null}
-        <DateRangeControl
-          key={`${from ?? ""}-${to ?? ""}`}
-          from={from}
-          to={to}
-          update={update}
-          resetSession={sessions !== undefined}
+        <DateRangePicker
+          className="w-full sm:w-auto"
+          onSelect={(range) =>
+            update({
+              from: formatDateParam(range.from),
+              to: formatDateParam(range.to),
+              ...(sessions ? { session_id: undefined } : {}),
+            })
+          }
+          range={{ from: dayjs(from).toDate(), to: dayjs(to).toDate() }}
         />
       </div>
     </div>
   )
-}
-
-function DateRangeControl({
-  from,
-  resetSession,
-  to,
-  update,
-}: {
-  from?: string
-  resetSession: boolean
-  to?: string
-  update: (values: Record<string, string | undefined>) => void
-}) {
-  const selectedFrom = parseParamDate(from)
-  const selectedTo = parseParamDate(to)
-  const selectedRange =
-    selectedFrom || selectedTo ? { from: selectedFrom, to: selectedTo ?? selectedFrom } : undefined
-  const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(selectedRange)
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-8 w-full max-w-full justify-start rounded-md font-normal sm:w-auto"
-        >
-          <CalendarIcon data-icon="inline-start" />
-          <span className="truncate">{rangeLabel(from, to)}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-fit p-0">
-        <Calendar
-          mode="range"
-          numberOfMonths={2}
-          resetOnSelect
-          selected={draftRange}
-          onSelect={(range) => {
-            setDraftRange(range)
-            if (!range?.from || !range.to) {
-              return
-            }
-
-            update({
-              from: formatDateParam(range.from),
-              to: formatDateParam(range.to),
-              ...(resetSession ? { session_id: undefined } : {}),
-            })
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function rangeLabel(from?: string, to?: string) {
-  const fromDate = paramDate(from)
-  const toDate = paramDate(to)
-  if (fromDate && toDate) {
-    return `${fromDate.format("MMM D, YYYY")} - ${toDate.format("MMM D, YYYY")}`
-  }
-  if (fromDate) {
-    return fromDate.format("MMM D, YYYY")
-  }
-  return "Date range"
-}
-
-function paramDate(value?: string) {
-  const date = dayjs(value, "YYYY-MM-DD", true)
-  return date.isValid() ? date : undefined
-}
-
-function parseParamDate(value?: string) {
-  return paramDate(value)?.toDate()
 }

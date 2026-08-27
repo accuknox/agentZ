@@ -36,6 +36,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
@@ -94,6 +95,7 @@ type Service struct {
 	ctx                context.Context
 	resolver           *resolver
 	queries            gatewaydb.Querier
+	dashboards         dashboarddb.Querier
 	db                 *pgxpool.Pool
 	cfg                Config
 	bao                *baoapi.Client
@@ -301,6 +303,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		ctx:                ctx,
 		resolver:           resolver,
 		queries:            gatewaydb.New(db),
+		dashboards:         dashboarddb.New(db),
 		db:                 db,
 		cfg:                cfg,
 		bao:                baoClient,
@@ -323,6 +326,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	go func() {
 		defer close(eventTrailRetentionDone)
 		svc.runEventTrailRetention(runCtx)
+	}()
+	dashboardRetentionDone := make(chan struct{})
+	go func() {
+		defer close(dashboardRetentionDone)
+		svc.runDashboardRetention(runCtx)
 	}()
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -382,6 +390,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 	}
 	stopRun()
+	<-dashboardRetentionDone
 	<-chatSessionNotificationsDone
 	<-cleanupDone
 	<-eventTrailRetentionDone
@@ -713,6 +722,7 @@ func (s *Service) routes() http.Handler {
 		AllowedOrigins:   s.cfg.AllowedWebOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
+		ExposedHeaders:   []string{"X-Next-Cursor"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
@@ -732,14 +742,16 @@ func (s *Service) routes() http.Handler {
 				if statusErr, ok := converted.(openapi3filter.StatusCoder); ok {
 					status = statusErr.StatusCode()
 				}
+				fields := openAPIRequestFields(err)
 				writeError(
 					w,
 					r,
 					newAPIError(
 						status,
 						"invalid_request",
-						"request is invalid",
+						"request does not match the API contract; correct the listed fields and retry",
 						err,
+						fields...,
 					),
 				)
 			},
@@ -760,6 +772,32 @@ func (s *Service) routes() http.Handler {
 	)
 	r.Mount("/", apiRouter)
 	return r
+}
+
+func openAPIRequestFields(err error) []gatewayapi.FieldError {
+	var requestErr *openapi3filter.RequestError
+	if !errors.As(err, &requestErr) {
+		return nil
+	}
+	field := "request"
+	message := requestErr.Reason
+	if requestErr.RequestBody != nil {
+		field = "body"
+	}
+	if requestErr.Parameter != nil {
+		field = requestErr.Parameter.Name
+	}
+	if schemaErr, ok := errors.AsType[*openapi3.SchemaError](requestErr); ok {
+		path := schemaErr.JSONPointer()
+		if len(path) > 0 {
+			field = strings.Join(path, ".")
+		}
+		message = schemaErr.Reason
+	}
+	if strings.TrimSpace(message) == "" {
+		message = "does not match the declared schema"
+	}
+	return []gatewayapi.FieldError{{Field: field, Message: message}}
 }
 
 func validateWebOrigins(origins []string) ([]string, error) {

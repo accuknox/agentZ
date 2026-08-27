@@ -57,13 +57,14 @@ export async function queryDashboardInitial(
   agentName: string,
   dashboardName: string,
   from: string,
-  to: string
+  to: string,
+  maxPoints: number
 ): Promise<QueryDashboardResponse | undefined> {
   const { data } = await queryDashboard({
     client: getGatewayServerClient(workspaceId),
     headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: { agentName, dashboardName },
-    body: { from, to, max_points: 240 },
+    body: { from, to, max_points: maxPoints },
   })
   return data
 }

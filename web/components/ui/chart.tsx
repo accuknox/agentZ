@@ -9,6 +9,15 @@ import { cn } from "@/lib/utils"
 const THEMES = { light: "", dark: ".dark" } as const
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
+export const chartTooltipStyle = {
+  backgroundColor: "var(--popover)",
+  borderColor: "var(--border)",
+  borderRadius: "calc(var(--radius) * 1.4)",
+  boxShadow: "0 10px 30px color-mix(in oklab, var(--foreground) 10%, transparent)",
+  color: "var(--popover-foreground)",
+  padding: "8px 10px",
+} satisfies React.CSSProperties
+
 export type ChartConfig = Record<
   string,
   {
@@ -102,14 +111,7 @@ ${colorConfig
 function ChartTooltip(props: React.ComponentProps<typeof RechartsPrimitive.Tooltip>) {
   return (
     <RechartsPrimitive.Tooltip
-      contentStyle={{
-        backgroundColor: "var(--popover)",
-        borderColor: "var(--border)",
-        borderRadius: "calc(var(--radius) * 1.4)",
-        boxShadow: "0 10px 30px color-mix(in oklab, var(--foreground) 10%, transparent)",
-        color: "var(--popover-foreground)",
-        padding: "8px 10px",
-      }}
+      contentStyle={chartTooltipStyle}
       itemStyle={{ color: "var(--popover-foreground)", paddingBlock: 0 }}
       labelStyle={{ marginBottom: 8 }}
       {...props}

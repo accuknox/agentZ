@@ -106,13 +106,18 @@ async function DashboardContent({
   )
 }
 
-async function DashboardData(props: Omit<ComponentProps<typeof DashboardView>, "initialData">) {
+async function DashboardData(
+  props: Omit<ComponentProps<typeof DashboardView>, "initialData" | "maxPoints">
+) {
+  const scatterCount = props.dashboard.widgets.filter((widget) => widget.kind === "scatter").length
+  const maxPoints = Math.min(240, Math.max(60, Math.floor(1440 / Math.max(scatterCount, 1))))
   const initialData = await queryDashboardInitial(
     props.workspaceId,
     props.dashboard.agent_name,
     props.dashboard.name,
     props.from,
-    props.to
+    props.to,
+    maxPoints
   )
   return (
     <DashboardView
@@ -125,6 +130,7 @@ async function DashboardData(props: Omit<ComponentProps<typeof DashboardView>, "
       ])}
       {...props}
       initialData={initialData}
+      maxPoints={maxPoints}
     />
   )
 }

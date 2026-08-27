@@ -1334,51 +1334,97 @@ const dashboardSampleScatter = `-- name: DashboardSampleScatter :many
 WITH widget AS (
   SELECT mode
   FROM dashboard_widgets w
-  WHERE w.tenant_namespace = $2
-    AND w.revision = $3
+  WHERE w.tenant_namespace = $1
+    AND w.revision = $2
 ), source AS (
-  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  SELECT
+    temporal.recorded_at AS at,
+    temporal.id AS sequence,
+    (temporal.payload->>'series')::integer AS series,
+    temporal.payload
   FROM dashboard_temporal_records temporal, widget
-  WHERE temporal.tenant_namespace = $2
-    AND temporal.widget_revision = $3
-    AND temporal.recorded_at >= $4
-    AND temporal.recorded_at < $5
+  WHERE temporal.tenant_namespace = $1
+    AND temporal.widget_revision = $2
+    AND temporal.recorded_at >= $3
+    AND temporal.recorded_at < $4
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
-  FROM dashboard_latest_records latest, widget
-  WHERE latest.tenant_namespace = $2
-    AND latest.widget_revision = $3
-    AND widget.mode = 'latest'
-), numbered AS (
   SELECT
-    payload,
-    row_number() OVER (ORDER BY at, sequence) AS row_number,
-    count(*) OVER () AS total
+    latest.received_at AS at,
+    latest.ordinal::bigint AS sequence,
+    (latest.payload->>'series')::integer AS series,
+    latest.payload
+  FROM dashboard_latest_records latest, widget
+  WHERE latest.tenant_namespace = $1
+    AND latest.widget_revision = $2
+    AND widget.mode = 'latest'
+), series_totals AS (
+  SELECT series, count(*) AS series_total
   FROM source
+  GROUP BY series
+), totals AS (
+  SELECT
+    series,
+    series_total,
+    least(
+      $5::integer::bigint,
+      sum(series_total) OVER ()::bigint
+    ) AS sample_total,
+    count(*) OVER () AS series_count,
+    sum(series_total) OVER ()::bigint AS total
+  FROM series_totals
+), shares AS (
+  SELECT
+    series, series_total, sample_total, series_count, total,
+    CASE WHEN sample_total >= series_count THEN 1 ELSE 0 END AS minimum,
+    sample_total - CASE WHEN sample_total >= series_count THEN series_count ELSE 0 END AS remaining
+  FROM totals
+), bases AS (
+  SELECT series, series_total, sample_total, series_count, total, minimum, remaining, series_total * remaining / total AS base
+  FROM shares
+), quotas AS (
+  SELECT
+    series,
+    minimum + base + CASE
+      WHEN row_number() OVER (
+        ORDER BY series_total * remaining - base * total DESC, series
+      ) <= remaining - sum(base) OVER () THEN 1
+      ELSE 0
+    END AS quota
+  FROM bases
+), sampled AS (
+  SELECT
+    source.at, source.sequence, source.series, source.payload,
+    quotas.quota,
+    row_number() OVER (
+      PARTITION BY source.series
+      ORDER BY hashint8extended(source.sequence, 0), source.sequence
+    ) AS sample_row
+  FROM source
+  JOIN quotas USING (series)
+  WHERE quotas.quota > 0
 )
 SELECT payload
-FROM numbered
-WHERE (row_number - 1) % greatest(ceil(total::numeric / $1)::bigint, 1) = 0
-ORDER BY row_number
-LIMIT $1
+FROM sampled
+WHERE sample_row <= quota
+ORDER BY at, sequence
 `
 
 type DashboardSampleScatterParams struct {
-	MaxPoints       int32     `json:"max_points"`
 	TenantNamespace string    `json:"tenant_namespace"`
 	WidgetRevision  uuid.UUID `json:"widget_revision"`
 	FromTime        time.Time `json:"from_time"`
 	ToTime          time.Time `json:"to_time"`
+	MaxPoints       int32     `json:"max_points"`
 }
 
 func (q *Queries) DashboardSampleScatter(ctx context.Context, arg DashboardSampleScatterParams) ([][]byte, error) {
 	rows, err := q.db.Query(ctx, dashboardSampleScatter,
-		arg.MaxPoints,
 		arg.TenantNamespace,
 		arg.WidgetRevision,
 		arg.FromTime,
 		arg.ToTime,
+		arg.MaxPoints,
 	)
 	if err != nil {
 		return nil, err

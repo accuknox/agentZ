@@ -95,6 +95,7 @@ export function DashboardView({
   dashboards,
   from,
   initialData,
+  maxPoints,
   to,
   workspaceId,
   workspacePath,
@@ -103,6 +104,7 @@ export function DashboardView({
   dashboards: DashboardSummary[]
   from: string
   initialData?: QueryDashboardResponse
+  maxPoints: number
   to: string
   workspaceId: string
   workspacePath: string
@@ -120,6 +122,8 @@ export function DashboardView({
     dashboard.name,
     from,
     to,
+    maxPoints,
+    "widgets",
   ] as const
   const fetchingCount = useIsFetching({ queryKey: dashboardQueryKey })
 
@@ -134,21 +138,13 @@ export function DashboardView({
 
   const widgetsQuery = useQuery(
     queryOptions({
-      queryKey: [
-        "dashboard",
-        workspaceId,
-        dashboard.agent_name,
-        dashboard.name,
-        from,
-        to,
-        "widgets",
-      ],
+      queryKey: dashboardQueryKey,
       queryFn: async ({ signal }) => {
         const { data, error } = await queryDashboard({
           signal,
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           path: { agentName: dashboard.agent_name, dashboardName: dashboard.name },
-          body: { from, to, max_points: 240 },
+          body: { from, to, max_points: maxPoints },
         })
         if (error) throw new Error(error.message)
         return data
@@ -297,7 +293,8 @@ function Widget({
     <section
       aria-busy={pending}
       className={cn(
-        "bg-card h-80 min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] transition-shadow duration-200 [content-visibility:auto] hover:shadow-[0_8px_24px_color-mix(in_oklab,var(--foreground)_8%,transparent)]",
+        "bg-card h-80 min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] transition-shadow duration-200 hover:shadow-[0_8px_24px_color-mix(in_oklab,var(--foreground)_8%,transparent)]",
+        widget.kind !== "scatter" && "[content-visibility:auto]",
         dashboardWidgetWidthClasses[widget.width]
       )}
     >

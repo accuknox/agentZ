@@ -585,7 +585,11 @@ WITH widget AS (
   WHERE w.tenant_namespace = sqlc.arg(tenant_namespace)
     AND w.revision = sqlc.arg(widget_revision)
 ), source AS (
-  SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
+  SELECT
+    temporal.recorded_at AS at,
+    temporal.id AS sequence,
+    (temporal.payload->>'series')::integer AS series,
+    temporal.payload
   FROM dashboard_temporal_records temporal, widget
   WHERE temporal.tenant_namespace = sqlc.arg(tenant_namespace)
     AND temporal.widget_revision = sqlc.arg(widget_revision)
@@ -593,23 +597,65 @@ WITH widget AS (
     AND temporal.recorded_at < sqlc.arg(to_time)
     AND widget.mode = 'temporal'
   UNION ALL
-  SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
+  SELECT
+    latest.received_at AS at,
+    latest.ordinal::bigint AS sequence,
+    (latest.payload->>'series')::integer AS series,
+    latest.payload
   FROM dashboard_latest_records latest, widget
   WHERE latest.tenant_namespace = sqlc.arg(tenant_namespace)
     AND latest.widget_revision = sqlc.arg(widget_revision)
     AND widget.mode = 'latest'
-), numbered AS (
-  SELECT
-    payload,
-    row_number() OVER (ORDER BY at, sequence) AS row_number,
-    count(*) OVER () AS total
+), series_totals AS (
+  SELECT series, count(*) AS series_total
   FROM source
+  GROUP BY series
+), totals AS (
+  SELECT
+    series,
+    series_total,
+    least(
+      sqlc.arg(max_points)::integer::bigint,
+      sum(series_total) OVER ()::bigint
+    ) AS sample_total,
+    count(*) OVER () AS series_count,
+    sum(series_total) OVER ()::bigint AS total
+  FROM series_totals
+), shares AS (
+  SELECT
+    *,
+    CASE WHEN sample_total >= series_count THEN 1 ELSE 0 END AS minimum,
+    sample_total - CASE WHEN sample_total >= series_count THEN series_count ELSE 0 END AS remaining
+  FROM totals
+), bases AS (
+  SELECT *, series_total * remaining / total AS base
+  FROM shares
+), quotas AS (
+  SELECT
+    series,
+    minimum + base + CASE
+      WHEN row_number() OVER (
+        ORDER BY series_total * remaining - base * total DESC, series
+      ) <= remaining - sum(base) OVER () THEN 1
+      ELSE 0
+    END AS quota
+  FROM bases
+), sampled AS (
+  SELECT
+    source.*,
+    quotas.quota,
+    row_number() OVER (
+      PARTITION BY source.series
+      ORDER BY hashint8extended(source.sequence, 0), source.sequence
+    ) AS sample_row
+  FROM source
+  JOIN quotas USING (series)
+  WHERE quotas.quota > 0
 )
 SELECT payload
-FROM numbered
-WHERE (row_number - 1) % greatest(ceil(total::numeric / sqlc.arg(max_points))::bigint, 1) = 0
-ORDER BY row_number
-LIMIT sqlc.arg(max_points);
+FROM sampled
+WHERE sample_row <= quota
+ORDER BY at, sequence;
 
 -- name: DashboardTableRows :many
 WITH widget AS (

@@ -2,13 +2,22 @@
 
 import * as React from "react"
 import {
+  Chart as CanvasChart,
+  Legend as CanvasLegend,
+  LinearScale,
+  PointElement,
+  ScatterController,
+  Tooltip as CanvasTooltip,
+  type ChartConfiguration,
+  type ChartDataset,
+} from "chart.js"
+import {
   Area,
   AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  DefaultTooltipContent,
   Funnel,
   FunnelChart,
   Label,
@@ -22,17 +31,25 @@ import {
   RadialBar,
   RadialBarChart,
   Sankey,
-  Scatter,
-  ScatterChart,
   useChartWidth,
   XAxis,
   YAxis,
   type FunnelTrapezoidItem,
   type SankeyNodeProps,
 } from "recharts"
-import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
+import {
+  ChartContainer,
+  ChartTooltip,
+  chartTooltipStyle,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import { dayjs } from "@/lib/format"
-import type { DashboardWidget, DashboardWidgetQueryResult } from "@/lib/gateway/client"
+import type {
+  DashboardScatterAxes,
+  DashboardScatterPoint,
+  DashboardWidget,
+  DashboardWidgetQueryResult,
+} from "@/lib/gateway/client"
 
 const resizeDebounce = 250
 const axis = { axisLine: false, tickLine: false } as const
@@ -40,6 +57,8 @@ const legend = {
   iconSize: 8,
   wrapperStyle: { paddingTop: 12 },
 } as const
+
+CanvasChart.register(ScatterController, PointElement, LinearScale, CanvasLegend, CanvasTooltip)
 
 type FunnelDatum = {
   fill: string
@@ -58,7 +77,7 @@ export function DashboardChart({
   const config = Object.fromEntries(
     widget.series.map((series, index) => [
       `s${index}`,
-      { label: series.label, color: chartColor(index) },
+      { label: series.label, color: `var(${chartColorProperty(index)})` },
     ])
   ) satisfies ChartConfig
 
@@ -140,7 +159,7 @@ export function DashboardChart({
 
   if (widget.kind === "pie") {
     const data = result.categories.map((category, index) => ({
-      fill: chartColor(index),
+      fill: `var(${chartColorProperty(index)})`,
       name: category.label,
       value: category.values.reduce((sum, value) => sum + value, 0),
     }))
@@ -225,7 +244,7 @@ export function DashboardChart({
 
   if (widget.kind === "funnel" || widget.kind === "horizontal_funnel") {
     const data: FunnelDatum[] = result.categories.map((category, index) => ({
-      fill: chartColor(index),
+      fill: `var(${chartColorProperty(index)})`,
       name: category.label,
       value: category.values.reduce((sum, value) => sum + value, 0),
     }))
@@ -285,47 +304,7 @@ export function DashboardChart({
     if (!widget.axes) {
       throw new Error(`scatter widget ${widget.name} is missing axes`)
     }
-
-    return (
-      <ChartContainer className="h-full w-full" config={config} resizeDebounce={resizeDebounce}>
-        <ScatterChart margin={{ bottom: 4, left: 4, right: 16, top: 8 }}>
-          <CartesianGrid strokeDasharray="3 5" />
-          <XAxis
-            {...axis}
-            dataKey="x"
-            name={widget.axes.x.label}
-            tickMargin={8}
-            type="number"
-            unit={widget.axes.x.unit}
-          />
-          <YAxis
-            {...axis}
-            dataKey="y"
-            name={widget.axes.y.label}
-            tickMargin={8}
-            type="number"
-            unit={widget.axes.y.unit}
-            width="auto"
-          />
-          <ChartTooltip
-            content={(props) => (
-              <DefaultTooltipContent {...props} label={props.payload?.[0]?.payload.label} />
-            )}
-            isAnimationActive={false}
-          />
-          <Legend {...legend} />
-          {widget.series.map((series, index) => (
-            <Scatter
-              data={result.scatter.filter((point) => point.series === index)}
-              fill={`var(--color-s${index})`}
-              isAnimationActive={false}
-              key={series.name}
-              name={series.label}
-            />
-          ))}
-        </ScatterChart>
-      </ChartContainer>
-    )
+    return <DashboardScatterChart axes={widget.axes} result={result} widget={widget} />
   }
 
   const minimum = widget.minimum ?? 0
@@ -338,7 +317,7 @@ export function DashboardChart({
       ? "var(--destructive)"
       : tone === "warning"
         ? "var(--warning)"
-        : chartColor(0)
+        : `var(${chartColorProperty(0)})`
 
   return (
     <ChartContainer className="h-full w-full" config={config} resizeDebounce={resizeDebounce}>
@@ -363,6 +342,228 @@ export function DashboardChart({
         />
       </RadialBarChart>
     </ChartContainer>
+  )
+}
+
+function DashboardScatterChart({
+  axes,
+  result,
+  widget,
+}: {
+  axes: DashboardScatterAxes
+  result: DashboardWidgetQueryResult
+  widget: DashboardWidget
+}) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const tooltipRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    const tooltipElement = tooltipRef.current
+    if (!canvas || !container || !tooltipElement) return
+
+    const title = document.createElement("div")
+    title.className = "mb-2 font-medium"
+    const coordinates = document.createElement("div")
+    coordinates.className = "grid grid-cols-[auto_1fr] gap-x-3 tabular-nums"
+    const xLabel = document.createElement("span")
+    xLabel.className = "text-muted-foreground"
+    const xValue = document.createElement("span")
+    xValue.className = "text-right"
+    const yLabel = document.createElement("span")
+    yLabel.className = "text-muted-foreground"
+    const yValue = document.createElement("span")
+    yValue.className = "text-right"
+    coordinates.append(xLabel, xValue, yLabel, yValue)
+    tooltipElement.replaceChildren(title, coordinates)
+
+    const style = getComputedStyle(canvas)
+    const datasets: ChartDataset<"scatter", DashboardScatterPoint[]>[] = widget.series.map(
+      (series, index) => ({
+        backgroundColor: style.getPropertyValue(chartColorProperty(index)),
+        data: result.scatter.filter((point) => point.series === index),
+        label: series.label,
+        pointHoverRadius: 4,
+        pointRadius: 3,
+      })
+    )
+    const config: ChartConfiguration<"scatter", DashboardScatterPoint[]> = {
+      type: "scatter",
+      data: { datasets },
+      options: {
+        animation: false,
+        borderColor: style.getPropertyValue("--border"),
+        color: style.getPropertyValue("--muted-foreground"),
+        maintainAspectRatio: false,
+        parsing: false,
+        // Chart.js still renders every observer tick when resizeDelay is set.
+        responsive: false,
+        plugins: {
+          legend: {
+            labels: {
+              boxHeight: 8,
+              boxWidth: 8,
+              padding: 12,
+              usePointStyle: true,
+            },
+          },
+          tooltip: {
+            enabled: false,
+            external: ({ tooltip }) => {
+              if (tooltip.opacity === 0) {
+                tooltipElement.hidden = true
+                return
+              }
+              const item = tooltip.dataPoints[0]
+              if (!item) {
+                tooltipElement.hidden = true
+                return
+              }
+              const point = datasets[item.datasetIndex]?.data[item.dataIndex]
+              if (!point) {
+                tooltipElement.hidden = true
+                return
+              }
+
+              title.hidden = !point.label
+              title.textContent = point.label ?? ""
+              xLabel.textContent = `${axes.x.label}:`
+              xValue.textContent = `${point.x}${axes.x.unit ?? ""}`
+              yLabel.textContent = `${axes.y.label}:`
+              yValue.textContent = `${point.y}${axes.y.unit ?? ""}`
+              tooltipElement.style.left = `${tooltip.caretX}px`
+              tooltipElement.style.top = `${tooltip.caretY}px`
+              const translateX =
+                tooltip.xAlign === "left" ? "0" : tooltip.xAlign === "right" ? "-100%" : "-50%"
+              const translateY = tooltip.yAlign === "top" ? "8px" : "calc(-100% - 8px)"
+              tooltipElement.style.transform = `translate(${translateX}, ${translateY})`
+              tooltipElement.hidden = false
+            },
+          },
+        },
+        scales: {
+          x: {
+            border: { display: false },
+          },
+          y: {
+            border: { display: false },
+          },
+        },
+      },
+    }
+    const chart = new CanvasChart(canvas, config)
+    let height = chart.height
+    let nearViewport = false
+    let resizePending = false
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined
+    let themePending = false
+    let themeTimer: ReturnType<typeof setTimeout> | undefined
+    let width = chart.width
+    const scheduleThemeUpdate = () => {
+      clearTimeout(themeTimer)
+      // Mutation observers share a microtask; render each chart in its own task.
+      themeTimer = setTimeout(() => {
+        if (!nearViewport || !themePending) return
+        chart.update("none")
+        themePending = false
+      })
+    }
+    const scheduleResize = () => {
+      clearTimeout(resizeTimer)
+      if (!nearViewport || !resizePending) return
+      resizeTimer = setTimeout(() => {
+        if (!nearViewport || !resizePending) return
+        chart.resize(width, height)
+        resizePending = false
+      }, resizeDebounce)
+    }
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width === 0 || entry.contentRect.height === 0) continue
+        if (entry.contentRect.width === width && entry.contentRect.height === height) continue
+        width = entry.contentRect.width
+        height = entry.contentRect.height
+        resizePending = true
+      }
+      scheduleResize()
+    })
+    const handleWindowResize = () => {
+      if (chart.currentDevicePixelRatio === window.devicePixelRatio) return
+      resizePending = true
+      scheduleResize()
+    }
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) nearViewport = entry.isIntersecting
+        if (!nearViewport) {
+          clearTimeout(resizeTimer)
+          return
+        }
+
+        clearTimeout(resizeTimer)
+        if (resizePending) {
+          clearTimeout(themeTimer)
+          chart.resize(width, height)
+          resizePending = false
+          themePending = false
+          return
+        }
+        if (!themePending) return
+
+        scheduleThemeUpdate()
+      },
+      { rootMargin: `${container.clientHeight}px 0px` }
+    )
+    const themeObserver = new MutationObserver(() => {
+      const nextStyle = getComputedStyle(canvas)
+      chart.options.borderColor = nextStyle.getPropertyValue("--border")
+      chart.options.color = nextStyle.getPropertyValue("--muted-foreground")
+      for (const [index, dataset] of chart.data.datasets.entries()) {
+        dataset.backgroundColor = nextStyle.getPropertyValue(chartColorProperty(index))
+      }
+      themePending = true
+      if (!nearViewport) return
+
+      scheduleThemeUpdate()
+    })
+    intersectionObserver.observe(container)
+    resizeObserver.observe(container)
+    themeObserver.observe(document.documentElement, {
+      attributeFilter: ["class"],
+      attributes: true,
+    })
+    window.addEventListener("resize", handleWindowResize)
+    return () => {
+      clearTimeout(resizeTimer)
+      clearTimeout(themeTimer)
+      intersectionObserver.disconnect()
+      resizeObserver.disconnect()
+      themeObserver.disconnect()
+      window.removeEventListener("resize", handleWindowResize)
+      chart.destroy()
+      tooltipElement.replaceChildren()
+    }
+  }, [axes, result.scatter, widget])
+
+  return (
+    <div className="relative h-full w-full" ref={containerRef}>
+      <canvas
+        aria-label={`${widget.title} scatter plot`}
+        className="size-full!"
+        ref={canvasRef}
+        role="img"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute z-10 border text-xs"
+        data-slot="dashboard-scatter-tooltip"
+        hidden
+        ref={tooltipRef}
+        style={chartTooltipStyle}
+      />
+    </div>
   )
 }
 
@@ -414,7 +615,7 @@ function DashboardSankeyNode({
 
   const x = outside ? props.x - 7 : props.x + props.width + 7
   const anchor = outside ? "end" : "start"
-  const color = chartColor(props.payload.depth)
+  const color = `var(${chartColorProperty(props.payload.depth)})`
 
   return (
     <g>
@@ -448,17 +649,17 @@ function DashboardSankeyNode({
   )
 }
 
-function chartColor(index: number): string {
+function chartColorProperty(index: number): string {
   switch (index % 5) {
     case 0:
-      return "var(--chart-2)"
+      return "--chart-2"
     case 1:
-      return "var(--chart-4)"
+      return "--chart-4"
     case 2:
-      return "var(--chart-1)"
+      return "--chart-1"
     case 3:
-      return "var(--chart-3)"
+      return "--chart-3"
     default:
-      return "var(--chart-5)"
+      return "--chart-5"
   }
 }

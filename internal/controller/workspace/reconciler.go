@@ -420,6 +420,7 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, workspace *agentzv1
 			}
 			ns.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] = workspace.Spec.WorkspaceID
 			ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] = workspace.Spec.OrganizationID
+			ns.Annotations[agentzv1alpha1.KubeArmorVisibilityAnnotation] = "process"
 
 			err := controllerutil.SetControllerReference(workspace, ns, r.Scheme)
 			if err != nil {

@@ -134,6 +134,9 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 	if got := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation]; got != organizationID {
 		t.Errorf("organization annotation = %q, want %q", got, organizationID)
 	}
+	if got := ns.Annotations[agentzv1alpha1.KubeArmorVisibilityAnnotation]; got != "process" {
+		t.Errorf("KubeArmor visibility = %q, want process", got)
+	}
 	if !metav1.IsControlledBy(&ns, workspace) {
 		t.Fatal("workspace is not the namespace controller owner")
 	}

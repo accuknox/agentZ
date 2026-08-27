@@ -236,10 +236,9 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 	podLabels := make(map[string]string, len(labels))
 	maps.Copy(podLabels, labels)
 
-	podAnnotations := make(map[string]string, len(agt.Annotations)+2)
+	podAnnotations := make(map[string]string, len(agt.Annotations)+1)
 	maps.Copy(podAnnotations, agt.Annotations)
 	podAnnotations["agentz.accuknox.com/config-hash"] = hash
-	podAnnotations["kubearmor-visibility"] = "process"
 
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount

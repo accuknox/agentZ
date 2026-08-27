@@ -154,13 +154,14 @@ spec:
                   rule: self.count >= oldSelf.count
               dashboardQuota:
                 description: |-
-                  DashboardQuota limits dashboard definitions, ingestion, and queries across
-                  every Workspace in this Organisation.
+                  DashboardQuota configures dashboard definition, ingestion, and query
+                  limits for Agents in this Tenant.
                 properties:
                   dashboardsPerAgent:
                     description: DashboardsPerAgent is the maximum number of dashboards
                       owned by one Agent.
                     format: int32
+                    maximum: 25
                     minimum: 1
                     type: integer
                   publish:
@@ -170,8 +171,8 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: AcceptedBytesPerDay limits accepted JSON bytes
-                          across the Organisation.
+                        description: AcceptedBytesPerDay limits JSON bytes accepted
+                          from one Agent per day.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       latestBytesPerAgent:
@@ -202,14 +203,14 @@ spec:
                         minimum: 1
                         type: integer
                       retainedTemporalRecords:
-                        description: RetainedTemporalRecords limits retained temporal
-                          records across the Organisation.
+                        description: RetainedTemporalRecords limits temporal records
+                          retained in this Tenant.
                         format: int64
                         minimum: 1
                         type: integer
                       temporalRecordsPerDay:
-                        description: TemporalRecordsPerDay limits accepted temporal
-                          records across the Organisation.
+                        description: TemporalRecordsPerDay limits temporal records
+                          accepted from one Agent per day.
                         format: int64
                         minimum: 1
                         type: integer
@@ -232,8 +233,8 @@ spec:
                         minimum: 1
                         type: integer
                       concurrentRequests:
-                        description: ConcurrentRequests limits active queries across
-                          the Organisation.
+                        description: ConcurrentRequests limits active dashboard queries
+                          in this Tenant.
                         format: int32
                         minimum: 1
                         type: integer
@@ -257,8 +258,8 @@ spec:
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       returnedCellsPerHour:
-                        description: ReturnedCellsPerHour limits returned cells across
-                          the Organisation.
+                        description: ReturnedCellsPerHour limits cells returned in
+                          this Tenant per hour.
                         format: int64
                         minimum: 1
                         type: integer
@@ -473,6 +474,7 @@ spec:
                         description: DashboardsPerAgent is the maximum number of dashboards
                           owned by one Agent.
                         format: int32
+                        maximum: 25
                         minimum: 1
                         type: integer
                       publish:
@@ -482,8 +484,8 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: AcceptedBytesPerDay limits accepted JSON
-                              bytes across the Organisation.
+                            description: AcceptedBytesPerDay limits JSON bytes accepted
+                              from one Agent per day.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           latestBytesPerAgent:
@@ -515,14 +517,14 @@ spec:
                             minimum: 1
                             type: integer
                           retainedTemporalRecords:
-                            description: RetainedTemporalRecords limits retained temporal
-                              records across the Organisation.
+                            description: RetainedTemporalRecords limits temporal records
+                              retained in this Tenant.
                             format: int64
                             minimum: 1
                             type: integer
                           temporalRecordsPerDay:
-                            description: TemporalRecordsPerDay limits accepted temporal
-                              records across the Organisation.
+                            description: TemporalRecordsPerDay limits temporal records
+                              accepted from one Agent per day.
                             format: int64
                             minimum: 1
                             type: integer
@@ -545,8 +547,8 @@ spec:
                             minimum: 1
                             type: integer
                           concurrentRequests:
-                            description: ConcurrentRequests limits active queries
-                              across the Organisation.
+                            description: ConcurrentRequests limits active dashboard
+                              queries in this Tenant.
                             format: int32
                             minimum: 1
                             type: integer
@@ -570,8 +572,8 @@ spec:
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           returnedCellsPerHour:
-                            description: ReturnedCellsPerHour limits returned cells
-                              across the Organisation.
+                            description: ReturnedCellsPerHour limits cells returned
+                              in this Tenant per hour.
                             format: int64
                             minimum: 1
                             type: integer

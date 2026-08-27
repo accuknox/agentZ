@@ -14,6 +14,11 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+type dashboardQuotaChange struct {
+	name   string
+	change func(*agentzv1alpha1.Tenant)
+}
+
 func TestValidatorRejectsAgentCountDecrease(t *testing.T) {
 	t.Parallel()
 
@@ -31,23 +36,27 @@ func TestValidatorRejectsDashboardQuotaRemovalAndDecrease(t *testing.T) {
 	t.Parallel()
 
 	oldTenant := tenantWithQuota("tenant", "1")
-	tests := []struct {
-		name   string
-		change func(*agentzv1alpha1.Tenant)
-	}{
-		{name: "removed", change: func(tenant *agentzv1alpha1.Tenant) { tenant.Spec.DashboardQuota = nil }},
-		{name: "count", change: func(tenant *agentzv1alpha1.Tenant) { tenant.Spec.DashboardQuota.Query.ConcurrentRequests-- }},
+	tests := []dashboardQuotaChange{
+		{name: "removed", change: func(tenant *agentzv1alpha1.Tenant) {
+			tenant.Spec.DashboardQuota = nil
+		}},
+		{name: "count", change: func(tenant *agentzv1alpha1.Tenant) {
+			tenant.Spec.DashboardQuota.Query.ConcurrentRequests--
+		}},
 		{name: "quantity", change: func(tenant *agentzv1alpha1.Tenant) {
 			tenant.Spec.DashboardQuota.Publish.RequestBytes = resource.MustParse("128Ki")
 		}},
-		{name: "duration", change: func(tenant *agentzv1alpha1.Tenant) { tenant.Spec.DashboardQuota.Query.Timeout.Duration-- }},
+		{name: "duration", change: func(tenant *agentzv1alpha1.Tenant) {
+			tenant.Spec.DashboardQuota.Query.Timeout.Duration--
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			updated := oldTenant.DeepCopy()
 			test.change(updated)
-			if issues := validateDashboardQuota(oldTenant, updated); len(issues) == 0 {
+			issues := validateDashboardQuota(oldTenant, updated)
+			if len(issues) == 0 {
 				t.Fatal("validateDashboardQuota() accepted a quota reduction")
 			}
 		})
@@ -59,7 +68,8 @@ func TestValidatorRejectsNonPositiveDashboardQuota(t *testing.T) {
 
 	tenant := tenantWithQuota("tenant", "1")
 	tenant.Spec.DashboardQuota.Publish.TemporalRecordsPerDay = 0
-	if issues := validateDashboardQuota(nil, tenant); len(issues) == 0 {
+	issues := validateDashboardQuota(nil, tenant)
+	if len(issues) == 0 {
 		t.Fatal("validateDashboardQuota() accepted a zero limit")
 	}
 }
@@ -97,14 +107,20 @@ func TestValidatorChecksOnlyQuotaReductionsAgainstUsage(t *testing.T) {
 	oldTenant := tenantWithQuota(tenantName, "1")
 	reduced := oldTenant.DeepCopy()
 	reduced.Spec.AgentQuota.Resources.CPU = resource.MustParse("500m")
-	if issues := validator.validateAgentQuota(context.Background(), oldTenant, reduced); len(issues) == 0 {
+	issues := validator.validateAgentQuota(context.Background(), oldTenant, reduced)
+	if len(issues) == 0 {
 		t.Fatal("validateAgentQuota() accepted a CPU quota below current usage")
 	}
 
 	previouslyOverQuota := tenantWithQuota(tenantName, "500m")
 	increased := previouslyOverQuota.DeepCopy()
 	increased.Spec.AgentQuota.Resources.CPU = resource.MustParse("600m")
-	if issues := validator.validateAgentQuota(context.Background(), previouslyOverQuota, increased); len(issues) != 0 {
+	issues = validator.validateAgentQuota(
+		context.Background(),
+		previouslyOverQuota,
+		increased,
+	)
+	if len(issues) != 0 {
 		t.Fatalf("validateAgentQuota() rejected a non-decreasing quota: %v", issues)
 	}
 }

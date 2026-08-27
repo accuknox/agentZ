@@ -123,21 +123,21 @@ spec:
             - --tenant-agent-default-cpu={{ required "manager.config.tenantAgentQuota.defaults.resources.cpu is required" .Values.config.tenantAgentQuota.defaults.resources.cpu }}
             - --tenant-agent-default-memory={{ required "manager.config.tenantAgentQuota.defaults.resources.memory is required" .Values.config.tenantAgentQuota.defaults.resources.memory }}
             - --tenant-agent-default-qos={{ .Values.config.tenantAgentQuota.defaults.qosClass }}
-            - --tenant-dashboard-quota-dashboards-per-agent={{ .Values.config.tenantDashboardQuota.dashboardsPerAgent }}
-            - --tenant-dashboard-quota-widgets-per-dashboard={{ .Values.config.tenantDashboardQuota.widgetsPerDashboard }}
+            - --tenant-dashboard-quota-dashboards-per-agent={{ int64 .Values.config.tenantDashboardQuota.dashboardsPerAgent }}
+            - --tenant-dashboard-quota-widgets-per-dashboard={{ int64 .Values.config.tenantDashboardQuota.widgetsPerDashboard }}
             - --tenant-dashboard-quota-request-bytes={{ .Values.config.tenantDashboardQuota.publish.requestBytes }}
-            - --tenant-dashboard-quota-records-per-request={{ .Values.config.tenantDashboardQuota.publish.recordsPerRequest }}
-            - --tenant-dashboard-quota-requests-per-minute-per-agent={{ .Values.config.tenantDashboardQuota.publish.requestsPerMinutePerAgent }}
+            - --tenant-dashboard-quota-records-per-request={{ int64 .Values.config.tenantDashboardQuota.publish.recordsPerRequest }}
+            - --tenant-dashboard-quota-requests-per-minute-per-agent={{ int64 .Values.config.tenantDashboardQuota.publish.requestsPerMinutePerAgent }}
             - --tenant-dashboard-quota-accepted-bytes-per-day={{ .Values.config.tenantDashboardQuota.publish.acceptedBytesPerDay }}
-            - --tenant-dashboard-quota-temporal-records-per-day={{ .Values.config.tenantDashboardQuota.publish.temporalRecordsPerDay }}
-            - --tenant-dashboard-quota-retained-temporal-records={{ .Values.config.tenantDashboardQuota.publish.retainedTemporalRecords }}
+            - --tenant-dashboard-quota-temporal-records-per-day={{ int64 .Values.config.tenantDashboardQuota.publish.temporalRecordsPerDay }}
+            - --tenant-dashboard-quota-retained-temporal-records={{ int64 .Values.config.tenantDashboardQuota.publish.retainedTemporalRecords }}
             - --tenant-dashboard-quota-latest-bytes-per-agent={{ .Values.config.tenantDashboardQuota.publish.latestBytesPerAgent }}
-            - --tenant-dashboard-quota-requests-per-minute-per-user={{ .Values.config.tenantDashboardQuota.query.requestsPerMinutePerUser }}
-            - --tenant-dashboard-quota-returned-cells-per-hour={{ .Values.config.tenantDashboardQuota.query.returnedCellsPerHour }}
-            - --tenant-dashboard-quota-concurrent-requests={{ .Values.config.tenantDashboardQuota.query.concurrentRequests }}
-            - --tenant-dashboard-quota-cells-per-request={{ .Values.config.tenantDashboardQuota.query.cellsPerRequest }}
+            - --tenant-dashboard-quota-requests-per-minute-per-user={{ int64 .Values.config.tenantDashboardQuota.query.requestsPerMinutePerUser }}
+            - --tenant-dashboard-quota-returned-cells-per-hour={{ int64 .Values.config.tenantDashboardQuota.query.returnedCellsPerHour }}
+            - --tenant-dashboard-quota-concurrent-requests={{ int64 .Values.config.tenantDashboardQuota.query.concurrentRequests }}
+            - --tenant-dashboard-quota-cells-per-request={{ int64 .Values.config.tenantDashboardQuota.query.cellsPerRequest }}
             - --tenant-dashboard-quota-response-bytes={{ .Values.config.tenantDashboardQuota.query.responseBytes }}
-            - --tenant-dashboard-quota-points-per-series={{ .Values.config.tenantDashboardQuota.query.pointsPerSeries }}
+            - --tenant-dashboard-quota-points-per-series={{ int64 .Values.config.tenantDashboardQuota.query.pointsPerSeries }}
             - --tenant-dashboard-quota-timeout={{ .Values.config.tenantDashboardQuota.query.timeout }}
             {{- if .Values.config.leaderElect }}
             - --leader-elect

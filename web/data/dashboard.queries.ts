@@ -19,13 +19,21 @@ export async function listDashboardsCachedQuery(
   "use cache: private"
   cacheLife("minutes")
   cacheTag(`${dashboardsTag}:${workspaceId}`)
-  const { data, error } = await listDashboards({
-    client: getGatewayServerClient(workspaceId),
-    headers: { "X-AgentZ-Workspace-ID": workspaceId },
-  })
-  return error
-    ? { dashboards: undefined, error }
-    : { dashboards: data.dashboards, error: undefined }
+  const dashboards: DashboardSummary[] = []
+  let pageToken: string | undefined
+  // A Workspace can contain more than one Agent, so its dashboard list can span pages.
+  do {
+    const { data, error } = await listDashboards({
+      client: getGatewayServerClient(workspaceId),
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      query: pageToken ? { page_token: pageToken } : undefined,
+    })
+    if (error) return { dashboards: undefined, error }
+    dashboards.push(...data.dashboards)
+    pageToken = data.next_page_token || undefined
+  } while (pageToken)
+
+  return { dashboards, error: undefined }
 }
 
 export async function getDashboardCachedQuery(

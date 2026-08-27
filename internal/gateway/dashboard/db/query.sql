@@ -5,6 +5,13 @@ WHERE tenant_namespace = sqlc.arg(tenant_namespace)
   AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name);
 
+-- name: DashboardLockAgent :one
+SELECT agent_name
+FROM agents
+WHERE tenant_namespace = sqlc.arg(tenant_namespace)
+  AND agent_name = sqlc.arg(agent_name)
+FOR UPDATE;
+
 -- name: DashboardCreate :one
 INSERT INTO dashboards (
   tenant_namespace, organization_id, workspace_id, agent_name, name, title
@@ -132,10 +139,12 @@ WHERE tenant_namespace = sqlc.arg(tenant_namespace)
 -- name: DashboardReservePublishWindow :one
 INSERT INTO dashboard_publish_windows (
   tenant_namespace, agent_name, window_kind, window_start, calls, records, bytes
-) VALUES (
+) SELECT
   sqlc.arg(tenant_namespace), sqlc.arg(agent_name), sqlc.arg(window_kind),
   sqlc.arg(window_start), sqlc.arg(calls), sqlc.arg(records), sqlc.arg(bytes)
-)
+WHERE sqlc.arg(calls) <= sqlc.arg(max_calls)::bigint
+  AND sqlc.arg(records) <= sqlc.arg(max_records)::bigint
+  AND sqlc.arg(bytes) <= sqlc.arg(max_bytes)::bigint
 ON CONFLICT (tenant_namespace, agent_name, window_kind, window_start)
 DO UPDATE SET
   calls = dashboard_publish_windows.calls + EXCLUDED.calls,
@@ -149,9 +158,9 @@ RETURNING calls, records, bytes;
 -- name: DashboardReserveTemporalUsage :one
 INSERT INTO dashboard_tenant_usage (
   tenant_namespace, temporal_records, temporal_bytes
-) VALUES (
+) SELECT
   sqlc.arg(tenant_namespace), sqlc.arg(records), sqlc.arg(bytes)
-)
+WHERE sqlc.arg(records) <= sqlc.arg(max_records)::bigint
 ON CONFLICT (tenant_namespace)
 DO UPDATE SET
   temporal_records = dashboard_tenant_usage.temporal_records + EXCLUDED.temporal_records,
@@ -172,7 +181,7 @@ SELECT
   sqlc.arg(tenant_namespace) AS tenant_namespace,
   sqlc.arg(agent_name) AS agent_name,
   greatest(sqlc.arg(delta_bytes), 0)::bigint AS latest_bytes
-WHERE sqlc.arg(delta_bytes) <= sqlc.arg(max_bytes)
+WHERE sqlc.arg(delta_bytes) <= sqlc.arg(max_bytes)::bigint
 ON CONFLICT (tenant_namespace, agent_name)
 DO UPDATE SET
   latest_bytes = dashboard_agent_usage.latest_bytes + sqlc.arg(delta_bytes),
@@ -194,18 +203,25 @@ FROM jsonb_to_recordset(sqlc.arg(records)::jsonb) AS input(
 );
 
 -- name: DashboardReplaceLatestRecords :exec
-WITH removed AS (
-  DELETE FROM dashboard_latest_records
-  WHERE tenant_namespace = sqlc.arg(tenant_namespace)
-    AND widget_revision = sqlc.arg(widget_revision)
+WITH upserted AS (
+  INSERT INTO dashboard_latest_records (
+    tenant_namespace, widget_revision, received_at, ordinal, payload, byte_size
+  )
+  SELECT
+    sqlc.arg(tenant_namespace), sqlc.arg(widget_revision), sqlc.arg(received_at),
+    (input.ordinality - 1)::integer, input.value->'payload', (input.value->>'byte_size')::integer
+  FROM jsonb_array_elements(sqlc.arg(records)::jsonb) WITH ORDINALITY AS input(value, ordinality)
+  ON CONFLICT (widget_revision, ordinal) DO UPDATE SET
+    received_at = EXCLUDED.received_at,
+    payload = EXCLUDED.payload,
+    byte_size = EXCLUDED.byte_size
+  RETURNING ordinal
 )
-INSERT INTO dashboard_latest_records (
-  tenant_namespace, widget_revision, received_at, ordinal, payload, byte_size
-)
-SELECT
-  sqlc.arg(tenant_namespace), sqlc.arg(widget_revision), sqlc.arg(received_at),
-  (input.ordinality - 1)::integer, input.value->'payload', (input.value->>'byte_size')::integer
-FROM jsonb_array_elements(sqlc.arg(records)::jsonb) WITH ORDINALITY AS input(value, ordinality);
+DELETE FROM dashboard_latest_records
+WHERE dashboard_latest_records.tenant_namespace = sqlc.arg(tenant_namespace)
+  AND dashboard_latest_records.widget_revision = sqlc.arg(widget_revision)
+  AND dashboard_latest_records.ordinal >= jsonb_array_length(sqlc.arg(records)::jsonb)
+  AND EXISTS (SELECT 1 FROM upserted);
 
 -- name: DashboardSavePublishReplay :exec
 INSERT INTO dashboard_publish_idempotency (
@@ -221,10 +237,11 @@ SELECT set_config('statement_timeout', sqlc.arg(timeout), true);
 -- name: DashboardReserveQueryWindow :one
 INSERT INTO dashboard_query_windows (
   tenant_namespace, subject_id, window_kind, window_start, calls, cells
-) VALUES (
+) SELECT
   sqlc.arg(tenant_namespace), sqlc.arg(subject_id), sqlc.arg(window_kind),
   sqlc.arg(window_start), sqlc.arg(calls), sqlc.arg(cells)
-)
+WHERE sqlc.arg(calls) <= sqlc.arg(max_calls)::bigint
+  AND sqlc.arg(cells) <= sqlc.arg(max_cells)::bigint
 ON CONFLICT (tenant_namespace, subject_id, window_kind, window_start)
 DO UPDATE SET
   calls = dashboard_query_windows.calls + EXCLUDED.calls,
@@ -618,12 +635,30 @@ WITH widget AS (
 SELECT at, payload
 FROM source
 ORDER BY
-  CASE WHEN sqlc.arg(sort_0_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_0_index)::integer END ASC,
-  CASE WHEN NOT sqlc.arg(sort_0_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_0_index)::integer END DESC,
-  CASE WHEN sqlc.arg(sort_1_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_1_index)::integer END ASC,
-  CASE WHEN NOT sqlc.arg(sort_1_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_1_index)::integer END DESC,
-  CASE WHEN sqlc.arg(sort_2_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_2_index)::integer END ASC,
-  CASE WHEN NOT sqlc.arg(sort_2_ascending)::boolean THEN payload->'cells'->sqlc.arg(sort_2_index)::integer END DESC,
+  CASE WHEN sqlc.arg(sort_0_ascending)::boolean AND sqlc.arg(sort_0_datetime)::boolean
+    THEN (payload->'cells'->sqlc.narg(sort_0_index)::integer->>'datetime')::timestamptz END ASC,
+  CASE WHEN NOT sqlc.arg(sort_0_ascending)::boolean AND sqlc.arg(sort_0_datetime)::boolean
+    THEN (payload->'cells'->sqlc.narg(sort_0_index)::integer->>'datetime')::timestamptz END DESC,
+  CASE WHEN sqlc.arg(sort_0_ascending)::boolean AND NOT sqlc.arg(sort_0_datetime)::boolean
+    THEN payload->'cells'->sqlc.narg(sort_0_index)::integer END ASC,
+  CASE WHEN NOT sqlc.arg(sort_0_ascending)::boolean AND NOT sqlc.arg(sort_0_datetime)::boolean
+    THEN payload->'cells'->sqlc.narg(sort_0_index)::integer END DESC,
+  CASE WHEN sqlc.arg(sort_1_ascending)::boolean AND sqlc.arg(sort_1_datetime)::boolean
+    THEN (payload->'cells'->sqlc.narg(sort_1_index)::integer->>'datetime')::timestamptz END ASC,
+  CASE WHEN NOT sqlc.arg(sort_1_ascending)::boolean AND sqlc.arg(sort_1_datetime)::boolean
+    THEN (payload->'cells'->sqlc.narg(sort_1_index)::integer->>'datetime')::timestamptz END DESC,
+  CASE WHEN sqlc.arg(sort_1_ascending)::boolean AND NOT sqlc.arg(sort_1_datetime)::boolean
+    THEN payload->'cells'->sqlc.narg(sort_1_index)::integer END ASC,
+  CASE WHEN NOT sqlc.arg(sort_1_ascending)::boolean AND NOT sqlc.arg(sort_1_datetime)::boolean
+    THEN payload->'cells'->sqlc.narg(sort_1_index)::integer END DESC,
+  CASE WHEN sqlc.arg(sort_2_ascending)::boolean AND sqlc.arg(sort_2_datetime)::boolean
+    THEN (payload->'cells'->sqlc.narg(sort_2_index)::integer->>'datetime')::timestamptz END ASC,
+  CASE WHEN NOT sqlc.arg(sort_2_ascending)::boolean AND sqlc.arg(sort_2_datetime)::boolean
+    THEN (payload->'cells'->sqlc.narg(sort_2_index)::integer->>'datetime')::timestamptz END DESC,
+  CASE WHEN sqlc.arg(sort_2_ascending)::boolean AND NOT sqlc.arg(sort_2_datetime)::boolean
+    THEN payload->'cells'->sqlc.narg(sort_2_index)::integer END ASC,
+  CASE WHEN NOT sqlc.arg(sort_2_ascending)::boolean AND NOT sqlc.arg(sort_2_datetime)::boolean
+    THEN payload->'cells'->sqlc.narg(sort_2_index)::integer END DESC,
   at DESC,
   sequence DESC
 LIMIT sqlc.arg(page_size)

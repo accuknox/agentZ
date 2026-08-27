@@ -88,8 +88,8 @@ type TenantSpec struct {
 	// +optional
 	AgentQuota *AgentQuota `json:"agentQuota,omitempty"`
 
-	// DashboardQuota limits dashboard definitions, ingestion, and queries across
-	// every Workspace in this Organisation.
+	// DashboardQuota configures dashboard definition, ingestion, and query
+	// limits for Agents in this Tenant.
 	// +optional
 	DashboardQuota *DashboardQuota `json:"dashboardQuota,omitempty"`
 }
@@ -98,6 +98,7 @@ type TenantSpec struct {
 type DashboardQuota struct {
 	// DashboardsPerAgent is the maximum number of dashboards owned by one Agent.
 	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=25
 	DashboardsPerAgent int32 `json:"dashboardsPerAgent"`
 
 	// WidgetsPerDashboard is the maximum number of widgets in one dashboard.
@@ -124,14 +125,14 @@ type DashboardPublishQuota struct {
 	// +kubebuilder:validation:Minimum=1
 	RequestsPerMinutePerAgent int32 `json:"requestsPerMinutePerAgent"`
 
-	// AcceptedBytesPerDay limits accepted JSON bytes across the Organisation.
+	// AcceptedBytesPerDay limits JSON bytes accepted from one Agent per day.
 	AcceptedBytesPerDay resource.Quantity `json:"acceptedBytesPerDay"`
 
-	// TemporalRecordsPerDay limits accepted temporal records across the Organisation.
+	// TemporalRecordsPerDay limits temporal records accepted from one Agent per day.
 	// +kubebuilder:validation:Minimum=1
 	TemporalRecordsPerDay int64 `json:"temporalRecordsPerDay"`
 
-	// RetainedTemporalRecords limits retained temporal records across the Organisation.
+	// RetainedTemporalRecords limits temporal records retained in this Tenant.
 	// +kubebuilder:validation:Minimum=1
 	RetainedTemporalRecords int64 `json:"retainedTemporalRecords"`
 
@@ -145,11 +146,11 @@ type DashboardQueryQuota struct {
 	// +kubebuilder:validation:Minimum=1
 	RequestsPerMinutePerUser int32 `json:"requestsPerMinutePerUser"`
 
-	// ReturnedCellsPerHour limits returned cells across the Organisation.
+	// ReturnedCellsPerHour limits cells returned in this Tenant per hour.
 	// +kubebuilder:validation:Minimum=1
 	ReturnedCellsPerHour int64 `json:"returnedCellsPerHour"`
 
-	// ConcurrentRequests limits active queries across the Organisation.
+	// ConcurrentRequests limits active dashboard queries in this Tenant.
 	// +kubebuilder:validation:Minimum=1
 	ConcurrentRequests int32 `json:"concurrentRequests"`
 

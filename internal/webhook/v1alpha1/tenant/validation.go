@@ -39,6 +39,21 @@ type Validator struct {
 	reader client.Reader
 }
 
+type dashboardQuotaCount struct {
+	path  *field.Path
+	value int64
+}
+
+type dashboardQuotaQuantity struct {
+	path     *field.Path
+	quantity resource.Quantity
+}
+
+type dashboardQuotaDecrease struct {
+	path      *field.Path
+	decreased bool
+}
+
 var _ admission.Validator[*agentzv1alpha1.Tenant] = &Validator{}
 
 var tenantGroupKind = schema.GroupKind{
@@ -57,7 +72,7 @@ func (v *Validator) ValidateUpdate(ctx context.Context, oldObj, newObj *agentzv1
 }
 
 // ValidateDelete validates Tenant deletion.
-func (v *Validator) ValidateDelete(_ context.Context, obj *agentzv1alpha1.Tenant) (admission.Warnings, error) {
+func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.Tenant) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -109,35 +124,76 @@ func validateDashboardQuota(oldObj, newObj *agentzv1alpha1.Tenant) field.ErrorLi
 
 	quota := newObj.Spec.DashboardQuota
 	issues := field.ErrorList{}
-	positiveCounts := []struct {
-		path  *field.Path
-		value int64
-	}{
-		{path.Child("dashboardsPerAgent"), int64(quota.DashboardsPerAgent)},
-		{path.Child("widgetsPerDashboard"), int64(quota.WidgetsPerDashboard)},
-		{path.Child("publish").Child("recordsPerRequest"), int64(quota.Publish.RecordsPerRequest)},
-		{path.Child("publish").Child("requestsPerMinutePerAgent"), int64(quota.Publish.RequestsPerMinutePerAgent)},
-		{path.Child("publish").Child("temporalRecordsPerDay"), quota.Publish.TemporalRecordsPerDay},
-		{path.Child("publish").Child("retainedTemporalRecords"), quota.Publish.RetainedTemporalRecords},
-		{path.Child("query").Child("requestsPerMinutePerUser"), int64(quota.Query.RequestsPerMinutePerUser)},
-		{path.Child("query").Child("returnedCellsPerHour"), quota.Query.ReturnedCellsPerHour},
-		{path.Child("query").Child("concurrentRequests"), int64(quota.Query.ConcurrentRequests)},
-		{path.Child("query").Child("cellsPerRequest"), int64(quota.Query.CellsPerRequest)},
-		{path.Child("query").Child("pointsPerSeries"), int64(quota.Query.PointsPerSeries)},
+	positiveCounts := []dashboardQuotaCount{
+		{
+			path:  path.Child("dashboardsPerAgent"),
+			value: int64(quota.DashboardsPerAgent),
+		},
+		{
+			path:  path.Child("widgetsPerDashboard"),
+			value: int64(quota.WidgetsPerDashboard),
+		},
+		{
+			path:  path.Child("publish").Child("recordsPerRequest"),
+			value: int64(quota.Publish.RecordsPerRequest),
+		},
+		{
+			path: path.Child("publish").Child(
+				"requestsPerMinutePerAgent",
+			),
+			value: int64(quota.Publish.RequestsPerMinutePerAgent),
+		},
+		{
+			path:  path.Child("publish").Child("temporalRecordsPerDay"),
+			value: quota.Publish.TemporalRecordsPerDay,
+		},
+		{
+			path:  path.Child("publish").Child("retainedTemporalRecords"),
+			value: quota.Publish.RetainedTemporalRecords,
+		},
+		{
+			path:  path.Child("query").Child("requestsPerMinutePerUser"),
+			value: int64(quota.Query.RequestsPerMinutePerUser),
+		},
+		{
+			path:  path.Child("query").Child("returnedCellsPerHour"),
+			value: quota.Query.ReturnedCellsPerHour,
+		},
+		{
+			path:  path.Child("query").Child("concurrentRequests"),
+			value: int64(quota.Query.ConcurrentRequests),
+		},
+		{
+			path:  path.Child("query").Child("cellsPerRequest"),
+			value: int64(quota.Query.CellsPerRequest),
+		},
+		{
+			path:  path.Child("query").Child("pointsPerSeries"),
+			value: int64(quota.Query.PointsPerSeries),
+		},
 	}
 	for _, value := range positiveCounts {
 		if value.value < 1 {
 			issues = append(issues, field.Invalid(value.path, value.value, "must be at least 1"))
 		}
 	}
-	positiveQuantities := []struct {
-		path     *field.Path
-		quantity resource.Quantity
-	}{
-		{path.Child("publish").Child("requestBytes"), quota.Publish.RequestBytes},
-		{path.Child("publish").Child("acceptedBytesPerDay"), quota.Publish.AcceptedBytesPerDay},
-		{path.Child("publish").Child("latestBytesPerAgent"), quota.Publish.LatestBytesPerAgent},
-		{path.Child("query").Child("responseBytes"), quota.Query.ResponseBytes},
+	positiveQuantities := []dashboardQuotaQuantity{
+		{
+			path:     path.Child("publish").Child("requestBytes"),
+			quantity: quota.Publish.RequestBytes,
+		},
+		{
+			path:     path.Child("publish").Child("acceptedBytesPerDay"),
+			quantity: quota.Publish.AcceptedBytesPerDay,
+		},
+		{
+			path:     path.Child("publish").Child("latestBytesPerAgent"),
+			quantity: quota.Publish.LatestBytesPerAgent,
+		},
+		{
+			path:     path.Child("query").Child("responseBytes"),
+			quantity: quota.Query.ResponseBytes,
+		},
 	}
 	for _, value := range positiveQuantities {
 		if value.quantity.Sign() <= 0 {
@@ -156,26 +212,90 @@ func validateDashboardQuota(oldObj, newObj *agentzv1alpha1.Tenant) field.ErrorLi
 	}
 
 	old := oldObj.Spec.DashboardQuota
-	decreases := []struct {
-		path      *field.Path
-		decreased bool
-	}{
-		{path.Child("dashboardsPerAgent"), quota.DashboardsPerAgent < old.DashboardsPerAgent},
-		{path.Child("widgetsPerDashboard"), quota.WidgetsPerDashboard < old.WidgetsPerDashboard},
-		{path.Child("publish").Child("requestBytes"), quota.Publish.RequestBytes.Cmp(old.Publish.RequestBytes) < 0},
-		{path.Child("publish").Child("recordsPerRequest"), quota.Publish.RecordsPerRequest < old.Publish.RecordsPerRequest},
-		{path.Child("publish").Child("requestsPerMinutePerAgent"), quota.Publish.RequestsPerMinutePerAgent < old.Publish.RequestsPerMinutePerAgent},
-		{path.Child("publish").Child("acceptedBytesPerDay"), quota.Publish.AcceptedBytesPerDay.Cmp(old.Publish.AcceptedBytesPerDay) < 0},
-		{path.Child("publish").Child("temporalRecordsPerDay"), quota.Publish.TemporalRecordsPerDay < old.Publish.TemporalRecordsPerDay},
-		{path.Child("publish").Child("retainedTemporalRecords"), quota.Publish.RetainedTemporalRecords < old.Publish.RetainedTemporalRecords},
-		{path.Child("publish").Child("latestBytesPerAgent"), quota.Publish.LatestBytesPerAgent.Cmp(old.Publish.LatestBytesPerAgent) < 0},
-		{path.Child("query").Child("requestsPerMinutePerUser"), quota.Query.RequestsPerMinutePerUser < old.Query.RequestsPerMinutePerUser},
-		{path.Child("query").Child("returnedCellsPerHour"), quota.Query.ReturnedCellsPerHour < old.Query.ReturnedCellsPerHour},
-		{path.Child("query").Child("concurrentRequests"), quota.Query.ConcurrentRequests < old.Query.ConcurrentRequests},
-		{path.Child("query").Child("cellsPerRequest"), quota.Query.CellsPerRequest < old.Query.CellsPerRequest},
-		{path.Child("query").Child("responseBytes"), quota.Query.ResponseBytes.Cmp(old.Query.ResponseBytes) < 0},
-		{path.Child("query").Child("pointsPerSeries"), quota.Query.PointsPerSeries < old.Query.PointsPerSeries},
-		{path.Child("query").Child("timeout"), quota.Query.Timeout.Duration < old.Query.Timeout.Duration},
+	decreases := []dashboardQuotaDecrease{
+		{
+			path:      path.Child("dashboardsPerAgent"),
+			decreased: quota.DashboardsPerAgent < old.DashboardsPerAgent,
+		},
+		{
+			path:      path.Child("widgetsPerDashboard"),
+			decreased: quota.WidgetsPerDashboard < old.WidgetsPerDashboard,
+		},
+		{
+			path: path.Child("publish").Child("requestBytes"),
+			decreased: quota.Publish.RequestBytes.Cmp(
+				old.Publish.RequestBytes,
+			) < 0,
+		},
+		{
+			path: path.Child("publish").Child("recordsPerRequest"),
+			decreased: quota.Publish.RecordsPerRequest <
+				old.Publish.RecordsPerRequest,
+		},
+		{
+			path: path.Child("publish").Child(
+				"requestsPerMinutePerAgent",
+			),
+			decreased: quota.Publish.RequestsPerMinutePerAgent <
+				old.Publish.RequestsPerMinutePerAgent,
+		},
+		{
+			path: path.Child("publish").Child("acceptedBytesPerDay"),
+			decreased: quota.Publish.AcceptedBytesPerDay.Cmp(
+				old.Publish.AcceptedBytesPerDay,
+			) < 0,
+		},
+		{
+			path: path.Child("publish").Child("temporalRecordsPerDay"),
+			decreased: quota.Publish.TemporalRecordsPerDay <
+				old.Publish.TemporalRecordsPerDay,
+		},
+		{
+			path: path.Child("publish").Child("retainedTemporalRecords"),
+			decreased: quota.Publish.RetainedTemporalRecords <
+				old.Publish.RetainedTemporalRecords,
+		},
+		{
+			path: path.Child("publish").Child("latestBytesPerAgent"),
+			decreased: quota.Publish.LatestBytesPerAgent.Cmp(
+				old.Publish.LatestBytesPerAgent,
+			) < 0,
+		},
+		{
+			path: path.Child("query").Child("requestsPerMinutePerUser"),
+			decreased: quota.Query.RequestsPerMinutePerUser <
+				old.Query.RequestsPerMinutePerUser,
+		},
+		{
+			path: path.Child("query").Child("returnedCellsPerHour"),
+			decreased: quota.Query.ReturnedCellsPerHour <
+				old.Query.ReturnedCellsPerHour,
+		},
+		{
+			path: path.Child("query").Child("concurrentRequests"),
+			decreased: quota.Query.ConcurrentRequests <
+				old.Query.ConcurrentRequests,
+		},
+		{
+			path: path.Child("query").Child("cellsPerRequest"),
+			decreased: quota.Query.CellsPerRequest <
+				old.Query.CellsPerRequest,
+		},
+		{
+			path: path.Child("query").Child("responseBytes"),
+			decreased: quota.Query.ResponseBytes.Cmp(
+				old.Query.ResponseBytes,
+			) < 0,
+		},
+		{
+			path: path.Child("query").Child("pointsPerSeries"),
+			decreased: quota.Query.PointsPerSeries <
+				old.Query.PointsPerSeries,
+		},
+		{
+			path:      path.Child("query").Child("timeout"),
+			decreased: quota.Query.Timeout.Duration < old.Query.Timeout.Duration,
+		},
 	}
 	for _, value := range decreases {
 		if value.decreased {

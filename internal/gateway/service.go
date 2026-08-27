@@ -742,14 +742,16 @@ func (s *Service) routes() http.Handler {
 				if statusErr, ok := converted.(openapi3filter.StatusCoder); ok {
 					status = statusErr.StatusCode()
 				}
+				fields := openAPIRequestFields(err)
 				writeError(
 					w,
 					r,
 					newAPIError(
 						status,
 						"invalid_request",
-						"request is invalid",
+						"request does not match the API contract; correct the listed fields and retry",
 						err,
+						fields...,
 					),
 				)
 			},
@@ -770,6 +772,32 @@ func (s *Service) routes() http.Handler {
 	)
 	r.Mount("/", apiRouter)
 	return r
+}
+
+func openAPIRequestFields(err error) []gatewayapi.FieldError {
+	var requestErr *openapi3filter.RequestError
+	if !errors.As(err, &requestErr) {
+		return nil
+	}
+	field := "request"
+	message := requestErr.Reason
+	if requestErr.RequestBody != nil {
+		field = "body"
+	}
+	if requestErr.Parameter != nil {
+		field = requestErr.Parameter.Name
+	}
+	if schemaErr, ok := errors.AsType[*openapi3.SchemaError](requestErr); ok {
+		path := schemaErr.JSONPointer()
+		if len(path) > 0 {
+			field = strings.Join(path, ".")
+		}
+		message = schemaErr.Reason
+	}
+	if strings.TrimSpace(message) == "" {
+		message = "does not match the declared schema"
+	}
+	return []gatewayapi.FieldError{{Field: field, Message: message}}
 }
 
 func validateWebOrigins(origins []string) ([]string, error) {

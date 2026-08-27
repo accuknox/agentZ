@@ -958,6 +958,26 @@ func (q *Queries) DashboardListWidgets(ctx context.Context, arg DashboardListWid
 	return items, nil
 }
 
+const dashboardLockAgent = `-- name: DashboardLockAgent :one
+SELECT agent_name
+FROM agents
+WHERE tenant_namespace = $1
+  AND agent_name = $2
+FOR UPDATE
+`
+
+type DashboardLockAgentParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) DashboardLockAgent(ctx context.Context, arg DashboardLockAgentParams) (string, error) {
+	row := q.db.QueryRow(ctx, dashboardLockAgent, arg.TenantNamespace, arg.AgentName)
+	var agent_name string
+	err := row.Scan(&agent_name)
+	return agent_name, err
+}
+
 const dashboardLockWidget = `-- name: DashboardLockWidget :one
 SELECT
   w.revision, w.dashboard_id, w.tenant_namespace, w.position, w.name, w.title, w.kind, w.mode, w.width, w.definition, w.created_at,
@@ -1093,33 +1113,40 @@ func (q *Queries) DashboardReleaseQueryLease(ctx context.Context, arg DashboardR
 }
 
 const dashboardReplaceLatestRecords = `-- name: DashboardReplaceLatestRecords :exec
-WITH removed AS (
-  DELETE FROM dashboard_latest_records
-  WHERE tenant_namespace = $1
-    AND widget_revision = $2
+WITH upserted AS (
+  INSERT INTO dashboard_latest_records (
+    tenant_namespace, widget_revision, received_at, ordinal, payload, byte_size
+  )
+  SELECT
+    $1, $2, $4,
+    (input.ordinality - 1)::integer, input.value->'payload', (input.value->>'byte_size')::integer
+  FROM jsonb_array_elements($3::jsonb) WITH ORDINALITY AS input(value, ordinality)
+  ON CONFLICT (widget_revision, ordinal) DO UPDATE SET
+    received_at = EXCLUDED.received_at,
+    payload = EXCLUDED.payload,
+    byte_size = EXCLUDED.byte_size
+  RETURNING ordinal
 )
-INSERT INTO dashboard_latest_records (
-  tenant_namespace, widget_revision, received_at, ordinal, payload, byte_size
-)
-SELECT
-  $1, $2, $3,
-  (input.ordinality - 1)::integer, input.value->'payload', (input.value->>'byte_size')::integer
-FROM jsonb_array_elements($4::jsonb) WITH ORDINALITY AS input(value, ordinality)
+DELETE FROM dashboard_latest_records
+WHERE dashboard_latest_records.tenant_namespace = $1
+  AND dashboard_latest_records.widget_revision = $2
+  AND dashboard_latest_records.ordinal >= jsonb_array_length($3::jsonb)
+  AND EXISTS (SELECT 1 FROM upserted)
 `
 
 type DashboardReplaceLatestRecordsParams struct {
 	TenantNamespace string    `json:"tenant_namespace"`
 	WidgetRevision  uuid.UUID `json:"widget_revision"`
-	ReceivedAt      time.Time `json:"received_at"`
 	Records         []byte    `json:"records"`
+	ReceivedAt      time.Time `json:"received_at"`
 }
 
 func (q *Queries) DashboardReplaceLatestRecords(ctx context.Context, arg DashboardReplaceLatestRecordsParams) error {
 	_, err := q.db.Exec(ctx, dashboardReplaceLatestRecords,
 		arg.TenantNamespace,
 		arg.WidgetRevision,
-		arg.ReceivedAt,
 		arg.Records,
+		arg.ReceivedAt,
 	)
 	return err
 }
@@ -1130,7 +1157,7 @@ SELECT
   $1 AS tenant_namespace,
   $2 AS agent_name,
   greatest($3, 0)::bigint AS latest_bytes
-WHERE $3 <= $4
+WHERE $3 <= $4::bigint
 ON CONFLICT (tenant_namespace, agent_name)
 DO UPDATE SET
   latest_bytes = dashboard_agent_usage.latest_bytes + $3,
@@ -1140,10 +1167,10 @@ RETURNING latest_bytes
 `
 
 type DashboardReserveLatestUsageParams struct {
-	TenantNamespace string      `json:"tenant_namespace"`
-	AgentName       string      `json:"agent_name"`
-	DeltaBytes      int64       `json:"delta_bytes"`
-	MaxBytes        interface{} `json:"max_bytes"`
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	DeltaBytes      int64  `json:"delta_bytes"`
+	MaxBytes        int64  `json:"max_bytes"`
 }
 
 func (q *Queries) DashboardReserveLatestUsage(ctx context.Context, arg DashboardReserveLatestUsageParams) (int64, error) {
@@ -1161,10 +1188,12 @@ func (q *Queries) DashboardReserveLatestUsage(ctx context.Context, arg Dashboard
 const dashboardReservePublishWindow = `-- name: DashboardReservePublishWindow :one
 INSERT INTO dashboard_publish_windows (
   tenant_namespace, agent_name, window_kind, window_start, calls, records, bytes
-) VALUES (
+) SELECT
   $1, $2, $3,
   $4, $5, $6, $7
-)
+WHERE $5 <= $8::bigint
+  AND $6 <= $9::bigint
+  AND $7 <= $10::bigint
 ON CONFLICT (tenant_namespace, agent_name, window_kind, window_start)
 DO UPDATE SET
   calls = dashboard_publish_windows.calls + EXCLUDED.calls,
@@ -1216,10 +1245,11 @@ func (q *Queries) DashboardReservePublishWindow(ctx context.Context, arg Dashboa
 const dashboardReserveQueryWindow = `-- name: DashboardReserveQueryWindow :one
 INSERT INTO dashboard_query_windows (
   tenant_namespace, subject_id, window_kind, window_start, calls, cells
-) VALUES (
+) SELECT
   $1, $2, $3,
   $4, $5, $6
-)
+WHERE $5 <= $7::bigint
+  AND $6 <= $8::bigint
 ON CONFLICT (tenant_namespace, subject_id, window_kind, window_start)
 DO UPDATE SET
   calls = dashboard_query_windows.calls + EXCLUDED.calls,
@@ -1264,9 +1294,9 @@ func (q *Queries) DashboardReserveQueryWindow(ctx context.Context, arg Dashboard
 const dashboardReserveTemporalUsage = `-- name: DashboardReserveTemporalUsage :one
 INSERT INTO dashboard_tenant_usage (
   tenant_namespace, temporal_records, temporal_bytes
-) VALUES (
+) SELECT
   $1, $2, $3
-)
+WHERE $2 <= $4::bigint
 ON CONFLICT (tenant_namespace)
 DO UPDATE SET
   temporal_records = dashboard_tenant_usage.temporal_records + EXCLUDED.temporal_records,
@@ -1413,51 +1443,72 @@ const dashboardTableRows = `-- name: DashboardTableRows :many
 WITH widget AS (
   SELECT mode
   FROM dashboard_widgets w
-  WHERE w.tenant_namespace = $9
-    AND w.revision = $10
+  WHERE w.tenant_namespace = $12
+    AND w.revision = $13
 ), source AS (
   SELECT temporal.recorded_at AS at, temporal.id AS sequence, temporal.payload
   FROM dashboard_temporal_records temporal, widget
-  WHERE temporal.tenant_namespace = $9
-    AND temporal.widget_revision = $10
-    AND temporal.recorded_at >= $11
-    AND temporal.recorded_at < $12
+  WHERE temporal.tenant_namespace = $12
+    AND temporal.widget_revision = $13
+    AND temporal.recorded_at >= $14
+    AND temporal.recorded_at < $15
     AND widget.mode = 'temporal'
   UNION ALL
   SELECT latest.received_at AS at, latest.ordinal::bigint AS sequence, latest.payload
   FROM dashboard_latest_records latest, widget
-  WHERE latest.tenant_namespace = $9
-    AND latest.widget_revision = $10
+  WHERE latest.tenant_namespace = $12
+    AND latest.widget_revision = $13
     AND widget.mode = 'latest'
 )
 SELECT at, payload
 FROM source
 ORDER BY
-  CASE WHEN $1::boolean THEN payload->'cells'->$2::integer END ASC,
-  CASE WHEN NOT $1::boolean THEN payload->'cells'->$2::integer END DESC,
-  CASE WHEN $3::boolean THEN payload->'cells'->$4::integer END ASC,
-  CASE WHEN NOT $3::boolean THEN payload->'cells'->$4::integer END DESC,
-  CASE WHEN $5::boolean THEN payload->'cells'->$6::integer END ASC,
-  CASE WHEN NOT $5::boolean THEN payload->'cells'->$6::integer END DESC,
+  CASE WHEN $1::boolean AND $2::boolean
+    THEN (payload->'cells'->$3::integer->>'datetime')::timestamptz END ASC,
+  CASE WHEN NOT $1::boolean AND $2::boolean
+    THEN (payload->'cells'->$3::integer->>'datetime')::timestamptz END DESC,
+  CASE WHEN $1::boolean AND NOT $2::boolean
+    THEN payload->'cells'->$3::integer END ASC,
+  CASE WHEN NOT $1::boolean AND NOT $2::boolean
+    THEN payload->'cells'->$3::integer END DESC,
+  CASE WHEN $4::boolean AND $5::boolean
+    THEN (payload->'cells'->$6::integer->>'datetime')::timestamptz END ASC,
+  CASE WHEN NOT $4::boolean AND $5::boolean
+    THEN (payload->'cells'->$6::integer->>'datetime')::timestamptz END DESC,
+  CASE WHEN $4::boolean AND NOT $5::boolean
+    THEN payload->'cells'->$6::integer END ASC,
+  CASE WHEN NOT $4::boolean AND NOT $5::boolean
+    THEN payload->'cells'->$6::integer END DESC,
+  CASE WHEN $7::boolean AND $8::boolean
+    THEN (payload->'cells'->$9::integer->>'datetime')::timestamptz END ASC,
+  CASE WHEN NOT $7::boolean AND $8::boolean
+    THEN (payload->'cells'->$9::integer->>'datetime')::timestamptz END DESC,
+  CASE WHEN $7::boolean AND NOT $8::boolean
+    THEN payload->'cells'->$9::integer END ASC,
+  CASE WHEN NOT $7::boolean AND NOT $8::boolean
+    THEN payload->'cells'->$9::integer END DESC,
   at DESC,
   sequence DESC
-LIMIT $8
-OFFSET $7
+LIMIT $11
+OFFSET $10
 `
 
 type DashboardTableRowsParams struct {
-	Sort0Ascending  bool      `json:"sort_0_ascending"`
-	Sort0Index      int32     `json:"sort_0_index"`
-	Sort1Ascending  bool      `json:"sort_1_ascending"`
-	Sort1Index      int32     `json:"sort_1_index"`
-	Sort2Ascending  bool      `json:"sort_2_ascending"`
-	Sort2Index      int32     `json:"sort_2_index"`
-	PageOffset      int32     `json:"page_offset"`
-	PageSize        int32     `json:"page_size"`
-	TenantNamespace string    `json:"tenant_namespace"`
-	WidgetRevision  uuid.UUID `json:"widget_revision"`
-	FromTime        time.Time `json:"from_time"`
-	ToTime          time.Time `json:"to_time"`
+	Sort0Ascending  bool        `json:"sort_0_ascending"`
+	Sort0Datetime   bool        `json:"sort_0_datetime"`
+	Sort0Index      pgtype.Int4 `json:"sort_0_index"`
+	Sort1Ascending  bool        `json:"sort_1_ascending"`
+	Sort1Datetime   bool        `json:"sort_1_datetime"`
+	Sort1Index      pgtype.Int4 `json:"sort_1_index"`
+	Sort2Ascending  bool        `json:"sort_2_ascending"`
+	Sort2Datetime   bool        `json:"sort_2_datetime"`
+	Sort2Index      pgtype.Int4 `json:"sort_2_index"`
+	PageOffset      int32       `json:"page_offset"`
+	PageSize        int32       `json:"page_size"`
+	TenantNamespace string      `json:"tenant_namespace"`
+	WidgetRevision  uuid.UUID   `json:"widget_revision"`
+	FromTime        time.Time   `json:"from_time"`
+	ToTime          time.Time   `json:"to_time"`
 }
 
 type DashboardTableRowsRow struct {
@@ -1468,10 +1519,13 @@ type DashboardTableRowsRow struct {
 func (q *Queries) DashboardTableRows(ctx context.Context, arg DashboardTableRowsParams) ([]DashboardTableRowsRow, error) {
 	rows, err := q.db.Query(ctx, dashboardTableRows,
 		arg.Sort0Ascending,
+		arg.Sort0Datetime,
 		arg.Sort0Index,
 		arg.Sort1Ascending,
+		arg.Sort1Datetime,
 		arg.Sort1Index,
 		arg.Sort2Ascending,
+		arg.Sort2Datetime,
 		arg.Sort2Index,
 		arg.PageOffset,
 		arg.PageSize,

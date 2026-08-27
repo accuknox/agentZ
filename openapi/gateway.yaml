@@ -25134,6 +25134,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
         "429":
           $ref: '#/components/responses/TooManyRequests'
         "500":

@@ -4,73 +4,21 @@ import { open, realpath } from "node:fs/promises"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { TextDecoder } from "node:util"
 
-import { publishDashboardData, type PublishDashboardDataRequest, zError } from "../lib/gateway"
+import {
+  gatewayErrorOutput,
+  publishDashboardData,
+  zDashboardName,
+  zDashboardWidgetName,
+  zError,
+  zPublishDashboardDataRequest,
+} from "../lib/gateway"
 
 const maxFileBytes = 8 * 1024 * 1024
 const agentHome = process.env.AGENTZ_HOME ?? "/home/agentz"
 
-const name = tool.schema
-  .string()
-  .min(1)
-  .max(63)
-  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
-  .describe("DNS label using lowercase letters, digits, and hyphens.")
-
-const dateTime = tool.schema.iso.datetime({ offset: true })
-const recordedAt = dateTime
-  .optional()
-  .describe("Required for temporal widgets and forbidden for latest widgets.")
-
-const cell = tool.schema.union([
-  tool.schema.object({ text: tool.schema.string().max(1024) }).strict(),
-  tool.schema.object({ number: tool.schema.number() }).strict(),
-  tool.schema.object({ boolean: tool.schema.boolean() }).strict(),
-  tool.schema.object({ datetime: dateTime }).strict(),
-])
-
-const record = tool.schema.union([
-  tool.schema
-    .object({
-      recorded_at: recordedAt,
-      values: tool.schema.array(tool.schema.number()).min(1).max(5),
-    })
-    .strict(),
-  tool.schema
-    .object({
-      recorded_at: recordedAt,
-      category: tool.schema.string().min(1).max(120),
-      values: tool.schema.array(tool.schema.number()).min(1).max(5),
-    })
-    .strict(),
-  tool.schema
-    .object({
-      recorded_at: recordedAt,
-      series: tool.schema.number().int().min(0).max(4),
-      x: tool.schema.number(),
-      y: tool.schema.number(),
-      label: tool.schema.string().min(1).max(120).optional(),
-    })
-    .strict(),
-  tool.schema
-    .object({
-      source: tool.schema.string().min(1).max(120),
-      target: tool.schema.string().min(1).max(120),
-      value: tool.schema.number().positive(),
-    })
-    .strict(),
-  tool.schema
-    .object({
-      recorded_at: recordedAt,
-      cells: tool.schema.array(cell).min(1).max(12),
-    })
-    .strict(),
-])
-
-const records = tool.schema
-  .array(record)
-  .min(1)
-  .max(100)
-  .describe("Publish 1-100 small records inline when they are already in context.")
+const records = zPublishDashboardDataRequest.shape.records.describe(
+  "Publish 1-100 small records inline when they are already in context."
+)
 
 const recordInput = tool.schema.union([
   records,
@@ -91,9 +39,9 @@ const recordInput = tool.schema.union([
 
 const input = tool.schema
   .object({
-    dashboard_name: name,
-    widget_name: name,
-    data_revision: tool.schema.string().uuid(),
+    dashboard_name: zDashboardName,
+    widget_name: zDashboardWidgetName,
+    data_revision: zPublishDashboardDataRequest.shape.data_revision,
     records: recordInput,
   })
   .strict()
@@ -102,16 +50,12 @@ export default tool({
   description: `Publish one precomputed widget update. Get the dashboard first and copy the widget's current data_revision. Pass small datasets inline. For records already on disk or large enough to waste model context, pass records as {"json_file":"path"} without reading the file first. Each call still accepts 1-100 records and the configured request-byte limit. Every temporal record requires recorded_at. Latest records must omit it.`,
   args: input.shape,
   async execute(args, context) {
-    const parsed = input.safeParse(args)
-    if (!parsed.success) {
-      return parsed.error.issues
-        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-        .join("\n")
-    }
     const agentName = process.env.AGENTZ_AGENT_NAME?.trim() ?? ""
-    if (!agentName) return "AGENTZ_AGENT_NAME is not set."
+    if (!agentName) {
+      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before publishing dashboard data."
+    }
 
-    let recordsToPublish = parsed.data.records
+    let recordsToPublish = args.records
     if (!Array.isArray(recordsToPublish)) {
       let paths: [string, string, string, string]
       try {
@@ -196,29 +140,29 @@ export default tool({
     }
 
     const body = {
-      data_revision: parsed.data.data_revision,
+      data_revision: args.data_revision,
       records: recordsToPublish,
-    } satisfies PublishDashboardDataRequest
+    }
     context.metadata({
-      title: `Publish ${parsed.data.widget_name}`,
+      title: `Publish ${args.widget_name}`,
       metadata: {
-        dashboard_name: parsed.data.dashboard_name,
-        widget_name: parsed.data.widget_name,
+        dashboard_name: args.dashboard_name,
+        widget_name: args.widget_name,
         record_count: recordsToPublish.length,
       },
     })
     const result = await publishDashboardData({
       path: {
         agentName,
-        dashboardName: parsed.data.dashboard_name,
-        widgetName: parsed.data.widget_name,
+        dashboardName: args.dashboard_name,
+        widgetName: args.widget_name,
       },
       headers: {
         "Idempotency-Key": `${context.messageID}:${createHash("sha256")
           .update(
             JSON.stringify({
-              dashboard_name: parsed.data.dashboard_name,
-              widget_name: parsed.data.widget_name,
+              dashboard_name: args.dashboard_name,
+              widget_name: args.widget_name,
               ...body,
             })
           )
@@ -229,11 +173,22 @@ export default tool({
       throwOnError: false,
     })
     if (result.data) {
-      return `${result.data.replayed ? "Replayed" : "Accepted"} ${result.data.accepted_records} records for ${parsed.data.widget_name} at ${result.data.received_at}.`
+      return `${result.data.replayed ? "Replayed" : "Accepted"} ${result.data.accepted_records} records for ${args.widget_name} at ${result.data.received_at}.`
     }
     const error = zError.safeParse(result.error)
-    return error.success
-      ? `${error.data.code}: ${error.data.message}`
-      : "Dashboard publishing returned an unexpected error."
+    if (!error.success) {
+      return `Publishing ${recordsToPublish.length} records to ${args.dashboard_name}/${args.widget_name} failed because the gateway returned an invalid error response.`
+    }
+    context.metadata({
+      title: `Publish ${args.widget_name} failed`,
+      metadata: {
+        agent_name: agentName,
+        dashboard_name: args.dashboard_name,
+        widget_name: args.widget_name,
+        code: error.data.code,
+        errors: error.data.errors ?? [],
+      },
+    })
+    return `Publishing to ${args.dashboard_name}/${args.widget_name} failed.\n${gatewayErrorOutput(error.data)}`
   },
 })

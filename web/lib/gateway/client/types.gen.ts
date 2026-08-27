@@ -8617,6 +8617,10 @@ export type ListDashboardTableRowsErrors = {
    */
   404: Error
   /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
    * A dashboard rate or quota limit was reached.
    */
   429: Error

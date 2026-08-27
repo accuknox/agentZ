@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 
 import { client } from "./client/client.gen"
+import type { Error as GatewayError } from "./client/types.gen"
 
 const gatewayUrl = process.env.AGENTZ_GATEWAY_URL?.trim()
 const gatewayBaseUrl = gatewayUrl ? gatewayUrl.replace(/\/+$/, "") : "http://localhost:8090"
@@ -17,6 +18,17 @@ client.setConfig({
   },
   baseUrl: gatewayBaseUrl,
 })
+
+export function gatewayErrorOutput(error: GatewayError): string {
+  const lines = [`${error.code}: ${error.message}`]
+  for (const field of error.errors ?? []) {
+    lines.push(`${field.field}: ${field.message}`)
+  }
+  if (error.details !== undefined) {
+    lines.push(`details: ${JSON.stringify(error.details)}`)
+  }
+  return lines.join("\n")
+}
 
 export {
   createDashboard,
@@ -40,6 +52,7 @@ export {
   type CreateWorkflowRequest,
   type Dashboard,
   type DashboardDataRecord,
+  type DashboardSummary,
   type DashboardWidgetDefinition,
   type DeleteWorkflowScheduleResponse,
   type DeleteWorkflowsRequest,
@@ -55,4 +68,10 @@ export {
   type WorkflowSchedule,
   type WorkflowSummary,
 } from "./client"
-export { zError } from "./client/zod.gen"
+export {
+  zCreateDashboardRequest,
+  zDashboardName,
+  zDashboardWidgetName,
+  zError,
+  zPublishDashboardDataRequest,
+} from "./client/zod.gen"

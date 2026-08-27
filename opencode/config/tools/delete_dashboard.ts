@@ -1,20 +1,18 @@
 import { tool } from "@opencode-ai/plugin"
 
-import { deleteDashboard, zError } from "../lib/gateway"
+import { deleteDashboard, gatewayErrorOutput, zDashboardName, zError } from "../lib/gateway"
 
 export default tool({
   description:
     "Delete a dashboard definition and all of its data. Use this to replace an immutable definition or repair corrupt stored data.",
   args: {
-    dashboard_name: tool.schema
-      .string()
-      .min(1)
-      .max(63)
-      .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
+    dashboard_name: zDashboardName,
   },
   async execute(args, context) {
     const agentName = process.env.AGENTZ_AGENT_NAME?.trim() ?? ""
-    if (!agentName) return "AGENTZ_AGENT_NAME is not set."
+    if (!agentName) {
+      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before deleting a dashboard."
+    }
     await context.ask({
       permission: "dashboard.delete",
       patterns: [args.dashboard_name],
@@ -27,8 +25,18 @@ export default tool({
     })
     if (!result.error) return `Deleted dashboard ${args.dashboard_name}.`
     const error = zError.safeParse(result.error)
-    return error.success
-      ? `${error.data.code}: ${error.data.message}`
-      : "Dashboard deletion returned an unexpected error."
+    if (!error.success) {
+      return `Deleting dashboard ${args.dashboard_name} for agent ${agentName} failed because the gateway returned an invalid error response.`
+    }
+    context.metadata({
+      title: `Delete dashboard ${args.dashboard_name} failed`,
+      metadata: {
+        agent_name: agentName,
+        dashboard_name: args.dashboard_name,
+        code: error.data.code,
+        errors: error.data.errors ?? [],
+      },
+    })
+    return `Deleting dashboard ${args.dashboard_name} for agent ${agentName} failed.\n${gatewayErrorOutput(error.data)}`
   },
 })

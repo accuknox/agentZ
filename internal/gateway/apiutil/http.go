@@ -3,6 +3,7 @@ package apiutil
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -109,6 +110,10 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty 
 			"payload_too_large",
 			"request body exceeds the configured limit",
 			err,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: fmt.Sprintf("must not exceed %d bytes", maxBytesErr.Limit),
+			},
 		)
 	}
 	if err != nil {

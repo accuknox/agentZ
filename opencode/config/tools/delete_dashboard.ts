@@ -11,7 +11,9 @@ export default tool({
   async execute(args, context) {
     const agentName = process.env.AGENTZ_AGENT_NAME?.trim() ?? ""
     if (!agentName) {
-      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before deleting a dashboard."
+      throw new Error(
+        "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before deleting a dashboard."
+      )
     }
     await context.ask({
       permission: "dashboard.delete",
@@ -26,7 +28,9 @@ export default tool({
     if (!result.error) return `Deleted dashboard ${args.dashboard_name}.`
     const error = zError.safeParse(result.error)
     if (!error.success) {
-      return `Deleting dashboard ${args.dashboard_name} for agent ${agentName} failed because the gateway returned an invalid error response.`
+      throw new Error(
+        `Deleting dashboard ${args.dashboard_name} for agent ${agentName} failed because the gateway returned an invalid error response.`
+      )
     }
     context.metadata({
       title: `Delete dashboard ${args.dashboard_name} failed`,
@@ -37,6 +41,8 @@ export default tool({
         errors: error.data.errors ?? [],
       },
     })
-    return `Deleting dashboard ${args.dashboard_name} for agent ${agentName} failed.\n${gatewayErrorOutput(error.data)}`
+    throw new Error(
+      `Deleting dashboard ${args.dashboard_name} for agent ${agentName} failed.\n${gatewayErrorOutput(error.data)}`
+    )
   },
 })

@@ -15,7 +15,9 @@ export default tool({
   async execute(args, context) {
     const agentName = process.env.AGENTZ_AGENT_NAME?.trim() ?? ""
     if (!agentName) {
-      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before creating a dashboard."
+      throw new Error(
+        "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before creating a dashboard."
+      )
     }
     const body = args
     context.metadata({
@@ -39,7 +41,9 @@ export default tool({
     }
     const error = zError.safeParse(result.error)
     if (!error.success) {
-      return `Creating dashboard ${body.name} for agent ${agentName} failed because the gateway returned an invalid error response.`
+      throw new Error(
+        `Creating dashboard ${body.name} for agent ${agentName} failed because the gateway returned an invalid error response.`
+      )
     }
     context.metadata({
       title: `Create dashboard ${body.name} failed`,
@@ -50,6 +54,8 @@ export default tool({
         errors: error.data.errors ?? [],
       },
     })
-    return `Creating dashboard ${body.name} for agent ${agentName} failed.\n${gatewayErrorOutput(error.data)}`
+    throw new Error(
+      `Creating dashboard ${body.name} for agent ${agentName} failed.\n${gatewayErrorOutput(error.data)}`
+    )
   },
 })

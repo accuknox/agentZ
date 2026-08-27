@@ -14,7 +14,9 @@ export default tool({
   async execute(_args, context) {
     const agentName = process.env.AGENTZ_AGENT_NAME?.trim() ?? ""
     if (!agentName) {
-      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before listing dashboards."
+      throw new Error(
+        "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before listing dashboards."
+      )
     }
     context.metadata({ title: "List dashboards", metadata: { agent_name: agentName } })
     const dashboards: DashboardSummary[] = []
@@ -28,7 +30,9 @@ export default tool({
       if (!result.data) {
         const error = zError.safeParse(result.error)
         if (!error.success) {
-          return `Listing dashboards for agent ${agentName} failed because the gateway returned an invalid error response.`
+          throw new Error(
+            `Listing dashboards for agent ${agentName} failed because the gateway returned an invalid error response.`
+          )
         }
         context.metadata({
           title: "List dashboards failed",
@@ -38,7 +42,9 @@ export default tool({
             errors: error.data.errors ?? [],
           },
         })
-        return `Listing dashboards for agent ${agentName} failed.\n${gatewayErrorOutput(error.data)}`
+        throw new Error(
+          `Listing dashboards for agent ${agentName} failed.\n${gatewayErrorOutput(error.data)}`
+        )
       }
       dashboards.push(...result.data.dashboards)
       pageToken = result.data.next_page_token || undefined

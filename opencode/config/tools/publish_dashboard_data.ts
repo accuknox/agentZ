@@ -52,8 +52,18 @@ export default tool({
   async execute(args, context) {
     const agentName = process.env.AGENTZ_AGENT_NAME?.trim() ?? ""
     if (!agentName) {
-      return "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before publishing dashboard data."
+      throw new Error(
+        "AGENTZ_AGENT_NAME is not set. Configure the agent runtime before publishing dashboard data."
+      )
     }
+    context.metadata({
+      title: `Publish ${args.widget_name}`,
+      metadata: {
+        agent_name: agentName,
+        dashboard_name: args.dashboard_name,
+        widget_name: args.widget_name,
+      },
+    })
 
     let recordsToPublish = args.records
     if (!Array.isArray(recordsToPublish)) {
@@ -67,13 +77,13 @@ export default tool({
         ])
       } catch {
         context.abort.throwIfAborted()
-        return "records.json_file: file does not exist or is not accessible."
+        throw new Error("records.json_file: file does not exist or is not accessible.")
       }
 
       const [homePath, path, directoryPath, worktreePath] = paths
       const withinHome = relative(homePath, path)
       if (withinHome === "" || withinHome === ".." || withinHome.startsWith(`..${sep}`)) {
-        return "records.json_file: file must be below the agent home directory."
+        throw new Error("records.json_file: file must be below the agent home directory.")
       }
 
       const fromDirectory = relative(directoryPath, path)
@@ -99,42 +109,56 @@ export default tool({
         metadata: {},
       })
 
+      const file = await open(path, "r").catch(() => {
+        context.abort.throwIfAborted()
+        throw new Error("records.json_file: file could not be read.")
+      })
       let bytes: Buffer
       try {
-        const file = await open(path, "r")
-        try {
-          const info = await file.stat()
-          if (!info.isFile()) return "records.json_file: path is not a regular file."
-          if (info.size > maxFileBytes) return "records.json_file: file exceeds 8 MiB."
-          bytes = await file.readFile({ signal: context.abort })
-        } finally {
-          await file.close()
+        const info = await file.stat().catch(() => {
+          context.abort.throwIfAborted()
+          throw new Error("records.json_file: file could not be read.")
+        })
+        if (!info.isFile()) {
+          throw new Error("records.json_file: path is not a regular file.")
         }
-      } catch {
-        context.abort.throwIfAborted()
-        return "records.json_file: file could not be read."
+        if (info.size > maxFileBytes) {
+          throw new Error("records.json_file: file exceeds 8 MiB.")
+        }
+        try {
+          bytes = await file.readFile({ signal: context.abort })
+        } catch {
+          context.abort.throwIfAborted()
+          throw new Error("records.json_file: file could not be read.")
+        }
+      } finally {
+        await file.close()
       }
-      if (bytes.byteLength > maxFileBytes) return "records.json_file: file exceeds 8 MiB."
+      if (bytes.byteLength > maxFileBytes) {
+        throw new Error("records.json_file: file exceeds 8 MiB.")
+      }
 
       let contents: string
       try {
         contents = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
       } catch {
-        return "records.json_file: file is not valid UTF-8."
+        throw new Error("records.json_file: file is not valid UTF-8.")
       }
 
       let value: unknown
       try {
         value = JSON.parse(contents)
       } catch {
-        return "records.json_file: file is not valid JSON."
+        throw new Error("records.json_file: file is not valid JSON.")
       }
 
       const result = records.safeParse(value)
       if (!result.success) {
-        return result.error.issues
-          .map((issue) => `${["records", ...issue.path].join(".")}: ${issue.message}`)
-          .join("\n")
+        throw new Error(
+          result.error.issues
+            .map((issue) => `${["records", ...issue.path].join(".")}: ${issue.message}`)
+            .join("\n")
+        )
       }
       recordsToPublish = result.data
     }
@@ -146,6 +170,7 @@ export default tool({
     context.metadata({
       title: `Publish ${args.widget_name}`,
       metadata: {
+        agent_name: agentName,
         dashboard_name: args.dashboard_name,
         widget_name: args.widget_name,
         record_count: recordsToPublish.length,
@@ -177,7 +202,9 @@ export default tool({
     }
     const error = zError.safeParse(result.error)
     if (!error.success) {
-      return `Publishing ${recordsToPublish.length} records to ${args.dashboard_name}/${args.widget_name} failed because the gateway returned an invalid error response.`
+      throw new Error(
+        `Publishing ${recordsToPublish.length} records to ${args.dashboard_name}/${args.widget_name} failed because the gateway returned an invalid error response.`
+      )
     }
     context.metadata({
       title: `Publish ${args.widget_name} failed`,
@@ -185,10 +212,13 @@ export default tool({
         agent_name: agentName,
         dashboard_name: args.dashboard_name,
         widget_name: args.widget_name,
+        record_count: recordsToPublish.length,
         code: error.data.code,
         errors: error.data.errors ?? [],
       },
     })
-    return `Publishing to ${args.dashboard_name}/${args.widget_name} failed.\n${gatewayErrorOutput(error.data)}`
+    throw new Error(
+      `Publishing to ${args.dashboard_name}/${args.widget_name} failed.\n${gatewayErrorOutput(error.data)}`
+    )
   },
 })

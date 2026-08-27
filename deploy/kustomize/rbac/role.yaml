@@ -51,17 +51,22 @@ rules:
   - agents
   verbs:
   - create
+  - create-dashboard
   - create-workflow
   - create-workflow-schedule
   - delete
+  - delete-dashboard
   - delete-workflow-schedule
   - delete-workflows
   - get
+  - get-dashboard
   - get-workflow
   - list
+  - list-dashboards
   - list-workflow-schedules
   - list-workflows
   - patch
+  - publish-dashboard-data
   - set-workflowrun-status
   - update
   - update-workflow-schedule

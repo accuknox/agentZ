@@ -60,7 +60,7 @@ type Reconciler struct {
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=get;list;watch;patch;update
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=create-workflow;create-workflow-schedule;delete-workflow-schedule;delete-workflows;get-workflow;list-workflow-schedules;list-workflows;set-workflowrun-status;update-workflow-schedule
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents,verbs=create-dashboard;create-workflow;create-workflow-schedule;delete-dashboard;delete-workflow-schedule;delete-workflows;get-dashboard;get-workflow;list-dashboards;list-workflow-schedules;list-workflows;publish-dashboard-data;set-workflowrun-status;update-workflow-schedule
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents/finalizers,verbs=update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch

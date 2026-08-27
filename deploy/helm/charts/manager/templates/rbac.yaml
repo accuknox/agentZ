@@ -38,7 +38,24 @@ rules:
     verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents"]
-    verbs: ["create", "create-workflow", "create-workflow-schedule", "delete", "delete-workflow-schedule", "delete-workflows", "get", "get-workflow", "list", "list-workflow-schedules", "list-workflows", "patch", "set-workflowrun-status", "update", "update-workflow-schedule", "watch"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["agentz.accuknox.com"]
+    resources: ["agents"]
+    verbs:
+      - create-dashboard
+      - create-workflow
+      - create-workflow-schedule
+      - delete-dashboard
+      - delete-workflow-schedule
+      - delete-workflows
+      - get-dashboard
+      - get-workflow
+      - list-dashboards
+      - list-workflow-schedules
+      - list-workflows
+      - publish-dashboard-data
+      - set-workflowrun-status
+      - update-workflow-schedule
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["inferencepools", "inferenceproviders", "sandboxes"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]

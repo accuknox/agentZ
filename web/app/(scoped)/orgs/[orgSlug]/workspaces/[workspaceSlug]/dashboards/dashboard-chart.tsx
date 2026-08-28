@@ -109,7 +109,7 @@ export function DashboardChart({
             </defs>
             <CartesianGrid strokeDasharray="3 5" vertical={false} />
             <XAxis {...axis} dataKey="at" minTickGap={28} tickMargin={10} />
-            <YAxis {...axis} tickMargin={8} width={40} />
+            <YAxis {...axis} tickMargin={8} width="auto" />
             <ChartTooltip isAnimationActive={false} />
             <Legend {...legend} />
             {widget.series.map((series, index) => (
@@ -134,7 +134,7 @@ export function DashboardChart({
         <LineChart data={data} margin={{ left: 0, right: 12, top: 8 }}>
           <CartesianGrid strokeDasharray="3 5" vertical={false} />
           <XAxis {...axis} dataKey="at" minTickGap={28} tickMargin={10} />
-          <YAxis {...axis} tickMargin={8} width={40} />
+          <YAxis {...axis} tickMargin={8} width="auto" />
           <ChartTooltip isAnimationActive={false} />
           <Legend {...legend} />
           {widget.series.map((series, index) => (
@@ -221,7 +221,7 @@ export function DashboardChart({
           ) : (
             <>
               <XAxis {...axis} dataKey="category" tickMargin={10} />
-              <YAxis {...axis} tickMargin={8} width={40} />
+              <YAxis {...axis} tickMargin={8} width="auto" />
             </>
           )}
           <ChartTooltip isAnimationActive={false} />

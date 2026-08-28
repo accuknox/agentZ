@@ -62,26 +62,8 @@ export function SignUpForm({
 }: SignUpFormProps) {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState<"password" | SocialProvider>()
-  const [passwordActionError, setPasswordActionError] = React.useState<string | undefined>(() => {
-    if (!routeError) {
-      return
-    }
-
-    if (routeProvider && providers.includes(routeProvider)) {
-      return
-    }
-
-    return authErrorMessages[routeError]
-  })
-  const [providerErrors, setProviderErrors] = React.useState<
-    Partial<Record<SocialProvider, string>>
-  >(() => {
-    if (!routeError || !routeProvider || !providers.includes(routeProvider)) {
-      return {}
-    }
-
-    return { [routeProvider]: authErrorMessages[routeError] }
-  })
+  const [passwordActionError, setPasswordActionError] = React.useState<string>()
+  const [routeErrorVisible, setRouteErrorVisible] = React.useState(true)
   const { clearErrors, control, handleSubmit, setError } = useForm<SignUpValues>({
     criteriaMode: "all",
     resolver: zodResolver(signUpSchema),
@@ -95,32 +77,10 @@ export function SignUpForm({
     reValidateMode: "onBlur",
   })
 
-  function clearPasswordAction(): void {
-    setPasswordActionError(undefined)
-  }
-
-  function clearProviderAction(provider?: SocialProvider): void {
-    if (!provider) {
-      setProviderErrors({})
-      return
-    }
-
-    setProviderErrors((current) => {
-      if (!current[provider]) {
-        return current
-      }
-
-      return {
-        ...current,
-        [provider]: undefined,
-      }
-    })
-  }
-
   function submit(values: SignUpValues): void {
     setPendingAction("password")
-    clearPasswordAction()
-    clearProviderAction()
+    setPasswordActionError(undefined)
+    setRouteErrorVisible(false)
     startTransition(async () => {
       const result = await authClient.signUp.email({
         callbackURL: returnTo ?? "/",
@@ -163,6 +123,12 @@ export function SignUpForm({
   const pendingProvider =
     pendingAction === "github" || pendingAction === "google" ? pendingAction : undefined
   const locked = pendingAction !== undefined
+  const providerErrors =
+    routeErrorVisible && routeError && routeProvider && providers.includes(routeProvider)
+      ? { [routeProvider]: authErrorMessages[routeError] }
+      : undefined
+  const pageError =
+    routeErrorVisible && routeError && !providerErrors ? authErrorMessages[routeError] : undefined
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
@@ -176,6 +142,7 @@ export function SignUpForm({
         />
         <span className="text-foreground text-3xl font-semibold tracking-tight">AgentZ</span>
       </div>
+      {pageError ? <FieldError className="text-center">{pageError}</FieldError> : null}
       {showPasswordAuth ? (
         <form
           className="flex flex-col gap-5"
@@ -306,8 +273,8 @@ export function SignUpForm({
             pendingProvider={pendingProvider}
             onPendingChangeAction={(provider) => {
               setPendingAction(provider)
-              clearPasswordAction()
-              clearProviderAction(provider)
+              setPasswordActionError(undefined)
+              setRouteErrorVisible(false)
             }}
           />
         </div>

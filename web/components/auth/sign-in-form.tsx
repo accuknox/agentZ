@@ -53,29 +53,8 @@ export function SignInForm({
 }: SignInFormProps) {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState<"password" | SocialProvider>()
-  const [routeCredentialErrorVisible, setRouteCredentialErrorVisible] = React.useState(
-    routeError === "invalid_email_or_password"
-  )
-  const [passwordActionError, setPasswordActionError] = React.useState<string | undefined>(() => {
-    if (!routeError || routeError === "invalid_email_or_password") {
-      return
-    }
-
-    if (routeProvider && providers.includes(routeProvider)) {
-      return
-    }
-
-    return authErrorMessages[routeError]
-  })
-  const [providerErrors, setProviderErrors] = React.useState<
-    Partial<Record<SocialProvider, string>>
-  >(() => {
-    if (!routeError || !routeProvider || !providers.includes(routeProvider)) {
-      return {}
-    }
-
-    return { [routeProvider]: authErrorMessages[routeError] }
-  })
+  const [passwordActionError, setPasswordActionError] = React.useState<string>()
+  const [routeErrorVisible, setRouteErrorVisible] = React.useState(true)
   const { control, clearErrors, formState, handleSubmit, setError } = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
@@ -86,42 +65,19 @@ export function SignInForm({
     reValidateMode: "onBlur",
   })
 
-  function clearPasswordAction(): void {
-    setPasswordActionError(undefined)
-    setRouteCredentialErrorVisible(false)
-  }
-
-  function clearProviderAction(provider?: SocialProvider): void {
-    if (!provider) {
-      setProviderErrors({})
-      return
-    }
-
-    setProviderErrors((current) => {
-      if (!current[provider]) {
-        return current
-      }
-
-      return {
-        ...current,
-        [provider]: undefined,
-      }
-    })
-  }
-
   function clearCredentialFieldErrors(): void {
     if (!formState.errors.email && !formState.errors.password && !routeCredentialErrorVisible) {
       return
     }
 
     clearErrors(["email", "password"])
-    setRouteCredentialErrorVisible(false)
+    setRouteErrorVisible(false)
   }
 
   function submit(values: SignInValues): void {
     setPendingAction("password")
-    clearPasswordAction()
-    clearProviderAction()
+    setPasswordActionError(undefined)
+    setRouteErrorVisible(false)
     startTransition(async () => {
       const result = await authClient.signIn.email({
         callbackURL: returnTo ?? "/",
@@ -176,6 +132,16 @@ export function SignInForm({
   const pendingProvider =
     pendingAction === "github" || pendingAction === "google" ? pendingAction : undefined
   const locked = pendingAction !== undefined
+  const routeCredentialErrorVisible =
+    routeErrorVisible && showPasswordAuth && routeError === "invalid_email_or_password"
+  const providerErrors =
+    routeErrorVisible && routeError && routeProvider && providers.includes(routeProvider)
+      ? { [routeProvider]: authErrorMessages[routeError] }
+      : undefined
+  const pageError =
+    routeErrorVisible && routeError && !routeCredentialErrorVisible && !providerErrors
+      ? authErrorMessages[routeError]
+      : undefined
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
@@ -189,6 +155,7 @@ export function SignInForm({
         />
         <span className="text-foreground text-3xl font-semibold tracking-tight">AgentZ</span>
       </div>
+      {pageError ? <FieldError className="text-center">{pageError}</FieldError> : null}
       {showPasswordAuth ? (
         <form
           className="flex flex-col gap-5"
@@ -290,8 +257,8 @@ export function SignInForm({
             pendingProvider={pendingProvider}
             onPendingChangeAction={(provider) => {
               setPendingAction(provider)
-              clearPasswordAction()
-              clearProviderAction(provider)
+              setPasswordActionError(undefined)
+              setRouteErrorVisible(false)
             }}
           />
         </div>

@@ -6,7 +6,7 @@ import { Mail } from "lucide-react"
 import { ErrorState } from "@/components/error-state"
 import { AdministrationPageHeader } from "@/components/administration"
 import { headers } from "next/headers"
-import { authErrorSchema, socialProviderSchema, type AuthError } from "@/app/(auth)/shared"
+import { authErrorParamSchema, socialProviderSchema, type AuthError } from "@/app/(auth)/shared"
 import { getAuth } from "@/lib/auth"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { PasswordSettings } from "./password-settings"
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 const accountManage2FASchema = z.enum(["disable", "enable"])
 
 const accountSearchParamsSchema = z.object({
-  error: searchParamStringSchema.pipe(authErrorSchema.optional()).catch(undefined),
+  error: authErrorParamSchema,
   manage2fa: searchParamStringSchema.pipe(accountManage2FASchema.optional()).catch(undefined),
   provider: searchParamStringSchema.pipe(socialProviderSchema.optional()).catch(undefined),
 })

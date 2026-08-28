@@ -13,10 +13,18 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import {
+  Activity,
   Bot,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
+  CirclePause,
+  Layers3,
+  ListFilter,
+  LoaderCircle,
   Plus,
+  RotateCcw,
+  Rows3,
   Search,
   Settings2,
   SquarePen,
@@ -447,7 +455,10 @@ function NavSessionsContent({
             >
               <Settings2 aria-hidden="true" />
               {activeFilterCount > 0 ? (
-                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold">
+                <span
+                  aria-hidden="true"
+                  className="bg-primary text-primary-foreground pointer-events-none absolute -top-1 -right-1 z-10 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold"
+                >
                   {activeFilterCount}
                 </span>
               ) : null}
@@ -457,6 +468,7 @@ function NavSessionsContent({
             <DropdownMenuGroup>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
+                  <Layers3 aria-hidden="true" className="text-muted-foreground" />
                   <span className="min-w-0 flex-1">Group by</span>
                   <span className="text-muted-foreground truncate capitalize">
                     {preferences.group_by === "status" ? "State" : preferences.group_by}
@@ -470,6 +482,7 @@ function NavSessionsContent({
                       }
                       value="date"
                     >
+                      <CalendarDays aria-hidden="true" />
                       Date
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem
@@ -478,6 +491,7 @@ function NavSessionsContent({
                       }
                       value="agent"
                     >
+                      <Bot aria-hidden="true" />
                       Agent
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem
@@ -486,6 +500,7 @@ function NavSessionsContent({
                       }
                       value="status"
                     >
+                      <Activity aria-hidden="true" />
                       State
                     </DropdownMenuRadioItem>
                     <DropdownMenuSeparator />
@@ -495,6 +510,7 @@ function NavSessionsContent({
                       }
                       value="none"
                     >
+                      <Rows3 aria-hidden="true" />
                       None
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
@@ -502,10 +518,18 @@ function NavSessionsContent({
               </DropdownMenuSub>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  <span className="min-w-0 flex-1">Filters</span>
-                  <span className="text-muted-foreground truncate">
-                    {activeFilterCount === 0 ? "None" : `${activeFilterCount} active`}
+                  <ListFilter aria-hidden="true" className="text-muted-foreground" />
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    Filters
+                    {activeFilterCount > 0 ? (
+                      <span className="bg-foreground/10 text-muted-foreground grid h-4 min-w-4 place-items-center rounded px-1 text-[10px] font-medium tabular-nums">
+                        {activeFilterCount}
+                      </span>
+                    ) : null}
                   </span>
+                  {activeFilterCount === 0 ? (
+                    <span className="text-muted-foreground">None</span>
+                  ) : null}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent
                   className="max-h-[calc(100dvh-1rem)] w-72 overflow-y-auto p-3"
@@ -832,6 +856,21 @@ function SessionGroup({
             type="button"
           >
             {group.group_by === "agent" ? <AgentBadge status={agentStatus} /> : null}
+            {group.group_by === "date" ? (
+              <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
+            ) : null}
+            {group.status === "busy" ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="text-primary size-4 shrink-0 motion-safe:animate-spin"
+              />
+            ) : null}
+            {group.status === "retry" ? (
+              <RotateCcw aria-hidden="true" className="text-destructive size-4 shrink-0" />
+            ) : null}
+            {group.status === "idle" ? (
+              <CirclePause aria-hidden="true" className="text-primary size-4 shrink-0" />
+            ) : null}
             <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
             <ChevronRight
               aria-hidden="true"
@@ -955,9 +994,7 @@ function SessionListSkeleton({
           <div key={`group-${groupIndex}`}>
             <div className="flex h-8 items-center rounded-md">
               <div className="flex h-full min-w-0 flex-1 items-center gap-2 px-[var(--sidebar-row-content-inset)]">
-                {groupBy === "agent" ? (
-                  <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
-                ) : null}
+                <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
                 <div className="min-w-0 flex-1">
                   <Skeleton className="bg-sidebar-border h-4 w-24" />
                 </div>

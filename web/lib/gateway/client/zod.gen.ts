@@ -2568,7 +2568,7 @@ export const zChatSessionLimitQuery = z.int().gte(1).lte(50).default(10)
 /**
  * Case-insensitive literal substring matched against session titles.
  */
-export const zChatSessionSearchQuery = z.string().max(200)
+export const zChatSessionSearchQuery = z.string().min(3).max(200)
 
 /**
  * Server-side grouping applied after all inbox filters.

@@ -281,6 +281,8 @@ function NavSessionsContent({
   const [dateBoundary, setDateBoundary] = useState(0)
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
   const searchInput = useRef<HTMLInputElement>(null)
+  const trimmedSearch = searchText.trim()
+  const searchLength = Array.from(trimmedSearch).length
   const sessionPrefix = `${workspacePath}/agents/`
   const sessionPath = path.startsWith(sessionPrefix)
     ? path.slice(sessionPrefix.length).split("/")
@@ -301,15 +303,17 @@ function NavSessionsContent({
   }, [searchOpen])
 
   useEffect(() => {
-    const value = searchText.trim()
     const timer = window.setTimeout(
-      () => setSearch(value.length === 0 || value.length >= 3 ? value : ""),
+      () =>
+        setSearch(
+          searchLength === 0 || (searchLength >= 3 && searchLength <= 200) ? trimmedSearch : ""
+        ),
       250
     )
     return () => window.clearTimeout(timer)
-  }, [searchText])
+  }, [searchLength, trimmedSearch])
 
-  const querySearch = searchText.trim() === search ? search : ""
+  const querySearch = trimmedSearch === search ? search : ""
   const preferenceKey = chatSessionKeys.preference(workspaceId)
   const preference = useQuery({
     ...queryOptions({
@@ -350,11 +354,15 @@ function NavSessionsContent({
       activeSessionId
     ),
     enabled:
-      searchText.trim() === querySearch &&
-      (searchText.trim().length === 0 || querySearch.length >= 3) &&
+      trimmedSearch === querySearch &&
+      (searchLength === 0 || (searchLength >= 3 && searchLength <= 200)) &&
       (preferences.group_by !== "date" || timeZone !== ""),
     initialData:
-      matchesInitialPreferences && querySearch === "" && preferences.group_by !== "date"
+      matchesInitialPreferences &&
+      querySearch === "" &&
+      preferences.group_by !== "date" &&
+      activeAgentName === undefined &&
+      activeSessionId === undefined
         ? { pages: [initialSessions], pageParams: [undefined] }
         : undefined,
   })
@@ -412,8 +420,10 @@ function NavSessionsContent({
     (preferences.agent_name ? 1 : 0) +
     preferences.participant_user_ids.length +
     (preferences.include_workflow_runs ? 1 : 0)
-  const searchTooShort = searchText.trim().length > 0 && searchText.trim().length < 3
-  const searchSettling = searchText.trim().length >= 3 && searchText.trim() !== querySearch
+  const searchTooShort = searchLength > 0 && searchLength < 3
+  const searchTooLong = searchLength > 200
+  const searchInvalid = searchTooShort || searchTooLong
+  const searchSettling = searchLength >= 3 && searchLength <= 200 && trimmedSearch !== querySearch
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -657,7 +667,9 @@ function NavSessionsContent({
       ) : null}
 
       <div
-        aria-busy={sessions.isPending || searchSettling || sessions.isFetchingNextPage}
+        aria-busy={
+          !searchInvalid && (sessions.isPending || searchSettling || sessions.isFetchingNextPage)
+        }
         className="min-h-0 flex-1 overflow-y-auto px-[var(--sidebar-content-inset)] pb-2"
         id="chat-session-results"
       >
@@ -666,16 +678,18 @@ function NavSessionsContent({
             Type at least 3 characters
           </p>
         ) : null}
-        {!searchTooShort && (sessions.isPending || searchSettling) ? (
-          <SessionListSkeleton
-            groupBy={preferences.group_by}
-            searching={searchText.trim().length >= 3}
-          />
+        {searchTooLong ? (
+          <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">
+            Search cannot exceed 200 characters
+          </p>
         ) : null}
-        {!searchTooShort && !sessions.isPending && !searchSettling && sessions.isError ? (
+        {!searchInvalid && (sessions.isPending || searchSettling) ? (
+          <SessionListSkeleton groupBy={preferences.group_by} searching={searchLength >= 3} />
+        ) : null}
+        {!searchInvalid && !sessions.isPending && !searchSettling && sessions.isError ? (
           <p className="text-destructive px-1 py-3 text-sm">Could not load chats</p>
         ) : null}
-        {!searchTooShort &&
+        {!searchInvalid &&
         !sessions.isPending &&
         !searchSettling &&
         preferences.group_by === "none" &&
@@ -686,7 +700,7 @@ function NavSessionsContent({
           </div>
         ) : null}
         <ul className="flex min-w-0 flex-col gap-0.5">
-          {preferences.group_by === "none" && !searchTooShort && !searchSettling
+          {preferences.group_by === "none" && !searchInvalid && !searchSettling
             ? rows.map((session) => (
                 <SessionCard
                   key={`${session.agent_name}:${session.session_id}`}
@@ -697,18 +711,18 @@ function NavSessionsContent({
                 />
               ))
             : null}
-          {preferences.group_by === "none" && sessions.isFetchingNextPage
+          {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage
             ? Array.from({ length: 2 }, (_, index) => (
                 <SessionCardSkeleton key={`next-session-${index}`} showAgent />
               ))
             : null}
         </ul>
-        {preferences.group_by === "none" && sessions.isFetchingNextPage ? (
+        {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage ? (
           <span className="sr-only" role="status">
             Loading more chats
           </span>
         ) : null}
-        {preferences.group_by !== "none" && !searchTooShort && !searchSettling
+        {preferences.group_by !== "none" && !searchInvalid && !searchSettling
           ? groups.map((group) => (
               <SessionGroup
                 activeAgentName={activeAgentName}
@@ -740,6 +754,7 @@ function NavSessionsContent({
             ))
           : null}
         {!sessions.isPending &&
+        !searchInvalid &&
         !searchSettling &&
         preferences.group_by !== "none" &&
         groups.length === 0 ? (
@@ -748,7 +763,10 @@ function NavSessionsContent({
             No chats found
           </div>
         ) : null}
-        {preferences.group_by === "none" && !searchSettling && sessions.hasNextPage ? (
+        {preferences.group_by === "none" &&
+        !searchInvalid &&
+        !searchSettling &&
+        sessions.hasNextPage ? (
           <Button
             className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground mt-2 w-full"
             disabled={sessions.isFetchingNextPage}

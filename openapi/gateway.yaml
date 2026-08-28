@@ -121,6 +121,7 @@ components:
       required: false
       schema:
         maxLength: 200
+        minLength: 3
         type: string
     ChatSessionTimeZoneQuery:
       description: IANA time zone used to calculate date groups.

@@ -2568,7 +2568,7 @@ export const zChatSessionLimitQuery = z.int().gte(1).lte(50).default(10)
 /**
  * Case-insensitive literal substring matched against session titles.
  */
-export const zChatSessionSearchQuery = z.string().max(200)
+export const zChatSessionSearchQuery = z.string().min(3).max(200)
 
 /**
  * Server-side grouping applied after all inbox filters.
@@ -2798,7 +2798,7 @@ export const zListChatSessionsQuery = z.object({
   agent_name: zAgentName.optional(),
   participant_user_id: z.array(z.string().min(1)).max(25).optional(),
   include_workflow_runs: z.boolean().optional().default(false),
-  search: z.string().max(200).optional(),
+  search: z.string().min(3).max(200).optional(),
   group_by: zChatSessionGroupBy.optional(),
   group_key: z.string().min(1).optional(),
   time_zone: z.string().min(1).max(100).optional(),

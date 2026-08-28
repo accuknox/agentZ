@@ -3776,6 +3776,7 @@ components:
       description: Case-insensitive literal substring matched against session titles.
       schema:
         type: string
+        minLength: 3
         maxLength: 200
 
     ChatSessionGroupByQuery:

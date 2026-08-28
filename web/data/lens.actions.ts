@@ -36,7 +36,6 @@ import type {
   NetworkTelemetryRow,
   ProcessTelemetryActionResponse,
   ProcessTelemetryRow,
-  RuntimeTelemetryActionResponse,
   RuntimeTelemetryTab,
   RuntimeTelemetryTabActionResponse,
   RuntimeTelemetryEventItem,
@@ -226,69 +225,6 @@ export async function getMcpGraphAction(
   }
 
   return { data: result.data, error: undefined }
-}
-
-export async function getRuntimeTelemetryAction({
-  agent_name,
-  started_after,
-  started_before,
-  workspace_id,
-}: {
-  agent_name: string
-  started_after: string
-  started_before: string
-  workspace_id: string
-}): Promise<RuntimeTelemetryActionResponse> {
-  const query = {
-    limit: 25,
-    event_time_after: isoDateTimeParam(started_after),
-    event_time_before: isoDateTimeParam(started_before),
-  }
-  const [processes, files, networks] = await Promise.all([
-    listProcessObservability({
-      path: { agentName: agent_name },
-      query,
-      client: getGatewayServerClient(workspace_id),
-    }),
-    listFileObservability({
-      path: { agentName: agent_name },
-      query,
-      client: getGatewayServerClient(workspace_id),
-    }),
-    listNetworkObservability({
-      path: { agentName: agent_name },
-      query,
-      client: getGatewayServerClient(workspace_id),
-    }),
-  ])
-  if (processes.error) {
-    return { data: undefined, error: processes.error }
-  }
-
-  if (files.error) {
-    return { data: undefined, error: files.error }
-  }
-
-  if (networks.error) {
-    return { data: undefined, error: networks.error }
-  }
-
-  const events: RuntimeTelemetryEventItem[] = [
-    ...processes.data.events.map(processTelemetryEventItem),
-    ...files.data.events.map(fileTelemetryEventItem),
-    ...networks.data.events.map(networkTelemetryEventItem),
-  ].toSorted((left, right) => left.eventTime.localeCompare(right.eventTime))
-
-  return {
-    data: {
-      events,
-      processCount: processes.data.events.length,
-      fileCount: files.data.events.length,
-      networkCount: networks.data.events.length,
-      blockedCount: events.filter((event) => event.action === "Blocked").length,
-    },
-    error: undefined,
-  }
 }
 
 export async function getRuntimeTelemetryTabAction({

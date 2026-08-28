@@ -17,7 +17,6 @@ import {
   ServerCrash,
 } from "lucide-react"
 import {
-  getRuntimeTelemetryAction,
   getRuntimeTelemetryTabAction,
   getSpanDetailAction,
   listSpansAction,
@@ -26,7 +25,6 @@ import type { Error } from "@/lib/gateway/client"
 import type {
   ListSpansActionData,
   ListTracesActionData,
-  RuntimeTelemetryActionData,
   RuntimeTelemetryEventItem,
   RuntimeTelemetryTab,
   RuntimeTelemetryTabActionData,
@@ -156,11 +154,8 @@ export function TracesTable({
 
   const [selectedTrace, setSelectedTrace] = React.useState<TraceListItem | undefined>()
   const [spans, setSpans] = React.useState<ListSpansActionData | undefined>()
-  const [telemetry, setTelemetry] = React.useState<RuntimeTelemetryActionData | undefined>()
   const [telemetryTab, setTelemetryTab] = React.useState<RuntimeTelemetryTab>("process")
-  const [telemetryPages, setTelemetryPages] = React.useState<
-    Partial<Record<RuntimeTelemetryTab, RuntimeTelemetryTabActionData>>
-  >({})
+  const [telemetryPage, setTelemetryPage] = React.useState<RuntimeTelemetryTabActionData>()
   const [spansError, setSpansError] = React.useState<Error | undefined>()
   const [telemetryError, setTelemetryError] = React.useState<Error | undefined>()
   const [tab, setTab] = React.useState<TraceInspectorTab>("spans")
@@ -183,8 +178,7 @@ export function TracesTable({
   function selectTrace(trace: TraceListItem) {
     setSelectedTrace(trace)
     setSpans(undefined)
-    setTelemetry(undefined)
-    setTelemetryPages({})
+    setTelemetryPage(undefined)
     setSpansError(undefined)
     setTelemetryError(undefined)
     setTab("spans")
@@ -193,32 +187,20 @@ export function TracesTable({
     setSpanTokenStack([])
     setTelemetryPageToken(undefined)
     setTelemetryTokenStack([])
-    startTransition(() => {
-      void (async () => {
-        const [spanResult, telemetryResult] = await Promise.all([
-          listSpansAction(
-            {
-              agentName: trace.agentName,
-              sessionID: trace.sessionId,
-              traceID: trace.traceId,
-            },
-            {
-              limit: 50,
-            },
-            workspaceId
-          ),
-          getRuntimeTelemetryAction({
-            agent_name: trace.agentName,
-            started_after: trace.startedAt,
-            started_before: trace.endedAt,
-            workspace_id: workspaceId,
-          }),
-        ])
-        setSpans(spanResult.data)
-        setSpansError(spanResult.error)
-        setTelemetry(telemetryResult.data)
-        setTelemetryError(telemetryResult.error)
-      })()
+    startTransition(async () => {
+      const spanResult = await listSpansAction(
+        {
+          agentName: trace.agentName,
+          sessionID: trace.sessionId,
+          traceID: trace.traceId,
+        },
+        {
+          limit: 50,
+        },
+        workspaceId
+      )
+      setSpans(spanResult.data)
+      setSpansError(spanResult.error)
     })
   }
 
@@ -231,34 +213,30 @@ export function TracesTable({
       return
     }
 
-    startTelemetryTransition(() => {
-      void (async () => {
-        const result = await getRuntimeTelemetryTabAction({
-          agent_name: selectedTrace.agentName,
-          started_after: selectedTrace.startedAt,
-          started_before: selectedTrace.endedAt,
-          tab: nextTab,
-          page_token: nextPageToken,
-          workspace_id: workspaceId,
-        })
-        setTelemetryPages((current) =>
-          result.data ? { ...current, [nextTab]: result.data } : current
+    startTelemetryTransition(async () => {
+      const result = await getRuntimeTelemetryTabAction({
+        agent_name: selectedTrace.agentName,
+        started_after: selectedTrace.startedAt,
+        started_before: selectedTrace.endedAt,
+        tab: nextTab,
+        page_token: nextPageToken,
+        workspace_id: workspaceId,
+      })
+      setTelemetryPage(result.data)
+      setTelemetryError(result.error)
+      setTelemetryTab(nextTab)
+      if (mode === "reset") {
+        setTelemetryTokenStack([])
+      }
+      if (mode === "next") {
+        setTelemetryTokenStack((stack) =>
+          telemetryPageToken ? [...stack, telemetryPageToken] : stack
         )
-        setTelemetryError(result.error)
-        setTelemetryTab(nextTab)
-        if (mode === "reset") {
-          setTelemetryTokenStack([])
-        }
-        if (mode === "next") {
-          setTelemetryTokenStack((stack) =>
-            telemetryPageToken ? [...stack, telemetryPageToken] : stack
-          )
-        }
-        if (mode === "previous") {
-          setTelemetryTokenStack((stack) => stack.slice(0, -1))
-        }
-        setTelemetryPageToken(nextPageToken)
-      })()
+      }
+      if (mode === "previous") {
+        setTelemetryTokenStack((stack) => stack.slice(0, -1))
+      }
+      setTelemetryPageToken(nextPageToken)
     })
   }
 
@@ -267,38 +245,34 @@ export function TracesTable({
       return
     }
 
-    startSpansTransition(() => {
-      void (async () => {
-        const result = await listSpansAction(
-          {
-            agentName: selectedTrace.agentName,
-            sessionID: selectedTrace.sessionId,
-            traceID: selectedTrace.traceId,
-          },
-          {
-            limit: 50,
-            page_token: nextPageToken,
-          },
-          workspaceId
-        )
-        setSpans(result.data)
-        setSpansError(result.error)
-        setSelectedTrace((current) => current)
-        if (mode === "next") {
-          setSpanTokenStack((stack) => (spanPageToken ? [...stack, spanPageToken] : stack))
-        } else {
-          setSpanTokenStack((stack) => stack.slice(0, -1))
-        }
-        setSpanPageToken(nextPageToken)
-      })()
+    startSpansTransition(async () => {
+      const result = await listSpansAction(
+        {
+          agentName: selectedTrace.agentName,
+          sessionID: selectedTrace.sessionId,
+          traceID: selectedTrace.traceId,
+        },
+        {
+          limit: 50,
+          page_token: nextPageToken,
+        },
+        workspaceId
+      )
+      setSpans(result.data)
+      setSpansError(result.error)
+      if (mode === "next") {
+        setSpanTokenStack((stack) => (spanPageToken ? [...stack, spanPageToken] : stack))
+      } else {
+        setSpanTokenStack((stack) => stack.slice(0, -1))
+      }
+      setSpanPageToken(nextPageToken)
     })
   }
 
   function closeTrace() {
     setSelectedTrace(undefined)
     setSpans(undefined)
-    setTelemetry(undefined)
-    setTelemetryPages({})
+    setTelemetryPage(undefined)
     setSpansError(undefined)
     setTelemetryError(undefined)
   }
@@ -343,18 +317,17 @@ export function TracesTable({
         workspaceId={workspaceId}
         trace={selectedTrace}
         spans={spans}
-        telemetry={telemetry}
         spansError={spansError}
         telemetryError={telemetryError}
         pending={pending}
         spansPending={spansPending}
         telemetryPending={telemetryPending}
         telemetryTab={telemetryTab}
-        telemetryPage={telemetryPages[telemetryTab]}
+        telemetryPage={telemetryPage}
         onTelemetryTabChange={(nextTab) => loadTelemetryTab(nextTab)}
         canGoPreviousTelemetry={telemetryTokenStack.length > 0 || telemetryPageToken !== undefined}
         onNextTelemetry={() => {
-          const nextPage = telemetryPages[telemetryTab]?.nextPageToken
+          const nextPage = telemetryPage?.nextPageToken
           if (nextPage) {
             loadTelemetryTab(telemetryTab, nextPage, "next")
           }
@@ -366,7 +339,12 @@ export function TracesTable({
         onNextSpans={() => spans?.nextPageToken && loadSpansPage(spans.nextPageToken, "next")}
         onPreviousSpans={() => loadSpansPage(spanTokenStack.at(-1), "previous")}
         tab={tab}
-        onTabChange={setTab}
+        onTabChange={(nextTab) => {
+          setTab(nextTab)
+          if (nextTab === "telemetry" && !telemetryPage) {
+            loadTelemetryTab(telemetryTab)
+          }
+        }}
       />
     </Sheet>
   )
@@ -378,7 +356,6 @@ function TraceInspector({
   workspaceId,
   trace,
   spans,
-  telemetry,
   spansError,
   telemetryError,
   pending,
@@ -399,7 +376,6 @@ function TraceInspector({
   workspaceId: string
   trace?: TraceListItem
   spans?: ListSpansActionData
-  telemetry?: RuntimeTelemetryActionData
   spansError?: Error
   telemetryError?: Error
   pending: boolean
@@ -463,11 +439,9 @@ function TraceInspector({
           ) : (
             <RuntimeTelemetryContent
               key={trace?.traceId}
-              data={telemetry}
               telemetryTab={telemetryTab}
               telemetryPage={telemetryPage}
               error={telemetryError}
-              pending={pending}
               pagePending={telemetryPending}
               onTabChange={onTelemetryTabChange}
               canGoPrevious={canGoPreviousTelemetry}
@@ -565,7 +539,7 @@ function SpansInspectorContent({
       <div className="flex flex-col lg:grid lg:h-full lg:min-h-0 lg:min-w-245 lg:grid-cols-[34%_66%]">
         <aside className="bg-background min-h-0 border-b lg:border-r lg:border-b-0">
           <div className="bg-muted/10 flex h-10 items-center justify-between px-4 lg:px-5">
-            <div className="text-sm font-medium">Spans ({data.spans.length})</div>
+            <div className="text-sm font-medium">Spans</div>
             <TablePagination
               canGoNext={data.hasNextPage}
               canGoPrevious={canGoPrevious}
@@ -881,38 +855,26 @@ function TokenLegend({
 }
 
 function RuntimeTelemetryContent({
-  data,
   telemetryTab,
   telemetryPage,
   error,
-  pending,
   pagePending,
   onTabChange,
   canGoPrevious,
   onNextPage,
   onPreviousPage,
 }: {
-  data?: RuntimeTelemetryActionData
   telemetryTab: RuntimeTelemetryTab
   telemetryPage?: RuntimeTelemetryTabActionData
   error?: Error
-  pending: boolean
   pagePending: boolean
   onTabChange: (tab: RuntimeTelemetryTab) => void
   canGoPrevious: boolean
   onNextPage: () => void
   onPreviousPage: () => void
 }) {
-  React.useEffect(() => {
-    if (!data || telemetryPage || pagePending) {
-      return
-    }
-
-    onTabChange(telemetryTab)
-  }, [data, onTabChange, pagePending, telemetryPage, telemetryTab])
-
-  if ((pending && !data) || (pagePending && !telemetryPage)) {
-    return <RuntimeTelemetrySkeleton telemetryTab={telemetryTab} data={data} />
+  if (pagePending && !telemetryPage) {
+    return <RuntimeTelemetrySkeleton telemetryTab={telemetryTab} />
   }
 
   if (error) {
@@ -923,14 +885,11 @@ function RuntimeTelemetryContent({
     )
   }
 
-  if (!data) {
+  if (!telemetryPage) {
     return null
   }
 
-  const processCount = data?.processCount ?? 0
-  const fileCount = data?.fileCount ?? 0
-  const networkCount = data?.networkCount ?? 0
-  const events = telemetryPage?.events ?? []
+  const events = telemetryPage.events
 
   return (
     <Tabs
@@ -944,21 +903,21 @@ function RuntimeTelemetryContent({
     >
       <TabsList className="overflow-auto overflow-y-hidden px-2">
         <TabsTrigger value="process" className="gap-2 px-4">
-          <Cpu /> Process ({processCount})
+          <Cpu /> Process
         </TabsTrigger>
         <TabsTrigger value="file" className="gap-2 px-4">
-          <HardDrive /> File ({fileCount})
+          <HardDrive /> File
         </TabsTrigger>
         <TabsTrigger value="network" className="gap-2 px-4">
-          <Network /> Network ({networkCount})
+          <Network /> Network
         </TabsTrigger>
       </TabsList>
       <div className="min-h-0 flex-1 overflow-auto px-1 pt-4 pb-8">
         <TabsContent value="process">
           <ProcessTelemetryTable
             events={telemetryTab === "process" ? events : []}
-            hasNextPage={telemetryTab === "process" && Boolean(telemetryPage?.hasNextPage)}
-            nextPageToken={telemetryTab === "process" ? (telemetryPage?.nextPageToken ?? "") : ""}
+            hasNextPage={telemetryTab === "process" && telemetryPage.hasNextPage}
+            nextPageToken={telemetryTab === "process" ? telemetryPage.nextPageToken : ""}
             canGoPrevious={canGoPrevious}
             onNextPage={onNextPage}
             onPreviousPage={onPreviousPage}
@@ -968,8 +927,8 @@ function RuntimeTelemetryContent({
         <TabsContent value="file">
           <FileTelemetryTable
             events={telemetryTab === "file" ? events : []}
-            hasNextPage={telemetryTab === "file" && Boolean(telemetryPage?.hasNextPage)}
-            nextPageToken={telemetryTab === "file" ? (telemetryPage?.nextPageToken ?? "") : ""}
+            hasNextPage={telemetryTab === "file" && telemetryPage.hasNextPage}
+            nextPageToken={telemetryTab === "file" ? telemetryPage.nextPageToken : ""}
             canGoPrevious={canGoPrevious}
             onNextPage={onNextPage}
             onPreviousPage={onPreviousPage}
@@ -979,8 +938,8 @@ function RuntimeTelemetryContent({
         <TabsContent value="network">
           <NetworkTelemetryTable
             events={telemetryTab === "network" ? events : []}
-            hasNextPage={telemetryTab === "network" && Boolean(telemetryPage?.hasNextPage)}
-            nextPageToken={telemetryTab === "network" ? (telemetryPage?.nextPageToken ?? "") : ""}
+            hasNextPage={telemetryTab === "network" && telemetryPage.hasNextPage}
+            nextPageToken={telemetryTab === "network" ? telemetryPage.nextPageToken : ""}
             canGoPrevious={canGoPrevious}
             onNextPage={onNextPage}
             onPreviousPage={onPreviousPage}
@@ -992,17 +951,7 @@ function RuntimeTelemetryContent({
   )
 }
 
-function RuntimeTelemetrySkeleton({
-  telemetryTab,
-  data,
-}: {
-  telemetryTab: RuntimeTelemetryTab
-  data?: RuntimeTelemetryActionData
-}) {
-  const processCount = data?.processCount ?? 0
-  const fileCount = data?.fileCount ?? 0
-  const networkCount = data?.networkCount ?? 0
-
+function RuntimeTelemetrySkeleton({ telemetryTab }: { telemetryTab: RuntimeTelemetryTab }) {
   const headers =
     telemetryTab === "process"
       ? ["Process", "Command", "Action", "Seen At"]
@@ -1022,13 +971,13 @@ function RuntimeTelemetrySkeleton({
       <Tabs value={telemetryTab} className="flex h-full min-h-0 flex-col">
         <TabsList className="overflow-x-auto px-2">
           <TabsTrigger value="process" className="gap-2 px-4" disabled>
-            <Cpu /> Process ({processCount})
+            <Cpu /> Process
           </TabsTrigger>
           <TabsTrigger value="file" className="gap-2 px-4" disabled>
-            <HardDrive /> File ({fileCount})
+            <HardDrive /> File
           </TabsTrigger>
           <TabsTrigger value="network" className="gap-2 px-4" disabled>
-            <Network /> Network ({networkCount})
+            <Network /> Network
           </TabsTrigger>
         </TabsList>
         <div className="min-h-0 flex-1 overflow-auto px-1 py-2">

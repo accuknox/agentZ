@@ -90,14 +90,6 @@ export type RuntimeTelemetryEventItem = {
   pod: string
 }
 
-export type RuntimeTelemetryActionData = {
-  events: RuntimeTelemetryEventItem[]
-  processCount: number
-  fileCount: number
-  networkCount: number
-  blockedCount: number
-}
-
 export type RuntimeTelemetryTab = "process" | "file" | "network"
 
 export type RuntimeTelemetryTabActionData = {
@@ -105,16 +97,6 @@ export type RuntimeTelemetryTabActionData = {
   nextPageToken: string
   hasNextPage: boolean
 }
-
-export type RuntimeTelemetryActionResponse =
-  | {
-      data: RuntimeTelemetryActionData
-      error: undefined
-    }
-  | {
-      data: undefined
-      error: Error
-    }
 
 export type RuntimeTelemetryTabActionResponse =
   | {

@@ -824,7 +824,7 @@ function SessionGroup({
 
   return (
     <Collapsible className="group/chat-group" onOpenChange={onOpenChange} open={expanded}>
-      <div className="hover:bg-sidebar-accent focus-within:bg-sidebar-accent relative flex h-8 items-center rounded-md transition-colors">
+      <div className="hover:bg-sidebar-accent relative flex h-8 items-center rounded-md transition-colors">
         <CollapsibleTrigger asChild>
           <button
             aria-label={`${expanded ? "Collapse" : "Expand"} ${group.label}`}

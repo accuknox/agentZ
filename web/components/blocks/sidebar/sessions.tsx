@@ -25,10 +25,9 @@ import {
   X,
 } from "lucide-react"
 import { nanoid } from "nanoid"
-import { useEffect, useRef, useState } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { toast } from "sonner"
-import { useActionState } from "react"
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { DeleteSessionFormState, ListAgentActionResponse, WorkspacePath } from "@/data/types"
 import { agentIsGettingReady, watchAgentsQueryOptions } from "@/components/agent-readiness"
@@ -79,6 +78,7 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useSidebar } from "@/components/ui/sidebar"
 import { formatShortAge } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
@@ -90,6 +90,7 @@ import {
   watchChatSessions,
   type ChatSession,
   type ChatSessionGroup,
+  type ChatSessionGroupBy,
   type ChatSessionPreference,
   type AgentStatus,
   type ListChatSessionsResponse,
@@ -227,6 +228,31 @@ export function NavSessions({
       workspaceId={workspaceId}
       workspacePath={workspacePath}
     />
+  )
+}
+
+export function NavSessionsSkeleton({ groupBy }: { groupBy: ChatSessionGroupBy }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        aria-hidden="true"
+        className="flex h-9 items-center gap-1 px-[var(--sidebar-content-inset)] pb-1"
+      >
+        <div className="flex h-8 min-w-0 flex-1 items-center gap-2 px-2">
+          <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
+          <Skeleton className="bg-sidebar-border h-4 w-20" />
+        </div>
+        <div className="grid size-8 shrink-0 place-items-center">
+          <Skeleton className="bg-sidebar-border size-4 rounded-sm" />
+        </div>
+        <div className="grid size-8 shrink-0 place-items-center">
+          <Skeleton className="bg-sidebar-border size-4 rounded-sm" />
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden px-[var(--sidebar-content-inset)] pb-2">
+        <SessionListSkeleton groupBy={groupBy} />
+      </div>
+    </div>
   )
 }
 
@@ -576,6 +602,7 @@ function NavSessionsContent({
             className="text-sidebar-muted-foreground absolute top-2 left-[calc(var(--sidebar-content-inset)+0.625rem)] size-4"
           />
           <Input
+            aria-controls="chat-session-results"
             aria-label="Search chat titles"
             className="border-sidebar-border bg-sidebar-control-surface h-8 pr-8 pl-8"
             onChange={(event) => setSearchText(event.target.value)}
@@ -605,19 +632,23 @@ function NavSessionsContent({
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-[var(--sidebar-content-inset)] pb-2">
+      <div
+        aria-busy={sessions.isPending || searchSettling || sessions.isFetchingNextPage}
+        className="min-h-0 flex-1 overflow-y-auto px-[var(--sidebar-content-inset)] pb-2"
+        id="chat-session-results"
+      >
         {searchTooShort ? (
           <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">
             Type at least 3 characters
           </p>
         ) : null}
         {!searchTooShort && (sessions.isPending || searchSettling) ? (
-          <div className="grid gap-1 py-1">
-            <div className="bg-sidebar-control-surface h-16 animate-pulse rounded-md" />
-            <div className="bg-sidebar-control-surface h-16 animate-pulse rounded-md" />
-          </div>
+          <SessionListSkeleton
+            groupBy={preferences.group_by}
+            searching={searchText.trim().length >= 3}
+          />
         ) : null}
-        {!searchTooShort && sessions.isError ? (
+        {!searchTooShort && !sessions.isPending && !searchSettling && sessions.isError ? (
           <p className="text-destructive px-1 py-3 text-sm">Could not load chats</p>
         ) : null}
         {!searchTooShort &&
@@ -642,7 +673,17 @@ function NavSessionsContent({
                 />
               ))
             : null}
+          {preferences.group_by === "none" && sessions.isFetchingNextPage
+            ? Array.from({ length: 2 }, (_, index) => (
+                <SessionCardSkeleton key={`next-session-${index}`} showAgent />
+              ))
+            : null}
         </ul>
+        {preferences.group_by === "none" && sessions.isFetchingNextPage ? (
+          <span className="sr-only" role="status">
+            Loading more chats
+          </span>
+        ) : null}
         {preferences.group_by !== "none" && !searchTooShort && !searchSettling
           ? groups.map((group) => (
               <SessionGroup
@@ -814,12 +855,11 @@ function SessionGroup({
           </Button>
         ) : null}
       </div>
-      <CollapsibleContent>
+      <CollapsibleContent aria-busy={pages.isPending || pages.isFetchingNextPage}>
         {pages.isPending ? (
-          <div className="grid gap-1 py-1">
-            <div className="bg-sidebar-control-surface h-16 animate-pulse rounded-md" />
-            <div className="bg-sidebar-control-surface h-16 animate-pulse rounded-md" />
-          </div>
+          <span className="sr-only" role="status">
+            Loading chats in {group.label}
+          </span>
         ) : null}
         {pages.isError ? (
           <p className="text-destructive px-2 py-3 text-sm">Could not load chats</p>
@@ -838,7 +878,28 @@ function SessionGroup({
               workspacePath={workspacePath}
             />
           ))}
+          {pages.isPending
+            ? Array.from({ length: 2 }, (_, index) => (
+                <SessionCardSkeleton
+                  key={`group-session-${index}`}
+                  showAgent={group.group_by !== "agent"}
+                />
+              ))
+            : null}
+          {pages.isFetchingNextPage
+            ? Array.from({ length: 2 }, (_, index) => (
+                <SessionCardSkeleton
+                  key={`next-group-session-${index}`}
+                  showAgent={group.group_by !== "agent"}
+                />
+              ))
+            : null}
         </ul>
+        {pages.isFetchingNextPage ? (
+          <span className="sr-only" role="status">
+            Loading more chats in {group.label}
+          </span>
+        ) : null}
         {pages.hasNextPage ? (
           <Button
             className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground mt-2 w-full"
@@ -853,6 +914,90 @@ function SessionGroup({
         ) : null}
       </CollapsibleContent>
     </Collapsible>
+  )
+}
+
+function SessionListSkeleton({
+  groupBy,
+  searching = false,
+}: {
+  groupBy: ChatSessionGroupBy
+  searching?: boolean
+}) {
+  if (groupBy === "none") {
+    return (
+      <div role="status">
+        <span className="sr-only">{searching ? "Searching chats" : "Loading chats"}</span>
+        <ul aria-hidden="true" className="flex min-w-0 flex-col gap-0.5">
+          {Array.from({ length: 2 }, (_, index) => (
+            <SessionCardSkeleton key={`session-${index}`} showAgent />
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  return (
+    <div role="status">
+      <span className="sr-only">{searching ? "Searching chats" : "Loading chat groups"}</span>
+      <div aria-hidden="true">
+        {Array.from({ length: searching ? 2 : 3 }, (_, groupIndex) => (
+          <div key={`group-${groupIndex}`}>
+            <div className="flex h-8 items-center rounded-md">
+              <div className="flex h-full min-w-0 flex-1 items-center gap-2 px-[var(--sidebar-row-content-inset)]">
+                {groupBy === "agent" ? (
+                  <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="bg-sidebar-border h-4 w-24" />
+                </div>
+                <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
+              </div>
+              {groupBy === "agent" ? (
+                <div className="mr-1 grid size-7 shrink-0 place-items-center">
+                  <Skeleton className="bg-sidebar-border size-4 rounded-sm" />
+                </div>
+              ) : null}
+            </div>
+            {searching ? (
+              <ul className="flex min-w-0 flex-col gap-0.5">
+                <SessionCardSkeleton showAgent={groupBy !== "agent"} />
+              </ul>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SessionCardSkeleton({ showAgent }: { showAgent: boolean }) {
+  return (
+    <li aria-hidden="true" className="list-none overflow-hidden rounded-md py-0.5">
+      <div className="h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
+        <div className="flex h-5 min-w-0 items-center gap-1.5">
+          {showAgent ? (
+            <>
+              <Skeleton className="bg-sidebar-border size-3.5 shrink-0 rounded-sm" />
+              <div className="min-w-0 flex-1">
+                <Skeleton className="bg-sidebar-border h-3 w-20" />
+              </div>
+            </>
+          ) : (
+            <span className="min-w-0 flex-1" />
+          )}
+          <Skeleton className="bg-sidebar-border h-3 w-8 shrink-0" />
+        </div>
+        <div className="mt-1 flex h-6 min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Skeleton className="bg-sidebar-border h-4 w-3/4" />
+          </div>
+          <div className="flex shrink-0 -space-x-[7px]">
+            <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+          </div>
+        </div>
+      </div>
+    </li>
   )
 }
 

@@ -4,3 +4,47 @@
 // source: query.sql
 
 package observerdb
+
+import (
+	"time"
+)
+
+type InsertFileEventsParams struct {
+	TenantNamespace   string    `json:"tenant_namespace"`
+	AgentName         string    `json:"agent_name"`
+	EventTime         time.Time `json:"event_time"`
+	PodNamespace      string    `json:"pod_namespace"`
+	PodName           string    `json:"pod_name"`
+	FilePathAccessed  string    `json:"file_path_accessed"`
+	Process           string    `json:"process"`
+	CommandInvocation string    `json:"command_invocation"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+}
+
+type InsertNetworkEventsParams struct {
+	TenantNamespace   string    `json:"tenant_namespace"`
+	AgentName         string    `json:"agent_name"`
+	EventTime         time.Time `json:"event_time"`
+	PodNamespace      string    `json:"pod_namespace"`
+	PodName           string    `json:"pod_name"`
+	DestinationDomain string    `json:"destination_domain"`
+	DestinationIp     string    `json:"destination_ip"`
+	DestinationPort   int64     `json:"destination_port"`
+	Protocol          string    `json:"protocol"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+}
+
+type InsertProcessEventsParams struct {
+	TenantNamespace   string    `json:"tenant_namespace"`
+	AgentName         string    `json:"agent_name"`
+	EventTime         time.Time `json:"event_time"`
+	PodNamespace      string    `json:"pod_namespace"`
+	PodName           string    `json:"pod_name"`
+	Process           string    `json:"process"`
+	ParentProcess     string    `json:"parent_process"`
+	CommandInvocation string    `json:"command_invocation"`
+	Action            string    `json:"action"`
+	Source            string    `json:"source"`
+}

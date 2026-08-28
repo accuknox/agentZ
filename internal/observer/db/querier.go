@@ -9,7 +9,10 @@ import (
 )
 
 type Querier interface {
+	InsertFileEvents(ctx context.Context, arg []InsertFileEventsParams) (int64, error)
 	InsertMCPToolInvocation(ctx context.Context, arg []InsertMCPToolInvocationParams) *InsertMCPToolInvocationBatchResults
+	InsertNetworkEvents(ctx context.Context, arg []InsertNetworkEventsParams) (int64, error)
+	InsertProcessEvents(ctx context.Context, arg []InsertProcessEventsParams) (int64, error)
 	InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanParams) *InsertTraceSpanBatchResults
 	InsertTraceSpanPayload(ctx context.Context, arg []InsertTraceSpanPayloadParams) *InsertTraceSpanPayloadBatchResults
 	RefreshTraceSessionSummary(ctx context.Context, arg []RefreshTraceSessionSummaryParams) *RefreshTraceSessionSummaryBatchResults

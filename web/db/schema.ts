@@ -95,12 +95,6 @@ export const cleanupState = pgEnum("cleanup_state", [
 ])
 export const chatSessionKind = pgEnum("chat_session_kind", ["chat", "workflow_run"])
 export const chatSessionStatus = pgEnum("chat_session_status", ["idle", "busy", "retry"])
-export const chatSessionGroupBy = pgEnum("chat_session_group_by", [
-  "none",
-  "agent",
-  "status",
-  "date",
-])
 export const destructiveOperation = pgEnum("destructive_operation", [
   "membership_disable",
   "membership_remove",
@@ -186,24 +180,10 @@ export const chatSessions = pgTable(
     primaryKey({ columns: [table.workspaceId, table.agentName, table.sessionId] }),
     index("chat_sessions_inbox_idx").on(
       table.workspaceId,
-      table.sourceUpdatedAt.desc(),
+      table.sourceUpdatedAt,
       table.agentName,
       table.sessionId
     ),
-    index("chat_sessions_agent_inbox_idx").on(
-      table.workspaceId,
-      table.agentName,
-      table.sourceUpdatedAt.desc(),
-      table.sessionId
-    ),
-    index("chat_sessions_status_inbox_idx").on(
-      table.workspaceId,
-      table.status,
-      table.sourceUpdatedAt.desc(),
-      table.agentName,
-      table.sessionId
-    ),
-    index("chat_sessions_title_trgm_idx").using("gin", table.title.op("gin_trgm_ops")),
     check("chat_sessions_agent_name_ck", sql`NULLIF(BTRIM(${table.agentName}), '') IS NOT NULL`),
     check("chat_sessions_session_id_ck", sql`NULLIF(BTRIM(${table.sessionId}), '') IS NOT NULL`),
     check("chat_sessions_title_ck", sql`NULLIF(BTRIM(${table.title}), '') IS NOT NULL`),
@@ -248,7 +228,6 @@ export const workspaceChatPreferences = pgTable(
       .default(sql`'{}'::text[]`)
       .notNull(),
     includeWorkflowRuns: boolean("include_workflow_runs").default(false).notNull(),
-    groupBy: chatSessionGroupBy("group_by").default("none").notNull(),
     lastAgentName: text("last_agent_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

@@ -1,3 +1,80 @@
+-- name: InsertProcessEvents :copyfrom
+INSERT INTO observer_process_events(
+  tenant_namespace,
+  agent_name,
+  event_time,
+  pod_namespace,
+  pod_name,
+  process,
+  parent_process,
+  command_invocation,
+  action,
+  source
+) VALUES (
+  sqlc.arg(tenant_namespace),
+  sqlc.arg(agent_name),
+  sqlc.arg(event_time),
+  sqlc.arg(pod_namespace),
+  sqlc.arg(pod_name),
+  sqlc.arg(process),
+  sqlc.arg(parent_process),
+  sqlc.arg(command_invocation),
+  sqlc.arg(action),
+  sqlc.arg(source)
+);
+
+-- name: InsertFileEvents :copyfrom
+INSERT INTO observer_file_events(
+  tenant_namespace,
+  agent_name,
+  event_time,
+  pod_namespace,
+  pod_name,
+  file_path_accessed,
+  process,
+  command_invocation,
+  action,
+  source
+) VALUES (
+  sqlc.arg(tenant_namespace),
+  sqlc.arg(agent_name),
+  sqlc.arg(event_time),
+  sqlc.arg(pod_namespace),
+  sqlc.arg(pod_name),
+  sqlc.arg(file_path_accessed),
+  sqlc.arg(process),
+  sqlc.arg(command_invocation),
+  sqlc.arg(action),
+  sqlc.arg(source)
+);
+
+-- name: InsertNetworkEvents :copyfrom
+INSERT INTO observer_network_events(
+  tenant_namespace,
+  agent_name,
+  event_time,
+  pod_namespace,
+  pod_name,
+  destination_domain,
+  destination_ip,
+  destination_port,
+  protocol,
+  action,
+  source
+) VALUES (
+  sqlc.arg(tenant_namespace),
+  sqlc.arg(agent_name),
+  sqlc.arg(event_time),
+  sqlc.arg(pod_namespace),
+  sqlc.arg(pod_name),
+  sqlc.arg(destination_domain),
+  sqlc.arg(destination_ip),
+  sqlc.arg(destination_port),
+  sqlc.arg(protocol),
+  sqlc.arg(action),
+  sqlc.arg(source)
+);
+
 -- name: InsertTraceSpan :batchexec
 INSERT INTO observer_trace_spans(
   tenant_namespace,

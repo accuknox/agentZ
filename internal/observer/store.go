@@ -23,127 +23,70 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	q := observerdb.New(tx)
 
 	if len(b.processes) > 0 {
-		rows := make([][]any, 0, len(b.processes))
+		rows := make([]observerdb.InsertProcessEventsParams, 0, len(b.processes))
 		for _, ev := range b.processes {
-			rows = append(
-				rows,
-				[]any{
-					ev.tenantNamespace,
-					ev.agentName,
-					ev.eventTime,
-					ev.podNamespace,
-					ev.podName,
-					ev.process,
-					ev.parentProcess,
-					ev.commandInvocation,
-					ev.action,
-					ev.source,
-				},
-			)
+			rows = append(rows, observerdb.InsertProcessEventsParams{
+				TenantNamespace:   ev.tenantNamespace,
+				AgentName:         ev.agentName,
+				EventTime:         ev.eventTime,
+				PodNamespace:      ev.podNamespace,
+				PodName:           ev.podName,
+				Process:           ev.process,
+				ParentProcess:     ev.parentProcess,
+				CommandInvocation: ev.commandInvocation,
+				Action:            ev.action,
+				Source:            ev.source,
+			})
 		}
-		_, err = tx.CopyFrom(
-			ctx,
-			pgx.Identifier{"observer_process_events"},
-			[]string{
-				"tenant_namespace",
-				"agent_name",
-				"event_time",
-				"pod_namespace",
-				"pod_name",
-				"process",
-				"parent_process",
-				"command_invocation",
-				"action",
-				"source",
-			},
-			pgx.CopyFromRows(rows),
-		)
+		_, err = q.InsertProcessEvents(ctx, rows)
 		if err != nil {
 			return fmt.Errorf("copy process events: %w", err)
 		}
 	}
 
 	if len(b.files) > 0 {
-		rows := make([][]any, 0, len(b.files))
+		rows := make([]observerdb.InsertFileEventsParams, 0, len(b.files))
 		for _, ev := range b.files {
-			rows = append(
-				rows,
-				[]any{
-					ev.tenantNamespace,
-					ev.agentName,
-					ev.eventTime,
-					ev.podNamespace,
-					ev.podName,
-					ev.filePathAccessed,
-					ev.process,
-					ev.commandInvocation,
-					ev.action,
-					ev.source,
-				},
-			)
+			rows = append(rows, observerdb.InsertFileEventsParams{
+				TenantNamespace:   ev.tenantNamespace,
+				AgentName:         ev.agentName,
+				EventTime:         ev.eventTime,
+				PodNamespace:      ev.podNamespace,
+				PodName:           ev.podName,
+				FilePathAccessed:  ev.filePathAccessed,
+				Process:           ev.process,
+				CommandInvocation: ev.commandInvocation,
+				Action:            ev.action,
+				Source:            ev.source,
+			})
 		}
-		_, err = tx.CopyFrom(
-			ctx,
-			pgx.Identifier{"observer_file_events"},
-			[]string{
-				"tenant_namespace",
-				"agent_name",
-				"event_time",
-				"pod_namespace",
-				"pod_name",
-				"file_path_accessed",
-				"process",
-				"command_invocation",
-				"action",
-				"source",
-			},
-			pgx.CopyFromRows(rows),
-		)
+		_, err = q.InsertFileEvents(ctx, rows)
 		if err != nil {
 			return fmt.Errorf("copy file events: %w", err)
 		}
 	}
 
 	if len(b.networks) > 0 {
-		rows := make([][]any, 0, len(b.networks))
+		rows := make([]observerdb.InsertNetworkEventsParams, 0, len(b.networks))
 		for _, ev := range b.networks {
-			rows = append(
-				rows,
-				[]any{
-					ev.tenantNamespace,
-					ev.agentName,
-					ev.eventTime,
-					ev.podNamespace,
-					ev.podName,
-					ev.destinationDomain,
-					ev.destinationIP,
-					ev.destinationPort,
-					ev.protocol,
-					ev.action,
-					ev.source,
-				},
-			)
+			rows = append(rows, observerdb.InsertNetworkEventsParams{
+				TenantNamespace:   ev.tenantNamespace,
+				AgentName:         ev.agentName,
+				EventTime:         ev.eventTime,
+				PodNamespace:      ev.podNamespace,
+				PodName:           ev.podName,
+				DestinationDomain: ev.destinationDomain,
+				DestinationIp:     ev.destinationIP,
+				DestinationPort:   ev.destinationPort,
+				Protocol:          ev.protocol,
+				Action:            ev.action,
+				Source:            ev.source,
+			})
 		}
-		_, err = tx.CopyFrom(
-			ctx,
-			pgx.Identifier{"observer_network_events"},
-			[]string{
-				"tenant_namespace",
-				"agent_name",
-				"event_time",
-				"pod_namespace",
-				"pod_name",
-				"destination_domain",
-				"destination_ip",
-				"destination_port",
-				"protocol",
-				"action",
-				"source",
-			},
-			pgx.CopyFromRows(rows),
-		)
+		_, err = q.InsertNetworkEvents(ctx, rows)
 		if err != nil {
 			return fmt.Errorf("copy network events: %w", err)
 		}

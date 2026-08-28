@@ -146,21 +146,23 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 					SessionID:   *params.ActiveSessionId,
 				},
 			)
-			if getErr != nil && !errors.Is(getErr, pgx.ErrNoRows) {
+			if errors.Is(getErr, pgx.ErrNoRows) {
+				break
+			}
+			if getErr != nil {
 				writeInternalError(w, r, fmt.Errorf("get active chat session group: %w", getErr))
 				return
 			}
-			if getErr == nil {
-				if groupBy == gatewayapi.ChatSessionGroupByStatus {
-					activeGroup = string(row.Status)
-				} else {
-					activeGroup = chatSessionDateGroup(
-						row.SourceUpdatedAt.Time,
-						today,
-						yesterday,
-						previousWeek,
-					)
-				}
+			switch groupBy {
+			case gatewayapi.ChatSessionGroupByStatus:
+				activeGroup = string(row.Status)
+			case gatewayapi.ChatSessionGroupByDate:
+				activeGroup = chatSessionDateGroup(
+					row.SourceUpdatedAt.Time,
+					today,
+					yesterday,
+					previousWeek,
+				)
 			}
 		}
 	}
@@ -274,8 +276,11 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		Sessions:           []gatewayapi.ChatSession{},
 	}
 
-	if len(agentNames) > 0 && groupBy != gatewayapi.ChatSessionGroupByNone &&
-		search != "" && params.GroupKey == nil {
+	hasAgents := len(agentNames) > 0
+	grouped := groupBy != gatewayapi.ChatSessionGroupByNone
+	groupSelected := params.GroupKey != nil
+	switch {
+	case hasAgents && grouped && search != "" && !groupSelected:
 		rows, searchErr := s.queries.GatewaySearchGroupedChatSessions(
 			r.Context(),
 			gatewaydb.GatewaySearchGroupedChatSessionsParams{
@@ -343,8 +348,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				return
 			}
 		}
-	} else if groupBy != gatewayapi.ChatSessionGroupByNone &&
-		params.GroupKey == nil && search == "" {
+	case grouped && !groupSelected && search == "":
 		values := agentNames
 		if groupBy == gatewayapi.ChatSessionGroupByStatus {
 			values = []string{"busy", "retry", "idle"}
@@ -355,7 +359,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		for _, value := range values {
 			response.Groups = append(response.Groups, chatSessionGroup(groupBy, value, activeGroup))
 		}
-	} else if len(agentNames) > 0 {
+	case hasAgents:
 		rows, listErr := s.queries.GatewayListChatSessions(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionsParams{
@@ -406,10 +410,11 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				Participants: participants,
 			})
 		}
-		if groupBy == gatewayapi.ChatSessionGroupByNone {
+		switch groupBy {
+		case gatewayapi.ChatSessionGroupByNone:
 			response.Sessions = sessions
 			response.HasNextPage = hasNextPage
-		} else {
+		default:
 			group := chatSessionGroup(groupBy, groupValue, activeGroup)
 			group.Sessions = sessions
 			group.HasNextPage = hasNextPage
@@ -426,13 +431,14 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				writeInternalError(w, r, encodeErr)
 				return
 			}
-			if groupBy == gatewayapi.ChatSessionGroupByNone {
+			switch groupBy {
+			case gatewayapi.ChatSessionGroupByNone:
 				response.NextPageToken = nextPageToken
-			} else {
+			default:
 				response.Groups[0].NextPageToken = nextPageToken
 			}
 		}
-	} else if params.GroupKey != nil {
+	case groupSelected:
 		response.Groups = append(response.Groups, chatSessionGroup(groupBy, groupValue, activeGroup))
 	}
 

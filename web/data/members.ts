@@ -199,19 +199,19 @@ export async function getMemberDirectory(
         lastActivity: sql`(
           SELECT max(${schema.sessions.updatedAt})
           FROM ${schema.sessions}
-          WHERE ${schema.sessions.userId} = ${sql.raw('"members"."user_id"')}
+          WHERE ${schema.sessions.userId} = ${schema.members.userId}
         )`.mapWith(schema.sessions.updatedAt),
         ownedAgents: sql<number>`(
           SELECT count(*)::int
           FROM ${schema.agentOwners}
           WHERE ${schema.agentOwners.organizationId} = ${actor.organization.id}
-            AND ${schema.agentOwners.ownerUserId} = ${sql.raw('"members"."user_id"')}
+            AND ${schema.agentOwners.ownerUserId} = ${schema.members.userId}
         )`,
         apiKeys: sql<number>`(
           SELECT count(*)::int
           FROM ${schema.apiKeyScopes}
           WHERE ${schema.apiKeyScopes.organizationId} = ${actor.organization.id}
-            AND ${schema.apiKeyScopes.creatorUserId} = ${sql.raw('"members"."user_id"')}
+            AND ${schema.apiKeyScopes.creatorUserId} = ${schema.members.userId}
         )`,
         sharedAgents: sql<number>`(
           SELECT count(DISTINCT ${schema.agentShares.agentName})::int
@@ -220,8 +220,8 @@ export async function getMemberDirectory(
             ON ${schema.teamMembers.teamId} = ${schema.agentShares.targetTeamId}
           WHERE ${schema.agentShares.organizationId} = ${actor.organization.id}
             AND (
-              ${schema.agentShares.targetUserId} = ${sql.raw('"members"."user_id"')}
-              OR ${schema.teamMembers.userId} = ${sql.raw('"members"."user_id"')}
+              ${schema.agentShares.targetUserId} = ${schema.members.userId}
+              OR ${schema.teamMembers.userId} = ${schema.members.userId}
             )
         )`,
       })

@@ -79,7 +79,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useSidebar } from "@/components/ui/sidebar"
+import { SidebarMenuSub, SidebarMenuSubItem, useSidebar } from "@/components/ui/sidebar"
 import { formatShortAge } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { cn } from "@/lib/utils"
@@ -861,13 +861,17 @@ function SessionGroup({
             Loading chats in {group.label}
           </span>
         ) : null}
-        {pages.isError ? (
-          <p className="text-destructive px-2 py-3 text-sm">Could not load chats</p>
-        ) : null}
-        {!pages.isPending && !pages.isError && sessions.length === 0 ? (
-          <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">No chats</p>
-        ) : null}
-        <ul className="flex min-w-0 flex-col gap-0.5">
+        <SidebarMenuSub className="[&>li]:before:border-sidebar-border [&>li:last-child]:after:bg-sidebar mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px">
+          {pages.isError ? (
+            <SidebarMenuSubItem>
+              <p className="text-destructive px-2 py-3 text-sm">Could not load chats</p>
+            </SidebarMenuSubItem>
+          ) : null}
+          {!pages.isPending && !pages.isError && sessions.length === 0 ? (
+            <SidebarMenuSubItem>
+              <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">No chats</p>
+            </SidebarMenuSubItem>
+          ) : null}
           {sessions.map((session) => (
             <SessionCard
               key={`${session.agent_name}:${session.session_id}`}
@@ -894,23 +898,29 @@ function SessionGroup({
                 />
               ))
             : null}
-        </ul>
+          {pages.hasNextPage ? (
+            <SidebarMenuSubItem>
+              <Button
+                className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground w-full"
+                disabled={pages.isFetchingNextPage}
+                onClick={() => void pages.fetchNextPage()}
+                size="sm"
+                variant="ghost"
+              >
+                {pages.isFetchingNextPage ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <ChevronDown data-icon="inline-start" />
+                )}
+                Load more
+              </Button>
+            </SidebarMenuSubItem>
+          ) : null}
+        </SidebarMenuSub>
         {pages.isFetchingNextPage ? (
           <span className="sr-only" role="status">
             Loading more chats in {group.label}
           </span>
-        ) : null}
-        {pages.hasNextPage ? (
-          <Button
-            className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground mt-2 w-full"
-            disabled={pages.isFetchingNextPage}
-            onClick={() => void pages.fetchNextPage()}
-            size="sm"
-            variant="ghost"
-          >
-            {pages.isFetchingNextPage ? <Spinner /> : <ChevronDown />}
-            Load more
-          </Button>
         ) : null}
       </CollapsibleContent>
     </Collapsible>
@@ -960,9 +970,9 @@ function SessionListSkeleton({
               ) : null}
             </div>
             {searching ? (
-              <ul className="flex min-w-0 flex-col gap-0.5">
+              <SidebarMenuSub className="[&>li]:before:border-sidebar-border [&>li:last-child]:after:bg-sidebar mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px">
                 <SessionCardSkeleton showAgent={groupBy !== "agent"} />
-              </ul>
+              </SidebarMenuSub>
             ) : null}
           </div>
         ))}
@@ -973,7 +983,7 @@ function SessionListSkeleton({
 
 function SessionCardSkeleton({ showAgent }: { showAgent: boolean }) {
   return (
-    <li aria-hidden="true" className="list-none overflow-hidden rounded-md py-0.5">
+    <li aria-hidden="true" className="list-none rounded-md py-0.5">
       <div className="h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
         <div className="flex h-5 min-w-0 items-center gap-1.5">
           {showAgent ? (
@@ -1085,7 +1095,7 @@ function SessionCard({
       <ContextMenuTrigger asChild>
         <li
           className={cn(
-            "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none overflow-hidden rounded-md py-0.5 transition-colors",
+            "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none rounded-md py-0.5 transition-colors",
             active && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >

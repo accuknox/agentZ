@@ -1010,6 +1010,33 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 	return i, err
 }
 
+const gatewayGetChatSessionGroup = `-- name: GatewayGetChatSessionGroup :one
+SELECT status, source_updated_at
+FROM chat_sessions
+WHERE workspace_id = $1
+  AND agent_name = $2
+  AND session_id = $3
+  AND parent_session_id IS NULL
+`
+
+type GatewayGetChatSessionGroupParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+type GatewayGetChatSessionGroupRow struct {
+	Status          ChatSessionStatus  `json:"status"`
+	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
+}
+
+func (q *Queries) GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGetChatSessionGroupParams) (GatewayGetChatSessionGroupRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetChatSessionGroup, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var i GatewayGetChatSessionGroupRow
+	err := row.Scan(&i.Status, &i.SourceUpdatedAt)
+	return i, err
+}
+
 const gatewayGetMCPGraph = `-- name: GatewayGetMCPGraph :many
 WITH range_rows AS (
   SELECT
@@ -1292,7 +1319,7 @@ func (q *Queries) GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspa
 }
 
 const gatewayGetWorkspaceChatPreference = `-- name: GatewayGetWorkspaceChatPreference :one
-SELECT workspace_id, user_id, agent_name, participant_user_ids, include_workflow_runs, last_agent_name, created_at, updated_at
+SELECT workspace_id, user_id, agent_name, participant_user_ids, include_workflow_runs, last_agent_name, created_at, updated_at, group_by
 FROM workspace_chat_preferences
 WHERE workspace_id = $1
   AND user_id = $2
@@ -1315,6 +1342,7 @@ func (q *Queries) GatewayGetWorkspaceChatPreference(ctx context.Context, arg Gat
 		&i.LastAgentName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupBy,
 	)
 	return i, err
 }
@@ -2118,47 +2146,75 @@ WHERE sessions.workspace_id = $1
     OR sessions.agent_name = $4::text
   )
   AND (
-    cardinality($5::text[]) = 0
+    NOT $5::boolean
+    OR sessions.title ILIKE
+      '%' || REPLACE(REPLACE(REPLACE($6::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      ESCAPE '\'
+  )
+  AND (
+    $7::text IS NULL
+    OR sessions.agent_name = $7::text
+  )
+  AND (
+    $8::chat_session_status IS NULL
+    OR sessions.status = $8::chat_session_status
+  )
+  AND (
+    $9::timestamptz IS NULL
+    OR sessions.source_updated_at >= $9::timestamptz
+  )
+  AND (
+    $10::timestamptz IS NULL
+    OR sessions.source_updated_at < $10::timestamptz
+  )
+  AND (
+    cardinality($11::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($5::text[])
-    ) = cardinality($5::text[])
+        AND participants.user_id = ANY($11::text[])
+    ) = cardinality($11::text[])
   )
   AND (
-    NOT $6::boolean
-    OR sessions.source_updated_at < $7
+    NOT $12::boolean
+    OR sessions.source_updated_at < $13
     OR (
-      sessions.source_updated_at = $7
-      AND sessions.agent_name > $8
+      sessions.source_updated_at = $13
+      AND sessions.agent_name > $14
     )
     OR (
-      sessions.source_updated_at = $7
-      AND sessions.agent_name = $8
-      AND sessions.session_id > $9
+      sessions.source_updated_at = $13
+      AND sessions.agent_name = $14
+      AND sessions.session_id > $15
     )
   )
 ORDER BY
-  sessions.source_updated_at DESC,
+  sessions.source_updated_at DESC NULLS LAST,
   sessions.agent_name ASC,
   sessions.session_id ASC
-LIMIT $10
+LIMIT $16
 `
 
 type GatewayListChatSessionsParams struct {
-	WorkspaceID         string             `json:"workspace_id"`
-	AgentNames          []string           `json:"agent_names"`
-	IncludeWorkflowRuns bool               `json:"include_workflow_runs"`
-	AgentName           pgtype.Text        `json:"agent_name"`
-	ParticipantUserIds  []string           `json:"participant_user_ids"`
-	CursorSet           bool               `json:"cursor_set"`
-	CursorUpdatedAt     pgtype.Timestamptz `json:"cursor_updated_at"`
-	CursorAgentName     string             `json:"cursor_agent_name"`
-	CursorSessionID     string             `json:"cursor_session_id"`
-	PageSize            int32              `json:"page_size"`
+	WorkspaceID         string                `json:"workspace_id"`
+	AgentNames          []string              `json:"agent_names"`
+	IncludeWorkflowRuns bool                  `json:"include_workflow_runs"`
+	AgentName           pgtype.Text           `json:"agent_name"`
+	SearchSet           bool                  `json:"search_set"`
+	Search              string                `json:"search"`
+	GroupAgentName      pgtype.Text           `json:"group_agent_name"`
+	GroupStatus         NullChatSessionStatus `json:"group_status"`
+	GroupSince          pgtype.Timestamptz    `json:"group_since"`
+	GroupBefore         pgtype.Timestamptz    `json:"group_before"`
+	ParticipantUserIds  []string              `json:"participant_user_ids"`
+	CursorSet           bool                  `json:"cursor_set"`
+	CursorUpdatedAt     pgtype.Timestamptz    `json:"cursor_updated_at"`
+	CursorAgentName     string                `json:"cursor_agent_name"`
+	CursorSessionID     string                `json:"cursor_session_id"`
+	PageSize            int32                 `json:"page_size"`
 }
 
 type GatewayListChatSessionsRow struct {
@@ -2179,6 +2235,12 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 		arg.AgentNames,
 		arg.IncludeWorkflowRuns,
 		arg.AgentName,
+		arg.SearchSet,
+		arg.Search,
+		arg.GroupAgentName,
+		arg.GroupStatus,
+		arg.GroupSince,
+		arg.GroupBefore,
 		arg.ParticipantUserIds,
 		arg.CursorSet,
 		arg.CursorUpdatedAt,
@@ -4304,6 +4366,187 @@ func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevo
 	return result.RowsAffected(), nil
 }
 
+const gatewaySearchGroupedChatSessions = `-- name: GatewaySearchGroupedChatSessions :many
+WITH filtered_sessions AS (
+  SELECT
+    sessions.workspace_id,
+    sessions.agent_name,
+    sessions.session_id,
+    sessions.parent_session_id,
+    sessions.title,
+    sessions.kind,
+    sessions.status,
+    sessions.source_created_at,
+    sessions.source_updated_at,
+    (CASE $2::text
+      WHEN 'agent' THEN sessions.agent_name
+      WHEN 'status' THEN sessions.status::text
+      WHEN 'date' THEN CASE
+        WHEN sessions.source_updated_at >= $3::timestamptz THEN 'today'
+        WHEN sessions.source_updated_at >= $4::timestamptz THEN 'yesterday'
+        WHEN sessions.source_updated_at >= $5::timestamptz
+          THEN 'previous_7_days'
+        ELSE 'older'
+      END
+    END)::text AS group_value
+  FROM chat_sessions AS sessions
+  WHERE sessions.workspace_id = $6
+    AND sessions.agent_name = ANY($7::text[])
+    AND sessions.parent_session_id IS NULL
+    AND (
+      $8::boolean
+      OR sessions.kind <> 'workflow_run'
+    )
+    AND (
+      $9::text IS NULL
+      OR sessions.agent_name = $9::text
+    )
+    AND sessions.title ILIKE
+      '%' || REPLACE(REPLACE(REPLACE($10::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      ESCAPE '\'
+    AND (
+      cardinality($11::text[]) = 0
+      OR (
+        SELECT COUNT(DISTINCT participants.user_id)
+        FROM chat_session_participants AS participants
+        WHERE participants.workspace_id = sessions.workspace_id
+          AND participants.agent_name = sessions.agent_name
+          AND participants.session_id = sessions.session_id
+          AND participants.user_id = ANY($11::text[])
+      ) = cardinality($11::text[])
+    )
+), group_values AS (
+  SELECT DISTINCT group_value
+  FROM filtered_sessions
+)
+SELECT
+  sessions.workspace_id,
+  sessions.agent_name,
+  sessions.session_id,
+  sessions.title,
+  sessions.kind,
+  sessions.status,
+  sessions.source_created_at,
+  sessions.source_updated_at,
+  sessions.group_value,
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', users.id,
+        'name', users.name,
+        'email', users.email,
+        'image', users.image
+      )
+      ORDER BY participants.last_messaged_at DESC, users.id
+    )
+    FROM chat_session_participants AS participants
+    JOIN users ON users.id = participants.user_id
+    WHERE participants.workspace_id = sessions.workspace_id
+      AND participants.agent_name = sessions.agent_name
+      AND participants.session_id = sessions.session_id
+  ), '[]'::jsonb)::text AS participants_json
+FROM group_values
+CROSS JOIN LATERAL (
+  SELECT filtered_sessions.workspace_id, filtered_sessions.agent_name, filtered_sessions.session_id, filtered_sessions.parent_session_id, filtered_sessions.title, filtered_sessions.kind, filtered_sessions.status, filtered_sessions.source_created_at, filtered_sessions.source_updated_at, filtered_sessions.group_value
+  FROM filtered_sessions
+  WHERE filtered_sessions.group_value = group_values.group_value
+  ORDER BY
+    filtered_sessions.source_updated_at DESC NULLS LAST,
+    filtered_sessions.agent_name ASC,
+    filtered_sessions.session_id ASC
+  LIMIT $1
+) AS sessions
+ORDER BY
+  CASE
+    WHEN $2::text = 'status' THEN CASE sessions.group_value
+      WHEN 'busy' THEN 0
+      WHEN 'retry' THEN 1
+      ELSE 2
+    END
+    WHEN $2::text = 'date' THEN CASE sessions.group_value
+      WHEN 'today' THEN 0
+      WHEN 'yesterday' THEN 1
+      WHEN 'previous_7_days' THEN 2
+      ELSE 3
+    END
+    ELSE 0
+  END,
+  sessions.group_value,
+  sessions.source_updated_at DESC NULLS LAST,
+  sessions.agent_name ASC,
+  sessions.session_id ASC
+`
+
+type GatewaySearchGroupedChatSessionsParams struct {
+	PageSize            int32       `json:"page_size"`
+	GroupBy             string      `json:"group_by"`
+	TodayStart          time.Time   `json:"today_start"`
+	YesterdayStart      time.Time   `json:"yesterday_start"`
+	PreviousWeekStart   time.Time   `json:"previous_week_start"`
+	WorkspaceID         string      `json:"workspace_id"`
+	AgentNames          []string    `json:"agent_names"`
+	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
+	AgentName           pgtype.Text `json:"agent_name"`
+	Search              string      `json:"search"`
+	ParticipantUserIds  []string    `json:"participant_user_ids"`
+}
+
+type GatewaySearchGroupedChatSessionsRow struct {
+	WorkspaceID      string             `json:"workspace_id"`
+	AgentName        string             `json:"agent_name"`
+	SessionID        string             `json:"session_id"`
+	Title            string             `json:"title"`
+	Kind             ChatSessionKind    `json:"kind"`
+	Status           ChatSessionStatus  `json:"status"`
+	SourceCreatedAt  pgtype.Timestamptz `json:"source_created_at"`
+	SourceUpdatedAt  pgtype.Timestamptz `json:"source_updated_at"`
+	GroupValue       string             `json:"group_value"`
+	ParticipantsJson string             `json:"participants_json"`
+}
+
+func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg GatewaySearchGroupedChatSessionsParams) ([]GatewaySearchGroupedChatSessionsRow, error) {
+	rows, err := q.db.Query(ctx, gatewaySearchGroupedChatSessions,
+		arg.PageSize,
+		arg.GroupBy,
+		arg.TodayStart,
+		arg.YesterdayStart,
+		arg.PreviousWeekStart,
+		arg.WorkspaceID,
+		arg.AgentNames,
+		arg.IncludeWorkflowRuns,
+		arg.AgentName,
+		arg.Search,
+		arg.ParticipantUserIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewaySearchGroupedChatSessionsRow{}
+	for rows.Next() {
+		var i GatewaySearchGroupedChatSessionsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.SessionID,
+			&i.Title,
+			&i.Kind,
+			&i.Status,
+			&i.SourceCreatedAt,
+			&i.SourceUpdatedAt,
+			&i.GroupValue,
+			&i.ParticipantsJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewaySyncAgentChatSessionStatuses = `-- name: GatewaySyncAgentChatSessionStatuses :exec
 WITH changed AS (
 UPDATE chat_sessions
@@ -4646,6 +4889,7 @@ INSERT INTO workspace_chat_preferences(
   agent_name,
   participant_user_ids,
   include_workflow_runs,
+  group_by,
   last_agent_name
 )
 VALUES (
@@ -4654,24 +4898,27 @@ VALUES (
   $3,
   $4,
   $5,
-  $6
+  $6,
+  $7
 )
 ON CONFLICT (workspace_id, user_id) DO UPDATE SET
   agent_name = EXCLUDED.agent_name,
   participant_user_ids = EXCLUDED.participant_user_ids,
   include_workflow_runs = EXCLUDED.include_workflow_runs,
+  group_by = EXCLUDED.group_by,
   last_agent_name = EXCLUDED.last_agent_name,
   updated_at = NOW()
-RETURNING workspace_id, user_id, agent_name, participant_user_ids, include_workflow_runs, last_agent_name, created_at, updated_at
+RETURNING workspace_id, user_id, agent_name, participant_user_ids, include_workflow_runs, last_agent_name, created_at, updated_at, group_by
 `
 
 type GatewayUpsertWorkspaceChatPreferenceParams struct {
-	WorkspaceID         string      `json:"workspace_id"`
-	UserID              string      `json:"user_id"`
-	AgentName           pgtype.Text `json:"agent_name"`
-	ParticipantUserIds  []string    `json:"participant_user_ids"`
-	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
-	LastAgentName       pgtype.Text `json:"last_agent_name"`
+	WorkspaceID         string             `json:"workspace_id"`
+	UserID              string             `json:"user_id"`
+	AgentName           pgtype.Text        `json:"agent_name"`
+	ParticipantUserIds  []string           `json:"participant_user_ids"`
+	IncludeWorkflowRuns bool               `json:"include_workflow_runs"`
+	GroupBy             ChatSessionGroupBy `json:"group_by"`
+	LastAgentName       pgtype.Text        `json:"last_agent_name"`
 }
 
 func (q *Queries) GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg GatewayUpsertWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error) {
@@ -4681,6 +4928,7 @@ func (q *Queries) GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg 
 		arg.AgentName,
 		arg.ParticipantUserIds,
 		arg.IncludeWorkflowRuns,
+		arg.GroupBy,
 		arg.LastAgentName,
 	)
 	var i WorkspaceChatPreference
@@ -4693,6 +4941,7 @@ func (q *Queries) GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg 
 		&i.LastAgentName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupBy,
 	)
 	return i, err
 }

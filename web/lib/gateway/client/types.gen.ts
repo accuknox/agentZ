@@ -8,6 +8,10 @@ export type ChatSessionKind = "chat" | "workflow_run"
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
 
+export type ChatSessionGroupBy = "none" | "agent" | "status" | "date"
+
+export type ChatSessionDateBucket = "today" | "yesterday" | "previous_7_days" | "older"
+
 export type ChatSessionParticipant = {
   id: string
   name: string
@@ -28,7 +32,21 @@ export type ChatSession = {
 
 export type ListChatSessionsResponse = {
   sessions: Array<ChatSession>
+  groups: Array<ChatSessionGroup>
   participant_filters: Array<ChatSessionParticipant>
+  has_next_page: boolean
+  next_page_token: string
+}
+
+export type ChatSessionGroup = {
+  group_by: ChatSessionGroupBy
+  key: string
+  label: string
+  agent_name?: AgentName
+  status?: ChatSessionStatus
+  date_bucket?: ChatSessionDateBucket
+  contains_active: boolean
+  sessions: Array<ChatSession>
   has_next_page: boolean
   next_page_token: string
 }
@@ -37,6 +55,7 @@ export type ChatSessionPreference = {
   agent_name: AgentName | null
   participant_user_ids: Array<string>
   include_workflow_runs: boolean
+  group_by: ChatSessionGroupBy
   last_agent_name: AgentName | null
 }
 
@@ -2336,6 +2355,41 @@ export type IncludeWorkflowRunsQuery = boolean
 export type ChatSessionLimitQuery = number
 
 /**
+ * Case-insensitive literal substring matched against session titles.
+ */
+export type ChatSessionSearchQuery = string
+
+/**
+ * Server-side grouping applied after all inbox filters.
+ */
+export type ChatSessionGroupByQuery = ChatSessionGroupBy
+
+/**
+ * Opaque group key returned by an earlier grouped response.
+ */
+export type ChatSessionGroupKeyQuery = string
+
+/**
+ * IANA time zone used to calculate date groups.
+ */
+export type ChatSessionTimeZoneQuery = string
+
+/**
+ * Agent name from the active session route.
+ */
+export type ChatSessionActiveAgentQuery = AgentName
+
+/**
+ * Session ID from the active session route.
+ */
+export type ChatSessionActiveSessionQuery = string
+
+/**
+ * Include the participant options used by the sidebar filter.
+ */
+export type ChatSessionIncludeFilterOptionsQuery = boolean
+
+/**
  * Agent name.
  */
 export type AgentNamePath = AgentName
@@ -2545,6 +2599,34 @@ export type ListChatSessionsData = {
      * Include sessions created by WorkflowRuns.
      */
     include_workflow_runs?: boolean
+    /**
+     * Case-insensitive literal substring matched against session titles.
+     */
+    search?: string
+    /**
+     * Server-side grouping applied after all inbox filters.
+     */
+    group_by?: ChatSessionGroupBy
+    /**
+     * Opaque group key returned by an earlier grouped response.
+     */
+    group_key?: string
+    /**
+     * IANA time zone used to calculate date groups.
+     */
+    time_zone?: string
+    /**
+     * Agent name from the active session route.
+     */
+    active_agent_name?: AgentName
+    /**
+     * Session ID from the active session route.
+     */
+    active_session_id?: string
+    /**
+     * Include the participant options used by the sidebar filter.
+     */
+    include_filter_options?: boolean
   }
   url: "/api/chat-session"
 }

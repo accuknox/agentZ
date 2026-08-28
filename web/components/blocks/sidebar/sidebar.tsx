@@ -236,12 +236,14 @@ async function WorkspaceNavigation({
       client,
       query: {
         agent_name: preference.data.agent_name ?? undefined,
+        group_by: preference.data.group_by,
         include_workflow_runs: preference.data.include_workflow_runs,
         limit: 10,
         participant_user_id:
           preference.data.participant_user_ids.length > 0
             ? preference.data.participant_user_ids
             : undefined,
+        time_zone: preference.data.group_by === "date" ? "UTC" : undefined,
       },
     })
     if (sessions.error) {

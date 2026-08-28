@@ -1,5 +1,6 @@
 import type { Route } from "next"
 import Link from "next/link"
+import { Suspense } from "react"
 import {
   Activity,
   ArrowLeft,
@@ -23,7 +24,7 @@ import {
   Workflow,
   Zap,
 } from "lucide-react"
-import { NavSessions } from "./sessions"
+import { NavSessions, NavSessionsSkeleton } from "./sessions"
 import { NavInference } from "./inference"
 import { NavLens } from "./lens"
 import { SidebarNavigationLink } from "./navigation-link"
@@ -43,8 +44,8 @@ import {
 } from "@/components/ui/sidebar"
 import { listAllAgentsCachedQuery } from "@/data/agent.queries"
 import type { OrganizationSummary } from "@/data/organizations"
-import type { WorkspacePath } from "@/data/types"
-import type { ResourceCapabilities, Workspace } from "@/lib/gateway/client"
+import type { ListAgentActionResponse, WorkspacePath } from "@/data/types"
+import type { ChatSessionPreference, ResourceCapabilities, Workspace } from "@/lib/gateway/client"
 import { resourceLabels } from "@/lib/resource-labels"
 import { getChatSessionPreference, listChatSessions } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -227,35 +228,22 @@ async function WorkspaceNavigation({
   const hasWorkspace = showAgents || organization.superadmin || workspace.capabilities.administer
   let chatSessions: React.JSX.Element | null = null
   if (showAgents) {
-    const client = getGatewayServerClient(workspace.id)
-    const preference = await getChatSessionPreference({ client })
+    const preference = await getChatSessionPreference({
+      client: getGatewayServerClient(workspace.id),
+    })
     if (preference.error) {
       throw new Error("Failed to load chat preferences")
     }
-    const sessions = await listChatSessions({
-      client,
-      query: {
-        agent_name: preference.data.agent_name ?? undefined,
-        include_workflow_runs: preference.data.include_workflow_runs,
-        limit: 10,
-        participant_user_id:
-          preference.data.participant_user_ids.length > 0
-            ? preference.data.participant_user_ids
-            : undefined,
-      },
-    })
-    if (sessions.error) {
-      throw new Error("Failed to load chat sessions")
-    }
     chatSessions = (
       <SidebarGroup className="min-h-0 flex-1 px-0 py-1 group-data-[collapsible=icon]:hidden">
-        <NavSessions
-          agents={agents}
-          initialPreferences={preference.data}
-          initialSessions={sessions.data}
-          workspaceId={workspace.id}
-          workspacePath={workspacePath}
-        />
+        <Suspense fallback={<NavSessionsSkeleton groupBy={preference.data.group_by} />}>
+          <WorkspaceChatSessions
+            agents={agents}
+            preferences={preference.data}
+            workspaceId={workspace.id}
+            workspacePath={workspacePath}
+          />
+        </Suspense>
       </SidebarGroup>
     )
   }
@@ -382,6 +370,44 @@ async function WorkspaceNavigation({
       </div>
       {chatSessions}
     </div>
+  )
+}
+
+async function WorkspaceChatSessions({
+  agents,
+  preferences,
+  workspaceId,
+  workspacePath,
+}: {
+  agents: ListAgentActionResponse
+  preferences: ChatSessionPreference
+  workspaceId: string
+  workspacePath: WorkspacePath
+}) {
+  const sessions = await listChatSessions({
+    client: getGatewayServerClient(workspaceId),
+    query: {
+      agent_name: preferences.agent_name ?? undefined,
+      group_by: preferences.group_by,
+      include_workflow_runs: preferences.include_workflow_runs,
+      limit: 10,
+      participant_user_id:
+        preferences.participant_user_ids.length > 0 ? preferences.participant_user_ids : undefined,
+      time_zone: preferences.group_by === "date" ? "UTC" : undefined,
+    },
+  })
+  if (sessions.error) {
+    throw new Error("Failed to load chat sessions")
+  }
+
+  return (
+    <NavSessions
+      agents={agents}
+      initialPreferences={preferences}
+      initialSessions={sessions.data}
+      workspaceId={workspaceId}
+      workspacePath={workspacePath}
+    />
   )
 }
 

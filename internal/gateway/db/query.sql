@@ -250,6 +250,28 @@ WHERE sessions.workspace_id = sqlc.arg(workspace_id)
     OR sessions.agent_name = sqlc.narg(agent_name)::text
   )
   AND (
+    NOT sqlc.arg(search_set)::boolean
+    OR sessions.title ILIKE
+      '%' || REPLACE(REPLACE(REPLACE(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      ESCAPE '\'
+  )
+  AND (
+    sqlc.narg(group_agent_name)::text IS NULL
+    OR sessions.agent_name = sqlc.narg(group_agent_name)::text
+  )
+  AND (
+    sqlc.narg(group_status)::chat_session_status IS NULL
+    OR sessions.status = sqlc.narg(group_status)::chat_session_status
+  )
+  AND (
+    sqlc.narg(group_since)::timestamptz IS NULL
+    OR sessions.source_updated_at >= sqlc.narg(group_since)::timestamptz
+  )
+  AND (
+    sqlc.narg(group_before)::timestamptz IS NULL
+    OR sessions.source_updated_at < sqlc.narg(group_before)::timestamptz
+  )
+  AND (
     cardinality(sqlc.arg(participant_user_ids)::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
@@ -274,10 +296,158 @@ WHERE sessions.workspace_id = sqlc.arg(workspace_id)
     )
   )
 ORDER BY
-  sessions.source_updated_at DESC,
+  sessions.source_updated_at DESC NULLS LAST,
   sessions.agent_name ASC,
   sessions.session_id ASC
 LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListChatSessionDateGroups :many
+SELECT CASE
+  WHEN sessions.source_updated_at >= sqlc.arg(today_start)::timestamptz THEN 'today'
+  WHEN sessions.source_updated_at >= sqlc.arg(yesterday_start)::timestamptz THEN 'yesterday'
+  WHEN sessions.source_updated_at >= sqlc.arg(previous_week_start)::timestamptz
+    THEN 'previous_7_days'
+  ELSE 'older'
+END::text AS group_value
+FROM chat_sessions AS sessions
+WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
+  AND sessions.parent_session_id IS NULL
+  AND (
+    sqlc.arg(include_workflow_runs)::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+  AND (
+    cardinality(sqlc.arg(participant_user_ids)::text[]) = 0
+    OR (
+      SELECT COUNT(DISTINCT participants.user_id)
+      FROM chat_session_participants AS participants
+      WHERE participants.workspace_id = sessions.workspace_id
+        AND participants.agent_name = sessions.agent_name
+        AND participants.session_id = sessions.session_id
+        AND participants.user_id = ANY(sqlc.arg(participant_user_ids)::text[])
+    ) = cardinality(sqlc.arg(participant_user_ids)::text[])
+  )
+GROUP BY group_value
+ORDER BY MAX(sessions.source_updated_at) DESC;
+
+-- name: GatewaySearchGroupedChatSessions :many
+WITH filtered_sessions AS (
+  SELECT
+    sessions.workspace_id,
+    sessions.agent_name,
+    sessions.session_id,
+    sessions.parent_session_id,
+    sessions.title,
+    sessions.kind,
+    sessions.status,
+    sessions.source_created_at,
+    sessions.source_updated_at,
+    (CASE sqlc.arg(group_by)::text
+      WHEN 'agent' THEN sessions.agent_name
+      WHEN 'status' THEN sessions.status::text
+      WHEN 'date' THEN CASE
+        WHEN sessions.source_updated_at >= sqlc.arg(today_start)::timestamptz THEN 'today'
+        WHEN sessions.source_updated_at >= sqlc.arg(yesterday_start)::timestamptz THEN 'yesterday'
+        WHEN sessions.source_updated_at >= sqlc.arg(previous_week_start)::timestamptz
+          THEN 'previous_7_days'
+        ELSE 'older'
+      END
+    END)::text AS group_value
+  FROM chat_sessions AS sessions
+  WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+    AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
+    AND sessions.parent_session_id IS NULL
+    AND (
+      sqlc.arg(include_workflow_runs)::boolean
+      OR sessions.kind <> 'workflow_run'
+    )
+    AND (
+      sqlc.narg(agent_name)::text IS NULL
+      OR sessions.agent_name = sqlc.narg(agent_name)::text
+    )
+    AND sessions.title ILIKE
+      '%' || REPLACE(REPLACE(REPLACE(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      ESCAPE '\'
+    AND (
+      cardinality(sqlc.arg(participant_user_ids)::text[]) = 0
+      OR (
+        SELECT COUNT(DISTINCT participants.user_id)
+        FROM chat_session_participants AS participants
+        WHERE participants.workspace_id = sessions.workspace_id
+          AND participants.agent_name = sessions.agent_name
+          AND participants.session_id = sessions.session_id
+          AND participants.user_id = ANY(sqlc.arg(participant_user_ids)::text[])
+      ) = cardinality(sqlc.arg(participant_user_ids)::text[])
+    )
+), group_values AS (
+  SELECT DISTINCT group_value
+  FROM filtered_sessions
+)
+SELECT
+  sessions.workspace_id,
+  sessions.agent_name,
+  sessions.session_id,
+  sessions.title,
+  sessions.kind,
+  sessions.status,
+  sessions.source_created_at,
+  sessions.source_updated_at,
+  sessions.group_value,
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', users.id,
+        'name', users.name,
+        'email', users.email,
+        'image', users.image
+      )
+      ORDER BY participants.last_messaged_at DESC, users.id
+    )
+    FROM chat_session_participants AS participants
+    JOIN users ON users.id = participants.user_id
+    WHERE participants.workspace_id = sessions.workspace_id
+      AND participants.agent_name = sessions.agent_name
+      AND participants.session_id = sessions.session_id
+  ), '[]'::jsonb)::text AS participants_json
+FROM group_values
+CROSS JOIN LATERAL (
+  SELECT filtered_sessions.*
+  FROM filtered_sessions
+  WHERE filtered_sessions.group_value = group_values.group_value
+  ORDER BY
+    filtered_sessions.source_updated_at DESC NULLS LAST,
+    filtered_sessions.agent_name ASC,
+    filtered_sessions.session_id ASC
+  LIMIT sqlc.arg(page_size)
+) AS sessions
+ORDER BY
+  CASE
+    WHEN sqlc.arg(group_by)::text = 'status' THEN CASE sessions.group_value
+      WHEN 'busy' THEN 0
+      WHEN 'retry' THEN 1
+      ELSE 2
+    END
+    WHEN sqlc.arg(group_by)::text = 'date' THEN CASE sessions.group_value
+      WHEN 'today' THEN 0
+      WHEN 'yesterday' THEN 1
+      WHEN 'previous_7_days' THEN 2
+      ELSE 3
+    END
+    ELSE 0
+  END,
+  sessions.group_value,
+  sessions.source_updated_at DESC NULLS LAST,
+  sessions.agent_name ASC,
+  sessions.session_id ASC;
+
+-- name: GatewayGetChatSessionGroup :one
+SELECT status, source_updated_at
+FROM chat_sessions
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND agent_name = sqlc.arg(agent_name)
+  AND session_id = sqlc.arg(session_id)
+  AND parent_session_id IS NULL;
 
 -- name: GatewayListChatSessionFilterUsers :many
 SELECT DISTINCT users.id, users.name, users.email, users.image
@@ -312,6 +482,7 @@ INSERT INTO workspace_chat_preferences(
   agent_name,
   participant_user_ids,
   include_workflow_runs,
+  group_by,
   last_agent_name
 )
 VALUES (
@@ -320,12 +491,14 @@ VALUES (
   sqlc.narg(agent_name),
   sqlc.arg(participant_user_ids),
   sqlc.arg(include_workflow_runs),
+  sqlc.arg(group_by),
   sqlc.narg(last_agent_name)
 )
 ON CONFLICT (workspace_id, user_id) DO UPDATE SET
   agent_name = EXCLUDED.agent_name,
   participant_user_ids = EXCLUDED.participant_user_ids,
   include_workflow_runs = EXCLUDED.include_workflow_runs,
+  group_by = EXCLUDED.group_by,
   last_agent_name = EXCLUDED.last_agent_name,
   updated_at = NOW()
 RETURNING *;

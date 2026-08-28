@@ -1350,7 +1350,7 @@ async function loadRoleUsers(scope: RoleManagement, roleId: string) {
       name: schema.users.name,
       assigned: sql<boolean>`EXISTS (
         SELECT 1 FROM member_roles
-        WHERE member_roles.member_id = ${sql.raw('"members"."id"')}
+        WHERE member_roles.member_id = ${schema.members.id}
           AND member_roles.role_id = ${roleId}
           AND member_roles.organization_id = ${scope.actor.organization.id}
       )`,

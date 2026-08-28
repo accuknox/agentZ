@@ -6,6 +6,10 @@ export const zChatSessionKind = z.enum(["chat", "workflow_run"])
 
 export const zChatSessionStatus = z.enum(["idle", "busy", "retry"])
 
+export const zChatSessionGroupBy = z.enum(["none", "agent", "status", "date"])
+
+export const zChatSessionDateBucket = z.enum(["today", "yesterday", "previous_7_days", "older"])
+
 export const zChatSessionParticipant = z.object({
   id: z.string(),
   name: z.string(),
@@ -311,8 +315,22 @@ export const zChatSession = z.object({
   participants: z.array(zChatSessionParticipant),
 })
 
+export const zChatSessionGroup = z.object({
+  group_by: zChatSessionGroupBy,
+  key: z.string(),
+  label: z.string(),
+  agent_name: zAgentName.optional(),
+  status: zChatSessionStatus.optional(),
+  date_bucket: zChatSessionDateBucket.optional(),
+  contains_active: z.boolean(),
+  sessions: z.array(zChatSession),
+  has_next_page: z.boolean(),
+  next_page_token: z.string(),
+})
+
 export const zListChatSessionsResponse = z.object({
   sessions: z.array(zChatSession),
+  groups: z.array(zChatSessionGroup),
   participant_filters: z.array(zChatSessionParticipant),
   has_next_page: z.boolean(),
   next_page_token: z.string(),
@@ -322,6 +340,7 @@ export const zChatSessionPreference = z.object({
   agent_name: zAgentName.nullable(),
   participant_user_ids: z.array(z.string().min(1)).max(25),
   include_workflow_runs: z.boolean(),
+  group_by: zChatSessionGroupBy,
   last_agent_name: zAgentName.nullable(),
 })
 
@@ -2545,6 +2564,41 @@ export const zIncludeWorkflowRunsQuery = z.boolean().default(false)
  * Maximum number of sessions to return.
  */
 export const zChatSessionLimitQuery = z.int().gte(1).lte(50).default(10)
+
+/**
+ * Case-insensitive literal substring matched against session titles.
+ */
+export const zChatSessionSearchQuery = z.string().min(3).max(200)
+
+/**
+ * Server-side grouping applied after all inbox filters.
+ */
+export const zChatSessionGroupByQuery = zChatSessionGroupBy
+
+/**
+ * Opaque group key returned by an earlier grouped response.
+ */
+export const zChatSessionGroupKeyQuery = z.string().min(1)
+
+/**
+ * IANA time zone used to calculate date groups.
+ */
+export const zChatSessionTimeZoneQuery = z.string().min(1).max(100)
+
+/**
+ * Agent name from the active session route.
+ */
+export const zChatSessionActiveAgentQuery = zAgentName
+
+/**
+ * Session ID from the active session route.
+ */
+export const zChatSessionActiveSessionQuery = z.string().min(1)
+
+/**
+ * Include the participant options used by the sidebar filter.
+ */
+export const zChatSessionIncludeFilterOptionsQuery = z.boolean().default(true)
 
 /**
  * Agent name.

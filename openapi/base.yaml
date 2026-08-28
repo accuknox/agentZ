@@ -57,6 +57,13 @@ paths:
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/ChatSessionParticipantQuery'
       - $ref: '#/components/parameters/IncludeWorkflowRunsQuery'
+      - $ref: '#/components/parameters/ChatSessionSearchQuery'
+      - $ref: '#/components/parameters/ChatSessionGroupByQuery'
+      - $ref: '#/components/parameters/ChatSessionGroupKeyQuery'
+      - $ref: '#/components/parameters/ChatSessionTimeZoneQuery'
+      - $ref: '#/components/parameters/ChatSessionActiveAgentQuery'
+      - $ref: '#/components/parameters/ChatSessionActiveSessionQuery'
+      - $ref: '#/components/parameters/ChatSessionIncludeFilterOptionsQuery'
       responses:
         '200':
           description: Paginated chat sessions and available participant filters.
@@ -3762,6 +3769,69 @@ components:
         maximum: 50
         default: 10
 
+    ChatSessionSearchQuery:
+      name: search
+      in: query
+      required: false
+      description: Case-insensitive literal substring matched against session titles.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 200
+
+    ChatSessionGroupByQuery:
+      name: group_by
+      in: query
+      required: false
+      description: Server-side grouping applied after all inbox filters.
+      schema:
+        $ref: '#/components/schemas/ChatSessionGroupBy'
+
+    ChatSessionGroupKeyQuery:
+      name: group_key
+      in: query
+      required: false
+      description: Opaque group key returned by an earlier grouped response.
+      schema:
+        type: string
+        minLength: 1
+
+    ChatSessionTimeZoneQuery:
+      name: time_zone
+      in: query
+      required: false
+      description: IANA time zone used to calculate date groups.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+
+    ChatSessionActiveAgentQuery:
+      name: active_agent_name
+      in: query
+      required: false
+      description: Agent name from the active session route.
+      schema:
+        $ref: '#/components/schemas/AgentName'
+
+    ChatSessionActiveSessionQuery:
+      name: active_session_id
+      in: query
+      required: false
+      description: Session ID from the active session route.
+      schema:
+        type: string
+        minLength: 1
+
+    ChatSessionIncludeFilterOptionsQuery:
+      name: include_filter_options
+      in: query
+      required: false
+      description: Include the participant options used by the sidebar filter.
+      schema:
+        type: boolean
+        default: true
+
     AgentNamePath:
       name: agentName
       in: path
@@ -4220,6 +4290,24 @@ components:
       - ChatSessionStatusBusy
       - ChatSessionStatusRetry
 
+    ChatSessionGroupBy:
+      type: string
+      enum: [none, agent, status, date]
+      x-enum-varnames:
+      - ChatSessionGroupByNone
+      - ChatSessionGroupByAgent
+      - ChatSessionGroupByStatus
+      - ChatSessionGroupByDate
+
+    ChatSessionDateBucket:
+      type: string
+      enum: [today, yesterday, previous_7_days, older]
+      x-enum-varnames:
+      - ChatSessionDateBucketToday
+      - ChatSessionDateBucketYesterday
+      - ChatSessionDateBucketPrevious7Days
+      - ChatSessionDateBucketOlder
+
     ChatSessionParticipant:
       type: object
       additionalProperties: false
@@ -4278,6 +4366,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ChatSession'
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatSessionGroup'
         participant_filters:
           type: array
           items:
@@ -4286,7 +4378,42 @@ components:
           type: boolean
         next_page_token:
           type: string
-      required: [sessions, participant_filters, has_next_page, next_page_token]
+      required: [sessions, groups, participant_filters, has_next_page, next_page_token]
+
+    ChatSessionGroup:
+      type: object
+      additionalProperties: false
+      properties:
+        group_by:
+          $ref: '#/components/schemas/ChatSessionGroupBy'
+        key:
+          type: string
+        label:
+          type: string
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        status:
+          $ref: '#/components/schemas/ChatSessionStatus'
+        date_bucket:
+          $ref: '#/components/schemas/ChatSessionDateBucket'
+        contains_active:
+          type: boolean
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatSession'
+        has_next_page:
+          type: boolean
+        next_page_token:
+          type: string
+      required:
+      - group_by
+      - key
+      - label
+      - contains_active
+      - sessions
+      - has_next_page
+      - next_page_token
 
     ChatSessionPreference:
       type: object
@@ -4305,11 +4432,13 @@ components:
             minLength: 1
         include_workflow_runs:
           type: boolean
+        group_by:
+          $ref: '#/components/schemas/ChatSessionGroupBy'
         last_agent_name:
           allOf:
           - $ref: '#/components/schemas/AgentName'
           nullable: true
-      required: [agent_name, participant_user_ids, include_workflow_runs, last_agent_name]
+      required: [agent_name, participant_user_ids, include_workflow_runs, group_by, last_agent_name]
 
     WatchChatSessionsEvent:
       type: object

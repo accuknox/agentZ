@@ -38,6 +38,7 @@ type Querier interface {
 	GatewayGetAgent(ctx context.Context, arg GatewayGetAgentParams) (Agent, error)
 	GatewayGetAgentOwner(ctx context.Context, arg GatewayGetAgentOwnerParams) (AgentOwner, error)
 	GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentShareParams) (AgentShare, error)
+	GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGetChatSessionGroupParams) (GatewayGetChatSessionGroupRow, error)
 	GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)
 	GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspaceParams) (Workspace, error)
@@ -53,6 +54,7 @@ type Querier interface {
 	GatewayListAgentShares(ctx context.Context, arg GatewayListAgentSharesParams) ([]AgentShare, error)
 	GatewayListAgents(ctx context.Context, arg GatewayListAgentsParams) ([]Agent, error)
 	GatewayListAgentsByName(ctx context.Context, arg GatewayListAgentsByNameParams) ([]Agent, error)
+	GatewayListChatSessionDateGroups(ctx context.Context, arg GatewayListChatSessionDateGroupsParams) ([]string, error)
 	GatewayListChatSessionFilterUsers(ctx context.Context, arg GatewayListChatSessionFilterUsersParams) ([]GatewayListChatSessionFilterUsersRow, error)
 	GatewayListChatSessions(ctx context.Context, arg GatewayListChatSessionsParams) ([]GatewayListChatSessionsRow, error)
 	GatewayListEventTrailActors(ctx context.Context, arg GatewayListEventTrailActorsParams) ([]GatewayListEventTrailActorsRow, error)
@@ -87,6 +89,7 @@ type Querier interface {
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)
 	GatewayRetryWorkspaceProvisioning(ctx context.Context, arg GatewayRetryWorkspaceProvisioningParams) (int64, error)
 	GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error)
+	GatewaySearchGroupedChatSessions(ctx context.Context, arg GatewaySearchGroupedChatSessionsParams) ([]GatewaySearchGroupedChatSessionsRow, error)
 	GatewaySyncAgentChatSessionStatuses(ctx context.Context, arg GatewaySyncAgentChatSessionStatusesParams) error
 	GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsParams) (bool, error)
 	GatewayTouchAgent(ctx context.Context, arg GatewayTouchAgentParams) (Agent, error)

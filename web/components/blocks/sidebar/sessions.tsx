@@ -16,10 +16,9 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
-  Filter,
-  ListTree,
   Plus,
   Search,
+  Settings2,
   SquarePen,
   Trash2,
   Users,
@@ -54,8 +53,20 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { UserAvatar } from "@/components/ui/avatar"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
@@ -66,7 +77,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Input } from "@/components/ui/input"
 import { useSidebar } from "@/components/ui/sidebar"
@@ -397,141 +407,166 @@ function NavSessionsContent({
         >
           <Search aria-hidden="true" />
         </Button>
-        <Popover>
-          <PopoverTrigger asChild>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
-              aria-label="Group chats"
-              className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground size-8 rounded-md border-0 bg-transparent shadow-none"
-              size="icon-sm"
-              variant="ghost"
-            >
-              <ListTree aria-hidden="true" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-56 p-3" side="right" sideOffset={8}>
-            <label className="text-sm font-medium" htmlFor="chat-group-by">
-              Group by
-            </label>
-            <Select
-              value={preferences.group_by}
-              onValueChange={(groupBy: ChatSessionPreference["group_by"]) =>
-                updatePreferences((current) => ({ ...current, group_by: groupBy }))
+              aria-label={
+                activeFilterCount === 0
+                  ? "Chat list options"
+                  : `Chat list options, ${activeFilterCount} active filters`
               }
-            >
-              <SelectTrigger className="mt-1.5 w-full" id="chat-group-by">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="agent">Agent</SelectItem>
-                  <SelectItem value="status">State</SelectItem>
-                  <SelectItem value="date">Date</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </PopoverContent>
-        </Popover>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              aria-label="Filter chats"
               className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground relative size-8 rounded-md border-0 bg-transparent shadow-none"
               size="icon-sm"
               variant="ghost"
             >
-              <Filter aria-hidden="true" />
+              <Settings2 aria-hidden="true" />
               {activeFilterCount > 0 ? (
-                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 grid size-4 place-items-center rounded-full text-[10px] font-semibold">
+                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold">
                   {activeFilterCount}
                 </span>
               ) : null}
             </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            className="max-h-[calc(100dvh-1rem)] w-72 gap-4 overflow-y-auto p-3"
-            collisionPadding={8}
-            side="right"
-            sideOffset={8}
-          >
-            <div>
-              <label className="text-sm font-medium" htmlFor="chat-agent-filter">
-                Agent
-              </label>
-              <Select
-                value={preferences.agent_name ?? allAgentsValue}
-                onValueChange={(agentName) =>
-                  updatePreferences((current) => ({
-                    ...current,
-                    agent_name: agentName === allAgentsValue ? null : agentName,
-                  }))
-                }
-              >
-                <SelectTrigger className="mt-1.5 w-full" id="chat-agent-filter">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={allAgentsValue}>
-                      <Bot />
-                      All agents
-                    </SelectItem>
-                    {availableAgents.map((agent) => (
-                      <SelectItem key={agent.name} value={agent.name}>
-                        <Bot />
-                        {agent.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium" htmlFor="chat-people-filter">
-                People in chat
-              </label>
-              <MultiSelectDropdown
-                className="mt-1.5"
-                contentClassName="w-(--radix-popover-trigger-width) min-w-0"
-                disabled={participantFilters.length === 0}
-                emptyMessage="No people found."
-                id="chat-people-filter"
-                onValueChangeAction={(participantUserIds) =>
-                  updatePreferences((current) => ({
-                    ...current,
-                    participant_user_ids: participantUserIds,
-                  }))
-                }
-                options={participantFilters.map((participant) => {
-                  const label = participant.name || participant.email
-                  return {
-                    image: participant.image,
-                    initials: label.slice(0, 1).toUpperCase(),
-                    label,
-                    value: participant.id,
-                  }
-                })}
-                placeholder={participantFilters.length === 0 ? "No participants yet" : "All people"}
-                searchPlaceholder="Search people..."
-                value={preferences.participant_user_ids}
-              />
-            </div>
-            <Separator className="-mx-3 w-[calc(100%+1.5rem)]" />
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <Checkbox
-                checked={preferences.include_workflow_runs}
-                onCheckedChange={(checked) =>
-                  updatePreferences((current) => ({
-                    ...current,
-                    include_workflow_runs: checked === true,
-                  }))
-                }
-              />
-              Show workflow run chats
-            </label>
-          </PopoverContent>
-        </Popover>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56" side="right" sideOffset={8}>
+            <DropdownMenuGroup>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <span className="min-w-0 flex-1">Group by</span>
+                  <span className="text-muted-foreground truncate capitalize">
+                    {preferences.group_by === "status" ? "State" : preferences.group_by}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-44" sideOffset={4}>
+                  <DropdownMenuRadioGroup value={preferences.group_by}>
+                    <DropdownMenuRadioItem
+                      onSelect={() =>
+                        updatePreferences((current) => ({ ...current, group_by: "date" }))
+                      }
+                      value="date"
+                    >
+                      Date
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      onSelect={() =>
+                        updatePreferences((current) => ({ ...current, group_by: "agent" }))
+                      }
+                      value="agent"
+                    >
+                      Agent
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      onSelect={() =>
+                        updatePreferences((current) => ({ ...current, group_by: "status" }))
+                      }
+                      value="status"
+                    >
+                      State
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioItem
+                      onSelect={() =>
+                        updatePreferences((current) => ({ ...current, group_by: "none" }))
+                      }
+                      value="none"
+                    >
+                      None
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <span className="min-w-0 flex-1">Filters</span>
+                  <span className="text-muted-foreground truncate">
+                    {activeFilterCount === 0 ? "None" : `${activeFilterCount} active`}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  className="max-h-[calc(100dvh-1rem)] w-72 overflow-y-auto p-3"
+                  sideOffset={4}
+                >
+                  <FieldGroup className="gap-4">
+                    <Field className="gap-1.5">
+                      <FieldLabel htmlFor="chat-agent-filter">Agent</FieldLabel>
+                      <Select
+                        value={preferences.agent_name ?? allAgentsValue}
+                        onValueChange={(agentName) =>
+                          updatePreferences((current) => ({
+                            ...current,
+                            agent_name: agentName === allAgentsValue ? null : agentName,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="w-full" id="chat-agent-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value={allAgentsValue}>
+                              <Bot />
+                              All agents
+                            </SelectItem>
+                            {availableAgents.map((agent) => (
+                              <SelectItem key={agent.name} value={agent.name}>
+                                <Bot />
+                                {agent.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field className="gap-1.5">
+                      <FieldLabel htmlFor="chat-people-filter">People in chat</FieldLabel>
+                      <MultiSelectDropdown
+                        contentClassName="w-(--radix-popover-trigger-width) min-w-0"
+                        disabled={participantFilters.length === 0}
+                        emptyMessage="No people found."
+                        id="chat-people-filter"
+                        onValueChangeAction={(participantUserIds) =>
+                          updatePreferences((current) => ({
+                            ...current,
+                            participant_user_ids: participantUserIds,
+                          }))
+                        }
+                        options={participantFilters.map((participant) => {
+                          const label = participant.name || participant.email
+                          return {
+                            image: participant.image,
+                            initials: label.slice(0, 1).toUpperCase(),
+                            label,
+                            value: participant.id,
+                          }
+                        })}
+                        placeholder={
+                          participantFilters.length === 0 ? "No participants yet" : "All people"
+                        }
+                        searchPlaceholder="Search people..."
+                        value={preferences.participant_user_ids}
+                      />
+                    </Field>
+                    <DropdownMenuSeparator className="-mx-3 w-[calc(100%+1.5rem)]" />
+                    <Field orientation="horizontal">
+                      <Checkbox
+                        checked={preferences.include_workflow_runs}
+                        id="chat-workflow-filter"
+                        onCheckedChange={(checked) =>
+                          updatePreferences((current) => ({
+                            ...current,
+                            include_workflow_runs: checked === true,
+                          }))
+                        }
+                      />
+                      <FieldLabel htmlFor="chat-workflow-filter">
+                        Show workflow run chats
+                      </FieldLabel>
+                    </Field>
+                  </FieldGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {searchOpen ? (

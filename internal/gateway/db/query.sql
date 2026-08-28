@@ -301,6 +301,36 @@ ORDER BY
   sessions.session_id ASC
 LIMIT sqlc.arg(page_size);
 
+-- name: GatewayListChatSessionDateGroups :many
+SELECT CASE
+  WHEN sessions.source_updated_at >= sqlc.arg(today_start)::timestamptz THEN 'today'
+  WHEN sessions.source_updated_at >= sqlc.arg(yesterday_start)::timestamptz THEN 'yesterday'
+  WHEN sessions.source_updated_at >= sqlc.arg(previous_week_start)::timestamptz
+    THEN 'previous_7_days'
+  ELSE 'older'
+END::text AS group_value
+FROM chat_sessions AS sessions
+WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
+  AND sessions.parent_session_id IS NULL
+  AND (
+    sqlc.arg(include_workflow_runs)::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+  AND (
+    cardinality(sqlc.arg(participant_user_ids)::text[]) = 0
+    OR (
+      SELECT COUNT(DISTINCT participants.user_id)
+      FROM chat_session_participants AS participants
+      WHERE participants.workspace_id = sessions.workspace_id
+        AND participants.agent_name = sessions.agent_name
+        AND participants.session_id = sessions.session_id
+        AND participants.user_id = ANY(sqlc.arg(participant_user_ids)::text[])
+    ) = cardinality(sqlc.arg(participant_user_ids)::text[])
+  )
+GROUP BY group_value
+ORDER BY MAX(sessions.source_updated_at) DESC;
+
 -- name: GatewaySearchGroupedChatSessions :many
 WITH filtered_sessions AS (
   SELECT

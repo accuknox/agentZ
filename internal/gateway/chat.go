@@ -350,11 +350,29 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		}
 	case grouped && !groupSelected && search == "":
 		values := agentNames
-		if groupBy == gatewayapi.ChatSessionGroupByStatus {
+		switch groupBy {
+		case gatewayapi.ChatSessionGroupByStatus:
 			values = []string{"busy", "retry", "idle"}
-		}
-		if groupBy == gatewayapi.ChatSessionGroupByDate {
-			values = []string{"today", "yesterday", "previous_7_days", "older"}
+		case gatewayapi.ChatSessionGroupByDate:
+			if !hasAgents {
+				break
+			}
+			values, err = s.queries.GatewayListChatSessionDateGroups(
+				r.Context(),
+				gatewaydb.GatewayListChatSessionDateGroupsParams{
+					TodayStart:          today,
+					YesterdayStart:      yesterday,
+					PreviousWeekStart:   previousWeek,
+					WorkspaceID:         access.workspaceID,
+					AgentNames:          agentNames,
+					IncludeWorkflowRuns: includeWorkflowRuns,
+					ParticipantUserIds:  participantIDs,
+				},
+			)
+			if err != nil {
+				writeInternalError(w, r, fmt.Errorf("list chat session date groups: %w", err))
+				return
+			}
 		}
 		for _, value := range values {
 			response.Groups = append(response.Groups, chatSessionGroup(groupBy, value, activeGroup))

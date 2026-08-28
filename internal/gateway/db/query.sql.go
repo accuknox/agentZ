@@ -2051,6 +2051,75 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 	return items, nil
 }
 
+const gatewayListChatSessionDateGroups = `-- name: GatewayListChatSessionDateGroups :many
+SELECT CASE
+  WHEN sessions.source_updated_at >= $1::timestamptz THEN 'today'
+  WHEN sessions.source_updated_at >= $2::timestamptz THEN 'yesterday'
+  WHEN sessions.source_updated_at >= $3::timestamptz
+    THEN 'previous_7_days'
+  ELSE 'older'
+END::text AS group_value
+FROM chat_sessions AS sessions
+WHERE sessions.workspace_id = $4
+  AND sessions.agent_name = ANY($5::text[])
+  AND sessions.parent_session_id IS NULL
+  AND (
+    $6::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+  AND (
+    cardinality($7::text[]) = 0
+    OR (
+      SELECT COUNT(DISTINCT participants.user_id)
+      FROM chat_session_participants AS participants
+      WHERE participants.workspace_id = sessions.workspace_id
+        AND participants.agent_name = sessions.agent_name
+        AND participants.session_id = sessions.session_id
+        AND participants.user_id = ANY($7::text[])
+    ) = cardinality($7::text[])
+  )
+GROUP BY group_value
+ORDER BY MAX(sessions.source_updated_at) DESC
+`
+
+type GatewayListChatSessionDateGroupsParams struct {
+	TodayStart          time.Time `json:"today_start"`
+	YesterdayStart      time.Time `json:"yesterday_start"`
+	PreviousWeekStart   time.Time `json:"previous_week_start"`
+	WorkspaceID         string    `json:"workspace_id"`
+	AgentNames          []string  `json:"agent_names"`
+	IncludeWorkflowRuns bool      `json:"include_workflow_runs"`
+	ParticipantUserIds  []string  `json:"participant_user_ids"`
+}
+
+func (q *Queries) GatewayListChatSessionDateGroups(ctx context.Context, arg GatewayListChatSessionDateGroupsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, gatewayListChatSessionDateGroups,
+		arg.TodayStart,
+		arg.YesterdayStart,
+		arg.PreviousWeekStart,
+		arg.WorkspaceID,
+		arg.AgentNames,
+		arg.IncludeWorkflowRuns,
+		arg.ParticipantUserIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var group_value string
+		if err := rows.Scan(&group_value); err != nil {
+			return nil, err
+		}
+		items = append(items, group_value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListChatSessionFilterUsers = `-- name: GatewayListChatSessionFilterUsers :many
 SELECT DISTINCT users.id, users.name, users.email, users.image
 FROM chat_session_participants AS participants

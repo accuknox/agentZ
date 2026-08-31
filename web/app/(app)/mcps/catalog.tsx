@@ -264,6 +264,11 @@ export const mcpServers = [
     icon: Globe,
   },
   {
+    name: "Composio",
+    mcpUrl: "https://connect.composio.dev/mcp",
+    icon: Globe,
+  },
+  {
     name: "Coupler.io",
     mcpUrl: "https://mcp.coupler.io/mcp/",
     icon: Globe,

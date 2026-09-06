@@ -35,7 +35,7 @@ export function NavLens({ rootPath }: { rootPath: string }) {
     <Collapsible asChild defaultOpen={path.startsWith(lensPath)} className="group/lens">
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
-          <SidebarMenuButton tooltip="Lens">
+          <SidebarMenuButton data-tour="lens" tooltip="Lens">
             <Search aria-hidden="true" />
             <span>Lens</span>
             <ChevronRightIcon

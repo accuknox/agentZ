@@ -24,6 +24,7 @@ import {
   Workflow,
   Zap,
 } from "lucide-react"
+import { ProductTour } from "@/components/blocks/tour/product-tour"
 import { NavSessions, NavSessionsSkeleton } from "./sessions"
 import { NavInference } from "./inference"
 import { NavLens } from "./lens"
@@ -141,6 +142,11 @@ export function AppSidebar({
       </SidebarContent>
       {user ? (
         <SidebarFooter className="border-t p-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <ProductTour />
+            </SidebarMenuItem>
+          </SidebarMenu>
           <NavUser
             activeOrganizationId={activeOrganizationId}
             organizations={organizations}

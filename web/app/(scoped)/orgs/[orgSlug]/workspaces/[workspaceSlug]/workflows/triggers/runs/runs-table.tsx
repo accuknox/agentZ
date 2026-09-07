@@ -22,6 +22,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { formatDurationSeconds } from "@/lib/format"
+import { RunElapsed } from "@/components/blocks/workflow/run-elapsed"
 import {
   getWorkflowRun,
   watchWorkflowRuns,
@@ -63,7 +64,8 @@ const layout: Record<string, AdminColumnLayout> = {
   name: { minWidth: 224, contentMaxWidth: 320 },
   workflow_name: { minWidth: 176, contentMaxWidth: 288 },
   status: { minWidth: 160, width: 160 },
-  duration_seconds: { minWidth: 112, width: 112 },
+  duration_seconds: { minWidth: 128, width: 128 },
+  timeout_seconds: { minWidth: 112, width: 112 },
   created_at: { minWidth: 144, width: 144 },
   actions: { minWidth: 64, width: 64 },
 }
@@ -147,16 +149,7 @@ export function RunsTable({
               continue
             }
 
-            byName.set(run.name, {
-              name: run.name,
-              workflow_name: run.workflow_name,
-              trigger_type: run.trigger_type,
-              schedule_name: run.schedule_name,
-              status: run.status,
-              reason: run.reason,
-              created_at: run.created_at,
-              duration_seconds: run.duration_seconds,
-            })
+            byName.set(run.name, run)
           }
 
           return rows.map((row) => byName.get(row.name) ?? row)
@@ -287,17 +280,16 @@ function createColumns({
       ),
     },
     {
-      accessorFn: (row) => row.duration_seconds ?? Number.POSITIVE_INFINITY,
-      id: "duration_seconds",
-      header: "Duration",
-      cell: ({ row }) => {
-        const durationSeconds = row.original.duration_seconds
-        if (durationSeconds === undefined) {
-          return <span className="text-muted-foreground">-</span>
-        }
-
-        return formatDurationSeconds(durationSeconds)
-      },
+      accessorKey: "duration_seconds",
+      header: "Elapsed",
+      cell: ({ row }) => <RunElapsed key={row.original.name} {...row.original} />,
+    },
+    {
+      accessorKey: "timeout_seconds",
+      header: "Max time",
+      cell: ({ row }) => (
+        <span className="tabular-nums">{formatDurationSeconds(row.original.timeout_seconds)}</span>
+      ),
     },
     {
       accessorKey: "created_at",

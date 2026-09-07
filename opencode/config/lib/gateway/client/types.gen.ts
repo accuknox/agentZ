@@ -732,9 +732,12 @@ export type WorkflowRunSummary = {
   workflow_name: WorkflowName
   trigger_type: WorkflowRunTriggerType
   schedule_name?: WorkflowScheduleName
+  timeout_seconds: number
   status: WorkflowRunStatus
   reason: string
   created_at: string
+  started_at?: string
+  completed_at?: string
   duration_seconds?: number
 }
 

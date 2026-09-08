@@ -5,14 +5,8 @@ import { Rocket } from "lucide-react"
 import type { Config, DriveStep, Driver } from "driver.js"
 import "driver.js/dist/driver.css"
 import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
+import { isVisible, scrollAncestorsIntoView } from "./scroll"
 import { tourSteps } from "./tour-steps"
-
-/** Elements that are in the DOM but not rendered cannot be highlighted. */
-function isVisible(selector: string) {
-  const element = document.querySelector(selector)
-
-  return element instanceof HTMLElement && element.getClientRects().length > 0
-}
 
 export function ProductTour() {
   const { isMobile, setOpen, setOpenMobile } = useSidebar()
@@ -40,7 +34,7 @@ export function ProductTour() {
       })
 
       const steps: DriveStep[] = tourSteps
-        .filter((step) => step.selector === undefined || isVisible(step.selector))
+        .filter((step) => isVisible(step.selector))
         .map((step) => ({
           element: step.selector,
           popover: {
@@ -55,12 +49,28 @@ export function ProductTour() {
 
       driverRef.current?.destroy()
 
+      // driver.js refreshes on window scroll only, so a scroll inside the
+      // sidebar would otherwise leave the highlight behind.
+      const handleScroll = () => {
+        driverRef.current?.refresh()
+      }
+      document.addEventListener("scroll", handleScroll, true)
+
       const config: Config = {
         allowClose: true,
         doneBtnText: "Done",
         nextBtnText: "Next",
         onDestroyed: () => {
+          document.removeEventListener("scroll", handleScroll, true)
           driverRef.current = null
+        },
+        onHighlightStarted: (element) => {
+          if (element instanceof HTMLElement) {
+            scrollAncestorsIntoView(element)
+          }
+        },
+        onHighlighted: () => {
+          window.requestAnimationFrame(handleScroll)
         },
         onPopoverRender: (popover) => {
           if (popover.footerButtons.querySelector("[data-tour-skip]")) return

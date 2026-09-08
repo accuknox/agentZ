@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -47,6 +48,11 @@ const (
 	secretAuthorization = "Authorization"
 	secretCredentials   = "credentials.json"
 )
+
+// chatTextContent adapts text parts for providers requiring string content.
+//
+//go:embed chat-text-content.cel
+var chatTextContent agentgatewayv1alpha1.CELExpression
 
 // CredentialPath returns the OpenBao path for one provider's credential kind.
 func CredentialPath(namespace, name string, kind agentzv1alpha1.InferenceProviderKind) string {
@@ -582,6 +588,14 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 			target.Policies.Transformation = &agentgatewayv1alpha1.Transformation{
 				Request: &agentgatewayv1alpha1.Transform{Set: set},
 			}
+		}
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible && provider.Spec.CatalogProvider == "sarvam" {
+			if target.Policies.Transformation == nil {
+				target.Policies.Transformation = &agentgatewayv1alpha1.Transformation{
+					Request: &agentgatewayv1alpha1.Transform{},
+				}
+			}
+			target.Policies.Transformation.Request.Body = &chatTextContent
 		}
 	default:
 		return ProviderTarget{}, fmt.Errorf("render unsupported provider kind %q", provider.Spec.Kind)

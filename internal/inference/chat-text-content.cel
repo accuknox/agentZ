@@ -1,0 +1,16 @@
+// Convert plain text-part arrays for providers requiring string content.
+// Keep metadata and non-text parts intact. coalesce preserves the original
+// message or body when it cannot be transformed, including malformed input.
+request.path.endsWith('/chat/completions') ? coalesce(
+  json(request.body).merge({
+    'messages': json(request.body).messages.map(message, coalesce(
+      message.merge({
+        'content': message.content.size() > 0 && message.content.all(part,
+          part.size() == 2 && part.type == 'text'
+        ) ? message.content.map(part, part.text).join('') : message.content
+      }),
+      message
+    ))
+  }),
+  request.body
+) : request.body

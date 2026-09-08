@@ -749,9 +749,12 @@ export const zWorkflowRunSummary = z.object({
   workflow_name: zWorkflowName,
   trigger_type: zWorkflowRunTriggerType,
   schedule_name: zWorkflowScheduleName.optional(),
+  timeout_seconds: z.int().gte(1).lte(604800),
   status: zWorkflowRunStatus,
   reason: z.string(),
   created_at: z.iso.datetime(),
+  started_at: z.iso.datetime().optional(),
+  completed_at: z.iso.datetime().optional(),
   duration_seconds: z.coerce
     .bigint()
     .gte(BigInt(0))

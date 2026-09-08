@@ -32,7 +32,8 @@ import { Edge } from "@/components/ai-elements/edge"
 import { Node, NodeContent } from "@/components/ai-elements/node"
 import { Panel } from "@/components/ai-elements/panel"
 import { Spinner } from "@/components/ui/spinner"
-import { dayjs } from "@/lib/format"
+import { RunElapsed } from "@/components/blocks/workflow/run-elapsed"
+import { dayjs, formatDurationSeconds } from "@/lib/format"
 import type {
   Workflow as WorkflowDefinition,
   WorkflowNode,
@@ -162,6 +163,20 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
                 <CornerDownLeftIcon className="text-muted-foreground size-4 shrink-0" />
               </button>
             </CollapsibleTrigger>
+            {run ? (
+              <dl className="flex flex-wrap gap-x-6 gap-y-2 px-3 py-2 text-xs">
+                <div className="flex gap-1.5">
+                  <dt className="text-muted-foreground">Elapsed</dt>
+                  <dd>
+                    <RunElapsed key={run.name} {...run} />
+                  </dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-muted-foreground">Max time</dt>
+                  <dd className="tabular-nums">{formatDurationSeconds(run.timeout_seconds)}</dd>
+                </div>
+              </dl>
+            ) : null}
             <CollapsibleContent className="border-t px-3 py-2">
               <div className="flex flex-col gap-2">
                 <p className="text-muted-foreground text-sm">{workflow.summary}</p>

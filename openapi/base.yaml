@@ -6097,11 +6097,22 @@ components:
           $ref: '#/components/schemas/WorkflowRunTriggerType'
         schedule_name:
           $ref: '#/components/schemas/WorkflowScheduleName'
+        timeout_seconds:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 604800
         status:
           $ref: '#/components/schemas/WorkflowRunStatus'
         reason:
           type: string
         created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
           type: string
           format: date-time
         duration_seconds:
@@ -6112,6 +6123,7 @@ components:
       - name
       - workflow_name
       - trigger_type
+      - timeout_seconds
       - status
       - reason
       - created_at

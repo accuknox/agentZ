@@ -769,15 +769,22 @@ func createRun(ctx context.Context, k8sClient ctrlclient.Client, run *agentzv1al
 
 func runSummaryFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunSummary {
 	summary := gatewayapi.WorkflowRunSummary{
-		Name:         run.Name,
-		WorkflowName: run.Spec.WorkflowName,
-		TriggerType:  workflowRunTriggerType(run),
-		Status:       workflowRunStatus(run.Status.Phase),
-		Reason:       workflowRunReason(run),
-		CreatedAt:    run.CreationTimestamp.Time,
+		Name:           run.Name,
+		WorkflowName:   run.Spec.WorkflowName,
+		TriggerType:    workflowRunTriggerType(run),
+		TimeoutSeconds: run.Spec.TimeoutSeconds,
+		Status:         workflowRunStatus(run.Status.Phase),
+		Reason:         workflowRunReason(run),
+		CreatedAt:      run.CreationTimestamp.Time,
 	}
 	if run.Spec.ScheduleRef != nil {
 		summary.ScheduleName = &run.Spec.ScheduleRef.Name
+	}
+	if run.Status.StartedAt != nil {
+		summary.StartedAt = &run.Status.StartedAt.Time
+	}
+	if run.Status.CompletedAt != nil {
+		summary.CompletedAt = &run.Status.CompletedAt.Time
 	}
 	if run.Status.StartedAt != nil && run.Status.CompletedAt != nil {
 		durationSeconds := int64(math.Ceil(run.Status.CompletedAt.Time.Sub(run.Status.StartedAt.Time).Seconds()))

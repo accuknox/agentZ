@@ -37,7 +37,7 @@ export const tourSteps: TourStep[] = [
     selector: `${sidebar} a[href$="/agents"]`,
     title: "Agents",
     description:
-      "An agent is a pod running OpenCode. Its home directory survives restarts, and it can only reach hosts you allow.",
+      "An agent does the work for you. Ask one to triage alerts, review a repo, or pull a weekly report. It keeps its files between runs, so it picks up where it left off.",
   },
   {
     selector: `${sidebar} a[href$="/skills"]`,

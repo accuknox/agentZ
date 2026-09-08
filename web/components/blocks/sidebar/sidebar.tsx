@@ -83,12 +83,14 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   activeOrganizationId?: string | null
   organizations?: OrganizationSummary[]
   scope: SidebarScope
+  showTourButton?: boolean
 }
 
 export function AppSidebar({
   activeOrganizationId,
   organizations = [],
   scope,
+  showTourButton = false,
   user,
   ...sidebarProps
 }: AppSidebarProps) {
@@ -142,11 +144,13 @@ export function AppSidebar({
       </SidebarContent>
       {user ? (
         <SidebarFooter className="border-t p-2">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <ProductTour />
-            </SidebarMenuItem>
-          </SidebarMenu>
+          {showTourButton && scope.kind === "workspace" && scope.workspace.state === "ready" ? (
+            <SidebarMenu className="hidden md:block">
+              <SidebarMenuItem>
+                <ProductTour />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          ) : null}
           <NavUser
             activeOrganizationId={activeOrganizationId}
             organizations={organizations}
@@ -255,14 +259,14 @@ async function WorkspaceNavigation({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col" data-tour="navigation">
       <div className="max-h-[min(50%,24rem)] min-h-0 shrink-0 overflow-x-hidden overflow-y-auto group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:flex-1 group-data-[collapsible=icon]:shrink">
         {hasResources ? (
           <SidebarGroup className="px-2 py-2">
             <SidebarMenu>
               {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
               {skillCapabilities.read ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="skills">
                   <SidebarNavigationLink
                     href={`${workspacePath}/skills` as Route}
                     label={resourceLabels.skill.collection}
@@ -272,7 +276,7 @@ async function WorkspaceNavigation({
                 </SidebarMenuItem>
               ) : null}
               {mcpConnectionCapabilities.read ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="mcps">
                   <SidebarNavigationLink
                     href={`${workspacePath}/mcps` as Route}
                     label={resourceLabels.mcp.collection}
@@ -343,7 +347,7 @@ async function WorkspaceNavigation({
             <SidebarGroupLabel>Workspace</SidebarGroupLabel>
             <SidebarMenu>
               {showAgents ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="agents">
                   <SidebarNavigationLink
                     href={`${workspacePath}/agents` as Route}
                     label="Agents"

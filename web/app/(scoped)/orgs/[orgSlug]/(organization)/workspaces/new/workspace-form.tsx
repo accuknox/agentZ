@@ -221,7 +221,7 @@ export function WorkspaceForm({
             </DialogClose>
             <Button data-dialog-submit disabled={pending} form="workspace-form" type="submit">
               {pending ? <Spinner /> : <Plus data-icon="inline-start" />}
-              {pending ? "Creating…" : "Confirm and create"}
+              {pending ? "Creating..." : "Confirm and create"}
             </Button>
           </DialogFooter>
         </DialogContent>

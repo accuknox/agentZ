@@ -1836,7 +1836,7 @@ function AllowedHostsStep({
     },
   })
   const submitLabel = mode === "update" ? "Update sandbox" : "Create sandbox"
-  const pendingLabel = mode === "update" ? "Updating…" : "Creating…"
+  const pendingLabel = mode === "update" ? "Updating..." : "Creating..."
   const hosts = useWatch({
     control: form.control,
     name: "allowedHosts",

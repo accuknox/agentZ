@@ -162,7 +162,7 @@ export function SkillTable({
     <AgentGettingReady className="text-muted-foreground flex justify-center py-8 text-sm" />
   ) : loading ? (
     <p aria-busy="true" className="text-muted-foreground py-8 text-center">
-      Loading skills…
+      Loading skills...
     </p>
   ) : error ? (
     <p className="text-destructive py-8 text-center">{error.message}</p>
@@ -428,7 +428,7 @@ function SkillRowActions({
               onSelect={() => onExport(skill.key)}
             >
               {exporting ? <Spinner /> : <Download />}
-              {exporting ? "Exporting…" : "Export"}
+              {exporting ? "Exporting..." : "Export"}
             </DropdownMenuItem>
             {skill.type === "mutable" || skill.can_delete ? (
               <DropdownMenuItem variant="destructive" onSelect={() => onDelete(skill.key)}>

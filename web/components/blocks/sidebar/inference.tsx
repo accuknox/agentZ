@@ -36,7 +36,7 @@ export function NavInference({
     >
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
-          <SidebarMenuButton data-tour="inference" tooltip="Inference">
+          <SidebarMenuButton tooltip="Inference">
             <Cpu aria-hidden="true" />
             <span>Inference</span>
             <ChevronRightIcon

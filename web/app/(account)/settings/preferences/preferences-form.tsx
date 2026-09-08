@@ -42,6 +42,7 @@ export function PreferencesForm({
     const formData = new FormData()
     formData.set("theme", next.theme)
     formData.set("updateSandbox", String(next.updateSandbox))
+    formData.set("showTourButton", String(next.showTourButton))
 
     React.startTransition(() => {
       action(formData)
@@ -53,13 +54,6 @@ export function PreferencesForm({
     updatePreferences({
       ...preferences,
       theme,
-    })
-  }
-
-  function onUpdateSandboxChange(updateSandbox: boolean) {
-    updatePreferences({
-      ...preferences,
-      updateSandbox,
     })
   }
 
@@ -98,19 +92,38 @@ export function PreferencesForm({
           <p className="text-muted-foreground text-sm">
             Automatically add secret hosts to the agent sandbox when creating a secret.
           </p>
-          {state.error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {state.error}
-            </p>
-          ) : null}
         </div>
         <Switch
           aria-label="Update sandbox when creating secrets"
           checked={preferences.updateSandbox}
           disabled={pending}
-          onCheckedChange={onUpdateSandboxChange}
+          onCheckedChange={(updateSandbox) => updatePreferences({ ...preferences, updateSandbox })}
         />
       </div>
+      <div className="flex items-start justify-between gap-6 py-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <label className="text-base font-semibold tracking-normal" htmlFor="show-tour-button">
+            Show tour button
+          </label>
+          <p className="text-muted-foreground text-sm" id="show-tour-description">
+            Show &quot;Take a tour&quot; button in the sidebar.
+          </p>
+        </div>
+        <Switch
+          id="show-tour-button"
+          aria-describedby="show-tour-description"
+          checked={preferences.showTourButton}
+          disabled={pending}
+          onCheckedChange={(showTourButton) =>
+            updatePreferences({ ...preferences, showTourButton })
+          }
+        />
+      </div>
+      {state.error ? (
+        <p className="text-destructive text-sm" role="alert">
+          {state.error}
+        </p>
+      ) : null}
     </section>
   )
 }

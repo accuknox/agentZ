@@ -547,7 +547,7 @@ function SkillsActions({
           <DropdownMenuGroup>
             <DropdownMenuItem aria-busy={exporting} disabled={exporting} onSelect={onExport}>
               {exporting ? <Spinner /> : <Download />}
-              {exporting ? "Exporting…" : "Export"}
+              {exporting ? "Exporting..." : "Export"}
             </DropdownMenuItem>
             <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
               <Trash2 />

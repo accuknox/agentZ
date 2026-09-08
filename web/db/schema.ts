@@ -116,6 +116,7 @@ export const userPreferences = pgTable("user_preferences", {
     .references(() => users.id, { onDelete: "cascade" }),
   theme: themePreference("theme").default("system").notNull(),
   updateSandbox: boolean("update_sandbox").default(false).notNull(),
+  showTourButton: boolean("show_tour_button").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

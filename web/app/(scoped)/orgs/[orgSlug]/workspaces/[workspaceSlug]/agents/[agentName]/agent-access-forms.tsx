@@ -150,7 +150,7 @@ export function AgentOwnerForm({
             {pending || owner ? (
               <Button aria-busy={pending} type="submit" disabled={pending}>
                 {pending ? <Spinner /> : <RefreshCw />}
-                {pending ? "Transferring…" : "Transfer owner"}
+                {pending ? "Transferring..." : "Transfer owner"}
               </Button>
             ) : (
               <DisabledReason reason="Choose a different eligible user to transfer ownership.">
@@ -360,7 +360,7 @@ function AgentShareDialogForm({
                   onValueChangeAction={setSelectedCapabilities}
                   options={[]}
                   placeholder="Select capabilities"
-                  searchPlaceholder="Search capabilities…"
+                  searchPlaceholder="Search capabilities..."
                   value={selectedCapabilities}
                 />
               </DisabledReason>
@@ -373,7 +373,7 @@ function AgentShareDialogForm({
                   allowedCapabilities.has(option.value)
                 )}
                 placeholder="Select capabilities"
-                searchPlaceholder="Search capabilities…"
+                searchPlaceholder="Search capabilities..."
                 value={selectedCapabilities}
               />
             )}
@@ -399,7 +399,7 @@ function AgentShareDialogForm({
           ) : (
             <Button aria-busy={pending} data-dialog-submit disabled={pending} type="submit">
               {pending ? <Spinner /> : <Share2 data-icon="inline-start" />}
-              {pending ? "Saving…" : editing ? "Save changes" : "Save share"}
+              {pending ? "Saving..." : editing ? "Save changes" : "Save share"}
             </Button>
           )}
         </DialogFooter>

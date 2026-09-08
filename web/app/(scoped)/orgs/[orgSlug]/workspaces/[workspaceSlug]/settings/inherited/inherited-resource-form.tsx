@@ -284,7 +284,7 @@ export function InheritedResourceForm({
       <div className="flex justify-end px-4 pb-6 md:px-6">
         <Button disabled={pending} type="submit">
           {pending ? <Spinner data-icon="inline-start" /> : <ListTree data-icon="inline-start" />}
-          {pending ? "Saving…" : "Save inheritance"}
+          {pending ? "Saving..." : "Save inheritance"}
         </Button>
       </div>
     </form>

@@ -1,4 +1,7 @@
+@layer theme, driver, base, components, utilities;
+
 @import "tailwindcss";
+@import "driver.js/dist/driver.css" layer(driver);
 
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -530,94 +533,4 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* driver.js product tour, themed to match the app in light and dark mode. */
-.driver-popover.agentz-tour {
-  background-color: var(--popover);
-  color: var(--popover-foreground);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg, 0 10px 30px oklch(0 0 0 / 0.18));
-  font-family: inherit;
-  max-width: 22rem;
-  padding: 1rem;
-}
-
-.driver-popover.agentz-tour .driver-popover-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.driver-popover.agentz-tour .driver-popover-description {
-  color: var(--muted-foreground);
-  font-size: 0.8125rem;
-  line-height: 1.55;
-  margin-top: 0.375rem;
-}
-
-.driver-popover.agentz-tour .driver-popover-progress-text {
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-}
-
-.driver-popover.agentz-tour .driver-popover-close-btn {
-  color: var(--muted-foreground);
-}
-
-.driver-popover.agentz-tour .driver-popover-close-btn:hover,
-.driver-popover.agentz-tour .driver-popover-close-btn:focus {
-  color: var(--popover-foreground);
-}
-
-.driver-popover.agentz-tour .driver-popover-footer-btn {
-  background-color: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--foreground);
-  font-size: 0.75rem;
-  padding: 0.25rem 0.625rem;
-}
-
-.driver-popover.agentz-tour .driver-popover-footer-btn:hover,
-.driver-popover.agentz-tour .driver-popover-footer-btn:focus {
-  background-color: var(--accent);
-  color: var(--accent-foreground);
-}
-
-.driver-popover.agentz-tour .driver-popover-skip-btn {
-  background-color: transparent;
-  border-color: transparent;
-  color: var(--muted-foreground);
-  margin-right: auto;
-}
-
-.driver-popover.agentz-tour .driver-popover-next-btn {
-  background-color: var(--primary);
-  border-color: var(--primary);
-  color: var(--primary-foreground);
-}
-
-.driver-popover.agentz-tour .driver-popover-next-btn:hover,
-.driver-popover.agentz-tour .driver-popover-next-btn:focus {
-  background-color: var(--primary);
-  color: var(--primary-foreground);
-  opacity: 0.9;
-}
-
-.driver-popover.agentz-tour .driver-popover-arrow-side-left {
-  border-left-color: var(--popover);
-}
-
-.driver-popover.agentz-tour .driver-popover-arrow-side-right {
-  border-right-color: var(--popover);
-}
-
-.driver-popover.agentz-tour .driver-popover-arrow-side-top {
-  border-top-color: var(--popover);
-}
-
-.driver-popover.agentz-tour .driver-popover-arrow-side-bottom {
-  border-bottom-color: var(--popover);
 }

@@ -603,7 +603,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       <div className="-mx-4 flex w-[100cqw] justify-end border-t px-4 pt-6 md:-mx-6 md:px-6">
         <Button disabled={pending} type="submit">
           {pending ? <Spinner /> : <Save data-icon="inline-start" />}
-          {pending ? "Saving…" : "Save admission policy"}
+          {pending ? "Saving..." : "Save admission policy"}
         </Button>
       </div>
     </form>

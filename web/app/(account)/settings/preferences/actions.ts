@@ -1,6 +1,7 @@
 "use server"
 
 import * as z from "zod"
+import { revalidatePath } from "next/cache"
 import {
   saveCurrentUserPreferences,
   themePreferences,
@@ -8,6 +9,7 @@ import {
 } from "@/data/user-preferences"
 
 const preferencesFormSchema = z.object({
+  showTourButton: z.stringbool({ error: "Tour preference is invalid" }).optional(),
   theme: z.enum(themePreferences, { error: "Theme preference is invalid" }).optional(),
   updateSandbox: z.stringbool({ error: "Sandbox update preference is invalid" }).optional(),
 })
@@ -36,8 +38,10 @@ export async function savePreferencesAction(
   try {
     const preferences = await saveCurrentUserPreferences({
       theme: parsed.data.theme ?? state.preferences.theme,
+      showTourButton: parsed.data.showTourButton ?? state.preferences.showTourButton,
       updateSandbox: parsed.data.updateSandbox ?? state.preferences.updateSandbox,
     })
+    revalidatePath("/orgs/[orgSlug]/workspaces/[workspaceSlug]", "layout")
     return { preferences, saved: true }
   } catch (error) {
     return {

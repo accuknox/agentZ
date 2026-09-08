@@ -241,7 +241,7 @@ export function NavSessions({
 
 export function NavSessionsSkeleton({ groupBy }: { groupBy: ChatSessionGroupBy }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col" data-tour="loading-chats">
       <div
         aria-hidden="true"
         className="flex h-9 items-center gap-1 px-[var(--sidebar-content-inset)] pb-1"
@@ -426,7 +426,7 @@ function NavSessionsContent({
   const searchSettling = searchLength >= 3 && searchLength <= 200 && trimmedSearch !== querySearch
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-tour="sessions">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 px-[var(--sidebar-content-inset)] pb-1">
         <Button
           className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium shadow-none"
@@ -444,6 +444,7 @@ function NavSessionsContent({
         </Button>
         <Button
           aria-label="Search chats"
+          data-tour="search-chats"
           aria-pressed={searchOpen}
           className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground size-8 rounded-md border-0 bg-transparent shadow-none"
           onClick={() => setSearchOpen(true)}

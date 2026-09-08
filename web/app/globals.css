@@ -1,4 +1,7 @@
+@layer theme, driver, base, components, utilities;
+
 @import "tailwindcss";
+@import "driver.js/dist/driver.css" layer(driver);
 
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";

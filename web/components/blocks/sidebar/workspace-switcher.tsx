@@ -84,7 +84,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
 
     return (
       <SidebarMenu>
-        <SidebarMenuItem>
+        <SidebarMenuItem data-tour="workspace">
           <Popover
             onOpenChange={(nextOpen) => {
               setOpen(nextOpen)

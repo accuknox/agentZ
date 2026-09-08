@@ -230,7 +230,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
       : photoPhase === "uploading"
         ? "Uploading..."
         : photoPhase === "saving"
-          ? "Saving…"
+          ? "Saving..."
           : "Use this image"
 
   return (
@@ -367,11 +367,11 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
           <div className="flex justify-end pt-5">
             <Button aria-busy={busy} disabled={busy} type="submit">
               {pending ? <Spinner data-icon="inline-start" /> : <Save data-icon="inline-start" />}
-              {pending ? "Saving…" : "Save changes"}
+              {pending ? "Saving..." : "Save changes"}
             </Button>
           </div>
           <p aria-live="polite" className="sr-only">
-            {pending ? "Saving…" : state.saved ? "Organization profile saved." : ""}
+            {pending ? "Saving..." : state.saved ? "Organization profile saved." : ""}
           </p>
         </div>
       </form>

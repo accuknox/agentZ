@@ -24,6 +24,7 @@ import {
   Workflow,
   Zap,
 } from "lucide-react"
+import { ProductTour } from "@/components/blocks/tour/product-tour"
 import { NavSessions, NavSessionsSkeleton } from "./sessions"
 import { NavInference } from "./inference"
 import { NavLens } from "./lens"
@@ -82,12 +83,14 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   activeOrganizationId?: string | null
   organizations?: OrganizationSummary[]
   scope: SidebarScope
+  showTourButton?: boolean
 }
 
 export function AppSidebar({
   activeOrganizationId,
   organizations = [],
   scope,
+  showTourButton = false,
   user,
   ...sidebarProps
 }: AppSidebarProps) {
@@ -141,6 +144,15 @@ export function AppSidebar({
       </SidebarContent>
       {user ? (
         <SidebarFooter className="border-t p-2">
+          {showTourButton &&
+          (scope.kind === "organization" ||
+            (scope.kind === "workspace" && scope.workspace.state === "ready")) ? (
+            <SidebarMenu className="hidden md:block">
+              <SidebarMenuItem>
+                <ProductTour scope={scope.kind} />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          ) : null}
           <NavUser
             activeOrganizationId={activeOrganizationId}
             organizations={organizations}
@@ -249,14 +261,14 @@ async function WorkspaceNavigation({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col" data-tour="navigation">
       <div className="max-h-[min(50%,24rem)] min-h-0 shrink-0 overflow-x-hidden overflow-y-auto group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:flex-1 group-data-[collapsible=icon]:shrink">
         {hasResources ? (
           <SidebarGroup className="px-2 py-2">
             <SidebarMenu>
               {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
               {skillCapabilities.read ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="skills">
                   <SidebarNavigationLink
                     href={`${workspacePath}/skills` as Route}
                     label={resourceLabels.skill.collection}
@@ -266,7 +278,7 @@ async function WorkspaceNavigation({
                 </SidebarMenuItem>
               ) : null}
               {mcpConnectionCapabilities.read ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="mcps">
                   <SidebarNavigationLink
                     href={`${workspacePath}/mcps` as Route}
                     label={resourceLabels.mcp.collection}
@@ -276,7 +288,7 @@ async function WorkspaceNavigation({
                 </SidebarMenuItem>
               ) : null}
               {sandboxCapabilities.read ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="sandboxes">
                   <SidebarNavigationLink
                     href={`${workspacePath}/sandboxes` as Route}
                     label="Sandboxes"
@@ -293,7 +305,7 @@ async function WorkspaceNavigation({
                 />
               ) : null}
               {showSecrets ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="secrets">
                   <SidebarNavigationLink href={`${workspacePath}/secrets` as Route} label="Secrets">
                     <Lock aria-hidden="true" />
                   </SidebarNavigationLink>
@@ -301,7 +313,7 @@ async function WorkspaceNavigation({
               ) : null}
               {showWorkflows ? (
                 <>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="workflows">
                     <SidebarNavigationLink
                       href={`${workspacePath}/workflows/graphs` as Route}
                       label={resourceLabels.workflow.collection}
@@ -309,7 +321,7 @@ async function WorkspaceNavigation({
                       <Workflow aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="triggers">
                     <SidebarNavigationLink
                       href={`${workspacePath}/workflows/triggers` as Route}
                       label="Triggers"
@@ -317,17 +329,15 @@ async function WorkspaceNavigation({
                       <Zap aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
+                  <SidebarMenuItem data-tour="dashboards">
+                    <SidebarNavigationLink
+                      href={`${workspacePath}/dashboards` as Route}
+                      label="Dashboards"
+                    >
+                      <LayoutDashboard aria-hidden="true" />
+                    </SidebarNavigationLink>
+                  </SidebarMenuItem>
                 </>
-              ) : null}
-              {showWorkflows ? (
-                <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/dashboards` as Route}
-                    label="Dashboards"
-                  >
-                    <LayoutDashboard aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
               ) : null}
             </SidebarMenu>
           </SidebarGroup>
@@ -337,7 +347,7 @@ async function WorkspaceNavigation({
             <SidebarGroupLabel>Workspace</SidebarGroupLabel>
             <SidebarMenu>
               {showAgents ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="agents">
                   <SidebarNavigationLink
                     href={`${workspacePath}/agents` as Route}
                     label="Agents"
@@ -349,12 +359,12 @@ async function WorkspaceNavigation({
               ) : null}
               {organization.superadmin || workspace.capabilities.administer ? (
                 <>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="roles">
                     <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
                       <ShieldCheck aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="event-trail">
                     <SidebarNavigationLink
                       href={`${workspacePath}/event-trail` as Route}
                       label="Event Trail"
@@ -434,13 +444,13 @@ function OrganizationNavigation({
     inferenceProviderCapabilities.read
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col" data-tour="navigation">
       {canEnterOrganization || organization.superadmin ? (
         <SidebarGroup className="px-2 py-2">
           <SidebarGroupLabel>Organization</SidebarGroupLabel>
           <SidebarMenu>
             {canEnterOrganization ? (
-              <SidebarMenuItem>
+              <SidebarMenuItem data-tour="workspaces">
                 <SidebarNavigationLink href={`${root}/workspaces` as Route} label="Workspaces">
                   <Building2 aria-hidden="true" />
                 </SidebarNavigationLink>
@@ -448,7 +458,7 @@ function OrganizationNavigation({
             ) : null}
             {organization.superadmin ? (
               <>
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="users">
                   <SidebarNavigationLink
                     href={`${root}/users/status/active` as Route}
                     label="Users"
@@ -457,12 +467,12 @@ function OrganizationNavigation({
                     <CircleUserRound aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="teams">
                   <SidebarNavigationLink href={`${root}/teams` as Route} label="Teams">
                     <UsersRound aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="roles">
                   <SidebarNavigationLink href={`${root}/roles` as Route} label="Roles">
                     <ShieldCheck aria-hidden="true" />
                   </SidebarNavigationLink>
@@ -477,7 +487,7 @@ function OrganizationNavigation({
           <SidebarGroupLabel>Resources</SidebarGroupLabel>
           <SidebarMenu>
             {skillCapabilities.read ? (
-              <SidebarMenuItem>
+              <SidebarMenuItem data-tour="skills">
                 <SidebarNavigationLink
                   href={`${root}/skills` as Route}
                   label={resourceLabels.skill.collection}
@@ -487,7 +497,7 @@ function OrganizationNavigation({
               </SidebarMenuItem>
             ) : null}
             {mcpConnectionCapabilities.read ? (
-              <SidebarMenuItem>
+              <SidebarMenuItem data-tour="mcps">
                 <SidebarNavigationLink
                   href={`${root}/mcps` as Route}
                   label={resourceLabels.mcp.collection}
@@ -497,14 +507,14 @@ function OrganizationNavigation({
               </SidebarMenuItem>
             ) : null}
             {sandboxCapabilities.read ? (
-              <SidebarMenuItem>
+              <SidebarMenuItem data-tour="sandboxes">
                 <SidebarNavigationLink href={`${root}/sandboxes` as Route} label="Sandboxes">
                   <Box aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}
             {inferenceProviderCapabilities.read ? (
-              <SidebarMenuItem>
+              <SidebarMenuItem data-tour="inference">
                 <SidebarNavigationLink
                   href={`${root}/inference/providers` as Route}
                   label={resourceLabels.inference.collection}
@@ -520,7 +530,7 @@ function OrganizationNavigation({
         <SidebarGroup className="px-2 py-2">
           <SidebarGroupLabel>Administration</SidebarGroupLabel>
           <SidebarMenu>
-            <SidebarMenuItem>
+            <SidebarMenuItem data-tour="social-admission">
               <SidebarNavigationLink
                 href={`${root}/social-admission` as Route}
                 label="Social admission"
@@ -528,12 +538,12 @@ function OrganizationNavigation({
                 <UserRoundCheck aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>
-            <SidebarMenuItem>
+            <SidebarMenuItem data-tour="event-trail">
               <SidebarNavigationLink href={`${root}/event-trail` as Route} label="Event trail">
                 <Activity aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>
-            <SidebarMenuItem>
+            <SidebarMenuItem data-tour="general">
               <SidebarNavigationLink href={`${root}/general` as Route} label="General">
                 <Settings2 aria-hidden="true" />
               </SidebarNavigationLink>
@@ -541,6 +551,6 @@ function OrganizationNavigation({
           </SidebarMenu>
         </SidebarGroup>
       ) : null}
-    </>
+    </div>
   )
 }

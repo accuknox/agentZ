@@ -327,7 +327,7 @@ function CreateInvitationForm({
         <div className="flex justify-end">
           <Button disabled={!ready || pending} type="submit">
             {pending ? <Spinner /> : <Send />}
-            {pending ? "Saving…" : "Create invitation"}
+            {pending ? "Saving..." : "Create invitation"}
           </Button>
         </div>
       </form>

@@ -142,6 +142,7 @@ export default async function WorkspaceLayout({
         sidebar={
           <AppSidebar
             activeOrganizationId={result.scope.organization.id}
+            showTourButton={preferences.showTourButton}
             organizations={result.scope.organizationSession.organizations}
             scope={{
               canCreateWorkspace: result.directory.can_create,

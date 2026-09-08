@@ -35,16 +35,27 @@ export function NavInference({
       className="group/inference"
     >
       <SidebarMenuItem>
-        <CollapsibleTrigger asChild>
-          <SidebarMenuButton tooltip="Inference">
-            <Cpu aria-hidden="true" />
-            <span>Inference</span>
-            <ChevronRightIcon
-              aria-hidden="true"
-              className="ml-auto transition-transform duration-200 group-data-[state=open]/inference:rotate-90"
-            />
-          </SidebarMenuButton>
-        </CollapsibleTrigger>
+        {/* Driver replaces its target's ARIA attributes. Preserve the trigger's. */}
+        <div
+          data-tour="inference"
+          data-tour-description={[
+            showProviders ? "Add providers to give your agents access to AI models." : "",
+            showPools ? "Pools group models together and allows for automatic fallback." : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton tooltip="Inference">
+              <Cpu aria-hidden="true" />
+              <span>Inference</span>
+              <ChevronRightIcon
+                aria-hidden="true"
+                className="ml-auto transition-transform duration-200 group-data-[state=open]/inference:rotate-90"
+              />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+        </div>
         <CollapsibleContent>
           <SidebarMenuSub>
             {showProviders ? (

@@ -20,7 +20,7 @@ export default function OrganizationProvisioningPage({
     <Suspense
       fallback={
         <main className="flex min-h-svh w-full items-center justify-center">
-          <Shimmer className="text-center">Checking Organisation provisioning…</Shimmer>
+          <Shimmer className="text-center">Checking Organisation provisioning...</Shimmer>
         </main>
       }
     >

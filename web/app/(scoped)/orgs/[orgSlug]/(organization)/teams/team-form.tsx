@@ -137,7 +137,7 @@ export function TeamForm({
           </Button>
           <Button disabled={pending || !name.trim() || memberIds.length === 0} type="submit">
             {pending ? <Spinner /> : <Save data-icon="inline-start" />}
-            {pending ? "Saving…" : data.team ? "Update team" : "Create team"}
+            {pending ? "Saving..." : data.team ? "Update team" : "Create team"}
           </Button>
         </div>
       </form>

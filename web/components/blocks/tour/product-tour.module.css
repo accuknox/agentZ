@@ -1,0 +1,44 @@
+@reference "../../../app/globals.css";
+
+@layer components {
+  .popover {
+    @apply bg-popover text-popover-foreground ring-foreground/10 w-72 max-w-[calc(100vw-2rem)] min-w-0 rounded-lg p-2.5 font-sans text-sm shadow-md ring-1;
+    font-stretch: inherit;
+  }
+
+  .popover :global(.driver-popover-title) {
+    @apply font-heading pr-8 text-base leading-normal font-medium;
+  }
+
+  .popover :global(.driver-popover-description) {
+    @apply text-muted-foreground mt-2.5 text-sm leading-relaxed;
+  }
+
+  .popover :global(.driver-popover-footer) {
+    @apply mt-4 gap-2.5;
+  }
+
+  .popover :global(.driver-popover-progress-text) {
+    @apply text-muted-foreground text-xs tabular-nums;
+  }
+
+  .popover :global(.driver-popover-close-btn) {
+    @apply absolute top-1.5 right-1.5;
+  }
+
+  .popover :global(.driver-popover-arrow-side-left) {
+    border-left-color: var(--popover);
+  }
+
+  .popover :global(.driver-popover-arrow-side-right) {
+    border-right-color: var(--popover);
+  }
+
+  .popover :global(.driver-popover-arrow-side-top) {
+    border-top-color: var(--popover);
+  }
+
+  .popover :global(.driver-popover-arrow-side-bottom) {
+    border-bottom-color: var(--popover);
+  }
+}

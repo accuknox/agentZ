@@ -165,6 +165,7 @@ export default async function OrganizationLayout({
           <AppSidebar
             activeOrganizationId={result.organization.id}
             organizations={result.organizationSession.organizations}
+            showTourButton={preferences.showTourButton}
             scope={{
               canCreateWorkspace: workspaceResult.directory.can_create,
               canEnterOrganization: workspaceResult.directory.can_enter_organization,

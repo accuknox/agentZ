@@ -1123,11 +1123,11 @@ export function McpSheet({
     <Button type="submit" disabled={!isValid || submitPending} aria-busy={submitPending}>
       {submitPending ? <Spinner /> : <Save data-icon="inline-start" />}
       {oauthPopupFlowId
-        ? "Waiting for OAuth…"
+        ? "Waiting for OAuth..."
         : isDiscoveryPendingForCurrentURL
-          ? "Discovering OAuth…"
+          ? "Discovering OAuth..."
           : isSubmitting || isRefreshing
-            ? "Adding connection…"
+            ? "Adding connection..."
             : submitLabel}
     </Button>
   )

@@ -1304,11 +1304,12 @@ type User struct {
 }
 
 type UserPreference struct {
-	UserID        string           `json:"user_id"`
-	UpdateSandbox bool             `json:"update_sandbox"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
-	UpdatedAt     pgtype.Timestamp `json:"updated_at"`
-	Theme         ThemePreference  `json:"theme"`
+	UserID         string           `json:"user_id"`
+	UpdateSandbox  bool             `json:"update_sandbox"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+	Theme          ThemePreference  `json:"theme"`
+	ShowTourButton bool             `json:"show_tour_button"`
 }
 
 type Verification struct {

@@ -10,10 +10,10 @@ export const themePreferences = ["system", "light", "dark"] as const
 
 export type ThemePreference = (typeof themePreferences)[number]
 
-export type UserPreferences = {
-  theme: ThemePreference
-  updateSandbox: boolean
-}
+export type UserPreferences = Pick<
+  typeof schema.userPreferences.$inferSelect,
+  "theme" | "updateSandbox" | "showTourButton"
+>
 
 /**
  * defaultUserPreferences provides the app-wide default preference values.
@@ -21,6 +21,7 @@ export type UserPreferences = {
 const defaultUserPreferences: UserPreferences = {
   theme: "system",
   updateSandbox: false,
+  showTourButton: true,
 }
 
 /**
@@ -49,15 +50,13 @@ export const getCurrentUserPreferences = cache(
       .select({
         theme: schema.userPreferences.theme,
         updateSandbox: schema.userPreferences.updateSandbox,
+        showTourButton: schema.userPreferences.showTourButton,
       })
       .from(schema.userPreferences)
       .where(eq(schema.userPreferences.userId, session.user.id))
       .limit(1)
 
-    return {
-      theme: row?.theme ?? defaultUserPreferences.theme,
-      updateSandbox: row?.updateSandbox ?? defaultUserPreferences.updateSandbox,
-    }
+    return row ?? defaultUserPreferences
   }
 )
 
@@ -76,15 +75,13 @@ export async function saveCurrentUserPreferences(
   await getDB()
     .insert(schema.userPreferences)
     .values({
+      ...preferences,
       userId: session.user.id,
-      theme: preferences.theme,
-      updateSandbox: preferences.updateSandbox,
     })
     .onConflictDoUpdate({
       target: schema.userPreferences.userId,
       set: {
-        theme: preferences.theme,
-        updateSandbox: preferences.updateSandbox,
+        ...preferences,
         updatedAt: dayjs().toDate(),
       },
     })

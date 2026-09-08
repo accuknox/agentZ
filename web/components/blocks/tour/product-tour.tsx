@@ -10,15 +10,7 @@ import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
 import styles from "./product-tour.module.css"
 
-const steps = [
-  ["workspace", "Switch workspaces", "Move between your team's workspaces."],
-  ["new-chat", "Start a chat", "Pick an agent and ask it to help with a task."],
-  ["search-chats", "Find a chat", "Search past chats and pick up where you left off."],
-  [
-    "lens",
-    "See what agents did",
-    "Review agent actions, tool calls, and network or process activity.",
-  ],
+const resourceSteps = [
   [
     "skills",
     "Import/Export skills",
@@ -30,7 +22,19 @@ const steps = [
     "Set up sandboxes",
     "Choose the software and tools available to your agents and control their network access.",
   ],
-  ["inference", "Choose AI models"],
+  ["inference", "Choose AI models", "Add providers to give your agents access to AI models."],
+] as const
+
+const workspaceSteps = [
+  ["workspace", "Switch workspaces", "Move between your team's workspaces."],
+  ["new-chat", "Start a chat", "Pick an agent and ask it to help with a task."],
+  ["search-chats", "Find a chat", "Search past chats and pick up where you left off."],
+  [
+    "lens",
+    "See what agents did",
+    "Review agent actions, tool calls, and network or process activity.",
+  ],
+  ...resourceSteps,
   [
     "secrets",
     "Add credentials",
@@ -52,13 +56,40 @@ const steps = [
   ["event-trail", "Review changes", "See who made changes in this workspace and when."],
 ] as const
 
-export function ProductTour() {
+const organizationSteps = [
+  ["workspace", "Switch views", "Move between your team's workspaces."],
+  [
+    "workspaces",
+    "Workspaces",
+    "Browse your organization's workspaces and open one to get started.",
+  ],
+  ["users", "Users", "Manage who belongs to your organization and their access."],
+  ["teams", "Teams", "Group people into teams to manage access together."],
+  ["roles", "Roles", "Define what users and teams can access and manage."],
+  ...resourceSteps.map(
+    ([id, title, description]) =>
+      [
+        id,
+        title,
+        `${description} You can configure workspaces to inherit these resources.`,
+      ] as const
+  ),
+  [
+    "social-admission",
+    "Control who can join",
+    "Choose who can join your organization through Google or GitHub.",
+  ],
+  ["event-trail", "Review changes", "See who made changes in your organization and when."],
+  ["general", "Organization details", "Update your organization's name and logo."],
+] as const
+
+export function ProductTour({ scope }: { scope: "workspace" | "organization" }) {
   const { isMobile, open, setOpen } = useSidebar()
   const pathname = usePathname()
   const stopRef = useRef<(() => void) | null>(null)
   const [starting, setStarting] = useState(false)
 
-  useEffect(() => () => stopRef.current?.(), [pathname, isMobile])
+  useEffect(() => () => stopRef.current?.(), [pathname, isMobile, scope])
 
   useEffect(() => {
     if (!open) stopRef.current?.()
@@ -130,6 +161,7 @@ export function ProductTour() {
       observer?.disconnect()
       if (signal.aborted) return
 
+      const steps = scope === "organization" ? organizationSteps : workspaceSteps
       const available = steps.flatMap<DriveStep>(([id, title, description]) => {
         const element = sidebar.querySelector(`[data-tour="${id}"]`)
         if (!element?.checkVisibility({ visibilityProperty: true })) return []

@@ -106,7 +106,7 @@ export function PreferencesForm({
             Show tour button
           </label>
           <p className="text-muted-foreground text-sm" id="show-tour-description">
-            Show &quot;Take a tour&quot; button in the sidebar.
+            Show the &quot;Take a tour&quot; button in the sidebar.
           </p>
         </div>
         <Switch

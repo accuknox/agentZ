@@ -34,16 +34,19 @@ export function NavLens({ rootPath }: { rootPath: string }) {
   return (
     <Collapsible asChild defaultOpen={path.startsWith(lensPath)} className="group/lens">
       <SidebarMenuItem>
-        <CollapsibleTrigger asChild>
-          <SidebarMenuButton tooltip="Lens">
-            <Search aria-hidden="true" />
-            <span>Lens</span>
-            <ChevronRightIcon
-              aria-hidden="true"
-              className="ml-auto transition-transform duration-200 group-data-[state=open]/lens:rotate-90"
-            />
-          </SidebarMenuButton>
-        </CollapsibleTrigger>
+        {/* Driver replaces its target's ARIA attributes. Preserve the trigger's. */}
+        <div data-tour="lens">
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton tooltip="Lens">
+              <Search aria-hidden="true" />
+              <span>Lens</span>
+              <ChevronRightIcon
+                aria-hidden="true"
+                className="ml-auto transition-transform duration-200 group-data-[state=open]/lens:rotate-90"
+              />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+        </div>
         <CollapsibleContent>
           <SidebarMenuSub>
             {items.map((item) => {

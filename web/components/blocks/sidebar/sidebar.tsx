@@ -286,7 +286,7 @@ async function WorkspaceNavigation({
                 </SidebarMenuItem>
               ) : null}
               {sandboxCapabilities.read ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="sandboxes">
                   <SidebarNavigationLink
                     href={`${workspacePath}/sandboxes` as Route}
                     label="Sandboxes"
@@ -303,7 +303,7 @@ async function WorkspaceNavigation({
                 />
               ) : null}
               {showSecrets ? (
-                <SidebarMenuItem>
+                <SidebarMenuItem data-tour="secrets">
                   <SidebarNavigationLink href={`${workspacePath}/secrets` as Route} label="Secrets">
                     <Lock aria-hidden="true" />
                   </SidebarNavigationLink>
@@ -311,7 +311,7 @@ async function WorkspaceNavigation({
               ) : null}
               {showWorkflows ? (
                 <>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="workflows">
                     <SidebarNavigationLink
                       href={`${workspacePath}/workflows/graphs` as Route}
                       label={resourceLabels.workflow.collection}
@@ -319,7 +319,7 @@ async function WorkspaceNavigation({
                       <Workflow aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="triggers">
                     <SidebarNavigationLink
                       href={`${workspacePath}/workflows/triggers` as Route}
                       label="Triggers"
@@ -327,17 +327,15 @@ async function WorkspaceNavigation({
                       <Zap aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
+                  <SidebarMenuItem data-tour="dashboards">
+                    <SidebarNavigationLink
+                      href={`${workspacePath}/dashboards` as Route}
+                      label="Dashboards"
+                    >
+                      <LayoutDashboard aria-hidden="true" />
+                    </SidebarNavigationLink>
+                  </SidebarMenuItem>
                 </>
-              ) : null}
-              {showWorkflows ? (
-                <SidebarMenuItem>
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/dashboards` as Route}
-                    label="Dashboards"
-                  >
-                    <LayoutDashboard aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
               ) : null}
             </SidebarMenu>
           </SidebarGroup>
@@ -359,12 +357,12 @@ async function WorkspaceNavigation({
               ) : null}
               {organization.superadmin || workspace.capabilities.administer ? (
                 <>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="roles">
                     <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
                       <ShieldCheck aria-hidden="true" />
                     </SidebarNavigationLink>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
+                  <SidebarMenuItem data-tour="event-trail">
                     <SidebarNavigationLink
                       href={`${workspacePath}/event-trail` as Route}
                       label="Event Trail"

@@ -8,16 +8,48 @@ import type { DriveStep, Driver } from "driver.js"
 import { buttonVariants } from "@/components/ui/button"
 import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
-import { cn } from "@/lib/utils"
 import styles from "./product-tour.module.css"
 
 const steps = [
-  ["workspace", "Switch workspaces", "Switch between workspaces in this organization."],
-  ["new-chat", "Start a chat", "Choose an agent and tell it what you need."],
-  ["search-chats", "Find a chat", "Find an earlier chat and continue the conversation."],
-  ["agents", "Choose an agent", "Find the agents available in this workspace."],
-  ["skills", "Reuse instructions", "Give agents instructions for tasks you repeat."],
-  ["mcps", "Connect your tools", "MCP connections give agents access to your team's tools."],
+  ["workspace", "Switch workspaces", "Move between your team's workspaces."],
+  ["new-chat", "Start a chat", "Pick an agent and ask it to help with a task."],
+  ["search-chats", "Find a chat", "Search past chats and pick up where you left off."],
+  [
+    "lens",
+    "See what agents did",
+    "Review agent actions, tool calls, and network or process activity.",
+  ],
+  [
+    "skills",
+    "Import/Export skills",
+    "Skills are folders that include instructions, scripts, and resources that your agents can load when needed.",
+  ],
+  ["mcps", "Connect your tools", "Add MCP connections so agents can use your tools and services."],
+  [
+    "sandboxes",
+    "Set up sandboxes",
+    "Choose the software and tools available to your agents and control their network access.",
+  ],
+  ["inference", "Choose AI models"],
+  [
+    "secrets",
+    "Add credentials",
+    "Add API keys and passwords for your services. Agents use these credentials without seeing their values.",
+  ],
+  [
+    "workflows",
+    "View workflows",
+    "See each step in a workflow your agent created and how the steps connect.",
+  ],
+  ["triggers", "Set up triggers", "Run workflows on a schedule or through a webhook."],
+  [
+    "dashboards",
+    "View dashboards",
+    "Open dashboards your agents created to view data and reports.",
+  ],
+  ["agents", "Choose an agent", "Browse the agents in this workspace and see what each can do."],
+  ["roles", "Manage access", "Control who can use and manage resources in this workspace."],
+  ["event-trail", "Review changes", "See who made changes in this workspace and when."],
 ] as const
 
 export function ProductTour() {
@@ -101,7 +133,17 @@ export function ProductTour() {
       const available = steps.flatMap<DriveStep>(([id, title, description]) => {
         const element = sidebar.querySelector(`[data-tour="${id}"]`)
         if (!element?.checkVisibility({ visibilityProperty: true })) return []
-        return [{ element, popover: { title, description, side: "right", align: "start" } }]
+        return [
+          {
+            element,
+            popover: {
+              title,
+              description: element.getAttribute("data-tour-description") ?? description,
+              side: "right",
+              align: "start",
+            },
+          },
+        ]
       })
       if (available.length === 0) {
         stop()
@@ -134,26 +176,20 @@ export function ProductTour() {
           for (const button of [previousButton, nextButton, closeButton]) {
             button.style.removeProperty("display")
           }
-          previousButton.className = cn(
-            buttonVariants({
-              variant: "outline",
-              size: "sm",
-              className: "driver-popover-prev-btn",
-            })
-          )
-          nextButton.className = cn(
-            buttonVariants({
-              size: "sm",
-              className: "driver-popover-next-btn",
-            })
-          )
-          closeButton.className = cn(
-            buttonVariants({
-              variant: "ghost",
-              size: "icon-sm",
-              className: "driver-popover-close-btn",
-            })
-          )
+          previousButton.className = buttonVariants({
+            variant: "outline",
+            size: "sm",
+            className: "driver-popover-prev-btn",
+          })
+          nextButton.className = buttonVariants({
+            size: "sm",
+            className: "driver-popover-next-btn",
+          })
+          closeButton.className = buttonVariants({
+            variant: "ghost",
+            size: "icon-sm",
+            className: "driver-popover-close-btn",
+          })
           closeButton.setAttribute("aria-label", "Close tour")
           progress.setAttribute("aria-live", "polite")
         },

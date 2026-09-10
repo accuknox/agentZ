@@ -79,7 +79,7 @@
     "react-qr-code": "^2.2.0",
     "recharts": "3.8.0",
     "server-only": "^0.0.1",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "shiki": "^4.3.0",
     "sonner": "^2.0.7",
     "streamdown": "^2.5.0",
@@ -127,7 +127,7 @@
     "mermaid": "11.16.1",
     "postcss": "8.5.26",
     "qs": "6.15.3",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "undici": "7.29.0"
   }
 }

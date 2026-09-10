@@ -6,6 +6,9 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 rules:
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
   - apiGroups: [""]
     resources: ["configmaps", "persistentvolumeclaims", "pods", "secrets", "serviceaccounts", "services"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]

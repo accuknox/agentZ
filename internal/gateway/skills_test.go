@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -11,7 +12,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 func TestReadSkillUploadReportsSpoolFailureAsInternal(t *testing.T) {
@@ -138,6 +146,111 @@ func TestReadSkillUploadDiagnostics(t *testing.T) {
 			}
 			if got := (*response.Errors)[0].Field; got != tt.wantField {
 				t.Fatalf("field = %q, want %q", got, tt.wantField)
+			}
+		})
+	}
+}
+
+// skillDeleteQueries records audit results while reusing scope fixtures.
+type skillDeleteQueries struct {
+	sandboxQueries
+	events []gatewaydb.GatewayCreateEventTrailEventParams
+}
+
+// GatewayCreateEventTrailEvent captures the handler audit without a database.
+func (q *skillDeleteQueries) GatewayCreateEventTrailEvent(_ context.Context, arg gatewaydb.GatewayCreateEventTrailEventParams) (gatewaydb.EventTrailEvent, error) {
+	q.events = append(q.events, arg)
+	return gatewaydb.EventTrailEvent{}, nil
+}
+
+func TestSkillDeleteRequiresDetachment(t *testing.T) {
+	for _, path := range []string{"/api/skill/used", "/api/skill"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			queries := &skillDeleteQueries{sandboxQueries: sandboxQueries{
+				permissions: []gatewaydb.GatewayResolvePermissionsRow{{
+					Active:      true,
+					WorkspaceID: pgtype.Text{String: testWorkspaceID, Valid: true},
+					Resource: gatewaydb.NullPermissionResource{
+						PermissionResource: gatewaydb.PermissionResourceSkill, Valid: true,
+					},
+					Action: gatewaydb.NullPermissionAction{
+						PermissionAction: gatewaydb.PermissionActionDelete, Valid: true,
+					},
+				}},
+				workspace: gatewaydb.Workspace{
+					ID: testWorkspaceID, OrganizationID: testOrganizationID,
+					Namespace: testWorkspaceNS, State: gatewaydb.WorkspaceStateReady,
+				},
+			}}
+			svc := sandboxTestService(t, queries)
+			for _, name := range []string{"free", "used"} {
+				item := &agentzv1alpha1.Skill{ObjectMeta: metav1.ObjectMeta{
+					Name: name, Namespace: testWorkspaceNS,
+					Finalizers: []string{"agentz.accuknox.com/immutable-skill"},
+				}}
+				if err := svc.k8sClient.Create(t.Context(), item); err != nil {
+					t.Fatal(err)
+				}
+			}
+			agt := &agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "consumer", Namespace: testWorkspaceNS},
+				Spec: agentzv1alpha1.AgentSpec{Skills: []agentzv1alpha1.ResourceReference{{
+					Name: "used", Scope: agentzv1alpha1.ResourceScopeWorkspace,
+				}}},
+			}
+			if err := svc.k8sClient.Create(t.Context(), agt); err != nil {
+				t.Fatal(err)
+			}
+			router := chi.NewRouter()
+			gatewayapi.HandlerWithOptions(svc, gatewayapi.ChiServerOptions{
+				BaseRouter: router, Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
+			})
+			for _, status := range []int{http.StatusConflict, http.StatusNoContent} {
+				req := httptest.NewRequest(http.MethodDelete, path,
+					strings.NewReader(`{"skill_names":["free","used"]}`))
+				req.Header.Set("X-AgentZ-Workspace-ID", testWorkspaceID)
+				req.Header.Set("Content-Type", "application/json")
+				res := httptest.NewRecorder()
+				router.ServeHTTP(res, req)
+				if res.Code != status {
+					t.Fatalf("status = %d, want %d: %s", res.Code, status, res.Body)
+				}
+				if status == http.StatusNoContent {
+					continue
+				}
+				var response gatewayapi.Error
+				if err := json.Unmarshal(res.Body.Bytes(), &response); err != nil {
+					t.Fatal(err)
+				}
+				if response.Code != "skill_in_use" || !strings.Contains(response.Message, "consumer") {
+					t.Fatalf("conflict does not identify the consumer: %+v", response)
+				}
+				for _, name := range []string{"free", "used"} {
+					var item agentzv1alpha1.Skill
+					key := ctrlclient.ObjectKey{Namespace: testWorkspaceNS, Name: name}
+					if err := svc.k8sClient.Get(t.Context(), key, &item); err != nil {
+						t.Fatal(err)
+					}
+					if !item.DeletionTimestamp.IsZero() {
+						t.Fatalf("conflicting request started deleting %q", name)
+					}
+				}
+				if len(queries.events) != 1 || queries.events[0].Result != gatewaydb.EventTrailResultFailed {
+					t.Fatalf("conflict audit = %+v", queries.events)
+				}
+				agt.Spec.Skills = nil
+				if err := svc.k8sClient.Update(t.Context(), agt); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var item agentzv1alpha1.Skill
+			key := ctrlclient.ObjectKey{Namespace: testWorkspaceNS, Name: "used"}
+			if err := svc.k8sClient.Get(t.Context(), key, &item); err != nil {
+				t.Fatal(err)
+			}
+			if item.DeletionTimestamp.IsZero() {
+				t.Fatal("detached skill was not deleted")
 			}
 		})
 	}

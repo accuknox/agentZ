@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/scope"
+	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -66,6 +68,10 @@ func (v *Validator) ValidateCreate(ctx context.Context, agt *agentzv1alpha1.Agen
 
 // ValidateUpdate validates Agent updates.
 func (v *Validator) ValidateUpdate(ctx context.Context, oldAgt, newAgt *agentzv1alpha1.Agent) (admission.Warnings, error) {
+	// Dependencies may already be deleting when controllers remove finalizers.
+	if apiequality.Semantic.DeepEqual(oldAgt.Spec, newAgt.Spec) {
+		return nil, nil
+	}
 	allErrs := v.validateAgent(ctx, newAgt)
 	allErrs = append(allErrs, v.validateQuota(ctx, oldAgt, newAgt)...)
 	if oldAgt.Spec.NixStoreSize.Cmp(newAgt.Spec.NixStoreSize) != 0 {
@@ -191,6 +197,9 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 				"instruction must be at most 4096 characters",
 			),
 		)
+	}
+	if v.reader != nil {
+		allErrs = append(allErrs, skill.ValidateReferences(ctx, v.reader, agt.Namespace, agt.Spec.Skills)...)
 	}
 	return allErrs
 }

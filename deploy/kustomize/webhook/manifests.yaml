@@ -276,6 +276,25 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-agentz-accuknox-com-v1alpha1-skill
+  failurePolicy: Fail
+  name: vskill-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - agentz.accuknox.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - DELETE
+    resources:
+    - skills
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-agentz-accuknox-com-v1alpha1-tenant
   failurePolicy: Fail
   name: vtenant-v1alpha1.kb.io

@@ -74,6 +74,7 @@ import (
 	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
 	inferencepoolwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferencepool"
 	inferenceproviderwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferenceprovider"
+	skillwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -1257,6 +1258,10 @@ var managerCmd = &cli.Command{
 				setupLog.Error(err, "failed to create webhook", "webhook", "Sandbox")
 				os.Exit(1)
 			}
+			if err := skillwebhook.RegisterWithManager(mgr); err != nil {
+				setupLog.Error(err, "failed to create webhook", "webhook", "Skill")
+				os.Exit(1)
+			}
 			if err := inferenceproviderwebhook.RegisterWithManager(mgr); err != nil {
 				setupLog.Error(err, "failed to create webhook", "webhook", "InferenceProvider")
 				os.Exit(1)
@@ -1418,6 +1423,7 @@ var managerCmd = &cli.Command{
 
 		skillReconciler := &skill.Reconciler{
 			Client:      mgr.GetClient(),
+			Reader:      mgr.GetAPIReader(),
 			StoreConfig: skillStoreConfig,
 		}
 		if err := skillReconciler.SetupWithManager(mgr); err != nil {

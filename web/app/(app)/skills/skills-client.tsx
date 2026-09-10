@@ -343,17 +343,16 @@ export function SkillsClient({
             headers: scopeHeaders,
           })
     if (!request) return
-    setDeleteKeys([])
-    setSelected(new Set())
-
     const result = await request
     if (result.error) {
       setError(result.error.message)
-      toast.error(namesToDelete.length === 1 ? "Failed to delete skill" : "Failed to delete skills")
+      toast.error(result.error.message)
       await refreshSkills()
       return
     }
-    toast.success(namesToDelete.length === 1 ? "Skill deleted" : "Skills deleted")
+    setDeleteKeys([])
+    setSelected(new Set())
+    toast.success(namesToDelete.length === 1 ? "Skill deletion started" : "Skill deletions started")
     await refreshSkills()
   }
 
@@ -707,9 +706,9 @@ function DeleteDialog({
           <DialogAlert variant="warning">
             <TriangleAlert />
             <AlertDescription>
-              Referenced by {agentRefs.size} agent{agentRefs.size === 1 ? "" : "s"} and{" "}
-              {sandboxRefs.size} sandbox{sandboxRefs.size === 1 ? "" : "es"}. Deleting it removes
-              those references and every stored version.
+              Remove the selected skills from these consumers before deleting them.
+              {agentRefs.size > 0 ? <p>Agents: {Array.from(agentRefs).join(", ")}</p> : null}
+              {sandboxRefs.size > 0 ? <p>Sandboxes: {Array.from(sandboxRefs).join(", ")}</p> : null}
             </AlertDescription>
           </DialogAlert>
         ) : null}
@@ -722,7 +721,7 @@ function DeleteDialog({
           <Button
             type="button"
             variant="destructive"
-            disabled={pending}
+            disabled={pending || hasRefs}
             onClick={() => {
               startTransition(async () => {
                 await onDelete()

@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,7 +56,11 @@ func (v *Validator) ValidateCreate(ctx context.Context, pool *agentzv1alpha1.Inf
 }
 
 // ValidateUpdate validates Pool membership and the derived text contract.
-func (v *Validator) ValidateUpdate(ctx context.Context, _ *agentzv1alpha1.InferencePool, pool *agentzv1alpha1.InferencePool) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(ctx context.Context, oldPool, pool *agentzv1alpha1.InferencePool) (admission.Warnings, error) {
+	// Dependencies may already be deleting when controllers remove finalizers.
+	if apiequality.Semantic.DeepEqual(oldPool.Spec, pool.Spec) {
+		return nil, nil
+	}
 	return nil, v.validate(ctx, pool)
 }
 

@@ -25,7 +25,7 @@ import (
 // RegisterWithManager registers the Sandbox webhook with the manager.
 func RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &agentzv1alpha1.Sandbox{}).
-		WithValidator(NewValidator(mgr.GetClient())).
+		WithValidator(NewValidator(mgr.GetAPIReader())).
 		WithDefaulter(NewDefaulter()).
 		Complete()
 }

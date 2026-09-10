@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	"github.com/accuknox/agentz/internal/scope"
+	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -38,13 +40,13 @@ import (
 //
 // +kubebuilder:object:generate=false
 type Validator struct {
-	client client.Client
+	client client.Reader
 }
 
 var _ admission.Validator[*agentzv1alpha1.Sandbox] = &Validator{}
 
 // NewValidator builds a Sandbox validator.
-func NewValidator(c client.Client) *Validator {
+func NewValidator(c client.Reader) *Validator {
 	return &Validator{client: c}
 }
 
@@ -54,7 +56,11 @@ func (v *Validator) ValidateCreate(ctx context.Context, sandbox *agentzv1alpha1.
 }
 
 // ValidateUpdate validates Sandbox updates.
-func (v *Validator) ValidateUpdate(ctx context.Context, _, newSandbox *agentzv1alpha1.Sandbox) (admission.Warnings, error) {
+func (v *Validator) ValidateUpdate(ctx context.Context, oldSandbox, newSandbox *agentzv1alpha1.Sandbox) (admission.Warnings, error) {
+	// Dependencies may already be deleting when controllers remove finalizers.
+	if apiequality.Semantic.DeepEqual(oldSandbox.Spec, newSandbox.Spec) {
+		return nil, nil
+	}
 	return nil, v.validateSandbox(ctx, newSandbox)
 }
 
@@ -85,7 +91,9 @@ func (v *Validator) ValidateDelete(ctx context.Context, sandbox *agentzv1alpha1.
 
 func (v *Validator) validateSandbox(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) error {
 	fields := validateAllowedHostFields(sandbox)
-	fields = append(fields, v.validateSkillRefs(ctx, sandbox)...)
+	if v.client != nil {
+		fields = append(fields, skill.ValidateReferences(ctx, v.client, sandbox.Namespace, sandbox.Spec.Skills)...)
+	}
 	fields = append(fields, v.validateMCPConnectionRefs(ctx, sandbox)...)
 	fields = append(fields, v.validateInference(ctx, sandbox)...)
 	if len(fields) == 0 {
@@ -272,62 +280,6 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 				field.NotFound(
 					path.Child("models"),
 					ref.Name+"/"+modelID,
-				),
-			)
-		}
-	}
-	return fields
-}
-
-func (v *Validator) validateSkillRefs(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) field.ErrorList {
-	if v.client == nil {
-		return nil
-	}
-
-	fields := field.ErrorList{}
-	path := field.NewPath("spec").Child("skills")
-	for i, ref := range sandbox.Spec.Skills {
-		ns, err := scope.SelectedNamespace(
-			ctx,
-			v.client,
-			sandbox.Namespace,
-			scope.Selection{
-				Scope: ref.Scope,
-				Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
-				Name:  ref.Name,
-			},
-		)
-		if err != nil {
-			fields = append(
-				fields,
-				field.Invalid(
-					path.Index(i).Child("scope"),
-					ref.Scope,
-					"scope cannot be resolved from the Sandbox namespace",
-				),
-			)
-			continue
-		}
-
-		skill := &agentzv1alpha1.Skill{}
-		err = v.client.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, skill)
-		switch {
-		case apierrors.IsNotFound(err):
-			fields = append(fields, field.NotFound(path.Index(i).Child("name"), ref.Name))
-		case err != nil:
-			fields = append(
-				fields,
-				field.InternalError(
-					path.Index(i).Child("name"),
-					fmt.Errorf("get skill %q: %w", ref.Name, err),
-				),
-			)
-		case !skill.DeletionTimestamp.IsZero():
-			fields = append(
-				fields,
-				field.Forbidden(
-					path.Index(i).Child("name"),
-					fmt.Sprintf("skill %q is terminating", ref.Name),
 				),
 			)
 		}

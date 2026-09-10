@@ -4709,6 +4709,11 @@ export type DeleteImmutableSkillsErrors = {
    */
   404: Error
   /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
    * The request Content-Type is not supported by this operation.
    */
   415: Error
@@ -4990,6 +4995,11 @@ export type DeleteSkillErrors = {
    *
    */
   404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
   /**
    * Unexpected server error.
    */

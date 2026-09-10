@@ -2,9 +2,11 @@ package sandbox
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -40,15 +42,23 @@ func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 	}
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(&agentzv1alpha1.Agent{
-			ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "default"},
-			Spec: agentzv1alpha1.AgentSpec{
-				SandboxRef: agentzv1alpha1.ResourceReference{
-					Scope: agentzv1alpha1.ResourceScopeOrganisation,
-					Name:  "sandbox",
+		WithObjects(
+			&corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "default",
+					Labels: map[string]string{agentzv1alpha1.TenantNameLabel: "default"},
 				},
 			},
-		}).
+			&agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "default"},
+				Spec: agentzv1alpha1.AgentSpec{
+					SandboxRef: agentzv1alpha1.ResourceReference{
+						Scope: agentzv1alpha1.ResourceScopeOrganisation,
+						Name:  "sandbox",
+					},
+				},
+			},
+		).
 		Build()
 
 	sandbox := &agentzv1alpha1.Sandbox{
@@ -56,8 +66,8 @@ func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 	}
 
 	_, err := NewValidator(client).ValidateDelete(context.Background(), sandbox)
-	if err == nil {
-		t.Fatal("ValidateDelete() unexpectedly succeeded")
+	if !apierrors.IsInvalid(err) || !strings.Contains(err.Error(), "referenced by agent agent") {
+		t.Fatalf("ValidateDelete() = %v, want agent reference conflict", err)
 	}
 }
 

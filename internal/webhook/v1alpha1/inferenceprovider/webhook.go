@@ -20,6 +20,7 @@ package inferenceprovider
 import (
 	"context"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -68,6 +69,10 @@ func (v *Validator) ValidateCreate(_ context.Context, provider *agentzv1alpha1.I
 
 // ValidateUpdate validates immutable fields and referenced model removal.
 func (v *Validator) ValidateUpdate(ctx context.Context, oldProvider, newProvider *agentzv1alpha1.InferenceProvider) (admission.Warnings, error) {
+	// Finalizer cleanup must remain possible after validation rules change.
+	if apiequality.Semantic.DeepEqual(oldProvider.Spec, newProvider.Spec) {
+		return nil, nil
+	}
 	fields := issuesToFields(inference.ValidateProvider(newProvider.Spec))
 	if oldProvider.Spec.Kind != newProvider.Spec.Kind {
 		fields = append(

@@ -2,10 +2,12 @@ package sandboxutil
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -49,21 +51,27 @@ func ReferencedNames(ctx context.Context, c client.Client, ns string) (map[strin
 	return refs, nil
 }
 
-// ReferencingAgentNames returns every Agent that references sandboxName.
+// ReferencingAgentNames resolves references without cache-only field selectors,
+// so admission can check current consumers through the API reader.
 func ReferencingAgentNames(ctx context.Context, c client.Reader, ns string, sandboxName string) ([]string, error) {
 	agents := &agentzv1alpha1.AgentList{}
-	err := c.List(
-		ctx,
-		agents,
-		client.InNamespace(ns),
-		client.MatchingFields{AgentBySandboxIndex: sandboxName},
-	)
+	err := c.List(ctx, agents)
 	if err != nil {
 		return nil, err
 	}
 	names := make([]string, 0)
 	for _, agt := range agents.Items {
-		names = append(names, agt.Name)
+		ref := agt.Spec.SandboxRef
+		if ref.Name != sandboxName {
+			continue
+		}
+		namespace, err := scope.Namespace(ctx, c, agt.Namespace, ref.Scope)
+		if err != nil {
+			return nil, fmt.Errorf("resolve Agent Sandbox scope: %w", err)
+		}
+		if namespace == ns {
+			names = append(names, agt.Name)
+		}
 	}
 	slices.Sort(names)
 	return names, nil

@@ -637,9 +637,10 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	sandbox := &agentzv1alpha1.Sandbox{}
 	sandbox.Name = name
 	sandbox.Namespace = access.namespace
+	// Scope resolution needs Namespace and Workspace reads outside the usage cache.
 	agentNames, err := sandboxutil.ReferencingAgentNames(
 		r.Context(),
-		s.usageReader,
+		s.k8sClient,
 		access.namespace,
 		name,
 	)
@@ -1016,9 +1017,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		return
 	}
 
+	// Scope resolution needs Namespace and Workspace reads outside the usage cache.
 	agentNames, err := sandboxutil.ReferencingAgentNames(
 		r.Context(),
-		s.usageReader,
+		s.k8sClient,
 		access.namespace,
 		updated.Name,
 	)

@@ -1,12 +1,13 @@
 package agent
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,26 +16,56 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func TestValidatorRejectsNixStoreResize(t *testing.T) {
+type nixStoreResizeCase struct {
+	name   string
+	size   string
+	reject bool
+}
+
+// TestValidatorNixStoreResize checks that PVC sizes can only grow.
+func TestValidatorNixStoreResize(t *testing.T) {
 	t.Parallel()
 
-	validator := NewValidator(nil)
-	oldAgt := &agentzv1alpha1.Agent{
-		ObjectMeta: metav1.ObjectMeta{Name: "agent"},
-		Spec: agentzv1alpha1.AgentSpec{
-			SandboxRef: agentzv1alpha1.ResourceReference{
-				Scope: agentzv1alpha1.ResourceScopeOrganisation,
-				Name:  "python",
-			},
-			NixStoreSize: resource.MustParse("5Gi"),
-		},
+	tests := []nixStoreResizeCase{
+		{name: "increase", size: "20Gi"},
+		{name: "unchanged", size: "5Gi"},
+		{name: "equivalent units", size: "5120Mi"},
+		{name: "decrease", size: "4Gi", reject: true},
+		{name: "clear", size: "0", reject: true},
 	}
-	newAgt := oldAgt.DeepCopy()
-	newAgt.Spec.NixStoreSize = resource.MustParse("10Gi")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			oldAgt := &agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "agent"},
+				Spec: agentzv1alpha1.AgentSpec{
+					SandboxRef: agentzv1alpha1.ResourceReference{
+						Scope: agentzv1alpha1.ResourceScopeOrganisation,
+						Name:  "python",
+					},
+					NixStoreSize: resource.MustParse("5Gi"),
+				},
+			}
+			newAgt := oldAgt.DeepCopy()
+			newAgt.Spec.NixStoreSize = resource.MustParse(tt.size)
 
-	_, err := validator.ValidateUpdate(context.Background(), oldAgt, newAgt)
-	if err == nil {
-		t.Fatal("ValidateUpdate() unexpectedly accepted nixStoreSize mutation")
+			validator := NewValidator(nil)
+			_, err := validator.ValidateUpdate(t.Context(), oldAgt, newAgt)
+			if !tt.reject {
+				if err != nil {
+					t.Fatalf("ValidateUpdate(): %v", err)
+				}
+				return
+			}
+			var status *apierrors.StatusError
+			if !errors.As(err, &status) || !apierrors.IsInvalid(err) {
+				t.Fatalf("ValidateUpdate() = %v, want Invalid error", err)
+			}
+			causes := status.ErrStatus.Details.Causes
+			if len(causes) != 1 || causes[0].Field != "spec.nixStoreSize" {
+				t.Fatalf("unexpected validation causes: %v", causes)
+			}
+		})
 	}
 }
 

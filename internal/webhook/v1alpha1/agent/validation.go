@@ -74,14 +74,15 @@ func (v *Validator) ValidateUpdate(ctx context.Context, oldAgt, newAgt *agentzv1
 	}
 	allErrs := v.validateAgent(ctx, newAgt)
 	allErrs = append(allErrs, v.validateQuota(ctx, oldAgt, newAgt)...)
-	if oldAgt.Spec.NixStoreSize.Cmp(newAgt.Spec.NixStoreSize) != 0 {
+	// Kubernetes supports expanding PVCs but cannot shrink their capacity.
+	if oldAgt.Spec.NixStoreSize.Cmp(newAgt.Spec.NixStoreSize) > 0 {
 		path := field.NewPath("spec").Child("nixStoreSize")
 		allErrs = append(
 			allErrs,
 			field.Invalid(
 				path,
 				newAgt.Spec.NixStoreSize.String(),
-				"field is immutable",
+				"must not decrease",
 			),
 		)
 	}

@@ -4,7 +4,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
-import { Box, Brain, Cable, CircleAlert, Plus, Wrench } from "lucide-react"
+import { Box, Brain, Cable, CircleAlert, Code2, Layers, Plus, Wrench } from "lucide-react"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -18,8 +18,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+} from "@/components/ui/select"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import { Spinner } from "@/components/ui/spinner"
 import type { WorkspaceMemberCandidate } from "@/lib/gateway/client"
@@ -100,19 +108,26 @@ export function WorkspaceForm({
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="workspace-type">Workspace type</FieldLabel>
-            <select
-              id="workspace-type"
-              name="type"
-              value={workspaceType}
-              onChange={(event) => setWorkspaceType(event.target.value)}
-              className="border-input bg-background h-10 rounded-md border px-3 text-sm"
-            >
-              <option value="general">General purpose</option>
-              <option value="coding">Coding</option>
-            </select>
-            <p className="text-muted-foreground text-sm">
+            <Select name="type" value={workspaceType} onValueChange={setWorkspaceType}>
+              <SelectTrigger id="workspace-type" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="general">
+                    <Layers aria-hidden="true" />
+                    General purpose
+                  </SelectItem>
+                  <SelectItem value="coding">
+                    <Code2 aria-hidden="true" />
+                    Coding
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <FieldDescription>
               Coding adds GitHub projects and Git worktrees. The type cannot be changed later.
-            </p>
+            </FieldDescription>
           </Field>
           <Field data-invalid={Boolean(errors?.name)}>
             <FieldLabel htmlFor="workspace-name" required>
@@ -179,6 +194,7 @@ export function WorkspaceForm({
               const parsed = zCreateWorkspaceRequest.safeParse({
                 admin_member_ids: admins,
                 name,
+                type: workspaceType,
                 selected_organization_resources: inherited,
               })
               if (!parsed.success) {

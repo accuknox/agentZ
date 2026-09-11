@@ -92,8 +92,16 @@ const envSchema = z
     // A provider is enabled only when both its ID and secret are set; a lone
     // client id or secret is a misconfiguration, not a partial enablement.
     if (value.CODING_GITHUB_CLIENT_ID || value.CODING_GITHUB_CLIENT_SECRET) {
-      if (!value.CODING_GITHUB_CLIENT_ID || !value.CODING_GITHUB_CLIENT_SECRET || !value.CODING_GITHUB_ENCRYPTION_KEY) {
-        ctx.addIssue({ code: "custom", message: "Coding GitHub requires an App client ID, client secret, and encryption key.", path: ["CODING_GITHUB_CLIENT_ID"] })
+      if (
+        !value.CODING_GITHUB_CLIENT_ID ||
+        !value.CODING_GITHUB_CLIENT_SECRET ||
+        !value.CODING_GITHUB_ENCRYPTION_KEY
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Coding GitHub requires an App client ID, client secret, and encryption key.",
+          path: ["CODING_GITHUB_CLIENT_ID"],
+        })
       }
     }
     const githubEnabled = Boolean(value.GITHUB_CLIENT_ID)

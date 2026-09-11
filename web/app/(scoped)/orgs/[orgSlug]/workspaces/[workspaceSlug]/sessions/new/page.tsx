@@ -18,7 +18,7 @@ export default async function NewChatPage({
   searchParams,
 }: {
   params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<{ agent?: string }>
+  searchParams: Promise<{ agent?: string; draft?: string }>
 }) {
   const [{ orgSlug, workspaceSlug }, query, requestHeaders] = await Promise.all([
     params,
@@ -27,7 +27,12 @@ export default async function NewChatPage({
   ])
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") notFound()
-  if (scope.workspace.type === "coding") redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/projects`)
+  if (scope.workspace.type === "coding") {
+    const search = new URLSearchParams()
+    if (query.agent) search.set("agent", query.agent)
+    if (query.draft) search.set("draft", query.draft)
+    redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/projects?${search}`)
+  }
 
   const [agentsResult, preference, authSession] = await Promise.all([
     listAllAgentsCachedQuery(scope.workspace.id),

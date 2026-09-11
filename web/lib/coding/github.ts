@@ -137,8 +137,6 @@ export async function finishGitHubConnection(code: string, state: string) {
     userId: actor.user.id,
     githubUserId: user.id,
     login: user.login,
-    name: user.name || user.login,
-    email: `${user.id}+${user.login}@users.noreply.github.com`,
     accessToken: sealToken(tokens.access_token, actor.user.id, user.id),
     refreshToken: sealToken(tokens.refresh_token, actor.user.id, user.id),
     expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
@@ -168,13 +166,7 @@ export async function finishGitHubConnection(code: string, state: string) {
 // after refreshed credentials have committed, so failures cannot undo rotation.
 // Never return this context from a server action or place it in an agent request.
 export async function withGitHub<T>(
-  action: (context: {
-    octokit: Octokit
-    token: string
-    login: string
-    name: string
-    email: string
-  }) => Promise<T>
+  action: (context: { octokit: Octokit; token: string; name: string; email: string }) => Promise<T>
 ): Promise<T> {
   const actor = await githubActor()
   return getDB()
@@ -232,7 +224,6 @@ export async function withGitHub<T>(
       return action({
         octokit,
         token,
-        login: user.login,
         name: user.name || user.login,
         email: `${user.id}+${user.login}@users.noreply.github.com`,
       })

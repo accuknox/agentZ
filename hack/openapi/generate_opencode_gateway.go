@@ -50,7 +50,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
-        "listCodingProjects", "createCodingProject", "getCodingProject", "renameCodingProject", "deleteCodingProject", "createCodingThread", "getCodingThread", "runCodingGit",
+		"listCodingProjects", "createCodingProject", "getCodingProject", "renameCodingProject", "deleteCodingProject", "createCodingThread", "getCodingThread", "runCodingGit", "suggestCodingText",
 		"createDashboard",
 		"createAgentDirectory",
 		"createAgentFile",
@@ -831,6 +831,30 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 			map[string]any{"$ref": "#/components/schemas/FilePartInput"},
 			map[string]any{"$ref": "#/components/schemas/AgentPartInput"},
 			map[string]any{"$ref": "#/components/schemas/SubtaskPartInput"},
+		},
+	}
+	// Parts have mutually exclusive type tags; expose them to generated clients.
+	part, ok := schemas["Part"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no Part schema")
+	}
+	part["oneOf"] = part["anyOf"]
+	delete(part, "anyOf")
+	part["discriminator"] = map[string]any{
+		"propertyName": "type",
+		"mapping": map[string]any{
+			"text":        "#/components/schemas/TextPart",
+			"subtask":     "#/components/schemas/SubtaskPart",
+			"reasoning":   "#/components/schemas/ReasoningPart",
+			"file":        "#/components/schemas/FilePart",
+			"tool":        "#/components/schemas/ToolPart",
+			"step-start":  "#/components/schemas/StepStartPart",
+			"step-finish": "#/components/schemas/StepFinishPart",
+			"snapshot":    "#/components/schemas/SnapshotPart",
+			"patch":       "#/components/schemas/PatchPart",
+			"agent":       "#/components/schemas/AgentPart",
+			"retry":       "#/components/schemas/RetryPart",
+			"compaction":  "#/components/schemas/CompactionPart",
 		},
 	}
 	textPartInput, ok := schemas["TextPartInput"].(map[string]any)

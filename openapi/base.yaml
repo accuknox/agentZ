@@ -166,6 +166,29 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/agent/{agentName}/session/{sessionId}/suggestion:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {type: string}}
+    - {name: sessionId, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: suggestCodingText
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CodingTextRequest'}
+      responses:
+        '200':
+          description: Generated branch name or commit message.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingTextSuggestion'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
   /api/coding/worktree/{worktreeId}/git:
     parameters:
     - {name: worktreeId, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}}
@@ -5427,6 +5450,7 @@ components:
 
     WorkflowRunTerminalPhase:
       type: string
+      x-enum-varnames: [WorkflowRunTerminalPhaseSucceeded, WorkflowRunTerminalPhaseFailed]
       enum:
       - Succeeded
       - Failed
@@ -9507,14 +9531,38 @@ components:
         base_branch: {type: string, minLength: 1, maxLength: 255}
         bundle: {type: string, format: byte, maxLength: 89478488}
       required: [id, project_id, agent_name]
+    CodingTextRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        purpose:
+          type: string
+          enum: [branch, commit]
+          x-enum-varnames: [CodingTextBranch, CodingTextCommit]
+        text: {type: string, maxLength: 16000}
+        expected_tree: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        model:
+          type: object
+          additionalProperties: false
+          properties:
+            modelID: {type: string, minLength: 1}
+            providerID: {type: string, minLength: 1}
+          required: [modelID, providerID]
+      required: [purpose]
+    CodingTextSuggestion:
+      type: object
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 20000}
+      required: [text]
     CodingGitRequest:
       type: object
       additionalProperties: false
       properties:
         operation:
           type: string
-          enum: [status, diff, stage, unstage, export, import, apply_commit, checkout, remove]
-          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitRemove]
+          enum: [status, diff, stage, unstage, export, import, apply_commit, checkout, rename, remove]
+          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitRename, CodingGitRemove]
         paths:
           type: array
           maxItems: 1000

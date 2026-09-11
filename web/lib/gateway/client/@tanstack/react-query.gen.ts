@@ -114,6 +114,7 @@ import {
   retryWorkspace,
   runCodingGit,
   statAgentFile,
+  suggestCodingText,
   transferAgentOwner,
   updateAgent,
   updateChatSessionPreference,
@@ -455,6 +456,9 @@ import type {
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
+  SuggestCodingTextData,
+  SuggestCodingTextError,
+  SuggestCodingTextResponse,
   TransferAgentOwnerData,
   TransferAgentOwnerError,
   TransferAgentOwnerResponse,
@@ -693,6 +697,30 @@ export const getCodingThreadOptions = (options: Options<GetCodingThreadData>) =>
     },
     queryKey: getCodingThreadQueryKey(options),
   })
+
+export const suggestCodingTextMutation = (
+  options?: Partial<Options<SuggestCodingTextData>>
+): UseMutationOptions<
+  SuggestCodingTextResponse,
+  SuggestCodingTextError,
+  Options<SuggestCodingTextData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SuggestCodingTextResponse,
+    SuggestCodingTextError,
+    Options<SuggestCodingTextData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await suggestCodingText({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export const runCodingGitMutation = (
   options?: Partial<Options<RunCodingGitData>>

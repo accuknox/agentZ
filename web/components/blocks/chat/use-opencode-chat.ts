@@ -531,7 +531,7 @@ export function markOptimisticUserMessageFailed(
   )
 }
 
-function sessionInfoQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
+export function sessionInfoQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
   return queryOptions({
     queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)

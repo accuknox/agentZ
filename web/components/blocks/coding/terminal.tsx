@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useTheme } from "next-themes"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import { Plus, RefreshCw, TerminalSquare, Trash2, X } from "lucide-react"
@@ -20,9 +21,18 @@ type TerminalProps = {
   sessionId: string
   directory: string
   workspaceId: string
+  visible: boolean
+  branch: string
 }
 
-export function CodingTerminal({ agentName, sessionId, directory, workspaceId }: TerminalProps) {
+export function CodingTerminal({
+  agentName,
+  sessionId,
+  directory,
+  workspaceId,
+  visible,
+  branch,
+}: TerminalProps) {
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState<string>()
   const title = `Coding · ${sessionId}`
@@ -147,6 +157,8 @@ export function CodingTerminal({ agentName, sessionId, directory, workspaceId }:
             directory={directory}
             workspaceId={workspaceId}
             ptyID={pty.id}
+            visible={visible && active?.id === pty.id}
+            branch={branch}
           />
         </TabsContent>
       ))}
@@ -159,33 +171,58 @@ function TerminalSession({
   directory,
   workspaceId,
   ptyID,
+  visible,
+  branch,
 }: Omit<TerminalProps, "sessionId"> & { ptyID: string }) {
+  const { resolvedTheme } = useTheme()
   const element = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal>(null)
   const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState("Connecting...")
+  useEffect(() => {
+    // next-themes applies the root class in its parent effect.
+    const frame = requestAnimationFrame(() => {
+      const container = element.current
+      if (!container || !terminalRef.current) return
+      const style = getComputedStyle(container)
+      terminalRef.current.options.theme = {
+        background: style.backgroundColor,
+        foreground: style.color,
+        cursor: style.color,
+        selectionBackground: resolvedTheme === "dark" ? "#ffffff30" : "#00000020",
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [resolvedTheme, attempt])
+  useEffect(() => {
+    if (visible) terminalRef.current?.focus()
+  }, [visible])
   useEffect(() => {
     const container = element.current
     if (!container) return
     let cancelled = false
     let socket: WebSocket | undefined
     let resize: ResizeObserver | undefined
+    const style = getComputedStyle(container)
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: 12,
-      fontFamily: "Geist Mono, monospace",
-      theme: { background: "#111113", foreground: "#e4e4e7", cursor: "#e4e4e7" },
+      fontSize: 13,
+      fontFamily: style.fontFamily,
+      theme: { background: style.backgroundColor, foreground: style.color, cursor: style.color },
       scrollback: 10_000,
     })
     terminalRef.current = terminal
     const fit = new FitAddon()
     terminal.loadAddon(fit)
-    terminal.open(container)
     const input = terminal.onData((data) => {
       if (socket?.readyState === WebSocket.OPEN) socket.send(data)
     })
     async function connect(container: HTMLDivElement) {
       setStatus("Connecting...")
+      // Canvas measurement needs the resolved font and a loaded face.
+      await document.fonts.load(`13px ${terminal.options.fontFamily}`)
+      if (cancelled) return
+      terminal.open(container)
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const [{ data: ticket }, base, token] = await Promise.all([
         client.pty.connectToken(
@@ -248,17 +285,18 @@ function TerminalSession({
     }
   }, [agentName, directory, workspaceId, ptyID, attempt])
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#111113]">
-      <div className="flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs text-zinc-400">
+    <div className="bg-background flex h-full min-h-0 flex-col">
+      <div className="text-muted-foreground flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs">
+        <span className="min-w-0 flex-1 truncate font-mono" title={directory}>
+          {branch}
+        </span>
         <span
           className={cn(
             "size-1.5 rounded-full",
             status === "Connected" ? "bg-emerald-400" : "bg-zinc-500"
           )}
         />
-        <span role="status" className="flex-1">
-          {status}
-        </span>
+        <span role="status">{status}</span>
         <Button
           aria-label="Clear terminal"
           title="Clear terminal"
@@ -278,7 +316,10 @@ function TerminalSession({
           <RefreshCw />
         </Button>
       </div>
-      <div ref={element} className="min-h-0 flex-1 px-2 pb-2" />
+      <div
+        ref={element}
+        className="bg-background text-foreground min-h-0 flex-1 overflow-hidden px-2 pb-2 font-mono [font-stretch:normal]"
+      />
     </div>
   )
 }

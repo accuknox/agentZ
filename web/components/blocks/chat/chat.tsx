@@ -57,7 +57,7 @@ import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-sto
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
 import { useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
-import { useOpencodeSend } from "@/components/blocks/chat/use-opencode-send"
+import { useOpencodeSend, type CreateSession } from "@/components/blocks/chat/use-opencode-send"
 import {
   type PermissionDecision,
   PermissionDock,
@@ -158,7 +158,10 @@ import {
 } from "@/components/ui/select"
 import type { LanguageModelUsage } from "ai"
 
-type ChatProps = {
+export type ChatProps = {
+  revertDisabled?: boolean
+  createSession?: CreateSession
+  composerContext?: (disabled: boolean) => ReactNode
   agentName: string
   agentNames: string[]
   chatPreferences?: ChatSessionPreference
@@ -500,6 +503,9 @@ function groupEntries(entries: RenderEntry[]): EntryGroup[] {
 }
 
 function ChatInner({
+  revertDisabled = false,
+  createSession,
+  composerContext,
   agentName,
   agentNames,
   chatPreferences,
@@ -779,15 +785,17 @@ function ChatInner({
     ? messages.filter((message) => message.id < revertMessageID)
     : messages
   const contextUsage = getAssistantUsage(contextMessages, models)
-  const { abortMessage, canSubmit, isStopping, sendMessage, sendState } = useOpencodeSend(
-    agentName,
-    workspaceId,
-    sessionId,
-    draftId,
-    directory,
-    isBusy || isPending || blocked || agentReadiness.isGettingReady,
-    onSessionCreated
-  )
+  const { abortMessage, canSubmit, hasSession, isStopping, sendMessage, sendState } =
+    useOpencodeSend(
+      agentName,
+      workspaceId,
+      sessionId,
+      draftId,
+      directory,
+      isBusy || isPending || blocked || agentReadiness.isGettingReady,
+      onSessionCreated,
+      createSession
+    )
 
   useEffect(() => {
     if (models.length === 0 || !modelStorageReady) return
@@ -1162,7 +1170,7 @@ function ChatInner({
                   isBusy={isBusy}
                   isLastBlock={rows.at(-1)?.key === item.key}
                   onRevert={handleRevert}
-                  revertDisabled={isBusy || isStopping || revertPending}
+                  revertDisabled={revertDisabled || isBusy || isStopping || revertPending}
                   row={item}
                   user={timelineIdentity.user}
                   workspaceId={workspaceId}
@@ -1470,9 +1478,9 @@ function ChatInner({
                 </div>
               </PromptInputBody>
             </PromptInput>
-            <div className="chat-composer-context-strip absolute inset-x-[1.375rem] bottom-0 z-0 flex h-10 items-end px-3 pb-1">
+            <div className="chat-composer-context-strip absolute inset-x-[1.375rem] bottom-0 z-0 flex h-10 items-end gap-2 px-3 pb-1">
               <Select
-                disabled={sessionId !== undefined || agentNames.length < 2}
+                disabled={hasSession || sendState === "submitted" || agentNames.length < 2}
                 onValueChange={(name) => {
                   onAgentChange(name)
                   const previous =
@@ -1503,6 +1511,7 @@ function ChatInner({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {composerContext?.(inputDisabled || hasSession || sendState === "submitted")}
             </div>
           </div>
         </div>

@@ -2226,6 +2226,20 @@ export type CreateCodingThreadRequest = {
   bundle?: string
 }
 
+export type CodingTextRequest = {
+  purpose: "branch" | "commit"
+  text?: string
+  expected_tree?: string
+  model?: {
+    modelID: string
+    providerID: string
+  }
+}
+
+export type CodingTextSuggestion = {
+  text: string
+}
+
 export type CodingGitRequest = {
   operation:
     | "status"
@@ -2236,6 +2250,7 @@ export type CodingGitRequest = {
     | "import"
     | "apply_commit"
     | "checkout"
+    | "rename"
     | "remove"
   paths?: Array<string>
   expected_tree?: string
@@ -2858,6 +2873,34 @@ export type GetCodingThreadResponses = {
 }
 
 export type GetCodingThreadResponse = GetCodingThreadResponses[keyof GetCodingThreadResponses]
+
+export type SuggestCodingTextData = {
+  body: CodingTextRequest
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/coding/agent/{agentName}/session/{sessionId}/suggestion"
+}
+
+export type SuggestCodingTextErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type SuggestCodingTextError = SuggestCodingTextErrors[keyof SuggestCodingTextErrors]
+
+export type SuggestCodingTextResponses = {
+  /**
+   * Generated branch name or commit message.
+   */
+  200: CodingTextSuggestion
+}
+
+export type SuggestCodingTextResponse = SuggestCodingTextResponses[keyof SuggestCodingTextResponses]
 
 export type RunCodingGitData = {
   body: CodingGitRequest

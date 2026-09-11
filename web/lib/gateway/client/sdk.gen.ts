@@ -335,6 +335,9 @@ import type {
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  SuggestCodingTextData,
+  SuggestCodingTextErrors,
+  SuggestCodingTextResponses,
   TransferAgentOwnerData,
   TransferAgentOwnerErrors,
   TransferAgentOwnerResponses,
@@ -512,6 +515,23 @@ export const getCodingThread = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/coding/agent/{agentName}/session/{sessionId}",
     ...options,
+  })
+
+export const suggestCodingText = <ThrowOnError extends boolean = false>(
+  options: Options<SuggestCodingTextData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    SuggestCodingTextResponses,
+    SuggestCodingTextErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/agent/{agentName}/session/{sessionId}/suggestion",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 export const runCodingGit = <ThrowOnError extends boolean = false>(

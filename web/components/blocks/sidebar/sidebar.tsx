@@ -1,4 +1,3 @@
-import { Code } from "lucide-react"
 import type { Route } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
@@ -11,6 +10,7 @@ import {
   Cable,
   CircleUserRound,
   CloudCog,
+  FolderGit2,
   KeyRound,
   LayoutDashboard,
   Lock,
@@ -238,7 +238,11 @@ async function WorkspaceNavigation({
     inferencePoolCapabilities.read ||
     showSecrets ||
     showWorkflows
-  const hasWorkspace = showAgents || organization.superadmin || workspace.capabilities.administer
+  const hasWorkspace =
+    workspace.type === "coding" ||
+    showAgents ||
+    organization.superadmin ||
+    workspace.capabilities.administer
   let chatSessions: React.JSX.Element | null = null
   if (showAgents) {
     const preference = await getChatSessionPreference({
@@ -349,8 +353,11 @@ async function WorkspaceNavigation({
             <SidebarMenu>
               {workspace.type === "coding" ? (
                 <SidebarMenuItem>
-                  <SidebarNavigationLink href={`${workspacePath}/projects` as Route} label="Projects">
-                    <Code aria-hidden="true" />
+                  <SidebarNavigationLink
+                    href={`${workspacePath}/projects` as Route}
+                    label="Projects"
+                  >
+                    <FolderGit2 aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>
               ) : null}

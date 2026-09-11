@@ -159,9 +159,16 @@ const (
 	CodingGitExport      CodingGitRequestOperation = "export"
 	CodingGitImport      CodingGitRequestOperation = "import"
 	CodingGitRemove      CodingGitRequestOperation = "remove"
+	CodingGitRename      CodingGitRequestOperation = "rename"
 	CodingGitStage       CodingGitRequestOperation = "stage"
 	CodingGitStatus      CodingGitRequestOperation = "status"
 	CodingGitUnstage     CodingGitRequestOperation = "unstage"
+)
+
+// Defines values for CodingTextRequestPurpose.
+const (
+	CodingTextBranch CodingTextRequestPurpose = "branch"
+	CodingTextCommit CodingTextRequestPurpose = "commit"
 )
 
 // Defines values for CompatibleProviderConfigAuthMode.
@@ -521,6 +528,11 @@ const (
 	OpencodeFileSourceTypeFile OpencodeFileSourceType = "file"
 )
 
+// Defines values for OpencodeForbiddenErrorTag.
+const (
+	ForbiddenError OpencodeForbiddenErrorTag = "ForbiddenError"
+)
+
 // Defines values for OpencodeInvalidRequestErrorTag.
 const (
 	InvalidRequestError OpencodeInvalidRequestErrorTag = "InvalidRequestError"
@@ -571,6 +583,22 @@ const (
 // Defines values for OpencodeProviderAuthErrorName.
 const (
 	ProviderAuthError OpencodeProviderAuthErrorName = "ProviderAuthError"
+)
+
+// Defines values for OpencodePtyStatus.
+const (
+	OpencodePtyStatusExited  OpencodePtyStatus = "exited"
+	OpencodePtyStatusRunning OpencodePtyStatus = "running"
+)
+
+// Defines values for OpencodePtyForbiddenErrorTag.
+const (
+	PtyForbiddenError OpencodePtyForbiddenErrorTag = "PtyForbiddenError"
+)
+
+// Defines values for OpencodePtyNotFoundErrorTag.
+const (
+	PtyNotFoundError OpencodePtyNotFoundErrorTag = "PtyNotFoundError"
 )
 
 // Defines values for OpencodeReasoningPartType.
@@ -703,6 +731,11 @@ const (
 // Defines values for OpencodeeffectHttpApiErrorBadRequestTag.
 const (
 	OpencodeeffectHttpApiErrorBadRequestTagBadRequest OpencodeeffectHttpApiErrorBadRequestTag = "BadRequest"
+)
+
+// Defines values for OpencodeeffectHttpApiErrorForbiddenTag.
+const (
+	OpencodeeffectHttpApiErrorForbiddenTagForbidden OpencodeeffectHttpApiErrorForbiddenTag = "Forbidden"
 )
 
 // Defines values for OpencodeeffectHttpApiErrorInternalServerErrorTag.
@@ -1403,6 +1436,25 @@ type CodingProjectDetail struct {
 	Project   CodingProject    `json:"project"`
 	Threads   []CodingThread   `json:"threads"`
 	Worktrees []CodingWorktree `json:"worktrees"`
+}
+
+// CodingTextRequest defines model for CodingTextRequest.
+type CodingTextRequest struct {
+	ExpectedTree *string `json:"expected_tree,omitempty"`
+	Model        *struct {
+		ModelID    string `json:"modelID"`
+		ProviderID string `json:"providerID"`
+	} `json:"model,omitempty"`
+	Purpose CodingTextRequestPurpose `json:"purpose"`
+	Text    *string                  `json:"text,omitempty"`
+}
+
+// CodingTextRequestPurpose defines model for CodingTextRequest.Purpose.
+type CodingTextRequestPurpose string
+
+// CodingTextSuggestion defines model for CodingTextSuggestion.
+type CodingTextSuggestion struct {
+	Text string `json:"text"`
 }
 
 // CodingThread defines model for CodingThread.
@@ -3022,6 +3074,15 @@ type OpencodeFileSource struct {
 // OpencodeFileSourceType defines model for OpencodeFileSource.Type.
 type OpencodeFileSourceType string
 
+// OpencodeForbiddenError defines model for OpencodeForbiddenError.
+type OpencodeForbiddenError struct {
+	UnderscoreTag OpencodeForbiddenErrorTag `json:"_tag"`
+	Message       string                    `json:"message"`
+}
+
+// OpencodeForbiddenErrorTag defines model for OpencodeForbiddenError.Tag.
+type OpencodeForbiddenErrorTag string
+
 // OpencodeInvalidRequestError defines model for OpencodeInvalidRequestError.
 type OpencodeInvalidRequestError struct {
 	UnderscoreTag OpencodeInvalidRequestErrorTag `json:"_tag"`
@@ -3162,6 +3223,46 @@ type OpencodeProviderAuthError struct {
 
 // OpencodeProviderAuthErrorName defines model for OpencodeProviderAuthError.Name.
 type OpencodeProviderAuthErrorName string
+
+// OpencodePty defines model for OpencodePty.
+type OpencodePty struct {
+	Args     []string          `json:"args"`
+	Command  string            `json:"command"`
+	Cwd      string            `json:"cwd"`
+	ExitCode *int              `json:"exitCode,omitempty"`
+	Id       string            `json:"id"`
+	Pid      int               `json:"pid"`
+	Status   OpencodePtyStatus `json:"status"`
+	Title    string            `json:"title"`
+}
+
+// OpencodePtyStatus defines model for OpencodePty.Status.
+type OpencodePtyStatus string
+
+// OpencodePtyForbiddenError defines model for OpencodePtyForbiddenError.
+type OpencodePtyForbiddenError struct {
+	UnderscoreTag OpencodePtyForbiddenErrorTag `json:"_tag"`
+	Message       string                       `json:"message"`
+}
+
+// OpencodePtyForbiddenErrorTag defines model for OpencodePtyForbiddenError.Tag.
+type OpencodePtyForbiddenErrorTag string
+
+// OpencodePtyNotFoundError defines model for OpencodePtyNotFoundError.
+type OpencodePtyNotFoundError struct {
+	UnderscoreTag OpencodePtyNotFoundErrorTag `json:"_tag"`
+	Message       string                      `json:"message"`
+	PtyID         string                      `json:"ptyID"`
+}
+
+// OpencodePtyNotFoundErrorTag defines model for OpencodePtyNotFoundError.Tag.
+type OpencodePtyNotFoundErrorTag string
+
+// OpencodePtyTicketConnectToken defines model for OpencodePtyTicketConnectToken.
+type OpencodePtyTicketConnectToken struct {
+	ExpiresIn int    `json:"expires_in"`
+	Ticket    string `json:"ticket"`
+}
 
 // OpencodeRange defines model for OpencodeRange.
 type OpencodeRange struct {
@@ -3631,6 +3732,14 @@ type OpencodeeffectHttpApiErrorBadRequest struct {
 
 // OpencodeeffectHttpApiErrorBadRequestTag defines model for OpencodeeffectHttpApiErrorBadRequest.Tag.
 type OpencodeeffectHttpApiErrorBadRequestTag string
+
+// OpencodeeffectHttpApiErrorForbidden defines model for Opencodeeffect_HttpApiError_Forbidden.
+type OpencodeeffectHttpApiErrorForbidden struct {
+	UnderscoreTag OpencodeeffectHttpApiErrorForbiddenTag `json:"_tag"`
+}
+
+// OpencodeeffectHttpApiErrorForbiddenTag defines model for OpencodeeffectHttpApiErrorForbidden.Tag.
+type OpencodeeffectHttpApiErrorForbiddenTag string
 
 // OpencodeeffectHttpApiErrorInternalServerError defines model for Opencodeeffect_HttpApiError_InternalServerError.
 type OpencodeeffectHttpApiErrorInternalServerError struct {
@@ -5266,12 +5375,154 @@ type GetMCPConnectionParams struct {
 	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
 
+// V2PtyListParams defines parameters for V2PtyList.
+type V2PtyListParams struct {
+	Location *struct {
+		Directory *string `json:"directory,omitempty"`
+		Workspace *string `json:"workspace,omitempty"`
+	} `json:"location,omitempty"`
+}
+
+// V2PtyCreateJSONBody defines parameters for V2PtyCreate.
+type V2PtyCreateJSONBody struct {
+	Args    *[]string          `json:"args,omitempty"`
+	Command *string            `json:"command,omitempty"`
+	Cwd     *string            `json:"cwd,omitempty"`
+	Env     *map[string]string `json:"env,omitempty"`
+	Title   *string            `json:"title,omitempty"`
+}
+
+// V2PtyCreateParams defines parameters for V2PtyCreate.
+type V2PtyCreateParams struct {
+	Location *struct {
+		Directory *string `json:"directory,omitempty"`
+		Workspace *string `json:"workspace,omitempty"`
+	} `json:"location,omitempty"`
+}
+
+// V2PtyRemoveParams defines parameters for V2PtyRemove.
+type V2PtyRemoveParams struct {
+	Location *struct {
+		Directory *string `json:"directory,omitempty"`
+		Workspace *string `json:"workspace,omitempty"`
+	} `json:"location,omitempty"`
+}
+
+// V2PtyGetParams defines parameters for V2PtyGet.
+type V2PtyGetParams struct {
+	Location *struct {
+		Directory *string `json:"directory,omitempty"`
+		Workspace *string `json:"workspace,omitempty"`
+	} `json:"location,omitempty"`
+}
+
+// V2PtyUpdateJSONBody defines parameters for V2PtyUpdate.
+type V2PtyUpdateJSONBody struct {
+	Size *struct {
+		Cols int `json:"cols"`
+		Rows int `json:"rows"`
+	} `json:"size,omitempty"`
+	Title *string `json:"title,omitempty"`
+}
+
+// V2PtyUpdateParams defines parameters for V2PtyUpdate.
+type V2PtyUpdateParams struct {
+	Location *struct {
+		Directory *string `json:"directory,omitempty"`
+		Workspace *string `json:"workspace,omitempty"`
+	} `json:"location,omitempty"`
+}
+
+// V2PtyConnectParams defines parameters for V2PtyConnect.
+type V2PtyConnectParams struct {
+	LocationDirectory *string `form:"location[directory],omitempty" json:"location[directory],omitempty"`
+	LocationWorkspace *string `form:"location[workspace],omitempty" json:"location[workspace],omitempty"`
+	Cursor            *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Ticket            *string `form:"ticket,omitempty" json:"ticket,omitempty"`
+}
+
+// V2PtyConnectTokenParams defines parameters for V2PtyConnectToken.
+type V2PtyConnectTokenParams struct {
+	Location *struct {
+		Directory *string `json:"directory,omitempty"`
+		Workspace *string `json:"workspace,omitempty"`
+	} `json:"location,omitempty"`
+}
+
 // V2SkillListParams defines parameters for V2SkillList.
 type V2SkillListParams struct {
 	Location *struct {
 		Directory *string `json:"directory,omitempty"`
 		Workspace *string `json:"workspace,omitempty"`
 	} `json:"location,omitempty"`
+}
+
+// PtyListParams defines parameters for PtyList.
+type PtyListParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PtyCreateJSONBody defines parameters for PtyCreate.
+type PtyCreateJSONBody struct {
+	Args    *[]string          `json:"args,omitempty"`
+	Command *string            `json:"command,omitempty"`
+	Cwd     *string            `json:"cwd,omitempty"`
+	Env     *map[string]string `json:"env,omitempty"`
+	Title   *string            `json:"title,omitempty"`
+}
+
+// PtyCreateParams defines parameters for PtyCreate.
+type PtyCreateParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PtyShellsParams defines parameters for PtyShells.
+type PtyShellsParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PtyRemoveParams defines parameters for PtyRemove.
+type PtyRemoveParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PtyGetParams defines parameters for PtyGet.
+type PtyGetParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PtyUpdateJSONBody defines parameters for PtyUpdate.
+type PtyUpdateJSONBody struct {
+	Size *struct {
+		Cols int `json:"cols"`
+		Rows int `json:"rows"`
+	} `json:"size,omitempty"`
+	Title *string `json:"title,omitempty"`
+}
+
+// PtyUpdateParams defines parameters for PtyUpdate.
+type PtyUpdateParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+}
+
+// PtyConnectParams defines parameters for PtyConnect.
+type PtyConnectParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
+	Cursor    *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Ticket    *string `form:"ticket,omitempty" json:"ticket,omitempty"`
+}
+
+// PtyConnectTokenParams defines parameters for PtyConnectToken.
+type PtyConnectTokenParams struct {
+	Directory *string `form:"directory,omitempty" json:"directory,omitempty"`
+	Workspace *string `form:"workspace,omitempty" json:"workspace,omitempty"`
 }
 
 // SessionListParams defines parameters for SessionList.
@@ -5927,6 +6178,9 @@ type ExportAgentMutableSkillsJSONRequestBody = ExportMutableSkillsRequest
 // UpdateChatSessionPreferenceJSONRequestBody defines body for UpdateChatSessionPreference for application/json ContentType.
 type UpdateChatSessionPreferenceJSONRequestBody = ChatSessionPreference
 
+// SuggestCodingTextJSONRequestBody defines body for SuggestCodingText for application/json ContentType.
+type SuggestCodingTextJSONRequestBody = CodingTextRequest
+
 // CreateCodingProjectJSONRequestBody defines body for CreateCodingProject for application/json ContentType.
 type CreateCodingProjectJSONRequestBody = CreateCodingProjectRequest
 
@@ -5968,6 +6222,18 @@ type CreateMCPConnectionJSONRequestBody = CreateMCPConnectionRequest
 
 // WatchMCPConnectionsJSONRequestBody defines body for WatchMCPConnections for application/json ContentType.
 type WatchMCPConnectionsJSONRequestBody = WatchMCPConnectionsRequest
+
+// V2PtyCreateJSONRequestBody defines body for V2PtyCreate for application/json ContentType.
+type V2PtyCreateJSONRequestBody V2PtyCreateJSONBody
+
+// V2PtyUpdateJSONRequestBody defines body for V2PtyUpdate for application/json ContentType.
+type V2PtyUpdateJSONRequestBody V2PtyUpdateJSONBody
+
+// PtyCreateJSONRequestBody defines body for PtyCreate for application/json ContentType.
+type PtyCreateJSONRequestBody PtyCreateJSONBody
+
+// PtyUpdateJSONRequestBody defines body for PtyUpdate for application/json ContentType.
+type PtyUpdateJSONRequestBody PtyUpdateJSONBody
 
 // SessionCreateJSONRequestBody defines body for SessionCreate for application/json ContentType.
 type SessionCreateJSONRequestBody SessionCreateJSONBody
@@ -7795,6 +8061,7 @@ func (t OpencodePart) AsOpencodeTextPart() (OpencodeTextPart, error) {
 
 // FromOpencodeTextPart overwrites any union data inside the OpencodePart as the provided OpencodeTextPart
 func (t *OpencodePart) FromOpencodeTextPart(v OpencodeTextPart) error {
+	v.Type = "text"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7802,6 +8069,7 @@ func (t *OpencodePart) FromOpencodeTextPart(v OpencodeTextPart) error {
 
 // MergeOpencodeTextPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeTextPart
 func (t *OpencodePart) MergeOpencodeTextPart(v OpencodeTextPart) error {
+	v.Type = "text"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7821,6 +8089,7 @@ func (t OpencodePart) AsOpencodeSubtaskPart() (OpencodeSubtaskPart, error) {
 
 // FromOpencodeSubtaskPart overwrites any union data inside the OpencodePart as the provided OpencodeSubtaskPart
 func (t *OpencodePart) FromOpencodeSubtaskPart(v OpencodeSubtaskPart) error {
+	v.Type = "subtask"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7828,6 +8097,7 @@ func (t *OpencodePart) FromOpencodeSubtaskPart(v OpencodeSubtaskPart) error {
 
 // MergeOpencodeSubtaskPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeSubtaskPart
 func (t *OpencodePart) MergeOpencodeSubtaskPart(v OpencodeSubtaskPart) error {
+	v.Type = "subtask"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7847,6 +8117,7 @@ func (t OpencodePart) AsOpencodeReasoningPart() (OpencodeReasoningPart, error) {
 
 // FromOpencodeReasoningPart overwrites any union data inside the OpencodePart as the provided OpencodeReasoningPart
 func (t *OpencodePart) FromOpencodeReasoningPart(v OpencodeReasoningPart) error {
+	v.Type = "reasoning"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7854,6 +8125,7 @@ func (t *OpencodePart) FromOpencodeReasoningPart(v OpencodeReasoningPart) error 
 
 // MergeOpencodeReasoningPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeReasoningPart
 func (t *OpencodePart) MergeOpencodeReasoningPart(v OpencodeReasoningPart) error {
+	v.Type = "reasoning"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7873,6 +8145,7 @@ func (t OpencodePart) AsOpencodeFilePart() (OpencodeFilePart, error) {
 
 // FromOpencodeFilePart overwrites any union data inside the OpencodePart as the provided OpencodeFilePart
 func (t *OpencodePart) FromOpencodeFilePart(v OpencodeFilePart) error {
+	v.Type = "file"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7880,6 +8153,7 @@ func (t *OpencodePart) FromOpencodeFilePart(v OpencodeFilePart) error {
 
 // MergeOpencodeFilePart performs a merge with any union data inside the OpencodePart, using the provided OpencodeFilePart
 func (t *OpencodePart) MergeOpencodeFilePart(v OpencodeFilePart) error {
+	v.Type = "file"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7899,6 +8173,7 @@ func (t OpencodePart) AsOpencodeToolPart() (OpencodeToolPart, error) {
 
 // FromOpencodeToolPart overwrites any union data inside the OpencodePart as the provided OpencodeToolPart
 func (t *OpencodePart) FromOpencodeToolPart(v OpencodeToolPart) error {
+	v.Type = "tool"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7906,6 +8181,7 @@ func (t *OpencodePart) FromOpencodeToolPart(v OpencodeToolPart) error {
 
 // MergeOpencodeToolPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeToolPart
 func (t *OpencodePart) MergeOpencodeToolPart(v OpencodeToolPart) error {
+	v.Type = "tool"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7925,6 +8201,7 @@ func (t OpencodePart) AsOpencodeStepStartPart() (OpencodeStepStartPart, error) {
 
 // FromOpencodeStepStartPart overwrites any union data inside the OpencodePart as the provided OpencodeStepStartPart
 func (t *OpencodePart) FromOpencodeStepStartPart(v OpencodeStepStartPart) error {
+	v.Type = "step-start"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7932,6 +8209,7 @@ func (t *OpencodePart) FromOpencodeStepStartPart(v OpencodeStepStartPart) error 
 
 // MergeOpencodeStepStartPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeStepStartPart
 func (t *OpencodePart) MergeOpencodeStepStartPart(v OpencodeStepStartPart) error {
+	v.Type = "step-start"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7951,6 +8229,7 @@ func (t OpencodePart) AsOpencodeStepFinishPart() (OpencodeStepFinishPart, error)
 
 // FromOpencodeStepFinishPart overwrites any union data inside the OpencodePart as the provided OpencodeStepFinishPart
 func (t *OpencodePart) FromOpencodeStepFinishPart(v OpencodeStepFinishPart) error {
+	v.Type = "step-finish"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7958,6 +8237,7 @@ func (t *OpencodePart) FromOpencodeStepFinishPart(v OpencodeStepFinishPart) erro
 
 // MergeOpencodeStepFinishPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeStepFinishPart
 func (t *OpencodePart) MergeOpencodeStepFinishPart(v OpencodeStepFinishPart) error {
+	v.Type = "step-finish"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7977,6 +8257,7 @@ func (t OpencodePart) AsOpencodeSnapshotPart() (OpencodeSnapshotPart, error) {
 
 // FromOpencodeSnapshotPart overwrites any union data inside the OpencodePart as the provided OpencodeSnapshotPart
 func (t *OpencodePart) FromOpencodeSnapshotPart(v OpencodeSnapshotPart) error {
+	v.Type = "snapshot"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7984,6 +8265,7 @@ func (t *OpencodePart) FromOpencodeSnapshotPart(v OpencodeSnapshotPart) error {
 
 // MergeOpencodeSnapshotPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeSnapshotPart
 func (t *OpencodePart) MergeOpencodeSnapshotPart(v OpencodeSnapshotPart) error {
+	v.Type = "snapshot"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8003,6 +8285,7 @@ func (t OpencodePart) AsOpencodePatchPart() (OpencodePatchPart, error) {
 
 // FromOpencodePatchPart overwrites any union data inside the OpencodePart as the provided OpencodePatchPart
 func (t *OpencodePart) FromOpencodePatchPart(v OpencodePatchPart) error {
+	v.Type = "patch"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -8010,6 +8293,7 @@ func (t *OpencodePart) FromOpencodePatchPart(v OpencodePatchPart) error {
 
 // MergeOpencodePatchPart performs a merge with any union data inside the OpencodePart, using the provided OpencodePatchPart
 func (t *OpencodePart) MergeOpencodePatchPart(v OpencodePatchPart) error {
+	v.Type = "patch"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8029,6 +8313,7 @@ func (t OpencodePart) AsOpencodeAgentPart() (OpencodeAgentPart, error) {
 
 // FromOpencodeAgentPart overwrites any union data inside the OpencodePart as the provided OpencodeAgentPart
 func (t *OpencodePart) FromOpencodeAgentPart(v OpencodeAgentPart) error {
+	v.Type = "agent"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -8036,6 +8321,7 @@ func (t *OpencodePart) FromOpencodeAgentPart(v OpencodeAgentPart) error {
 
 // MergeOpencodeAgentPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeAgentPart
 func (t *OpencodePart) MergeOpencodeAgentPart(v OpencodeAgentPart) error {
+	v.Type = "agent"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8055,6 +8341,7 @@ func (t OpencodePart) AsOpencodeRetryPart() (OpencodeRetryPart, error) {
 
 // FromOpencodeRetryPart overwrites any union data inside the OpencodePart as the provided OpencodeRetryPart
 func (t *OpencodePart) FromOpencodeRetryPart(v OpencodeRetryPart) error {
+	v.Type = "retry"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -8062,6 +8349,7 @@ func (t *OpencodePart) FromOpencodeRetryPart(v OpencodeRetryPart) error {
 
 // MergeOpencodeRetryPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeRetryPart
 func (t *OpencodePart) MergeOpencodeRetryPart(v OpencodeRetryPart) error {
+	v.Type = "retry"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8081,6 +8369,7 @@ func (t OpencodePart) AsOpencodeCompactionPart() (OpencodeCompactionPart, error)
 
 // FromOpencodeCompactionPart overwrites any union data inside the OpencodePart as the provided OpencodeCompactionPart
 func (t *OpencodePart) FromOpencodeCompactionPart(v OpencodeCompactionPart) error {
+	v.Type = "compaction"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -8088,6 +8377,7 @@ func (t *OpencodePart) FromOpencodeCompactionPart(v OpencodeCompactionPart) erro
 
 // MergeOpencodeCompactionPart performs a merge with any union data inside the OpencodePart, using the provided OpencodeCompactionPart
 func (t *OpencodePart) MergeOpencodeCompactionPart(v OpencodeCompactionPart) error {
+	v.Type = "compaction"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8096,6 +8386,49 @@ func (t *OpencodePart) MergeOpencodeCompactionPart(v OpencodeCompactionPart) err
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+func (t OpencodePart) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t OpencodePart) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "agent":
+		return t.AsOpencodeAgentPart()
+	case "compaction":
+		return t.AsOpencodeCompactionPart()
+	case "file":
+		return t.AsOpencodeFilePart()
+	case "patch":
+		return t.AsOpencodePatchPart()
+	case "reasoning":
+		return t.AsOpencodeReasoningPart()
+	case "retry":
+		return t.AsOpencodeRetryPart()
+	case "snapshot":
+		return t.AsOpencodeSnapshotPart()
+	case "step-finish":
+		return t.AsOpencodeStepFinishPart()
+	case "step-start":
+		return t.AsOpencodeStepStartPart()
+	case "subtask":
+		return t.AsOpencodeSubtaskPart()
+	case "text":
+		return t.AsOpencodeTextPart()
+	case "tool":
+		return t.AsOpencodeToolPart()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t OpencodePart) MarshalJSON() ([]byte, error) {
@@ -8761,6 +9094,11 @@ type ClientInterface interface {
 	// GetCodingThread request
 	GetCodingThread(ctx context.Context, agentName string, sessionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SuggestCodingTextWithBody request with any body
+	SuggestCodingTextWithBody(ctx context.Context, agentName string, sessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SuggestCodingText(ctx context.Context, agentName string, sessionId string, body SuggestCodingTextJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListCodingProjects request
 	ListCodingProjects(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -8918,8 +9256,61 @@ type ClientInterface interface {
 	// GetMCPConnection request
 	GetMCPConnection(ctx context.Context, name MCPConnectionNamePath, params *GetMCPConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V2PtyList request
+	V2PtyList(ctx context.Context, agentName string, params *V2PtyListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V2PtyCreateWithBody request with any body
+	V2PtyCreateWithBody(ctx context.Context, agentName string, params *V2PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V2PtyCreate(ctx context.Context, agentName string, params *V2PtyCreateParams, body V2PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V2PtyRemove request
+	V2PtyRemove(ctx context.Context, agentName string, ptyID string, params *V2PtyRemoveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V2PtyGet request
+	V2PtyGet(ctx context.Context, agentName string, ptyID string, params *V2PtyGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V2PtyUpdateWithBody request with any body
+	V2PtyUpdateWithBody(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V2PtyUpdate(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, body V2PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V2PtyConnect request
+	V2PtyConnect(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V2PtyConnectToken request
+	V2PtyConnectToken(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V2SkillList request
 	V2SkillList(ctx context.Context, agentName string, params *V2SkillListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyList request
+	PtyList(ctx context.Context, agentName string, params *PtyListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyCreateWithBody request with any body
+	PtyCreateWithBody(ctx context.Context, agentName string, params *PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PtyCreate(ctx context.Context, agentName string, params *PtyCreateParams, body PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyShells request
+	PtyShells(ctx context.Context, agentName string, params *PtyShellsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyRemove request
+	PtyRemove(ctx context.Context, agentName string, ptyID string, params *PtyRemoveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyGet request
+	PtyGet(ctx context.Context, agentName string, ptyID string, params *PtyGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyUpdateWithBody request with any body
+	PtyUpdateWithBody(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PtyUpdate(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, body PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyConnect request
+	PtyConnect(ctx context.Context, agentName string, ptyID string, params *PtyConnectParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PtyConnectToken request
+	PtyConnectToken(ctx context.Context, agentName string, ptyID string, params *PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SessionList request
 	SessionList(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9835,6 +10226,30 @@ func (c *Client) GetCodingThread(ctx context.Context, agentName string, sessionI
 	return c.Client.Do(req)
 }
 
+func (c *Client) SuggestCodingTextWithBody(ctx context.Context, agentName string, sessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestCodingTextRequestWithBody(c.Server, agentName, sessionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SuggestCodingText(ctx context.Context, agentName string, sessionId string, body SuggestCodingTextJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestCodingTextRequest(c.Server, agentName, sessionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListCodingProjects(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListCodingProjectsRequest(c.Server)
 	if err != nil {
@@ -10519,8 +10934,236 @@ func (c *Client) GetMCPConnection(ctx context.Context, name MCPConnectionNamePat
 	return c.Client.Do(req)
 }
 
+func (c *Client) V2PtyList(ctx context.Context, agentName string, params *V2PtyListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyListRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyCreateWithBody(ctx context.Context, agentName string, params *V2PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyCreateRequestWithBody(c.Server, agentName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyCreate(ctx context.Context, agentName string, params *V2PtyCreateParams, body V2PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyCreateRequest(c.Server, agentName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyRemove(ctx context.Context, agentName string, ptyID string, params *V2PtyRemoveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyRemoveRequest(c.Server, agentName, ptyID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyGet(ctx context.Context, agentName string, ptyID string, params *V2PtyGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyGetRequest(c.Server, agentName, ptyID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyUpdateWithBody(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyUpdateRequestWithBody(c.Server, agentName, ptyID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyUpdate(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, body V2PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyUpdateRequest(c.Server, agentName, ptyID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyConnect(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyConnectRequest(c.Server, agentName, ptyID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2PtyConnectToken(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2PtyConnectTokenRequest(c.Server, agentName, ptyID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V2SkillList(ctx context.Context, agentName string, params *V2SkillListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV2SkillListRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyList(ctx context.Context, agentName string, params *PtyListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyListRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyCreateWithBody(ctx context.Context, agentName string, params *PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyCreateRequestWithBody(c.Server, agentName, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyCreate(ctx context.Context, agentName string, params *PtyCreateParams, body PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyCreateRequest(c.Server, agentName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyShells(ctx context.Context, agentName string, params *PtyShellsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyShellsRequest(c.Server, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyRemove(ctx context.Context, agentName string, ptyID string, params *PtyRemoveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyRemoveRequest(c.Server, agentName, ptyID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyGet(ctx context.Context, agentName string, ptyID string, params *PtyGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyGetRequest(c.Server, agentName, ptyID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyUpdateWithBody(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyUpdateRequestWithBody(c.Server, agentName, ptyID, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyUpdate(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, body PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyUpdateRequest(c.Server, agentName, ptyID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyConnect(ctx context.Context, agentName string, ptyID string, params *PtyConnectParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyConnectRequest(c.Server, agentName, ptyID, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PtyConnectToken(ctx context.Context, agentName string, ptyID string, params *PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPtyConnectTokenRequest(c.Server, agentName, ptyID, params)
 	if err != nil {
 		return nil, err
 	}
@@ -14037,6 +14680,60 @@ func NewGetCodingThreadRequest(server string, agentName string, sessionId string
 	return req, nil
 }
 
+// NewSuggestCodingTextRequest calls the generic SuggestCodingText builder with application/json body
+func NewSuggestCodingTextRequest(server string, agentName string, sessionId string, body SuggestCodingTextJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSuggestCodingTextRequestWithBody(server, agentName, sessionId, "application/json", bodyReader)
+}
+
+// NewSuggestCodingTextRequestWithBody generates requests for SuggestCodingText with any type of body
+func NewSuggestCodingTextRequestWithBody(server string, agentName string, sessionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "sessionId", runtime.ParamLocationPath, sessionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/coding/agent/%s/session/%s/suggestion", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListCodingProjectsRequest generates requests for ListCodingProjects
 func NewListCodingProjectsRequest(server string) (*http.Request, error) {
 	var err error
@@ -16913,6 +17610,507 @@ func NewGetMCPConnectionRequest(server string, name MCPConnectionNamePath, param
 	return req, nil
 }
 
+// NewV2PtyListRequest generates requests for V2PtyList
+func NewV2PtyListRequest(server string, agentName string, params *V2PtyListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/api/pty", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("deepObject", true, "location", runtime.ParamLocationQuery, *params.Location); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV2PtyCreateRequest calls the generic V2PtyCreate builder with application/json body
+func NewV2PtyCreateRequest(server string, agentName string, params *V2PtyCreateParams, body V2PtyCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV2PtyCreateRequestWithBody(server, agentName, params, "application/json", bodyReader)
+}
+
+// NewV2PtyCreateRequestWithBody generates requests for V2PtyCreate with any type of body
+func NewV2PtyCreateRequestWithBody(server string, agentName string, params *V2PtyCreateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/api/pty", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("deepObject", true, "location", runtime.ParamLocationQuery, *params.Location); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV2PtyRemoveRequest generates requests for V2PtyRemove
+func NewV2PtyRemoveRequest(server string, agentName string, ptyID string, params *V2PtyRemoveParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/api/pty/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("deepObject", true, "location", runtime.ParamLocationQuery, *params.Location); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV2PtyGetRequest generates requests for V2PtyGet
+func NewV2PtyGetRequest(server string, agentName string, ptyID string, params *V2PtyGetParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/api/pty/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("deepObject", true, "location", runtime.ParamLocationQuery, *params.Location); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV2PtyUpdateRequest calls the generic V2PtyUpdate builder with application/json body
+func NewV2PtyUpdateRequest(server string, agentName string, ptyID string, params *V2PtyUpdateParams, body V2PtyUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV2PtyUpdateRequestWithBody(server, agentName, ptyID, params, "application/json", bodyReader)
+}
+
+// NewV2PtyUpdateRequestWithBody generates requests for V2PtyUpdate with any type of body
+func NewV2PtyUpdateRequestWithBody(server string, agentName string, ptyID string, params *V2PtyUpdateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/api/pty/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("deepObject", true, "location", runtime.ParamLocationQuery, *params.Location); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV2PtyConnectRequest generates requests for V2PtyConnect
+func NewV2PtyConnectRequest(server string, agentName string, ptyID string, params *V2PtyConnectParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/api/pty/%s/connect", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.LocationDirectory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "location[directory]", runtime.ParamLocationQuery, *params.LocationDirectory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LocationWorkspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "location[workspace]", runtime.ParamLocationQuery, *params.LocationWorkspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Ticket != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "ticket", runtime.ParamLocationQuery, *params.Ticket); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV2PtyConnectTokenRequest generates requests for V2PtyConnectToken
+func NewV2PtyConnectTokenRequest(server string, agentName string, ptyID string, params *V2PtyConnectTokenParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/api/pty/%s/connect-token", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("deepObject", true, "location", runtime.ParamLocationQuery, *params.Location); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewV2SkillListRequest generates requests for V2SkillList
 func NewV2SkillListRequest(server string, agentName string, params *V2SkillListParams) (*http.Request, error) {
 	var err error
@@ -16962,6 +18160,675 @@ func NewV2SkillListRequest(server string, agentName string, params *V2SkillListP
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPtyListRequest generates requests for PtyList
+func NewPtyListRequest(server string, agentName string, params *PtyListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPtyCreateRequest calls the generic PtyCreate builder with application/json body
+func NewPtyCreateRequest(server string, agentName string, params *PtyCreateParams, body PtyCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPtyCreateRequestWithBody(server, agentName, params, "application/json", bodyReader)
+}
+
+// NewPtyCreateRequestWithBody generates requests for PtyCreate with any type of body
+func NewPtyCreateRequestWithBody(server string, agentName string, params *PtyCreateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPtyShellsRequest generates requests for PtyShells
+func NewPtyShellsRequest(server string, agentName string, params *PtyShellsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty/shells", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPtyRemoveRequest generates requests for PtyRemove
+func NewPtyRemoveRequest(server string, agentName string, ptyID string, params *PtyRemoveParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPtyGetRequest generates requests for PtyGet
+func NewPtyGetRequest(server string, agentName string, ptyID string, params *PtyGetParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPtyUpdateRequest calls the generic PtyUpdate builder with application/json body
+func NewPtyUpdateRequest(server string, agentName string, ptyID string, params *PtyUpdateParams, body PtyUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPtyUpdateRequestWithBody(server, agentName, ptyID, params, "application/json", bodyReader)
+}
+
+// NewPtyUpdateRequestWithBody generates requests for PtyUpdate with any type of body
+func NewPtyUpdateRequestWithBody(server string, agentName string, ptyID string, params *PtyUpdateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPtyConnectRequest generates requests for PtyConnect
+func NewPtyConnectRequest(server string, agentName string, ptyID string, params *PtyConnectParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty/%s/connect", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Ticket != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "ticket", runtime.ParamLocationQuery, *params.Ticket); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPtyConnectTokenRequest generates requests for PtyConnectToken
+func NewPtyConnectTokenRequest(server string, agentName string, ptyID string, params *PtyConnectTokenParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "agentName", runtime.ParamLocationPath, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ptyID", runtime.ParamLocationPath, ptyID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/opencode/%s/pty/%s/connect-token", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Directory != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "directory", runtime.ParamLocationQuery, *params.Directory); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Workspace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace", runtime.ParamLocationQuery, *params.Workspace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -22546,6 +24413,11 @@ type ClientWithResponsesInterface interface {
 	// GetCodingThreadWithResponse request
 	GetCodingThreadWithResponse(ctx context.Context, agentName string, sessionId string, reqEditors ...RequestEditorFn) (*GetCodingThreadResp, error)
 
+	// SuggestCodingTextWithBodyWithResponse request with any body
+	SuggestCodingTextWithBodyWithResponse(ctx context.Context, agentName string, sessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestCodingTextResp, error)
+
+	SuggestCodingTextWithResponse(ctx context.Context, agentName string, sessionId string, body SuggestCodingTextJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestCodingTextResp, error)
+
 	// ListCodingProjectsWithResponse request
 	ListCodingProjectsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListCodingProjectsResp, error)
 
@@ -22703,8 +24575,61 @@ type ClientWithResponsesInterface interface {
 	// GetMCPConnectionWithResponse request
 	GetMCPConnectionWithResponse(ctx context.Context, name MCPConnectionNamePath, params *GetMCPConnectionParams, reqEditors ...RequestEditorFn) (*GetMCPConnectionResp, error)
 
+	// V2PtyListWithResponse request
+	V2PtyListWithResponse(ctx context.Context, agentName string, params *V2PtyListParams, reqEditors ...RequestEditorFn) (*V2PtyListResp, error)
+
+	// V2PtyCreateWithBodyWithResponse request with any body
+	V2PtyCreateWithBodyWithResponse(ctx context.Context, agentName string, params *V2PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V2PtyCreateResp, error)
+
+	V2PtyCreateWithResponse(ctx context.Context, agentName string, params *V2PtyCreateParams, body V2PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V2PtyCreateResp, error)
+
+	// V2PtyRemoveWithResponse request
+	V2PtyRemoveWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyRemoveParams, reqEditors ...RequestEditorFn) (*V2PtyRemoveResp, error)
+
+	// V2PtyGetWithResponse request
+	V2PtyGetWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyGetParams, reqEditors ...RequestEditorFn) (*V2PtyGetResp, error)
+
+	// V2PtyUpdateWithBodyWithResponse request with any body
+	V2PtyUpdateWithBodyWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V2PtyUpdateResp, error)
+
+	V2PtyUpdateWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, body V2PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V2PtyUpdateResp, error)
+
+	// V2PtyConnectWithResponse request
+	V2PtyConnectWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectParams, reqEditors ...RequestEditorFn) (*V2PtyConnectResp, error)
+
+	// V2PtyConnectTokenWithResponse request
+	V2PtyConnectTokenWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*V2PtyConnectTokenResp, error)
+
 	// V2SkillListWithResponse request
 	V2SkillListWithResponse(ctx context.Context, agentName string, params *V2SkillListParams, reqEditors ...RequestEditorFn) (*V2SkillListResp, error)
+
+	// PtyListWithResponse request
+	PtyListWithResponse(ctx context.Context, agentName string, params *PtyListParams, reqEditors ...RequestEditorFn) (*PtyListResp, error)
+
+	// PtyCreateWithBodyWithResponse request with any body
+	PtyCreateWithBodyWithResponse(ctx context.Context, agentName string, params *PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PtyCreateResp, error)
+
+	PtyCreateWithResponse(ctx context.Context, agentName string, params *PtyCreateParams, body PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*PtyCreateResp, error)
+
+	// PtyShellsWithResponse request
+	PtyShellsWithResponse(ctx context.Context, agentName string, params *PtyShellsParams, reqEditors ...RequestEditorFn) (*PtyShellsResp, error)
+
+	// PtyRemoveWithResponse request
+	PtyRemoveWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyRemoveParams, reqEditors ...RequestEditorFn) (*PtyRemoveResp, error)
+
+	// PtyGetWithResponse request
+	PtyGetWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyGetParams, reqEditors ...RequestEditorFn) (*PtyGetResp, error)
+
+	// PtyUpdateWithBodyWithResponse request with any body
+	PtyUpdateWithBodyWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PtyUpdateResp, error)
+
+	PtyUpdateWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, body PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*PtyUpdateResp, error)
+
+	// PtyConnectWithResponse request
+	PtyConnectWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyConnectParams, reqEditors ...RequestEditorFn) (*PtyConnectResp, error)
+
+	// PtyConnectTokenWithResponse request
+	PtyConnectTokenWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*PtyConnectTokenResp, error)
 
 	// SessionListWithResponse request
 	SessionListWithResponse(ctx context.Context, agentName string, params *SessionListParams, reqEditors ...RequestEditorFn) (*SessionListResp, error)
@@ -23961,6 +25886,29 @@ func (r GetCodingThreadResp) StatusCode() int {
 	return 0
 }
 
+type SuggestCodingTextResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CodingTextSuggestion
+	JSONDefault  *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r SuggestCodingTextResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SuggestCodingTextResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListCodingProjectsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25034,6 +26982,195 @@ func (r GetMCPConnectionResp) StatusCode() int {
 	return 0
 }
 
+type V2PtyListResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Data     []OpencodePty        `json:"data"`
+		Location OpencodeLocationInfo `json:"location"`
+	}
+	JSON400 *OpencodeInvalidRequestError
+	JSON401 *OpencodeUnauthorizedError
+}
+
+// Status returns HTTPResponse.Status
+func (r V2PtyListResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2PtyListResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V2PtyCreateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Data     OpencodePty          `json:"data"`
+		Location OpencodeLocationInfo `json:"location"`
+	}
+	JSON400 *OpencodeInvalidRequestError
+	JSON401 *OpencodeUnauthorizedError
+}
+
+// Status returns HTTPResponse.Status
+func (r V2PtyCreateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2PtyCreateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V2PtyRemoveResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *OpencodeInvalidRequestError
+	JSON401      *OpencodeUnauthorizedError
+	JSON404      *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r V2PtyRemoveResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2PtyRemoveResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V2PtyGetResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Data     OpencodePty          `json:"data"`
+		Location OpencodeLocationInfo `json:"location"`
+	}
+	JSON400 *OpencodeInvalidRequestError
+	JSON401 *OpencodeUnauthorizedError
+	JSON404 *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r V2PtyGetResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2PtyGetResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V2PtyUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Data     OpencodePty          `json:"data"`
+		Location OpencodeLocationInfo `json:"location"`
+	}
+	JSON400 *OpencodeInvalidRequestError
+	JSON401 *OpencodeUnauthorizedError
+	JSON404 *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r V2PtyUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2PtyUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V2PtyConnectResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeInvalidRequestError
+	JSON401      *OpencodeUnauthorizedError
+	JSON403      *OpencodeForbiddenError
+	JSON404      *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r V2PtyConnectResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2PtyConnectResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V2PtyConnectTokenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Data     OpencodePtyTicketConnectToken `json:"data"`
+		Location OpencodeLocationInfo          `json:"location"`
+	}
+	JSON400 *OpencodeInvalidRequestError
+	JSON401 *OpencodeUnauthorizedError
+	JSON403 *OpencodeForbiddenError
+	JSON404 *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r V2PtyConnectTokenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2PtyConnectTokenResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V2SkillListResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25055,6 +27192,204 @@ func (r V2SkillListResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V2SkillListResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyListResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]OpencodePty
+	JSON400      *OpencodeBadRequestError
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyListResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyListResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyCreateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodePty
+	JSON400      *struct {
+		union json.RawMessage
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyCreateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyCreateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyShellsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]struct {
+		Acceptable bool   `json:"acceptable"`
+		Name       string `json:"name"`
+		Path       string `json:"path"`
+	}
+	JSON400 *OpencodeBadRequestError
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyShellsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyShellsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyRemoveResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyRemoveResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyRemoveResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyGetResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodePty
+	JSON400      *OpencodeBadRequestError
+	JSON404      *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyGetResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyGetResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodePty
+	JSON400      *struct {
+		union json.RawMessage
+	}
+	JSON404 *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyConnectResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *bool
+	JSON403      *OpencodeeffectHttpApiErrorForbidden
+	JSON404      *OpencodeNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyConnectResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyConnectResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PtyConnectTokenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpencodePtyTicketConnectToken
+	JSON400      *OpencodeBadRequestError
+	JSON403      *OpencodePtyForbiddenError
+	JSON404      *OpencodePtyNotFoundError
+}
+
+// Status returns HTTPResponse.Status
+func (r PtyConnectTokenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PtyConnectTokenResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -27468,6 +29803,23 @@ func (c *ClientWithResponses) GetCodingThreadWithResponse(ctx context.Context, a
 	return ParseGetCodingThreadResp(rsp)
 }
 
+// SuggestCodingTextWithBodyWithResponse request with arbitrary body returning *SuggestCodingTextResp
+func (c *ClientWithResponses) SuggestCodingTextWithBodyWithResponse(ctx context.Context, agentName string, sessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestCodingTextResp, error) {
+	rsp, err := c.SuggestCodingTextWithBody(ctx, agentName, sessionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestCodingTextResp(rsp)
+}
+
+func (c *ClientWithResponses) SuggestCodingTextWithResponse(ctx context.Context, agentName string, sessionId string, body SuggestCodingTextJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestCodingTextResp, error) {
+	rsp, err := c.SuggestCodingText(ctx, agentName, sessionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestCodingTextResp(rsp)
+}
+
 // ListCodingProjectsWithResponse request returning *ListCodingProjectsResp
 func (c *ClientWithResponses) ListCodingProjectsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListCodingProjectsResp, error) {
 	rsp, err := c.ListCodingProjects(ctx, reqEditors...)
@@ -27967,6 +30319,85 @@ func (c *ClientWithResponses) GetMCPConnectionWithResponse(ctx context.Context, 
 	return ParseGetMCPConnectionResp(rsp)
 }
 
+// V2PtyListWithResponse request returning *V2PtyListResp
+func (c *ClientWithResponses) V2PtyListWithResponse(ctx context.Context, agentName string, params *V2PtyListParams, reqEditors ...RequestEditorFn) (*V2PtyListResp, error) {
+	rsp, err := c.V2PtyList(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyListResp(rsp)
+}
+
+// V2PtyCreateWithBodyWithResponse request with arbitrary body returning *V2PtyCreateResp
+func (c *ClientWithResponses) V2PtyCreateWithBodyWithResponse(ctx context.Context, agentName string, params *V2PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V2PtyCreateResp, error) {
+	rsp, err := c.V2PtyCreateWithBody(ctx, agentName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyCreateResp(rsp)
+}
+
+func (c *ClientWithResponses) V2PtyCreateWithResponse(ctx context.Context, agentName string, params *V2PtyCreateParams, body V2PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V2PtyCreateResp, error) {
+	rsp, err := c.V2PtyCreate(ctx, agentName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyCreateResp(rsp)
+}
+
+// V2PtyRemoveWithResponse request returning *V2PtyRemoveResp
+func (c *ClientWithResponses) V2PtyRemoveWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyRemoveParams, reqEditors ...RequestEditorFn) (*V2PtyRemoveResp, error) {
+	rsp, err := c.V2PtyRemove(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyRemoveResp(rsp)
+}
+
+// V2PtyGetWithResponse request returning *V2PtyGetResp
+func (c *ClientWithResponses) V2PtyGetWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyGetParams, reqEditors ...RequestEditorFn) (*V2PtyGetResp, error) {
+	rsp, err := c.V2PtyGet(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyGetResp(rsp)
+}
+
+// V2PtyUpdateWithBodyWithResponse request with arbitrary body returning *V2PtyUpdateResp
+func (c *ClientWithResponses) V2PtyUpdateWithBodyWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V2PtyUpdateResp, error) {
+	rsp, err := c.V2PtyUpdateWithBody(ctx, agentName, ptyID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyUpdateResp(rsp)
+}
+
+func (c *ClientWithResponses) V2PtyUpdateWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyUpdateParams, body V2PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V2PtyUpdateResp, error) {
+	rsp, err := c.V2PtyUpdate(ctx, agentName, ptyID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyUpdateResp(rsp)
+}
+
+// V2PtyConnectWithResponse request returning *V2PtyConnectResp
+func (c *ClientWithResponses) V2PtyConnectWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectParams, reqEditors ...RequestEditorFn) (*V2PtyConnectResp, error) {
+	rsp, err := c.V2PtyConnect(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyConnectResp(rsp)
+}
+
+// V2PtyConnectTokenWithResponse request returning *V2PtyConnectTokenResp
+func (c *ClientWithResponses) V2PtyConnectTokenWithResponse(ctx context.Context, agentName string, ptyID string, params *V2PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*V2PtyConnectTokenResp, error) {
+	rsp, err := c.V2PtyConnectToken(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2PtyConnectTokenResp(rsp)
+}
+
 // V2SkillListWithResponse request returning *V2SkillListResp
 func (c *ClientWithResponses) V2SkillListWithResponse(ctx context.Context, agentName string, params *V2SkillListParams, reqEditors ...RequestEditorFn) (*V2SkillListResp, error) {
 	rsp, err := c.V2SkillList(ctx, agentName, params, reqEditors...)
@@ -27974,6 +30405,94 @@ func (c *ClientWithResponses) V2SkillListWithResponse(ctx context.Context, agent
 		return nil, err
 	}
 	return ParseV2SkillListResp(rsp)
+}
+
+// PtyListWithResponse request returning *PtyListResp
+func (c *ClientWithResponses) PtyListWithResponse(ctx context.Context, agentName string, params *PtyListParams, reqEditors ...RequestEditorFn) (*PtyListResp, error) {
+	rsp, err := c.PtyList(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyListResp(rsp)
+}
+
+// PtyCreateWithBodyWithResponse request with arbitrary body returning *PtyCreateResp
+func (c *ClientWithResponses) PtyCreateWithBodyWithResponse(ctx context.Context, agentName string, params *PtyCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PtyCreateResp, error) {
+	rsp, err := c.PtyCreateWithBody(ctx, agentName, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyCreateResp(rsp)
+}
+
+func (c *ClientWithResponses) PtyCreateWithResponse(ctx context.Context, agentName string, params *PtyCreateParams, body PtyCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*PtyCreateResp, error) {
+	rsp, err := c.PtyCreate(ctx, agentName, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyCreateResp(rsp)
+}
+
+// PtyShellsWithResponse request returning *PtyShellsResp
+func (c *ClientWithResponses) PtyShellsWithResponse(ctx context.Context, agentName string, params *PtyShellsParams, reqEditors ...RequestEditorFn) (*PtyShellsResp, error) {
+	rsp, err := c.PtyShells(ctx, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyShellsResp(rsp)
+}
+
+// PtyRemoveWithResponse request returning *PtyRemoveResp
+func (c *ClientWithResponses) PtyRemoveWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyRemoveParams, reqEditors ...RequestEditorFn) (*PtyRemoveResp, error) {
+	rsp, err := c.PtyRemove(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyRemoveResp(rsp)
+}
+
+// PtyGetWithResponse request returning *PtyGetResp
+func (c *ClientWithResponses) PtyGetWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyGetParams, reqEditors ...RequestEditorFn) (*PtyGetResp, error) {
+	rsp, err := c.PtyGet(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyGetResp(rsp)
+}
+
+// PtyUpdateWithBodyWithResponse request with arbitrary body returning *PtyUpdateResp
+func (c *ClientWithResponses) PtyUpdateWithBodyWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PtyUpdateResp, error) {
+	rsp, err := c.PtyUpdateWithBody(ctx, agentName, ptyID, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyUpdateResp(rsp)
+}
+
+func (c *ClientWithResponses) PtyUpdateWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyUpdateParams, body PtyUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*PtyUpdateResp, error) {
+	rsp, err := c.PtyUpdate(ctx, agentName, ptyID, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyUpdateResp(rsp)
+}
+
+// PtyConnectWithResponse request returning *PtyConnectResp
+func (c *ClientWithResponses) PtyConnectWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyConnectParams, reqEditors ...RequestEditorFn) (*PtyConnectResp, error) {
+	rsp, err := c.PtyConnect(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyConnectResp(rsp)
+}
+
+// PtyConnectTokenWithResponse request returning *PtyConnectTokenResp
+func (c *ClientWithResponses) PtyConnectTokenWithResponse(ctx context.Context, agentName string, ptyID string, params *PtyConnectTokenParams, reqEditors ...RequestEditorFn) (*PtyConnectTokenResp, error) {
+	rsp, err := c.PtyConnectToken(ctx, agentName, ptyID, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePtyConnectTokenResp(rsp)
 }
 
 // SessionListWithResponse request returning *SessionListResp
@@ -30926,6 +33445,39 @@ func ParseGetCodingThreadResp(rsp *http.Response) (*GetCodingThreadResp, error) 
 	return response, nil
 }
 
+// ParseSuggestCodingTextResp parses an HTTP response from a SuggestCodingTextWithResponse call
+func ParseSuggestCodingTextResp(rsp *http.Response) (*SuggestCodingTextResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SuggestCodingTextResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CodingTextSuggestion
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListCodingProjectsResp parses an HTTP response from a ListCodingProjectsWithResponse call
 func ParseListCodingProjectsResp(rsp *http.Response) (*ListCodingProjectsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -32933,6 +35485,343 @@ func ParseGetMCPConnectionResp(rsp *http.Response) (*GetMCPConnectionResp, error
 	return response, nil
 }
 
+// ParseV2PtyListResp parses an HTTP response from a V2PtyListWithResponse call
+func ParseV2PtyListResp(rsp *http.Response) (*V2PtyListResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2PtyListResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Data     []OpencodePty        `json:"data"`
+			Location OpencodeLocationInfo `json:"location"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeInvalidRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest OpencodeUnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV2PtyCreateResp parses an HTTP response from a V2PtyCreateWithResponse call
+func ParseV2PtyCreateResp(rsp *http.Response) (*V2PtyCreateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2PtyCreateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Data     OpencodePty          `json:"data"`
+			Location OpencodeLocationInfo `json:"location"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeInvalidRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest OpencodeUnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV2PtyRemoveResp parses an HTTP response from a V2PtyRemoveWithResponse call
+func ParseV2PtyRemoveResp(rsp *http.Response) (*V2PtyRemoveResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2PtyRemoveResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeInvalidRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest OpencodeUnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV2PtyGetResp parses an HTTP response from a V2PtyGetWithResponse call
+func ParseV2PtyGetResp(rsp *http.Response) (*V2PtyGetResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2PtyGetResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Data     OpencodePty          `json:"data"`
+			Location OpencodeLocationInfo `json:"location"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeInvalidRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest OpencodeUnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV2PtyUpdateResp parses an HTTP response from a V2PtyUpdateWithResponse call
+func ParseV2PtyUpdateResp(rsp *http.Response) (*V2PtyUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2PtyUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Data     OpencodePty          `json:"data"`
+			Location OpencodeLocationInfo `json:"location"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeInvalidRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest OpencodeUnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV2PtyConnectResp parses an HTTP response from a V2PtyConnectWithResponse call
+func ParseV2PtyConnectResp(rsp *http.Response) (*V2PtyConnectResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2PtyConnectResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeInvalidRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest OpencodeUnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest OpencodeForbiddenError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV2PtyConnectTokenResp parses an HTTP response from a V2PtyConnectTokenWithResponse call
+func ParseV2PtyConnectTokenResp(rsp *http.Response) (*V2PtyConnectTokenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2PtyConnectTokenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Data     OpencodePtyTicketConnectToken `json:"data"`
+			Location OpencodeLocationInfo          `json:"location"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeInvalidRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest OpencodeUnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest OpencodeForbiddenError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseV2SkillListResp parses an HTTP response from a V2SkillListWithResponse call
 func ParseV2SkillListResp(rsp *http.Response) (*V2SkillListResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -32970,6 +35859,320 @@ func ParseV2SkillListResp(rsp *http.Response) (*V2SkillListResp, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyListResp parses an HTTP response from a PtyListWithResponse call
+func ParsePtyListResp(rsp *http.Response) (*PtyListResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyListResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []OpencodePty
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyCreateResp parses an HTTP response from a PtyCreateWithResponse call
+func ParsePtyCreateResp(rsp *http.Response) (*PtyCreateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyCreateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodePty
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			union json.RawMessage
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyShellsResp parses an HTTP response from a PtyShellsWithResponse call
+func ParsePtyShellsResp(rsp *http.Response) (*PtyShellsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyShellsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []struct {
+			Acceptable bool   `json:"acceptable"`
+			Name       string `json:"name"`
+			Path       string `json:"path"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyRemoveResp parses an HTTP response from a PtyRemoveWithResponse call
+func ParsePtyRemoveResp(rsp *http.Response) (*PtyRemoveResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyRemoveResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyGetResp parses an HTTP response from a PtyGetWithResponse call
+func ParsePtyGetResp(rsp *http.Response) (*PtyGetResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyGetResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodePty
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyUpdateResp parses an HTTP response from a PtyUpdateWithResponse call
+func ParsePtyUpdateResp(rsp *http.Response) (*PtyUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodePty
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			union json.RawMessage
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyConnectResp parses an HTTP response from a PtyConnectWithResponse call
+func ParsePtyConnectResp(rsp *http.Response) (*PtyConnectResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyConnectResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest OpencodeeffectHttpApiErrorForbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodeNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePtyConnectTokenResp parses an HTTP response from a PtyConnectTokenWithResponse call
+func ParsePtyConnectTokenResp(rsp *http.Response) (*PtyConnectTokenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PtyConnectTokenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpencodePtyTicketConnectToken
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest OpencodeBadRequestError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest OpencodePtyForbiddenError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OpencodePtyNotFoundError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -36790,6 +39993,9 @@ type ServerInterface interface {
 	// (GET /api/coding/agent/{agentName}/session/{sessionId})
 	GetCodingThread(w http.ResponseWriter, r *http.Request, agentName string, sessionId string)
 
+	// (POST /api/coding/agent/{agentName}/session/{sessionId}/suggestion)
+	SuggestCodingText(w http.ResponseWriter, r *http.Request, agentName string, sessionId string)
+
 	// (GET /api/coding/project)
 	ListCodingProjects(w http.ResponseWriter, r *http.Request)
 
@@ -36918,9 +40124,54 @@ type ServerInterface interface {
 	// Get an MCPConnection resource.
 	// (GET /api/mcp-connection/{name})
 	GetMCPConnection(w http.ResponseWriter, r *http.Request, name MCPConnectionNamePath, params GetMCPConnectionParams)
+	// List PTY sessions
+	// (GET /api/opencode/{agentName}/api/pty)
+	V2PtyList(w http.ResponseWriter, r *http.Request, agentName string, params V2PtyListParams)
+	// Create PTY session
+	// (POST /api/opencode/{agentName}/api/pty)
+	V2PtyCreate(w http.ResponseWriter, r *http.Request, agentName string, params V2PtyCreateParams)
+	// Remove PTY session
+	// (DELETE /api/opencode/{agentName}/api/pty/{ptyID})
+	V2PtyRemove(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyRemoveParams)
+	// Get PTY session
+	// (GET /api/opencode/{agentName}/api/pty/{ptyID})
+	V2PtyGet(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyGetParams)
+	// Update PTY session
+	// (PUT /api/opencode/{agentName}/api/pty/{ptyID})
+	V2PtyUpdate(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyUpdateParams)
+	// Connect to PTY session
+	// (GET /api/opencode/{agentName}/api/pty/{ptyID}/connect)
+	V2PtyConnect(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyConnectParams)
+	// Create PTY WebSocket token
+	// (POST /api/opencode/{agentName}/api/pty/{ptyID}/connect-token)
+	V2PtyConnectToken(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyConnectTokenParams)
 	// List skills
 	// (GET /api/opencode/{agentName}/api/skill)
 	V2SkillList(w http.ResponseWriter, r *http.Request, agentName string, params V2SkillListParams)
+	// List PTY sessions
+	// (GET /api/opencode/{agentName}/pty)
+	PtyList(w http.ResponseWriter, r *http.Request, agentName string, params PtyListParams)
+	// Create PTY session
+	// (POST /api/opencode/{agentName}/pty)
+	PtyCreate(w http.ResponseWriter, r *http.Request, agentName string, params PtyCreateParams)
+	// List available shells
+	// (GET /api/opencode/{agentName}/pty/shells)
+	PtyShells(w http.ResponseWriter, r *http.Request, agentName string, params PtyShellsParams)
+	// Remove PTY session
+	// (DELETE /api/opencode/{agentName}/pty/{ptyID})
+	PtyRemove(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyRemoveParams)
+	// Get PTY session
+	// (GET /api/opencode/{agentName}/pty/{ptyID})
+	PtyGet(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyGetParams)
+	// Update PTY session
+	// (PUT /api/opencode/{agentName}/pty/{ptyID})
+	PtyUpdate(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyUpdateParams)
+	// Connect to PTY session
+	// (GET /api/opencode/{agentName}/pty/{ptyID}/connect)
+	PtyConnect(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyConnectParams)
+	// Create PTY WebSocket token
+	// (POST /api/opencode/{agentName}/pty/{ptyID}/connect-token)
+	PtyConnectToken(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyConnectTokenParams)
 	// List sessions
 	// (GET /api/opencode/{agentName}/session)
 	SessionList(w http.ResponseWriter, r *http.Request, agentName string, params SessionListParams)
@@ -37373,6 +40624,11 @@ func (_ Unimplemented) GetCodingThread(w http.ResponseWriter, r *http.Request, a
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (POST /api/coding/agent/{agentName}/session/{sessionId}/suggestion)
+func (_ Unimplemented) SuggestCodingText(w http.ResponseWriter, r *http.Request, agentName string, sessionId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /api/coding/project)
 func (_ Unimplemented) ListCodingProjects(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -37624,9 +40880,99 @@ func (_ Unimplemented) GetMCPConnection(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List PTY sessions
+// (GET /api/opencode/{agentName}/api/pty)
+func (_ Unimplemented) V2PtyList(w http.ResponseWriter, r *http.Request, agentName string, params V2PtyListParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create PTY session
+// (POST /api/opencode/{agentName}/api/pty)
+func (_ Unimplemented) V2PtyCreate(w http.ResponseWriter, r *http.Request, agentName string, params V2PtyCreateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove PTY session
+// (DELETE /api/opencode/{agentName}/api/pty/{ptyID})
+func (_ Unimplemented) V2PtyRemove(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyRemoveParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get PTY session
+// (GET /api/opencode/{agentName}/api/pty/{ptyID})
+func (_ Unimplemented) V2PtyGet(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyGetParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update PTY session
+// (PUT /api/opencode/{agentName}/api/pty/{ptyID})
+func (_ Unimplemented) V2PtyUpdate(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyUpdateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Connect to PTY session
+// (GET /api/opencode/{agentName}/api/pty/{ptyID}/connect)
+func (_ Unimplemented) V2PtyConnect(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyConnectParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create PTY WebSocket token
+// (POST /api/opencode/{agentName}/api/pty/{ptyID}/connect-token)
+func (_ Unimplemented) V2PtyConnectToken(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params V2PtyConnectTokenParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List skills
 // (GET /api/opencode/{agentName}/api/skill)
 func (_ Unimplemented) V2SkillList(w http.ResponseWriter, r *http.Request, agentName string, params V2SkillListParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List PTY sessions
+// (GET /api/opencode/{agentName}/pty)
+func (_ Unimplemented) PtyList(w http.ResponseWriter, r *http.Request, agentName string, params PtyListParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create PTY session
+// (POST /api/opencode/{agentName}/pty)
+func (_ Unimplemented) PtyCreate(w http.ResponseWriter, r *http.Request, agentName string, params PtyCreateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List available shells
+// (GET /api/opencode/{agentName}/pty/shells)
+func (_ Unimplemented) PtyShells(w http.ResponseWriter, r *http.Request, agentName string, params PtyShellsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove PTY session
+// (DELETE /api/opencode/{agentName}/pty/{ptyID})
+func (_ Unimplemented) PtyRemove(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyRemoveParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get PTY session
+// (GET /api/opencode/{agentName}/pty/{ptyID})
+func (_ Unimplemented) PtyGet(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyGetParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update PTY session
+// (PUT /api/opencode/{agentName}/pty/{ptyID})
+func (_ Unimplemented) PtyUpdate(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyUpdateParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Connect to PTY session
+// (GET /api/opencode/{agentName}/pty/{ptyID}/connect)
+func (_ Unimplemented) PtyConnect(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyConnectParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create PTY WebSocket token
+// (POST /api/opencode/{agentName}/pty/{ptyID}/connect-token)
+func (_ Unimplemented) PtyConnectToken(w http.ResponseWriter, r *http.Request, agentName string, ptyID string, params PtyConnectTokenParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -39849,6 +43195,46 @@ func (siw *ServerInterfaceWrapper) GetCodingThread(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCodingThread(w, r, agentName, sessionId)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SuggestCodingText operation middleware
+func (siw *ServerInterfaceWrapper) SuggestCodingText(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sessionId" -------------
+	var sessionId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionId", chi.URLParam(r, "sessionId"), &sessionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SuggestCodingText(w, r, agentName, sessionId)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -42297,6 +45683,369 @@ func (siw *ServerInterfaceWrapper) GetMCPConnection(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// V2PtyList operation middleware
+func (siw *ServerInterfaceWrapper) V2PtyList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params V2PtyListParams
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameter("deepObject", true, false, "location", r.URL.Query(), &params.Location)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.V2PtyList(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// V2PtyCreate operation middleware
+func (siw *ServerInterfaceWrapper) V2PtyCreate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params V2PtyCreateParams
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameter("deepObject", true, false, "location", r.URL.Query(), &params.Location)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.V2PtyCreate(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// V2PtyRemove operation middleware
+func (siw *ServerInterfaceWrapper) V2PtyRemove(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params V2PtyRemoveParams
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameter("deepObject", true, false, "location", r.URL.Query(), &params.Location)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.V2PtyRemove(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// V2PtyGet operation middleware
+func (siw *ServerInterfaceWrapper) V2PtyGet(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params V2PtyGetParams
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameter("deepObject", true, false, "location", r.URL.Query(), &params.Location)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.V2PtyGet(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// V2PtyUpdate operation middleware
+func (siw *ServerInterfaceWrapper) V2PtyUpdate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params V2PtyUpdateParams
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameter("deepObject", true, false, "location", r.URL.Query(), &params.Location)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.V2PtyUpdate(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// V2PtyConnect operation middleware
+func (siw *ServerInterfaceWrapper) V2PtyConnect(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params V2PtyConnectParams
+
+	// ------------- Optional query parameter "location[directory]" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "location[directory]", r.URL.Query(), &params.LocationDirectory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location[directory]", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "location[workspace]" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "location[workspace]", r.URL.Query(), &params.LocationWorkspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location[workspace]", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "cursor", r.URL.Query(), &params.Cursor)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "ticket" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "ticket", r.URL.Query(), &params.Ticket)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ticket", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.V2PtyConnect(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// V2PtyConnectToken operation middleware
+func (siw *ServerInterfaceWrapper) V2PtyConnectToken(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params V2PtyConnectTokenParams
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameter("deepObject", true, false, "location", r.URL.Query(), &params.Location)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.V2PtyConnectToken(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // V2SkillList operation middleware
 func (siw *ServerInterfaceWrapper) V2SkillList(w http.ResponseWriter, r *http.Request) {
 
@@ -42330,6 +46079,467 @@ func (siw *ServerInterfaceWrapper) V2SkillList(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.V2SkillList(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyList operation middleware
+func (siw *ServerInterfaceWrapper) PtyList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyListParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyList(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyCreate operation middleware
+func (siw *ServerInterfaceWrapper) PtyCreate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyCreateParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyCreate(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyShells operation middleware
+func (siw *ServerInterfaceWrapper) PtyShells(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyShellsParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyShells(w, r, agentName, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyRemove operation middleware
+func (siw *ServerInterfaceWrapper) PtyRemove(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyRemoveParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyRemove(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyGet operation middleware
+func (siw *ServerInterfaceWrapper) PtyGet(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyGetParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyGet(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyUpdate operation middleware
+func (siw *ServerInterfaceWrapper) PtyUpdate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyUpdateParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyUpdate(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyConnect operation middleware
+func (siw *ServerInterfaceWrapper) PtyConnect(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyConnectParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "cursor", r.URL.Query(), &params.Cursor)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "ticket" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "ticket", r.URL.Query(), &params.Ticket)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ticket", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyConnect(w, r, agentName, ptyID, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PtyConnectToken operation middleware
+func (siw *ServerInterfaceWrapper) PtyConnectToken(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentName" -------------
+	var agentName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentName", chi.URLParam(r, "agentName"), &agentName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentName", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ptyID" -------------
+	var ptyID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ptyID", chi.URLParam(r, "ptyID"), &ptyID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ptyID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"agent.use_shared"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PtyConnectTokenParams
+
+	// ------------- Optional query parameter "directory" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "directory", r.URL.Query(), &params.Directory)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "directory", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "workspace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace", r.URL.Query(), &params.Workspace)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PtyConnectToken(w, r, agentName, ptyID, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -46563,6 +50773,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/coding/agent/{agentName}/session/{sessionId}", wrapper.GetCodingThread)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/coding/agent/{agentName}/session/{sessionId}/suggestion", wrapper.SuggestCodingText)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/coding/project", wrapper.ListCodingProjects)
 	})
 	r.Group(func(r chi.Router) {
@@ -46692,7 +50905,52 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/mcp-connection/{name}", wrapper.GetMCPConnection)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/api/pty", wrapper.V2PtyList)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/api/pty", wrapper.V2PtyCreate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/opencode/{agentName}/api/pty/{ptyID}", wrapper.V2PtyRemove)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/api/pty/{ptyID}", wrapper.V2PtyGet)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/opencode/{agentName}/api/pty/{ptyID}", wrapper.V2PtyUpdate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/api/pty/{ptyID}/connect", wrapper.V2PtyConnect)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/api/pty/{ptyID}/connect-token", wrapper.V2PtyConnectToken)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/opencode/{agentName}/api/skill", wrapper.V2SkillList)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/pty", wrapper.PtyList)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/pty", wrapper.PtyCreate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/pty/shells", wrapper.PtyShells)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/opencode/{agentName}/pty/{ptyID}", wrapper.PtyRemove)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/pty/{ptyID}", wrapper.PtyGet)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/opencode/{agentName}/pty/{ptyID}", wrapper.PtyUpdate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/opencode/{agentName}/pty/{ptyID}/connect", wrapper.PtyConnect)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/opencode/{agentName}/pty/{ptyID}/connect-token", wrapper.PtyConnectToken)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/opencode/{agentName}/session", wrapper.SessionList)
@@ -46926,581 +51184,605 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

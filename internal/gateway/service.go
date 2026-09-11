@@ -720,7 +720,9 @@ func (s *Service) routes() http.Handler {
 	r.Use(requestLog)
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasPrefix(r.URL.Path, "/api/coding/") { r.Body = http.MaxBytesReader(w, r.Body, 90<<20) }
+			if strings.HasPrefix(r.URL.Path, "/api/coding/") {
+				r.Body = http.MaxBytesReader(w, r.Body, 90<<20)
+			}
 			next.ServeHTTP(w, r)
 		})
 	})

@@ -10,6 +10,17 @@ import {
 } from "@tanstack/react-query"
 import { useTheme } from "next-themes"
 import {
+  Activity,
+  Bot,
+  Brain,
+  CheckCircle2,
+  Circle,
+  CircleSlash,
+  Coins,
+  Cpu,
+  Database,
+  Gauge,
+  MessageSquare,
   ArrowDown,
   ArrowUp,
   Check,
@@ -66,6 +77,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Spinner } from "@/components/ui/spinner"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { remoteCodingGit, codingGitHubInfo, createCodingPullRequest } from "@/lib/coding/actions"
 import { runCodingGit, type CodingThread, type CodingGitRequest } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
@@ -347,7 +361,14 @@ export function CodingWorkspace({
             {data && tab === "changes" ? (
               <>
                 {data.files.length > 0 ? (
-                  <>
+                  <Tabs
+                    value={staged ? "staged" : "working"}
+                    onValueChange={(value) => {
+                      setStaged(value === "staged")
+                      setSelected(undefined)
+                    }}
+                    className="min-h-0 flex-1 gap-0"
+                  >
                     <div className="relative m-3 mb-1">
                       <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
                       <Input
@@ -492,135 +513,135 @@ export function CodingWorkspace({
                       ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
-                      <Button
-                        size="sm"
-                        variant={staged ? "ghost" : "secondary"}
-                        aria-pressed={!staged}
-                        onClick={() => {
-                          setStaged(false)
-                          setSelected(undefined)
-                        }}
-                      >
-                        Working
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={staged ? "secondary" : "ghost"}
-                        aria-pressed={staged}
-                        onClick={() => {
-                          setStaged(true)
-                          setSelected(undefined)
-                        }}
-                      >
-                        Staged
-                      </Button>
+                      <TabsList aria-label="Changes to review">
+                        <TabsTrigger value="working">Working</TabsTrigger>
+                        <TabsTrigger value="staged">Staged</TabsTrigger>
+                      </TabsList>
                       <div className="flex-1" />
-                      <Button
-                        size="icon-sm"
-                        variant={split ? "secondary" : "ghost"}
-                        aria-label={split ? "Use unified diff" : "Use split diff"}
-                        title={split ? "Unified diff" : "Split diff"}
-                        aria-pressed={split}
-                        onClick={() => setSplit(!split)}
-                      >
-                        {split ? <Columns2 /> : <Rows3 />}
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant={wrap ? "secondary" : "ghost"}
-                        aria-label="Wrap diff lines"
-                        title="Wrap diff lines"
-                        aria-pressed={wrap}
-                        onClick={() => setWrap(!wrap)}
-                      >
-                        <TextWrap />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon-sm"
+                            variant={split ? "secondary" : "ghost"}
+                            aria-label={split ? "Use unified diff" : "Use split diff"}
+                            aria-pressed={split}
+                            onClick={() => setSplit(!split)}
+                          >
+                            {split ? <Columns2 /> : <Rows3 />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {split ? "Use unified diff" : "Use split diff"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon-sm"
+                            variant={wrap ? "secondary" : "ghost"}
+                            aria-label="Wrap diff lines"
+                            aria-pressed={wrap}
+                            onClick={() => setWrap(!wrap)}
+                          >
+                            <TextWrap />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Wrap diff lines</TooltipContent>
+                      </Tooltip>
                     </div>
-                    {diff &&
-                    (!selected ||
-                      diffs.some((file) => file.name === selected) ||
-                      !reviewedFiles.some((file) => file.path === selected)) ? (
-                      <>
-                        <div className="text-muted-foreground flex items-center gap-1 px-3 py-1.5 text-xs">
-                          <span className="min-w-0 flex-1 truncate" title={diff.name}>
-                            {diff.name}
-                          </span>
-                          <span className="text-emerald-600 tabular-nums dark:text-emerald-400">
-                            +{diff.hunks.reduce((count, hunk) => count + hunk.additionLines, 0)}
-                          </span>
-                          <span className="text-destructive mr-2 tabular-nums">
-                            -{diff.hunks.reduce((count, hunk) => count + hunk.deletionLines, 0)}
-                          </span>
-                          <span className="tabular-nums">
-                            {diffs.indexOf(diff) + 1}/{diffs.length}
-                          </span>
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            aria-label="Previous changed file"
-                            disabled={diffs.indexOf(diff) === 0}
-                            onClick={() => setSelected(diffs[diffs.indexOf(diff) - 1]?.name)}
-                          >
-                            <ChevronLeft />
-                          </Button>
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            aria-label="Next changed file"
-                            disabled={diffs.indexOf(diff) === diffs.length - 1}
-                            onClick={() => setSelected(diffs[diffs.indexOf(diff) + 1]?.name)}
-                          >
-                            <ChevronRight />
-                          </Button>
-                        </div>
-                        <div className="min-h-0 flex-1 overflow-auto">
-                          {diff.hunks.length === 0 ? (
-                            <Empty>
-                              <EmptyHeader>
-                                <EmptyMedia variant="icon">
-                                  <FileCode2 />
-                                </EmptyMedia>
-                                <EmptyTitle>
-                                  {diff.type === "rename-pure" ? "File renamed" : "No line changes"}
-                                </EmptyTitle>
-                                <EmptyDescription>
-                                  {diff.prevName
-                                    ? `${diff.prevName} → ${diff.name}`
-                                    : "This change affects binary content or file metadata."}
-                                </EmptyDescription>
-                              </EmptyHeader>
-                            </Empty>
-                          ) : (
-                            <FileDiff
-                              fileDiff={diff}
-                              options={{
-                                diffStyle: split ? "split" : "unified",
-                                overflow: wrap ? "wrap" : "scroll",
-                                themeType: resolvedTheme === "dark" ? "dark" : "light",
-                                disableFileHeader: true,
-                              }}
-                            />
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <Empty>
-                        <EmptyHeader>
-                          <EmptyMedia variant="icon">
-                            <FileCode2 />
-                          </EmptyMedia>
-                          <EmptyTitle>{staged ? "No staged diff" : "No tracked diff"}</EmptyTitle>
-                          <EmptyDescription>
-                            {escapedDiffs.length
-                              ? "Choose the escaped path in the file list to review its diff."
-                              : staged
-                                ? "Stage changes to review them here."
-                                : "New files appear in the diff after staging. Use Open file to inspect their contents."}
-                          </EmptyDescription>
-                        </EmptyHeader>
-                      </Empty>
-                    )}
-                  </>
+                    <TabsContent
+                      value={staged ? "staged" : "working"}
+                      className="flex min-h-0 flex-col"
+                    >
+                      {diff &&
+                      (!selected ||
+                        diffs.some((file) => file.name === selected) ||
+                        !reviewedFiles.some((file) => file.path === selected)) ? (
+                        <>
+                          <div className="text-muted-foreground flex items-center gap-1 px-3 py-1.5 text-xs">
+                            <span className="min-w-0 flex-1 truncate" title={diff.name}>
+                              {diff.name}
+                            </span>
+                            <span className="text-emerald-600 tabular-nums dark:text-emerald-400">
+                              +{diff.hunks.reduce((count, hunk) => count + hunk.additionLines, 0)}
+                            </span>
+                            <span className="text-destructive mr-2 tabular-nums">
+                              -{diff.hunks.reduce((count, hunk) => count + hunk.deletionLines, 0)}
+                            </span>
+                            <span className="tabular-nums">
+                              {diffs.indexOf(diff) + 1}/{diffs.length}
+                            </span>
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              aria-label="Previous changed file"
+                              disabled={diffs.indexOf(diff) === 0}
+                              onClick={() => setSelected(diffs[diffs.indexOf(diff) - 1]?.name)}
+                            >
+                              <ChevronLeft />
+                            </Button>
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              aria-label="Next changed file"
+                              disabled={diffs.indexOf(diff) === diffs.length - 1}
+                              onClick={() => setSelected(diffs[diffs.indexOf(diff) + 1]?.name)}
+                            >
+                              <ChevronRight />
+                            </Button>
+                          </div>
+                          <div className="min-h-0 flex-1 overflow-auto">
+                            {diff.hunks.length === 0 ? (
+                              <Empty>
+                                <EmptyHeader>
+                                  <EmptyMedia variant="icon">
+                                    <FileCode2 />
+                                  </EmptyMedia>
+                                  <EmptyTitle>
+                                    {diff.type === "rename-pure"
+                                      ? "File renamed"
+                                      : "No line changes"}
+                                  </EmptyTitle>
+                                  <EmptyDescription>
+                                    {diff.prevName
+                                      ? `${diff.prevName} → ${diff.name}`
+                                      : "This change affects binary content or file metadata."}
+                                  </EmptyDescription>
+                                </EmptyHeader>
+                              </Empty>
+                            ) : (
+                              <FileDiff
+                                className="[font-stretch:normal]"
+                                fileDiff={diff}
+                                options={{
+                                  diffStyle: split ? "split" : "unified",
+                                  overflow: wrap ? "wrap" : "scroll",
+                                  themeType: resolvedTheme === "dark" ? "dark" : "light",
+                                  disableFileHeader: true,
+                                }}
+                              />
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <Empty>
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <FileCode2 />
+                            </EmptyMedia>
+                            <EmptyTitle>{staged ? "No staged diff" : "No tracked diff"}</EmptyTitle>
+                            <EmptyDescription>
+                              {escapedDiffs.length
+                                ? "Choose the escaped path in the file list to review its diff."
+                                : staged
+                                  ? "Stage changes to review them here."
+                                  : "New files appear in the diff after staging. Use Open file to inspect their contents."}
+                            </EmptyDescription>
+                          </EmptyHeader>
+                        </Empty>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 ) : (
                   <Empty>
                     <EmptyHeader>
@@ -1051,21 +1072,39 @@ function SessionContext({ thread, workspaceId }: { thread: CodingThread; workspa
   const last = assistants.at(-1)
   const cost = assistants.reduce((sum, message) => sum + message.cost, 0)
   const todos = context.data.todos
+  const completed = todos.filter((todo) => todo.status === "completed").length
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    <div className="min-h-0 flex-1 overflow-auto text-sm">
       <section className="border-b p-4">
-        <h3 className="mb-3 text-xs font-semibold">Session</h3>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-xs">
-          <dt className="text-muted-foreground">Agent</dt>
-          <dd className="truncate text-right">{thread.worktree.agent_name}</dd>
-          <dt className="text-muted-foreground">Messages</dt>
-          <dd className="text-right tabular-nums">{context.data.messages.length}</dd>
-          <dt className="text-muted-foreground">Model</dt>
-          <dd className="truncate text-right" title={last?.modelID}>
+        <h3 className="mb-4 flex items-center gap-2 font-semibold">
+          <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-md">
+            <Activity className="size-4" />
+          </span>
+          Session
+        </h3>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3">
+          <dt className="text-muted-foreground flex items-center gap-2">
+            <Bot className="size-3.5" /> Agent
+          </dt>
+          <dd className="truncate text-right font-medium" title={thread.worktree.agent_name}>
+            {thread.worktree.agent_name}
+          </dd>
+          <dt className="text-muted-foreground flex items-center gap-2">
+            <Cpu className="size-3.5" /> Model
+          </dt>
+          <dd className="truncate text-right font-medium" title={last?.modelID}>
             {last?.modelID ?? "No response yet"}
           </dd>
-          <dt className="text-muted-foreground">Session cost</dt>
-          <dd className="text-right tabular-nums">
+          <dt className="text-muted-foreground flex items-center gap-2">
+            <MessageSquare className="size-3.5" /> Messages
+          </dt>
+          <dd className="text-right font-medium tabular-nums">
+            {context.data.messages.length.toLocaleString()}
+          </dd>
+          <dt className="text-muted-foreground flex items-center gap-2">
+            <Coins className="size-3.5" /> Session cost
+          </dt>
+          <dd className="text-info text-right font-medium tabular-nums">
             {new Intl.NumberFormat("en-US", {
               style: "currency",
               currency: "USD",
@@ -1076,58 +1115,123 @@ function SessionContext({ thread, workspaceId }: { thread: CodingThread; workspa
       </section>
       {last ? (
         <section className="border-b p-4">
-          <h3 className="mb-3 text-xs font-semibold">Last response tokens</h3>
-          <dl className="grid grid-cols-2 gap-3 text-xs">
+          <h3 className="mb-4 flex items-center gap-2 font-semibold">
+            <span className="bg-warning/10 text-warning flex size-7 items-center justify-center rounded-md">
+              <Gauge className="size-4" />
+            </span>
+            Last response tokens
+          </h3>
+          <dl className="bg-muted/20 divide-y rounded-lg border px-3">
             {[
-              { label: "Input", count: last.tokens.input },
-              { label: "Output", count: last.tokens.output },
-              { label: "Reasoning", count: last.tokens.reasoning },
-              { label: "Cache read", count: last.tokens.cache.read },
-              { label: "Cache write", count: last.tokens.cache.write },
-            ].map(({ label, count }) => (
-              <div key={label} className="bg-muted/40 rounded-md p-3">
-                <dt className="text-muted-foreground mb-1">{label}</dt>
-                <dd className="font-mono text-base tabular-nums">{count.toLocaleString()}</dd>
+              {
+                label: "Input",
+                count: last.tokens.input,
+                icon: ArrowDown,
+                color: "text-info",
+              },
+              {
+                label: "Output",
+                count: last.tokens.output,
+                icon: ArrowUp,
+                color: "text-primary",
+              },
+              {
+                label: "Reasoning",
+                count: last.tokens.reasoning,
+                icon: Brain,
+                color: "text-primary",
+              },
+              {
+                label: "Cache read",
+                count: last.tokens.cache.read,
+                icon: Database,
+                color: "text-muted-foreground",
+              },
+              {
+                label: "Cache write",
+                count: last.tokens.cache.write,
+                icon: Database,
+                color: "text-muted-foreground",
+              },
+            ].map(({ label, count, icon: Icon, color }) => (
+              <div key={label} className="flex items-center justify-between gap-3 py-2.5">
+                <dt className="text-muted-foreground flex items-center gap-2">
+                  <Icon className={cn("size-3.5", color)} />
+                  {label}
+                </dt>
+                <dd className="font-medium tabular-nums">{count.toLocaleString()}</dd>
               </div>
             ))}
           </dl>
         </section>
       ) : null}
       <section className="p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-xs font-semibold">Tasks</h3>
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {todos.filter((todo) => todo.status === "completed").length}/{todos.length}
-          </span>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 font-semibold">
+            <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-md">
+              <ListTodo className="size-4" />
+            </span>
+            Tasks
+          </h3>
+          {todos.length > 0 ? (
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {completed} of {todos.length} complete
+            </span>
+          ) : null}
         </div>
         {todos.length ? (
-          <ul className="flex flex-col gap-3">
-            {todos.map((todo, index) => (
-              <li key={index} className="flex gap-2 text-xs">
-                {todo.status === "completed" ? (
-                  <Check className="text-primary mt-0.5 size-3.5 shrink-0" />
-                ) : todo.status === "in_progress" ? (
-                  <Spinner className="mt-0.5 size-3.5 shrink-0" />
-                ) : (
-                  <span className="border-muted-foreground mt-0.5 size-3.5 shrink-0 rounded-full border" />
-                )}
-                <span
-                  className={cn(
-                    "flex-1",
-                    (todo.status === "completed" || todo.status === "cancelled") &&
-                      "text-muted-foreground line-through"
+          <>
+            <Progress
+              aria-label="Completed tasks"
+              value={(completed / todos.length) * 100}
+              className="mb-2"
+            />
+            <ul className="divide-y">
+              {todos.map((todo, index) => (
+                <li key={index} className="flex items-start gap-2.5 py-3">
+                  {todo.status === "completed" ? (
+                    <CheckCircle2 className="text-primary mt-0.5 size-4 shrink-0" />
+                  ) : todo.status === "in_progress" ? (
+                    <Spinner className="text-primary mt-0.5 size-4 shrink-0" />
+                  ) : todo.status === "cancelled" ? (
+                    <CircleSlash className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                  ) : (
+                    <Circle className="text-muted-foreground mt-0.5 size-4 shrink-0" />
                   )}
-                >
-                  {todo.content}
-                </span>
-                <span className="text-muted-foreground">{todo.priority}</span>
-              </li>
-            ))}
-          </ul>
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 leading-5 break-words",
+                      (todo.status === "completed" || todo.status === "cancelled") &&
+                        "text-muted-foreground line-through"
+                    )}
+                  >
+                    {todo.content}
+                  </span>
+                  <Badge
+                    className="mt-0.5"
+                    variant={
+                      todo.priority === "high" &&
+                      todo.status !== "completed" &&
+                      todo.status !== "cancelled"
+                        ? "warning"
+                        : "pending"
+                    }
+                  >
+                    {todo.priority}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
-          <p className="text-muted-foreground text-xs">
-            The agent&apos;s task list will appear here as it works.
-          </p>
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>No tasks yet</EmptyTitle>
+              <EmptyDescription>
+                The agent&apos;s task list will appear here as it works.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </section>
     </div>

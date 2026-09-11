@@ -66,6 +66,10 @@
 }
 
 :root {
+  /* Diff content lives in a shadow root and consumes these font hooks. */
+  --diffs-font-family: var(--font-mono);
+  --diffs-header-font-family: var(--font-sans);
+  --diffs-font-size: 14px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.2138 0.0019 286.2347);
   --card: oklch(1 0 0);

@@ -80,7 +80,9 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Paths: new([]string{"café.md", "space and\nnewline.txt"}), ExpectedHead: &result.Head}
 	result = run(req)
-	if !strings.Contains(result.StagedDiff, "+++ b/café.md\n") || result.Tree == nil {
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)}
+	result = run(req)
+	if result.Patches == nil || len(*result.Patches) != 2 || (*result.Patches)[0].Path != "café.md" || result.Tree == nil {
 		t.Fatal("staged review missing")
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitExport, ExpectedHead: &result.Head}
@@ -138,5 +140,111 @@ func TestGitRejectsEscapingDirectories(t *testing.T) {
 		if err == nil {
 			t.Errorf("accepted escaping directory %q", directory)
 		}
+	}
+}
+
+func TestGitReviewHunksAndStashes(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Projects/review/repo")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.CommandContext(t.Context(), "git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+		return string(out)
+	}
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "-b", "main")
+	base := "first\n" + strings.Repeat("unchanged\n", 30) + "last\n"
+	write("café.txt", base)
+	git("add", ".")
+	git("commit", "-m", "Initial")
+	root, err := os.OpenRoot(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	s := &service{root: root}
+	req := GitRequest{Root: "Projects/review", Directory: "Projects/review/repo"}
+	run := func(body gatewayapi.CodingGitRequest) gatewayapi.CodingGitResult {
+		t.Helper()
+		req.Git = body
+		result, err := s.runGit(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	write("café.txt", strings.ReplaceAll(strings.ReplaceAll(base, "first", "FIRST"), "last", "LAST"))
+	status := run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
+	if status.Patches != nil {
+		t.Fatal("status loaded patch content")
+	}
+	review := run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitUnstaged)})
+	patch := (*review.Patches)[0]
+	if !patch.CanStageHunks || patch.Path != "café.txt" {
+		t.Fatalf("ordinary modification cannot stage hunks: %+v", patch)
+	}
+	stage := gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Comparison: new(gatewayapi.CodingGitUnstaged), Paths: new([]string{patch.Path}), Hunk: new(0), Revision: &patch.Revision}
+	run(stage)
+	if cached := git("diff", "--cached"); !strings.Contains(cached, "+FIRST") || strings.Contains(cached, "+LAST") {
+		t.Fatalf("staged unrelated hunk: %s", cached)
+	}
+	req.Git = stage
+	if _, err := s.runGit(t.Context(), req); err == nil {
+		t.Fatal("accepted stale patch")
+	}
+	review = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)})
+	patch = (*review.Patches)[0]
+	run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitUnstage, Comparison: new(gatewayapi.CodingGitStaged), Paths: new([]string{patch.Path}), Hunk: new(0), Revision: &patch.Revision})
+	if git("diff", "--cached") != "" || !strings.Contains(git("diff"), "+LAST") {
+		t.Fatal("unstage did not preserve the worktree")
+	}
+	name := "space and\n雪.txt"
+	write(name, "untracked\n")
+	status = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
+	run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashCreate, Comparison: new(gatewayapi.CodingGitAll), Revision: &status.Revision, Message: new("Saved review")})
+	stashes := run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashes})
+	if len(stashes.Files) != 0 || stashes.Stashes == nil || len(*stashes.Stashes) != 1 {
+		t.Fatalf("stash did not save all changes: %+v", stashes)
+	}
+	oid := (*stashes.Stashes)[0].Oid
+	review = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Stash: &oid})
+	if review.Patches == nil || len(*review.Patches) != 2 || (*review.Patches)[1].Path != name {
+		t.Fatal("stash review omitted untracked third-parent content")
+	}
+	// A new commit conflicts with the saved first hunk. Pop must keep the stash,
+	// and unmerged index entries must not make status unavailable.
+	write("café.txt", strings.ReplaceAll(base, "first", "COMPETING"))
+	git("add", ".")
+	git("commit", "-m", "Competing edit")
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashPop, Stash: &oid}
+	if _, err := s.runGit(t.Context(), req); err == nil || !strings.Contains(err.Error(), "CONFLICT") {
+		t.Fatalf("missing stash conflict details: %v", err)
+	}
+	status = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
+	if status.Tree != nil || !status.Files[0].Conflict {
+		t.Fatalf("unmerged index not represented: %+v", status)
+	}
+	stashes = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashes})
+	if len(*stashes.Stashes) != 1 || (*stashes.Stashes)[0].Oid != oid {
+		t.Fatal("conflicting pop removed the saved entry")
+	}
+	run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashDrop, Stash: &oid})
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashApply, Stash: &oid}
+	if _, err := s.runGit(t.Context(), req); err == nil {
+		t.Fatal("accepted removed stash identity")
 	}
 }

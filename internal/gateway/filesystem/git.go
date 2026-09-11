@@ -1,7 +1,10 @@
 package filesystem
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +13,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/bluekeyes/go-gitdiff/gitdiff"
 )
 
 // GitRequest is the gateway-to-filesystem protocol. It never carries credentials.
@@ -35,8 +40,11 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, r, badRequest("invalid Git request", err))
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Reads do not wait behind repository mutations or unrelated file writes.
+	if req.Prepare || (req.Git.Operation != gatewayapi.CodingGitStatus && req.Git.Operation != gatewayapi.CodingGitDiff && req.Git.Operation != gatewayapi.CodingGitStashes) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 	result, err := s.runGit(ctx, req)
@@ -88,7 +96,9 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			"-c", "core.quotePath=false",
 		}, args...)...)
 		command.Dir = cwd
-		command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=/nonexistent", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "LC_ALL=C"}
+		command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=/nonexistent", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0", "GIT_AUTHOR_NAME=AgentZ", "GIT_AUTHOR_EMAIL=stash@invalid", "GIT_COMMITTER_NAME=AgentZ", "GIT_COMMITTER_EMAIL=stash@invalid"}
+		var stderr bytes.Buffer
+		command.Stderr = &stderr
 		stdout, err := command.StdoutPipe()
 		if err != nil {
 			return "", err
@@ -108,7 +118,14 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return "", errors.New("git result exceeds 64 MiB")
 		}
 		if err != nil {
-			return "", fmt.Errorf("git %s failed: %w", args[0], err)
+			var exit *exec.ExitError
+			if !(slices.Contains(args, "--no-index") && errors.As(err, &exit) && exit.ExitCode() == 1) {
+				detail := strings.TrimSpace(stderr.String())
+				if detail == "" {
+					detail = strings.TrimSpace(string(out))
+				}
+				return "", fmt.Errorf("git %s: %s: %w", args[0], detail[:min(len(detail), 4000)], err)
+			}
 		}
 		return string(out), nil
 	}
@@ -175,30 +192,320 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		return result, errors.New("worktree escapes project")
 	}
 	directory = resolved
-	head, err := run(directory, "rev-parse", "HEAD")
-	if err != nil {
+	paths := []string{}
+	if req.Git.Paths != nil {
+		paths = *req.Git.Paths
+	}
+	for _, name := range paths {
+		if !filepath.IsLocal(name) || name == ".git" || strings.HasPrefix(name, ".git/") {
+			return result, errors.New("invalid file path")
+		}
+	}
+	if req.Git.Stash != nil {
+		oid, err := hex.DecodeString(*req.Git.Stash)
+		if err != nil || (len(oid) != 20 && len(oid) != 32) {
+			return result, errors.New("invalid stash object")
+		}
+	}
+	readStashes := func() ([]gatewayapi.CodingGitStash, error) {
+		output, err := run(directory, "stash", "list", "--format=%gd%x00%H%x00%cI%x00%gs%x00")
+		if err != nil {
+			return nil, err
+		}
+		entries := strings.Split(output, "\x00")
+		stashes := make([]gatewayapi.CodingGitStash, 0, len(entries)/4)
+		for i := 0; i+3 < len(entries); i += 4 {
+			created, err := time.Parse(time.RFC3339, entries[i+2])
+			if err != nil {
+				return nil, fmt.Errorf("read stash date: %w", err)
+			}
+			stashes = append(stashes, gatewayapi.CodingGitStash{Reference: strings.TrimSpace(entries[i]), Oid: entries[i+1], CreatedAt: created, Message: entries[i+3]})
+		}
+		return stashes, nil
+	}
+
+	readStatus := func() error {
+		head, err := run(directory, "rev-parse", "--verify", "HEAD")
+		if err != nil {
+			if _, err := run(directory, "symbolic-ref", "HEAD"); err != nil {
+				return err
+			}
+			head = ""
+		}
+		result.Head = strings.TrimSpace(head)
+		branch, err := run(directory, "branch", "--show-current")
+		if err != nil {
+			return err
+		}
+		result.Branch = strings.TrimSpace(branch)
+		status, err := run(directory, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+		if err != nil {
+			return err
+		}
+		result.Files = []gatewayapi.CodingGitFile{}
+		result.Tree = nil
+		entries := strings.Split(strings.TrimSuffix(status, "\x00"), "\x00")
+		digest := sha256.New()
+		fmt.Fprint(digest, result.Head, "\x00", status)
+		conflicts := false
+		for i := 0; i < len(entries); i++ {
+			entry := entries[i]
+			if entry == "" {
+				continue
+			}
+			if len(entry) < 4 {
+				return errors.New("invalid Git status response")
+			}
+			file := gatewayapi.CodingGitFile{Path: entry[3:], Index: entry[:1], Worktree: entry[1:2]}
+			file.Conflict = strings.Contains(entry[:2], "U") || entry[:2] == "AA" || entry[:2] == "DD"
+			conflicts = conflicts || file.Conflict
+			if file.Index == "R" || file.Index == "C" || file.Worktree == "R" || file.Worktree == "C" {
+				i++
+				if i >= len(entries) {
+					return errors.New("invalid Git rename response")
+				}
+				file.PreviousPath = new(entries[i])
+			}
+			info, err := os.Lstat(filepath.Join(directory, file.Path))
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			if info != nil {
+				fmt.Fprintf(digest, "%s\x00%d:%d:%d\x00", file.Path, info.Size(), info.ModTime().UnixNano(), info.Mode())
+			}
+			result.Files = append(result.Files, file)
+		}
+		if !conflicts {
+			tree, err := run(directory, "write-tree")
+			if err != nil {
+				return err
+			}
+			result.Tree = new(strings.TrimSpace(tree))
+			fmt.Fprint(digest, *result.Tree)
+		}
+		result.Revision = fmt.Sprintf("%x", digest.Sum(nil))
+		return nil
+	}
+	if err := readStatus(); err != nil {
 		return result, err
 	}
-	result.Head = strings.TrimSpace(head)
 	if req.Git.ExpectedHead != nil && *req.Git.ExpectedHead != result.Head {
 		return result, errors.New("checkout changed; refresh before retrying")
 	}
-	switch req.Git.Operation {
-	case gatewayapi.CodingGitStage, gatewayapi.CodingGitUnstage:
-		if req.Git.Paths == nil || len(*req.Git.Paths) == 0 {
-			return result, errors.New("select files first")
+	comparison := gatewayapi.CodingGitUnstaged
+	if req.Git.Comparison != nil {
+		comparison = *req.Git.Comparison
+	}
+	// Git owns patch generation. The parser preserves literal paths and builds
+	// canonical per-file patches, also used to resolve hunk mutations server-side.
+	readPatches := func() ([]*gitdiff.File, error) {
+		args := []string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--full-index", "--src-prefix=a/", "--dst-prefix=b/", "--unified=3", "--diff-filter=ACDMRT"}
+		if req.Git.Stash != nil {
+			args = append(args, *req.Git.Stash+"^1", *req.Git.Stash)
+		} else if comparison == gatewayapi.CodingGitStaged {
+			args = append(args, "--cached")
+		} else if comparison == gatewayapi.CodingGitAll {
+			base := result.Head
+			if base == "" {
+				empty, err := run(directory, "hash-object", "-t", "tree", "/dev/null")
+				if err != nil {
+					return nil, err
+				}
+				base = strings.TrimSpace(empty)
+			}
+			args = append(args, base)
 		}
-		for _, name := range *req.Git.Paths {
-			if !filepath.IsLocal(name) || name == ".git" || strings.HasPrefix(name, ".git/") {
-				return result, errors.New("invalid file path")
+		args = append(args, "--")
+		if req.Git.Paths != nil {
+			args = append(args, *req.Git.Paths...)
+		}
+		patch, err := run(directory, args...)
+		if err != nil {
+			return nil, err
+		}
+		var extra strings.Builder
+		extra.WriteString(patch)
+		if req.Git.Stash != nil {
+			if _, err := run(directory, "rev-parse", "--verify", *req.Git.Stash+"^3"); err == nil {
+				args := []string{"--literal-pathspecs", "diff-tree", "--root", "--no-commit-id", "-r", "-p", "--no-ext-diff", "--no-textconv", "--no-color", "--full-index", *req.Git.Stash + "^3", "--"}
+				if req.Git.Paths != nil {
+					args = append(args, *req.Git.Paths...)
+				}
+				patch, err := run(directory, args...)
+				if err != nil {
+					return nil, err
+				}
+				extra.WriteString(patch)
+			}
+		} else if comparison != gatewayapi.CodingGitStaged {
+			for _, file := range result.Files {
+				if file.Index != "?" || (req.Git.Paths != nil && !slices.Contains(*req.Git.Paths, file.Path)) {
+					continue
+				}
+				// --no-index reports differences with exit 1. It reads new files without
+				// changing the user's index, including files containing unusual names.
+				patch, err := run(directory, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--full-index", "--src-prefix=a/", "--dst-prefix=b/", "--", "/dev/null", file.Path)
+				if err != nil {
+					return nil, err
+				}
+				extra.WriteString(patch)
+				if extra.Len() > 64<<20 {
+					return nil, errors.New("comparison exceeds 64 MiB")
+				}
 			}
 		}
-		args := []string{"--literal-pathspecs", "add", "--"}
-		if req.Git.Operation == gatewayapi.CodingGitUnstage {
-			args = []string{"--literal-pathspecs", "reset", "HEAD", "--"}
+		if extra.Len() > 64<<20 {
+			return nil, errors.New("comparison exceeds 64 MiB")
 		}
-		if _, err := run(directory, append(args, *req.Git.Paths...)...); err != nil {
+		files, _, err := gitdiff.Parse(strings.NewReader(extra.String()))
+		return files, err
+	}
+	switch req.Git.Operation {
+	case gatewayapi.CodingGitStashes:
+		stashes, err := readStashes()
+		if err != nil {
 			return result, err
+		}
+		result.Stashes = &stashes
+		return result, nil
+	case gatewayapi.CodingGitStashCreate:
+		if req.Git.Revision == nil || *req.Git.Revision != result.Revision {
+			return result, errors.New("checkout changed; review before stashing")
+		}
+		if result.Tree == nil {
+			return result, errors.New("resolve conflicts before stashing")
+		}
+		args := []string{"stash", "push", "--quiet"}
+		if comparison == gatewayapi.CodingGitAll {
+			args = append(args, "--include-untracked")
+		}
+		if comparison == gatewayapi.CodingGitStaged {
+			args = append(args, "--staged")
+		}
+		if req.Git.Message != nil {
+			args = append(args, "--message", *req.Git.Message)
+		}
+		if _, err := run(directory, args...); err != nil {
+			return result, err
+		}
+	case gatewayapi.CodingGitStashApply, gatewayapi.CodingGitStashPop, gatewayapi.CodingGitStashDrop:
+		if req.Git.Stash == nil {
+			return result, errors.New("select a stash")
+		}
+		stashes, err := readStashes()
+		if err != nil {
+			return result, err
+		}
+		index := slices.IndexFunc(stashes, func(stash gatewayapi.CodingGitStash) bool { return stash.Oid == *req.Git.Stash })
+		if index < 0 {
+			return result, errors.New("stash changed; refresh before retrying")
+		}
+		selected := stashes[index]
+		if req.Git.Operation != gatewayapi.CodingGitStashDrop {
+			args := []string{"stash", "apply"}
+			if req.Git.RestoreIndex != nil && *req.Git.RestoreIndex {
+				args = append(args, "--index")
+			}
+			// Apply by immutable object identity. A conflict leaves the stash intact.
+			if _, err := run(directory, append(args, selected.Oid)...); err != nil {
+				return result, err
+			}
+		}
+		if req.Git.Operation != gatewayapi.CodingGitStashApply {
+			current, err := readStashes()
+			if err != nil {
+				return result, err
+			}
+			if !slices.Equal(stashes, current) {
+				return result, errors.New("stash list changed; saved entry was kept, refresh before removing it")
+			}
+			if _, err := run(directory, "stash", "drop", selected.Reference); err != nil {
+				return result, err
+			}
+		}
+	case gatewayapi.CodingGitDiff:
+		files, err := readPatches()
+		if err != nil {
+			return result, err
+		}
+		patches := make([]gatewayapi.CodingGitPatch, 0, len(files))
+		for _, file := range files {
+			name := file.NewName
+			if file.IsDelete {
+				name = file.OldName
+			}
+			patch := file.String()
+			patches = append(patches, gatewayapi.CodingGitPatch{Path: name, Patch: patch, Revision: fmt.Sprintf("%x", sha256.Sum256([]byte(patch))), Binary: file.IsBinary, CanStageHunks: !file.IsBinary && !file.IsRename && !file.IsCopy && file.NewMode == 0 && !file.IsDelete && len(file.TextFragments) > 0})
+		}
+		result.Patches = &patches
+		return result, nil
+	case gatewayapi.CodingGitStage, gatewayapi.CodingGitUnstage:
+		if len(paths) == 0 {
+			return result, errors.New("select files first")
+		}
+		for _, file := range result.Files {
+			if file.Conflict && slices.Contains(paths, file.Path) {
+				return result, errors.New("resolve conflicts in the editor before staging this file")
+			}
+		}
+		if req.Git.Hunk != nil {
+			if len(paths) != 1 || req.Git.Revision == nil || *req.Git.Hunk < 0 {
+				return result, errors.New("a reviewed file and hunk are required")
+			}
+			if (req.Git.Operation == gatewayapi.CodingGitStage && comparison != gatewayapi.CodingGitUnstaged) || (req.Git.Operation == gatewayapi.CodingGitUnstage && comparison != gatewayapi.CodingGitStaged) {
+				return result, errors.New("select the staged or unstaged comparison first")
+			}
+			files, err := readPatches()
+			if err != nil {
+				return result, err
+			}
+			if len(files) != 1 {
+				return result, errors.New("file changed; refresh before staging")
+			}
+			file := files[0]
+			if file.IsBinary || file.IsRename || file.IsCopy || file.NewMode != 0 || file.IsDelete || *req.Git.Hunk >= len(file.TextFragments) {
+				return result, errors.New("this change must be staged as a whole file")
+			}
+			if fmt.Sprintf("%x", sha256.Sum256([]byte(file.String()))) != *req.Git.Revision {
+				return result, errors.New("file changed since review; refresh before staging")
+			}
+			file.TextFragments = []*gitdiff.TextFragment{file.TextFragments[*req.Git.Hunk]}
+			patch, err := os.CreateTemp("", "agentz-hunk-*.patch")
+			if err != nil {
+				return result, err
+			}
+			defer os.Remove(patch.Name())
+			_, err = patch.WriteString(file.String())
+			closeErr := patch.Close()
+			if err != nil {
+				return result, err
+			}
+			if closeErr != nil {
+				return result, closeErr
+			}
+			args := []string{"apply", "--cached", "--whitespace=nowarn"}
+			if req.Git.Operation == gatewayapi.CodingGitUnstage {
+				args = append(args, "--reverse")
+			}
+			// Git applies the exact reviewed patch under its index lock. Failure leaves
+			// the index unchanged; never use --reject or stage regenerated contents.
+			if _, err := run(directory, append(args, "--", patch.Name())...); err != nil {
+				return result, err
+			}
+		} else {
+			if req.Git.Revision != nil && *req.Git.Revision != result.Revision {
+				return result, errors.New("checkout changed since review; refresh before staging")
+			}
+			args := []string{"--literal-pathspecs", "add", "--"}
+			if req.Git.Operation == gatewayapi.CodingGitUnstage {
+				args = []string{"--literal-pathspecs", "reset", "HEAD", "--"}
+				if result.Head == "" {
+					args = []string{"--literal-pathspecs", "rm", "--cached", "--"}
+				}
+			}
+			if _, err := run(directory, append(args, paths...)...); err != nil {
+				return result, err
+			}
 		}
 	case gatewayapi.CodingGitImport, gatewayapi.CodingGitApplyCommit:
 		if err := importBundle(repo); err != nil {
@@ -313,60 +620,24 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			}
 		}
 		return result, nil
-	case gatewayapi.CodingGitStatus, gatewayapi.CodingGitDiff, gatewayapi.CodingGitExport:
+	case gatewayapi.CodingGitStatus, gatewayapi.CodingGitExport:
 	default:
 		return result, errors.New("unsupported local Git operation")
 	}
-	head, err = run(directory, "rev-parse", "HEAD")
-	if err != nil {
-		return result, err
-	}
-	result.Head = strings.TrimSpace(head)
-	branch, err := run(directory, "branch", "--show-current")
-	if err != nil {
-		return result, err
-	}
-	result.Branch = strings.TrimSpace(branch)
-	status, err := run(directory, "status", "--porcelain=v1", "-z", "--untracked-files=all")
-	if err != nil {
-		return result, err
-	}
-	entries := strings.Split(strings.TrimSuffix(status, "\x00"), "\x00")
-	for i := 0; i < len(entries); i++ {
-		entry := entries[i]
-		if entry == "" {
-			continue
+	if req.Git.Operation != gatewayapi.CodingGitStatus {
+		if err := readStatus(); err != nil {
+			return result, err
 		}
-		if len(entry) < 4 {
-			return result, errors.New("invalid Git status response")
-		}
-		file := gatewayapi.CodingGitFile{Path: entry[3:], Index: entry[:1], Worktree: entry[1:2]}
-		if file.Index == "R" || file.Index == "C" || file.Worktree == "R" || file.Worktree == "C" {
-			i++
-			if i >= len(entries) {
-				return result, errors.New("invalid Git rename response")
-			}
-			file.PreviousPath = new(entries[i])
-		}
-		result.Files = append(result.Files, file)
-	}
-	if result.Diff, err = run(directory, "diff", "--no-ext-diff", "--no-textconv"); err != nil {
-		return result, err
-	}
-	if result.StagedDiff, err = run(directory, "diff", "--cached", "--no-ext-diff", "--no-textconv"); err != nil {
-		return result, err
 	}
 	branches, err := run(directory, "for-each-ref", "--format=%(refname:short)", "refs/heads/")
 	if err != nil {
 		return result, err
 	}
 	result.Branches = strings.Fields(branches)
-	tree, err := run(directory, "write-tree")
-	if err != nil {
-		return result, err
-	}
-	result.Tree = new(strings.TrimSpace(tree))
 	if req.Git.Operation == gatewayapi.CodingGitExport {
+		if result.Tree == nil || result.Head == "" {
+			return result, errors.New("resolve conflicts and create a commit before exporting")
+		}
 		file, err := os.CreateTemp("", "agentz-export-*.bundle")
 		if err != nil {
 			return result, err

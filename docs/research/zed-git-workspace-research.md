@@ -883,3 +883,107 @@ results. The proposed hunk concurrency strategy, stash reflog mutation guard,
 and renderer editing integration require implementation experiments before a
 correctness claim. The acceptance matrix is deliberately explicit about what
 still needs manual browser and sandbox testing.
+
+## Implemented review and stash workflow, 2026-09-11
+
+The implementation preserves the collapsed right rail and the compact Changes
+panel. Opening a review expands the existing workspace shell into a file
+navigator beside a continuous diff document. It uses the existing shadcn
+controls, Lucide icons, and Iosevka font tokens.
+
+The work followed this sequence:
+
+1. Separate inexpensive status metadata from explicit comparison requests.
+2. Generate contracts for canonical file patches, comparisons, reviewed hunks,
+   conflict flags, and stash operations.
+3. Replace the embedded Git UI with a dedicated review component and two
+   purposeful execution boundaries: query/cache ownership and a parsing worker.
+4. Test actual index/worktree changes in the existing sandbox, then exercise the
+   authenticated UI and production worker assets with large fixtures.
+
+Zed informed the separate HEAD-to-worktree, index-to-worktree, and HEAD-to-index
+comparisons, independent staging, explicit commit composer, and stash actions.
+The t3code checkout at `211618fd9fe39d3dde01171a6856ce9f633571c9`
+informed the continuous CodeView, item versions, worker settings, and virtual
+layout measurements. Its relevant sources are
+`apps/web/src/components/diffs/StyledDiffCodeView.tsx`,
+`apps/web/src/components/diffs/AnnotatableCodeView.tsx`,
+`apps/web/src/lib/diffRendering.ts`, and
+`apps/server/src/vcs/GitVcsDriverCore.ts`. The implementation does not copy
+its patch-coordinate rewriting or reset-and-add commit preparation.
+
+Status no longer loads either full diff. Content revisions invalidate parsed
+comparisons only when the checkout changes. Unchanged file revisions reuse
+parsed objects; inactive comparisons expire after 30 seconds. Parsing runs in
+a cancellable worker. Two highlighting workers retain at most 12 AST entries.
+Files over 10,000 lines per side use windowed plain text, preserving all lines.
+Long-line tokenization and word-level diffing are bounded or disabled. CodeView
+virtualizes both files and rows; LegendList virtualizes the navigator.
+
+Hunk mutations accept a path, comparison, hunk ordinal, and patch revision.
+The sandbox regenerates the canonical patch with Git, validates that revision,
+and applies the selected fragment to the index. Browser patch text is never
+accepted. Binary, rename, mode, new-file, and deleted-file changes use whole-file
+staging. Commit continues through the existing trusted object import and
+expected-tree checks, and never rebuilds the index from selected filenames.
+
+Stashes use immutable OIDs for preview and apply. Preview includes the untracked
+third parent. All, Tracked, and Staged scopes are explicit. Apply can restore the
+index; pop removes its entry only after successful application. Conflicts retain
+the saved entry and leave status usable. Drop and pop recheck the stash list
+before resolving its mutable reflog position. External Git can still change the
+reflog between that check and `git stash drop`; this is not an atomic reflog CAS.
+
+### Executed validation
+
+Tests ran against the existing authenticated Coding E2E session and sandbox,
+with owned temporary files and commits. No fixture commit was pushed. Cleanup
+restored the original HEAD, clean index/worktree, and original stash list.
+
+| Workload | Sandbox observation | Browser observation |
+| --- | --- | --- |
+| 100K additions | Complete 2.8 MB patch, about 156 ms | Standalone addition and final-line reachability checked |
+| 100K deletions | Complete 2.8 MB patch, about 144 ms | Last deleted line reachable; 54 rows mounted |
+| 100K additions plus 100K deletions | Complete 5.9 MB patch, 193–214 ms | Last line reachable; 104–108 split rows or 54 unified rows mounted |
+| Two sparse hunks at lines 5 and 99,990 | Canonical hunk stage/reverse round trips | Both hunks reachable without rewriting parser metadata |
+| 1,002 changed files | Status 55–72 ms; comparison about 4.2 s | 30 navigator buttons, 10–14 diff documents; filter and reveal reached file 1,000 |
+| Binary, empty, Unicode/newline paths, 200K-character line | Correct literal paths and whole-file capabilities | No parser failure; explicit binary/empty summaries |
+
+These are individual measurements on this host, not percentile benchmarks.
+Production runs observed no long tasks during some large-file loads, a 63 ms
+long task during a subsequent refresh, and a 76 ms task for the many-file load.
+The initial main-thread heap observation was about 34 MB, excluding worker
+heaps. Untracked comparisons currently invoke Git once per file, explaining the
+many-file latency. Comparisons fail explicitly above 64 MiB instead of silently
+truncating a patch. Explicit path batches retain the existing 1,000-path limit.
+
+Manual sandbox checks covered stale hunk rejection, stage/unstage preservation
+of unrelated changes, rename and mode changes, unborn comparisons/unstaging,
+stash All/Tracked/Staged, untracked preview, index restoration, apply/keep,
+pop, stale identity, and conflicting pop retention. The new Go regression test
+covers the central hunk/stash/conflict sequence.
+
+Authenticated production browser checks covered keyboard comparison switching,
+file filtering/reveal, light/dark themes, narrow-screen layout, split/unified/wrap,
+final-line reachability, draft
+retention across panel changes, hunk staging with actual index verification,
+stash search/create/preview, canceling drop, applying with staging restored,
+confirmed drop, and committing only the staged hunk while leaving the other
+hunk in the worktree. A successful commit cleared the draft. The existing
+credential and trusted-commit integration tests also passed against the local
+test database after applying its existing migrations.
+
+Testing found and fixed a missing scroll container, a 48px custom header paired
+with CodeView's 44px measurement, missing stdout conflict errors, a normal-file
+mode predicate that disabled hunk staging, keyboard panel initialization, and
+narrow-screen navigation/composer clipping. The 44px correction removed the
+ResizeObserver notification warning and the measured sticky-height mismatch.
+
+`make generate`, Go service tests, TypeScript checking, targeted ESLint, the
+coding integration tests, and the production Next build passed. Generated
+clients and server contracts came from the authored OpenAPI schema.
+
+The rest of the research matrix remains a roadmap. This change does not add
+branch-history comparisons, review comments, AI review, a conflict-resolution
+editor, arbitrary selected-line staging, or omitted-context hydration. Omitted
+context remains a labeled gap; it is not presented as expandable content.

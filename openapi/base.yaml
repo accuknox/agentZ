@@ -9561,8 +9561,15 @@ components:
       properties:
         operation:
           type: string
-          enum: [status, diff, stage, unstage, export, import, apply_commit, checkout, rename, remove]
-          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitRename, CodingGitRemove]
+          enum: [status, diff, stage, unstage, stashes, stash_create, stash_apply, stash_pop, stash_drop, export, import, apply_commit, checkout, rename, remove]
+          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitStashes, CodingGitStashCreate, CodingGitStashApply, CodingGitStashPop, CodingGitStashDrop, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitRename, CodingGitRemove]
+        comparison:
+          $ref: '#/components/schemas/CodingGitComparison'
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+        hunk: {type: integer, minimum: 0}
+        stash: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        message: {type: string, maxLength: 1000}
+        restore_index: {type: boolean}
         paths:
           type: array
           maxItems: 1000
@@ -9583,14 +9590,19 @@ components:
         files:
           type: array
           items: {$ref: '#/components/schemas/CodingGitFile'}
-        diff: {type: string}
-        staged_diff: {type: string}
+        revision: {type: string}
+        patches:
+          type: array
+          items: {$ref: '#/components/schemas/CodingGitPatch'}
+        stashes:
+          type: array
+          items: {$ref: '#/components/schemas/CodingGitStash'}
         bundle: {type: string, format: byte}
         tree: {type: string}
         branches:
           type: array
           items: {type: string}
-      required: [head, branch, files, diff, staged_diff, branches]
+      required: [head, branch, files, revision, branches]
     CodingGitFile:
       type: object
       additionalProperties: false
@@ -9599,4 +9611,28 @@ components:
         index: {type: string}
         worktree: {type: string}
         previous_path: {type: string}
-      required: [path, index, worktree]
+        conflict: {type: boolean}
+      required: [path, index, worktree, conflict]
+    CodingGitComparison:
+      type: string
+      enum: [all, unstaged, staged]
+      x-enum-varnames: [CodingGitAll, CodingGitUnstaged, CodingGitStaged]
+    CodingGitPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        path: {type: string}
+        patch: {type: string}
+        revision: {type: string}
+        can_stage_hunks: {type: boolean}
+        binary: {type: boolean}
+      required: [path, patch, revision, can_stage_hunks, binary]
+    CodingGitStash:
+      type: object
+      additionalProperties: false
+      properties:
+        oid: {type: string}
+        reference: {type: string}
+        message: {type: string}
+        created_at: {type: string, format: date-time}
+      required: [oid, reference, message, created_at]

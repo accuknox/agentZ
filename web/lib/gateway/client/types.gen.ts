@@ -2246,12 +2246,23 @@ export type CodingGitRequest = {
     | "diff"
     | "stage"
     | "unstage"
+    | "stashes"
+    | "stash_create"
+    | "stash_apply"
+    | "stash_pop"
+    | "stash_drop"
     | "export"
     | "import"
     | "apply_commit"
     | "checkout"
     | "rename"
     | "remove"
+  comparison?: CodingGitComparison
+  revision?: string
+  hunk?: number
+  stash?: string
+  message?: string
+  restore_index?: boolean
   paths?: Array<string>
   expected_tree?: string
   expected_head?: string
@@ -2263,8 +2274,9 @@ export type CodingGitResult = {
   head: string
   branch: string
   files: Array<CodingGitFile>
-  diff: string
-  staged_diff: string
+  revision: string
+  patches?: Array<CodingGitPatch>
+  stashes?: Array<CodingGitStash>
   bundle?: string
   tree?: string
   branches: Array<string>
@@ -2275,6 +2287,24 @@ export type CodingGitFile = {
   index: string
   worktree: string
   previous_path?: string
+  conflict: boolean
+}
+
+export type CodingGitComparison = "all" | "unstaged" | "staged"
+
+export type CodingGitPatch = {
+  path: string
+  patch: string
+  revision: string
+  can_stage_hunks: boolean
+  binary: boolean
+}
+
+export type CodingGitStash = {
+  oid: string
+  reference: string
+  message: string
+  created_at: string
 }
 
 export type WorkflowRunInputsWritable = JsonValueWritable

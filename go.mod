@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.28
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.105.0
 	github.com/aws/smithy-go v1.27.3
+	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/cedar-policy/cedar-go v1.8.0
 	github.com/cert-manager/cert-manager v1.20.2
 	github.com/cilium/cilium v1.19.5

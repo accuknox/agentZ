@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import dynamic from "next/dynamic"
 import {
   infiniteQueryOptions,
@@ -8,7 +8,6 @@ import {
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query"
-import { useTheme } from "next-themes"
 import {
   Activity,
   Bot,
@@ -25,31 +24,21 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Columns2,
   ExternalLink,
-  FileCode2,
   FolderCode,
   CircleDot,
   Files,
   GitBranch,
-  GitCommitHorizontal,
   GitPullRequest,
   ListTodo,
   Maximize2,
   Minimize2,
-  Minus,
   PanelRightClose,
   Plus,
   RefreshCw,
-  Rows3,
-  Search,
   TerminalSquare,
-  TextWrap,
 } from "lucide-react"
 import { toast } from "sonner"
-import { DEFAULT_THEMES, parsePatchFiles, preloadHighlighter } from "@pierre/diffs"
 import { authClient } from "@/lib/auth-client"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { WorkspaceResizeHandle } from "@/components/blocks/chat/files-workspace"
@@ -74,32 +63,21 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty"
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Spinner } from "@/components/ui/spinner"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { remoteCodingGit, codingGitHubInfo, createCodingPullRequest } from "@/lib/coding/actions"
-import { runCodingGit, type CodingThread, type CodingGitRequest } from "@/lib/gateway/client"
-import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import { type CodingThread } from "@/lib/gateway/client"
+import { runWorkspaceGit } from "@/lib/coding/review"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
 
-// Plain-text diffs need the highlighter ready before their first render.
-const FileDiff = dynamic(
-  async () => {
-    const [module] = await Promise.all([
-      import("@pierre/diffs/react"),
-      preloadHighlighter({ themes: Object.values(DEFAULT_THEMES), langs: ["text"] }),
-    ])
-    return module.FileDiff
-  },
-  {
-    ssr: false,
-    loading: () => <Skeleton className="m-3 h-16" />,
-  }
-)
+const GitChanges = dynamic(() => import("./git").then((module) => module.GitChanges), {
+  ssr: false,
+  loading: () => <Skeleton className="m-3 h-16" />,
+})
 
 const CodingTerminal = dynamic(() => import("./terminal").then((module) => module.CodingTerminal), {
   ssr: false,
@@ -128,20 +106,13 @@ export function CodingWorkspace({
   onPreviewerOpenChange: (open: boolean) => void
 }) {
   const { data: actor } = authClient.useSession()
-  const { resolvedTheme } = useTheme()
-  const { pendingPreview, previewFile } = useFileWorkspace()
+  const { pendingPreview } = useFileWorkspace()
   const [tab, setTab] = useState<View>("changes")
   const [open, setOpen] = useState(false)
   const [visited, setVisited] = useState<Set<View>>(new Set())
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
   const [branchOpen, setBranchOpen] = useState(false)
-  const [staged, setStaged] = useState(false)
-  const [selected, setSelected] = useState<string>()
-  const [filter, setFilter] = useState("")
-  const [split, setSplit] = useState(false)
-  const [wrap, setWrap] = useState(false)
-  const [message, setMessage] = useState("")
   const [prOpen, setPrOpen] = useState(false)
   const [prTitle, setPrTitle] = useState("")
   const [prBody, setPrBody] = useState("")
@@ -150,8 +121,8 @@ export function CodingWorkspace({
   const status = useQuery(
     queryOptions({
       queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
-      queryFn: () => localGit(workspaceId, tree.id, { operation: "status" }),
-      refetchInterval: open && !pending ? 5000 : false,
+      queryFn: () => runWorkspaceGit(workspaceId, tree.id, { operation: "status" }),
+      refetchInterval: open && (tab === "changes" || tab === "github") && !pending ? 5000 : false,
     })
   )
   const github = useInfiniteQuery(
@@ -175,21 +146,7 @@ export function CodingWorkspace({
     })
   )
   const githubInfo = github.data?.pages[0]
-  const data = status.error ? undefined : status.data
-  const patch = staged ? data?.staged_diff : data?.diff
-  const diffs = useMemo(
-    () => (patch ? parsePatchFiles(patch).flatMap((patch) => patch.files) : []),
-    [patch]
-  )
-  const diff = diffs.find((file) => file.name === selected) ?? diffs[0]
-  const stagedFiles = data?.files.filter((file) => file.index !== " " && file.index !== "?") ?? []
-  const changedFiles = data?.files.filter((file) => file.worktree !== " ") ?? []
-  const reviewedFiles = staged ? stagedFiles : changedFiles
-  // Git quotes control characters in patch headers. Preserve those names and
-  // expose their diffs without maintaining another Git path parser.
-  const escapedDiffs = diffs.filter(
-    (diff) => !reviewedFiles.some((file) => file.path === diff.name)
-  )
+  const data = status.data
 
   const [handledPreview, setHandledPreview] = useState<typeof pendingPreview>()
   if (pendingPreview?.agent === tree.agent_name && pendingPreview !== handledPreview) {
@@ -205,6 +162,7 @@ export function CodingWorkspace({
       if (event.code === "KeyB" && event.shiftKey) {
         event.preventDefault()
         event.stopPropagation()
+        setVisited((current) => new Set(current).add(tab))
         setOpen((value) => !value)
       }
       if (event.key === "`") {
@@ -217,27 +175,12 @@ export function CodingWorkspace({
     }
     window.addEventListener("keydown", onKeyDown, true)
     return () => window.removeEventListener("keydown", onKeyDown, true)
-  }, [])
-
-  // Keep the expected HEAD attached to each operation, including bulk staging.
-  function changeIndex(operation: "stage" | "unstage", paths: string[]) {
-    if (!data) return
-    startTransition(async () => {
-      try {
-        await localGit(workspaceId, tree.id, { operation, paths, expected_head: data.head })
-        if (!selected || paths.includes(selected)) setStaged(operation === "stage")
-        await status.refetch()
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not update staged files")
-      }
-    })
-  }
+  }, [tab])
 
   function syncGit(body: Parameters<typeof remoteCodingGit>[3]) {
     startTransition(async () => {
       try {
         await remoteCodingGit(workspaceId, tree.agent_name, thread.session_id, body)
-        if (body.operation === "commit") setMessage("")
         await status.refetch()
         if (tab === "github") await github.refetch()
         toast.success({ commit: "Committed", pull: "Pulled", push: "Pushed" }[body.operation])
@@ -279,7 +222,7 @@ export function CodingWorkspace({
               {data.files.length} {data.files.length === 1 ? "file" : "files"}
             </span>
           ) : null}
-          {tab === "changes" || tab === "github" ? (
+          {tab === "github" ? (
             <Button
               aria-label="Refresh changes"
               title="Refresh changes"
@@ -336,8 +279,20 @@ export function CodingWorkspace({
             />
           </div>
         ) : null}
+        {visited.has("changes") ? (
+          <div className={cn("flex min-h-0 flex-1", tab !== "changes" && "hidden")}>
+            <GitChanges
+              thread={thread}
+              workspaceId={workspaceId}
+              status={status}
+              visible={open && tab === "changes"}
+              expanded={expanded}
+              onExpand={() => setExpanded(true)}
+            />
+          </div>
+        ) : null}
         {tab === "context" ? <SessionContext thread={thread} workspaceId={workspaceId} /> : null}
-        {tab === "changes" || tab === "github" ? (
+        {tab === "github" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {status.isPending ? (
               <div
@@ -357,330 +312,6 @@ export function CodingWorkspace({
                   <RefreshCw /> Retry
                 </Button>
               </div>
-            ) : null}
-            {data && tab === "changes" ? (
-              <>
-                {data.files.length > 0 ? (
-                  <Tabs
-                    value={staged ? "staged" : "working"}
-                    onValueChange={(value) => {
-                      setStaged(value === "staged")
-                      setSelected(undefined)
-                    }}
-                    className="min-h-0 flex-1 gap-0"
-                  >
-                    <div className="relative m-3 mb-1">
-                      <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
-                      <Input
-                        aria-label="Filter changed files"
-                        placeholder="Filter changed files..."
-                        value={filter}
-                        onChange={(event) => setFilter(event.target.value)}
-                        className="h-8 pl-8 text-xs"
-                      />
-                    </div>
-                    <div className="max-h-[35%] shrink-0 overflow-y-auto border-b pb-1">
-                      {[
-                        { label: "Staged changes", files: stagedFiles, staged: true },
-                        { label: "Changes", files: changedFiles, staged: false },
-                      ].map((group) => (
-                        <details key={group.label} open className="group/files">
-                          <summary className="text-muted-foreground flex cursor-pointer list-none items-center gap-1 px-3 py-1 text-xs font-medium [&::-webkit-details-marker]:hidden">
-                            <ChevronRight className="size-3.5 group-open/files:rotate-90" />
-                            {group.label}
-                            <span className="ml-1 tabular-nums">{group.files.length}</span>
-                            <Button
-                              type="button"
-                              aria-label={group.staged ? "Unstage all files" : "Stage all files"}
-                              title={group.staged ? "Unstage all files" : "Stage all files"}
-                              className="ml-auto"
-                              size="icon-xs"
-                              variant="ghost"
-                              disabled={pending || !group.files.length}
-                              onClick={(event) => {
-                                event.preventDefault()
-                                changeIndex(
-                                  group.staged ? "unstage" : "stage",
-                                  group.files.flatMap((file) =>
-                                    group.staged && file.previous_path
-                                      ? [file.path, file.previous_path]
-                                      : [file.path]
-                                  )
-                                )
-                              }}
-                            >
-                              {group.staged ? <Minus /> : <Plus />}
-                            </Button>
-                          </summary>
-                          {group.files
-                            .filter((file) =>
-                              file.path.toLowerCase().includes(filter.toLowerCase())
-                            )
-                            .map((file) => (
-                              <div
-                                key={file.path}
-                                className={cn(
-                                  "group/file flex items-center gap-1 pr-2 pl-5",
-                                  staged === group.staged && diff?.name === file.path
-                                    ? "bg-accent"
-                                    : "hover:bg-accent/50"
-                                )}
-                              >
-                                <button
-                                  className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-xs"
-                                  title={
-                                    file.previous_path
-                                      ? `${file.previous_path} → ${file.path}`
-                                      : file.path
-                                  }
-                                  onClick={() => {
-                                    setSelected(file.path)
-                                    setStaged(group.staged)
-                                  }}
-                                >
-                                  <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
-                                  <span className="min-w-0 flex-1 truncate">{file.path}</span>
-                                  <span
-                                    className={cn(
-                                      "font-mono",
-                                      file.index === "?"
-                                        ? "text-emerald-600 dark:text-emerald-400"
-                                        : "text-muted-foreground"
-                                    )}
-                                  >
-                                    {group.staged ? file.index : file.worktree}
-                                  </span>
-                                </button>
-                                <Button
-                                  aria-label={`Open ${file.path}`}
-                                  title="Open file"
-                                  disabled={file.worktree === "D" || file.index === "D"}
-                                  size="icon-xs"
-                                  variant="ghost"
-                                  onClick={() =>
-                                    previewFile(tree.agent_name, {
-                                      name: file.path.slice(file.path.lastIndexOf("/") + 1),
-                                      path: `${tree.directory.slice("/home/agentz/".length)}/${file.path}`,
-                                    })
-                                  }
-                                >
-                                  <ExternalLink />
-                                </Button>
-                                <Button
-                                  aria-label={`${group.staged ? "Unstage" : "Stage"} ${file.path}`}
-                                  title={group.staged ? "Unstage file" : "Stage file"}
-                                  size="icon-xs"
-                                  variant="ghost"
-                                  disabled={pending}
-                                  onClick={() =>
-                                    changeIndex(
-                                      group.staged ? "unstage" : "stage",
-                                      group.staged && file.previous_path
-                                        ? [file.path, file.previous_path]
-                                        : [file.path]
-                                    )
-                                  }
-                                >
-                                  {group.staged ? <Minus /> : <Plus />}
-                                </Button>
-                              </div>
-                            ))}
-                          {!group.files.length ? (
-                            <p className="text-muted-foreground px-7 py-1.5 text-xs">
-                              {group.staged ? "No staged files" : "No unstaged files"}
-                            </p>
-                          ) : null}
-                        </details>
-                      ))}
-                      {escapedDiffs.map((diff) => (
-                        <Button
-                          key={diff.name}
-                          size="sm"
-                          variant="ghost"
-                          className="w-full justify-start truncate px-5 text-xs"
-                          onClick={() => setSelected(diff.name)}
-                        >
-                          <FileCode2 /> Review {diff.name}
-                        </Button>
-                      ))}
-                      {filter &&
-                      !data.files.some((file) =>
-                        file.path.toLowerCase().includes(filter.toLowerCase())
-                      ) ? (
-                        <p className="text-muted-foreground px-4 py-3 text-xs">
-                          No files match &quot;{filter}&quot;.
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
-                      <TabsList aria-label="Changes to review">
-                        <TabsTrigger value="working">Working</TabsTrigger>
-                        <TabsTrigger value="staged">Staged</TabsTrigger>
-                      </TabsList>
-                      <div className="flex-1" />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon-sm"
-                            variant={split ? "secondary" : "ghost"}
-                            aria-label={split ? "Use unified diff" : "Use split diff"}
-                            aria-pressed={split}
-                            onClick={() => setSplit(!split)}
-                          >
-                            {split ? <Columns2 /> : <Rows3 />}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {split ? "Use unified diff" : "Use split diff"}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon-sm"
-                            variant={wrap ? "secondary" : "ghost"}
-                            aria-label="Wrap diff lines"
-                            aria-pressed={wrap}
-                            onClick={() => setWrap(!wrap)}
-                          >
-                            <TextWrap />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Wrap diff lines</TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <TabsContent
-                      value={staged ? "staged" : "working"}
-                      className="flex min-h-0 flex-col"
-                    >
-                      {diff &&
-                      (!selected ||
-                        diffs.some((file) => file.name === selected) ||
-                        !reviewedFiles.some((file) => file.path === selected)) ? (
-                        <>
-                          <div className="text-muted-foreground flex items-center gap-1 px-3 py-1.5 text-xs">
-                            <span className="min-w-0 flex-1 truncate" title={diff.name}>
-                              {diff.name}
-                            </span>
-                            <span className="text-emerald-600 tabular-nums dark:text-emerald-400">
-                              +{diff.hunks.reduce((count, hunk) => count + hunk.additionLines, 0)}
-                            </span>
-                            <span className="text-destructive mr-2 tabular-nums">
-                              -{diff.hunks.reduce((count, hunk) => count + hunk.deletionLines, 0)}
-                            </span>
-                            <span className="tabular-nums">
-                              {diffs.indexOf(diff) + 1}/{diffs.length}
-                            </span>
-                            <Button
-                              size="icon-xs"
-                              variant="ghost"
-                              aria-label="Previous changed file"
-                              disabled={diffs.indexOf(diff) === 0}
-                              onClick={() => setSelected(diffs[diffs.indexOf(diff) - 1]?.name)}
-                            >
-                              <ChevronLeft />
-                            </Button>
-                            <Button
-                              size="icon-xs"
-                              variant="ghost"
-                              aria-label="Next changed file"
-                              disabled={diffs.indexOf(diff) === diffs.length - 1}
-                              onClick={() => setSelected(diffs[diffs.indexOf(diff) + 1]?.name)}
-                            >
-                              <ChevronRight />
-                            </Button>
-                          </div>
-                          <div className="min-h-0 flex-1 overflow-auto">
-                            {diff.hunks.length === 0 ? (
-                              <Empty>
-                                <EmptyHeader>
-                                  <EmptyMedia variant="icon">
-                                    <FileCode2 />
-                                  </EmptyMedia>
-                                  <EmptyTitle>
-                                    {diff.type === "rename-pure"
-                                      ? "File renamed"
-                                      : "No line changes"}
-                                  </EmptyTitle>
-                                  <EmptyDescription>
-                                    {diff.prevName
-                                      ? `${diff.prevName} → ${diff.name}`
-                                      : "This change affects binary content or file metadata."}
-                                  </EmptyDescription>
-                                </EmptyHeader>
-                              </Empty>
-                            ) : (
-                              <FileDiff
-                                className="[font-stretch:normal]"
-                                fileDiff={diff}
-                                options={{
-                                  diffStyle: split ? "split" : "unified",
-                                  overflow: wrap ? "wrap" : "scroll",
-                                  themeType: resolvedTheme === "dark" ? "dark" : "light",
-                                  disableFileHeader: true,
-                                }}
-                              />
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <Empty>
-                          <EmptyHeader>
-                            <EmptyMedia variant="icon">
-                              <FileCode2 />
-                            </EmptyMedia>
-                            <EmptyTitle>{staged ? "No staged diff" : "No tracked diff"}</EmptyTitle>
-                            <EmptyDescription>
-                              {escapedDiffs.length
-                                ? "Choose the escaped path in the file list to review its diff."
-                                : staged
-                                  ? "Stage changes to review them here."
-                                  : "New files appear in the diff after staging. Use Open file to inspect their contents."}
-                            </EmptyDescription>
-                          </EmptyHeader>
-                        </Empty>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <Empty>
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <Check />
-                      </EmptyMedia>
-                      <EmptyTitle>Working tree is clean</EmptyTitle>
-                      <EmptyDescription>
-                        Changes made by you or the agent will appear here.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                )}
-              </>
-            ) : null}
-            {tab === "changes" && data && stagedFiles.length > 0 ? (
-              <form
-                className="flex shrink-0 flex-col gap-2 border-t p-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const treeHash = data.tree
-                  if (!treeHash) return
-                  syncGit({ operation: "commit", head: data.head, tree: treeHash, message })
-                }}
-              >
-                <Textarea
-                  aria-label="Commit message"
-                  value={message}
-                  maxLength={20_000}
-                  onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Leave empty to generate a message"
-                  disabled={pending}
-                  className="min-h-16 resize-none text-xs"
-                />
-                <Button type="submit" size="sm" disabled={pending || !data.tree}>
-                  {pending ? <Spinner /> : <GitCommitHorizontal />} Commit {stagedFiles.length}{" "}
-                  staged {stagedFiles.length === 1 ? "file" : "files"}
-                </Button>
-              </form>
             ) : null}
             {tab === "github" && data ? (
               <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
@@ -911,12 +542,11 @@ export function CodingWorkspace({
                               if (branch !== data.branch) {
                                 startTransition(async () => {
                                   try {
-                                    await localGit(workspaceId, tree.id, {
+                                    await runWorkspaceGit(workspaceId, tree.id, {
                                       operation: "checkout",
                                       ref: branch,
                                       expected_head: data.head,
                                     })
-                                    setSelected(undefined)
                                     await status.refetch()
                                   } catch (error) {
                                     toast.error(
@@ -1236,15 +866,4 @@ function SessionContext({ thread, workspaceId }: { thread: CodingThread; workspa
       </section>
     </div>
   )
-}
-
-async function localGit(workspaceId: string, worktreeId: string, body: CodingGitRequest) {
-  const result = await runCodingGit({
-    baseUrl: await getGatewayBaseURL(),
-    headers: { "X-AgentZ-Workspace-ID": workspaceId },
-    path: { worktreeId },
-    body,
-  })
-  if (result.error) throw new Error(result.error.message)
-  return result.data
 }

@@ -718,6 +718,12 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 func (s *Service) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestLog)
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/coding/") { r.Body = http.MaxBytesReader(w, r.Body, 90<<20) }
+			next.ServeHTTP(w, r)
+		})
+	})
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   s.cfg.AllowedWebOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -726,8 +732,8 @@ func (s *Service) routes() http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
-	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
+	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
+	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(

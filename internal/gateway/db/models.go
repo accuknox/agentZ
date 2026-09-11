@@ -731,6 +731,48 @@ func (ns NullWorkspaceState) Value() (driver.Value, error) {
 	return string(ns.WorkspaceState), nil
 }
 
+type WorkspaceType string
+
+const (
+	WorkspaceTypeGeneral WorkspaceType = "general"
+	WorkspaceTypeCoding  WorkspaceType = "coding"
+)
+
+func (e *WorkspaceType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceType(s)
+	case string:
+		*e = WorkspaceType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceType: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceType struct {
+	WorkspaceType WorkspaceType `json:"workspace_type"`
+	Valid         bool          `json:"valid"` // Valid is true if WorkspaceType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceType) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceType), nil
+}
+
 type Account struct {
 	ID                    string           `json:"id"`
 	AccountID             string           `json:"account_id"`
@@ -864,6 +906,39 @@ type CleanupJob struct {
 	CompletedAt    pgtype.Timestamptz   `json:"completed_at"`
 }
 
+type CodingProject struct {
+	ID            string             `json:"id"`
+	WorkspaceID   string             `json:"workspace_id"`
+	OwnerID       string             `json:"owner_id"`
+	Name          string             `json:"name"`
+	RepositoryID  int64              `json:"repository_id"`
+	Repository    string             `json:"repository"`
+	DefaultBranch string             `json:"default_branch"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type CodingThread struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	AgentName   string             `json:"agent_name"`
+	WorktreeID  string             `json:"worktree_id"`
+	SessionID   pgtype.Text        `json:"session_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type CodingWorktree struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	ProjectID   string             `json:"project_id"`
+	AgentName   string             `json:"agent_name"`
+	Directory   string             `json:"directory"`
+	Branch      string             `json:"branch"`
+	Ready       bool               `json:"ready"`
+	Shared      bool               `json:"shared"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	Deleting    bool               `json:"deleting"`
+}
+
 type EventTrailEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -878,6 +953,27 @@ type EventTrailEvent struct {
 	Before         []byte             `json:"before"`
 	After          []byte             `json:"after"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type GithubAuthorization struct {
+	State     string             `json:"state"`
+	UserID    string             `json:"user_id"`
+	SessionID string             `json:"session_id"`
+	Verifier  string             `json:"verifier"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+type GithubConnection struct {
+	UserID           string             `json:"user_id"`
+	GithubUserID     int64              `json:"github_user_id"`
+	Login            string             `json:"login"`
+	Name             string             `json:"name"`
+	Email            string             `json:"email"`
+	AccessToken      string             `json:"access_token"`
+	RefreshToken     string             `json:"refresh_token"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	RefreshExpiresAt pgtype.Timestamptz `json:"refresh_expires_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type Invitation struct {
@@ -1333,6 +1429,7 @@ type Workspace struct {
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Type                WorkspaceType      `json:"type"`
 }
 
 type WorkspaceChatPreference struct {

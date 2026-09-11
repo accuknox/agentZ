@@ -559,7 +559,8 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 						},
 						{
 							Name:            filesystemContainerName,
-							Image:           r.Config.ControllerImage,
+							Image:           image,
+							Command:         []string{"/bin/agentz"},
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							WorkingDir:      agentHomeDir,
 							Args: []string{

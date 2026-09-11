@@ -131,6 +131,20 @@ spec:
             - name: EMAIL_PASSWORD_AUTH_ALLOWED_USER
               value: {{ .Values.env.emailPasswordAuthAllowedUser | quote }}
             {{- end }}
+            {{- if .Values.env.codingGithubClientID }}
+            - name: CODING_GITHUB_CLIENT_ID
+              value: {{ .Values.env.codingGithubClientID | quote }}
+            - name: CODING_GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: CODING_GITHUB_CLIENT_SECRET
+            - name: CODING_GITHUB_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: CODING_GITHUB_ENCRYPTION_KEY
+            {{- end }}
             {{- if .Values.env.githubClientID }}
             - name: GITHUB_CLIENT_ID
               value: {{ .Values.env.githubClientID | quote }}

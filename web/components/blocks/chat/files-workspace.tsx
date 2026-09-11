@@ -194,7 +194,7 @@ function agentFilesQueryOptions(
     queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const { data } = await client.file.list(
-        { directory: root, path },
+        { directory: "/home/agentz", path },
         { signal, throwOnError: true }
       )
       return data.toSorted((a, b) => {
@@ -443,11 +443,14 @@ function WorkspaceBody({
 }) {
   const queryClient = useQueryClient()
   const workspaceKey = `${agentName}:${root}`
+  const rootPath = root === "/home/agentz" ? "." : root.slice("/home/agentz/".length)
   const editorWidth = workspaceWidth - explorerWidth - 4
-  const filesQueryKey = agentFilesQueryOptions(agentName, workspaceId, root, ".").queryKey.slice(
-    0,
-    3
-  )
+  const filesQueryKey = agentFilesQueryOptions(
+    agentName,
+    workspaceId,
+    root,
+    rootPath
+  ).queryKey.slice(0, 3)
   const filesFetching =
     useIsFetching({
       queryKey: filesQueryKey,
@@ -521,8 +524,8 @@ function WorkspaceBody({
       const target = variables.body.target
       const sourceSlash = path.lastIndexOf("/")
       const targetSlash = target.lastIndexOf("/")
-      const sourceDirectory = sourceSlash === -1 ? "." : `${path.slice(0, sourceSlash)}/`
-      const targetDirectory = targetSlash === -1 ? "." : `${target.slice(0, targetSlash)}/`
+      const sourceDirectory = sourceSlash === -1 ? "." : path.slice(0, sourceSlash)
+      const targetDirectory = targetSlash === -1 ? "." : target.slice(0, targetSlash)
 
       await Promise.allSettled([
         queryClient.invalidateQueries({
@@ -964,7 +967,7 @@ function WorkspaceBody({
               <Button
                 aria-label="New file"
                 disabled={movePending}
-                onClick={() => setAction({ kind: "file", parent: "." })}
+                onClick={() => setAction({ kind: "file", parent: rootPath })}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -978,7 +981,7 @@ function WorkspaceBody({
               <Button
                 aria-label="New folder"
                 disabled={movePending}
-                onClick={() => setAction({ kind: "directory", parent: "." })}
+                onClick={() => setAction({ kind: "directory", parent: rootPath })}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -1031,7 +1034,7 @@ function WorkspaceBody({
             onDrop={(event) => {
               event.preventDefault()
               if (movePending) return
-              moveFile(event.dataTransfer.getData(fileDragType), ".")
+              moveFile(event.dataTransfer.getData(fileDragType), rootPath)
             }}
             onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
             selectedPath={selected ?? undefined}
@@ -1041,7 +1044,7 @@ function WorkspaceBody({
               moveOperation={moveOperation}
               onAction={setAction}
               onMove={moveFile}
-              path="."
+              path={rootPath}
               root={root}
               workspaceId={workspaceId}
             />
@@ -1241,14 +1244,14 @@ function DirectoryTree({
                   onMove(event.dataTransfer.getData(fileDragType), entryPath)
                 }}
                 onContextMenu={(event) => event.stopPropagation()}
-                path={entry.path}
+                path={entryPath}
               >
                 <DirectoryTree
                   agentName={agentName}
                   moveOperation={moveOperation}
                   onAction={onAction}
                   onMove={onMove}
-                  path={entry.path}
+                  path={entryPath}
                   root={root}
                   workspaceId={workspaceId}
                 />
@@ -1273,7 +1276,7 @@ function DirectoryTree({
                 event.dataTransfer.effectAllowed = "move"
               }}
               onContextMenu={(event) => event.stopPropagation()}
-              path={entry.path}
+              path={entryPath}
             />
           </ContextMenuTrigger>
           {menu}
@@ -1474,18 +1477,6 @@ function EditorPane({
     })
   }
 
-  if (statQuery.isPending || (readText && fileQuery.isPending) || (text && !draft)) {
-    return (
-      <div
-        aria-live="polite"
-        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
-        role="status"
-      >
-        <Spinner /> Loading {filename}...
-      </div>
-    )
-  }
-
   if (statQuery.isError || (fileQuery.isError && !unsupportedText)) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -1496,6 +1487,18 @@ function EditorPane({
             if (readText) void fileQuery.refetch()
           }}
         />
+      </div>
+    )
+  }
+
+  if (statQuery.isPending || (readText && fileQuery.isPending) || (text && !draft)) {
+    return (
+      <div
+        aria-live="polite"
+        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        role="status"
+      >
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -1936,7 +1939,7 @@ function EntryDialog({
             onClick={() => {
               if (action.kind === "file" || action.kind === "directory") {
                 const path = action.parent === "." ? name.trim() : `${action.parent}/${name.trim()}`
-                const directoryPath = action.parent === "." ? "." : `${action.parent}/`
+                const directoryPath = action.parent
                 const mutation = action.kind === "file" ? createFile : createDirectory
                 mutation.mutate(
                   {
@@ -1987,7 +1990,7 @@ function EntryDialog({
                           agentName,
                           workspaceId,
                           root,
-                          slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
+                          slash === -1 ? "." : action.entry.path.slice(0, slash)
                         ).queryKey,
                       })
                       onRename(action.entry.path, target)
@@ -2016,7 +2019,7 @@ function EntryDialog({
                         agentName,
                         workspaceId,
                         root,
-                        slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
+                        slash === -1 ? "." : action.entry.path.slice(0, slash)
                       ).queryKey,
                     })
                     onDelete(action.entry.path)

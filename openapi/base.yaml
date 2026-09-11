@@ -9,6 +9,8 @@ servers:
 security:
 - GatewayBearer: []
 tags:
+- name: coding
+  description: Personal projects and agent-local coding checkouts.
 - name: dashboards
   description: Agent-owned dashboard definitions and bounded data APIs.
 - name: agents
@@ -43,6 +45,149 @@ tags:
   description: Workspace chat inbox and preference APIs.
 
 paths:
+  /api/coding/project:
+    get:
+      operationId: listCodingProjects
+      tags: [coding]
+      responses:
+        '200':
+          description: The actor's projects.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CodingProject'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      operationId: createCodingProject
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateCodingProjectRequest'}
+      responses:
+        '201':
+          description: Created project.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingProject'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}}
+    get:
+      operationId: getCodingProject
+      tags: [coding]
+      responses:
+        '200':
+          description: Project and checkouts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingProjectDetail'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    patch:
+      operationId: renameCodingProject
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: {type: string, minLength: 1, maxLength: 80, pattern: '.*\S.*'}
+              required: [name]
+      responses:
+        '204': {description: Renamed.}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    delete:
+      operationId: deleteCodingProject
+      tags: [coding]
+      responses:
+        '204': {description: Project and associated conversations deleted.}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/thread:
+    post:
+      operationId: createCodingThread
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateCodingThreadRequest'}
+      responses:
+        '201':
+          description: Prepared thread.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingThread'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/agent/{agentName}/session/{sessionId}:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {type: string}}
+    - {name: sessionId, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getCodingThread
+      tags: [coding]
+      responses:
+        '200':
+          description: Thread checkout.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingThread'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/worktree/{worktreeId}/git:
+    parameters:
+    - {name: worktreeId, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}}
+    post:
+      operationId: runCodingGit
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CodingGitRequest'}
+      responses:
+        '200':
+          description: Git result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingGitResult'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
   /api/chat-session:
     get:
       operationId: listChatSessions
@@ -4781,10 +4926,17 @@ components:
       - WorkspaceStateFailed
       - WorkspaceStateDeleting
 
+    WorkspaceType:
+      type: string
+      enum: [general, coding]
+      x-enum-varnames: [WorkspaceTypeGeneral, WorkspaceTypeCoding]
+
     Workspace:
       type: object
       additionalProperties: false
       properties:
+        type:
+          $ref: '#/components/schemas/WorkspaceType'
         id:
           type: string
         name:
@@ -4814,6 +4966,7 @@ components:
           type: string
           format: date-time
       required:
+      - type
       - id
       - name
       - slug
@@ -4886,6 +5039,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        type:
+          $ref: '#/components/schemas/WorkspaceType'
         name:
           type: string
           minLength: 1
@@ -9285,3 +9440,115 @@ components:
         error:
           $ref: '#/components/schemas/DashboardWidgetError'
       required: [status, rows, next_page_token]
+
+    CodingProject:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        name: {type: string}
+        repository_id: {type: integer, format: int64}
+        repository: {type: string}
+        default_branch: {type: string}
+        created_at: {type: string, format: date-time}
+      required: [id, name, repository_id, repository, default_branch, created_at]
+    CreateCodingProjectRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80, pattern: '.*\S.*'}
+        repository_id: {type: integer, format: int64, minimum: 1}
+        repository: {type: string, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        default_branch: {type: string, minLength: 1, maxLength: 255}
+      required: [name, repository_id, repository, default_branch]
+    CodingWorktree:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        project_id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        agent_name: {type: string}
+        directory: {type: string}
+        branch: {type: string}
+        ready: {type: boolean}
+        shared: {type: boolean}
+      required: [id, project_id, agent_name, directory, branch, ready, shared]
+    CodingThread:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        session_id: {type: string}
+        repository_id: {type: integer, format: int64}
+        repository: {type: string}
+        worktree: {$ref: '#/components/schemas/CodingWorktree'}
+      required: [id, session_id, repository_id, repository, worktree]
+    CodingProjectDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        project: {$ref: '#/components/schemas/CodingProject'}
+        worktrees:
+          type: array
+          items: {$ref: '#/components/schemas/CodingWorktree'}
+        threads:
+          type: array
+          items: {$ref: '#/components/schemas/CodingThread'}
+      required: [project, worktrees, threads]
+    CreateCodingThreadRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        project_id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        agent_name: {type: string, minLength: 1, maxLength: 32}
+        worktree_id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        main_checkout: {type: boolean, default: false}
+        base_branch: {type: string, minLength: 1, maxLength: 255}
+        bundle: {type: string, format: byte, maxLength: 89478488}
+      required: [id, project_id, agent_name]
+    CodingGitRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          enum: [status, diff, stage, unstage, export, import, apply_commit, checkout, remove]
+          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitRemove]
+        paths:
+          type: array
+          maxItems: 1000
+          items: {type: string, minLength: 1, maxLength: 4096}
+        expected_tree:
+          type: string
+          pattern: '^[a-f0-9]{40,64}$'
+        expected_head: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        ref: {type: string, maxLength: 255}
+        bundle: {type: string, format: byte, maxLength: 89478488}
+      required: [operation]
+    CodingGitResult:
+      type: object
+      additionalProperties: false
+      properties:
+        head: {type: string}
+        branch: {type: string}
+        files:
+          type: array
+          items: {$ref: '#/components/schemas/CodingGitFile'}
+        diff: {type: string}
+        staged_diff: {type: string}
+        bundle: {type: string, format: byte}
+        tree: {type: string}
+        branches:
+          type: array
+          items: {type: string}
+      required: [head, branch, files, diff, staged_diff, branches]
+    CodingGitFile:
+      type: object
+      additionalProperties: false
+      properties:
+        path: {type: string}
+        index: {type: string}
+        worktree: {type: string}
+        previous_path: {type: string}
+      required: [path, index, worktree]

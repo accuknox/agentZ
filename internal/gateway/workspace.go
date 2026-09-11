@@ -204,6 +204,11 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workspaceType := gatewaydb.WorkspaceTypeGeneral
+	if req.Type != nil {
+		workspaceType = gatewaydb.WorkspaceType(*req.Type)
+	}
+
 	workspaceUUID := uuid.NewString()
 	id := "workspace-" + workspaceUUID
 	workspaceSlug := slug.Make(req.Name)
@@ -326,6 +331,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		gatewaydb.GatewayCreateWorkspaceParams{
 			ID:             id,
+			Type:           workspaceType,
 			OrganizationID: claims.OrganizationID,
 			Name:           req.Name,
 			Slug:           workspaceSlug,
@@ -994,6 +1000,7 @@ func (s *Service) workspaceAccessPage(ctx context.Context, claims gatewayClaims,
 
 func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdminister bool, capabilities resourceCapabilitySet) gatewayapi.Workspace {
 	view := gatewayapi.Workspace{
+		Type: gatewayapi.WorkspaceType(row.Type),
 		Capabilities: gatewayapi.WorkspaceCapabilities{
 			Administer:         canAdminister,
 			Agents:             gatewayapi.AgentWorkspaceCapabilities{Author: capabilities.canAuthorAgents},

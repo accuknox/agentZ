@@ -217,7 +217,10 @@ export type Tenant = {
 
 export type WorkspaceState = "provisioning" | "ready" | "failed" | "deleting"
 
+export type WorkspaceType = "general" | "coding"
+
 export type Workspace = {
+  type: WorkspaceType
   id: string
   name: string
   slug: string
@@ -255,6 +258,7 @@ export type ListWorkspacesResponse = {
 }
 
 export type CreateWorkspaceRequest = {
+  type?: WorkspaceType
   name: string
   admin_member_ids: Array<string>
   selected_organization_resources: SelectedOrganizationResources
@@ -2172,6 +2176,92 @@ export type DashboardTablePage = {
   error?: DashboardWidgetError
 }
 
+export type CodingProject = {
+  id: string
+  name: string
+  repository_id: number
+  repository: string
+  default_branch: string
+  created_at: string
+}
+
+export type CreateCodingProjectRequest = {
+  name: string
+  repository_id: number
+  repository: string
+  default_branch: string
+}
+
+export type CodingWorktree = {
+  id: string
+  project_id: string
+  agent_name: string
+  directory: string
+  branch: string
+  ready: boolean
+  shared: boolean
+}
+
+export type CodingThread = {
+  id: string
+  session_id: string
+  repository_id: number
+  repository: string
+  worktree: CodingWorktree
+}
+
+export type CodingProjectDetail = {
+  project: CodingProject
+  worktrees: Array<CodingWorktree>
+  threads: Array<CodingThread>
+}
+
+export type CreateCodingThreadRequest = {
+  id: string
+  project_id: string
+  agent_name: string
+  worktree_id?: string
+  main_checkout?: boolean
+  base_branch?: string
+  bundle?: string
+}
+
+export type CodingGitRequest = {
+  operation:
+    | "status"
+    | "diff"
+    | "stage"
+    | "unstage"
+    | "export"
+    | "import"
+    | "apply_commit"
+    | "checkout"
+    | "remove"
+  paths?: Array<string>
+  expected_tree?: string
+  expected_head?: string
+  ref?: string
+  bundle?: string
+}
+
+export type CodingGitResult = {
+  head: string
+  branch: string
+  files: Array<CodingGitFile>
+  diff: string
+  staged_diff: string
+  bundle?: string
+  tree?: string
+  branches: Array<string>
+}
+
+export type CodingGitFile = {
+  path: string
+  index: string
+  worktree: string
+  previous_path?: string
+}
+
 export type WorkflowRunInputsWritable = JsonValueWritable
 
 export type JsonValueWritable =
@@ -2577,6 +2667,224 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  * Stable publish call identifier.
  */
 export type IdempotencyKeyHeader = string
+
+export type ListCodingProjectsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/coding/project"
+}
+
+export type ListCodingProjectsErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingProjectsError = ListCodingProjectsErrors[keyof ListCodingProjectsErrors]
+
+export type ListCodingProjectsResponses = {
+  /**
+   * The actor's projects.
+   */
+  200: Array<CodingProject>
+}
+
+export type ListCodingProjectsResponse =
+  ListCodingProjectsResponses[keyof ListCodingProjectsResponses]
+
+export type CreateCodingProjectData = {
+  body: CreateCodingProjectRequest
+  path?: never
+  query?: never
+  url: "/api/coding/project"
+}
+
+export type CreateCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type CreateCodingProjectError = CreateCodingProjectErrors[keyof CreateCodingProjectErrors]
+
+export type CreateCodingProjectResponses = {
+  /**
+   * Created project.
+   */
+  201: CodingProject
+}
+
+export type CreateCodingProjectResponse =
+  CreateCodingProjectResponses[keyof CreateCodingProjectResponses]
+
+export type DeleteCodingProjectData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}"
+}
+
+export type DeleteCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type DeleteCodingProjectError = DeleteCodingProjectErrors[keyof DeleteCodingProjectErrors]
+
+export type DeleteCodingProjectResponses = {
+  /**
+   * Project and associated conversations deleted.
+   */
+  204: void
+}
+
+export type DeleteCodingProjectResponse =
+  DeleteCodingProjectResponses[keyof DeleteCodingProjectResponses]
+
+export type GetCodingProjectData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}"
+}
+
+export type GetCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type GetCodingProjectError = GetCodingProjectErrors[keyof GetCodingProjectErrors]
+
+export type GetCodingProjectResponses = {
+  /**
+   * Project and checkouts.
+   */
+  200: CodingProjectDetail
+}
+
+export type GetCodingProjectResponse = GetCodingProjectResponses[keyof GetCodingProjectResponses]
+
+export type RenameCodingProjectData = {
+  body: {
+    name: string
+  }
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}"
+}
+
+export type RenameCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type RenameCodingProjectError = RenameCodingProjectErrors[keyof RenameCodingProjectErrors]
+
+export type RenameCodingProjectResponses = {
+  /**
+   * Renamed.
+   */
+  204: void
+}
+
+export type RenameCodingProjectResponse =
+  RenameCodingProjectResponses[keyof RenameCodingProjectResponses]
+
+export type CreateCodingThreadData = {
+  body: CreateCodingThreadRequest
+  path?: never
+  query?: never
+  url: "/api/coding/thread"
+}
+
+export type CreateCodingThreadErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type CreateCodingThreadError = CreateCodingThreadErrors[keyof CreateCodingThreadErrors]
+
+export type CreateCodingThreadResponses = {
+  /**
+   * Prepared thread.
+   */
+  201: CodingThread
+}
+
+export type CreateCodingThreadResponse =
+  CreateCodingThreadResponses[keyof CreateCodingThreadResponses]
+
+export type GetCodingThreadData = {
+  body?: never
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/coding/agent/{agentName}/session/{sessionId}"
+}
+
+export type GetCodingThreadErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type GetCodingThreadError = GetCodingThreadErrors[keyof GetCodingThreadErrors]
+
+export type GetCodingThreadResponses = {
+  /**
+   * Thread checkout.
+   */
+  200: CodingThread
+}
+
+export type GetCodingThreadResponse = GetCodingThreadResponses[keyof GetCodingThreadResponses]
+
+export type RunCodingGitData = {
+  body: CodingGitRequest
+  path: {
+    worktreeId: string
+  }
+  query?: never
+  url: "/api/coding/worktree/{worktreeId}/git"
+}
+
+export type RunCodingGitErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type RunCodingGitError = RunCodingGitErrors[keyof RunCodingGitErrors]
+
+export type RunCodingGitResponses = {
+  /**
+   * Git result.
+   */
+  200: CodingGitResult
+}
+
+export type RunCodingGitResponse = RunCodingGitResponses[keyof RunCodingGitResponses]
 
 export type ListChatSessionsData = {
   body?: never

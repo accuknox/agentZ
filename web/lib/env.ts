@@ -62,6 +62,12 @@ const envSchema = z
     EMAIL_PASSWORD_AUTH_ALLOWED_USER: csvEmailListSchema.optional(),
     // GitHub is optional: enabled iff GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET
     // are both configured. The cross-validation below enforces the pair.
+    CODING_GITHUB_CLIENT_ID: z.string().startsWith("Iv").optional(),
+    CODING_GITHUB_CLIENT_SECRET: optionalNonEmptyStringSchema.optional(),
+    CODING_GITHUB_ENCRYPTION_KEY: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     GITHUB_CLIENT_ID: optionalNonEmptyStringSchema.optional(),
     GITHUB_CLIENT_SECRET: optionalNonEmptyStringSchema.optional(),
     GITHUB_ALLOWED_USER_ID: optionalDigitsStringSchema.optional(),
@@ -85,6 +91,11 @@ const envSchema = z
   .superRefine((value, ctx) => {
     // A provider is enabled only when both its ID and secret are set; a lone
     // client id or secret is a misconfiguration, not a partial enablement.
+    if (value.CODING_GITHUB_CLIENT_ID || value.CODING_GITHUB_CLIENT_SECRET) {
+      if (!value.CODING_GITHUB_CLIENT_ID || !value.CODING_GITHUB_CLIENT_SECRET || !value.CODING_GITHUB_ENCRYPTION_KEY) {
+        ctx.addIssue({ code: "custom", message: "Coding GitHub requires an App client ID, client secret, and encryption key.", path: ["CODING_GITHUB_CLIENT_ID"] })
+      }
+    }
     const githubEnabled = Boolean(value.GITHUB_CLIENT_ID)
     if (githubEnabled !== Boolean(value.GITHUB_CLIENT_SECRET)) {
       ctx.addIssue({

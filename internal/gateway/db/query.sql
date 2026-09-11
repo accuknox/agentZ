@@ -172,12 +172,17 @@ SELECT pg_notify('agentz_chat_sessions', workspace_id)
 FROM changed;
 
 -- name: GatewayDeleteChatSession :exec
-WITH changed AS (
+WITH deleted_threads AS (
+DELETE FROM coding_threads
+WHERE coding_threads.workspace_id = sqlc.arg(workspace_id)
+  AND coding_threads.agent_name = sqlc.arg(agent_name)
+  AND coding_threads.session_id = sqlc.arg(session_id)
+), changed AS (
 DELETE FROM chat_sessions
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND agent_name = sqlc.arg(agent_name)
-  AND session_id = sqlc.arg(session_id)
-RETURNING workspace_id
+WHERE chat_sessions.workspace_id = sqlc.arg(workspace_id)
+  AND chat_sessions.agent_name = sqlc.arg(agent_name)
+  AND chat_sessions.session_id = sqlc.arg(session_id)
+RETURNING chat_sessions.workspace_id
 )
 SELECT pg_notify('agentz_chat_sessions', workspace_id)
 FROM changed;
@@ -845,6 +850,7 @@ WITH created AS (
     name,
     slug,
     namespace,
+    type,
     state,
     provisioning_attempt
   )
@@ -854,6 +860,7 @@ WITH created AS (
     sqlc.arg(name),
     sqlc.arg(slug),
     sqlc.arg(namespace),
+    sqlc.arg(type),
     'provisioning',
     1
   )
@@ -2201,3 +2208,97 @@ HAVING (
 )
 ORDER BY MAX(event_time) DESC
 LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListCodingProjects :many
+SELECT * FROM coding_projects
+WHERE workspace_id = sqlc.arg(workspace_id) AND owner_id = sqlc.arg(owner_id)
+ORDER BY created_at DESC;
+
+-- name: GatewayCreateCodingProject :one
+INSERT INTO coding_projects(id, workspace_id, owner_id, name, repository_id, repository, default_branch)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(owner_id), sqlc.arg(name), sqlc.arg(repository_id), sqlc.arg(repository), sqlc.arg(default_branch))
+RETURNING *;
+
+-- name: GatewayGetCodingProject :one
+SELECT * FROM coding_projects
+WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND owner_id = sqlc.arg(owner_id);
+
+-- name: GatewayRenameCodingProject :execrows
+UPDATE coding_projects SET name = sqlc.arg(name)
+WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND owner_id = sqlc.arg(owner_id);
+
+-- name: GatewayDeleteCodingProject :execrows
+DELETE FROM coding_projects
+WHERE coding_projects.id = sqlc.arg(id) AND coding_projects.workspace_id = sqlc.arg(workspace_id) AND coding_projects.owner_id = sqlc.arg(owner_id)
+AND NOT EXISTS (SELECT 1 FROM coding_worktrees WHERE project_id = coding_projects.id);
+
+-- name: GatewayListCodingWorktrees :many
+SELECT * FROM coding_worktrees WHERE project_id = sqlc.arg(project_id) AND workspace_id = sqlc.arg(workspace_id) ORDER BY created_at;
+
+-- name: GatewayGetCodingWorktree :one
+SELECT sqlc.embed(coding_worktrees), sqlc.embed(coding_projects)
+FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_worktrees.id = sqlc.arg(id) AND coding_worktrees.workspace_id = sqlc.arg(workspace_id);
+
+-- name: GatewayCreateCodingWorktree :one
+INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(agent_name), sqlc.arg(directory), sqlc.arg(branch))
+ON CONFLICT (id) DO NOTHING
+RETURNING *;
+
+-- name: GatewayReadyCodingWorktree :exec
+UPDATE coding_worktrees SET ready = true WHERE id = sqlc.arg(id);
+
+-- name: GatewayUpdateCodingBranch :exec
+UPDATE coding_worktrees SET branch = sqlc.arg(branch) WHERE id = sqlc.arg(id);
+
+-- name: GatewayShareCodingWorktree :exec
+UPDATE coding_worktrees SET shared = true WHERE id = sqlc.arg(id);
+
+-- name: GatewayCreateCodingThread :one
+INSERT INTO coding_threads(id, workspace_id, agent_name, worktree_id)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(agent_name), sqlc.arg(worktree_id))
+ON CONFLICT (id) DO NOTHING RETURNING *;
+
+-- name: GatewaySetCodingThreadSession :exec
+UPDATE coding_threads SET session_id = sqlc.arg(session_id) WHERE id = sqlc.arg(id);
+
+-- name: GatewayGetCodingThread :one
+SELECT sqlc.embed(coding_threads), sqlc.embed(coding_worktrees), sqlc.embed(coding_projects)
+FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_threads.workspace_id = sqlc.arg(workspace_id) AND coding_threads.agent_name = sqlc.arg(agent_name)
+AND (coding_threads.id = sqlc.arg(id) OR coding_threads.session_id = sqlc.arg(session_id));
+
+-- name: GatewayListCodingThreads :many
+SELECT sqlc.embed(coding_threads), sqlc.embed(coding_worktrees), sqlc.embed(coding_projects)
+FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_projects.id = sqlc.arg(project_id) AND coding_projects.workspace_id = sqlc.arg(workspace_id)
+ORDER BY coding_threads.created_at DESC;
+
+-- name: GatewayDeleteCodingWorktree :exec
+WITH deleted AS (DELETE FROM coding_threads WHERE worktree_id = sqlc.arg(id))
+DELETE FROM coding_worktrees WHERE coding_worktrees.id = sqlc.arg(id);
+
+-- name: GatewayLockCodingProject :exec
+SELECT pg_advisory_lock(hashtextextended(sqlc.arg(project_id)::text, 0));
+
+-- name: GatewayUnlockCodingProject :exec
+SELECT pg_advisory_unlock(hashtextextended(sqlc.arg(project_id)::text, 0));
+
+-- name: GatewayRecordCodingMainCheckout :exec
+INSERT INTO coding_worktrees (id, workspace_id, project_id, agent_name, directory, branch, ready)
+VALUES (@id, @workspace_id, @project_id, @agent_name, @directory, @branch, true)
+ON CONFLICT (workspace_id, agent_name, directory) DO NOTHING;
+
+-- name: GatewayDeleteCodingConversations :exec
+DELETE FROM chat_sessions
+WHERE chat_sessions.workspace_id = @workspace_id AND chat_sessions.agent_name = @agent_name
+AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE worktree_id = @worktree_id);
+
+-- name: GatewayDeletingCodingWorktree :exec
+UPDATE coding_worktrees SET deleting = @deleting WHERE id = @id;
+
+-- name: GatewayCodingDirectory :one
+SELECT * FROM coding_worktrees WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND directory = @directory;

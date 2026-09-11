@@ -167,6 +167,7 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 			preq.Out.Host = target.Host
 			preq.Out.Header.Del("Authorization")
 			preq.Out.Header.Del("Proxy-Authorization")
+			preq.Out.Header.Del("Cookie")
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 			preq.SetXForwarded()
 		},

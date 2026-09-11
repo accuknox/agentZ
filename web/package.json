@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
     "gen:openapi-client": "openapi-ts",
-    "gen:auth-schema": "bunx auth@1.6.22 generate --config ./lib/auth.ts --output ./db/auth-schema.ts --yes"
+    "gen:auth-schema": "bunx auth@1.6.22 generate --config ./lib/auth.ts --output ./db/auth-schema.ts --yes",
+    "test:coding": "node --env-file-if-exists=.env.local --conditions=react-server --import=tsx --experimental-test-module-mocks --test lib/coding/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1111.0",
@@ -33,9 +34,11 @@
     "@hookform/resolvers": "^5.4.0",
     "@legendapp/list": "3.3.5",
     "@modelcontextprotocol/client": "^2.0.0-alpha.3",
+    "@octokit/oauth-methods": "^6.0.5",
     "@octokit/request-error": "^7.1.0",
     "@octokit/rest": "^22.0.1",
     "@opencode-ai/sdk": "1.18.16",
+    "@pierre/diffs": "1.4.1",
     "@pierre/trees": "1.0.0-beta.6",
     "@radix-ui/react-use-controllable-state": "^1.2.3",
     "@ridemountainpig/svgl-react": "^1.0.17",
@@ -46,6 +49,8 @@
     "@streamdown/mermaid": "^1.0.2",
     "@tanstack/react-query": "^5.101.1",
     "@tanstack/react-table": "^8.21.3",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "6.0.0",
     "@xyflow/react": "^12.11.1",
     "ai": "^6.0.211",
     "better-auth": "1.6.22",
@@ -105,6 +110,7 @@
     "prettier-plugin-tailwindcss": "^0.8.0",
     "shadcn": "^4.11.0",
     "tailwindcss": "^4.3.1",
+    "tsx": "4.22.4",
     "typescript": "^5.9.3"
   },
   "ignoreScripts": [

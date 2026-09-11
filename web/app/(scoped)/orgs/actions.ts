@@ -789,6 +789,7 @@ export async function createWorkspaceAction(
   const parsed = zCreateWorkspaceRequest.safeParse({
     admin_member_ids: formData.getAll("admin_member_ids"),
     name: formData.get("name"),
+    type: formData.get("type"),
     selected_organization_resources: {
       skills: formData.getAll("inherited_skills"),
       sandboxes: formData.getAll("inherited_sandboxes"),

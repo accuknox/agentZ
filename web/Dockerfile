@@ -19,6 +19,8 @@ RUN bun run build
 
 FROM oven/bun:1-slim AS runner
 
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1

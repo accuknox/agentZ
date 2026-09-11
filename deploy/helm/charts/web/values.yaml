@@ -74,6 +74,8 @@ env:
   emailPasswordAuthAllowedUser: ""
   # Optional GitHub OAuth client ID.
   githubClientID: ""
+  # Separate GitHub App for user-initiated Coding operations.
+  codingGithubClientID: ""
   # Optional GitHub allow-list user ID.
   githubAllowedUserID: ""
   # Optional GitHub organization gate.
@@ -115,6 +117,9 @@ secrets:
   mcpOAuthCookieSecret: ""
   # Optional GitHub OAuth client secret.
   githubClientSecret: ""
+  codingGithubClientSecret: ""
+  # 32 random bytes encoded as 64 lowercase hexadecimal characters.
+  codingGithubEncryptionKey: ""
   # Optional Google OAuth client secret.
   googleClientSecret: ""
   # Optional static S3-compatible access key ID. The default provider chain is used when empty.

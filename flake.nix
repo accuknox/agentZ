@@ -18,7 +18,7 @@
             src = ./.;
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-gyhfjyxY4QlQGHMRShe//tNNIhVKPRVB6XFtBhvaiOw=";
+            vendorHash = "sha256-65/8+yOM3xQGfKX/xJQSbnvW9IuPACna2Kx3SPW+AcY=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";
@@ -128,6 +128,7 @@
                 pkgs.stdenv.cc.cc.lib
                 pkgs.bashInteractive
                 pkgs.coreutils-full
+                pkgs.git
                 cli
               ];
               pathsToLink = [

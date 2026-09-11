@@ -1,3 +1,5 @@
+import { getCodingThread } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
@@ -53,10 +55,12 @@ async function ChatPageContent({ params }: ChatPageProps) {
   const client = await createAgentOpencodeClient(agentName, { workspaceId: scope.workspace.id })
   const session = await client.session.get({ path: { id: sessionId } })
   const title = session.data?.title?.trim() || sessionId
+  const coding = scope.workspace.type === "coding" ? await getCodingThread({ client: getGatewayServerClient(scope.workspace.id), path: { agentName, sessionId } }) : undefined
 
   return (
     <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
       <ChatShell
+        codingThread={coding?.data}
         agentName={agentName}
         sessionId={sessionId}
         title={title}

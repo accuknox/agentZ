@@ -116,6 +116,7 @@ func Serve(ctx context.Context, cfg Config) error {
 
 func (s *service) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /git", s.git)
 	mux.HandleFunc("GET /file", s.readFile)
 	mux.HandleFunc("POST /file", s.createFile)
 	mux.HandleFunc("PUT /file", s.writeFile)

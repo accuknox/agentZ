@@ -779,6 +779,8 @@ web:
 
     # Optional GitHub OAuth client ID.
     githubClientID: ""
+    # Separate GitHub App for user-initiated Coding operations.
+    codingGithubClientID: ""
 
     # Optional GitHub allow-list user ID.
     githubAllowedUserID: ""
@@ -837,6 +839,9 @@ web:
 
     # Optional GitHub OAuth client secret.
     githubClientSecret: ""
+    codingGithubClientSecret: ""
+    # 32 random bytes encoded as 64 lowercase hexadecimal characters.
+    codingGithubEncryptionKey: ""
 
     # Optional Google OAuth client secret.
     googleClientSecret: ""

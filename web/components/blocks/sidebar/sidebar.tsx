@@ -1,3 +1,4 @@
+import { Code } from "lucide-react"
 import type { Route } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
@@ -346,6 +347,13 @@ async function WorkspaceNavigation({
           <SidebarGroup className="px-2 py-2">
             <SidebarGroupLabel>Workspace</SidebarGroupLabel>
             <SidebarMenu>
+              {workspace.type === "coding" ? (
+                <SidebarMenuItem>
+                  <SidebarNavigationLink href={`${workspacePath}/projects` as Route} label="Projects">
+                    <Code aria-hidden="true" />
+                  </SidebarNavigationLink>
+                </SidebarMenuItem>
+              ) : null}
               {showAgents ? (
                 <SidebarMenuItem data-tour="agents">
                   <SidebarNavigationLink

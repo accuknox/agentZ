@@ -7,6 +7,8 @@ import {
   createAgent,
   createAgentDirectory,
   createAgentFile,
+  createCodingProject,
+  createCodingThread,
   createDashboard,
   createInferencePool,
   createInferenceProvider,
@@ -22,6 +24,7 @@ import {
   deleteAgentEntry,
   deleteAgentMutableSkills,
   deleteAgentShare,
+  deleteCodingProject,
   deleteDashboard,
   deleteImmutableSkills,
   deleteInferencePool,
@@ -38,6 +41,8 @@ import {
   exportImmutableSkills,
   getAgentOwner,
   getChatSessionPreference,
+  getCodingProject,
+  getCodingThread,
   getDashboard,
   getEventTrailEvent,
   getInferencePool,
@@ -62,6 +67,7 @@ import {
   listAgentShares,
   listAgentWorkflowSchedules,
   listChatSessions,
+  listCodingProjects,
   listDashboards,
   listDashboardTableRows,
   listEventTrailEvents,
@@ -102,9 +108,11 @@ import {
   readAgentFileRaw,
   refreshInferenceProviderModels,
   renameAgentEntry,
+  renameCodingProject,
   replaceWorkspaceInheritedResources,
   resolveWorkspaceSlug,
   retryWorkspace,
+  runCodingGit,
   statAgentFile,
   transferAgentOwner,
   updateAgent,
@@ -129,6 +137,12 @@ import type {
   CreateAgentFileError,
   CreateAgentFileResponse,
   CreateAgentResponse,
+  CreateCodingProjectData,
+  CreateCodingProjectError,
+  CreateCodingProjectResponse,
+  CreateCodingThreadData,
+  CreateCodingThreadError,
+  CreateCodingThreadResponse,
   CreateDashboardData,
   CreateDashboardError,
   CreateDashboardResponse,
@@ -174,6 +188,9 @@ import type {
   DeleteAgentShareData,
   DeleteAgentShareError,
   DeleteAgentShareResponse,
+  DeleteCodingProjectData,
+  DeleteCodingProjectError,
+  DeleteCodingProjectResponse,
   DeleteDashboardData,
   DeleteDashboardError,
   DeleteDashboardResponse,
@@ -222,6 +239,12 @@ import type {
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
+  GetCodingProjectData,
+  GetCodingProjectError,
+  GetCodingProjectResponse,
+  GetCodingThreadData,
+  GetCodingThreadError,
+  GetCodingThreadResponse,
   GetDashboardData,
   GetDashboardError,
   GetDashboardResponse,
@@ -294,6 +317,9 @@ import type {
   ListChatSessionsData,
   ListChatSessionsError,
   ListChatSessionsResponse2,
+  ListCodingProjectsData,
+  ListCodingProjectsError,
+  ListCodingProjectsResponse,
   ListDashboardsData,
   ListDashboardsError,
   ListDashboardsResponse2,
@@ -411,6 +437,9 @@ import type {
   RenameAgentEntryData,
   RenameAgentEntryError,
   RenameAgentEntryResponse,
+  RenameCodingProjectData,
+  RenameCodingProjectError,
+  RenameCodingProjectResponse,
   ReplaceWorkspaceInheritedResourcesData,
   ReplaceWorkspaceInheritedResourcesError,
   ReplaceWorkspaceInheritedResourcesResponse,
@@ -420,6 +449,9 @@ import type {
   RetryWorkspaceData,
   RetryWorkspaceError,
   RetryWorkspaceResponse,
+  RunCodingGitData,
+  RunCodingGitError,
+  RunCodingGitResponse,
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
@@ -498,6 +530,188 @@ const createQueryKey = <TOptions extends Options>(
     params.query = options.query
   }
   return [params]
+}
+
+export const listCodingProjectsQueryKey = (options?: Options<ListCodingProjectsData>) =>
+  createQueryKey("listCodingProjects", options)
+
+export const listCodingProjectsOptions = (options?: Options<ListCodingProjectsData>) =>
+  queryOptions<
+    ListCodingProjectsResponse,
+    ListCodingProjectsError,
+    ListCodingProjectsResponse,
+    ReturnType<typeof listCodingProjectsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listCodingProjects({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listCodingProjectsQueryKey(options),
+  })
+
+export const createCodingProjectMutation = (
+  options?: Partial<Options<CreateCodingProjectData>>
+): UseMutationOptions<
+  CreateCodingProjectResponse,
+  CreateCodingProjectError,
+  Options<CreateCodingProjectData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateCodingProjectResponse,
+    CreateCodingProjectError,
+    Options<CreateCodingProjectData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createCodingProject({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const deleteCodingProjectMutation = (
+  options?: Partial<Options<DeleteCodingProjectData>>
+): UseMutationOptions<
+  DeleteCodingProjectResponse,
+  DeleteCodingProjectError,
+  Options<DeleteCodingProjectData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteCodingProjectResponse,
+    DeleteCodingProjectError,
+    Options<DeleteCodingProjectData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteCodingProject({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getCodingProjectQueryKey = (options: Options<GetCodingProjectData>) =>
+  createQueryKey("getCodingProject", options)
+
+export const getCodingProjectOptions = (options: Options<GetCodingProjectData>) =>
+  queryOptions<
+    GetCodingProjectResponse,
+    GetCodingProjectError,
+    GetCodingProjectResponse,
+    ReturnType<typeof getCodingProjectQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getCodingProject({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getCodingProjectQueryKey(options),
+  })
+
+export const renameCodingProjectMutation = (
+  options?: Partial<Options<RenameCodingProjectData>>
+): UseMutationOptions<
+  RenameCodingProjectResponse,
+  RenameCodingProjectError,
+  Options<RenameCodingProjectData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    RenameCodingProjectResponse,
+    RenameCodingProjectError,
+    Options<RenameCodingProjectData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await renameCodingProject({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const createCodingThreadMutation = (
+  options?: Partial<Options<CreateCodingThreadData>>
+): UseMutationOptions<
+  CreateCodingThreadResponse,
+  CreateCodingThreadError,
+  Options<CreateCodingThreadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateCodingThreadResponse,
+    CreateCodingThreadError,
+    Options<CreateCodingThreadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createCodingThread({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getCodingThreadQueryKey = (options: Options<GetCodingThreadData>) =>
+  createQueryKey("getCodingThread", options)
+
+export const getCodingThreadOptions = (options: Options<GetCodingThreadData>) =>
+  queryOptions<
+    GetCodingThreadResponse,
+    GetCodingThreadError,
+    GetCodingThreadResponse,
+    ReturnType<typeof getCodingThreadQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getCodingThread({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getCodingThreadQueryKey(options),
+  })
+
+export const runCodingGitMutation = (
+  options?: Partial<Options<RunCodingGitData>>
+): UseMutationOptions<RunCodingGitResponse, RunCodingGitError, Options<RunCodingGitData>> => {
+  const mutationOptions: UseMutationOptions<
+    RunCodingGitResponse,
+    RunCodingGitError,
+    Options<RunCodingGitData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await runCodingGit({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
 }
 
 export const listChatSessionsQueryKey = (options?: Options<ListChatSessionsData>) =>

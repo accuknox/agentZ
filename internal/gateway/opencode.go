@@ -127,6 +127,17 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, apiErr)
 		return
 	}
+	if auth, ok := requestAuthState(r.Context()); ok && auth.actorType != requestActorSystem {
+		release, apiErr := s.enforceCodingSession(r, access, route, agentName)
+		if release != nil {
+			defer release()
+		}
+		if apiErr != nil {
+			writeError(w, r, apiErr)
+			return
+		}
+	}
+
 	ns := access.namespace
 	resolved, err := s.resolver.resolveAgent(r.Context(), ns, agentName)
 	if err != nil {
@@ -205,6 +216,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			// never receive caller credentials they do not verify.
 			preq.Out.Header.Del("Authorization")
 			preq.Out.Header.Del("Proxy-Authorization")
+			preq.Out.Header.Del("Cookie")
 			preq.SetXForwarded()
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 		},
@@ -347,6 +359,10 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 	deleteTarget, hasSessionDelete := matchOpencodeSessionDelete(route, agentName)
 	return func(resp *http.Response) error {
 		stripOpenCodeCORSHeaders(resp)
+		if resp.StatusCode == http.StatusSwitchingProtocols && resp.Request.Header.Get("Sec-WebSocket-Protocol") == "agentz.pty" {
+			resp.Header.Set("Sec-WebSocket-Protocol", "agentz.pty")
+			return nil
+		}
 
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			return nil
@@ -410,7 +426,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			gatewaydb.GatewayDeleteChatSessionParams{
 				WorkspaceID: workspaceID,
 				AgentName:   deleteTarget.agentName,
-				SessionID:   deleteTarget.sessionID,
+				SessionID:   pgtype.Text{String: deleteTarget.sessionID, Valid: true},
 			},
 		)
 		if err != nil {
@@ -584,7 +600,7 @@ func matchOpencodeSessionDelete(route *opencodeRouteMatch, agentName string) (op
 	if route.Method != http.MethodDelete {
 		return opencodeSessionDeleteTarget{}, false
 	}
-	if route.Path != opencodeSessionDeletePath {
+	if route.Path != opencodeSessionDeletePath && route.Path != "/api/opencode/{agentName}/api/session/{sessionID}" {
 		return opencodeSessionDeleteTarget{}, false
 	}
 	sessionID := strings.TrimSpace(route.Params["sessionID"])
@@ -711,4 +727,31 @@ func openCodeUpstreamPath(u *url.URL, agentName string) (string, string, error) 
 func opencodeProxyBodyLimitEnabled(method string) bool {
 	_, ok := opencodeProxyBodyLimitedMethods[method]
 	return ok
+}
+
+// ptyWebsocketAuth carries a browser bearer in the WebSocket handshake rather
+// than the URL. It is removed before proxying and uses the normal live grants.
+func (s *Service) ptyWebsocketAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			allowed := false
+			for _, origin := range s.cfg.AllowedWebOrigins {
+				if origin == r.Header.Get("Origin") {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				writeError(w, r, resourceForbidden(errors.New("WebSocket origin is not allowed")))
+				return
+			}
+			for _, protocol := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
+				if token, ok := strings.CutPrefix(strings.TrimSpace(protocol), "agentz.bearer."); ok {
+					r.Header.Set("Authorization", "Bearer "+token)
+				}
+			}
+			r.Header.Set("Sec-WebSocket-Protocol", "agentz.pty")
+		}
+		next.ServeHTTP(w, r)
+	})
 }

@@ -50,6 +50,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+        "listCodingProjects", "createCodingProject", "getCodingProject", "renameCodingProject", "deleteCodingProject", "createCodingThread", "getCodingThread", "runCodingGit",
 		"createDashboard",
 		"createAgentDirectory",
 		"createAgentFile",

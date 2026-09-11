@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { listAllAgentsCachedQuery } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
@@ -27,6 +27,7 @@ export default async function NewChatPage({
   ])
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") notFound()
+  if (scope.workspace.type === "coding") redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/projects`)
 
   const [agentsResult, preference, authSession] = await Promise.all([
     listAllAgentsCachedQuery(scope.workspace.id),

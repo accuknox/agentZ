@@ -410,6 +410,12 @@ export const PromptInputTextarea = ({
       const element = textareaRef.current
       if (!element) return
       if (document.activeElement === element) return
+      // A completed reply must not take focus from a terminal or another form.
+      if (
+        document.activeElement !== document.body &&
+        !element.form?.contains(document.activeElement)
+      )
+        return
       element.focus()
     })
   }, [isMobile])

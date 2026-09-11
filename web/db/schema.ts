@@ -26,11 +26,13 @@ import {
   organizations,
   teams,
   users,
+  sessions,
 } from "./auth-schema"
 
 export * from "./auth-schema"
 
 export const themePreference = pgEnum("theme_preference", ["system", "light", "dark"])
+export const workspaceType = pgEnum("workspace_type", ["general", "coding"])
 export const workspaceState = pgEnum("workspace_state", [
   "provisioning",
   "ready",
@@ -134,6 +136,7 @@ export const workspaces = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     namespace: text("namespace").notNull().unique(),
+    type: workspaceType("type").default("general").notNull(),
     state: workspaceState("state").default("provisioning").notNull(),
     provisioningAttempt: bigint("provisioning_attempt", { mode: "number" }).default(1).notNull(),
     failureReason: text("failure_reason"),
@@ -156,6 +159,108 @@ export const workspaces = pgTable(
     ),
   ]
 )
+
+// Projects are personal records. Agent authorization never grants project ownership.
+export const codingProjects = pgTable(
+  "coding_projects",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    repositoryId: bigint("repository_id", { mode: "number" }).notNull(),
+    repository: text("repository").notNull(),
+    defaultBranch: text("default_branch").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("coding_projects_workspace_id_uidx").on(table.workspaceId, table.id),
+    index("coding_projects_owner_idx").on(table.workspaceId, table.ownerId),
+  ]
+)
+
+export const codingWorktrees = pgTable(
+  "coding_worktrees",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    projectId: text("project_id").notNull(),
+    agentName: text("agent_name").notNull(),
+    directory: text("directory").notNull(),
+    branch: text("branch").notNull(),
+    ready: boolean("ready").default(false).notNull(),
+    shared: boolean("shared").default(false).notNull(),
+    deleting: boolean("deleting").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId, table.projectId],
+      foreignColumns: [codingProjects.workspaceId, codingProjects.id],
+    }).onDelete("restrict"),
+    unique("coding_worktrees_workspace_agent_id_uidx").on(
+      table.workspaceId,
+      table.agentName,
+      table.id
+    ),
+    unique("coding_worktrees_directory_uidx").on(
+      table.workspaceId,
+      table.agentName,
+      table.directory
+    ),
+  ]
+)
+
+export const codingThreads = pgTable(
+  "coding_threads",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    agentName: text("agent_name").notNull(),
+    worktreeId: text("worktree_id").notNull(),
+    sessionId: text("session_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId, table.agentName, table.worktreeId],
+      foreignColumns: [codingWorktrees.workspaceId, codingWorktrees.agentName, codingWorktrees.id],
+    }).onDelete("restrict"),
+    unique("coding_threads_session_uidx").on(table.workspaceId, table.agentName, table.sessionId),
+  ]
+)
+
+// These credentials are exclusively for authenticated human UI requests.
+export const githubConnections = pgTable("github_connections", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  githubUserId: bigint("github_user_id", { mode: "number" }).notNull(),
+  login: text("login").notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  refreshExpiresAt: timestamp("refresh_expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const githubAuthorizations = pgTable("github_authorizations", {
+  state: text("state").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => sessions.id, { onDelete: "cascade" }),
+  verifier: text("verifier").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})
 
 export const chatSessions = pgTable(
   "chat_sessions",

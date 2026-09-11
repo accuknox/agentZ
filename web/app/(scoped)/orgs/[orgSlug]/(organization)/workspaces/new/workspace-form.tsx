@@ -39,6 +39,7 @@ export function WorkspaceForm({
   const router = useRouter()
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [name, setName] = useState("")
+  const [workspaceType, setWorkspaceType] = useState("general")
   const [admins, setAdmins] = useState<string[]>([])
   const [inherited, setInherited] = useState<SelectedOrganizationResources>({
     skills: [],
@@ -97,6 +98,22 @@ export function WorkspaceForm({
         ) : null}
 
         <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="workspace-type">Workspace type</FieldLabel>
+            <select
+              id="workspace-type"
+              name="type"
+              value={workspaceType}
+              onChange={(event) => setWorkspaceType(event.target.value)}
+              className="border-input bg-background h-10 rounded-md border px-3 text-sm"
+            >
+              <option value="general">General purpose</option>
+              <option value="coding">Coding</option>
+            </select>
+            <p className="text-muted-foreground text-sm">
+              Coding adds GitHub projects and Git worktrees. The type cannot be changed later.
+            </p>
+          </Field>
           <Field data-invalid={Boolean(errors?.name)}>
             <FieldLabel htmlFor="workspace-name" required>
               Name
@@ -192,6 +209,10 @@ export function WorkspaceForm({
               <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">Name</dt>
                 <dd className="font-medium">{name}</dd>
+              </div>
+              <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
+                <dt className="text-muted-foreground">Workspace type</dt>
+                <dd>{workspaceType === "coding" ? "Coding" : "General purpose"}</dd>
               </div>
               <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">Administrators</dt>

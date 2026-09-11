@@ -758,7 +758,12 @@ function WorkspaceBody({
               className="bg-background flex h-full min-w-0 flex-col"
               style={{ width: editorWidth }}
             >
-              <div className="flex h-(--workspace-topbar-height) shrink-0 items-stretch overflow-hidden border-b border-transparent">
+              <div
+                className={cn(
+                  "flex shrink-0 items-stretch overflow-hidden border-b border-transparent",
+                  embedded ? "h-9" : "h-(--workspace-topbar-height)"
+                )}
+              >
                 <div className="relative flex min-w-0 flex-1 overflow-hidden">
                   {tabOverflow.left ? (
                     <div className="from-background pointer-events-none absolute inset-y-0 left-0 z-20 w-6 bg-linear-to-r to-transparent" />
@@ -966,8 +971,8 @@ function WorkspaceBody({
       >
         <div
           className={cn(
-            "flex h-(--workspace-topbar-height) shrink-0 items-center gap-1 pl-2",
-            embedded ? "pr-2" : "pr-12"
+            "flex shrink-0 items-center gap-1 pl-2",
+            embedded ? "h-9 pr-2" : "h-(--workspace-topbar-height) pr-12"
           )}
         >
           <span className="min-w-0 flex-1 truncate text-sm font-medium">Explorer</span>

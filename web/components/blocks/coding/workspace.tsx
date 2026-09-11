@@ -19,6 +19,8 @@ import {
   Columns2,
   ExternalLink,
   FileCode2,
+  FolderCode,
+  CircleDot,
   Files,
   GitBranch,
   GitCommitHorizontal,
@@ -49,6 +51,14 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -107,8 +117,8 @@ export function CodingWorkspace({
   const { resolvedTheme } = useTheme()
   const { pendingPreview, previewFile } = useFileWorkspace()
   const [tab, setTab] = useState<View>("changes")
-  const [open, setOpen] = useState(true)
-  const [visited, setVisited] = useState<Set<View>>(new Set(["changes"]))
+  const [open, setOpen] = useState(false)
+  const [visited, setVisited] = useState<Set<View>>(new Set())
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
   const [branchOpen, setBranchOpen] = useState(false)
@@ -118,6 +128,7 @@ export function CodingWorkspace({
   const [split, setSplit] = useState(false)
   const [wrap, setWrap] = useState(false)
   const [message, setMessage] = useState("")
+  const [prOpen, setPrOpen] = useState(false)
   const [prTitle, setPrTitle] = useState("")
   const [prBody, setPrBody] = useState("")
   const [pending, startTransition] = useTransition()
@@ -126,7 +137,7 @@ export function CodingWorkspace({
     queryOptions({
       queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
       queryFn: () => localGit(workspaceId, tree.id, { operation: "status" }),
-      refetchInterval: open && tab === "changes" && !pending ? 5000 : false,
+      refetchInterval: open && !pending ? 5000 : false,
     })
   )
   const github = useInfiniteQuery(
@@ -150,7 +161,7 @@ export function CodingWorkspace({
     })
   )
   const githubInfo = github.data?.pages[0]
-  const data = status.data
+  const data = status.error ? undefined : status.data
   const patch = staged ? data?.staged_diff : data?.diff
   const diffs = useMemo(
     () => (patch ? parsePatchFiles(patch).flatMap((patch) => patch.files) : []),
@@ -200,6 +211,7 @@ export function CodingWorkspace({
     startTransition(async () => {
       try {
         await localGit(workspaceId, tree.id, { operation, paths, expected_head: data.head })
+        if (!selected || paths.includes(selected)) setStaged(operation === "stage")
         await status.refetch()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not update staged files")
@@ -248,9 +260,9 @@ export function CodingWorkspace({
           <span className="flex-1 text-sm font-semibold">
             {views.find((view) => view.id === tab)?.label}
           </span>
-          {tab === "changes" ? (
+          {tab === "changes" && data ? (
             <span className="text-muted-foreground text-xs tabular-nums">
-              {data?.files.length ?? 0} {data?.files.length === 1 ? "file" : "files"}
+              {data.files.length} {data.files.length === 1 ? "file" : "files"}
             </span>
           ) : null}
           {tab === "changes" || tab === "github" ? (
@@ -288,19 +300,6 @@ export function CodingWorkspace({
             <PanelRightClose />
           </Button>
         </header>
-        <div className="text-muted-foreground flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs">
-          <GitBranch className="size-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate" title={thread.repository}>
-            {thread.repository}
-          </span>
-          <span className="max-w-1/2 truncate font-mono" title={data?.branch ?? tree.branch}>
-            {tab === "changes"
-              ? tree.shared
-                ? "Shared checkout"
-                : "Worktree"
-              : (data?.branch ?? tree.branch)}
-          </span>
-        </div>
         {visited.has("files") ? (
           <div className={cn("min-h-0 flex-1", tab !== "files" && "hidden")}>
             <FilesWorkspace
@@ -320,13 +319,12 @@ export function CodingWorkspace({
               directory={tree.directory}
               workspaceId={workspaceId}
               visible={open && tab === "terminal"}
-              branch={data?.branch ?? tree.branch}
             />
           </div>
         ) : null}
         {tab === "context" ? <SessionContext thread={thread} workspaceId={workspaceId} /> : null}
         {tab === "changes" || tab === "github" ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {status.isPending ? (
               <div
                 role="status"
@@ -336,124 +334,18 @@ export function CodingWorkspace({
               </div>
             ) : null}
             {status.error ? (
-              <div role="alert" className="text-destructive p-4 text-sm">
-                Changes are unavailable. Check that the agent is running, then refresh.
+              <div
+                role="alert"
+                className="text-muted-foreground flex flex-col items-center gap-3 p-6 text-center text-sm"
+              >
+                Could not load changes.
+                <Button variant="outline" size="sm" onClick={() => void status.refetch()}>
+                  <RefreshCw /> Retry
+                </Button>
               </div>
             ) : null}
             {data && tab === "changes" ? (
               <>
-                <div className="flex items-center gap-2 border-b px-3 py-2">
-                  <Popover open={branchOpen} onOpenChange={setBranchOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        role="combobox"
-                        aria-label="Current branch"
-                        aria-expanded={branchOpen}
-                        variant="ghost"
-                        size="sm"
-                        disabled={pending}
-                        className="min-w-0 flex-1 justify-start px-1 text-xs"
-                      >
-                        <GitBranch className="text-muted-foreground" />
-                        <span className="truncate" title={data.branch}>
-                          {data.branch || "Detached HEAD"}
-                        </span>
-                        <ChevronDown className="text-muted-foreground ml-auto" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-0">
-                      <Command>
-                        <CommandInput placeholder="Find a branch..." />
-                        {data.files.length > 0 ? (
-                          <p className="text-muted-foreground border-b px-3 py-2 text-xs">
-                            Commit or clear your changes before switching branches.
-                          </p>
-                        ) : null}
-                        <CommandList>
-                          <CommandEmpty>No branches found.</CommandEmpty>
-                          <CommandGroup heading="Local branches">
-                            {data.branches.map((branch) => (
-                              <CommandItem
-                                key={branch}
-                                value={branch}
-                                disabled={data.files.length > 0 && branch !== data.branch}
-                                onSelect={() => {
-                                  setBranchOpen(false)
-                                  if (branch !== data.branch) {
-                                    startTransition(async () => {
-                                      try {
-                                        await localGit(workspaceId, tree.id, {
-                                          operation: "checkout",
-                                          ref: branch,
-                                          expected_head: data.head,
-                                        })
-                                        setSelected(undefined)
-                                        await status.refetch()
-                                      } catch (error) {
-                                        toast.error(
-                                          error instanceof Error
-                                            ? error.message
-                                            : "Could not switch branch"
-                                        )
-                                      }
-                                    })
-                                  }
-                                }}
-                              >
-                                <GitBranch />
-                                <span className="truncate" title={branch}>
-                                  {branch}
-                                </span>
-                                {branch === data.branch ? <Check className="ml-auto" /> : null}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <button
-                    className="text-muted-foreground hover:text-foreground font-mono text-xs"
-                    title="Copy commit hash"
-                    onClick={() =>
-                      void navigator.clipboard
-                        .writeText(data.head)
-                        .then(() => toast.success("Commit hash copied"))
-                        .catch(() => toast.error("Could not copy commit hash"))
-                    }
-                  >
-                    {data.head.slice(0, 7)}
-                  </button>
-                </div>
-                <form
-                  className="flex shrink-0 flex-col gap-2 border-b p-3"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    const treeHash = data.tree
-                    if (!treeHash) return
-                    syncGit({ operation: "commit", head: data.head, tree: treeHash, message })
-                  }}
-                >
-                  <Textarea
-                    aria-label="Commit message"
-                    value={message}
-                    maxLength={20_000}
-                    onChange={(event) => setMessage(event.target.value)}
-                    placeholder="Leave empty to generate a message"
-                    disabled={pending}
-                    className="min-h-16 resize-none text-xs"
-                  />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={pending || !data.tree || stagedFiles.length === 0}
-                  >
-                    {pending ? <Spinner /> : <GitCommitHorizontal />} Commit{" "}
-                    {stagedFiles.length > 0
-                      ? `${stagedFiles.length} staged ${stagedFiles.length === 1 ? "file" : "files"}`
-                      : "staged changes"}
-                  </Button>
-                </form>
                 {data.files.length > 0 ? (
                   <>
                     <div className="relative m-3 mb-1">
@@ -466,7 +358,7 @@ export function CodingWorkspace({
                         className="h-8 pl-8 text-xs"
                       />
                     </div>
-                    <div className="max-h-64 shrink-0 overflow-y-auto border-b pb-2">
+                    <div className="max-h-[35%] shrink-0 overflow-y-auto border-b pb-1">
                       {[
                         { label: "Staged changes", files: stagedFiles, staged: true },
                         { label: "Changes", files: changedFiles, staged: false },
@@ -681,7 +573,7 @@ export function CodingWorkspace({
                             <ChevronRight />
                           </Button>
                         </div>
-                        <div className="min-h-40 flex-1 overflow-auto">
+                        <div className="min-h-0 flex-1 overflow-auto">
                           {diff.hunks.length === 0 ? (
                             <Empty>
                               <EmptyHeader>
@@ -719,11 +611,11 @@ export function CodingWorkspace({
                           </EmptyMedia>
                           <EmptyTitle>{staged ? "No staged diff" : "No tracked diff"}</EmptyTitle>
                           <EmptyDescription>
-                            {selected
-                              ? escapedDiffs.length
-                                ? "Choose the escaped path in the file list to review its diff."
-                                : "New files appear in the diff after staging. Use Open file to inspect their contents."
-                              : "Choose a changed file to review it."}
+                            {escapedDiffs.length
+                              ? "Choose the escaped path in the file list to review its diff."
+                              : staged
+                                ? "Stage changes to review them here."
+                                : "New files appear in the diff after staging. Use Open file to inspect their contents."}
                           </EmptyDescription>
                         </EmptyHeader>
                       </Empty>
@@ -744,8 +636,33 @@ export function CodingWorkspace({
                 )}
               </>
             ) : null}
-            {tab === "github" ? (
-              <div className="flex flex-col gap-6 p-4">
+            {tab === "changes" && data && stagedFiles.length > 0 ? (
+              <form
+                className="flex shrink-0 flex-col gap-2 border-t p-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const treeHash = data.tree
+                  if (!treeHash) return
+                  syncGit({ operation: "commit", head: data.head, tree: treeHash, message })
+                }}
+              >
+                <Textarea
+                  aria-label="Commit message"
+                  value={message}
+                  maxLength={20_000}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder="Leave empty to generate a message"
+                  disabled={pending}
+                  className="min-h-16 resize-none text-xs"
+                />
+                <Button type="submit" size="sm" disabled={pending || !data.tree}>
+                  {pending ? <Spinner /> : <GitCommitHorizontal />} Commit {stagedFiles.length}{" "}
+                  staged {stagedFiles.length === 1 ? "file" : "files"}
+                </Button>
+              </form>
+            ) : null}
+            {tab === "github" && data ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
                 {github.error ? (
                   <p role="alert" className="text-destructive text-sm">
                     Could not load GitHub. Check your account connection and repository access.
@@ -754,11 +671,12 @@ export function CodingWorkspace({
                 {github.isPending ? (
                   <p className="text-muted-foreground text-sm">Loading GitHub...</p>
                 ) : null}
-                {github.data && githubInfo && data ? (
+                {github.data && githubInfo && !github.error ? (
                   <>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button
                         variant="outline"
+                        size="sm"
                         disabled={
                           pending ||
                           !githubInfo.branchHead ||
@@ -771,6 +689,7 @@ export function CodingWorkspace({
                         Pull
                       </Button>
                       <Button
+                        size="sm"
                         disabled={pending || githubInfo.branchHead === data.head}
                         onClick={() =>
                           syncGit({
@@ -783,113 +702,136 @@ export function CodingWorkspace({
                         <ArrowUp />
                         {githubInfo.branchHead ? "Push" : "Publish branch"}
                       </Button>
+                      <Dialog open={prOpen} onOpenChange={setPrOpen}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={
+                              pending ||
+                              data.branch === githubInfo.defaultBranch ||
+                              githubInfo.branchHead !== data.head
+                            }
+                          >
+                            <GitPullRequest /> New pull request
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>New pull request</DialogTitle>
+                            <DialogDescription className="break-all">
+                              {data.branch} into {githubInfo.defaultBranch}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <form
+                            className="grid gap-3"
+                            onSubmit={(event) => {
+                              event.preventDefault()
+                              const base = githubInfo.defaultBranch
+                              startTransition(async () => {
+                                try {
+                                  const url = await createCodingPullRequest(
+                                    workspaceId,
+                                    tree.agent_name,
+                                    thread.session_id,
+                                    prTitle,
+                                    prBody,
+                                    base
+                                  )
+                                  toast.success("Pull request ready", {
+                                    action: {
+                                      label: "Open",
+                                      onClick: () =>
+                                        window.open(url, "_blank", "noopener,noreferrer"),
+                                    },
+                                  })
+                                  setPrOpen(false)
+                                  await github.refetch()
+                                } catch {
+                                  toast.error(
+                                    "Could not create the pull request. Check repository access and push the branch first."
+                                  )
+                                }
+                              })
+                            }}
+                          >
+                            <Input
+                              disabled={pending}
+                              aria-label="Pull request title"
+                              placeholder="Title"
+                              value={prTitle}
+                              onChange={(event) => setPrTitle(event.target.value)}
+                              maxLength={256}
+                            />
+                            <Textarea
+                              maxLength={65_536}
+                              disabled={pending}
+                              aria-label="Pull request description"
+                              placeholder="Describe your changes"
+                              value={prBody}
+                              onChange={(event) => setPrBody(event.target.value)}
+                              className="min-h-24 rounded-md border p-2 text-sm"
+                            />
+                            <Button
+                              variant="outline"
+                              type="submit"
+                              disabled={
+                                pending ||
+                                !prTitle.trim() ||
+                                data.branch === githubInfo.defaultBranch ||
+                                githubInfo.branchHead !== data.head
+                              }
+                            >
+                              <GitPullRequest />
+                              Create pull request
+                            </Button>
+                          </form>
+                        </DialogContent>
+                      </Dialog>
                     </div>
-                    <form
-                      className="grid gap-3 rounded-lg border p-4"
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        const base = githubInfo?.defaultBranch
-                        if (!base) return
-                        startTransition(async () => {
-                          try {
-                            const url = await createCodingPullRequest(
-                              workspaceId,
-                              tree.agent_name,
-                              thread.session_id,
-                              prTitle,
-                              prBody,
-                              base
-                            )
-                            toast.success("Pull request ready", {
-                              action: {
-                                label: "Open",
-                                onClick: () => window.open(url, "_blank", "noopener,noreferrer"),
-                              },
-                            })
-                            await github.refetch()
-                          } catch {
-                            toast.error(
-                              "Could not create the pull request. Check repository access and push the branch first."
-                            )
-                          }
-                        })
-                      }}
-                    >
-                      <h3 className="text-sm font-medium">Open a pull request</h3>
-                      <Input
-                        disabled={pending}
-                        aria-label="Pull request title"
-                        placeholder="Title"
-                        value={prTitle}
-                        onChange={(event) => setPrTitle(event.target.value)}
-                        maxLength={256}
-                      />
-                      <Textarea
-                        maxLength={65_536}
-                        disabled={pending}
-                        aria-label="Pull request description"
-                        placeholder="Describe your changes"
-                        value={prBody}
-                        onChange={(event) => setPrBody(event.target.value)}
-                        className="min-h-24 rounded-md border p-2 text-sm"
-                      />
-                      <Button
-                        variant="outline"
-                        type="submit"
-                        disabled={
-                          pending ||
-                          !prTitle.trim() ||
-                          data.branch === githubInfo.defaultBranch ||
-                          githubInfo.branchHead !== data.head
-                        }
-                      >
-                        <GitPullRequest />
-                        Create pull request
-                      </Button>
-                      <p className="text-muted-foreground text-xs">
-                        {data.branch} → {githubInfo.defaultBranch}
-                      </p>
-                    </form>
-                    <section>
-                      <h3 className="mb-2 text-sm font-medium">Pull requests</h3>
-                      {github.data.pages
-                        .flatMap((page) => page.pulls)
-                        .map((pull) => (
-                          <a
-                            key={pull.number}
-                            href={pull.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:bg-accent block rounded-md px-2 py-2 text-sm"
-                          >
-                            <span className="text-muted-foreground mr-2">#{pull.number}</span>
-                            {pull.title}
-                          </a>
-                        ))}
-                      {!github.data.pages.some((page) => page.pulls.length) ? (
-                        <p className="text-muted-foreground text-sm">No open pull requests.</p>
-                      ) : null}
-                    </section>
-                    <section>
-                      <h3 className="mb-2 text-sm font-medium">Issues</h3>
-                      {github.data.pages
-                        .flatMap((page) => page.issues)
-                        .map((issue) => (
-                          <a
-                            key={issue.number}
-                            href={issue.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:bg-accent block rounded-md px-2 py-2 text-sm"
-                          >
-                            <span className="text-muted-foreground mr-2">#{issue.number}</span>
-                            {issue.title}
-                          </a>
-                        ))}
-                      {!github.data.pages.some((page) => page.issues.length) ? (
-                        <p className="text-muted-foreground text-sm">No open issues.</p>
-                      ) : null}
-                    </section>
+                    {[
+                      {
+                        label: "Pull requests",
+                        icon: GitPullRequest,
+                        items: github.data.pages.flatMap((page) => page.pulls),
+                        empty: "No open pull requests",
+                      },
+                      {
+                        label: "Issues",
+                        icon: CircleDot,
+                        items: github.data.pages.flatMap((page) => page.issues),
+                        empty: "No open issues",
+                      },
+                    ].map(({ label, icon: Icon, items, empty }) => (
+                      <section key={label}>
+                        <h3 className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-medium">
+                          <Icon className="size-3.5" />
+                          {label}
+                          <span className="ml-auto tabular-nums">{items.length}</span>
+                        </h3>
+                        {items.length ? (
+                          items.map((item) => (
+                            <a
+                              key={item.number}
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:bg-muted focus-visible:ring-ring group flex items-start gap-2 rounded-md px-2 py-2 text-xs outline-none focus-visible:ring-2"
+                            >
+                              <span className="text-muted-foreground shrink-0 tabular-nums">
+                                #{item.number}
+                              </span>
+                              <span className="min-w-0 flex-1 leading-relaxed">{item.title}</span>
+                              <ExternalLink className="text-muted-foreground mt-0.5 size-3 shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+                            </a>
+                          ))
+                        ) : (
+                          <p className="text-muted-foreground rounded-md border border-dashed px-3 py-5 text-center text-xs">
+                            {empty}
+                          </p>
+                        )}
+                      </section>
+                    ))}
                     {github.hasNextPage ? (
                       <Button
                         variant="outline"
@@ -906,11 +848,119 @@ export function CodingWorkspace({
             ) : null}
           </div>
         ) : null}
-        <footer className="text-muted-foreground flex shrink-0 items-center gap-2 border-t px-3 py-1.5 text-[11px]">
-          <span className="min-w-0 flex-1 truncate font-mono" title={tree.directory}>
-            {tree.directory}
-          </span>
-          <span>{tree.shared ? "Shared checkout" : "Worktree"}</span>
+        <footer className="bg-muted/20 text-muted-foreground flex h-9 shrink-0 items-center gap-2 border-t px-2 text-[11px]">
+          {data ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Popover open={branchOpen} onOpenChange={setBranchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    role="combobox"
+                    aria-label="Current branch"
+                    aria-expanded={branchOpen}
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    className="min-w-0 flex-1 justify-start px-1 text-xs"
+                  >
+                    <GitBranch className="text-muted-foreground" />
+                    <span className="truncate" title={data.branch}>
+                      {data.branch || "Detached HEAD"}
+                    </span>
+                    <ChevronDown className="text-muted-foreground ml-auto" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-0">
+                  <Command>
+                    <CommandInput placeholder="Find a branch..." />
+                    {data.files.length > 0 ? (
+                      <p className="text-muted-foreground border-b px-3 py-2 text-xs">
+                        Commit or clear your changes before switching branches.
+                      </p>
+                    ) : null}
+                    <CommandList>
+                      <CommandEmpty>No branches found.</CommandEmpty>
+                      <CommandGroup heading="Local branches">
+                        {data.branches.map((branch) => (
+                          <CommandItem
+                            key={branch}
+                            value={branch}
+                            disabled={data.files.length > 0 && branch !== data.branch}
+                            onSelect={() => {
+                              setBranchOpen(false)
+                              if (branch !== data.branch) {
+                                startTransition(async () => {
+                                  try {
+                                    await localGit(workspaceId, tree.id, {
+                                      operation: "checkout",
+                                      ref: branch,
+                                      expected_head: data.head,
+                                    })
+                                    setSelected(undefined)
+                                    await status.refetch()
+                                  } catch (error) {
+                                    toast.error(
+                                      error instanceof Error
+                                        ? error.message
+                                        : "Could not switch branch"
+                                    )
+                                  }
+                                })
+                              }
+                            }}
+                          >
+                            <GitBranch />
+                            <span className="truncate" title={branch}>
+                              {branch}
+                            </span>
+                            {branch === data.branch ? <Check className="ml-auto" /> : null}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <button
+                className="text-muted-foreground hover:text-foreground font-mono text-xs"
+                aria-label="Copy commit hash"
+                title="Copy commit hash"
+                onClick={() =>
+                  void navigator.clipboard
+                    .writeText(data.head)
+                    .then(() => toast.success("Commit hash copied"))
+                    .catch(() => toast.error("Could not copy commit hash"))
+                }
+              >
+                {data.head.slice(0, 7)}
+              </button>
+            </div>
+          ) : (
+            <span className="min-w-0 flex-1 truncate" title={tree.branch}>
+              {tree.branch}
+            </span>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label="Copy worktree path"
+                variant="ghost"
+                size="icon-xs"
+                onClick={() =>
+                  void navigator.clipboard
+                    .writeText(tree.directory)
+                    .then(() => toast.success("Worktree path copied"))
+                    .catch(() => toast.error("Could not copy path"))
+                }
+              >
+                <FolderCode />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-sm break-all">
+              {thread.repository} · {tree.shared ? "Shared checkout" : "Worktree"}
+              <br />
+              {tree.directory}
+            </TooltipContent>
+          </Tooltip>
         </footer>
       </aside>
       <nav
@@ -925,7 +975,7 @@ export function CodingWorkspace({
                 aria-pressed={open && tab === id}
                 variant={open && tab === id ? "secondary" : "ghost"}
                 size="icon"
-                className="relative"
+                className={cn("relative", open && tab === id && "text-primary")}
                 onClick={() => {
                   setOpen(tab === id ? !open : true)
                   setTab(id)
@@ -975,35 +1025,41 @@ function SessionContext({ thread, workspaceId }: { thread: CodingThread; workspa
       refetchInterval: 5000,
     })
   )
-  const assistants =
-    context.data?.messages.flatMap((message) =>
-      message.info.role === "assistant" ? [message.info] : []
-    ) ?? []
+  if (context.isPending) {
+    return (
+      <div role="status" className="text-muted-foreground flex items-center gap-2 p-4 text-sm">
+        <Spinner /> Loading session...
+      </div>
+    )
+  }
+  if (context.isError) {
+    return (
+      <div
+        role="alert"
+        className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-3 p-4 text-sm"
+      >
+        Could not load session context.
+        <Button size="sm" variant="outline" onClick={() => void context.refetch()}>
+          Retry
+        </Button>
+      </div>
+    )
+  }
+  const assistants = context.data.messages.flatMap((message) =>
+    message.info.role === "assistant" ? [message.info] : []
+  )
   const last = assistants.at(-1)
   const cost = assistants.reduce((sum, message) => sum + message.cost, 0)
-  const todos = context.data?.todos ?? []
+  const todos = context.data.todos
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      {context.isPending ? (
-        <div role="status" className="text-muted-foreground flex items-center gap-2 p-4 text-sm">
-          <Spinner /> Loading session...
-        </div>
-      ) : null}
-      {context.error ? (
-        <div role="alert" className="text-destructive p-4 text-sm">
-          Could not load session context.{" "}
-          <Button size="sm" variant="outline" onClick={() => void context.refetch()}>
-            Retry
-          </Button>
-        </div>
-      ) : null}
       <section className="border-b p-4">
         <h3 className="mb-3 text-xs font-semibold">Session</h3>
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-xs">
           <dt className="text-muted-foreground">Agent</dt>
           <dd className="truncate text-right">{thread.worktree.agent_name}</dd>
           <dt className="text-muted-foreground">Messages</dt>
-          <dd className="text-right tabular-nums">{context.data?.messages.length ?? 0}</dd>
+          <dd className="text-right tabular-nums">{context.data.messages.length}</dd>
           <dt className="text-muted-foreground">Model</dt>
           <dd className="truncate text-right" title={last?.modelID}>
             {last?.modelID ?? "No response yet"}

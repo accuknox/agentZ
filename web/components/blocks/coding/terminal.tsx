@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Tabs as TabsPrimitive } from "radix-ui"
 import { useTheme } from "next-themes"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
@@ -10,7 +11,7 @@ import { toast } from "sonner"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { getGatewayBaseURL, getGatewayToken } from "@/lib/gateway/browser-runtime"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Spinner } from "@/components/ui/spinner"
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { cn } from "@/lib/utils"
@@ -22,7 +23,6 @@ type TerminalProps = {
   directory: string
   workspaceId: string
   visible: boolean
-  branch: string
 }
 
 export function CodingTerminal({
@@ -31,7 +31,6 @@ export function CodingTerminal({
   directory,
   workspaceId,
   visible,
-  branch,
 }: TerminalProps) {
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState<string>()
@@ -51,8 +50,11 @@ export function CodingTerminal({
   const create = useMutation({
     mutationFn: async () => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
+      const sessions = terminals.data ?? []
+      let number = sessions.length + 1
+      while (sessions.some((pty) => pty.title === `${title} · Terminal ${number}`)) number++
       const { data } = await client.pty.create(
-        { directory, cwd: directory, title },
+        { directory, cwd: directory, title: `${title} · Terminal ${number}` },
         { throwOnError: true }
       )
       return data
@@ -68,48 +70,61 @@ export function CodingTerminal({
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       await client.pty.remove({ ptyID, directory }, { throwOnError: true })
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: async (_, ptyID) => {
+      const sessions = terminals.data ?? []
+      const index = sessions.findIndex((pty) => pty.id === ptyID)
+      if (active?.id === ptyID) setSelected(sessions[index + 1]?.id ?? sessions[index - 1]?.id)
+      await queryClient.invalidateQueries({ queryKey })
+    },
     onError: () => toast.error("Could not close terminal"),
   })
   return (
     <Tabs value={active?.id ?? ""} onValueChange={setSelected} className="h-full min-h-0 gap-0">
-      <div className="flex shrink-0 items-center border-b px-2">
-        <TabsList
+      <div className="bg-muted/20 flex h-9 shrink-0 items-center gap-1 border-b pr-1">
+        <TabsPrimitive.List
           aria-label="Terminals"
-          variant="line"
-          className="h-auto! min-w-0 flex-1 justify-start overflow-x-auto"
+          className="flex h-full min-w-0 flex-1 scrollbar-none items-stretch overflow-x-auto overflow-y-hidden"
         >
-          {terminals.data?.map((pty, index) => (
-            <div
-              key={pty.id}
-              className={cn(
-                "flex shrink-0 items-center border-b-2",
-                active?.id === pty.id ? "border-primary" : "border-transparent"
-              )}
-            >
-              <TabsTrigger value={pty.id} className="h-10 px-2 text-xs">
-                <TerminalSquare className="size-3.5" />
-                Terminal {index + 1}
-              </TabsTrigger>
-              <Button
-                aria-label={`Close terminal ${index + 1}`}
-                title="End terminal session"
-                size="icon-xs"
-                variant="ghost"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(pty.id)}
+          {terminals.data?.map((pty, index) => {
+            const label =
+              pty.title === title ? `Terminal ${index + 1}` : pty.title.slice(title.length + 3)
+            return (
+              <div
+                key={pty.id}
+                data-active={active?.id === pty.id}
+                className="group/terminal text-muted-foreground hover:text-foreground data-[active=true]:bg-background data-[active=true]:text-foreground after:bg-primary border-border/60 relative flex max-w-48 min-w-32 shrink-0 items-center border-r pr-1 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:opacity-0 data-[active=true]:after:opacity-100"
               >
-                <X />
-              </Button>
-            </div>
-          ))}
-        </TabsList>
+                <TabsPrimitive.Trigger
+                  value={pty.id}
+                  className="focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                  onFocus={(event) =>
+                    event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" })
+                  }
+                >
+                  <TerminalSquare className="size-3.5" />
+                  <span className="truncate">{label}</span>
+                </TabsPrimitive.Trigger>
+                <Button
+                  aria-label={`Close ${label}`}
+                  title="End terminal session"
+                  className="opacity-60 hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 sm:group-focus-within/terminal:opacity-100 sm:group-hover/terminal:opacity-100"
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(pty.id)}
+                >
+                  <X />
+                </Button>
+              </div>
+            )
+          })}
+        </TabsPrimitive.List>
         <Button
           aria-label="New terminal"
           title="New terminal"
           size="icon-sm"
           variant="ghost"
-          disabled={create.isPending}
+          disabled={create.isPending || terminals.isPending || terminals.isError}
           onClick={() => create.mutate()}
         >
           {create.isPending ? <Spinner /> : <Plus />}
@@ -128,7 +143,7 @@ export function CodingTerminal({
           </Button>
         </div>
       ) : null}
-      {terminals.data?.length === 0 ? (
+      {!terminals.error && terminals.data?.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -139,7 +154,11 @@ export function CodingTerminal({
               Terminal sessions keep running when you switch tools or close the panel.
             </EmptyDescription>
           </EmptyHeader>
-          <Button size="sm" disabled={create.isPending} onClick={() => create.mutate()}>
+          <Button
+            size="sm"
+            disabled={create.isPending || terminals.isPending || terminals.isError}
+            onClick={() => create.mutate()}
+          >
             <Plus />
             New terminal
           </Button>
@@ -158,7 +177,6 @@ export function CodingTerminal({
             workspaceId={workspaceId}
             ptyID={pty.id}
             visible={visible && active?.id === pty.id}
-            branch={branch}
           />
         </TabsContent>
       ))}
@@ -172,7 +190,6 @@ function TerminalSession({
   workspaceId,
   ptyID,
   visible,
-  branch,
 }: Omit<TerminalProps, "sessionId"> & { ptyID: string }) {
   const { resolvedTheme } = useTheme()
   const element = useRef<HTMLDivElement>(null)
@@ -195,7 +212,14 @@ function TerminalSession({
     return () => cancelAnimationFrame(frame)
   }, [resolvedTheme, attempt])
   useEffect(() => {
-    if (visible) terminalRef.current?.focus()
+    if (!visible) return
+    // Let the tab's pointer event finish before handing focus to the shell.
+    const frame = requestAnimationFrame(() => {
+      if (!document.activeElement?.matches('[role="tab"]:focus-visible')) {
+        terminalRef.current?.focus()
+      }
+    })
+    return () => cancelAnimationFrame(frame)
   }, [visible])
   useEffect(() => {
     const container = element.current
@@ -286,17 +310,16 @@ function TerminalSession({
   }, [agentName, directory, workspaceId, ptyID, attempt])
   return (
     <div className="bg-background flex h-full min-h-0 flex-col">
-      <div className="text-muted-foreground flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs">
-        <span className="min-w-0 flex-1 truncate font-mono" title={directory}>
-          {branch}
-        </span>
+      <div className="text-muted-foreground border-border/60 order-last flex h-8 shrink-0 items-center gap-2 border-t px-2 text-[11px]">
         <span
           className={cn(
             "size-1.5 rounded-full",
-            status === "Connected" ? "bg-emerald-400" : "bg-zinc-500"
+            status === "Connected" ? "bg-emerald-500" : "bg-muted-foreground"
           )}
         />
-        <span role="status">{status}</span>
+        <span role="status" className="flex-1">
+          {status}
+        </span>
         <Button
           aria-label="Clear terminal"
           title="Clear terminal"
@@ -309,6 +332,7 @@ function TerminalSession({
         <Button
           aria-label="Reconnect terminal"
           title="Reconnect terminal"
+          disabled={status === "Connecting..."}
           size="icon-xs"
           variant="ghost"
           onClick={() => setAttempt((value) => value + 1)}
@@ -318,7 +342,7 @@ function TerminalSession({
       </div>
       <div
         ref={element}
-        className="bg-background text-foreground min-h-0 flex-1 overflow-hidden px-2 pb-2 font-mono [font-stretch:normal]"
+        className="bg-background text-foreground min-h-0 flex-1 overflow-hidden p-2 font-mono [font-stretch:normal]"
       />
     </div>
   )

@@ -754,7 +754,16 @@ func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree g
 		return result, errors.New(failure.Message)
 	}
 	err = json.NewDecoder(io.LimitReader(response.Body, 90<<20)).Decode(&result)
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	// Existing sandboxes can outlive a gateway upgrade. Legacy Git responses
+	// lack the revision needed for review and safe staging; do not report them
+	// as clean checkouts or send their empty revision back in mutations.
+	if git.Operation != gatewayapi.CodingGitRemove && result.Revision == "" {
+		return result, errors.New("sandbox filesystem service is out of date. Update the agent image and restart the sandbox to use Git review.")
+	}
+	return result, nil
 }
 
 // enforceCodingSession prevents the generic engine routes from bypassing

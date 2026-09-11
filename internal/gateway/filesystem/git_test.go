@@ -1,7 +1,12 @@
 package filesystem
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,6 +82,48 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	result = run(req)
 	if len(result.Files) != 2 {
 		t.Fatalf("want two changes: %+v", result.Files)
+	}
+	// Multiple untracked files use an isolated index. Keep literal paths,
+	// symlinks and patch-looking file contents intact without staging anything.
+	fixtures := map[string]string{
+		"binary":            "a\x00b",
+		"empty":             "",
+		"looks-like-header": "diff --git a/fake b/fake\n@@ -1 +1 @@\n--- old\n+++ new\n",
+	}
+	for name, content := range fixtures {
+		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("space and\nnewline.txt", filepath.Join(directory, "link")); err != nil {
+		t.Fatal(err)
+	}
+	index := git(directory, "rev-parse", "--git-path", "index")
+	before, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitAll)}
+	review := run(req)
+	if review.Patches == nil || len(*review.Patches) != 6 {
+		t.Fatalf("lost files or split on patch-looking contents: %+v", review.Patches)
+	}
+	for _, patch := range *review.Patches {
+		if patch.Path == "binary" && !patch.Binary {
+			t.Fatal("binary metadata missing")
+		}
+		if patch.Path == "looks-like-header" && !strings.Contains(patch.Patch, "+diff --git a/fake b/fake") {
+			t.Fatal("rewrote patch-looking file contents")
+		}
+	}
+	after, err := os.ReadFile(index)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("review changed the real index", err)
+	}
+	for _, name := range []string{"binary", "empty", "looks-like-header", "link"} {
+		if err := os.Remove(filepath.Join(directory, name)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Paths: new([]string{"café.md", "space and\nnewline.txt"}), ExpectedHead: &result.Head}
 	result = run(req)
@@ -246,5 +293,111 @@ func TestGitReviewHunksAndStashes(t *testing.T) {
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashApply, Stash: &oid}
 	if _, err := s.runGit(t.Context(), req); err == nil {
 		t.Fatal("accepted removed stash identity")
+	}
+}
+
+type gitReviewFixture struct {
+	name    string
+	files   int
+	lines   int
+	tracked bool
+	sparse  bool
+	status  bool
+}
+
+// BenchmarkGitReview includes Git execution, canonical patches and HTTP JSON.
+// Fixture creation and the first filesystem-cache warmup are outside the timer.
+func BenchmarkGitReview(b *testing.B) {
+	for _, fixture := range []gitReviewFixture{
+		{name: "status_1000_untracked", files: 1000, lines: 1, status: true},
+		{name: "untracked_1", files: 1, lines: 1},
+		{name: "untracked_100", files: 100, lines: 1},
+		{name: "untracked_1000", files: 1000, lines: 1},
+		{name: "tracked_1000", files: 1000, lines: 1, tracked: true},
+		{name: "added_100k", files: 1, lines: 100000},
+		{name: "replaced_100k", files: 1, lines: 100000, tracked: true},
+		{name: "sparse_100k", files: 1, lines: 100000, tracked: true, sparse: true},
+	} {
+		b.Run(fixture.name, func(b *testing.B) {
+			home := b.TempDir()
+			dir := filepath.Join(home, "Projects/benchmark/repo")
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				b.Fatal(err)
+			}
+			git := func(args ...string) {
+				b.Helper()
+				cmd := exec.CommandContext(b.Context(), "git", args...)
+				cmd.Dir = dir
+				cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=Benchmark", "GIT_AUTHOR_EMAIL=benchmark@example.invalid", "GIT_COMMITTER_NAME=Benchmark", "GIT_COMMITTER_EMAIL=benchmark@example.invalid")
+				if out, err := cmd.CombinedOutput(); err != nil {
+					b.Fatalf("git %v: %v: %s", args, err, out)
+				}
+			}
+			write := func(content string) {
+				b.Helper()
+				for i := range fixture.files {
+					name := filepath.Join(dir, fmt.Sprintf("file-%04d.txt", i))
+					if err := os.WriteFile(name, []byte(content), 0600); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+			git("init", "-b", "main")
+			git("commit", "--allow-empty", "-m", "Baseline")
+			var content strings.Builder
+			for i := range fixture.lines {
+				fmt.Fprintf(&content, "line %06d: baseline text\n", i+1)
+			}
+			write(content.String())
+			if fixture.tracked {
+				git("add", ".")
+				git("commit", "-m", "Tracked baseline")
+				changed := strings.ReplaceAll(content.String(), "baseline", "modified")
+				if fixture.sparse {
+					changed = strings.ReplaceAll(content.String(), "line 000005", "line early edit")
+					changed = strings.ReplaceAll(changed, "line 099990", "line late edit")
+				}
+				write(changed)
+			}
+			root, err := os.OpenRoot(home)
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer root.Close()
+			s := &service{root: root}
+			op := gatewayapi.CodingGitDiff
+			if fixture.status {
+				op = gatewayapi.CodingGitStatus
+			}
+			body, err := json.Marshal(GitRequest{Root: "Projects/benchmark", Directory: "Projects/benchmark/repo", Git: gatewayapi.CodingGitRequest{Operation: op, Comparison: new(gatewayapi.CodingGitAll)}})
+			if err != nil {
+				b.Fatal(err)
+			}
+			warm := httptest.NewRecorder()
+			s.git(warm, httptest.NewRequestWithContext(b.Context(), http.MethodPost, "/git", bytes.NewReader(body)))
+			if warm.Code != http.StatusOK {
+				b.Fatal(warm.Body.String())
+			}
+			var result gatewayapi.CodingGitResult
+			if err := json.Unmarshal(warm.Body.Bytes(), &result); err != nil {
+				b.Fatal(err)
+			}
+			if len(result.Files) != fixture.files || (!fixture.status && (result.Patches == nil || len(*result.Patches) != fixture.files)) {
+				b.Fatal("incomplete fixture comparison")
+			}
+			if fixture.lines == 100000 && !fixture.sparse && !strings.Contains(warm.Body.String(), "line 100000") {
+				b.Fatal("comparison truncated the final line")
+			}
+			size := warm.Body.Len()
+			b.SetBytes(int64(size))
+			b.ReportAllocs()
+			for b.Loop() {
+				response := httptest.NewRecorder()
+				s.git(response, httptest.NewRequestWithContext(b.Context(), http.MethodPost, "/git", bytes.NewReader(body)))
+				if response.Code != http.StatusOK || response.Body.Len() != size {
+					b.Fatal("comparison changed or failed during benchmark")
+				}
+			}
+		})
 	}
 }

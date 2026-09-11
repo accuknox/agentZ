@@ -29,6 +29,7 @@ import {
   RefreshCw,
   Save,
   Scan,
+  Search,
   Shrink,
   Trash2,
   X,
@@ -103,6 +104,7 @@ const SpreadsheetPreview = dynamic(
 )
 
 type FilesWorkspaceProps = {
+  embedded?: boolean
   agentName: string
   onPreviewerOpenChange: (open: boolean) => void
   sessionId?: string
@@ -210,6 +212,7 @@ function agentFilesQueryOptions(
 }
 
 export function FilesWorkspace({
+  embedded = false,
   agentName,
   onPreviewerOpenChange,
   sessionId,
@@ -220,8 +223,9 @@ export function FilesWorkspace({
 
   return (
     <AnimatePresence initial={false}>
-      {filesOpen ? (
+      {filesOpen || embedded ? (
         <OpenFilesWorkspace
+          embedded={embedded}
           agentName={agentName}
           key={agentName}
           onPreviewerOpenChange={onPreviewerOpenChange}
@@ -234,6 +238,7 @@ export function FilesWorkspace({
 }
 
 function OpenFilesWorkspace({
+  embedded = false,
   agentName,
   onPreviewerOpenChange,
   sessionId,
@@ -250,19 +255,26 @@ function OpenFilesWorkspace({
   const workspace = React.useRef<HTMLElement>(null)
   const resize = React.useRef<{ startWidth: number; startX: number }>(null)
   const width = editorOpen ? workspaceWidth : explorerWidth
-  const renderedWidth = expanded ? expandedWidth : width
+  const renderedWidth = expanded || embedded ? expandedWidth : width
+  const treeWidth = embedded
+    ? editorOpen
+      ? renderedWidth >= 700
+        ? 240
+        : 0
+      : renderedWidth
+    : explorerWidth
 
   React.useEffect(() => {
     const element = workspace.current
     if (!element) return
 
     const observer = new ResizeObserver(([entry]) => {
-      if (!entry || !expanded) return
+      if (!entry || (!expanded && !embedded) || entry.contentRect.width === 0) return
       setExpandedWidth(entry.contentRect.width)
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [expanded])
+  }, [expanded, embedded])
 
   React.useEffect(() => () => onPreviewerOpenChange(false), [onPreviewerOpenChange])
 
@@ -309,19 +321,23 @@ function OpenFilesWorkspace({
   return (
     <motion.aside
       ref={workspace}
-      animate={{ width: expanded ? "100%" : width, x: 0 }}
+      animate={{ width: expanded || embedded ? "100%" : width, x: 0 }}
       className={cn(
-        "bg-background hidden h-full min-h-0 shrink-0 overflow-hidden shadow-sm lg:block",
-        expanded ? "absolute inset-0 z-40" : "relative border-l"
+        "bg-background h-full min-h-0 shrink-0 overflow-hidden",
+        embedded
+          ? "relative w-full"
+          : expanded
+            ? "absolute inset-0 z-40 hidden lg:block"
+            : "relative hidden border-l lg:block"
       )}
       exit={{ width: 0, x: "100%" }}
-      initial={{ width: 0, x: "100%" }}
+      initial={embedded ? false : { width: 0, x: "100%" }}
       transition={{
         duration: reducedMotion || resizing || layoutChanging ? 0 : 0.2,
         ease: "linear",
       }}
     >
-      {!expanded ? (
+      {!expanded && !embedded ? (
         <div
           aria-label="Resize files workspace"
           aria-orientation="vertical"
@@ -400,7 +416,8 @@ function OpenFilesWorkspace({
           <WorkspaceBody
             agentName={agentName}
             editorOpen={editorOpen}
-            explorerWidth={explorerWidth}
+            explorerWidth={treeWidth}
+            embedded={embedded}
             expanded={expanded}
             onEditorOpenChange={handleEditorOpenChange}
             onExpandedChange={toggleExpanded}
@@ -417,6 +434,7 @@ function OpenFilesWorkspace({
 }
 
 function WorkspaceBody({
+  embedded,
   agentName,
   editorOpen,
   explorerWidth,
@@ -429,6 +447,7 @@ function WorkspaceBody({
   workspaceWidth,
   workspaceId,
 }: {
+  embedded: boolean
   agentName: string
   editorOpen: boolean
   explorerWidth: number
@@ -442,9 +461,30 @@ function WorkspaceBody({
   workspaceId: string
 }) {
   const queryClient = useQueryClient()
-  const workspaceKey = `${agentName}:${root}`
+  const workspaceKey = `${workspaceId}:${agentName}:${root}`
   const rootPath = root === "/home/agentz" ? "." : root.slice("/home/agentz/".length)
   const editorWidth = workspaceWidth - explorerWidth - 4
+  const [search, setSearch] = React.useState("")
+  const [searchQuery, setSearchQuery] = React.useState("")
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(search.trim()), 200)
+    return () => window.clearTimeout(timer)
+  }, [search])
+  const results = useQuery(
+    queryOptions({
+      queryKey: ["opencode-file-search", workspaceId, agentName, root, searchQuery],
+      queryFn: async ({ signal }) => {
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
+        const { data } = await client.find.files(
+          { directory: root, query: searchQuery, type: "file", limit: 100 },
+          { signal, throwOnError: true }
+        )
+        return data
+      },
+      enabled: searchQuery.length > 0,
+      staleTime: 10_000,
+    })
+  )
   const filesQueryKey = agentFilesQueryOptions(
     agentName,
     workspaceId,
@@ -859,22 +899,24 @@ function WorkspaceBody({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1 px-1.5">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        aria-label={expanded ? "Collapse editor" : "Expand editor"}
-                        className="shrink-0"
-                        onClick={onExpandedChange}
-                        size="icon-sm"
-                        variant="ghost"
-                      >
-                        {expanded ? <Shrink /> : <Scan />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {expanded ? "Collapse editor" : "Expand editor"}
-                    </TooltipContent>
-                  </Tooltip>
+                  {!embedded ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          aria-label={expanded ? "Collapse editor" : "Expand editor"}
+                          className="shrink-0"
+                          onClick={onExpandedChange}
+                          size="icon-sm"
+                          variant="ghost"
+                        >
+                          {expanded ? <Shrink /> : <Scan />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {expanded ? "Collapse editor" : "Expand editor"}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -914,7 +956,7 @@ function WorkspaceBody({
         ) : null}
       </AnimatePresence>
 
-      {editorOpen ? (
+      {editorOpen && explorerWidth > 0 && !embedded ? (
         <div
           aria-label="Resize file explorer"
           aria-orientation="vertical"
@@ -959,8 +1001,16 @@ function WorkspaceBody({
         />
       ) : null}
 
-      <section className="ml-auto flex min-h-0 shrink-0 flex-col" style={{ width: explorerWidth }}>
-        <div className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-1 pr-12 pl-2">
+      <section
+        className={cn("ml-auto min-h-0 shrink-0 flex-col", explorerWidth === 0 ? "hidden" : "flex")}
+        style={{ width: explorerWidth }}
+      >
+        <div
+          className={cn(
+            "flex h-(--workspace-topbar-height) shrink-0 items-center gap-1 pl-2",
+            embedded ? "pr-2" : "pr-12"
+          )}
+        >
           <span className="min-w-0 flex-1 truncate text-sm font-medium">Explorer</span>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1021,34 +1071,100 @@ function WorkspaceBody({
             </span>
           </div>
         ) : null}
+        <div className="relative mx-2 mb-2">
+          <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
+          <Input
+            aria-label="Find a file"
+            placeholder="Find a file..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setSearch("")
+            }}
+            className="h-8 pr-7 pl-8 text-xs"
+          />
+          {search ? (
+            <Button
+              aria-label="Clear file search"
+              size="icon-xs"
+              variant="ghost"
+              className="absolute top-1 right-1"
+              onClick={() => setSearch("")}
+            >
+              <X />
+            </Button>
+          ) : null}
+        </div>
         <Separator />
         <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
-          <FileTree
-            aria-busy={movePending}
-            className="rounded-none border-0 bg-transparent"
-            onDragOver={(event) => {
-              if (movePending || !event.dataTransfer.types.includes(fileDragType)) return
-              event.preventDefault()
-              event.dataTransfer.dropEffect = "move"
-            }}
-            onDrop={(event) => {
-              event.preventDefault()
-              if (movePending) return
-              moveFile(event.dataTransfer.getData(fileDragType), rootPath)
-            }}
-            onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
-            selectedPath={selected ?? undefined}
-          >
-            <DirectoryTree
-              agentName={agentName}
-              moveOperation={moveOperation}
-              onAction={setAction}
-              onMove={moveFile}
-              path={rootPath}
-              root={root}
-              workspaceId={workspaceId}
-            />
-          </FileTree>
+          {search.trim() ? (
+            <div aria-label="File search results">
+              {results.isFetching || search.trim() !== searchQuery ? (
+                <div
+                  role="status"
+                  className="text-muted-foreground flex items-center gap-2 p-3 text-xs"
+                >
+                  <Spinner /> Searching files...
+                </div>
+              ) : results.error ? (
+                <Button variant="ghost" size="sm" onClick={() => void results.refetch()}>
+                  Search failed. Retry
+                </Button>
+              ) : results.data?.length === 0 ? (
+                <p className="text-muted-foreground p-3 text-xs">No matching files.</p>
+              ) : (
+                results.data?.map((path) => (
+                  <button
+                    key={path}
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+                    onClick={() =>
+                      openFile({
+                        name: path.slice(path.lastIndexOf("/") + 1),
+                        path: rootPath === "." ? path : `${rootPath}/${path}`,
+                      })
+                    }
+                  >
+                    <FileTypeIcon name={path} />
+                    <span className="truncate" title={path}>
+                      {path}
+                    </span>
+                  </button>
+                ))
+              )}
+              {results.data?.length === 100 ? (
+                <p className="text-muted-foreground p-3 text-xs">
+                  First 100 matches. Refine your search to find more.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <FileTree
+              aria-busy={movePending}
+              className="rounded-none border-0 bg-transparent"
+              onDragOver={(event) => {
+                if (movePending || !event.dataTransfer.types.includes(fileDragType)) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = "move"
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                if (movePending) return
+                moveFile(event.dataTransfer.getData(fileDragType), rootPath)
+              }}
+              onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
+              selectedPath={selected ?? undefined}
+            >
+              <DirectoryTree
+                agentName={agentName}
+                moveOperation={moveOperation}
+                onAction={setAction}
+                onMove={moveFile}
+                path={rootPath}
+                root={root}
+                workspaceId={workspaceId}
+              />
+            </FileTree>
+          )}
         </div>
       </section>
 

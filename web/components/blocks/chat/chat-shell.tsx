@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { cn } from "@/lib/utils"
 
 type ChatShellProps = {
   agentName: string
@@ -34,8 +33,8 @@ type ChatShellProps = {
   workspacePath: string
 }
 
-const CodingReview = dynamic(
-  () => import("@/components/blocks/coding/review").then((module) => module.CodingReview),
+const CodingWorkspace = dynamic(
+  () => import("@/components/blocks/coding/workspace").then((module) => module.CodingWorkspace),
   { ssr: false }
 )
 
@@ -59,9 +58,6 @@ export function ChatShell({
   workspaceId,
   workspacePath,
 }: ChatShellProps): React.JSX.Element {
-  const [reviewOpen, setReviewOpen] = useState(Boolean(codingThread))
-  const filesOpen = useFileWorkspace().openAgent === agentName
-  const showReview = Boolean(codingThread) && reviewOpen && !filesOpen
   const [previewerOpen, setPreviewerOpen] = useState(false)
   const [promotedSession, setPromotedSession] = useState<{
     chatKey: string
@@ -91,8 +87,8 @@ export function ChatShell({
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
-      <SessionFileControl agentName={agentName} />
-      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", showReview && "hidden lg:flex")}>
+      {!codingThread ? <SessionFileControl agentName={agentName} /> : null}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 pr-12 pl-3">
           <SidebarTrigger className="shrink-0" />
           <span className="text-muted-foreground max-w-1/3 truncate text-sm font-medium">
@@ -102,16 +98,6 @@ export function ChatShell({
             /
           </span>
           <h1 className="min-w-0 truncate text-sm font-semibold">{title}</h1>
-          {codingThread ? (
-            <Button
-              className="ml-auto"
-              variant={reviewOpen ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setReviewOpen(!reviewOpen)}
-            >
-              Code
-            </Button>
-          ) : null}
         </header>
         <div className="@container/chat relative min-w-0 flex-1">
           <Chat
@@ -148,19 +134,22 @@ export function ChatShell({
           />
         </div>
       </div>
-      {codingThread && showReview ? (
-        <CodingReview
+      {codingThread ? (
+        <CodingWorkspace
           thread={codingThread}
           workspaceId={workspaceId}
-          onClose={() => setReviewOpen(false)}
+          key={codingThread.id}
+          onPreviewerOpenChange={setPreviewerOpen}
         />
       ) : null}
-      <FilesWorkspace
-        agentName={agentName}
-        onPreviewerOpenChange={setPreviewerOpen}
-        sessionId={activeSessionId}
-        workspaceId={workspaceId}
-      />
+      {!codingThread ? (
+        <FilesWorkspace
+          agentName={agentName}
+          onPreviewerOpenChange={setPreviewerOpen}
+          sessionId={activeSessionId}
+          workspaceId={workspaceId}
+        />
+      ) : null}
     </div>
   )
 }

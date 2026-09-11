@@ -15,7 +15,7 @@ export async function withTrustedRepository<T>(
   token: string,
   action: (git: {
     run: (...args: string[]) => Promise<string>
-    remote: (command: "fetch" | "push" | "ls-remote", ...args: string[]) => Promise<string>
+    remote: (command: "fetch" | "push", ...args: string[]) => Promise<string>
     importBundle: (bundle: string) => Promise<void>
     exportBundle: () => Promise<string>
     commit: (
@@ -75,7 +75,7 @@ export async function withTrustedRepository<T>(
       throw new Error("Git operation failed. Refresh the checkout and retry.")
     }
   }
-  const remote = async (command: "fetch" | "push" | "ls-remote", ...args: string[]) => {
+  const remote = async (command: "fetch" | "push", ...args: string[]) => {
     try {
       // Credentials exist only in this trusted child's environment, never in
       // argv, Git config, the bundle, or any agent process.

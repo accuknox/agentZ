@@ -241,8 +241,6 @@ export const githubConnections = pgTable("github_connections", {
     .references(() => users.id, { onDelete: "cascade" }),
   githubUserId: bigint("github_user_id", { mode: "number" }).notNull(),
   login: text("login").notNull(),
-  name: text("name").notNull(),
-  email: text("email").notNull(),
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

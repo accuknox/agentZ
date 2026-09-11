@@ -10,31 +10,48 @@ import {
   getCodingProject,
   getCodingThread,
   runCodingGit,
+  suggestCodingText,
   type CodingGitRequest,
   type CreateCodingThreadRequest,
 } from "@/lib/gateway/client"
 import { zCodingGitRequest, zCreateCodingThreadRequest } from "@/lib/gateway/client/zod.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
-export async function githubRepositories() {
+export async function githubRepositories(query: string, page = 1) {
+  z.string().max(256).parse(query)
+  z.number().int().positive().parse(page)
   return withGitHub(async ({ octokit }) => {
-    const installations = await octokit.paginate(
-      octokit.apps.listInstallationsForAuthenticatedUser,
-      { per_page: 100 }
-    )
-    const repositories = await Promise.all(
-      installations.map((installation) =>
-        octokit.paginate(octokit.apps.listInstallationReposForAuthenticatedUser, {
-          installation_id: installation.id,
-          per_page: 100,
-        })
-      )
-    )
-    return repositories.flat().map((repository) => ({
-      id: repository.id,
-      name: repository.full_name,
-      private: repository.private,
-    }))
+    if (query) {
+      if (page > 20) throw new Error("Narrow your repository search")
+      const { data } = await octokit.search.repos({
+        q: `${query} in:name fork:true`,
+        per_page: 50,
+        page,
+      })
+      return {
+        repositories: data.items.map((repository) => ({
+          id: repository.id,
+          name: repository.full_name,
+          private: repository.private,
+        })),
+        nextPage: page * 50 < Math.min(data.total_count, 1000) ? page + 1 : null,
+        limited: data.incomplete_results || data.total_count > 1000,
+      }
+    }
+    const { data, headers } = await octokit.repos.listForAuthenticatedUser({
+      sort: "updated",
+      per_page: 50,
+      page,
+    })
+    return {
+      repositories: data.map((repository) => ({
+        id: repository.id,
+        name: repository.full_name,
+        private: repository.private,
+      })),
+      nextPage: headers.link?.includes('rel="next"') ? page + 1 : null,
+      limited: false,
+    }
   })
 }
 
@@ -119,7 +136,7 @@ const remoteOperation = z.discriminatedUnion("operation", [
     operation: z.literal("commit"),
     head: z.string().regex(/^[a-f0-9]{40,64}$/),
     tree: z.string().regex(/^[a-f0-9]{40,64}$/),
-    message: z.string().trim().min(1).max(20_000),
+    message: z.string().trim().max(20_000),
   }),
   z.object({
     operation: z.literal("push"),
@@ -140,6 +157,15 @@ export async function remoteCodingGit(
   const thread = await getCodingThread({ client, path: { agentName, sessionId } })
   if (thread.error) throw new Error(thread.error.message)
   const worktreeId = thread.data.worktree.id
+  if (operation.operation === "commit" && !operation.message) {
+    const suggestion = await suggestCodingText({
+      client,
+      path: { agentName, sessionId },
+      body: { purpose: "commit", expected_tree: operation.tree },
+    })
+    if (suggestion.error) throw new Error(suggestion.error.message)
+    operation.message = suggestion.data.text
+  }
   const exported = await localCodingGit(workspaceId, worktreeId, {
     operation: "export",
     expected_head: operation.head,
@@ -205,7 +231,13 @@ export async function remoteCodingGit(
   })
 }
 
-export async function codingGitHubInfo(workspaceId: string, agentName: string, sessionId: string) {
+export async function codingGitHubInfo(
+  workspaceId: string,
+  agentName: string,
+  sessionId: string,
+  page = 1
+) {
+  z.number().int().positive().parse(page)
   const thread = await getCodingThread({
     client: getGatewayServerClient(workspaceId),
     path: { agentName, sessionId },
@@ -218,8 +250,8 @@ export async function codingGitHubInfo(workspaceId: string, agentName: string, s
     })
     const repo = { owner: repository.owner.login, repo: repository.name }
     const [pulls, issues, branch] = await Promise.all([
-      octokit.paginate(octokit.pulls.list, { ...repo, per_page: 100 }),
-      octokit.paginate(octokit.issues.listForRepo, { ...repo, per_page: 100 }),
+      octokit.pulls.list({ ...repo, per_page: 50, page }),
+      octokit.issues.listForRepo({ ...repo, per_page: 50, page }),
       octokit.git
         .getRef({ ...repo, ref: `heads/${status.branch}` })
         .then((result) => result.data.object.sha)
@@ -231,12 +263,16 @@ export async function codingGitHubInfo(workspaceId: string, agentName: string, s
     return {
       branchHead: branch,
       defaultBranch: repository.default_branch,
-      pulls: pulls.map((pull) => ({
+      nextPage:
+        pulls.headers.link?.includes('rel="next"') || issues.headers.link?.includes('rel="next"')
+          ? page + 1
+          : null,
+      pulls: pulls.data.map((pull) => ({
         number: pull.number,
         title: pull.title,
         url: pull.html_url,
       })),
-      issues: issues
+      issues: issues.data
         .filter((issue) => !issue.pull_request)
         .map((issue) => ({ number: issue.number, title: issue.title, url: issue.html_url })),
     }

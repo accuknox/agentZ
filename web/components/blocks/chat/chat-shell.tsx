@@ -1,12 +1,15 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import type { ChatProps } from "./chat"
 import type { ChatSessionPreference, CodingThread } from "@/lib/gateway/client"
-import { PanelRightClose, PanelRightOpen } from "lucide-react"
+import { FileDiff, PanelRightClose, PanelRightOpen } from "lucide-react"
 import type { Route } from "next"
 import { useRouter } from "@bprogress/next/app"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
+import { sessionInfoQueryOptions } from "./use-opencode-chat"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +24,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
-type ChatShellProps = {
+type ChatShellProps = Pick<ChatProps, "createSession" | "composerContext" | "draftId"> & {
+  draftPath?: string
+  headerContext?: ReactNode
+  headerActions?: ReactNode
   agentName: string
   agentNames?: string[]
   codingThread?: CodingThread
@@ -48,6 +54,12 @@ const FilesWorkspace = dynamic(
 )
 
 export function ChatShell({
+  createSession,
+  composerContext,
+  draftPath: initialDraftPath,
+  draftId,
+  headerContext,
+  headerActions,
   agentName,
   agentNames = [agentName],
   chatPreferences,
@@ -59,7 +71,7 @@ export function ChatShell({
   workspaceId,
   workspacePath,
 }: ChatShellProps): React.JSX.Element {
-  const [reviewOpen, setReviewOpen] = useState(Boolean(codingThread))
+  const [reviewOpen, setReviewOpen] = useState(false)
   const filesOpen = useFileWorkspace().openAgent === agentName
   const showReview = Boolean(codingThread) && reviewOpen && !filesOpen
   const [previewerOpen, setPreviewerOpen] = useState(false)
@@ -69,13 +81,15 @@ export function ChatShell({
   }>()
   const router = useRouter()
   const pathname = usePathname()
-  const draftKey = useSearchParams().get("draft")
-  const draftPath = `${workspacePath}/sessions/new`
+  const search = useSearchParams()
+  const draftKey = search.get("draft")
+  const activeDraftId = draftId ? `${draftId}:${draftKey ?? "default"}` : (draftKey ?? undefined)
+  const draftPath = initialDraftPath ?? `${workspacePath}/sessions/new`
   const routeSessionId = pathname === draftPath ? undefined : sessionId
   // Soft navigations preserve client trees in this app, so the chat subtree
   // must remount when the logical session target changes. Promoting a new chat
   // keeps its key because the live stream belongs to the session just created.
-  const routeChatKey = `${agentName}:${routeSessionId ?? `new:${draftKey ?? "default"}`}`
+  const routeChatKey = `${agentName}:${routeSessionId ?? `new:${activeDraftId ?? "default"}`}`
   const promotedSessionPath = promotedSession
     ? `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(promotedSession.sessionId)}`
     : undefined
@@ -88,45 +102,50 @@ export function ChatShell({
       : undefined
   const chatKey = activePromotion?.chatKey ?? routeChatKey
   const activeSessionId = routeSessionId ?? activePromotion?.sessionId
+  const sessionTitle = useQuery({
+    ...sessionInfoQueryOptions(agentName, workspaceId, activeSessionId ?? ""),
+    enabled: false,
+    select: (session) => session.title,
+  })
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
-      <SessionFileControl agentName={agentName} />
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", showReview && "hidden lg:flex")}>
-        <header className="flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 pr-12 pl-3">
+        <header className="flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 px-3">
           <SidebarTrigger className="shrink-0" />
-          <span className="text-muted-foreground max-w-1/3 truncate text-sm font-medium">
-            {agentName}
-          </span>
+          <div className="text-muted-foreground max-w-1/3 truncate text-sm font-medium">
+            {headerContext ?? agentName}
+          </div>
           <span aria-hidden="true" className="text-muted-foreground/70 px-1 text-sm">
             /
           </span>
-          <h1 className="min-w-0 truncate text-sm font-semibold">{title}</h1>
-          {codingThread ? (
-            <Button
-              className="ml-auto"
-              variant={reviewOpen ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setReviewOpen(!reviewOpen)}
-            >
-              Code
-            </Button>
-          ) : null}
+          <h1 className="min-w-0 truncate text-sm font-semibold">{sessionTitle.data ?? title}</h1>
+          {headerActions}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <SessionPanelControls
+              agentName={agentName}
+              reviewOpen={showReview}
+              onReviewToggle={codingThread ? () => setReviewOpen(!showReview) : undefined}
+            />
+          </div>
         </header>
-        <div className="@container/chat relative min-w-0 flex-1">
+        <div className="@container/chat relative min-h-0 min-w-0 flex-1">
           <Chat
             key={chatKey}
+            createSession={createSession}
+            composerContext={composerContext}
+            revertDisabled={codingThread?.worktree.shared}
             agentName={agentName}
             agentNames={agentNames}
             chatPreferences={chatPreferences}
-            draftId={draftKey ?? undefined}
+            draftId={activeDraftId}
             firstName={firstName}
             greetingIndex={greetingIndex}
             onSessionCreated={(id) => {
               setPromotedSession({ chatKey: routeChatKey, sessionId: id })
 
               const url = new URL(window.location.href)
-              if (url.pathname !== draftPath || url.searchParams.get("draft") !== draftKey) {
+              if (url.pathname !== draftPath || url.searchParams.toString() !== search.toString()) {
                 return
               }
 
@@ -148,10 +167,12 @@ export function ChatShell({
           />
         </div>
       </div>
-      {codingThread && showReview ? (
+      {codingThread ? (
         <CodingReview
+          key={codingThread.id}
           thread={codingThread}
           workspaceId={workspaceId}
+          open={showReview}
           onClose={() => setReviewOpen(false)}
         />
       ) : null}
@@ -165,23 +186,54 @@ export function ChatShell({
   )
 }
 
-function SessionFileControl({ agentName }: { agentName: string }) {
+function SessionPanelControls({
+  agentName,
+  reviewOpen,
+  onReviewToggle,
+}: {
+  agentName: string
+  reviewOpen: boolean
+  onReviewToggle?: () => void
+}) {
   const { dirtyAgent, openAgent, toggleAgent } = useFileWorkspace()
   const filesOpen = openAgent === agentName
   const filesDirty = dirtyAgent === agentName
-  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
+  const [confirmingDiscard, setConfirmingDiscard] = useState<"files" | "review">()
 
   return (
     <>
+      {onReviewToggle ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={reviewOpen ? "Close changes" : "Open changes"}
+              aria-pressed={reviewOpen}
+              size="icon-sm"
+              variant={reviewOpen ? "secondary" : "ghost"}
+              onClick={() => {
+                if (filesOpen && filesDirty) {
+                  setConfirmingDiscard("review")
+                  return
+                }
+                if (filesOpen) toggleAgent(agentName)
+                onReviewToggle()
+              }}
+            >
+              <FileDiff />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{reviewOpen ? "Close changes" : "Open changes"}</TooltipContent>
+        </Tooltip>
+      ) : null}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             aria-label={filesOpen ? "Close files" : "Open files"}
             aria-pressed={filesOpen}
-            className="absolute top-3 right-3 z-50 hidden lg:inline-flex"
+            className={cn("hidden lg:inline-flex", filesOpen && "absolute top-3 right-3 z-50")}
             onClick={() => {
               if (filesOpen && filesDirty) {
-                setConfirmingDiscard(true)
+                setConfirmingDiscard("files")
                 return
               }
               toggleAgent(agentName)
@@ -198,21 +250,27 @@ function SessionFileControl({ agentName }: { agentName: string }) {
         </TooltipTrigger>
         <TooltipContent>{filesOpen ? "Close files" : "Open files"}</TooltipContent>
       </Tooltip>
-      <Dialog open={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
+      <Dialog
+        open={Boolean(confirmingDiscard)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingDiscard(undefined)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Close files?</DialogTitle>
             <DialogDescription>Your unsaved file changes will be discarded.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setConfirmingDiscard(false)} variant="outline">
+            <Button onClick={() => setConfirmingDiscard(undefined)} variant="outline">
               Cancel
             </Button>
             <Button
               data-dialog-submit
               onClick={() => {
                 toggleAgent(agentName)
-                setConfirmingDiscard(false)
+                if (confirmingDiscard === "review") onReviewToggle?.()
+                setConfirmingDiscard(undefined)
               }}
               variant="destructive"
             >

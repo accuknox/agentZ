@@ -186,6 +186,8 @@ export const zTenant = z.object({
 
 export const zWorkspaceState = z.enum(["provisioning", "ready", "failed", "deleting"])
 
+export const zWorkspaceType = z.enum(["general", "coding"])
+
 export const zAgentWorkspaceCapabilities = z.object({
   author: z.boolean(),
 })
@@ -203,6 +205,7 @@ export const zWorkspaceCapabilities = z.object({
 })
 
 export const zWorkspace = z.object({
+  type: zWorkspaceType,
   id: z.string(),
   name: z.string(),
   slug: z.string(),
@@ -242,6 +245,7 @@ export const zSelectedOrganizationResources = z.object({
 })
 
 export const zCreateWorkspaceRequest = z.object({
+  type: zWorkspaceType.optional(),
   name: z
     .string()
     .min(1)
@@ -2399,6 +2403,142 @@ export const zDashboardTablePage = z.object({
   error: zDashboardWidgetError.optional(),
 })
 
+export const zCodingProject = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  name: z.string(),
+  repository_id: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  repository: z.string(),
+  default_branch: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+})
+
+export const zCreateCodingProjectRequest = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/.*\S.*/),
+  repository_id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+  default_branch: z.string().min(1).max(255),
+})
+
+export const zCodingWorktree = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  project_id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  agent_name: z.string(),
+  directory: z.string(),
+  branch: z.string(),
+  ready: z.boolean(),
+  shared: z.boolean(),
+})
+
+export const zCodingThread = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  session_id: z.string(),
+  repository_id: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  repository: z.string(),
+  worktree: zCodingWorktree,
+})
+
+export const zCodingProjectDetail = z.object({
+  project: zCodingProject,
+  worktrees: z.array(zCodingWorktree),
+  threads: z.array(zCodingThread),
+})
+
+export const zCreateCodingThreadRequest = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  project_id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  agent_name: z.string().min(1).max(32),
+  worktree_id: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    .optional(),
+  main_checkout: z.boolean().optional().default(false),
+  base_branch: z.string().min(1).max(255).optional(),
+  bundle: z.string().max(89478488).optional(),
+})
+
+export const zCodingTextRequest = z.object({
+  purpose: z.enum(["branch", "commit"]),
+  text: z.string().max(16000).optional(),
+  expected_tree: z
+    .string()
+    .regex(/^[a-f0-9]{40,64}$/)
+    .optional(),
+  model: z
+    .object({
+      modelID: z.string().min(1),
+      providerID: z.string().min(1),
+    })
+    .optional(),
+})
+
+export const zCodingTextSuggestion = z.object({
+  text: z.string().min(1).max(20000),
+})
+
+export const zCodingGitRequest = z.object({
+  operation: z.enum([
+    "status",
+    "diff",
+    "stage",
+    "unstage",
+    "export",
+    "import",
+    "apply_commit",
+    "checkout",
+    "rename",
+    "remove",
+  ]),
+  paths: z.array(z.string().min(1).max(4096)).max(1000).optional(),
+  expected_tree: z
+    .string()
+    .regex(/^[a-f0-9]{40,64}$/)
+    .optional(),
+  expected_head: z
+    .string()
+    .regex(/^[a-f0-9]{40,64}$/)
+    .optional(),
+  ref: z.string().max(255).optional(),
+  bundle: z.string().max(89478488).optional(),
+})
+
+export const zCodingGitFile = z.object({
+  path: z.string(),
+  index: z.string(),
+  worktree: z.string(),
+  previous_path: z.string().optional(),
+})
+
+export const zCodingGitResult = z.object({
+  head: z.string(),
+  branch: z.string(),
+  files: z.array(zCodingGitFile),
+  diff: z.string(),
+  staged_diff: z.string(),
+  bundle: z.string().optional(),
+  tree: z.string().optional(),
+  branches: z.array(z.string()),
+})
+
 export const zJsonValueWritable = z
   .union([
     z.boolean(),
@@ -2794,6 +2934,93 @@ export const zDashboardWidgetNamePath = zDashboardWidgetName
  * Stable publish call identifier.
  */
 export const zIdempotencyKeyHeader = z.string().min(1).max(128)
+
+/**
+ * The actor's projects.
+ */
+export const zListCodingProjectsResponse = z.array(zCodingProject)
+
+export const zCreateCodingProjectBody = zCreateCodingProjectRequest
+
+/**
+ * Created project.
+ */
+export const zCreateCodingProjectResponse = zCodingProject
+
+export const zDeleteCodingProjectPath = z.object({
+  projectId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
+ * Project and associated conversations deleted.
+ */
+export const zDeleteCodingProjectResponse = z.void()
+
+export const zGetCodingProjectPath = z.object({
+  projectId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
+ * Project and checkouts.
+ */
+export const zGetCodingProjectResponse = zCodingProjectDetail
+
+export const zRenameCodingProjectBody = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/.*\S.*/),
+})
+
+export const zRenameCodingProjectPath = z.object({
+  projectId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
+ * Renamed.
+ */
+export const zRenameCodingProjectResponse = z.void()
+
+export const zCreateCodingThreadBody = zCreateCodingThreadRequest
+
+/**
+ * Prepared thread.
+ */
+export const zCreateCodingThreadResponse = zCodingThread
+
+export const zGetCodingThreadPath = z.object({
+  agentName: z.string(),
+  sessionId: z.string(),
+})
+
+/**
+ * Thread checkout.
+ */
+export const zGetCodingThreadResponse = zCodingThread
+
+export const zSuggestCodingTextBody = zCodingTextRequest
+
+export const zSuggestCodingTextPath = z.object({
+  agentName: z.string(),
+  sessionId: z.string(),
+})
+
+/**
+ * Generated branch name or commit message.
+ */
+export const zSuggestCodingTextResponse = zCodingTextSuggestion
+
+export const zRunCodingGitBody = zCodingGitRequest
+
+export const zRunCodingGitPath = z.object({
+  worktreeId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
+ * Git result.
+ */
+export const zRunCodingGitResponse = zCodingGitResult
 
 export const zListChatSessionsQuery = z.object({
   limit: z.int().gte(1).lte(50).optional().default(10),

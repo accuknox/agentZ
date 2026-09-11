@@ -27,7 +27,7 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		return strings.TrimSpace(string(output))
 	}
 	git(origin, "init", "-b", "main")
-	if err := os.WriteFile(filepath.Join(origin, "README.md"), []byte("original\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(origin, "café.md"), []byte("original\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	git(origin, "add", ".")
@@ -44,7 +44,7 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	}
 	defer root.Close()
 	service := &service{root: root}
-	req := GitRequest{Root: "Projects/user/github/project", Directory: "Projects/user/github/project/worktrees/thread", Branch: "agentz/thread", BaseBranch: "main", Prepare: true, Git: gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: &bundle}}
+	req := GitRequest{Root: "Projects/user/github/project", Directory: "Projects/user/github/project/worktrees/thread", Branch: "chore/thread", BaseBranch: "main", Prepare: true, Git: gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: &bundle}}
 	run := func(req GitRequest) gatewayapi.CodingGitResult {
 		t.Helper()
 		r, e := service.runGit(ctx, req)
@@ -60,8 +60,15 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	run(req) // interrupted provisioning retries must not reset existing work
 	req.Prepare = false
 	req.Git.Bundle = nil
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: new("docs/update-guide"), ExpectedHead: &result.Head}
+	result = run(req)
+	if result.Branch != "docs/update-guide" {
+		t.Fatalf("branch did not rename: %s", result.Branch)
+	}
+	req.Branch = result.Branch
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus}
 	directory := filepath.Join(home, req.Directory)
-	if err := os.WriteFile(filepath.Join(directory, "README.md"), []byte("changed\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, "café.md"), []byte("changed\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(directory, "space and\nnewline.txt"), []byte("new\n"), 0600); err != nil {
@@ -71,9 +78,9 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	if len(result.Files) != 2 {
 		t.Fatalf("want two changes: %+v", result.Files)
 	}
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Paths: new([]string{"README.md", "space and\nnewline.txt"}), ExpectedHead: &result.Head}
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Paths: new([]string{"café.md", "space and\nnewline.txt"}), ExpectedHead: &result.Head}
 	result = run(req)
-	if result.StagedDiff == "" || result.Tree == nil {
+	if !strings.Contains(result.StagedDiff, "+++ b/café.md\n") || result.Tree == nil {
 		t.Fatal("staged review missing")
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitExport, ExpectedHead: &result.Head}

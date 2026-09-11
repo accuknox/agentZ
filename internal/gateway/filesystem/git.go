@@ -51,7 +51,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 	result := gatewayapi.CodingGitResult{Branches: []string{}, Files: []gatewayapi.CodingGitFile{}}
 	for _, name := range []string{req.Root, req.Directory} {
 		if !filepath.IsLocal(name) || !strings.HasPrefix(name, "Projects/") {
-			return result, errors.New("Git directory must be a managed project path")
+			return result, errors.New("git directory must be a managed project path")
 		}
 	}
 	if req.Directory != req.Root+"/repo" && !strings.HasPrefix(req.Directory, req.Root+"/worktrees/") {
@@ -84,6 +84,8 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			"--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
 			"-c", "credential.helper=", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always",
 			"-c", "submodule.recurse=false", "-c", "diff.external=", "-c", "core.attributesFile=/dev/null",
+			// Match Unicode paths in patch headers to porcelain status paths.
+			"-c", "core.quotePath=false",
 		}, args...)...)
 		command.Dir = cwd
 		command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=/nonexistent", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "LC_ALL=C"}
@@ -103,7 +105,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return "", readErr
 		}
 		if len(out) > 64<<20 {
-			return "", errors.New("Git result exceeds 64 MiB")
+			return "", errors.New("git result exceeds 64 MiB")
 		}
 		if err != nil {
 			return "", fmt.Errorf("git %s failed: %w", args[0], err)
@@ -232,6 +234,23 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				return result, err
 			}
 		}
+	case gatewayapi.CodingGitRename:
+		if req.Git.Ref == nil {
+			return result, errors.New("branch is required")
+		}
+		if _, err := run(directory, "check-ref-format", "--branch", *req.Git.Ref); err != nil {
+			return result, errors.New("invalid branch")
+		}
+		branch, err := run(directory, "branch", "--show-current")
+		if err != nil {
+			return result, err
+		}
+		if strings.TrimSpace(branch) != req.Branch {
+			return result, errors.New("branch changed; refresh before naming it")
+		}
+		if _, err := run(directory, "branch", "-m", *req.Git.Ref); err != nil {
+			return result, err
+		}
 	case gatewayapi.CodingGitCheckout:
 		if req.Git.Ref == nil {
 			return result, errors.New("branch is required")
@@ -348,11 +367,6 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 	}
 	result.Tree = new(strings.TrimSpace(tree))
 	if req.Git.Operation == gatewayapi.CodingGitExport {
-		tree, err := run(directory, "write-tree")
-		if err != nil {
-			return result, err
-		}
-		result.Tree = new(strings.TrimSpace(tree))
 		file, err := os.CreateTemp("", "agentz-export-*.bundle")
 		if err != nil {
 			return result, err

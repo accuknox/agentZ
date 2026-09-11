@@ -5,7 +5,7 @@ import { useCallback, useState } from "react"
 import { toast } from "sonner"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ProviderModelItem } from "@/data/types"
-import type { SessionStatus, SessionStatusResponse } from "@opencode-ai/sdk/v2"
+import type { Session, SessionStatus, SessionStatusResponse } from "@opencode-ai/sdk/v2"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { dayjs } from "@/lib/format"
 import {
@@ -20,6 +20,8 @@ import {
   sessionStatusQueryOptions,
   upsertOptimisticUserMessage,
 } from "@/components/blocks/chat/use-opencode-chat"
+
+export type CreateSession = (input: { text: string; model: ProviderModelItem }) => Promise<Session>
 
 type SendMessageInput = {
   files: PromptInputMessage["files"]
@@ -58,7 +60,8 @@ export function useOpencodeSend(
   draftID?: string,
   directory?: string,
   isBusy?: boolean,
-  onSessionCreated?: (sessionID: string) => void
+  onSessionCreated?: (sessionID: string) => void,
+  createSession?: CreateSession
 ) {
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
@@ -122,7 +125,7 @@ export function useOpencodeSend(
 
       const pendingID = createMessageID()
       const createdAt = dayjs().valueOf()
-      let overlayID = input.sessionID ?? draftID
+      let overlayID = input.sessionID ?? pendingSessionID ?? draftID
       upsertOptimisticUserMessage(queryClient, workspaceId, agentName, overlayID, {
         attachments: [],
         createdAt,
@@ -131,35 +134,43 @@ export function useOpencodeSend(
         text,
       })
 
-      let resolvedSessionID = input.sessionID
-      let sessionDirectory = directory
+      let resolvedSessionID = input.sessionID ?? pendingSessionID
+      let sessionDirectory =
+        directory ??
+        (resolvedSessionID
+          ? queryClient.getQueryData<Session>(
+              sessionInfoQueryKey(workspaceId, agentName, resolvedSessionID)
+            )?.directory
+          : undefined)
       let optimisticStatus: { sessionID: string; value: SessionStatus } | undefined
 
       try {
         const client = await createAgentOpencodeClient(agentName, workspaceId)
 
         if (!resolvedSessionID) {
-          const createResult = await client.session.create({
-            model: {
-              id: input.model.modelID,
-              providerID: input.model.providerID,
-              variant: input.variant,
-            },
-          })
-          if (createResult.error || !createResult.data) {
-            throw new Error(opencodeErrorMessage(createResult.error, "Failed to create session"))
+          let session: Session
+          if (createSession) {
+            session = await createSession({ text, model: input.model })
+          } else {
+            const result = await client.session.create({
+              model: {
+                id: input.model.modelID,
+                providerID: input.model.providerID,
+                variant: input.variant,
+              },
+            })
+            if (result.error || !result.data) {
+              throw new Error(opencodeErrorMessage(result.error, "Failed to create session"))
+            }
+            session = result.data
           }
 
-          sessionDirectory = createResult.data.directory
-          resolvedSessionID = createResult.data.id
-          setPendingSessionID(createResult.data.id)
-          queryClient.setQueryData(
-            sessionInfoQueryKey(workspaceId, agentName, createResult.data.id),
-            createResult.data
-          )
-          promoteChatOverlay(queryClient, workspaceId, agentName, overlayID, createResult.data.id)
-          overlayID = createResult.data.id
-          onSessionCreated?.(createResult.data.id)
+          sessionDirectory = session.directory
+          resolvedSessionID = session.id
+          setPendingSessionID(session.id)
+          queryClient.setQueryData(sessionInfoQueryKey(workspaceId, agentName, session.id), session)
+          promoteChatOverlay(queryClient, workspaceId, agentName, overlayID, session.id)
+          overlayID = session.id
         }
 
         const activeSessionID = resolvedSessionID
@@ -206,6 +217,10 @@ export function useOpencodeSend(
         if (promptResult.error) {
           throw new Error(opencodeErrorMessage(promptResult.error, "Failed to send message"))
         }
+
+        // Keep the composer mounted until uploads and the first prompt succeed,
+        // so a failed submission can restore its text and attachments for retry.
+        if (!input.sessionID) onSessionCreated?.(activeSessionID)
 
         return {
           directory: sessionDirectory,
@@ -254,6 +269,7 @@ export function useOpencodeSend(
 
   return {
     abortMessage,
+    hasSession: Boolean(sessionID || pendingSessionID),
     canSubmit: !isSendPending && !isStopping && !isBusy,
     isStopping,
     sendMessage,

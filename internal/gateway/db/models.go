@@ -967,8 +967,6 @@ type GithubConnection struct {
 	UserID           string             `json:"user_id"`
 	GithubUserID     int64              `json:"github_user_id"`
 	Login            string             `json:"login"`
-	Name             string             `json:"name"`
-	Email            string             `json:"email"`
 	AccessToken      string             `json:"access_token"`
 	RefreshToken     string             `json:"refresh_token"`
 	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`

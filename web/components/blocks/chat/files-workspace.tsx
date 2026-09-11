@@ -248,7 +248,6 @@ function OpenFilesWorkspace({
   const [layoutChanging, setLayoutChanging] = React.useState(false)
   const [resizing, setResizing] = React.useState(false)
   const workspace = React.useRef<HTMLElement>(null)
-  const resize = React.useRef<{ startWidth: number; startX: number }>(null)
   const width = editorOpen ? workspaceWidth : explorerWidth
   const renderedWidth = expanded ? expandedWidth : width
 
@@ -322,53 +321,13 @@ function OpenFilesWorkspace({
       }}
     >
       {!expanded ? (
-        <div
-          aria-label="Resize files workspace"
-          aria-orientation="vertical"
-          aria-valuemax={editorOpen ? 1200 : 520}
-          aria-valuemin={editorOpen ? explorerWidth + 240 : 220}
-          aria-valuenow={width}
-          className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize touch-none transition-colors"
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-            event.preventDefault()
-            const nextWidth = width + (event.key === "ArrowLeft" ? 16 : -16)
-            if (editorOpen) {
-              setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
-              return
-            }
-            setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
-          }}
-          onPointerDown={(event) => {
-            setResizing(true)
-            event.currentTarget.setPointerCapture(event.pointerId)
-            resize.current = {
-              startWidth: width,
-              startX: event.clientX,
-            }
-          }}
-          onPointerMove={(event) => {
-            if (!resize.current) return
-            const nextWidth = resize.current.startWidth + resize.current.startX - event.clientX
-            if (editorOpen) {
-              setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
-              return
-            }
-            setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
-          }}
-          onPointerUp={(event) => {
-            resize.current = null
-            setResizing(false)
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              event.currentTarget.releasePointerCapture(event.pointerId)
-            }
-          }}
-          onPointerCancel={() => {
-            resize.current = null
-            setResizing(false)
-          }}
-          role="separator"
-          tabIndex={0}
+        <WorkspaceResizeHandle
+          label="Resize files workspace"
+          width={width}
+          min={editorOpen ? explorerWidth + 240 : 220}
+          max={editorOpen ? 1200 : 520}
+          onResize={editorOpen ? setWorkspaceWidth : setExplorerWidth}
+          onResizingChange={setResizing}
         />
       ) : null}
       <div
@@ -2040,5 +1999,53 @@ function EntryDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function WorkspaceResizeHandle({
+  label,
+  width,
+  min,
+  max,
+  onResize,
+  onResizingChange,
+}: {
+  label: string
+  width: number
+  min: number
+  max: number
+  onResize: (width: number) => void
+  onResizingChange?: (resizing: boolean) => void
+}) {
+  const drag = React.useRef<{ width: number; x: number }>(null)
+  return (
+    <div
+      role="separator"
+      tabIndex={0}
+      aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={width}
+      className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 hidden w-1 cursor-col-resize touch-none transition-colors lg:block"
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+        event.preventDefault()
+        onResize(Math.min(max, Math.max(min, width + (event.key === "ArrowLeft" ? 16 : -16))))
+      }}
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId)
+        drag.current = { width, x: event.clientX }
+        onResizingChange?.(true)
+      }}
+      onPointerMove={(event) => {
+        if (!drag.current) return
+        onResize(Math.min(max, Math.max(min, drag.current.width + drag.current.x - event.clientX)))
+      }}
+      onLostPointerCapture={() => {
+        drag.current = null
+        onResizingChange?.(false)
+      }}
+    />
   )
 }

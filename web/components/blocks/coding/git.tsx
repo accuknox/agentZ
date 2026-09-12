@@ -39,7 +39,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
@@ -88,6 +88,23 @@ const comparisons = [
   { value: "staged", label: "Staged" },
 ] satisfies { value: CodingGitComparison; label: string }[]
 
+function wrapCommitDescription(text: string) {
+  return text
+    .split("\n")
+    .flatMap((line) => {
+      const lines: string[] = []
+      while (line.length > 80) {
+        const space = line.lastIndexOf(" ", 80)
+        const end = space > 0 ? space : 80
+        lines.push(line.slice(0, end))
+        line = line.slice(end + (space > 0 ? 1 : 0))
+      }
+      lines.push(line)
+      return lines
+    })
+    .join("\n")
+}
+
 export function GitChanges({
   thread,
   workspaceId,
@@ -108,6 +125,9 @@ export function GitChanges({
   const [split, setSplit] = useState(true)
   const [wrap, setWrap] = useState(false)
   const [message, setMessage] = useState("")
+  const [description, setDescription] = useState("")
+  const commitMessage = `${message.trim()}\n\n${description}`.trim()
+  const subjectHighlight = useRef<HTMLDivElement>(null)
   const [stashPicker, setStashPicker] = useState(false)
   const [stashFilter, setStashFilter] = useState("")
   const [stash, setStash] = useState<CodingGitStash>()
@@ -228,11 +248,12 @@ export function GitChanges({
         operation: "commit",
         head: data.head,
         tree: data.tree,
-        message,
+        message: commitMessage,
       })
     },
     onSuccess: () => {
       setMessage("")
+      setDescription("")
       toast.success("Staged changes committed")
     },
     onError: (error) => toast.error(error.message),
@@ -249,7 +270,11 @@ export function GitChanges({
       if (response.error) throw new Error(response.error.message)
       return response.data.text
     },
-    onSuccess: setMessage,
+    onSuccess: (text) => {
+      const [subject = "", ...body] = text.trim().split(/\r?\n/)
+      setMessage(subject)
+      setDescription(wrapCommitDescription(body.join("\n").trim()))
+    },
     onError: (error) => toast.error(error.message),
   })
   const busy = mutation.isPending || commit.isPending
@@ -362,8 +387,9 @@ export function GitChanges({
           className={cn(
             "flex min-h-0 flex-col",
             expanded
-              ? "w-64 shrink-0 border-r max-md:h-64 max-md:w-full max-md:border-r-0 max-md:border-b"
-              : "flex-1"
+              ? "w-64 shrink-0 border-r max-md:w-full max-md:border-r-0 max-md:border-b"
+              : "flex-1",
+            expanded && (composerOpen ? "max-md:h-[min(28rem,65svh)]" : "max-md:h-64")
           )}
         >
           <div className="flex items-center gap-1 border-b p-2">
@@ -588,7 +614,7 @@ export function GitChanges({
                   </Button>
                 </CollapsibleTrigger>
               ) : null}
-              <CollapsibleContent>
+              <CollapsibleContent className="max-md:max-h-[40svh] max-md:overflow-y-auto">
                 <form
                   className="p-3"
                   onSubmit={(event) => {
@@ -596,20 +622,78 @@ export function GitChanges({
                     commit.mutate()
                   }}
                 >
-                  <FieldGroup>
+                  <FieldGroup className="gap-3">
                     <Field>
-                      <FieldLabel htmlFor={`commit-${thread.worktree.id}`} className="sr-only">
+                      <FieldLabel htmlFor={`commit-${thread.worktree.id}`}>
                         Commit message
                       </FieldLabel>
+                      <div className="relative font-mono text-base md:text-sm">
+                        <Input
+                          id={`commit-${thread.worktree.id}`}
+                          placeholder="Summarize your changes"
+                          value={message}
+                          onChange={(event) => setMessage(event.target.value)}
+                          onScroll={(event) => {
+                            if (subjectHighlight.current)
+                              subjectHighlight.current.scrollLeft = event.currentTarget.scrollLeft
+                          }}
+                          required
+                          maxLength={20_000}
+                          disabled={busy || suggestion.isPending}
+                        />
+                        <div
+                          ref={subjectHighlight}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-px flex items-center overflow-hidden px-2.5 text-transparent"
+                        >
+                          <span className="shrink-0 whitespace-pre">
+                            {message.slice(0, 50)}
+                            <mark className="bg-warning/25 text-transparent">
+                              {message.slice(50)}
+                            </mark>
+                          </span>
+                        </div>
+                      </div>
+                    </Field>
+                    <Field data-invalid={commitMessage.length > 20_000}>
+                      <FieldLabel htmlFor={`commit-description-${thread.worktree.id}`}>
+                        Extended description
+                      </FieldLabel>
                       <Textarea
-                        id={`commit-${thread.worktree.id}`}
-                        placeholder="Commit message"
-                        value={message}
-                        onChange={(event) => setMessage(event.target.value)}
+                        id={`commit-description-${thread.worktree.id}`}
+                        placeholder="Add an optional extended description…"
+                        value={description}
+                        onChange={(event) => {
+                          const input = event.currentTarget
+                          const value = input.value
+                          const wrapped = wrapCommitDescription(value)
+                          if (wrapped !== value) {
+                            const start = wrapCommitDescription(
+                              value.slice(0, input.selectionStart)
+                            ).length
+                            const end = wrapCommitDescription(
+                              value.slice(0, input.selectionEnd)
+                            ).length
+                            input.value = wrapped
+                            input.setSelectionRange(start, end)
+                          }
+                          setDescription(wrapped)
+                        }}
                         maxLength={20_000}
                         disabled={busy || suggestion.isPending}
-                        className="min-h-20 resize-none font-mono"
+                        aria-invalid={commitMessage.length > 20_000}
+                        aria-describedby={
+                          commitMessage.length > 20_000
+                            ? `commit-error-${thread.worktree.id}`
+                            : undefined
+                        }
+                        className="h-24 max-h-48 min-h-20 resize-y font-mono"
                       />
+                      {commitMessage.length > 20_000 ? (
+                        <FieldError id={`commit-error-${thread.worktree.id}`}>
+                          Keep the message and description within 20,000 characters combined.
+                        </FieldError>
+                      ) : null}
                     </Field>
                   </FieldGroup>
                   <div className="mt-2 flex items-center gap-2">
@@ -620,6 +704,7 @@ export function GitChanges({
                         busy ||
                         suggestion.isPending ||
                         !message.trim() ||
+                        commitMessage.length > 20_000 ||
                         !data.tree ||
                         !data.head ||
                         !stagedFiles.length
@@ -826,7 +911,7 @@ export function GitChanges({
                 <CodeView
                   ref={viewer}
                   items={items}
-                  className="min-h-0 flex-1 overflow-auto [font-stretch:normal]"
+                  className="min-h-0 flex-1 overflow-auto"
                   options={{
                     theme: DEFAULT_THEMES,
                     themeType: resolvedTheme === "dark" ? "dark" : "light",
@@ -836,7 +921,7 @@ export function GitChanges({
                     tokenizeMaxLineLength: 1000,
                     lineDiffType: "none",
                     stickyHeaders: true,
-                    hunkSeparators: "line-info",
+                    hunkSeparators: "simple",
                     enableLineSelection: true,
                     onLineClick: (line, context) => {
                       if (context.type !== "diff" || line.type !== "diff-line") return

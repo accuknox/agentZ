@@ -9,17 +9,6 @@ import {
   useQuery,
 } from "@tanstack/react-query"
 import {
-  Activity,
-  Bot,
-  Brain,
-  CheckCircle2,
-  Circle,
-  CircleSlash,
-  Coins,
-  Cpu,
-  Database,
-  Gauge,
-  MessageSquare,
   ArrowDown,
   ArrowUp,
   Check,
@@ -30,7 +19,6 @@ import {
   Files,
   GitBranch,
   GitPullRequest,
-  ListTodo,
   Maximize2,
   Minimize2,
   PanelRightClose,
@@ -63,15 +51,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Spinner } from "@/components/ui/spinner"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
 import { remoteCodingGit, codingGitHubInfo, createCodingPullRequest } from "@/lib/coding/actions"
 import { type CodingThread } from "@/lib/gateway/client"
 import { runWorkspaceGit } from "@/lib/coding/review"
-import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { cn } from "@/lib/utils"
 
 const GitChanges = dynamic(() => import("./git").then((module) => module.GitChanges), {
@@ -91,7 +75,6 @@ const views = [
   { id: "changes", label: "Changes", icon: GitBranch },
   { id: "github", label: "GitHub", icon: GitPullRequest },
   { id: "terminal", label: "Terminal", icon: TerminalSquare },
-  { id: "context", label: "Session context", icon: ListTodo },
 ] as const
 
 type View = (typeof views)[number]["id"]
@@ -296,7 +279,6 @@ export function CodingWorkspace({
             />
           </div>
         ) : null}
-        {tab === "context" ? <SessionContext thread={thread} workspaceId={workspaceId} /> : null}
         {tab === "github" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {status.isPending ? (
@@ -654,221 +636,5 @@ export function CodingWorkspace({
         ))}
       </nav>
     </>
-  )
-}
-
-function SessionContext({ thread, workspaceId }: { thread: CodingThread; workspaceId: string }) {
-  const context = useQuery(
-    queryOptions({
-      queryKey: [
-        "coding",
-        "context",
-        workspaceId,
-        thread.id,
-        thread.worktree.agent_name,
-        thread.worktree.directory,
-        thread.session_id,
-      ],
-      queryFn: async ({ signal }) => {
-        const client = await createAgentOpencodeClient(thread.worktree.agent_name, workspaceId)
-        const params = { directory: thread.worktree.directory, sessionID: thread.session_id }
-        const [messages, todos] = await Promise.all([
-          client.session.messages(params, { signal, throwOnError: true }),
-          client.session.todo(params, { signal, throwOnError: true }),
-        ])
-        return { messages: messages.data, todos: todos.data }
-      },
-      refetchInterval: 5000,
-    })
-  )
-  if (context.isPending) {
-    return (
-      <div role="status" className="text-muted-foreground flex items-center gap-2 p-4 text-sm">
-        <Spinner /> Loading session...
-      </div>
-    )
-  }
-  if (context.isError) {
-    return (
-      <div
-        role="alert"
-        className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-3 p-4 text-sm"
-      >
-        Could not load session context.
-        <Button size="sm" variant="outline" onClick={() => void context.refetch()}>
-          Retry
-        </Button>
-      </div>
-    )
-  }
-  const assistants = context.data.messages.flatMap((message) =>
-    message.info.role === "assistant" ? [message.info] : []
-  )
-  const last = assistants.at(-1)
-  const cost = assistants.reduce((sum, message) => sum + message.cost, 0)
-  const todos = context.data.todos
-  const completed = todos.filter((todo) => todo.status === "completed").length
-  return (
-    <div className="min-h-0 flex-1 overflow-auto text-sm">
-      <section className="border-b p-4">
-        <h3 className="mb-4 flex items-center gap-2 font-semibold">
-          <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-md">
-            <Activity className="size-4" />
-          </span>
-          Session
-        </h3>
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3">
-          <dt className="text-muted-foreground flex items-center gap-2">
-            <Bot className="size-3.5" /> Agent
-          </dt>
-          <dd className="truncate text-right font-medium" title={thread.worktree.agent_name}>
-            {thread.worktree.agent_name}
-          </dd>
-          <dt className="text-muted-foreground flex items-center gap-2">
-            <Cpu className="size-3.5" /> Model
-          </dt>
-          <dd className="truncate text-right font-medium" title={last?.modelID}>
-            {last?.modelID ?? "No response yet"}
-          </dd>
-          <dt className="text-muted-foreground flex items-center gap-2">
-            <MessageSquare className="size-3.5" /> Messages
-          </dt>
-          <dd className="text-right font-medium tabular-nums">
-            {context.data.messages.length.toLocaleString()}
-          </dd>
-          <dt className="text-muted-foreground flex items-center gap-2">
-            <Coins className="size-3.5" /> Session cost
-          </dt>
-          <dd className="text-info text-right font-medium tabular-nums">
-            {new Intl.NumberFormat("en-US", {
-              style: "currency",
-              currency: "USD",
-              maximumFractionDigits: 4,
-            }).format(cost)}
-          </dd>
-        </dl>
-      </section>
-      {last ? (
-        <section className="border-b p-4">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold">
-            <span className="bg-warning/10 text-warning flex size-7 items-center justify-center rounded-md">
-              <Gauge className="size-4" />
-            </span>
-            Last response tokens
-          </h3>
-          <dl className="bg-muted/20 divide-y rounded-lg border px-3">
-            {[
-              {
-                label: "Input",
-                count: last.tokens.input,
-                icon: ArrowDown,
-                color: "text-info",
-              },
-              {
-                label: "Output",
-                count: last.tokens.output,
-                icon: ArrowUp,
-                color: "text-primary",
-              },
-              {
-                label: "Reasoning",
-                count: last.tokens.reasoning,
-                icon: Brain,
-                color: "text-primary",
-              },
-              {
-                label: "Cache read",
-                count: last.tokens.cache.read,
-                icon: Database,
-                color: "text-muted-foreground",
-              },
-              {
-                label: "Cache write",
-                count: last.tokens.cache.write,
-                icon: Database,
-                color: "text-muted-foreground",
-              },
-            ].map(({ label, count, icon: Icon, color }) => (
-              <div key={label} className="flex items-center justify-between gap-3 py-2.5">
-                <dt className="text-muted-foreground flex items-center gap-2">
-                  <Icon className={cn("size-3.5", color)} />
-                  {label}
-                </dt>
-                <dd className="font-medium tabular-nums">{count.toLocaleString()}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ) : null}
-      <section className="p-4">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 font-semibold">
-            <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-md">
-              <ListTodo className="size-4" />
-            </span>
-            Tasks
-          </h3>
-          {todos.length > 0 ? (
-            <span className="text-muted-foreground text-xs tabular-nums">
-              {completed} of {todos.length} complete
-            </span>
-          ) : null}
-        </div>
-        {todos.length ? (
-          <>
-            <Progress
-              aria-label="Completed tasks"
-              value={(completed / todos.length) * 100}
-              className="mb-2"
-            />
-            <ul className="divide-y">
-              {todos.map((todo, index) => (
-                <li key={index} className="flex items-start gap-2.5 py-3">
-                  {todo.status === "completed" ? (
-                    <CheckCircle2 className="text-primary mt-0.5 size-4 shrink-0" />
-                  ) : todo.status === "in_progress" ? (
-                    <Spinner className="text-primary mt-0.5 size-4 shrink-0" />
-                  ) : todo.status === "cancelled" ? (
-                    <CircleSlash className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-                  ) : (
-                    <Circle className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-                  )}
-                  <span
-                    className={cn(
-                      "min-w-0 flex-1 leading-5 break-words",
-                      (todo.status === "completed" || todo.status === "cancelled") &&
-                        "text-muted-foreground line-through"
-                    )}
-                  >
-                    {todo.content}
-                  </span>
-                  <Badge
-                    className="mt-0.5"
-                    variant={
-                      todo.priority === "high" &&
-                      todo.status !== "completed" &&
-                      todo.status !== "cancelled"
-                        ? "warning"
-                        : "pending"
-                    }
-                  >
-                    {todo.priority}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyTitle>No tasks yet</EmptyTitle>
-              <EmptyDescription>
-                The agent&apos;s task list will appear here as it works.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )}
-      </section>
-    </div>
   )
 }

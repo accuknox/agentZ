@@ -117,7 +117,13 @@ const MarkdownCode = ({
   }
 
   return (
-    <code className={cn("bg-muted rounded px-1.5 py-0.5 font-mono text-sm", className)} {...props}>
+    <code
+      className={cn(
+        "border-border bg-muted text-foreground rounded-md border px-[0.35rem] py-[0.1rem] font-mono text-sm",
+        className
+      )}
+      {...props}
+    >
       {children}
     </code>
   )
@@ -154,19 +160,19 @@ const MarkdownPre: FC<ComponentProps<"pre"> & ExtraProps & { plainCodeBlocks?: b
 }
 
 const MarkdownUl: FC<ComponentProps<"ul"> & ExtraProps> = ({ children, className, ...props }) => (
-  <ul className={cn("ml-6 list-outside list-disc space-y-1", className)} {...props}>
+  <ul className={cn("list-outside list-disc space-y-1 pl-5", className)} {...props}>
     {children}
   </ul>
 )
 
 const MarkdownOl: FC<ComponentProps<"ol"> & ExtraProps> = ({ children, className, ...props }) => (
-  <ol className={cn("ml-6 list-outside list-decimal space-y-1", className)} {...props}>
+  <ol className={cn("list-outside list-decimal space-y-1 pl-5", className)} {...props}>
     {children}
   </ol>
 )
 
 const MarkdownLi: FC<ComponentProps<"li"> & ExtraProps> = ({ children, className, ...props }) => (
-  <li className={cn("pl-1", className)} {...props}>
+  <li className={className} {...props}>
     {children}
   </li>
 )
@@ -248,7 +254,7 @@ export const MessageResponse = memo(
   ({ className, onAgentFileOpen, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
-        "w-full min-w-0 wrap-break-word [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        "text-foreground/80 w-full min-w-0 space-y-[0.65rem] text-base leading-relaxed wrap-break-word [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
       components={{

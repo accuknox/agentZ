@@ -10,6 +10,7 @@ import Providers from "./providers"
 const archivo = Archivo({
   axes: ["wdth"],
   subsets: ["latin"],
+  style: ["normal", "italic"],
   variable: "--font-archivo",
 })
 const socialTitle = "AgentZ | By Team AccuKnox"
@@ -54,7 +55,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html
       lang="en"
-      className={`h-full font-sans antialiased ${archivo.variable}`}
+      className={`h-full font-sans font-medium antialiased ${archivo.variable}`}
       suppressHydrationWarning
     >
       <body className="bg-background text-foreground min-h-svh">

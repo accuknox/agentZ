@@ -231,85 +231,32 @@ export async function remoteCodingGit(
   })
 }
 
-export async function codingGitHubInfo(
+export async function codingRemoteHead(
   workspaceId: string,
   agentName: string,
   sessionId: string,
-  page = 1
+  branch: string
 ) {
-  z.number().int().positive().parse(page)
+  z.string().min(1).max(1024).parse(branch)
   const thread = await getCodingThread({
     client: getGatewayServerClient(workspaceId),
     path: { agentName, sessionId },
   })
   if (thread.error) throw new Error(thread.error.message)
-  const status = await localCodingGit(workspaceId, thread.data.worktree.id, { operation: "status" })
   return withGitHub(async ({ octokit }) => {
     const { data: repository } = await octokit.request("GET /repositories/{repository_id}", {
       repository_id: thread.data.repository_id,
     })
-    const repo = { owner: repository.owner.login, repo: repository.name }
-    const [pulls, issues, branch] = await Promise.all([
-      octokit.pulls.list({ ...repo, per_page: 50, page }),
-      octokit.issues.listForRepo({ ...repo, per_page: 50, page }),
-      octokit.git
-        .getRef({ ...repo, ref: `heads/${status.branch}` })
-        .then((result) => result.data.object.sha)
-        .catch((error: unknown) => {
-          if (error instanceof RequestError && error.status === 404) return ""
-          throw new Error("Could not read the remote branch")
-        }),
-    ])
-    return {
-      branchHead: branch,
-      defaultBranch: repository.default_branch,
-      nextPage:
-        pulls.headers.link?.includes('rel="next"') || issues.headers.link?.includes('rel="next"')
-          ? page + 1
-          : null,
-      pulls: pulls.data.map((pull) => ({
-        number: pull.number,
-        title: pull.title,
-        url: pull.html_url,
-      })),
-      issues: issues.data
-        .filter((issue) => !issue.pull_request)
-        .map((issue) => ({ number: issue.number, title: issue.title, url: issue.html_url })),
+    try {
+      const { data } = await octokit.git.getRef({
+        owner: repository.owner.login,
+        repo: repository.name,
+        ref: `heads/${branch}`,
+      })
+      return data.object.sha
+    } catch (error) {
+      if (error instanceof RequestError && error.status === 404) return ""
+      throw error
     }
-  })
-}
-
-export async function createCodingPullRequest(
-  workspaceId: string,
-  agentName: string,
-  sessionId: string,
-  title: string,
-  body: string,
-  base: string
-) {
-  z.string().trim().min(1).max(256).parse(title)
-  z.string().max(65_536).parse(body)
-  const thread = await getCodingThread({
-    client: getGatewayServerClient(workspaceId),
-    path: { agentName, sessionId },
-  })
-  if (thread.error) throw new Error(thread.error.message)
-  const status = await localCodingGit(workspaceId, thread.data.worktree.id, { operation: "status" })
-  return withGitHub(async ({ octokit }) => {
-    const { data: repository } = await octokit.request("GET /repositories/{repository_id}", {
-      repository_id: thread.data.repository_id,
-    })
-    const repo = { owner: repository.owner.login, repo: repository.name }
-    const remote = await octokit.git.getRef({ ...repo, ref: `heads/${status.branch}` })
-    if (remote.data.object.sha !== status.head)
-      throw new Error("Push your current branch before opening a pull request")
-    const existing = await octokit.pulls.list({
-      ...repo,
-      head: `${repository.owner.login}:${status.branch}`,
-      base,
-    })
-    if (existing.data[0]) return existing.data[0].html_url
-    const result = await octokit.pulls.create({ ...repo, head: status.branch, base, title, body })
-    return result.data.html_url
   })
 }

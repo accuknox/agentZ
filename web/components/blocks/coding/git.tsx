@@ -1,7 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
+import {
+  queryOptions,
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query"
 import { LegendList } from "@legendapp/list/react"
 import { CodeView, WorkerPoolContext, type CodeViewHandle } from "@pierre/diffs/react"
 import { DEFAULT_THEMES, type CodeViewDiffItem, type CodeViewScrollTarget } from "@pierre/diffs"
@@ -69,7 +76,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
-import { remoteCodingGit } from "@/lib/coding/actions"
+import { codingRemoteHead, remoteCodingGit } from "@/lib/coding/actions"
 import {
   suggestCodingText,
   type CodingGitComparison,
@@ -79,6 +86,7 @@ import {
   type CodingThread,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { gitQueries, runWorkspaceGit } from "@/lib/coding/review"
 
@@ -123,6 +131,9 @@ export function GitChanges({
   onExpand,
 }: GitChangesProps) {
   const queryClient = useQueryClient()
+  const { data: actor } = authClient.useSession()
+  const mutationKey = ["coding", "git", workspaceId, thread.worktree.id]
+  const busy = useIsMutating({ mutationKey }) > 0
   const mobile = useIsMobile()
   const [composerOpen, setComposerOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState<boolean>()
@@ -158,6 +169,26 @@ export function GitChanges({
   const lastRevision = useRef<string>(undefined)
   const pendingReveal = useRef<CodeViewScrollTarget>(undefined)
   const data = status.data
+  const branch = data?.branch ?? ""
+  const remoteKey = [
+    "coding",
+    "remote",
+    workspaceId,
+    thread.worktree.id,
+    branch,
+    thread.worktree.agent_name,
+    thread.session_id,
+    actor?.user.id,
+  ]
+  const remote = useQuery(
+    queryOptions({
+      queryKey: remoteKey,
+      staleTime: 0,
+      queryFn: () =>
+        codingRemoteHead(workspaceId, thread.worktree.agent_name, thread.session_id, branch),
+      enabled: visible && !!branch && !!actor?.user.id && !status.isError && !busy,
+    })
+  )
 
   useEffect(() => {
     const manager = new WorkerPoolManager(
@@ -226,6 +257,7 @@ export function GitChanges({
   )
 
   const mutation = useMutation({
+    mutationKey,
     mutationFn: (body: CodingGitRequest) => runWorkspaceGit(workspaceId, thread.worktree.id, body),
     onSuccess: (_, body) => {
       if (
@@ -256,24 +288,23 @@ export function GitChanges({
       ])
     },
   })
-  const commit = useMutation({
-    mutationFn: async () => {
-      if (!data?.tree) throw new Error("Resolve conflicts before committing")
-      await remoteCodingGit(workspaceId, thread.worktree.agent_name, thread.session_id, {
-        operation: "commit",
-        head: data.head,
-        tree: data.tree,
-        message: commitMessage,
-      })
-    },
-    onSuccess: () => {
-      setMessage("")
-      setDescription("")
-      setComposerOpen(false)
-      toast.success("Staged changes committed")
+  const sync = useMutation({
+    mutationKey,
+    mutationFn: (body: Parameters<typeof remoteCodingGit>[3]) =>
+      remoteCodingGit(workspaceId, thread.worktree.agent_name, thread.session_id, body),
+    onSuccess: (_, body) => {
+      if (body.operation === "commit") {
+        setMessage("")
+        setDescription("")
+        setComposerOpen(false)
+      }
+      toast.success(
+        { commit: "Staged changes committed", pull: "Pulled", push: "Pushed" }[body.operation]
+      )
     },
     onError: (error) => toast.error(error.message),
-    onSettled: () => status.refetch(),
+    onSettled: () =>
+      Promise.all([status.refetch(), queryClient.invalidateQueries({ queryKey: remoteKey })]),
   })
   const suggestion = useMutation({
     mutationFn: async () => {
@@ -293,7 +324,6 @@ export function GitChanges({
     },
     onError: (error) => toast.error(error.message),
   })
-  const busy = mutation.isPending || commit.isPending
   const files = useMemo(
     () =>
       (data?.files ?? [])
@@ -374,6 +404,15 @@ export function GitChanges({
     })
   }
 
+  const syncDisabled =
+    busy ||
+    status.isError ||
+    remote.isFetching ||
+    !remote.isSuccess ||
+    !branch ||
+    !data?.head ||
+    remote.data === data.head
+
   if (!data)
     return (
       <Empty>
@@ -402,6 +441,20 @@ export function GitChanges({
         <Alert variant="warning">
           <AlertTitle>Repository refresh failed</AlertTitle>
           <AlertDescription>{status.error.message}</AlertDescription>
+        </Alert>
+      ) : null}
+      {remote.isError && branch ? (
+        <Alert variant="warning">
+          <AlertTitle>Could not check remote branch</AlertTitle>
+          <AlertDescription>{remote.error.message}</AlertDescription>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy || remote.isFetching}
+            onClick={() => void remote.refetch()}
+          >
+            <RefreshCw data-icon="inline-start" /> Retry
+          </Button>
         </Alert>
       ) : null}
       {conflicts.length ? (
@@ -471,7 +524,7 @@ export function GitChanges({
           </DropdownMenu>
         )}
         <span className="flex-1" />
-        <div className="flex items-center gap-1 max-md:order-1 max-md:basis-full max-md:justify-end">
+        <div className="flex items-center gap-1">
           {expanded ? (
             <>
               <Button
@@ -555,17 +608,25 @@ export function GitChanges({
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Refresh comparison"
-                disabled={review.isFetching}
-                onClick={() => void review.refetch()}
-              >
-                {review.isFetching ? <Spinner /> : <RefreshCw />}
-              </Button>
             </>
           ) : null}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Refresh changes"
+            disabled={busy || status.isFetching || remote.isFetching || review.isFetching}
+            onClick={() => {
+              void status.refetch()
+              if (branch && actor?.user.id) void remote.refetch()
+              if (expanded) void review.refetch()
+            }}
+          >
+            {status.isFetching || remote.isFetching || review.isFetching ? (
+              <Spinner />
+            ) : (
+              <RefreshCw />
+            )}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm" aria-label="Git actions">
@@ -612,180 +673,218 @@ export function GitChanges({
           </DropdownMenu>
         </div>
         {!stash ? (
-          <Popover open={composerOpen} onOpenChange={setComposerOpen}>
-            <PopoverTrigger asChild>
-              <Button size="sm" disabled={busy} aria-label="Commit changes">
-                <GitCommitHorizontal data-icon="inline-start" /> Commit
-                <span className="tabular-nums" aria-label={`${stagedFiles.length} staged`}>
-                  {stagedFiles.length}
-                </span>
-                <ChevronDown data-icon="inline-end" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              sideOffset={8}
-              collisionPadding={12}
-              onOpenAutoFocus={(event) => {
-                event.preventDefault()
-                subjectInput.current?.focus()
-              }}
-              aria-labelledby={`commit-title-${thread.worktree.id}`}
-              className="max-h-[min(85svh,var(--radix-popover-content-available-height))] w-[min(35rem,calc(100vw-1.5rem))] gap-0 overflow-hidden p-0"
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="Pull"
+              disabled={syncDisabled || !remote.data || data.files.length > 0}
+              onClick={() => sync.mutate({ operation: "pull", head: data.head })}
             >
-              <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
-                <h2 id={`commit-title-${thread.worktree.id}`} className="font-medium">
-                  Commit changes
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Close commit form"
-                  onClick={() => setComposerOpen(false)}
-                >
-                  <X />
-                </Button>
-              </div>
-              <form
-                className="flex min-h-0 flex-col"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  commit.mutate()
-                }}
-              >
-                <FieldGroup className="gap-4 overflow-y-auto p-4">
-                  {!data.tree || !data.head || !stagedFiles.length ? (
-                    <FieldDescription>
-                      {!data.tree
-                        ? "Resolve conflicts before committing."
-                        : !data.head
-                          ? "This repository has no initial commit."
-                          : "Stage changes to include them in this commit."}
-                    </FieldDescription>
-                  ) : null}
-                  <Field>
-                    <FieldLabel htmlFor={`commit-${thread.worktree.id}`}>Commit message</FieldLabel>
-                    <div className="relative font-mono text-base md:text-sm">
-                      <Input
-                        ref={subjectInput}
-                        id={`commit-${thread.worktree.id}`}
-                        placeholder="Summarize your changes"
-                        value={message}
-                        onChange={(event) => setMessage(event.target.value)}
-                        onScroll={(event) => {
-                          if (subjectHighlight.current)
-                            subjectHighlight.current.scrollLeft = event.currentTarget.scrollLeft
-                        }}
-                        required
-                        maxLength={20_000}
-                        disabled={busy || suggestion.isPending}
-                      />
-                      <div
-                        ref={subjectHighlight}
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-px flex items-center overflow-hidden px-2.5 text-transparent"
-                      >
-                        <span className="shrink-0 whitespace-pre">
-                          {message.slice(0, 50)}
-                          <mark className="bg-warning/25 text-transparent">
-                            {message.slice(50)}
-                          </mark>
-                        </span>
-                      </div>
-                    </div>
-                  </Field>
-                  <Field data-invalid={commitMessage.length > 20_000}>
-                    <FieldLabel htmlFor={`commit-description-${thread.worktree.id}`}>
-                      Extended description
-                    </FieldLabel>
-                    <Textarea
-                      id={`commit-description-${thread.worktree.id}`}
-                      placeholder="Add an optional extended description…"
-                      value={description}
-                      onChange={(event) => {
-                        const input = event.currentTarget
-                        const value = input.value
-                        const wrapped = wrapCommitDescription(value)
-                        if (wrapped !== value) {
-                          const start = wrapCommitDescription(
-                            value.slice(0, input.selectionStart)
-                          ).length
-                          const end = wrapCommitDescription(
-                            value.slice(0, input.selectionEnd)
-                          ).length
-                          input.value = wrapped
-                          input.setSelectionRange(start, end)
-                        }
-                        setDescription(wrapped)
-                      }}
-                      maxLength={20_000}
-                      disabled={busy || suggestion.isPending}
-                      aria-invalid={commitMessage.length > 20_000}
-                      aria-describedby={
-                        commitMessage.length > 20_000
-                          ? `commit-error-${thread.worktree.id}`
-                          : undefined
-                      }
-                      className="h-32 min-h-24 resize-y font-mono"
-                    />
-                    {commitMessage.length > 20_000 ? (
-                      <FieldError id={`commit-error-${thread.worktree.id}`}>
-                        Keep the message and description within 20,000 characters combined.
-                      </FieldError>
-                    ) : null}
-                  </Field>
-                </FieldGroup>
-                {commit.error ? (
-                  <Alert variant="destructive" className="mx-4 mb-4 w-auto">
-                    <AlertDescription>{commit.error.message}</AlertDescription>
-                  </Alert>
-                ) : null}
-                <div className="flex shrink-0 items-center gap-2 border-t p-3">
-                  <span className="text-muted-foreground mr-auto text-xs tabular-nums">
-                    {stagedFiles.length} staged
+              {sync.isPending && sync.variables.operation === "pull" ? <Spinner /> : <ArrowDown />}
+              Pull
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label={remote.data === "" ? "Publish branch" : "Push"}
+              disabled={syncDisabled}
+              onClick={() => {
+                if (remote.data !== undefined)
+                  sync.mutate({ operation: "push", head: data.head, remoteHead: remote.data })
+              }}
+            >
+              {sync.isPending && sync.variables.operation === "push" ? <Spinner /> : <ArrowUp />}
+              {remote.data === "" ? "Publish branch" : "Push"}
+            </Button>
+            <Popover open={composerOpen} onOpenChange={setComposerOpen}>
+              <PopoverTrigger asChild>
+                <Button size="sm" disabled={busy} aria-label="Commit changes">
+                  <GitCommitHorizontal data-icon="inline-start" /> Commit
+                  <span className="tabular-nums" aria-label={`${stagedFiles.length} staged`}>
+                    {stagedFiles.length}
                   </span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Generate commit message"
-                        disabled={busy || suggestion.isPending || !stagedFiles.length}
-                        onClick={() => suggestion.mutate()}
-                      >
-                        {suggestion.isPending ? <Spinner /> : <Sparkles />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Generate commit message</TooltipContent>
-                  </Tooltip>
+                  <ChevronDown data-icon="inline-end" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                sideOffset={8}
+                collisionPadding={12}
+                onOpenAutoFocus={(event) => {
+                  event.preventDefault()
+                  subjectInput.current?.focus()
+                }}
+                aria-labelledby={`commit-title-${thread.worktree.id}`}
+                className="max-h-[min(85svh,var(--radix-popover-content-available-height))] w-[min(35rem,calc(100vw-1.5rem))] gap-0 overflow-hidden p-0"
+              >
+                <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+                  <h2 id={`commit-title-${thread.worktree.id}`} className="font-medium">
+                    Commit changes
+                  </h2>
                   <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Close commit form"
                     onClick={() => setComposerOpen(false)}
                   >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={
-                      busy ||
-                      suggestion.isPending ||
-                      !message.trim() ||
-                      commitMessage.length > 20_000 ||
-                      !data.tree ||
-                      !data.head ||
-                      !stagedFiles.length
-                    }
-                  >
-                    {commit.isPending ? <Spinner /> : <GitCommitHorizontal />} Commit staged
+                    <X />
                   </Button>
                 </div>
-              </form>
-            </PopoverContent>
-          </Popover>
+                <form
+                  className="flex min-h-0 flex-col"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    if (data.tree)
+                      sync.mutate({
+                        operation: "commit",
+                        head: data.head,
+                        tree: data.tree,
+                        message: commitMessage,
+                      })
+                  }}
+                >
+                  <FieldGroup className="gap-4 overflow-y-auto p-4">
+                    {!data.tree || !data.head || !stagedFiles.length ? (
+                      <FieldDescription>
+                        {!data.tree
+                          ? "Resolve conflicts before committing."
+                          : !data.head
+                            ? "This repository has no initial commit."
+                            : "Stage changes to include them in this commit."}
+                      </FieldDescription>
+                    ) : null}
+                    <Field>
+                      <FieldLabel htmlFor={`commit-${thread.worktree.id}`}>
+                        Commit message
+                      </FieldLabel>
+                      <div className="relative font-mono text-base md:text-sm">
+                        <Input
+                          ref={subjectInput}
+                          id={`commit-${thread.worktree.id}`}
+                          placeholder="Summarize your changes"
+                          value={message}
+                          onChange={(event) => setMessage(event.target.value)}
+                          onScroll={(event) => {
+                            if (subjectHighlight.current)
+                              subjectHighlight.current.scrollLeft = event.currentTarget.scrollLeft
+                          }}
+                          required
+                          maxLength={20_000}
+                          disabled={busy || suggestion.isPending}
+                        />
+                        <div
+                          ref={subjectHighlight}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-px flex items-center overflow-hidden px-2.5 text-transparent"
+                        >
+                          <span className="shrink-0 whitespace-pre">
+                            {message.slice(0, 50)}
+                            <mark className="bg-warning/25 text-transparent">
+                              {message.slice(50)}
+                            </mark>
+                          </span>
+                        </div>
+                      </div>
+                    </Field>
+                    <Field data-invalid={commitMessage.length > 20_000}>
+                      <FieldLabel htmlFor={`commit-description-${thread.worktree.id}`}>
+                        Extended description
+                      </FieldLabel>
+                      <Textarea
+                        id={`commit-description-${thread.worktree.id}`}
+                        placeholder="Add an optional extended description…"
+                        value={description}
+                        onChange={(event) => {
+                          const input = event.currentTarget
+                          const value = input.value
+                          const wrapped = wrapCommitDescription(value)
+                          if (wrapped !== value) {
+                            const start = wrapCommitDescription(
+                              value.slice(0, input.selectionStart)
+                            ).length
+                            const end = wrapCommitDescription(
+                              value.slice(0, input.selectionEnd)
+                            ).length
+                            input.value = wrapped
+                            input.setSelectionRange(start, end)
+                          }
+                          setDescription(wrapped)
+                        }}
+                        maxLength={20_000}
+                        disabled={busy || suggestion.isPending}
+                        aria-invalid={commitMessage.length > 20_000}
+                        aria-describedby={
+                          commitMessage.length > 20_000
+                            ? `commit-error-${thread.worktree.id}`
+                            : undefined
+                        }
+                        className="h-32 min-h-24 resize-y font-mono"
+                      />
+                      {commitMessage.length > 20_000 ? (
+                        <FieldError id={`commit-error-${thread.worktree.id}`}>
+                          Keep the message and description within 20,000 characters combined.
+                        </FieldError>
+                      ) : null}
+                    </Field>
+                  </FieldGroup>
+                  {sync.error && sync.variables?.operation === "commit" ? (
+                    <Alert variant="destructive" className="mx-4 mb-4 w-auto">
+                      <AlertDescription>{sync.error.message}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                  <div className="flex shrink-0 items-center gap-2 border-t p-3">
+                    <span className="text-muted-foreground mr-auto text-xs tabular-nums">
+                      {stagedFiles.length} staged
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Generate commit message"
+                          disabled={busy || suggestion.isPending || !stagedFiles.length}
+                          onClick={() => suggestion.mutate()}
+                        >
+                          {suggestion.isPending ? <Spinner /> : <Sparkles />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Generate commit message</TooltipContent>
+                    </Tooltip>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setComposerOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={
+                        busy ||
+                        suggestion.isPending ||
+                        !message.trim() ||
+                        commitMessage.length > 20_000 ||
+                        !data.tree ||
+                        !data.head ||
+                        !stagedFiles.length
+                      }
+                    >
+                      {sync.isPending && sync.variables.operation === "commit" ? (
+                        <Spinner />
+                      ) : (
+                        <GitCommitHorizontal />
+                      )}{" "}
+                      Commit staged
+                    </Button>
+                  </div>
+                </form>
+              </PopoverContent>
+            </Popover>
+          </div>
         ) : null}
       </div>
       <div className="flex min-h-0 flex-1 max-md:flex-col">

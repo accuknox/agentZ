@@ -1,29 +1,17 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
+import { queryOptions, useIsMutating, useMutation, useQuery } from "@tanstack/react-query"
 import {
-  infiniteQueryOptions,
-  queryOptions,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query"
-import {
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronDown,
-  ExternalLink,
   FolderCode,
-  CircleDot,
   Files,
   GitBranch,
-  GitPullRequest,
   Maximize2,
   Minimize2,
   PanelRightClose,
-  Plus,
-  RefreshCw,
   TerminalSquare,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -39,21 +27,10 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Spinner } from "@/components/ui/spinner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Spinner } from "@/components/ui/spinner"
-import { remoteCodingGit, codingGitHubInfo, createCodingPullRequest } from "@/lib/coding/actions"
 import { type CodingThread } from "@/lib/gateway/client"
 import { runWorkspaceGit } from "@/lib/coding/review"
 import { cn } from "@/lib/utils"
@@ -78,7 +55,6 @@ const FilesWorkspace = dynamic(
 const views = [
   { id: "files", label: "Files", icon: Files },
   { id: "changes", label: "Changes", icon: GitBranch },
-  { id: "github", label: "GitHub", icon: GitPullRequest },
   { id: "terminal", label: "Terminal", icon: TerminalSquare },
 ] as const
 
@@ -103,44 +79,21 @@ export function CodingWorkspace({
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
   const [branchOpen, setBranchOpen] = useState(false)
-  const [prOpen, setPrOpen] = useState(false)
-  const [prTitle, setPrTitle] = useState("")
-  const [prBody, setPrBody] = useState("")
-  const [pending, startTransition] = useTransition()
   const tree = thread.worktree
+  const mutationKey = ["coding", "git", workspaceId, tree.id]
+  const pending = useIsMutating({ mutationKey }) > 0
   const status = useQuery(
     queryOptions({
       queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
       queryFn: () => runWorkspaceGit(workspaceId, tree.id, { operation: "status" }),
-      refetchInterval: open && (tab === "changes" || tab === "github") && !pending ? 5000 : false,
+      refetchInterval: open && tab === "changes" && !pending ? 5000 : false,
     })
   )
-  const github = useInfiniteQuery(
-    infiniteQueryOptions({
-      queryKey: [
-        "coding",
-        "github",
-        workspaceId,
-        tree.id,
-        status.data?.branch,
-        tree.agent_name,
-        thread.session_id,
-        actor?.user.id,
-      ],
-      queryFn: ({ pageParam }) =>
-        codingGitHubInfo(workspaceId, tree.agent_name, thread.session_id, pageParam),
-      initialPageParam: 1,
-      getNextPageParam: (lastPage) => lastPage.nextPage,
-      enabled:
-        open && tab === "github" && actor?.user.id !== undefined && status.data !== undefined,
-    })
-  )
-  const githubInfo = github.data?.pages[0]
   const data = status.data
   const { refetch: refreshStatus } = status
 
   useEffect(() => {
-    if (open && (tab === "changes" || tab === "github")) void refreshStatus()
+    if (open && tab === "changes") void refreshStatus()
   }, [open, tab, refreshStatus])
 
   const [handledPreview, setHandledPreview] = useState<typeof pendingPreview>()
@@ -164,18 +117,17 @@ export function CodingWorkspace({
     return () => window.removeEventListener("keydown", onKeyDown, true)
   }, [tab])
 
-  function syncGit(body: Parameters<typeof remoteCodingGit>[3]) {
-    startTransition(async () => {
-      try {
-        await remoteCodingGit(workspaceId, tree.agent_name, thread.session_id, body)
-        await status.refetch()
-        if (tab === "github") await github.refetch()
-        toast.success({ commit: "Committed", pull: "Pulled", push: "Pushed" }[body.operation])
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not update checkout")
-      }
-    })
-  }
+  const checkout = useMutation({
+    mutationKey,
+    mutationFn: (ref: string) =>
+      runWorkspaceGit(workspaceId, tree.id, {
+        operation: "checkout",
+        ref,
+        expected_head: data?.head,
+      }),
+    onError: (error) => toast.error(error.message),
+    onSettled: () => status.refetch(),
+  })
 
   return (
     <>
@@ -208,21 +160,6 @@ export function CodingWorkspace({
             <span className="text-muted-foreground text-xs tabular-nums">
               {data.files.length} {data.files.length === 1 ? "file" : "files"}
             </span>
-          ) : null}
-          {tab === "github" ? (
-            <Button
-              aria-label="Refresh changes"
-              title="Refresh changes"
-              size="icon-sm"
-              variant="ghost"
-              disabled={status.isFetching || pending}
-              onClick={() => {
-                void status.refetch()
-                if (tab === "github") void github.refetch()
-              }}
-            >
-              <RefreshCw className={cn(status.isFetching && "animate-spin")} />
-            </Button>
           ) : null}
           <Button
             className="hidden lg:inline-flex"
@@ -284,214 +221,6 @@ export function CodingWorkspace({
             />
           </div>
         ) : null}
-        {tab === "github" ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {status.isPending ? (
-              <div
-                role="status"
-                className="text-muted-foreground flex items-center justify-center gap-2 p-8 text-sm"
-              >
-                <Spinner /> Loading repository...
-              </div>
-            ) : null}
-            {status.error ? (
-              <div
-                role="alert"
-                className="text-muted-foreground flex flex-col items-center gap-3 p-6 text-center text-sm"
-              >
-                Could not load changes.
-                <Button variant="outline" size="sm" onClick={() => void status.refetch()}>
-                  <RefreshCw /> Retry
-                </Button>
-              </div>
-            ) : null}
-            {tab === "github" && data ? (
-              <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
-                {github.error ? (
-                  <p role="alert" className="text-destructive text-sm">
-                    Could not load GitHub. Check your account connection and repository access.
-                  </p>
-                ) : null}
-                {github.isPending ? (
-                  <p className="text-muted-foreground text-sm">Loading GitHub...</p>
-                ) : null}
-                {github.data && githubInfo && !github.error ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          pending ||
-                          !githubInfo.branchHead ||
-                          data.files.length > 0 ||
-                          githubInfo.branchHead === data.head
-                        }
-                        onClick={() => syncGit({ operation: "pull", head: data.head })}
-                      >
-                        <ArrowDown />
-                        Pull
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={pending || githubInfo.branchHead === data.head}
-                        onClick={() =>
-                          syncGit({
-                            operation: "push",
-                            head: data.head,
-                            remoteHead: githubInfo.branchHead,
-                          })
-                        }
-                      >
-                        <ArrowUp />
-                        {githubInfo.branchHead ? "Push" : "Publish branch"}
-                      </Button>
-                      <Dialog open={prOpen} onOpenChange={setPrOpen}>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={
-                              pending ||
-                              data.branch === githubInfo.defaultBranch ||
-                              githubInfo.branchHead !== data.head
-                            }
-                          >
-                            <GitPullRequest /> New pull request
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>New pull request</DialogTitle>
-                            <DialogDescription className="break-all">
-                              {data.branch} into {githubInfo.defaultBranch}
-                            </DialogDescription>
-                          </DialogHeader>
-                          <form
-                            className="grid gap-3"
-                            onSubmit={(event) => {
-                              event.preventDefault()
-                              const base = githubInfo.defaultBranch
-                              startTransition(async () => {
-                                try {
-                                  const url = await createCodingPullRequest(
-                                    workspaceId,
-                                    tree.agent_name,
-                                    thread.session_id,
-                                    prTitle,
-                                    prBody,
-                                    base
-                                  )
-                                  toast.success("Pull request ready", {
-                                    action: {
-                                      label: "Open",
-                                      onClick: () =>
-                                        window.open(url, "_blank", "noopener,noreferrer"),
-                                    },
-                                  })
-                                  setPrOpen(false)
-                                  await github.refetch()
-                                } catch {
-                                  toast.error(
-                                    "Could not create the pull request. Check repository access and push the branch first."
-                                  )
-                                }
-                              })
-                            }}
-                          >
-                            <Input
-                              disabled={pending}
-                              aria-label="Pull request title"
-                              placeholder="Title"
-                              value={prTitle}
-                              onChange={(event) => setPrTitle(event.target.value)}
-                              maxLength={256}
-                            />
-                            <Textarea
-                              maxLength={65_536}
-                              disabled={pending}
-                              aria-label="Pull request description"
-                              placeholder="Describe your changes"
-                              value={prBody}
-                              onChange={(event) => setPrBody(event.target.value)}
-                              className="min-h-24 rounded-md border p-2 text-sm"
-                            />
-                            <Button
-                              variant="outline"
-                              type="submit"
-                              disabled={
-                                pending ||
-                                !prTitle.trim() ||
-                                data.branch === githubInfo.defaultBranch ||
-                                githubInfo.branchHead !== data.head
-                              }
-                            >
-                              <GitPullRequest />
-                              Create pull request
-                            </Button>
-                          </form>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                    {[
-                      {
-                        label: "Pull requests",
-                        icon: GitPullRequest,
-                        items: github.data.pages.flatMap((page) => page.pulls),
-                        empty: "No open pull requests",
-                      },
-                      {
-                        label: "Issues",
-                        icon: CircleDot,
-                        items: github.data.pages.flatMap((page) => page.issues),
-                        empty: "No open issues",
-                      },
-                    ].map(({ label, icon: Icon, items, empty }) => (
-                      <section key={label}>
-                        <h3 className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-medium">
-                          <Icon className="size-3.5" />
-                          {label}
-                          <span className="ml-auto tabular-nums">{items.length}</span>
-                        </h3>
-                        {items.length ? (
-                          items.map((item) => (
-                            <a
-                              key={item.number}
-                              href={item.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:bg-muted focus-visible:ring-ring group flex items-start gap-2 rounded-md px-2 py-2 text-xs outline-none focus-visible:ring-2"
-                            >
-                              <span className="text-muted-foreground shrink-0 tabular-nums">
-                                #{item.number}
-                              </span>
-                              <span className="min-w-0 flex-1 leading-relaxed">{item.title}</span>
-                              <ExternalLink className="text-muted-foreground mt-0.5 size-3 shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
-                            </a>
-                          ))
-                        ) : (
-                          <p className="text-muted-foreground rounded-md border border-dashed px-3 py-5 text-center text-xs">
-                            {empty}
-                          </p>
-                        )}
-                      </section>
-                    ))}
-                    {github.hasNextPage ? (
-                      <Button
-                        variant="outline"
-                        disabled={github.isFetchingNextPage}
-                        onClick={() => void github.fetchNextPage()}
-                      >
-                        {github.isFetchingNextPage ? <Spinner /> : <Plus />}
-                        Load more pull requests and issues
-                      </Button>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
         <footer className="bg-muted/20 text-muted-foreground flex h-9 shrink-0 items-center gap-2 border-t px-2 text-[11px]">
           {data ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -531,24 +260,7 @@ export function CodingWorkspace({
                             disabled={data.files.length > 0 && branch !== data.branch}
                             onSelect={() => {
                               setBranchOpen(false)
-                              if (branch !== data.branch) {
-                                startTransition(async () => {
-                                  try {
-                                    await runWorkspaceGit(workspaceId, tree.id, {
-                                      operation: "checkout",
-                                      ref: branch,
-                                      expected_head: data.head,
-                                    })
-                                    await status.refetch()
-                                  } catch (error) {
-                                    toast.error(
-                                      error instanceof Error
-                                        ? error.message
-                                        : "Could not switch branch"
-                                    )
-                                  }
-                                })
-                              }
+                              if (branch !== data.branch) checkout.mutate(branch)
                             }}
                           >
                             <GitBranch />

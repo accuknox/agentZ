@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
 import { LegendList } from "@legendapp/list/react"
 import { CodeView, WorkerPoolContext, type CodeViewHandle } from "@pierre/diffs/react"
-import { DEFAULT_THEMES, type CodeViewDiffItem } from "@pierre/diffs"
+import { DEFAULT_THEMES, type CodeViewDiffItem, type CodeViewScrollTarget } from "@pierre/diffs"
 import { WorkerPoolManager } from "@pierre/diffs/worker"
 import { useTheme } from "next-themes"
 import {
@@ -16,6 +16,10 @@ import {
   ChevronDown,
   ChevronRight,
   Columns2,
+  Copy,
+  MoreHorizontal,
+  PanelLeft,
+  Settings2,
   ExternalLink,
   FileCode2,
   GitCommitHorizontal,
@@ -34,9 +38,9 @@ import {
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field"
@@ -53,6 +57,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -83,7 +92,7 @@ type GitChangesProps = {
 }
 
 const comparisons = [
-  { value: "all", label: "All" },
+  { value: "all", label: "All changes" },
   { value: "unstaged", label: "Unstaged" },
   { value: "staged", label: "Staged" },
 ] satisfies { value: CodingGitComparison; label: string }[]
@@ -116,18 +125,21 @@ export function GitChanges({
   const queryClient = useQueryClient()
   const mobile = useIsMobile()
   const [composerOpen, setComposerOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>()
+  const showSidebar = !expanded || (sidebarOpen ?? !mobile)
   const { resolvedTheme } = useTheme()
   const { previewFile } = useFileWorkspace()
   const [comparison, setComparison] = useState<CodingGitComparison>("all")
   const [filter, setFilter] = useState("")
   const [selected, setSelected] = useState<string>()
   const [hunk, setHunk] = useState(0)
-  const [split, setSplit] = useState(true)
+  const [split, setSplit] = useState(false)
   const [wrap, setWrap] = useState(false)
   const [message, setMessage] = useState("")
   const [description, setDescription] = useState("")
   const commitMessage = `${message.trim()}\n\n${description}`.trim()
   const subjectHighlight = useRef<HTMLDivElement>(null)
+  const subjectInput = useRef<HTMLInputElement>(null)
   const [stashPicker, setStashPicker] = useState(false)
   const [stashFilter, setStashFilter] = useState("")
   const [stash, setStash] = useState<CodingGitStash>()
@@ -144,7 +156,7 @@ export function GitChanges({
   const reviewElement = useRef<HTMLDivElement>(null)
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null)
   const lastRevision = useRef<string>(undefined)
-  const pendingReveal = useRef<string>(undefined)
+  const pendingReveal = useRef<CodeViewScrollTarget>(undefined)
   const data = status.data
 
   useEffect(() => {
@@ -160,7 +172,7 @@ export function GitChanges({
       {
         theme: DEFAULT_THEMES,
         langs: ["text"],
-        lineDiffType: "none",
+        lineDiffType: "word",
         maxLineDiffLength: 1000,
         tokenizeMaxLineLength: 1000,
       }
@@ -257,6 +269,7 @@ export function GitChanges({
     onSuccess: () => {
       setMessage("")
       setDescription("")
+      setComposerOpen(false)
       toast.success("Staged changes committed")
     },
     onError: (error) => toast.error(error.message),
@@ -315,33 +328,40 @@ export function GitChanges({
     [parsed, collapsed]
   )
 
-  function reveal(path: string, index = 0) {
+  function reveal(path: string, index?: number) {
     setSelected(path)
-    setHunk(index)
-    if (!expanded || !viewer.current) {
-      pendingReveal.current = path
-      onExpand()
+    setHunk(index ?? 0)
+    if (mobile) setSidebarOpen(false)
+    const file = parsed.find((file) => file.path === path)
+    const hunk = index === undefined ? undefined : file?.diff.hunks[index]
+    const target: CodeViewScrollTarget = hunk
+      ? {
+          type: "line",
+          id: path,
+          lineNumber: hunk.additionCount ? hunk.additionStart : hunk.deletionStart,
+          side: hunk.additionCount ? "additions" : "deletions",
+          align: "start",
+        }
+      : { type: "item", id: path, align: "start" }
+    if (!expanded || !viewer.current || collapsed.has(path)) {
+      pendingReveal.current = target
+      setCollapsed((value) => {
+        if (!value.has(path)) return value
+        const next = new Set(value)
+        next.delete(path)
+        return next
+      })
+      if (!expanded) onExpand()
       return
     }
-    const file = parsed.find((file) => file.path === path)
-    const target = file?.diff.hunks[index]
-    if (target)
-      viewer.current?.scrollTo({
-        type: "line",
-        id: path,
-        lineNumber: target.additionCount ? target.additionStart : target.deletionStart,
-        side: target.additionCount ? "additions" : "deletions",
-        align: "start",
-      })
-    else viewer.current?.scrollTo({ type: "item", id: path, align: "start" })
+    viewer.current.scrollTo(target)
   }
 
   useEffect(() => {
-    const path = pendingReveal.current
-    if (!path || !pool || !review.data || !viewer.current) return
-    viewer.current.scrollTo({ type: "item", id: path, align: "start" })
+    if (!pendingReveal.current || !viewer.current) return
+    viewer.current.scrollTo(pendingReveal.current)
     pendingReveal.current = undefined
-  }, [pool, review.data])
+  }, [pool, items, expanded])
 
   function stage(operation: "stage" | "unstage", paths: string[], hunkIndex?: number) {
     mutation.mutate({
@@ -395,6 +415,379 @@ export function GitChanges({
           </AlertDescription>
         </Alert>
       ) : null}
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b p-2">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={expanded ? "Toggle file sidebar" : "Review changes"}
+          aria-pressed={expanded ? showSidebar : undefined}
+          onClick={() => (expanded ? setSidebarOpen(!showSidebar) : onExpand())}
+        >
+          {expanded ? <PanelLeft /> : <Maximize2 />}
+        </Button>
+        {stash ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <Archive className="text-muted-foreground size-4 shrink-0" />
+            <span className="max-w-48 truncate text-sm" title={stash.message}>
+              {stash.message}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close stash review"
+              onClick={() => setStash(undefined)}
+            >
+              <X />
+            </Button>
+          </div>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                {comparisons.find((item) => item.value === comparison)?.label}
+                <ChevronDown data-icon="inline-end" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Compare changes</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={comparison}>
+                  {comparisons.map((item) => (
+                    <DropdownMenuRadioItem
+                      key={item.value}
+                      value={item.value}
+                      onSelect={() => {
+                        setComparison(item.value)
+                        setSelected(undefined)
+                        setHunk(0)
+                      }}
+                    >
+                      {item.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        <span className="flex-1" />
+        <div className="flex items-center gap-1 max-md:order-1 max-md:basis-full max-md:justify-end">
+          {expanded ? (
+            <>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Previous hunk"
+                disabled={!selectedDiff || (parsed.indexOf(selectedDiff) === 0 && hunk === 0)}
+                onClick={() => {
+                  if (!selectedDiff) return
+                  if (hunk > 0) reveal(selectedDiff.path, hunk - 1)
+                  else {
+                    const previous = parsed[parsed.indexOf(selectedDiff) - 1]
+                    if (previous) reveal(previous.path, Math.max(0, previous.diff.hunks.length - 1))
+                  }
+                }}
+              >
+                <ArrowUp />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Next hunk"
+                disabled={
+                  !selectedDiff ||
+                  (parsed.indexOf(selectedDiff) === parsed.length - 1 &&
+                    hunk + 1 >= selectedDiff.diff.hunks.length)
+                }
+                onClick={() => {
+                  if (!selectedDiff) return
+                  if (hunk + 1 < selectedDiff.diff.hunks.length) reveal(selectedDiff.path, hunk + 1)
+                  else {
+                    const next = parsed[parsed.indexOf(selectedDiff) + 1]
+                    if (next) reveal(next.path)
+                  }
+                }}
+              >
+                <ArrowDown />
+              </Button>
+              {canStageHunk ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy || review.isFetching}
+                  onClick={() => {
+                    if (selectedDiff)
+                      stage(
+                        comparison === "staged" ? "unstage" : "stage",
+                        [selectedDiff.path],
+                        Math.min(hunk, selectedDiff.diff.hunks.length - 1)
+                      )
+                  }}
+                >
+                  {comparison === "staged" ? <Minus /> : <Plus />}
+                  {comparison === "staged" ? "Unstage" : "Stage"} hunk
+                </Button>
+              ) : null}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label="Diff settings">
+                    <Settings2 />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Diff layout</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={split ? "split" : "unified"}>
+                      <DropdownMenuRadioItem value="unified" onSelect={() => setSplit(false)}>
+                        <Rows3 /> Unified
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="split" onSelect={() => setSplit(true)}>
+                        <Columns2 /> Split
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuCheckboxItem checked={wrap} onCheckedChange={setWrap}>
+                      <TextWrap /> Wrap lines
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Refresh comparison"
+                disabled={review.isFetching}
+                onClick={() => void review.refetch()}
+              >
+                {review.isFetching ? <Spinner /> : <RefreshCw />}
+              </Button>
+            </>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Git actions">
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={() => setStashPicker(true)}>
+                  <Archive /> Browse stashes
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={busy || changes.length === 0 || changes.length > 1000}
+                  onSelect={() =>
+                    stage(
+                      "stage",
+                      changes.map((file) => file.path)
+                    )
+                  }
+                >
+                  <Plus /> Stage all changes
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={busy || stagedFiles.length === 0 || stagedFiles.length > 500}
+                  onSelect={() =>
+                    stage(
+                      "unstage",
+                      stagedFiles.flatMap((file) =>
+                        file.previous_path ? [file.path, file.previous_path] : [file.path]
+                      )
+                    )
+                  }
+                >
+                  <Minus /> Unstage all changes
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={busy || data.files.length === 0 || conflicts.length > 0}
+                  onSelect={() => setStashAction("stash_create")}
+                >
+                  <Archive /> Stash changes...
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {!stash ? (
+          <Popover open={composerOpen} onOpenChange={setComposerOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" disabled={busy} aria-label="Commit changes">
+                <GitCommitHorizontal data-icon="inline-start" /> Commit
+                <span className="tabular-nums" aria-label={`${stagedFiles.length} staged`}>
+                  {stagedFiles.length}
+                </span>
+                <ChevronDown data-icon="inline-end" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={8}
+              collisionPadding={12}
+              onOpenAutoFocus={(event) => {
+                event.preventDefault()
+                subjectInput.current?.focus()
+              }}
+              aria-labelledby={`commit-title-${thread.worktree.id}`}
+              className="max-h-[min(85svh,var(--radix-popover-content-available-height))] w-[min(35rem,calc(100vw-1.5rem))] gap-0 overflow-hidden p-0"
+            >
+              <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+                <h2 id={`commit-title-${thread.worktree.id}`} className="font-medium">
+                  Commit changes
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close commit form"
+                  onClick={() => setComposerOpen(false)}
+                >
+                  <X />
+                </Button>
+              </div>
+              <form
+                className="flex min-h-0 flex-col"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  commit.mutate()
+                }}
+              >
+                <FieldGroup className="gap-4 overflow-y-auto p-4">
+                  {!data.tree || !data.head || !stagedFiles.length ? (
+                    <FieldDescription>
+                      {!data.tree
+                        ? "Resolve conflicts before committing."
+                        : !data.head
+                          ? "This repository has no initial commit."
+                          : "Stage changes to include them in this commit."}
+                    </FieldDescription>
+                  ) : null}
+                  <Field>
+                    <FieldLabel htmlFor={`commit-${thread.worktree.id}`}>Commit message</FieldLabel>
+                    <div className="relative font-mono text-base md:text-sm">
+                      <Input
+                        ref={subjectInput}
+                        id={`commit-${thread.worktree.id}`}
+                        placeholder="Summarize your changes"
+                        value={message}
+                        onChange={(event) => setMessage(event.target.value)}
+                        onScroll={(event) => {
+                          if (subjectHighlight.current)
+                            subjectHighlight.current.scrollLeft = event.currentTarget.scrollLeft
+                        }}
+                        required
+                        maxLength={20_000}
+                        disabled={busy || suggestion.isPending}
+                      />
+                      <div
+                        ref={subjectHighlight}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-px flex items-center overflow-hidden px-2.5 text-transparent"
+                      >
+                        <span className="shrink-0 whitespace-pre">
+                          {message.slice(0, 50)}
+                          <mark className="bg-warning/25 text-transparent">
+                            {message.slice(50)}
+                          </mark>
+                        </span>
+                      </div>
+                    </div>
+                  </Field>
+                  <Field data-invalid={commitMessage.length > 20_000}>
+                    <FieldLabel htmlFor={`commit-description-${thread.worktree.id}`}>
+                      Extended description
+                    </FieldLabel>
+                    <Textarea
+                      id={`commit-description-${thread.worktree.id}`}
+                      placeholder="Add an optional extended description…"
+                      value={description}
+                      onChange={(event) => {
+                        const input = event.currentTarget
+                        const value = input.value
+                        const wrapped = wrapCommitDescription(value)
+                        if (wrapped !== value) {
+                          const start = wrapCommitDescription(
+                            value.slice(0, input.selectionStart)
+                          ).length
+                          const end = wrapCommitDescription(
+                            value.slice(0, input.selectionEnd)
+                          ).length
+                          input.value = wrapped
+                          input.setSelectionRange(start, end)
+                        }
+                        setDescription(wrapped)
+                      }}
+                      maxLength={20_000}
+                      disabled={busy || suggestion.isPending}
+                      aria-invalid={commitMessage.length > 20_000}
+                      aria-describedby={
+                        commitMessage.length > 20_000
+                          ? `commit-error-${thread.worktree.id}`
+                          : undefined
+                      }
+                      className="h-32 min-h-24 resize-y font-mono"
+                    />
+                    {commitMessage.length > 20_000 ? (
+                      <FieldError id={`commit-error-${thread.worktree.id}`}>
+                        Keep the message and description within 20,000 characters combined.
+                      </FieldError>
+                    ) : null}
+                  </Field>
+                </FieldGroup>
+                {commit.error ? (
+                  <Alert variant="destructive" className="mx-4 mb-4 w-auto">
+                    <AlertDescription>{commit.error.message}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <div className="flex shrink-0 items-center gap-2 border-t p-3">
+                  <span className="text-muted-foreground mr-auto text-xs tabular-nums">
+                    {stagedFiles.length} staged
+                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Generate commit message"
+                        disabled={busy || suggestion.isPending || !stagedFiles.length}
+                        onClick={() => suggestion.mutate()}
+                      >
+                        {suggestion.isPending ? <Spinner /> : <Sparkles />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Generate commit message</TooltipContent>
+                  </Tooltip>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setComposerOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={
+                      busy ||
+                      suggestion.isPending ||
+                      !message.trim() ||
+                      commitMessage.length > 20_000 ||
+                      !data.tree ||
+                      !data.head ||
+                      !stagedFiles.length
+                    }
+                  >
+                    {commit.isPending ? <Spinner /> : <GitCommitHorizontal />} Commit staged
+                  </Button>
+                </div>
+              </form>
+            </PopoverContent>
+          </Popover>
+        ) : null}
+      </div>
       <div className="flex min-h-0 flex-1 max-md:flex-col">
         <div
           className={cn(
@@ -402,69 +795,11 @@ export function GitChanges({
             expanded
               ? "w-64 shrink-0 border-r max-md:w-full max-md:border-r-0 max-md:border-b"
               : "flex-1",
-            expanded && (composerOpen ? "max-md:h-[min(28rem,65svh)]" : "max-md:h-64")
+            expanded && "max-md:h-56",
+            !showSidebar && "hidden"
           )}
         >
-          <div className="flex items-center gap-1 border-b p-2">
-            <Button variant="ghost" size="sm" className="flex-1 justify-start" onClick={onExpand}>
-              <Maximize2 /> Review changes
-            </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Browse stashes"
-                  onClick={() => setStashPicker(true)}
-                >
-                  <Archive />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Stashes</TooltipContent>
-            </Tooltip>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Git actions">
-                  <ChevronDown />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem
-                    disabled={busy || changes.length === 0 || changes.length > 1000}
-                    onSelect={() =>
-                      stage(
-                        "stage",
-                        changes.map((file) => file.path)
-                      )
-                    }
-                  >
-                    <Plus /> Stage all changes
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={busy || stagedFiles.length === 0 || stagedFiles.length > 500}
-                    onSelect={() =>
-                      stage(
-                        "unstage",
-                        stagedFiles.flatMap((file) =>
-                          file.previous_path ? [file.path, file.previous_path] : [file.path]
-                        )
-                      )
-                    }
-                  >
-                    <Minus /> Unstage all changes
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={busy || data.files.length === 0 || conflicts.length > 0}
-                    onSelect={() => setStashAction("stash_create")}
-                  >
-                    <Archive /> Stash changes...
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="relative m-2">
+          <div className="relative m-3">
             <Search className="text-muted-foreground pointer-events-none absolute top-2 left-2 size-4" />
             <Input
               aria-label="Filter changed files"
@@ -474,26 +809,6 @@ export function GitChanges({
               className="pl-8"
             />
           </div>
-          {!expanded ? (
-            <Tabs
-              value={comparison}
-              className="px-2 pb-2"
-              onValueChange={(value) => {
-                const choice = comparisons.find((item) => item.value === value)
-                if (choice) setComparison(choice.value)
-                setStash(undefined)
-                setHunk(0)
-              }}
-            >
-              <TabsList className="w-full" aria-label="Change list comparison">
-                {comparisons.map((item) => (
-                  <TabsTrigger key={item.value} value={item.value}>
-                    {item.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          ) : null}
           <div className="min-h-0 flex-1">
             {stash ? (
               <LegendList
@@ -521,6 +836,7 @@ export function GitChanges({
             ) : files.length ? (
               <LegendList
                 data={files}
+                extraData={{ selected: selectedDiff?.path, collapsed, expanded, busy, parsed }}
                 keyExtractor={(file) => file.path}
                 estimatedItemSize={32}
                 style={{ height: "100%" }}
@@ -610,144 +926,6 @@ export function GitChanges({
               </Empty>
             )}
           </div>
-          {!stash ? (
-            <Collapsible
-              open={!mobile || !expanded || composerOpen}
-              onOpenChange={setComposerOpen}
-              className="shrink-0 border-t"
-            >
-              {mobile && expanded ? (
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-start rounded-none">
-                    <GitCommitHorizontal /> Commit
-                    <span className="text-muted-foreground ml-auto text-xs">
-                      {stagedFiles.length} staged
-                    </span>
-                    {composerOpen ? <ChevronDown /> : <ChevronRight />}
-                  </Button>
-                </CollapsibleTrigger>
-              ) : null}
-              <CollapsibleContent className="max-md:max-h-[40svh] max-md:overflow-y-auto">
-                <form
-                  className="p-3"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    commit.mutate()
-                  }}
-                >
-                  <FieldGroup className="gap-3">
-                    <Field>
-                      <FieldLabel htmlFor={`commit-${thread.worktree.id}`}>
-                        Commit message
-                      </FieldLabel>
-                      <div className="relative font-mono text-base md:text-sm">
-                        <Input
-                          id={`commit-${thread.worktree.id}`}
-                          placeholder="Summarize your changes"
-                          value={message}
-                          onChange={(event) => setMessage(event.target.value)}
-                          onScroll={(event) => {
-                            if (subjectHighlight.current)
-                              subjectHighlight.current.scrollLeft = event.currentTarget.scrollLeft
-                          }}
-                          required
-                          maxLength={20_000}
-                          disabled={busy || suggestion.isPending}
-                        />
-                        <div
-                          ref={subjectHighlight}
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-px flex items-center overflow-hidden px-2.5 text-transparent"
-                        >
-                          <span className="shrink-0 whitespace-pre">
-                            {message.slice(0, 50)}
-                            <mark className="bg-warning/25 text-transparent">
-                              {message.slice(50)}
-                            </mark>
-                          </span>
-                        </div>
-                      </div>
-                    </Field>
-                    <Field data-invalid={commitMessage.length > 20_000}>
-                      <FieldLabel htmlFor={`commit-description-${thread.worktree.id}`}>
-                        Extended description
-                      </FieldLabel>
-                      <Textarea
-                        id={`commit-description-${thread.worktree.id}`}
-                        placeholder="Add an optional extended description…"
-                        value={description}
-                        onChange={(event) => {
-                          const input = event.currentTarget
-                          const value = input.value
-                          const wrapped = wrapCommitDescription(value)
-                          if (wrapped !== value) {
-                            const start = wrapCommitDescription(
-                              value.slice(0, input.selectionStart)
-                            ).length
-                            const end = wrapCommitDescription(
-                              value.slice(0, input.selectionEnd)
-                            ).length
-                            input.value = wrapped
-                            input.setSelectionRange(start, end)
-                          }
-                          setDescription(wrapped)
-                        }}
-                        maxLength={20_000}
-                        disabled={busy || suggestion.isPending}
-                        aria-invalid={commitMessage.length > 20_000}
-                        aria-describedby={
-                          commitMessage.length > 20_000
-                            ? `commit-error-${thread.worktree.id}`
-                            : undefined
-                        }
-                        className="h-24 max-h-48 min-h-20 resize-y font-mono"
-                      />
-                      {commitMessage.length > 20_000 ? (
-                        <FieldError id={`commit-error-${thread.worktree.id}`}>
-                          Keep the message and description within 20,000 characters combined.
-                        </FieldError>
-                      ) : null}
-                    </Field>
-                  </FieldGroup>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Button
-                      type="submit"
-                      size="sm"
-                      disabled={
-                        busy ||
-                        suggestion.isPending ||
-                        !message.trim() ||
-                        commitMessage.length > 20_000 ||
-                        !data.tree ||
-                        !data.head ||
-                        !stagedFiles.length
-                      }
-                    >
-                      {commit.isPending ? <Spinner /> : <GitCommitHorizontal />} Commit staged
-                    </Button>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Generate commit message"
-                          disabled={busy || suggestion.isPending || !stagedFiles.length}
-                          onClick={() => suggestion.mutate()}
-                        >
-                          {suggestion.isPending ? <Spinner /> : <Sparkles />}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Generate commit message</TooltipContent>
-                    </Tooltip>
-                    <span className="text-muted-foreground ml-auto text-xs tabular-nums">
-                      {stagedFiles.length} staged
-                    </span>
-                  </div>
-                </form>
-              </CollapsibleContent>
-            </Collapsible>
-          ) : null}
         </div>
         {expanded ? (
           <div
@@ -755,132 +933,6 @@ export function GitChanges({
             className="flex min-h-0 min-w-0 flex-1 flex-col"
             aria-label="Git review"
           >
-            <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1">
-              {stash ? (
-                <>
-                  <Archive className="text-muted-foreground mx-1 size-4" />
-                  <span className="min-w-0 flex-1 truncate text-sm" title={stash.message}>
-                    {stash.message}
-                  </span>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Close stash review"
-                    onClick={() => setStash(undefined)}
-                  >
-                    <X />
-                  </Button>
-                </>
-              ) : (
-                <Tabs
-                  value={comparison}
-                  onValueChange={(value) => {
-                    const choice = comparisons.find((item) => item.value === value)
-                    if (choice) setComparison(choice.value)
-                    setHunk(0)
-                  }}
-                >
-                  <TabsList aria-label="Review comparison">
-                    {comparisons.map((item) => (
-                      <TabsTrigger key={item.value} value={item.value}>
-                        {item.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              )}
-              <span className="flex-1" />
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Previous hunk"
-                disabled={!selectedDiff || (parsed.indexOf(selectedDiff) === 0 && hunk === 0)}
-                onClick={() => {
-                  if (!selectedDiff) return
-                  if (hunk > 0) reveal(selectedDiff.path, hunk - 1)
-                  else {
-                    const previous = parsed[parsed.indexOf(selectedDiff) - 1]
-                    if (previous) reveal(previous.path, Math.max(0, previous.diff.hunks.length - 1))
-                  }
-                }}
-              >
-                <ArrowUp />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Next hunk"
-                disabled={
-                  !selectedDiff ||
-                  (parsed.indexOf(selectedDiff) === parsed.length - 1 &&
-                    hunk + 1 >= selectedDiff.diff.hunks.length)
-                }
-                onClick={() => {
-                  if (!selectedDiff) return
-                  if (hunk + 1 < selectedDiff.diff.hunks.length) reveal(selectedDiff.path, hunk + 1)
-                  else {
-                    const next = parsed[parsed.indexOf(selectedDiff) + 1]
-                    if (next) reveal(next.path)
-                  }
-                }}
-              >
-                <ArrowDown />
-              </Button>
-              {canStageHunk ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy || review.isFetching}
-                  onClick={() => {
-                    if (selectedDiff)
-                      stage(
-                        comparison === "staged" ? "unstage" : "stage",
-                        [selectedDiff.path],
-                        Math.min(hunk, selectedDiff.diff.hunks.length - 1)
-                      )
-                  }}
-                >
-                  {comparison === "staged" ? <Minus /> : <Plus />}
-                  {comparison === "staged" ? "Unstage" : "Stage"} hunk
-                </Button>
-              ) : null}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon-sm"
-                    variant={split ? "secondary" : "ghost"}
-                    aria-label="Split diff"
-                    aria-pressed={split}
-                    onClick={() => setSplit(!split)}
-                  >
-                    {split ? <Columns2 /> : <Rows3 />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {split && reviewWidth < 800
-                    ? "Split resumes when the review is wider"
-                    : "Toggle split diff"}
-                </TooltipContent>
-              </Tooltip>
-              <Button
-                size="icon-sm"
-                variant={wrap ? "secondary" : "ghost"}
-                aria-label="Wrap diff lines"
-                aria-pressed={wrap}
-                onClick={() => setWrap(!wrap)}
-              >
-                <TextWrap />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Refresh comparison"
-                disabled={review.isFetching}
-                onClick={() => void review.refetch()}
-              >
-                {review.isFetching ? <Spinner /> : <RefreshCw />}
-              </Button>
-            </div>
             {stash ? (
               <div className="flex items-center gap-2 border-b px-3 py-2">
                 <span className="text-muted-foreground flex-1 text-xs">
@@ -934,7 +986,7 @@ export function GitChanges({
                 <CodeView
                   ref={viewer}
                   items={items}
-                  className="min-h-0 flex-1 overflow-auto"
+                  className="git-review min-h-0 flex-1 overflow-auto px-3"
                   options={{
                     theme: DEFAULT_THEMES,
                     themeType: resolvedTheme === "dark" ? "dark" : "light",
@@ -942,9 +994,12 @@ export function GitChanges({
                     overflow: wrap ? "wrap" : "scroll",
                     tokenizeMaxLength: 10_000,
                     tokenizeMaxLineLength: 1000,
-                    lineDiffType: "none",
+                    lineDiffType: "word",
                     stickyHeaders: true,
-                    hunkSeparators: "simple",
+                    layout: { paddingTop: 12, paddingBottom: 12, gap: 16 },
+                    itemMetrics: { diffHeaderHeight: 44 },
+                    diffIndicators: "classic",
+                    hunkSeparators: "metadata",
                     enableLineSelection: true,
                     onLineClick: (line, context) => {
                       if (context.type !== "diff" || line.type !== "diff-line") return
@@ -964,7 +1019,7 @@ export function GitChanges({
                     },
                   }}
                   renderCustomHeader={(item) => (
-                    <div className="bg-muted/60 flex h-11 items-center gap-2 border-y px-3 text-sm">
+                    <div className="bg-muted flex h-11 items-center gap-2 rounded-t-lg border px-3 text-sm">
                       <Button
                         size="icon-xs"
                         variant="ghost"
@@ -987,6 +1042,19 @@ export function GitChanges({
                       >
                         {item.id}
                       </button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Copy path ${item.id}`}
+                        onClick={() =>
+                          void navigator.clipboard.writeText(item.id).then(
+                            () => toast.success("File path copied"),
+                            () => toast.error("Could not copy file path")
+                          )
+                        }
+                      >
+                        <Copy />
+                      </Button>
                       {item.type === "diff" && !item.fileDiff.hunks.length ? (
                         <span className="text-muted-foreground text-xs">
                           {parsed.find((file) => file.path === item.id)?.binary
@@ -1009,7 +1077,7 @@ export function GitChanges({
                           </span>
                         </span>
                       ) : null}
-                      {!stash ? (
+                      {!stash && item.type === "diff" && item.fileDiff.type !== "deleted" ? (
                         <Button
                           size="icon-xs"
                           variant="ghost"

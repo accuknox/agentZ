@@ -541,3 +541,20 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Pierre inherits these tokens through its shadow root. Keep card decoration
+   out of layout so CodeView's virtualized heights stay accurate. */
+.git-review {
+  --diffs-bg-context-override: var(--background);
+  --diffs-bg-separator-override: color-mix(in oklab, var(--primary) 7%, var(--background));
+  --diffs-fg-number-override: var(--muted-foreground);
+  --diffs-addition-color-override: var(--success);
+  --diffs-deletion-color-override: var(--destructive);
+}
+
+.git-review diffs-container {
+  --diffs-bg: var(--background);
+  --diffs-fg: var(--foreground);
+  border-radius: var(--radius-lg);
+  outline: 1px solid var(--border);
+}

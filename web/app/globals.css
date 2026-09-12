@@ -213,6 +213,16 @@
   }
 }
 
+/* xterm draws its own thumb and injects unlayered theme rules. */
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  border-radius: 3px;
+  background: var(--app-scrollbar-thumb);
+}
+
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider:is(:hover, .active) {
+  background: var(--app-scrollbar-thumb-hover);
+}
+
 @layer components {
   [data-app-sidebar] {
     --sidebar: color-mix(in oklab, var(--primary) 1.5%, oklch(0.9851 0 0));

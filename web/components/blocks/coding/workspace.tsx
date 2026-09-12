@@ -65,6 +65,11 @@ const GitChanges = dynamic(() => import("./git").then((module) => module.GitChan
 
 const CodingTerminal = dynamic(() => import("./terminal").then((module) => module.CodingTerminal), {
   ssr: false,
+  loading: () => (
+    <div role="status" className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
+      <Spinner /> Opening terminal...
+    </div>
+  ),
 })
 const FilesWorkspace = dynamic(
   () => import("../chat/files-workspace").then((module) => module.FilesWorkspace),
@@ -90,8 +95,10 @@ export function CodingWorkspace({
 }) {
   const { data: actor } = authClient.useSession()
   const { pendingPreview } = useFileWorkspace()
-  const [tab, setTab] = useState<View>("changes")
-  const [open, setOpen] = useState(false)
+  const [{ tab, open }, setPanel] = useState<{ tab: View; open: boolean }>({
+    tab: "changes",
+    open: false,
+  })
   const [visited, setVisited] = useState<Set<View>>(new Set())
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
@@ -139,9 +146,8 @@ export function CodingWorkspace({
   const [handledPreview, setHandledPreview] = useState<typeof pendingPreview>()
   if (pendingPreview?.agent === tree.agent_name && pendingPreview !== handledPreview) {
     setHandledPreview(pendingPreview)
-    setTab("files")
+    setPanel({ tab: "files", open: true })
     setVisited((current) => new Set(current).add("files"))
-    setOpen(true)
   }
 
   useEffect(() => {
@@ -151,14 +157,7 @@ export function CodingWorkspace({
         event.preventDefault()
         event.stopPropagation()
         setVisited((current) => new Set(current).add(tab))
-        setOpen((value) => !value)
-      }
-      if (event.key === "`") {
-        event.preventDefault()
-        event.stopPropagation()
-        setTab("terminal")
-        setVisited((current) => new Set(current).add("terminal"))
-        setOpen(true)
+        setPanel((current) => ({ ...current, open: !current.open }))
       }
     }
     window.addEventListener("keydown", onKeyDown, true)
@@ -240,7 +239,7 @@ export function CodingWorkspace({
             title="Close workspace panel"
             size="icon-sm"
             variant="ghost"
-            onClick={() => setOpen(false)}
+            onClick={() => setPanel((current) => ({ ...current, open: false }))}
           >
             <PanelRightClose />
           </Button>
@@ -259,11 +258,17 @@ export function CodingWorkspace({
         {visited.has("terminal") ? (
           <div className={cn("min-h-0 flex-1", tab !== "terminal" && "hidden")}>
             <CodingTerminal
+              key={`${workspaceId}:${tree.agent_name}:${thread.session_id}:${tree.directory}`}
               agentName={tree.agent_name}
               sessionId={thread.session_id}
               directory={tree.directory}
               workspaceId={workspaceId}
               visible={open && tab === "terminal"}
+              onLastTerminalClosed={() => {
+                setPanel((current) =>
+                  current.tab === "terminal" ? { ...current, open: false } : current
+                )
+              }}
             />
           </div>
         ) : null}
@@ -593,11 +598,7 @@ export function CodingWorkspace({
                 <FolderCode />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-sm break-all">
-              {thread.repository} · {tree.shared ? "Shared checkout" : "Worktree"}
-              <br />
-              {tree.directory}
-            </TooltipContent>
+            <TooltipContent side="top">Copy worktree path</TooltipContent>
           </Tooltip>
         </footer>
       </aside>
@@ -615,8 +616,10 @@ export function CodingWorkspace({
                 size="icon"
                 className={cn("relative", open && tab === id && "text-primary")}
                 onClick={() => {
-                  setOpen(tab === id ? !open : true)
-                  setTab(id)
+                  setPanel((current) => ({
+                    tab: id,
+                    open: current.tab === id ? !current.open : true,
+                  }))
                   setVisited((current) => new Set(current).add(id))
                 }}
               >
@@ -628,10 +631,7 @@ export function CodingWorkspace({
                 ) : null}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left">
-              {label}
-              {id === "terminal" ? " · Ctrl+`" : ""}
-            </TooltipContent>
+            <TooltipContent side="left">{label}</TooltipContent>
           </Tooltip>
         ))}
       </nav>

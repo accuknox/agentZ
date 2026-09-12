@@ -54,6 +54,11 @@ async function ProjectsContent({ params, searchParams }: Props) {
       chatPreferences={preference.data}
       workspaceId={scope.workspace.id}
       workspacePath={`/orgs/${orgSlug}/workspaces/${workspaceSlug}`}
+      pageScope={{
+        kind: "workspace",
+        organizationName: scope.scope.organization.name,
+        workspaceName: scope.workspace.name,
+      }}
     />
   )
 }

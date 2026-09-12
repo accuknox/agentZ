@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useCallback, useEffect, useState, useTransition } from "react"
 import { useRouter } from "@bprogress/next/app"
 import Link from "next/link"
+import type { Route } from "next"
 import { useSearchParams } from "next/navigation"
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query"
 import {
-  ArrowUpRight,
   CircleAlert,
   Ellipsis,
   Settings2,
@@ -25,7 +25,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
@@ -64,7 +63,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import {
+  AdministrationPageHeader,
+  AdministrationState,
+  type AdministrationPageScope,
+} from "@/components/administration"
+import { ProjectTable } from "./project-table"
 import { addCodingProject, githubRepositories, startCodingThread } from "@/lib/coding/actions"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type {
@@ -75,6 +79,7 @@ import type {
 } from "@/lib/gateway/client"
 import {
   deleteCodingProject,
+  getCodingProject,
   renameCodingProject,
   runCodingGit,
   suggestCodingText,
@@ -89,6 +94,7 @@ export function Projects({
   chatPreferences,
   workspaceId,
   workspacePath,
+  pageScope,
 }: {
   projects: CodingProject[]
   detail?: CodingProjectDetail
@@ -97,6 +103,7 @@ export function Projects({
   chatPreferences: ChatSessionPreference
   workspaceId: string
   workspacePath: `/orgs/${string}/workspaces/${string}`
+  pageScope: AdministrationPageScope
 }) {
   const { data: actor } = authClient.useSession()
   const router = useRouter()
@@ -107,6 +114,8 @@ export function Projects({
   const [creatingProject, setAdding] = useState(false)
   const adding = creatingProject || search.get("new") === "true"
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [managedProject, setManagedProject] = useState<CodingProject>()
+  const [projectSettings, setProjectSettings] = useState<CodingProjectDetail>()
   const [editingName, setEditingName] = useState("")
   const [dialog, setDialog] = useState<
     { action: "rename" | "delete" } | { action: "remove"; tree: CodingWorktree }
@@ -138,6 +147,8 @@ export function Projects({
   const searching = repositorySearch.trim() !== repositoryQuery || repositories.isPending
   const worktrees = detail?.worktrees.filter((tree) => tree.agent_name === agentName) ?? []
   const project = detail?.project
+  const targetProject = project ?? managedProject
+  const settings = project ? detail : projectSettings
   const draftTarget = `${project?.id}:${agentName}:${search.get("draft")}`
   const [previousTarget, setPreviousTarget] = useState(draftTarget)
   if (previousTarget !== draftTarget) {
@@ -146,77 +157,73 @@ export function Projects({
     setDraftId(crypto.randomUUID())
   }
 
+  const onProjectAction = useCallback(
+    (item: CodingProject, action: "settings" | "rename") => {
+      setManagedProject(item)
+      if (action === "rename") {
+        setEditingName(item.name)
+        setDialog({ action: "rename" })
+        return
+      }
+      startTransition(async () => {
+        try {
+          const result = await getCodingProject({
+            baseUrl: await getGatewayBaseURL(),
+            headers: { "X-AgentZ-Workspace-ID": workspaceId },
+            path: { projectId: item.id },
+          })
+          if (result.error) throw new Error(result.error.message)
+          setProjectSettings(result.data)
+          setSettingsOpen(true)
+        } catch {
+          toast.error("Could not load project settings")
+        }
+      })
+    },
+    [setDialog, setEditingName, setSettingsOpen, startTransition, workspaceId]
+  )
+
   return (
     <main className={cn("flex min-w-0 flex-1 flex-col p-0", !project && "gap-6")}>
       {!project ? (
         <AdministrationPageHeader
           title="Projects"
+          scope={pageScope}
           actions={
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!agentNames.length}
-              onClick={() => setAdding(true)}
-            >
+            <Button disabled={!agentNames.length} onClick={() => setAdding(true)}>
               <Plus data-icon="inline-start" /> New project
             </Button>
           }
         />
       ) : null}
       {!project ? (
-        projects.length ? (
-          <div className="grid gap-3 px-4 pb-6 sm:grid-cols-2 md:px-6 xl:grid-cols-3">
-            {projects.map((item) => (
-              <Link
-                key={item.id}
-                href={`${workspacePath}/projects?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: item.id })}`}
-                className="group focus-visible:ring-ring rounded-xl outline-none focus-visible:ring-2"
-              >
-                <Card className="group-hover:bg-accent/40 h-full transition-colors">
-                  <CardHeader>
-                    <div className="mb-3 flex items-center justify-between">
-                      <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
-                        <FolderGit2 className="size-5" aria-hidden="true" />
-                      </div>
-                      <ArrowUpRight
-                        className="text-muted-foreground group-hover:text-foreground size-4 transition-colors"
-                        aria-hidden="true"
-                      />
-                    </div>
-                    <CardTitle>
-                      <h2 className="truncate">{item.name}</h2>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground truncate text-xs">{item.repository}</p>
-                    <div className="text-muted-foreground mt-3 flex items-center gap-1.5 text-xs">
-                      <GitBranch className="size-3.5" aria-hidden="true" />
-                      <span className="truncate">{item.default_branch}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <AdministrationState
-            kind="welcome"
-            title="No projects yet"
-            description={
-              agentNames.length
-                ? "Connect a GitHub repository to start working with an agent."
-                : "Create an agent or ask someone to share one with you before adding a project."
-            }
-            actions={
-              agentNames.length ? (
-                <Button onClick={() => setAdding(true)}>
-                  <Plus data-icon="inline-start" />
-                  Add your first project
-                </Button>
-              ) : undefined
-            }
-          />
-        )
+        <ProjectTable
+          projects={projects}
+          rowHref={(item) =>
+            `${workspacePath}/projects?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: item.id })}` as Route
+          }
+          pending={pending}
+          onProjectAction={onProjectAction}
+          emptyState={
+            <AdministrationState
+              kind="welcome"
+              title="No projects yet"
+              description={
+                agentNames.length
+                  ? "Connect a GitHub repository to start working with an agent."
+                  : "Create an agent or ask someone to share one with you before adding a project."
+              }
+              actions={
+                agentNames.length ? (
+                  <Button onClick={() => setAdding(true)}>
+                    <Plus data-icon="inline-start" />
+                    Add your first project
+                  </Button>
+                ) : undefined
+              }
+            />
+          }
+        />
       ) : !agentName ? (
         <AdministrationState
           kind="empty"
@@ -403,17 +410,17 @@ export function Projects({
         <DialogContent className="flex flex-col sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Project settings</DialogTitle>
-            <DialogDescription className="break-all">{project?.repository}</DialogDescription>
+            <DialogDescription className="break-all">{targetProject?.repository}</DialogDescription>
           </DialogHeader>
-          {detail ? (
+          {settings ? (
             <>
               <section>
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
                   <GitBranch className="text-primary size-4" aria-hidden="true" />
-                  Checkouts<Badge variant="secondary">{detail.worktrees.length}</Badge>
+                  Checkouts<Badge variant="secondary">{settings.worktrees.length}</Badge>
                 </h3>
                 <div className="flex flex-col gap-2">
-                  {detail.worktrees.map((tree) => (
+                  {settings.worktrees.map((tree) => (
                     <div
                       key={tree.id}
                       className="flex min-w-0 items-center gap-3 rounded-lg border p-3"
@@ -451,7 +458,7 @@ export function Projects({
                       </Button>
                     </div>
                   ))}
-                  {!detail.worktrees.length ? (
+                  {!settings.worktrees.length ? (
                     <Empty className="border">
                       <EmptyHeader>
                         <EmptyTitle>No checkouts yet</EmptyTitle>
@@ -463,7 +470,7 @@ export function Projects({
                   ) : null}
                 </div>
               </section>
-              {detail.worktrees.length ? (
+              {settings.worktrees.length ? (
                 <p className="text-muted-foreground text-xs">
                   Remove all checkouts before deleting this project.
                 </p>
@@ -471,7 +478,7 @@ export function Projects({
               <DialogFooter>
                 <Button
                   variant="ghost"
-                  disabled={pending || detail.worktrees.length > 0}
+                  disabled={pending || settings.worktrees.length > 0}
                   onClick={() => {
                     setSettingsOpen(false)
                     setDialog({ action: "delete" })
@@ -698,7 +705,7 @@ export function Projects({
           <form
             onSubmit={(event) => {
               event.preventDefault()
-              if (!dialog || !project) return
+              if (!dialog || !targetProject) return
               startTransition(async () => {
                 try {
                   const options = {
@@ -717,13 +724,16 @@ export function Projects({
                       dialog.action === "rename"
                         ? await renameCodingProject({
                             ...options,
-                            path: { projectId: project.id },
+                            path: { projectId: targetProject.id },
                             body: { name: editingName.trim() },
                           })
-                        : await deleteCodingProject({ ...options, path: { projectId: project.id } })
+                        : await deleteCodingProject({
+                            ...options,
+                            path: { projectId: targetProject.id },
+                          })
                     if (result.error) throw new Error(result.error.message)
                   }
-                  if (dialog.action === "delete") {
+                  if (dialog.action === "delete" && project) {
                     router.replace(`${workspacePath}/projects`)
                   } else {
                     router.refresh()

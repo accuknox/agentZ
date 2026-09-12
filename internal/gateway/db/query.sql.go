@@ -879,9 +879,15 @@ func (q *Queries) GatewayDeleteChatSession(ctx context.Context, arg GatewayDelet
 }
 
 const gatewayDeleteCodingConversations = `-- name: GatewayDeleteCodingConversations :exec
+WITH changed AS (
 DELETE FROM chat_sessions
 WHERE chat_sessions.workspace_id = $1 AND chat_sessions.agent_name = $2
 AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE worktree_id = $3)
+RETURNING chat_sessions.workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id)
+FROM changed
+GROUP BY workspace_id
 `
 
 type GatewayDeleteCodingConversationsParams struct {

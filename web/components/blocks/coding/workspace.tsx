@@ -147,6 +147,11 @@ export function CodingWorkspace({
   )
   const githubInfo = github.data?.pages[0]
   const data = status.data
+  const { refetch: refreshStatus } = status
+
+  useEffect(() => {
+    if (open && (tab === "changes" || tab === "github")) void refreshStatus()
+  }, [open, tab, refreshStatus])
 
   const [handledPreview, setHandledPreview] = useState<typeof pendingPreview>()
   if (pendingPreview?.agent === tree.agent_name && pendingPreview !== handledPreview) {

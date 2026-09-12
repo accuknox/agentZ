@@ -209,6 +209,9 @@ export function GitChanges({
   }, [data, stash, queryClient, queries.review.queryKey])
 
   const stashes = useQuery(queries.stashes)
+  const filteredStashes = stashes.data?.filter((item) =>
+    item.message.toLowerCase().includes(stashFilter.toLowerCase())
+  )
 
   const mutation = useMutation({
     mutationFn: (body: CodingGitRequest) => runWorkspaceGit(workspaceId, thread.worktree.id, body),
@@ -360,6 +363,16 @@ export function GitChanges({
           </EmptyTitle>
           <EmptyDescription>{status.error?.message}</EmptyDescription>
         </EmptyHeader>
+        {status.error ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={status.isFetching}
+            onClick={() => void status.refetch()}
+          >
+            <RefreshCw data-icon="inline-start" /> Retry
+          </Button>
+        ) : null}
       </Empty>
     )
 
@@ -904,6 +917,16 @@ export function GitChanges({
               <Alert variant="destructive">
                 <AlertTitle>Could not load comparison</AlertTitle>
                 <AlertDescription>{review.error?.message ?? workerError}</AlertDescription>
+                {review.error ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={review.isFetching}
+                    onClick={() => void review.refetch()}
+                  >
+                    <RefreshCw data-icon="inline-start" /> Retry
+                  </Button>
+                ) : null}
               </Alert>
             ) : null}
             {pool && parsed.length ? (
@@ -1005,7 +1028,7 @@ export function GitChanges({
                   )}
                 />
               </WorkerPoolContext.Provider>
-            ) : (
+            ) : !review.error && !workerError ? (
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
@@ -1023,12 +1046,12 @@ export function GitChanges({
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
-            )}
+            ) : null}
           </div>
         ) : null}
       </div>
       <Dialog open={stashPicker} onOpenChange={setStashPicker}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Stashes</DialogTitle>
             <DialogDescription>
@@ -1051,12 +1074,10 @@ export function GitChanges({
           ) : null}
           {stashes.isPending ? (
             <Spinner />
-          ) : stashes.data?.length ? (
-            <div className="h-80">
+          ) : filteredStashes?.length ? (
+            <div className="h-80 min-w-0">
               <LegendList
-                data={stashes.data.filter((item) =>
-                  item.message.toLowerCase().includes(stashFilter.toLowerCase())
-                )}
+                data={filteredStashes}
                 keyExtractor={(stash) => stash.oid}
                 estimatedItemSize={64}
                 style={{ height: "100%" }}
@@ -1086,8 +1107,12 @@ export function GitChanges({
           ) : !stashes.error ? (
             <Empty>
               <EmptyHeader>
-                <EmptyTitle>No saved changes</EmptyTitle>
-                <EmptyDescription>Stash your changes to return to them later.</EmptyDescription>
+                <EmptyTitle>{stashFilter ? "No matching stashes" : "No saved changes"}</EmptyTitle>
+                <EmptyDescription>
+                  {stashFilter
+                    ? "Try another search or clear the filter."
+                    : "Stash your changes to return to them later."}
+                </EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : null}

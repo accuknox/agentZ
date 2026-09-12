@@ -2293,9 +2293,15 @@ VALUES (@id, @workspace_id, @project_id, @agent_name, @directory, @branch, true)
 ON CONFLICT (workspace_id, agent_name, directory) DO NOTHING;
 
 -- name: GatewayDeleteCodingConversations :exec
+WITH changed AS (
 DELETE FROM chat_sessions
 WHERE chat_sessions.workspace_id = @workspace_id AND chat_sessions.agent_name = @agent_name
-AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE worktree_id = @worktree_id);
+AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE worktree_id = @worktree_id)
+RETURNING chat_sessions.workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id)
+FROM changed
+GROUP BY workspace_id;
 
 -- name: GatewayDeletingCodingWorktree :exec
 UPDATE coding_worktrees SET deleting = @deleting WHERE id = @id;

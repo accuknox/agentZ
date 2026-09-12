@@ -276,12 +276,7 @@ export function Projects({
           headerActions={
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="ml-auto"
-                  aria-label="Project options"
-                >
+                <Button variant="ghost" size="icon-sm" aria-label="Project options">
                   <Ellipsis />
                 </Button>
               </DropdownMenuTrigger>
@@ -405,10 +400,10 @@ export function Projects({
         />
       )}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="flex flex-col sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Project settings</DialogTitle>
-            <DialogDescription>{project?.repository}</DialogDescription>
+            <DialogDescription className="break-all">{project?.repository}</DialogDescription>
           </DialogHeader>
           {detail ? (
             <>
@@ -421,31 +416,38 @@ export function Projects({
                   {detail.worktrees.map((tree) => (
                     <div
                       key={tree.id}
-                      className="flex items-center justify-between gap-4 rounded-lg border p-3"
+                      className="flex min-w-0 items-center gap-3 rounded-lg border p-3"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm">
-                          {tree.branch}{" "}
-                          <span className="text-muted-foreground">· {tree.agent_name}</span>
+                        <p className="truncate text-sm font-medium" title={tree.branch}>
+                          {tree.branch}
                         </p>
-                        <p className="text-muted-foreground mt-1 truncate font-mono text-xs">
+                        <p className="text-muted-foreground mt-1 flex items-center gap-2 text-xs">
+                          <span className="truncate">{tree.agent_name}</span>
+                          <Badge variant={tree.ready ? "successPlain" : "plain"}>
+                            {tree.ready ? "Ready" : "Preparing"}
+                          </Badge>
+                        </p>
+                        <p
+                          className="text-muted-foreground mt-1 truncate font-mono text-xs"
+                          title={tree.directory}
+                        >
                           {tree.directory}
                         </p>
                       </div>
-                      <Badge variant={tree.ready ? "success" : "pending"}>
-                        {tree.ready ? "Ready" : "Preparing"}
-                      </Badge>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon-sm"
+                        className="shrink-0"
+                        aria-label={`Remove checkout ${tree.branch}`}
+                        title="Remove checkout"
                         disabled={pending}
                         onClick={() => {
                           setSettingsOpen(false)
                           setDialog({ action: "remove", tree })
                         }}
                       >
-                        <Trash2 data-icon="inline-start" />
-                        Remove
+                        <Trash2 />
                       </Button>
                     </div>
                   ))}
@@ -461,23 +463,24 @@ export function Projects({
                   ) : null}
                 </div>
               </section>
-              <Button
-                className="mt-8"
-                variant="ghost"
-                disabled={pending || detail.worktrees.length > 0}
-                onClick={() => {
-                  setSettingsOpen(false)
-                  setDialog({ action: "delete" })
-                }}
-              >
-                <Trash2 data-icon="inline-start" />
-                Delete project
-              </Button>
               {detail.worktrees.length ? (
-                <p className="text-muted-foreground mt-2 text-xs">
+                <p className="text-muted-foreground text-xs">
                   Remove all checkouts before deleting this project.
                 </p>
               ) : null}
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  disabled={pending || detail.worktrees.length > 0}
+                  onClick={() => {
+                    setSettingsOpen(false)
+                    setDialog({ action: "delete" })
+                  }}
+                >
+                  <Trash2 data-icon="inline-start" />
+                  Delete project
+                </Button>
+              </DialogFooter>
             </>
           ) : null}
         </DialogContent>
@@ -516,7 +519,6 @@ export function Projects({
                   router.push(
                     `${workspacePath}/projects?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: created.id })}`
                   )
-                  router.refresh()
                 } catch {
                   toast.error(
                     "Could not create the project. Check your GitHub connection and repository access."
@@ -721,12 +723,15 @@ export function Projects({
                         : await deleteCodingProject({ ...options, path: { projectId: project.id } })
                     if (result.error) throw new Error(result.error.message)
                   }
-                  if (dialog.action === "delete") router.replace(`${workspacePath}/projects`)
+                  if (dialog.action === "delete") {
+                    router.replace(`${workspacePath}/projects`)
+                  } else {
+                    router.refresh()
+                  }
                   if (dialog.action === "remove" && dialog.tree.id === checkout) {
                     setCheckout("new")
                     setDraftId(crypto.randomUUID())
                   }
-                  router.refresh()
                   setDialog(undefined)
                 } catch (error) {
                   toast.error(error instanceof Error ? error.message : "Could not update project")

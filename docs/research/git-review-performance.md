@@ -1,4 +1,4 @@
-# Git review performance and sandbox compatibility
+# Git review performance
 
 Measured 2026-09-11 against `374473e` on `feat/coding-workspace`.
 
@@ -74,7 +74,8 @@ parsing and rendering. Reload clears the query cache; HTTP caches remain warm.
 
 Ten baseline runs followed by ten changed-runtime runs used the same fixture and
 frontend build. Unlike the Go runs, browser order was sequential, not interleaved.
-The gateway also gained the compatibility guard between these browser runs.
+The gateway also gained a temporary compatibility guard between these browser
+runs. That guard has since been reverted; these measurements predate the revert.
 
 - Before: median 4855.9 ms; samples 5177.0, 4735.6, 4743.2, 5005.3, 5130.4, 4756.1, 4887.3, 4883.0, 4828.8, 4762.9 ms.
 - After: median 339.4 ms; samples 336.3, 311.7, 312.0, 352.3, 269.3, 369.9, 380.7, 325.3, 342.4, 366.6 ms.
@@ -84,38 +85,6 @@ observed: 58–68 ms in two baseline runs and 51–61 ms in five changed runs.
 The latency improvement does not mean all main-thread tasks stay below 50 ms.
 Heap samples varied with GC timing and excluded worker heaps; no browser-memory
 improvement or leak conclusion is drawn from them.
-
-## Screenshot bug
-
-The old sandbox filesystem returned `files`, `diff`, and `staged_diff`, without
-`patches` or `revision`. The gateway decoded this into the current generated
-result with an empty revision and absent patches. The browser showed a modified
-file beside "No changes in this comparison". Staging sent `revision: ""` and
-received HTTP 422: field `revision` did not match `^[a-f0-9]{64}$`.
-
-This was reproduced against the old service on the existing sandbox, then in
-the authenticated browser. The gateway now rejects responses missing the
-required review revision with an explicit instruction to update the agent image
-and restart the sandbox. Worktree removal remains exempt because successful
-removal has no repository revision. No legacy response normalizer or generated
-code edits were introduced.
-
-The regression test failed before the fix with "status accepted an incompatible
-sandbox: <nil>" and passes after it. Against the old service, the browser now
-shows the update instruction. Against the updated service, all patches render
-and checkbox stage/unstage round-trips were verified against the actual index.
-
-Deploy the gateway and agent image from the same revision, and roll existing
-sandboxes to that image. Restarting only the gateway or web process cannot update
-a filesystem sidecar embedded in an older image. This run used the Coding E2E checkout, not the screenshot's checkout. An image
-rollout for that separate environment is not claimed here.
-
-The local Coding E2E Agent resource was rolled onto
-`agentz-coding-e2e:git-review-20260911`, built from its existing image with the
-updated AgentZ binary. Its normal filesystem sidecar on port 4097 now serves the
-current protocol. After the rollout, a temporary Makefile edit rendered in the
-production browser and its checkbox staged and unstaged the actual file. The
-original Makefile, HEAD, clean index/worktree and stash list were restored.
 
 ## Final regression checks
 

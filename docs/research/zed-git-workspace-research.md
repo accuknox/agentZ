@@ -988,5 +988,5 @@ branch-history comparisons, review comments, AI review, a conflict-resolution
 editor, arbitrary selected-line staging, or omitted-context hydration. Omitted
 context remains a labeled gap; it is not presented as expandable content.
 
-Measured optimization and the sandbox version-mismatch fix are recorded in
-[Git review performance and sandbox compatibility](git-review-performance.md).
+Measured optimization is recorded in
+[Git review performance](git-review-performance.md).
